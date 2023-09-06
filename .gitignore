@@ -1,0 +1,8 @@
+﻿.cache
+build
+.build
+bin
+lib
+*.vim
+.clangd
+*.rdbg
