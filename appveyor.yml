@@ -1,9 +1,31 @@
-version: 0.0.0.{build}
-image: Visual Studio 2019
-configuration: Release
-platform: x64
-clone_folder: c:\projects\smol
+version: ldk-{build}-{branch}
+skip_branch_with_pr: true
+max_jobs: 2
+image: Previous Visual Studio 2017
+shallow_clone: true
+clone_folder: c:\projects\ldk
 init:
-- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+- cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
+environment:
+  VERSION: ldk-v1a.0
 build_script:
-- cmd: cmake -S. -B..\build -GNinja -DCMAKE_BUILD_TYPE=Release && cmake --build ..\build
+- cmd: ''
+artifacts:
+- path: /include
+  name: sdk
+- path: /bin/
+  name: sdk
+- path: /lib
+  name: sdk
+- path: README.md
+  name: readme
+- path: ldk.ico
+  name: icon
+deploy:
+- provider: GitHub
+  tag: ldk-v0.1a
+  description: Automated nightly build
+  auth_token:
+    secure: 1B78jwRfQb9JPz83VIas8ISvQPrc09h9xkfU/frT95JgH4EK+s+I7RM/1rrlum2R
+  prerelease: true
+  force_update: true
