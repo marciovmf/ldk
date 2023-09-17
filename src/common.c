@@ -116,7 +116,7 @@ size_t ldkPathCreate(LDKPath* outPath, const char* path)
 
   strncpy(outPath->path, path, totalLen);
   outPath->path[totalLen] = 0;
-  outPath->len = totalLen;
+  outPath->length = totalLen;
   return 0;
 }
 
@@ -127,10 +127,10 @@ void ldkPathCopy(const LDKPath* path, LDKPath* outPath)
 
 size_t ldkPathLength(const LDKPath* path)
 {
-  return path->len;
+  return path->length;
 }
 
-LDKSubStr ldkPathFileNameGet(const char* path)
+LDKSubStr ldkPathFileNameGetSubstring(const char* path)
 {
   LDKSubStr result;
   result.ptr = NULL;
@@ -138,7 +138,7 @@ LDKSubStr ldkPathFileNameGet(const char* path)
 
   if (path)
   {
-    const char* file = strrchr(path, '/');
+    const char* file = strrchr(path, LDK_PATH_SEPARATOR);
     if (file)
     {
       result.ptr = (char*)(file + 1);
@@ -154,7 +154,7 @@ LDKSubStr ldkPathFileNameGet(const char* path)
   return result;
 }
 
-LDKSubStr ldkPathFileExtentionGet(const char* path)
+LDKSubStr ldkPathFileExtentionGetSubstring(const char* path)
 {
   LDKSubStr result;
   result.ptr = NULL;
@@ -171,6 +171,32 @@ LDKSubStr ldkPathFileExtentionGet(const char* path)
   }
 
   return result;
+}
+
+size_t ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize)
+{
+  LDKSubStr substr = ldkPathFileNameGetSubstring(path);
+  if(substr.length <= 0 || substr.length >= bufferSize)
+  {
+    return substr.length;
+  }
+
+  strncpy(outBuffer, substr.ptr, substr.length);
+  outBuffer[substr.length] = 0;
+  return substr.length;
+}
+
+size_t ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize)
+{
+  LDKSubStr substr = ldkPathFileExtentionGetSubstring(path);
+  if(substr.length <= 0 || substr.length >= bufferSize)
+  {
+    return substr.length;
+  }
+
+  strncpy(outBuffer, substr.ptr, substr.length);
+  outBuffer[substr.length] = 0;
+  return substr.length;
 }
 
 size_t ldkPathAppend(LDKPath* path, const char* newPart)
@@ -195,7 +221,7 @@ bool ldkPathIsAbsolute(LDKPath* path)
 {
 #ifdef LDK_OS_WINDOWS
   char* p = path->path;
-  if (path->len >= 3)
+  if (path->length >= 3)
     return (isalpha(p[0]) && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) || (p[0] == '\\' && p[1] == '\\');
   else
     return (isalpha(p[0]) && p[1] == ':') || (p[0] == '\\' && p[1] == '\\');
@@ -209,4 +235,14 @@ bool ldkPathIsRelative(LDKPath* path)
   return ! ldkPathIsAbsolute(path);
 }
 
+bool ldkPathRemoveFileName(LDKPath* path)
+{
+  LDKSubStr substr = ldkPathFileNameGetSubstring(path->path);
+  bool changed = substr.ptr != 0;
+  if (changed)
+  {
+    substr.ptr = 0;
+  }
+  return changed;
+}
 

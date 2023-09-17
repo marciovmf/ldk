@@ -206,6 +206,7 @@ typedef struct
   int32 a;
 } LDKRGBA;
 
+
 //
 // Logging
 //
@@ -239,18 +240,32 @@ LDK_API size_t ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, .
 typedef struct
 {
   char path[LDK_PATH_MAX_LENGTH];
-  size_t len;
+  size_t length;
 } LDKPath;
 
-LDK_API size_t    ldk_path_create(LDKPath* outPath, const char* path); //  Returns 0 on success or the necessary buffer size if the path buffer is not big enough
+#ifndef path
+#define path(str) ldkPathCreate((str))
+#endif
+
+LDK_API size_t    ldkPathCreate(LDKPath* outPath, const char* path);  // Returns 0 on success or the necessary buffer size if the path buffer is not big enough
 LDK_API void      ldkPathCopy(const LDKPath* path, LDKPath* outPath);
 LDK_API size_t    ldkPathLength(const LDKPath* path);
-LDK_API LDKSubStr ldkPathFile_name_get(const char* path);        // Returns the file name portion of the path as a substring
-LDK_API LDKSubStr ldkPathFile_extention_get(const char* path);   // Returns the file extension portion of the path as a substring
-LDK_API size_t    ldkPathAppend(LDKPath* path, const char* newPart); // Appends to the path; Returns 0 if success or the necessary buffer size if the path buffer is not big enough
+LDK_API LDKSubStr ldkPathFileNameGetSubstring(const char* path);
+LDK_API LDKSubStr ldkPathFileExtentionGetSubstring(const char* path);
+
+LDK_API size_t ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize);
+LDK_API size_t ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize);
+
+LDK_API size_t    ldkPathAppend(LDKPath* path, const char* newPart);  // Appends to the path; Returns 0 if success or the necessary buffer size if the path buffer is not big enough
 LDK_API bool      ldkPathIsAbsolute(LDKPath* path);
 LDK_API bool      ldkPathIsRelative(LDKPath* path);
+LDK_API bool      ldkPathRemoveFileName(LDKPath* path);       
 
+#ifdef LDK_OS_WINDOWS
+#define LDK_PATH_SEPARATOR '\\'
+#else
+#define LDK_PATH_SEPARATOR '/'
+#endif
 
 //
 // Events

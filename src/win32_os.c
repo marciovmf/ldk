@@ -825,7 +825,17 @@ size_t ldkOsExecutablePathGet(LDKPath* ldkPath)
     end--;
   }
 
-  ldkPath->len = len;
+  ldkPath->length = len;
+  return len;
+}
+
+
+size_t ldkOsExecutablePathFileNameGet(LDKPath* ldkPath)
+{
+  size_t len = GetModuleFileNameA(NULL, (void*) &ldkPath->path, LDK_PATH_MAX_LENGTH);
+  if(len > 0 && len < LDK_PATH_MAX_LENGTH)
+    ldkPath->length = len;
+
   return len;
 }
 

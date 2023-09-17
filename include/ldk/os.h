@@ -117,6 +117,7 @@ extern "C" {
   // Misc
   //
   LDK_API size_t ldkOsExecutablePathGet(LDKPath* ldkPath);
+  LDK_API size_t ldkOsExecutablePathFileNameGet(LDKPath* ldkPath);
 
   //
   // Mouse

@@ -180,10 +180,37 @@ bool mixedModeApplication()
   return 0;
 }
 
+
+int testPathFunctions()
+{
+  LDKPath path;
+  ldkOsExecutablePathFileNameGet(&path);
+  ldkLogInfo("Exectuable name: %s", path.path);
+  ldkOsExecutablePathGet(&path);
+  ldkLogInfo("Exectuable path : %s", path.path);
+
+
+  ldkOsExecutablePathFileNameGet(&path);
+  LDKSubStr fileNameSubstr = ldkPathFileNameGetSubstring(path.path);
+  ldkLogInfo("Exectuable path (substring) : %.*s", fileNameSubstr.length, fileNameSubstr.ptr);
+  LDKSubStr fileExtentionSubstr = ldkPathFileExtentionGetSubstring(path.path);
+  ldkLogInfo("Exectuable extention (substring) : %.*s", fileExtentionSubstr.length, fileExtentionSubstr.ptr);
+
+  LDKSmallStr smallStr;
+
+  ldkPathFileNameGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LEN);
+  ldkLogInfo("Exectuable path (external buffer) : %s", smallStr.str);
+  ldkPathFileExtentionGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LEN);
+  ldkLogInfo("Exectuable extention (external buffer) : %s", smallStr.str);
+
+  return 0;
+}
+
 int main()
 {
   //return pureOsApplication();
-  return pureEngineApplication();
+  //return pureEngineApplication();
   //return mixedModeApplication();
+  return testPathFunctions();
 }
 
