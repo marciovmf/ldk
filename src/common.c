@@ -1,6 +1,4 @@
-
-#include "../include/ldk/common.h"
-
+#include "ldk/common.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -49,7 +47,7 @@ LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const
 }
 
 //
-// Sting
+// String
 //
 
 bool ldkStringEndsWith(const char* str, const char* suffix)
@@ -71,13 +69,13 @@ bool ldkStringStartsWith(const char* str, const char* prefix)
 size_t ldkSmallString(LDKSmallStr* smallString, const char* str)
 {
   size_t length = strlen(str);
-  if (length >= LDK_SMALL_STRING_MAX_LEN)
+  if (length >= LDK_SMALL_STRING_MAX_LENGTH)
   {
-    ldkLogError("The string length (%d) exceeds the maximum size of a LDKSmallString (%d)", length, LDK_SMALL_STRING_MAX_LEN);
+    ldkLogError("The string length (%d) exceeds the maximum size of a LDKSmallString (%d)", length, LDK_SMALL_STRING_MAX_LENGTH);
     return length;
   }
 
-  strncpy((char *) &smallString->str, str, LDK_SMALL_STRING_MAX_LEN - 1);
+  strncpy((char *) &smallString->str, str, LDK_SMALL_STRING_MAX_LENGTH - 1);
   return 0;
 }
 
@@ -88,47 +86,33 @@ size_t ldkSmallStringLength(LDKSmallStr* smallString)
 
 void ldkSmallStringClear(LDKSmallStr* smallString)
 {
-  memset(smallString->str, 0, LDK_SMALL_STRING_MAX_LEN * sizeof(char));
+  memset(smallString->str, 0, LDK_SMALL_STRING_MAX_LENGTH * sizeof(char));
 }
 
 size_t ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...)
 {
   va_list argList;
   va_start(argList, fmt);
-  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LEN, fmt, argList);
+  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LENGTH, fmt, argList);
   va_end(argList);
 
-  bool success = smallString->length > 0 && smallString->length < LDK_SMALL_STRING_MAX_LEN;
+  bool success = smallString->length > 0 && smallString->length < LDK_SMALL_STRING_MAX_LENGTH;
   return success;
+}
+
+size_t ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString)
+{
+  if (substring->length >= (LDK_SMALL_STRING_MAX_LENGTH - 1))
+    return substring->length;
+
+  strncpy((char*) &outSmallString->str, substring->ptr, substring->length);
+  outSmallString->str[substring->length] = 0;
+  return 0;
 }
 
 //
 // Path
 //
-
-size_t ldkPathCreate(LDKPath* outPath, const char* path)
-{
-  size_t totalLen = strlen(path);
-
-  // Buffer too small? return the necessary size
-  if (totalLen >= LDK_PATH_MAX_LENGTH)
-    return totalLen;
-
-  strncpy(outPath->path, path, totalLen);
-  outPath->path[totalLen] = 0;
-  outPath->length = totalLen;
-  return 0;
-}
-
-void ldkPathCopy(const LDKPath* path, LDKPath* outPath)
-{
-  memcpy((void*) outPath->path, path->path, sizeof(LDKPath));
-}
-
-size_t ldkPathLength(const LDKPath* path)
-{
-  return path->length;
-}
 
 LDKSubStr ldkPathFileNameGetSubstring(const char* path)
 {
@@ -199,50 +183,22 @@ size_t ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferS
   return substr.length;
 }
 
-size_t ldkPathAppend(LDKPath* path, const char* newPart)
-{
-  if (!path || !newPart)
-  {
-    return 0;
-  }
-
-  size_t currentLength = strlen(path->path);
-  size_t newPartLength = strlen(newPart);
-
-  // Buffer too small? return the necessary size
-  if (currentLength + newPartLength >= LDK_PATH_MAX_LENGTH)
-    return currentLength + newPartLength + 1; // +1 for the null terminator
-
-  strcat(path->path, newPart);
-  return 0; // Success
-}
-
-bool ldkPathIsAbsolute(LDKPath* path)
+bool ldkPathIsAbsolute(const char* path)
 {
 #ifdef LDK_OS_WINDOWS
-  char* p = path->path;
-  if (path->length >= 3)
+  const char* p = path;
+  size_t length = strlen(path);
+  if (length >= 3)
     return (isalpha(p[0]) && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) || (p[0] == '\\' && p[1] == '\\');
   else
     return (isalpha(p[0]) && p[1] == ':') || (p[0] == '\\' && p[1] == '\\');
 #else
-  return path->path[0] == '/';
+  return path[0] == '/';
 #endif
 }
 
-bool ldkPathIsRelative(LDKPath* path)
+bool ldkPathIsRelative(const char* path)
 {
   return ! ldkPathIsAbsolute(path);
-}
-
-bool ldkPathRemoveFileName(LDKPath* path)
-{
-  LDKSubStr substr = ldkPathFileNameGetSubstring(path->path);
-  bool changed = substr.ptr != 0;
-  if (changed)
-  {
-    substr.ptr = 0;
-  }
-  return changed;
 }
 

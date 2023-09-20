@@ -14,10 +14,12 @@
 #include "common.h"
 #include "os.h"
 #include "gl.h"
+#include "maths.h"
 #include "engine.h"
 #include "eventqueue.h"
 
 /* Modules */
 #include "module/graphics.h"
+#include "module/render.h"
 
 #endif //LDK_H

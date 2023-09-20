@@ -1,13 +1,12 @@
-
-#include "../../include/ldk/module/graphics.h"
-#include "../../include/ldk/gl.h"
-#include "../../include/ldk/os.h"
+#include "ldk/module/graphics.h"
+#include "ldk/gl.h"
+#include "ldk/os.h"
 
 
 static struct
 {
   LDKWindow mainWindow;
-  LDKGraphicsContext context;
+  LDKGCtx context;
   LDKGraphicsAPI  api;
   int32 multiSampleLevel;
 } internal;
@@ -50,7 +49,7 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api)
 void ldkGraphicsTerminate()
 {
   ldkOsWindowDestroy(internal.mainWindow);
-  ldkOsGraphicsDestroy(internal.context);
+  ldkOsGraphicsContextDestroy(internal.context);
 }
 
 void ldkGraphicsFullscreenSet(bool fullscreen)
@@ -103,7 +102,7 @@ float ldkGraphicsViewportRatio()
   return (size.width / (float) size.height);
 }
 
-LDKGraphicsContext ldkGraphicsContextGet()
+LDKGCtx ldkGraphicsContextGet()
 {
   return internal.context;
 }
@@ -137,9 +136,31 @@ void  ldkGraphicsMultisamplesSet(int32 samples)
     glSampleCoverage(samples * 1.0f, GL_TRUE);
     internal.multiSampleLevel = samples;
   }
+  else
+  {
+    LDK_NOT_IMPLEMENTED();
+  }
 }
 
 int32 ldkGraphicsMultisamplesGet()
 {
   return internal.multiSampleLevel;
+}
+
+void lkdGraphicsInfoPrint()
+{
+  if (internal.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || internal.api == LDK_GRAPHICS_API_OPENGL_3_0
+      || internal.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || internal.api == LDK_GRAPHICS_API_OPENGL_4_0
+      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
+      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
+  {
+    ldkLogInfo("\n\tOpenGL Vendor: %s\n\tOpenGL Renderer: %s\n\tOpenGL Version: %s\n\tOpenGL Shading Language Version: %s",
+        glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
+  }
+  else
+  {
+    LDK_NOT_IMPLEMENTED();
+  }
 }

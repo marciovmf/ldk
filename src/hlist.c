@@ -1,12 +1,11 @@
-
+#include "ldk/hlist.h"
 #include <stdint.h>
 #include <memory.h>
-#include "../include/ldk/hlist.h"
 
 
 /* Internals */
 
-// A SlotInfo holds the index of the actual element in a HandleList
+// A SlotInfo holds the index of the actual element in a LDKHandleList
 typedef struct
 {
   union
@@ -18,29 +17,29 @@ typedef struct
   int32 version;
 } SlotInfo;
 
-// A struct that holds the same information as a Handle.
+// A struct that holds the same information as a LDKHandle.
 typedef struct
 {
-  HandleType  type;
+  LDKHandleType  type;
   uint16      version;
   uint32      slotIndex;
-} HandleInternal;
+} LDKHandleInfo;
 
-inline static Handle handle_encode(HandleInternal* hInternal)
+inline static LDKHandle handle_encode(LDKHandleInfo* hInternal)
 {
-  Handle handle = ((uint64_t) hInternal->type << 48) | ((uint64_t) hInternal->version << 32) | hInternal->slotIndex;
+  LDKHandle handle = ((uint64_t) hInternal->type << 48) | ((uint64_t) hInternal->version << 32) | hInternal->slotIndex;
   return handle;
 }
 
-inline static void handle_decode(HandleInternal* hInternal, Handle handle)
+inline static void handle_decode(LDKHandleInfo* hInfo, LDKHandle handle)
 {
-  hInternal->type       = (uint16_t)((handle >> 48) & 0xFFFF);
-  hInternal->version    = (uint16_t)((handle >> 32) & 0xFFFF);
-  hInternal->slotIndex  = (uint32_t)(handle & 0xFFFFFFFF);
+  hInfo->type       = (uint16_t)((handle >> 48) & 0xFFFF);
+  hInfo->version    = (uint16_t)((handle >> 32) & 0xFFFF);
+  hInfo->slotIndex  = (uint32_t)(handle & 0xFFFFFFFF);
 }
 
 
-bool hlist_initialize(HandleList* hlist, HandleType type, size_t elementSize, int count)
+bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
 {
   hlist->elementType       = type;
   hlist->elementSize       = elementSize;
@@ -48,22 +47,22 @@ bool hlist_initialize(HandleList* hlist, HandleType type, size_t elementSize, in
   hlist->freeSlotListCount = 0;
   hlist->freeSlotListStart = 0;
   bool success = true;
-  success &= ldk_arena_initialize(&hlist->elements,  count * elementSize);
-  success &= ldk_arena_initialize(&hlist->slots,      count * sizeof(SlotInfo));
+  success &= ldkArenaCreate(&hlist->elements,  count * elementSize);
+  success &= ldkArenaCreate(&hlist->slots,      count * sizeof(SlotInfo));
   return success;
 }
 
-int hlist_count_get(const HandleList* hlist)
+int ldkHListCount(const LDKHList* hlist)
 {
   return hlist->elementCount;
 }
 
-byte* hlist_get_array(const HandleList* hlist)
+byte* ldkHListArrayGet(const LDKHList* hlist)
 {
-  return ldk_arena_data_get(&hlist->elements);
+  return ldkArenaDataGet(&hlist->elements);
 }
 
-Handle hlist_reserve(HandleList* hlist)
+LDKHandle ldkHListReserve(LDKHList* hlist)
 {
   SlotInfo* slotPtr;
   hlist->elementCount++;
@@ -72,56 +71,56 @@ Handle hlist_reserve(HandleList* hlist)
   {
     // Reuse a slot.
     hlist->freeSlotListCount--;
-    slotPtr = ((SlotInfo*) ldk_arena_data_get(&hlist->slots)) + hlist->freeSlotListStart; 
+    slotPtr = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + hlist->freeSlotListStart; 
     hlist->freeSlotListStart = slotPtr->nextFreeSlotIndex;
   }
   else
   {
     // Add a new slot and a new element
-    slotPtr = (SlotInfo*) ldk_arena_allocate(&hlist->slots, sizeof(SlotInfo));
+    slotPtr = (SlotInfo*) ldkArenaAllocate(&hlist->slots, sizeof(SlotInfo));
     slotPtr->version = 0;
-    ldk_arena_allocate(&hlist->elements, hlist->elementSize);
+    ldkArenaAllocate(&hlist->elements, hlist->elementSize);
   }
 
   slotPtr->elementIndex = hlist->elementCount - 1;
 
   // gets the element this slot points to
-  byte* element = ((byte*) ldk_arena_data_get(&hlist->elements)) + slotPtr->elementIndex;
+  byte* element = ((byte*) ldkArenaDataGet(&hlist->elements)) + slotPtr->elementIndex;
 
   // Create a handle to the element
-  HandleInternal hInternal;
-  hInternal.type = hlist->elementType;
+  LDKHandleInfo hInfo;
+  hInfo.type = hlist->elementType;
 
   // Get the index of current slot based on it's address.
-  hInternal.slotIndex = ((int32)((byte*) (slotPtr) - (byte*) ldk_arena_data_get(&hlist->slots)) / sizeof(SlotInfo));
-  hInternal.version = slotPtr->version;
-  return handle_encode(&hInternal);
+  hInfo.slotIndex = ((int32)((byte*) (slotPtr) - (byte*) ldkArenaDataGet(&hlist->slots)) / sizeof(SlotInfo));
+  hInfo.version = slotPtr->version;
+  return handle_encode(&hInfo);
 }
 
-byte* hlist_lookup(HandleList* hlist, Handle handle)
+byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
 {
-  HandleInternal hInternal;
-  handle_decode(&hInternal, handle);
+  LDKHandleInfo hInfo;
+  handle_decode(&hInfo, handle);
 
   // Index out of bounds ?
-  const uint32 maxSlots = (uint32) (ldk_arena_size_get(&hlist->slots) / sizeof(SlotInfo));
-  if (hInternal.slotIndex >= maxSlots)
+  const uint32 maxSlots = (uint32) (ldkArenaSizeGet(&hlist->slots) / sizeof(SlotInfo));
+  if (hInfo.slotIndex >= maxSlots)
     return nullptr;
 
   // Wrong handle type ?
-  if (hInternal.type != hlist->elementType)
+  if (hInfo.type != hlist->elementType)
     return nullptr;
 
   // Wrong handle version ?
-  SlotInfo* slotInfo = ((SlotInfo*) ldk_arena_data_get(&hlist->slots)) + hInternal.slotIndex;
-  if (hInternal.version != slotInfo->version)
+  SlotInfo* slotInfo = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + hInfo.slotIndex;
+  if (hInfo.version != slotInfo->version)
     return nullptr;
 
-  byte* element = ((byte*) ldk_arena_data_get(&hlist->elements)) + (hlist->elementSize * slotInfo->elementIndex);
+  byte* element = ((byte*) ldkArenaDataGet(&hlist->elements)) + (hlist->elementSize * slotInfo->elementIndex);
   return element;
 }
 
-bool hlist_remove(HandleList* hlist, Handle handle)
+bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
 {
   // We never leave holes on the element list!
   // When deleting any element (other than the last one) we actually
@@ -130,27 +129,27 @@ bool hlist_remove(HandleList* hlist, Handle handle)
   // The slot version will be incremented so any existing handle to it will
   // now become invalid.
 
-  HandleInternal hInternal;
-  handle_decode(&hInternal, handle);
+  LDKHandleInfo hInfo;
+  handle_decode(&hInfo, handle);
 
   // Index out of bounds ?
-  const uint32 maxSlots = (uint32) (ldk_arena_size_get(&hlist->slots) / sizeof(SlotInfo));
-  if (hInternal.slotIndex >= maxSlots || hInternal.slotIndex < 0)
+  const uint32 maxSlots = (uint32) (ldkArenaSizeGet(&hlist->slots) / sizeof(SlotInfo));
+  if (hInfo.slotIndex >= maxSlots || hInfo.slotIndex < 0)
     return false;
 
   // Wrong handle type ?
-  if (hInternal.type != hlist->elementType)
+  if (hInfo.type != hlist->elementType)
     return false;
 
   const uint32 elementCount = hlist->elementCount;
-  SlotInfo* allSlots = (SlotInfo*) ldk_arena_data_get(&hlist->slots);
+  SlotInfo* allSlots = (SlotInfo*) ldkArenaDataGet(&hlist->slots);
   SlotInfo* slotOfLast    = allSlots + (elementCount-1);
-  SlotInfo* slotOfRemoved = allSlots + hInternal.slotIndex;
+  SlotInfo* slotOfRemoved = allSlots + hInfo.slotIndex;
   ++slotOfRemoved->version;
 
   if (slotOfRemoved != slotOfLast)
   {
-    char* dataPtr = (char*) ldk_arena_data_get(&hlist->elements);
+    char* dataPtr = (char*) ldkArenaDataGet(&hlist->elements);
     const size_t elementSize = hlist->elementSize;
 
     // Move the last element to the space left by the one being removed
@@ -160,25 +159,34 @@ bool hlist_remove(HandleList* hlist, Handle handle)
   }
 
   slotOfRemoved->nextFreeSlotIndex = hlist->freeSlotListStart;
-  hlist->freeSlotListStart = hInternal.slotIndex;
+  hlist->freeSlotListStart = hInfo.slotIndex;
   hlist->freeSlotListCount++;
   hlist->elementCount--;
   return true;
 }
 
-void hlist_reset(HandleList* hlist)
+void ldkHListReset(LDKHList* hlist)
 {
   // invalidate ALL slots
   for (uint32 i = 0; i < hlist->elementCount; i++)
   {
-    SlotInfo* slot = ((SlotInfo*) ldk_arena_data_get(&hlist->slots)) + i;
+    SlotInfo* slot = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + i;
     slot->version++;
   }
 
-  ldk_arena_reset(&hlist->slots);
-  ldk_arena_reset(&hlist->elements);
+  ldkArenaReset(&hlist->slots);
+  ldkArenaReset(&hlist->elements);
   hlist->elementCount = 0;
   hlist->freeSlotListCount = 0;
   hlist->freeSlotListStart = -1;
 }
 
+bool ldkHListDestroy(LDKHList* hlist)
+{
+  ldkArenaDestroy(&hlist->slots);
+  ldkArenaDestroy(&hlist->elements);
+  hlist->elementCount = 0;
+  hlist->freeSlotListCount = 0;
+  hlist->freeSlotListStart = -1;
+  return true;
+}

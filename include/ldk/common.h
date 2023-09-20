@@ -66,6 +66,11 @@ extern "C" {
     })
 
 
+#define LDK_NOT_IMPLEMENTED() LDK_STATEMENT( \
+    ldkLogError("Not implemented"); \
+    LDK_ASSERT(false))
+
+
 // Helper macros
 
 #define LDK_STRINGFY_(S) #S
@@ -90,6 +95,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stddef.h>
 
 #ifndef __cplusplus
@@ -124,22 +130,22 @@ typedef int32_t   int32;
 typedef uint32_t  uint32;
 typedef int64_t   int64;
 typedef uint64_t  uint64;
-typedef uint64_t  Handle;
-typedef uint16_t  HandleType;
+typedef uint64_t  LDKHandle;
+typedef uint16_t  LDKHandleType;
 
 typedef void* LDKWindow;
 
 // LDKSmallStr
 enum
 {
-  LDK_SMALL_STRING_MAX_LEN = 512,
-  LDK_PATH_MAX_LENGTH = 1024
+  LDK_SMALL_STRING_MAX_LENGTH = 512,
+  LDK_PATH_MAX_LENGTH = 512
 };
 
 // SmallStr
 typedef struct
 {
-  char str[LDK_SMALL_STRING_MAX_LEN];
+  char str[LDK_SMALL_STRING_MAX_LENGTH];
   size_t length;
 } LDKSmallStr;
 
@@ -216,21 +222,23 @@ LDK_API void ldkLogTerminate();
 LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const char* function, const char* format, ...);
 
 #define ldkLogInfo(fmt, ...) ldkLogPrint("INFO", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
-#define ldkLogDebug(fmt, ...) ldkLogPrint("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #define ldkLogError(fmt, ...) ldkLogPrint("ERROR", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #define ldkLogWarning(fmt, ...) ldkLogPrint("WARNING", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#ifdef LDK_DEBUG
+#define ldkLogDebug(fmt, ...) ldkLogPrint("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#endif
 
 //
 // String
 //
 
-LDK_API bool ldkStringEndsWith(const char* str, const char* suffix);
-LDK_API bool ldkStringStartsWith(const char* str, const char* prefix);
-LDK_API size_t ldkSmallString(LDKSmallStr* smallString, const char* str);
-LDK_API size_t ldkSmallStringLength(LDKSmallStr* smallString);
-LDK_API void   ldkSmallStringClear(LDKSmallStr* smallString);
-LDK_API size_t ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
-
+LDK_API bool    ldkStringEndsWith(const char* str, const char* suffix);
+LDK_API bool    ldkStringStartsWith(const char* str, const char* prefix);
+LDK_API size_t  ldkSmallString(LDKSmallStr* smallString, const char* str);
+LDK_API size_t  ldkSmallStringLength(LDKSmallStr* smallString);
+LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
+LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
+LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
 
 //
 // Path
@@ -243,23 +251,14 @@ typedef struct
   size_t length;
 } LDKPath;
 
-#ifndef path
-#define path(str) ldkPathCreate((str))
-#endif
-
-LDK_API size_t    ldkPathCreate(LDKPath* outPath, const char* path);  // Returns 0 on success or the necessary buffer size if the path buffer is not big enough
-LDK_API void      ldkPathCopy(const LDKPath* path, LDKPath* outPath);
-LDK_API size_t    ldkPathLength(const LDKPath* path);
 LDK_API LDKSubStr ldkPathFileNameGetSubstring(const char* path);
 LDK_API LDKSubStr ldkPathFileExtentionGetSubstring(const char* path);
 
-LDK_API size_t ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize);
-LDK_API size_t ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize);
+LDK_API size_t    ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize);
+LDK_API size_t    ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize);
 
-LDK_API size_t    ldkPathAppend(LDKPath* path, const char* newPart);  // Appends to the path; Returns 0 if success or the necessary buffer size if the path buffer is not big enough
-LDK_API bool      ldkPathIsAbsolute(LDKPath* path);
-LDK_API bool      ldkPathIsRelative(LDKPath* path);
-LDK_API bool      ldkPathRemoveFileName(LDKPath* path);       
+LDK_API bool      ldkPathIsAbsolute(const char* path);
+LDK_API bool      ldkPathIsRelative(const char* path);
 
 #ifdef LDK_OS_WINDOWS
 #define LDK_PATH_SEPARATOR '\\'
@@ -378,6 +377,13 @@ typedef struct
     LDKFrameEvent       frameEvent;
   };
 } LDKEvent;
+
+
+enum
+{
+  LDK_HANDLE_INVALID = 0,
+  LDK_HANDLE_TYPE_SHADER = 1 << 0,
+};
 
 
 #ifdef __cplusplus

@@ -6,10 +6,10 @@
  * Elements are always sequentialy placed in memory.
  */
 
-#ifndef SMOL_HANDLE_LIST_H
-#define SMOL_HANDLE_LIST_H
+#ifndef HANDLE_LIST_H
+#define HANDLE_LIST_H
 
-#include "core/arena.h"
+#include "arena.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,52 +27,54 @@ extern "C" {
     uint32      elementCount;
     uint32      freeSlotListCount;
     uint32      freeSlotListStart;
-    HandleType  elementType;
-  } HandleList;
+    LDKHandleType  elementType;
+  } LDKHList;
 
   /*
-   * Initializes a HandleList.
-   * elementSize: is the size of the type of element stored in this HandleList
-   * count: How many elements this HandleList can store before without resizing the arenas.
+   * Initializes a LDKHList.
+   * elementSize: is the size of the type of element stored in this LDKHList
+   * count: How many elements this LDKHList can store before without resizing the arenas.
    */
-  bool hlist_initialize(HandleList* hlist, HandleType type, size_t elementSize, int count);
+  bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count);
 
   /*
    * Atempts to remove a element from the list.
    * Returs the true if the handle is valid and deletion succeeded or false if handle is invalid
    */
-  bool hlist_remove(HandleList* hlist, Handle handle);
+  bool ldkHListRemove(LDKHList* hlist, LDKHandle handle);
 
   /*
    * Reserves memory from the internal arena for a new element and returns a handle to it.
    */
-  Handle hlist_reserve(HandleList* hlist);
+  LDKHandle ldkHListReserve(LDKHList* hlist);
 
   /*
-   * Returns the number of elements in the HandleList
+   * Returns the number of elements in the LDKHList
    */
-  int hlist_count_get(const HandleList* hlist);
+  int ldkHListCount(const LDKHList* hlist);
 
   /*
    * Returns the a pointer to the list of elements. 
    * All elements are sequentialy placed in the list.
    * The order of the elements is undefined.
    */
-  byte* hlist_get_array(const HandleList* hlist);
+  byte* ldkHListArrayGet(const LDKHList* hlist);
 
   /*
    * Returns the address of the element associated to the Handle
    */
-  byte* hlist_lookup(HandleList* hlist, Handle handle);
+  byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle);
 
   /*
    * Resets the hlist counters and internal arenas.
-   * Any existing handle obtained from this HandleList will become invalid.
+   * Any existing handle obtained from this LDKHList will become invalid.
    */
-  void hlist_reset(HandleList* hlist);
+  void ldkHListReset(LDKHList* hlist);
+
+  bool ldkHListDestroy(LDKHList* hlist);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // SMOL_HANDLE_LIST_H
+#endif  // HANDLE_LIST_H

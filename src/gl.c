@@ -1,5 +1,5 @@
-#include "../include/ldk/common.h"
-#include "../include/ldk/gl/glcorearb.h"
+#include "ldk/common.h"
+#include "ldk/gl/glcorearb.h"
 
 LDK_API PFNGLCULLFACEPROC glCullFace; 
 LDK_API PFNGLFRONTFACEPROC glFrontFace; 

@@ -9,8 +9,8 @@
 #ifndef LDK_ARENA
 #define LDK_ARENA
 
-#include <stdlib.h>
 #include "common.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,14 +24,14 @@ extern "C" {
     bool initialized;
   } Arena;
 
-  bool		ldk_arena_initialize(Arena* arena, size_t size);
-  void		ldk_arena_destroy(Arena* arena);
-  byte*		ldk_arena_allocate(Arena* arena, size_t size);
-  void		ldk_arena_reset(Arena* arena);
-  size_t	ldk_arena_size_get(const Arena* arena);
-  size_t	ldk_arena_used_get(const Arena* arena);
-  byte*   ldk_arena_data_get(const Arena* arena);
-  void		ldk_arena_reset(Arena* arena);
+  bool		ldkArenaCreate(Arena* arena, size_t size);
+  void		ldkArenaDestroy(Arena* arena);
+  byte*		ldkArenaAllocate(Arena* arena, size_t size);
+  void		ldkArenaReset(Arena* arena);
+  size_t	ldkArenaSizeGet(const Arena* arena);
+  size_t	ldkArenaUsedGet(const Arena* arena);
+  byte*   ldkArenaDataGet(const Arena* arena);
+  void		ldkArenaReset(Arena* arena);
 
 #ifdef __cplusplus
 }

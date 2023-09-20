@@ -1,7 +1,6 @@
-
+#include "ldk/eventqueue.h"
 #include <memory.h>
 #include <string.h>
-#include "../include/ldk/eventqueue.h"
 
 static struct
 {

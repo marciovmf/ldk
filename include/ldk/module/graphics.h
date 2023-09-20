@@ -38,12 +38,13 @@ extern "C" {
   LDK_API void    ldkGraphicsViewportSizeSet(int w, int h);
   LDK_API LDKSize ldkGraphicsViewportSizeGet();
   LDK_API float   ldkGraphicsViewportRatio();
-  LDK_API LDKGraphicsContext ldkGraphicsContextGet();
+  LDK_API LDKGCtx ldkGraphicsContextGet();
   LDK_API void    ldkGraphicsSwapBuffers();
   LDK_API void    ldkGraphicsVsyncSet(bool vsync);
   LDK_API int32   ldkGraphicsVsyncGet();
-  LDK_API void  ldkGraphicsMultisamplesSet(int samples);
-  LDK_API int32 ldkGraphicsMultisamplesGet();
+  LDK_API void    ldkGraphicsMultisamplesSet(int samples);
+  LDK_API int32   ldkGraphicsMultisamplesGet();
+  LDK_API void    lkdGraphicsInfoPrint();
   //LDK_API void  ldkGraphicsAntialiasingSet(int quality);
   //LDK_API int32 ldkGraphicsAntialiasingGet();
   //LDK_API void  ldkGraphicsViewportScreenshot();

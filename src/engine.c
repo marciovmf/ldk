@@ -1,8 +1,8 @@
-
-#include "../include/ldk/os.h"
-#include "../include/ldk/engine.h"
-#include "../include/ldk/eventqueue.h"
-#include "../include/ldk/module/graphics.h"
+#include "ldk/os.h"
+#include "ldk/engine.h"
+#include "ldk/eventqueue.h"
+#include "ldk/module/graphics.h"
+#include "ldk/module/render.h"
 
 static struct
 {
@@ -25,6 +25,12 @@ bool ldkEngineInitialize()
   // Startup Graphics
   stepSuccess  = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
   ldkLogInfo("-- Initializing Graphics %s", stepSuccess ? "SUCCES" : "FAIL"); 
+  lkdGraphicsInfoPrint();
+
+  // Startup renderer
+  stepSuccess  = ldkRenderInitialize();
+  ldkLogInfo("-- Initializing Renderer %s", stepSuccess ? "SUCCES" : "FAIL"); 
+
   success &= stepSuccess;
 
   ldkLogInfo("-- Engine Initialization %s", stepSuccess ? "SUCCES" : "FAIL"); 
@@ -34,6 +40,8 @@ bool ldkEngineInitialize()
 
 void ldkEngineTerminate()
 {
+  ldkLogInfo("-- Terminating Renderer...", 0);
+  ldkRenderTerminate();
   ldkLogInfo("-- Terminating Graphics...", 0);
   ldkGraphicsTerminate();
   ldkLogInfo("-- Terminating Log...\n-- Engine terminated.\n", 0);

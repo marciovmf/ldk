@@ -1,4 +1,4 @@
-#include <ldk/ldk.h>
+#include "ldk/ldk.h"
 
 // Pure engine approach
 void terminate()
@@ -101,7 +101,7 @@ bool pureOsApplication()
   ldkLogInitialize(0);
   ldkOsCwdSetFromExecutablePath();
 
-  LDKGraphicsContext context = ldkOsGraphicsContextOpenglCreate(3, 3, 24, 8);
+  LDKGCtx context = ldkOsGraphicsContextOpenglCreate(3, 3, 24, 8);
   LDKWindow window = ldkOsWindowCreate("Window 1", 800, 600);
   ldkOsWindowTitleSet(window, "Hello, Sailor!");
   ldkOsWindowIconSet(window, "../ldk.ico");
@@ -189,7 +189,6 @@ int testPathFunctions()
   ldkOsExecutablePathGet(&path);
   ldkLogInfo("Exectuable path : %s", path.path);
 
-
   ldkOsExecutablePathFileNameGet(&path);
   LDKSubStr fileNameSubstr = ldkPathFileNameGetSubstring(path.path);
   ldkLogInfo("Exectuable path (substring) : %.*s", fileNameSubstr.length, fileNameSubstr.ptr);
@@ -198,11 +197,10 @@ int testPathFunctions()
 
   LDKSmallStr smallStr;
 
-  ldkPathFileNameGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LEN);
+  ldkPathFileNameGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LENGTH);
   ldkLogInfo("Exectuable path (external buffer) : %s", smallStr.str);
-  ldkPathFileExtentionGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LEN);
+  ldkPathFileExtentionGet(path.path, smallStr.str, LDK_SMALL_STRING_MAX_LENGTH);
   ldkLogInfo("Exectuable extention (external buffer) : %s", smallStr.str);
-
   return 0;
 }
 

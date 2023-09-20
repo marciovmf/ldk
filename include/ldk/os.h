@@ -42,7 +42,7 @@ extern "C" {
   LDK_API bool    ldkOsFileCopy(char* file, char* newFile);
   LDK_API bool    ldkOsFileRename(char* file, char* newFile);
   LDK_API bool    ldkOsDirectoryCreate(char* path);
-  LDK_API bool    ldkOsDirectoryCreate_recursive(char* path);
+  LDK_API bool    ldkOsDirectoryCreateRecursive(char* path); // path can be absolute or relative. If path does not end with a path separator, it's assumed to be a file path and the file portion will be ignored.
   LDK_API bool    ldkOsDirectoryDelete(char* directory);
   
   //
@@ -72,6 +72,22 @@ extern "C" {
   LDK_API double  ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end);
   LDK_API double  ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end);
   LDK_API double  ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end);
+
+  //
+  // System Date and Time
+  //
+  typedef struct {
+    uint16 year;
+    uint16 month;
+    uint16 dayOfWeek;
+    uint16 day;
+    uint16 hour;
+    uint16 minute;
+    uint16 Second;
+    uint16 milliseconds;
+  } LDKDateTime;
+
+  LDK_API void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime);
   
   //
   // Windowing
@@ -85,7 +101,7 @@ extern "C" {
   } LDKWindowFlags;
 
   LDK_API bool      ldkOsEventsPoll(LDKEvent* event);
-  LDK_API LDKWindow ldkOsWindowCreate_with_flags(char* title, int32 width, int32 height, LDKWindowFlags flags);
+  LDK_API LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDKWindowFlags flags);
   LDK_API LDKWindow ldkOsWindowCreate(char* title, int32 width, int32 height);
   LDK_API bool      ldkOsWindowShouldClose(LDKWindow window);
   LDK_API void      ldkOsWindowBuffersSwap(LDKWindow window);
@@ -105,13 +121,13 @@ extern "C" {
   //
   // Graphics
   //
-  typedef void* LDKGraphicsContext;
-  LDK_API LDKGraphicsContext  ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits);
-  LDK_API LDKGraphicsContext  ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits);
-  LDK_API void                ldkOsGraphicsContextCurrent(LDKWindow window, LDKGraphicsContext context);
-  LDK_API void                ldkOsGraphicsDestroy(LDKGraphicsContext context);
-  LDK_API bool                ldkOsGraphicsVSyncSet(bool vsync);
-  LDK_API int32               ldkOsGraphicsVSyncGet();
+  typedef void* LDKGCtx;
+  LDK_API LDKGCtx ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits);
+  LDK_API LDKGCtx ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits);
+  LDK_API void    ldkOsGraphicsContextCurrent(LDKWindow window, LDKGCtx context);
+  LDK_API void    ldkOsGraphicsContextDestroy(LDKGCtx context);
+  LDK_API bool    ldkOsGraphicsVSyncSet(bool vsync);
+  LDK_API int32   ldkOsGraphicsVSyncGet();
 
   //
   // Misc

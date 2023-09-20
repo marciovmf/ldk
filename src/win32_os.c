@@ -1,5 +1,5 @@
-#include "../include/ldk/os.h"
-#include "../include/ldk/gl.h"
+#include "ldk/os.h"
+#include "ldk/gl.h"
 #include "ldk/common.h"
 
 #include <stdbool.h>
@@ -17,12 +17,19 @@
 #define LDK_WIN32_MAX_WINDOWS 64
 #endif
 
+
+//
+// Extern
+//
+extern void* ldkWin32OpenglProcAddressGet(char* name);
+
+extern void ldkOpenglFunctionPointersGet();
+
+
 //
 // Internal
 //
 
-extern void* ldkWin32OpenglProcAddressGet(char* name);
-extern void ldkOpenglFunctionPointersGet();
 static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct
@@ -327,25 +334,37 @@ bool ldkOsDirectoryCreate(char* path)
 
 bool ldkOsDirectoryCreateRecursive(char* path)
 {
-  char* p = path;
+  size_t length = strlen(path);
+  if (length >= LDK_PATH_MAX_LENGTH)
+  {
+    ldkLogError("Path is too long (%d). Maximum size is %d. - '%s'", length, LDK_PATH_MAX_LENGTH, path);
+    return false;
+  }
+
+  char tempPath[LDK_PATH_MAX_LENGTH];
+  strncpy((char *) &tempPath, path, length);
+  tempPath[length] = 0;
+
+  char* p = (char*) &tempPath;
+
+  // If the path is absolute, skip the drive letter and colon
+  if (p[1] == ':') { p += 2; }
+
   while (*p)
   {
     if (*p == '\\' || *p == '/')
     {
       *p = '\0';
-      if (!ldkOsDirectoryCreate(path))
+      if (!CreateDirectory((const char*) tempPath, NULL))
       {
-        return false;
+        if (GetLastError() != ERROR_ALREADY_EXISTS) { return false; }
       }
-      *p = '\\'; // Restore the separator
+      *p = '\\';
     }
     p++;
   }
 
-  if (!path)
-    return true;
-
-  return ldkOsDirectoryCreateRecursive(path);
+  return true;
 }
 
 bool ldkOsDirectoryDelete(char* directory)
@@ -372,13 +391,13 @@ size_t ldkOsCwdSetFromExecutablePath()
   return bytesCopied;
 }
 
-bool ldkosPathIsFile(char* path)
+bool ldkOsPathIsFile(char* path)
 {
   DWORD attributes = GetFileAttributes(path);
   return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-bool ldkosPathIsDirectoryu(char* path)
+bool ldkOsPathIsDirectoryu(char* path)
 {
   DWORD attributes = GetFileAttributes(path);
   return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
@@ -404,6 +423,11 @@ void* ldkOsMemoryResize(void* memory, size_t size)
   return realloc(memory, size);
 }
 
+
+//
+// Time
+//
+
 uint64 ldkOsTimeTicksGet()
 {
   if (!internal.timeInitialized)
@@ -425,13 +449,31 @@ double ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end)
 double ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end)
 {
   double difference = (double)((end - start) * 1000);
-  return ( difference / internal.frequency.QuadPart);
+  return (difference / internal.frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end)
 {
   double difference = (double)((end - start) * 1000000000);
-  return ( difference / internal.frequency.QuadPart);
+  return (difference / internal.frequency.QuadPart);
+}
+
+//
+// System Date and Time
+//
+
+void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime)
+{
+  SYSTEMTIME win32SysTime;
+  GetSystemTime(&win32SysTime);
+  outDateTime->year         = win32SysTime.wYear;
+  outDateTime->month        = win32SysTime.wMonth;
+  outDateTime->dayOfWeek    = win32SysTime.wDayOfWeek;
+  outDateTime->day          = win32SysTime.wDay;
+  outDateTime->hour         = win32SysTime.wHour;
+  outDateTime->minute       = win32SysTime.wMinute;
+  outDateTime->Second       = win32SysTime.wSecond;
+  outDateTime->milliseconds = win32SysTime.wMilliseconds;
 }
 
 
@@ -439,7 +481,7 @@ double ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end)
 // Windowing
 //
 
-void LDK_API ldkOsGraphicsDestroy(LDKGraphicsContext context)
+void LDK_API ldkOsGraphicsContextDestroy(LDKGCtx context)
 {
   LDK_ASSERT(context == &win32GraphicsAPIInfo);
 
@@ -790,11 +832,11 @@ size_t ldkOsWindowTitleGet(LDKWindow window, LDKSmallStr* outTitle)
 {
   size_t length = GetWindowTextLengthA(window);
 
-  if (length >= LDK_SMALL_STRING_MAX_LEN)
+  if (length >= LDK_SMALL_STRING_MAX_LENGTH)
     return length;
 
   HWND windowHandle = ((LDKWin32Window*)window)->handle;
-  GetWindowTextA(windowHandle, (char*) &outTitle->str, LDK_SMALL_STRING_MAX_LEN);
+  GetWindowTextA(windowHandle, (char*) &outTitle->str, LDK_SMALL_STRING_MAX_LENGTH);
   return 0;
 }
 
@@ -976,7 +1018,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case WM_MBUTTONDOWN:
     case WM_MBUTTONUP:
       if (mouseButtonId == -1)
-      mouseButtonId = LDK_MOUSE_BUTTON_MIDDLE;
+        mouseButtonId = LDK_MOUSE_BUTTON_MIDDLE;
     case WM_RBUTTONDOWN:
     case WM_RBUTTONUP:
       {
@@ -1046,19 +1088,19 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 // Graphics
 //
 
-LDKGraphicsContext ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
+LDKGCtx ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
   internalOpenglInit(WIN32_GRAPHICS_API_OPENGL, versionMajor, versionMinor, colorBits, depthBits);
   return &win32GraphicsAPIInfo;
 }
 
-LDKGraphicsContext ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
+LDKGCtx ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
   internalOpenglInit(WIN32_GRAPHICS_API_OPENGLES, versionMajor, versionMinor, colorBits, depthBits);
   return &win32GraphicsAPIInfo;
 }
 
-void ldkOsGraphicsContextCurrent(LDKWindow window, LDKGraphicsContext context)
+void ldkOsGraphicsContextCurrent(LDKWindow window, LDKGCtx context)
 {
   HDC dc = ((LDKWin32Window*)window)->dc;
   LDK_ASSERT(context == &win32GraphicsAPIInfo);
