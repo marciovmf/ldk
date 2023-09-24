@@ -1,9 +1,0 @@
-
-[DEBUG] (W:\ldk\demo\main.c:29 @ test_os_window) Display size = 800, 600
-[DEBUG] (W:\ldk\demo\main.c:31 @ test_os_window) window size = 816, 639
-[DEBUG] (W:\ldk\demo\main.c:29 @ test_os_window) Display size = 800, 600
-[DEBUG] (W:\ldk\demo\main.c:31 @ test_os_window) window size = 816, 639
-[DEBUG] (W:\ldk\demo\main.c:30 @ test_os_window) Display size = 800, 600
-[DEBUG] (W:\ldk\demo\main.c:32 @ test_os_window) window size = 816, 639
-[DEBUG] (W:\ldk\demo\main.c:30 @ test_os_window) Display size = 800, 600
-[DEBUG] (W:\ldk\demo\main.c:32 @ test_os_window) window size = 816, 639
