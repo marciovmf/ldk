@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
 project("ldk")
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- GLOBAL OUTPUT DIRECTORIES ------------------
@@ -17,7 +16,7 @@ if (LDK_AS_SHARED_LIB)
   add_compile_definitions(LDK_AS_SHARED_LIB)
 endif()
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include") 
+include_directories("./include/") 
 
 # --- TARGETS ------------------------------------
 add_subdirectory(src)

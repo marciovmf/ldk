@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 
-bool ldkArenaCreate(Arena* arena, size_t size)
+bool ldkArenaCreate(LDKArena* arena, size_t size)
 {
   LDK_ASSERT(arena->initialized == false);
   LDK_ASSERT(size > 0);
@@ -15,19 +15,19 @@ bool ldkArenaCreate(Arena* arena, size_t size)
   arena->used = 0;
   arena->data = (byte*) ldkOsMemoryAlloc(size);
   arena->initialized = true;
-  return arena->data != nullptr;
+  return arena->data != NULL;
 }
 
-void ldkArenaDestroy(Arena* arena)
+void ldkArenaDestroy(LDKArena* arena)
 {
   //TODO(marcio): Assert if not initialized
   ldkOsMemoryFree(arena->data); 
   arena->bufferSize = 0;
   arena->used = 0;
-  arena->data = nullptr;
+  arena->data = NULL;
 }
 
-byte* ldkArenaAllocate(Arena* arena, size_t size)
+byte* ldkArenaAllocate(LDKArena* arena, size_t size)
 {
   LDK_ASSERT(arena->initialized == true);
   if (arena->used + size >= arena->bufferSize)
@@ -50,25 +50,32 @@ byte* ldkArenaAllocate(Arena* arena, size_t size)
   return memPtr;
 }
 
-void ldkArenaReset(Arena* arena)
+void ldkArenaFree(LDKArena* arena, size_t size)
+{
+  LDK_ASSERT(size <= arena->used);
+  LDK_ASSERT(size <= arena->bufferSize);
+  arena->used -= size;
+}
+
+void ldkArenaReset(LDKArena* arena)
 {
   //TODO(marcio): Assert if not initialized
   arena->used = 0;
 }
 
-size_t ldkArenaSizeGet(const Arena* arena)
+size_t ldkArenaSizeGet(const LDKArena* arena)
 {
   //TODO(marcio): Assert if not initialized
   return arena->bufferSize;
 }
 
-size_t ldkArenaUsedGet(const Arena* arena)
+size_t ldkArenaUsedGet(const LDKArena* arena)
 {
   //TODO(marcio): Assert if not initialized
   return arena->used;
 }
 
-byte* ldkArenaDataGet(const Arena* arena)
+byte* ldkArenaDataGet(const LDKArena* arena)
 {
   //TODO(marcio): Assert if not initialized
   return arena->data;

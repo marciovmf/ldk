@@ -22,16 +22,17 @@ extern "C" {
     size_t used;
     byte* data;
     bool initialized;
-  } Arena;
+  } LDKArena;
 
-  bool		ldkArenaCreate(Arena* arena, size_t size);
-  void		ldkArenaDestroy(Arena* arena);
-  byte*		ldkArenaAllocate(Arena* arena, size_t size);
-  void		ldkArenaReset(Arena* arena);
-  size_t	ldkArenaSizeGet(const Arena* arena);
-  size_t	ldkArenaUsedGet(const Arena* arena);
-  byte*   ldkArenaDataGet(const Arena* arena);
-  void		ldkArenaReset(Arena* arena);
+  LDK_API bool  ldkArenaCreate(LDKArena* arena, size_t size);
+  LDK_API void  ldkArenaDestroy(LDKArena* arena);
+  LDK_API byte* ldkArenaAllocate(LDKArena* arena, size_t size);
+  LDK_API void  ldkArenaFree(LDKArena* arena, size_t size);
+  LDK_API void  ldkArenaReset(LDKArena* arena);
+  LDK_API size_t	ldkArenaSizeGet(const LDKArena* arena);
+  LDK_API size_t	ldkArenaUsedGet(const LDKArena* arena);
+  LDK_API byte* ldkArenaDataGet(const LDKArena* arena);
+  LDK_API void  ldkArenaReset(LDKArena* arena);
 
 #ifdef __cplusplus
 }

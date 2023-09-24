@@ -32,6 +32,20 @@ LDK_API void ldkLogTerminate()
     fclose(logFile_);
 }
 
+LDK_API void ldkLogPrintRaw(const char* prefix, const char* fmt, ...)
+{
+  va_list argList;
+  va_start(argList, fmt);
+  fprintf(stdout, (const char*) "\n[%s] ", prefix);
+  vfprintf(stdout, fmt, argList);
+  if (logFile_)
+  {
+    fprintf(logFile_, (const char*) "\n[%s] ", prefix);
+    vfprintf(logFile_, fmt, argList);
+  }
+  va_end(argList);
+}
+
 LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...)
 {
   va_list argList;
@@ -44,6 +58,85 @@ LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const
     vfprintf(logFile_, fmt, argList);
   }
   va_end(argList);
+}
+
+//
+// Type System
+//
+
+#ifndef LDK_TYPE_NAME_MAX_LENGTH
+#define LDK_TYPE_NAME_MAX_LENGTH 64
+#endif
+
+#ifndef LDK_TYPE_SYSTEM_MAX_TYPES
+#define LDK_TYPE_SYSTEM_MAX_TYPES 64
+#endif
+
+typedef struct
+{
+  char name[LDK_TYPE_NAME_MAX_LENGTH];
+  size_t size;
+  LDKTypeId id;
+} LDKTypeInfo_;
+
+static struct
+{
+  LDKTypeInfo_ type[LDK_TYPE_SYSTEM_MAX_TYPES];
+  uint32 count;
+} ldkTypeCatalog_ = {0};
+
+
+LDKTypeId ldkTypeId(const char* name, size_t size)
+{
+  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
+  {
+    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
+    if (strncmp((const char*) &typeInfo->name, name, LDK_TYPE_NAME_MAX_LENGTH) == 0)
+    {
+      return typeInfo->id;
+    }
+  }
+
+  if (ldkTypeCatalog_.count >= LDK_TYPE_SYSTEM_MAX_TYPES)
+  {
+    ldkLogError("Could not register type '%s' as the type catalog is full (%d entries)", LDK_TYPE_SYSTEM_MAX_TYPES);
+    return LDK_TYPE_ID_UNKNOWN;
+  }
+
+  size_t typeNameLen = strlen(name);
+  if (typeNameLen >= (LDK_TYPE_NAME_MAX_LENGTH - 1))
+  {
+    ldkLogError("Could not register type '%s' as the type is too long. Maximum supportd is %d)", (LDK_TYPE_NAME_MAX_LENGTH - 1));
+    return LDK_TYPE_ID_UNKNOWN;
+  }
+ 
+  uint32 typeId = ldkTypeCatalog_.count++;
+  strncpy((char*) &ldkTypeCatalog_.type[typeId].name, name, LDK_TYPE_NAME_MAX_LENGTH);
+  ldkTypeCatalog_.type[typeId].size = size;
+  ldkTypeCatalog_.type[typeId].id = typeId;
+  return typeId;
+}
+
+const char* ldkTypeName(LDKTypeId typeId)
+{
+  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
+  {
+    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
+    if (typeInfo->id == typeId)
+      return typeInfo->name;
+  }
+  return NULL;
+}
+
+size_t ldkTypeSize(LDKTypeId typeId)
+{
+  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
+  {
+    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
+    if (typeInfo->id == typeId)
+      return typeInfo->size;
+  }
+  return 0;
 }
 
 //
@@ -108,6 +201,48 @@ size_t ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallStri
   strncpy((char*) &outSmallString->str, substring->ptr, substring->length);
   outSmallString->str[substring->length] = 0;
   return 0;
+}
+
+//
+// Hash
+//
+
+LDKHash ldkHash(const char* str)
+{
+  uint32_t hash = 2166136261u; // FNV offset basis
+  while (*str)
+  {
+    hash ^= (uint32_t) *str++;
+    hash *= 16777619u; // FNV prime
+  }
+  return hash;
+}
+
+LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed)
+{
+  const uint32_t prime = 2654435761U;
+  uint32_t hash = seed + prime;
+  const char* data = (const char*)input;
+  size_t remaining = length;
+
+  while (remaining >= 4)
+  {
+    uint32_t value;
+    memcpy(&value, data, sizeof(uint32_t));
+    hash += value * prime;
+    hash = (hash << 13) | (hash >> 19); // Rotate left by 13 bits
+    data += 4;
+    remaining -= 4;
+  }
+
+  while (remaining > 0)
+  {
+    hash += (*data++) * prime;
+    hash = (hash << 13) | (hash >> 19);
+    remaining--;
+  }
+
+  return hash;
 }
 
 //
@@ -202,3 +337,71 @@ bool ldkPathIsRelative(const char* path)
   return ! ldkPathIsAbsolute(path);
 }
 
+bool ldkPath(LDKPath* outPath, const char* path)
+{
+  size_t length = strlen(path);
+  if (length >= (LDK_PATH_MAX_LENGTH - 1))
+  {
+    ldkLogError("Path too long (%d). Maximum is %d. - '%s'", length, LDK_PATH_MAX_LENGTH, path);
+    return false;
+  }
+
+  strncpy((char*) &outPath->path, path, length);
+  outPath->path[length] = 0;
+  outPath->length = length;
+  return true;
+}
+
+void ldkPathClone(LDKPath* outPath, const LDKPath* path)
+{
+  memcpy(outPath, path, sizeof(LDKPath));
+}
+
+void ldkPathNormalize(LDKPath* ldkPath)
+{
+  char *path = ldkPath->path;
+  size_t len = ldkPath->length;
+  size_t resultIndex = 0;
+  size_t i = 0;
+
+
+  if (path[1] == ':') { i += 2; }
+
+  // Skip leading slashes
+  while (i < len && (path[i] == '/' || path[i] == '\\')) {
+    i++;
+  }
+
+  for (; i < len; i++) {
+    if (path[i] == '/' || path[i] == '\\') {
+      // Skip multiple consecutive slashes
+      while (i < len && (path[i] == '/' || path[i] == '\\')) {
+        i++;
+      }
+      // Add a single slash to the result
+      ldkPath->path[resultIndex++] = '/';
+    } else if (path[i] == '.' && (i + 1 == len || path[i + 1] == '/' || path[i + 1] == '\\')) {
+      // Skip "." or "./"
+      i++;
+    } else if (path[i] == '.' && path[i + 1] == '.' && (i + 2 == len || path[i + 2] == '/' || path[i + 2] == '\\')) {
+      // Handle up-level reference ".."
+      if (resultIndex > 0) {
+        // Remove the last component from the result
+        while (resultIndex > 0 && ldkPath->path[resultIndex - 1] != '/') {
+          resultIndex--;
+        }
+        if (resultIndex > 0) {
+          resultIndex--;
+        }
+      }
+      i += 2;
+    } else {
+      // Copy characters to the result
+      ldkPath->path[resultIndex++] = path[i];
+    }
+  }
+
+  // Update the length and null-terminate the result
+  ldkPath->length = resultIndex;
+  ldkPath->path[resultIndex] = '\0';
+}

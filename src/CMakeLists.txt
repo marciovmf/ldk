@@ -1,6 +1,6 @@
 project("ldk-core")
 find_package(OpenGL REQUIRED)
-set(INCLUDE_DIR "../include/ldk")
+set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include/ldk")
 
 list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk.h
@@ -13,7 +13,10 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/common.h common.c
   ${INCLUDE_DIR}/eventqueue.h eventqueue.c
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c
+  ${INCLUDE_DIR}/module/asset.h module/asset.c
   ${INCLUDE_DIR}/module/render.h module/gl_render.c
+  ${INCLUDE_DIR}/asset/shader.h asset/shader.c
+  ${INCLUDE_DIR}/asset/material.h asset/material.c
   )
 
 if(WIN32)

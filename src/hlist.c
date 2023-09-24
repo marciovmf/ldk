@@ -38,7 +38,6 @@ inline static void handle_decode(LDKHandleInfo* hInfo, LDKHandle handle)
   hInfo->slotIndex  = (uint32_t)(handle & 0xFFFFFFFF);
 }
 
-
 bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
 {
   hlist->elementType       = type;
@@ -105,16 +104,16 @@ byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
   // Index out of bounds ?
   const uint32 maxSlots = (uint32) (ldkArenaSizeGet(&hlist->slots) / sizeof(SlotInfo));
   if (hInfo.slotIndex >= maxSlots)
-    return nullptr;
+    return NULL;
 
   // Wrong handle type ?
   if (hInfo.type != hlist->elementType)
-    return nullptr;
+    return NULL;
 
   // Wrong handle version ?
   SlotInfo* slotInfo = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + hInfo.slotIndex;
   if (hInfo.version != slotInfo->version)
-    return nullptr;
+    return NULL;
 
   byte* element = ((byte*) ldkArenaDataGet(&hlist->elements)) + (hlist->elementSize * slotInfo->elementIndex);
   return element;

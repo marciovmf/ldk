@@ -238,7 +238,7 @@ inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
 // Filesystem
 //
 
-bool ldkOsFileCreate(char* path, const byte* data)
+bool ldkOsFileCreate(const char* path, const byte* data)
 {
   HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -254,12 +254,12 @@ bool ldkOsFileCreate(char* path, const byte* data)
   return success;
 }
 
-bool ldkOsFileDelete(char* path)
+bool ldkOsFileDelete(const char* path)
 {
   return DeleteFile(path) != 0;
 }
 
-byte* ldkOsFileRead(char* path)
+byte* ldkOsFileRead(const char* path)
 {
   HANDLE hFile = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -290,7 +290,49 @@ byte* ldkOsFileRead(char* path)
   return buffer;
 }
 
-LDKFile ldkOsFileOpen(char* path, LDKFileOpenFlags flags)
+byte* ldkOsFileReadOffset(const char* path, size_t* outFileSize, size_t extraSize, size_t offset)
+{
+  HANDLE hFile = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  if (hFile == INVALID_HANDLE_VALUE)
+  {
+    return NULL;
+  }
+
+  LARGE_INTEGER fileSize;
+  GetFileSizeEx(hFile, &fileSize);
+
+  if (outFileSize != NULL)
+    *outFileSize = fileSize.QuadPart;
+
+  if((offset + fileSize.QuadPart) >= (fileSize.QuadPart + extraSize))
+  {
+    ldkLogError("Could not read file '%s' into buffer at offset %lu because fize size (%lu) + offset would overflow the buffer size",
+        path, offset, fileSize.QuadPart);
+    CloseHandle(hFile);
+    return NULL;
+  }
+
+  byte* buffer = (byte*) ldkOsMemoryAlloc(fileSize.QuadPart + extraSize);
+  if (buffer == NULL)
+  {
+    CloseHandle(hFile);
+    return NULL;
+  }
+
+  DWORD bytesRead;
+  if (!ReadFile(hFile, buffer + offset, (DWORD)fileSize.QuadPart, &bytesRead, NULL) || bytesRead != fileSize.QuadPart)
+  {
+    ldkOsMemoryFree(buffer);
+    CloseHandle(hFile);
+    return NULL;
+  }
+
+  CloseHandle(hFile);
+  return buffer;
+}
+
+LDKFile ldkOsFileOpen(const char* path, LDKFileOpenFlags flags)
 {
   DWORD accessFlags = 0;
   DWORD shareMode = 0;
@@ -317,22 +359,22 @@ bool ldkOsFileCLose(LDKFile file)
   return CloseHandle((HANDLE)file) != 0;
 }
 
-bool ldkOsFileCopy(char* file, char* newFile)
+bool ldkOsFileCopy(const char* file, const char* newFile)
 {
   return CopyFile(file, newFile, FALSE) != 0;
 }
 
-bool ldkOsFileRename(char* file, char* newFile)
+bool ldkOsFileRename(const char* file, const char* newFile)
 {
   return MoveFile(file, newFile) != 0;
 }
 
-bool ldkOsDirectoryCreate(char* path)
+bool ldkOsDirectoryCreate(const char* path)
 {
   return CreateDirectory(path, NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-bool ldkOsDirectoryCreateRecursive(char* path)
+bool ldkOsDirectoryCreateRecursive(const char* path)
 {
   size_t length = strlen(path);
   if (length >= LDK_PATH_MAX_LENGTH)
@@ -367,7 +409,7 @@ bool ldkOsDirectoryCreateRecursive(char* path)
   return true;
 }
 
-bool ldkOsDirectoryDelete(char* directory)
+bool ldkOsDirectoryDelete(const char* directory)
 {
   return RemoveDirectory(directory) != 0;
 }
@@ -391,7 +433,7 @@ size_t ldkOsCwdSetFromExecutablePath()
   return bytesCopied;
 }
 
-bool ldkOsPathIsFile(char* path)
+bool ldkOsPathIsFile(const char* path)
 {
   DWORD attributes = GetFileAttributes(path);
   return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
@@ -519,7 +561,7 @@ void ldkOsWindowDestroy(LDKWindow window)
   ldkOsMemoryFree(window);
 }
 
-LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDKWindowFlags flags)
+LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 height, LDKWindowFlags flags)
 {
   if (internal.windowCount > LDK_WIN32_MAX_WINDOWS)
   {
@@ -551,7 +593,7 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
     if (! RegisterClassExA(&wc))
     {
       ldkLogError("Could not register window class", 0);
-      return nullptr;
+      return NULL;
     }
   }
 
@@ -575,7 +617,7 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
   if (! windowHandle)
   {
     ldkLogError("Could not create a window", 0);
-    return nullptr;
+    return NULL;
   }
 
   DWORD showFlag = (flags & LDK_WINDOW_FLAG_NORMAL) ? SW_SHOWNORMAL : 0;
@@ -601,7 +643,7 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
 
     win32GraphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
         pixelFormatAttribList,
-        nullptr,
+        NULL,
         1,
         &pixelFormat,
         (UINT*) &numPixelFormats);
@@ -609,13 +651,13 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
     if (numPixelFormats <= 0)
     {
       ldkLogError("Unable to get a valid pixel format", 0);
-      return nullptr;
+      return NULL;
     }
 
     if (! SetPixelFormat(window->dc, pixelFormat, &pfd))
     {
       ldkLogError("Unable to set a pixel format", 0);
-      return nullptr;
+      return NULL;
     }
 
     HGLRC sharedContext = win32GraphicsAPIInfo.gl.sharedContext;
@@ -623,24 +665,22 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
 
     // The first context created will be used as a shared context for the rest
     // of the program execution
-    bool mustGetGLFunctions = false;
     if (! sharedContext)
     {
       win32GraphicsAPIInfo.gl.sharedContext = rc;
-      mustGetGLFunctions = true;
     }
 
     if (! rc)
     {
       ldkLogError("Unable to create a valid OpenGL context", 0);
-      return nullptr;
+      return NULL;
     }
 
     win32GraphicsAPIInfo.gl.rc = rc;
     if (! wglMakeCurrent(window->dc, rc))
     {
       ldkLogError("Unable to set OpenGL context current", 0);
-      return nullptr;
+      return NULL;
     }
   }
 
@@ -654,7 +694,7 @@ LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDK
   return window;
 }
 
-LDKWindow ldkOsWindowCreate(char* title, int32 width, int32 height)
+LDKWindow ldkOsWindowCreate(const char* title, int32 width, int32 height)
 {
   LDKWindowFlags defaultFlags = LDK_WINDOW_FLAG_NORMAL;
   return ldkOsWindowCreateWithFlags(title, width, height, defaultFlags);
@@ -1081,7 +1121,6 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
   }
   return returnValue;
 }
-
 
 
 //

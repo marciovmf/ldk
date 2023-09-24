@@ -29,7 +29,6 @@ extern "C" {
 #define LDK_OS_UNKNOWN
 #endif
 
-
 // Compiler detection macros
 
 #if defined(__GNUC__) || defined(__GNUG__)
@@ -91,7 +90,9 @@ extern "C" {
 // Debug macros
 
 #if defined(DEBUG) || defined(_DEBUG)
+#ifndef LDK_DEBUG
 #define LDK_DEBUG
+#endif
 #endif
 
 #include <stdint.h>
@@ -100,9 +101,6 @@ extern "C" {
 
 #ifndef __cplusplus
 #include <stdbool.h>
-#ifndef nullptr
-#define nullptr 0
-#endif
 #endif  
 
 #ifdef LDK_AS_SHARED_LIB
@@ -117,6 +115,19 @@ extern "C" {
 #define LDK_API
 #endif
 
+
+//
+// Global constants
+//
+enum
+{
+  LDK_SMALL_STRING_MAX_LENGTH = 512,
+  LDK_PATH_MAX_LENGTH         = 512,
+
+  LDK_TYPE_ID_UNKNOWN         = 0xFFFF,
+  LDK_HANDLE_INVALID          = 0xFFFFFFFFFFFFFFFF,
+};
+
 //
 // Common types
 //
@@ -130,17 +141,10 @@ typedef int32_t   int32;
 typedef uint32_t  uint32;
 typedef int64_t   int64;
 typedef uint64_t  uint64;
-typedef uint64_t  LDKHandle;
+typedef uintptr_t LDKHandle;
 typedef uint16_t  LDKHandleType;
+typedef void*     LDKWindow;
 
-typedef void* LDKWindow;
-
-// LDKSmallStr
-enum
-{
-  LDK_SMALL_STRING_MAX_LENGTH = 512,
-  LDK_PATH_MAX_LENGTH = 512
-};
 
 // SmallStr
 typedef struct
@@ -220,13 +224,30 @@ typedef struct
 LDK_API bool ldkLogInitialize(const char* path);
 LDK_API void ldkLogTerminate();
 LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const char* function, const char* format, ...);
+LDK_API void ldkLogPrintRaw(const char* prefix, const char* fmt, ...);
 
-#define ldkLogInfo(fmt, ...) ldkLogPrint("INFO", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#define ldkLogInfo(fmt, ...) ldkLogPrintRaw("INFO", fmt, __VA_ARGS__)
 #define ldkLogError(fmt, ...) ldkLogPrint("ERROR", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #define ldkLogWarning(fmt, ...) ldkLogPrint("WARNING", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #ifdef LDK_DEBUG
 #define ldkLogDebug(fmt, ...) ldkLogPrint("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#else
+#define ldkLogDebug(fmt, ...)
 #endif
+
+//
+// Type system
+//
+
+typedef uint16 LDKTypeId;
+
+#define typeid(type) ldkTypeId(LDK_STRINGFY(type), sizeof(type))
+#define typename(type) ldkTypeName(typeid(type))
+#define typesize(type) ldkTypeSize(typeid(type))
+
+LDK_API LDKTypeId   ldkTypeId(const char* name, size_t size);
+LDK_API const char* ldkTypeName(LDKTypeId typeId);
+LDK_API size_t      ldkTypeSize(LDKTypeId typeId);
 
 //
 // String
@@ -239,6 +260,16 @@ LDK_API size_t  ldkSmallStringLength(LDKSmallStr* smallString);
 LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
 LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
 LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
+
+//
+// Hash
+//
+
+typedef uint32 LDKHash;
+
+LDK_API LDKHash ldkHash(const char*);
+LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
+
 
 //
 // Path
@@ -259,6 +290,11 @@ LDK_API size_t    ldkPathFileExtentionGet(const char* path, char* outBuffer, siz
 
 LDK_API bool      ldkPathIsAbsolute(const char* path);
 LDK_API bool      ldkPathIsRelative(const char* path);
+
+LDK_API bool      ldkPath(LDKPath* outPath, const char* path);
+LDK_API void      ldkPathClone(LDKPath* outPath, const LDKPath* path);
+LDK_API void      ldkPathNormalize(LDKPath* path);
+
 
 #ifdef LDK_OS_WINDOWS
 #define LDK_PATH_SEPARATOR '\\'
@@ -377,13 +413,6 @@ typedef struct
     LDKFrameEvent       frameEvent;
   };
 } LDKEvent;
-
-
-enum
-{
-  LDK_HANDLE_INVALID = 0,
-  LDK_HANDLE_TYPE_SHADER = 1 << 0,
-};
 
 
 #ifdef __cplusplus

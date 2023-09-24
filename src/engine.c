@@ -3,12 +3,27 @@
 #include "ldk/eventqueue.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/render.h"
+#include "ldk/module/asset.h"
+#include "ldk/asset/shader.h"
+#include "ldk/asset/material.h"
+#include <string.h>
 
 static struct
 {
   bool running;
   int32 exitCode;
 } internal = {0};
+
+void logModuleInit(const char* moduleName, bool success)
+{
+  //ldkLogPrintRaw("LDK", "%s initializing %s",  success ? "[ OK ]" : "[FAIL]", moduleName);
+  ldkLogPrintRaw("INFO", "initializing %s", moduleName);
+}
+
+void logModuleTerminate(const char* moduleName)
+{
+  ldkLogPrintRaw("INFO", "Terminating %s", moduleName);
+}
 
 bool ldkEngineInitialize()
 {
@@ -19,38 +34,51 @@ bool ldkEngineInitialize()
 
   // Startup Log
   stepSuccess = ldkLogInitialize("ldk.log");
-  ldkLogInfo("-- Initializing Log %s", stepSuccess ? "SUCCES" : "FAIL"); 
+  logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
+
+  // Register common types
+  typeid(LDKHandle);
 
   // Startup Graphics
-  stepSuccess  = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
-  ldkLogInfo("-- Initializing Graphics %s", stepSuccess ? "SUCCES" : "FAIL"); 
-  lkdGraphicsInfoPrint();
-
-  // Startup renderer
-  stepSuccess  = ldkRenderInitialize();
-  ldkLogInfo("-- Initializing Renderer %s", stepSuccess ? "SUCCES" : "FAIL"); 
-
+  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
+  logModuleInit("Graphics", stepSuccess);
   success &= stepSuccess;
 
-  ldkLogInfo("-- Engine Initialization %s", stepSuccess ? "SUCCES" : "FAIL"); 
+  // Startup renderer
+  stepSuccess = ldkRenderInitialize();
+  logModuleInit("Render", stepSuccess);
+  success &= stepSuccess;
+
+  // Startup Asset Handlers
+  stepSuccess = ldkAssetInitialize();
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "material", ldkMaterialLoadFunc, ldkMaterialUnloadFunc);
+  logModuleInit("Asset Handler", stepSuccess);
+
+  success &= stepSuccess;
+  logModuleInit("LDK is ready", stepSuccess);
+  lkdGraphicsInfoPrint();
 
   return success;
 }
 
 void ldkEngineTerminate()
 {
-  ldkLogInfo("-- Terminating Renderer...", 0);
+  logModuleTerminate("Asset Handler");
+  ldkAssetTerminate();
+  logModuleTerminate("Render");
   ldkRenderTerminate();
-  ldkLogInfo("-- Terminating Graphics...", 0);
+  logModuleTerminate("Graphics");
   ldkGraphicsTerminate();
-  ldkLogInfo("-- Terminating Log...\n-- Engine terminated.\n", 0);
+  logModuleTerminate("Log\n ---");
   ldkLogTerminate();
 }
 
 LDK_API int32 ldkEngineRun()
 {
-  LDKEventType event = {0};
   internal.running = true;
   while (internal.running)
   {

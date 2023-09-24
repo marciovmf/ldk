@@ -34,16 +34,17 @@ extern "C" {
   //
   // Filesytem
   //
-  LDK_API byte*   ldkOsFileRead(char* path);
-  LDK_API bool    ldkOsFileCreate(char* path, const byte* data);
-  LDK_API bool    ldkOsFileDelete(char* path);
-  LDK_API LDKFile ldkOsFileOpen(char* path, LDKFileOpenFlags flags);
+  LDK_API byte*   ldkOsFileRead(const char* path);
+  LDK_API byte*   ldkOsFileReadOffset(const char* path, size_t* outFileSize, size_t extraSize, size_t offset);
+  LDK_API bool    ldkOsFileCreate(const char* path, const byte* data);
+  LDK_API bool    ldkOsFileDelete(const char* path);
+  LDK_API LDKFile ldkOsFileOpen(const char* path, LDKFileOpenFlags flags);
   LDK_API bool    ldkOsFileClose(LDKFile file);
-  LDK_API bool    ldkOsFileCopy(char* file, char* newFile);
-  LDK_API bool    ldkOsFileRename(char* file, char* newFile);
-  LDK_API bool    ldkOsDirectoryCreate(char* path);
-  LDK_API bool    ldkOsDirectoryCreateRecursive(char* path); // path can be absolute or relative. If path does not end with a path separator, it's assumed to be a file path and the file portion will be ignored.
-  LDK_API bool    ldkOsDirectoryDelete(char* directory);
+  LDK_API bool    ldkOsFileCopy(const char* file, const char* newFile);
+  LDK_API bool    ldkOsFileRename(const char* file, const char* newFile);
+  LDK_API bool    ldkOsDirectoryCreate(const char* path);
+  LDK_API bool    ldkOsDirectoryCreateRecursive(const char* path); // path can be absolute or relative. If path does not end with a path separator, it's assumed to be a file path and the file portion will be ignored.
+  LDK_API bool    ldkOsDirectoryDelete(const char* directory);
   
   //
   // Cwd
@@ -55,8 +56,8 @@ extern "C" {
   //
   // Path
   //
-  LDK_API bool    ldkOsPathIsFile(char* path);
-  LDK_API bool    ldkOsPathIsDirectory(char* path);
+  LDK_API bool    ldkOsPathIsFile(const char* path);
+  LDK_API bool    ldkOsPathIsDirectory(const char* path);
   
   //
   // Memory
@@ -101,8 +102,8 @@ extern "C" {
   } LDKWindowFlags;
 
   LDK_API bool      ldkOsEventsPoll(LDKEvent* event);
-  LDK_API LDKWindow ldkOsWindowCreateWithFlags(char* title, int32 width, int32 height, LDKWindowFlags flags);
-  LDK_API LDKWindow ldkOsWindowCreate(char* title, int32 width, int32 height);
+  LDK_API LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 height, LDKWindowFlags flags);
+  LDK_API LDKWindow ldkOsWindowCreate(const char* title, int32 width, int32 height);
   LDK_API bool      ldkOsWindowShouldClose(LDKWindow window);
   LDK_API void      ldkOsWindowBuffersSwap(LDKWindow window);
   LDK_API void      ldkOsWindowDestroy(LDKWindow window);

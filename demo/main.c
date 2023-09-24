@@ -1,4 +1,6 @@
 #include "ldk/ldk.h"
+#include "ldk/module/asset.h"
+#include "ldk/common.h"
 
 // Pure engine approach
 void terminate()
@@ -38,7 +40,7 @@ bool onMouseEvent(const LDKEvent* event, void* unused)
 
   if (event->type == LDK_EVENT_TYPE_MOUSE_WHEEL)
   {
-    char* eventName = 
+    eventName = 
       event->mouseEvent.type == LDK_MOUSE_EVENT_WHEEL_FORWARD ? "WHEEL_FORWARD" :
       event->mouseEvent.type == LDK_MOUSE_EVENT_WHEEL_BACKWARD ? "WHEEL_BACKWARD" :
       "UNKNOWN";
@@ -46,7 +48,7 @@ bool onMouseEvent(const LDKEvent* event, void* unused)
   }
   else if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON)
   {
-    const char* eventName = 
+    eventName = 
       event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_UP ? "BUTTON_UP" :
       event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_DOWN ? "BUTTON_DOWN" :
       "UNKNOWN";
@@ -80,7 +82,8 @@ bool onWindowEvent(const LDKEvent* event, void* unused)
   return true;
 }
 
-bool pureEngineApplication()
+// Engine driven approach
+int pureEngineApplication()
 {
   ldkEngineInitialize();
   ldkGraphicsViewportTitleSet("LDK: Event test");
@@ -91,6 +94,13 @@ bool pureEngineApplication()
   ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_BUTTON | LDK_EVENT_TYPE_MOUSE_WHEEL, 0);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, 0);
+
+  LDKHShader vs = ldkAssetGet("../runtree/default.vs");
+  LDKHShader fs = ldkAssetGet("../runtree/default.fs");
+  LDKHMaterial material = ldkAssetGet("../runtree/default.material");
+  //LDKHShaderProgram shader = ldkShaderProgramCreate(vs, fs, LDK_HANDLE_INVALID);
+  //ldkShaderBind(shader);
+
   glClearColor(0.3f, 0.5f, 0.5f, 0.0f);
   return ldkEngineRun();
 }
@@ -147,7 +157,7 @@ bool pureOsApplication()
 }
 
 // Mixed approach
-bool mixedModeApplication()
+int mixedModeApplication()
 {
   ldkEngineInitialize();
   ldkGraphicsViewportTitleSet("LDK");
@@ -180,7 +190,6 @@ bool mixedModeApplication()
   return 0;
 }
 
-
 int testPathFunctions()
 {
   LDKPath path;
@@ -206,9 +215,9 @@ int testPathFunctions()
 
 int main()
 {
+  //return testPathFunctions();
   //return pureOsApplication();
-  //return pureEngineApplication();
   //return mixedModeApplication();
-  return testPathFunctions();
+  return pureEngineApplication();
 }
 

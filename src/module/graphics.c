@@ -40,7 +40,7 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api)
 
   internal.mainWindow = ldkOsWindowCreate("LDK", 800, 600);
   ldkOsGraphicsContextCurrent(internal.mainWindow, internal.context);
-  bool success = internal.context != nullptr;
+  bool success = internal.context != NULL;
 
   internal.api = api;
   return success;
@@ -156,7 +156,7 @@ void lkdGraphicsInfoPrint()
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
   {
-    ldkLogInfo("\n\tOpenGL Vendor: %s\n\tOpenGL Renderer: %s\n\tOpenGL Version: %s\n\tOpenGL Shading Language Version: %s",
+    ldkLogInfo("OpenGL Renderer:\n\tVendor: %s\n\tRenderer: %s\n\tVersion: %s\n\tShading Language Version: %s",
         glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
   }
   else

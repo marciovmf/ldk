@@ -11,7 +11,7 @@
 
 #include "common.h"
 #include "gl/glcorearb.h"
-#include "../include/ldk/gl/wglext.h"
+#include "gl/wglext.h"
 
 #ifdef __cplusplus
 extern "C" {

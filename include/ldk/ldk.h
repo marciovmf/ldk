@@ -10,7 +10,6 @@
 #define LDK_H
 
 /* Core */
-
 #include "common.h"
 #include "os.h"
 #include "gl.h"
@@ -21,5 +20,6 @@
 /* Modules */
 #include "module/graphics.h"
 #include "module/render.h"
+#include "module/asset.h"
 
 #endif //LDK_H

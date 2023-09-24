@@ -22,8 +22,8 @@ extern "C" {
   typedef struct
   {
     size_t      elementSize;
-    Arena       slots;
-    Arena       elements;
+    LDKArena       slots;
+    LDKArena       elements;
     uint32      elementCount;
     uint32      freeSlotListCount;
     uint32      freeSlotListStart;
