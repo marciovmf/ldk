@@ -6,3 +6,4 @@ lib
 *.vim
 .clangd
 *.rdbg
+*.log
