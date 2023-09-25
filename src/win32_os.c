@@ -1167,6 +1167,30 @@ int32 ldkOsGraphicsVSyncGet()
   return false;
 }
 
+//
+// Mouse
+//
+
+void ldkOsMouseStateGet(LDKMouseState* outState)
+{
+  memcpy(outState, &internal.mouseState, sizeof(LDKMouseState));
+}
+
+bool ldkOsMouseButtonIsPressed(LDKMouseState* state, LDKMouseButton button)
+{
+  return (state->button[button] & LDK_MOUSE_PRESSED_BIT) == LDK_MOUSE_PRESSED_BIT;
+}
+
+bool ldkOsMouseButtonDown(LDKMouseState* state, LDKMouseButton button)
+{
+  uint32 mask = LDK_MOUSE_PRESSED_BIT | LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+  return (state->button[button] & mask) == mask;
+}
+
+bool ldkOsMouseButtonUp(LDKMouseState* state, LDKMouseButton button)
+{
+  return state->button[button] == LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+}
 
 //
 // Keyboard
@@ -1175,4 +1199,20 @@ int32 ldkOsGraphicsVSyncGet()
 void ldkOsKeyboardStateGet(LDKKeyboardState* outState)
 {
   memcpy(outState, &internal.keyboardState, sizeof(LDKKeyboardState));
+}
+
+bool ldkOsKeyboardKeyIsPressed(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return (state->key[keycode] & LDK_KEYBOARD_PRESSED_BIT) == LDK_KEYBOARD_PRESSED_BIT;
+}
+
+bool ldkOsKeyboardKeyDown(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  uint32 mask = LDK_KEYBOARD_PRESSED_BIT | LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+  return (state->key[keycode] & mask) == mask;
+}
+
+bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return state->key[keycode] == LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
 }

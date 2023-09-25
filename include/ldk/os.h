@@ -139,7 +139,7 @@ extern "C" {
   //
   // Mouse
   //
-  enum
+  typedef enum
   {
     LDK_MOUSE_BUTTON_LEFT     = 0,
     LDK_MOUSE_BUTTON_RIGHT    = 1,
@@ -150,7 +150,7 @@ extern "C" {
     LDK_MOUSE_CHANGED_THIS_FRAME_BIT = 1 << 1,
     LDK_MOUSE_PRESSED_BIT     = 1,
     LDK_MOUSE_MAX_BUTTONS     = 5
-  };
+  } LDKMouseButton;
 
   // LDKMouseState
   typedef struct 
@@ -161,6 +161,9 @@ extern "C" {
   } LDKMouseState;
 
   LDK_API void ldkOsMouseStateGet(LDKMouseState* outState);
+  LDK_API bool ldkOsMouseButtonIsPressed(LDKMouseState* state, LDKMouseButton button);  // True while button is pressed
+  LDK_API bool ldkOsMouseButtonDown(LDKMouseState* state, LDKMouseButton button);    // True in the frame the button was pressed
+  LDK_API bool ldkOsMouseButtonUp(LDKMouseState* state, LDKMouseButton button);      // True in the frame the button was released
 
   //
   // Keyboard
@@ -305,6 +308,11 @@ extern "C" {
 #undef X
 
   LDK_API void ldkOsKeyboardStateGet(LDKKeyboardState* outState);
+
+  LDK_API bool ldkOsKeyboardKeyIsPressed(LDKKeyboardState* state, LDKKeycode keycode);   // True while the key is pressed
+  LDK_API bool ldkOsKeyboardKeyDown(LDKKeyboardState* state, LDKKeycode keycode);     // True in the frame the key was pressed
+  LDK_API bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode);       // True in the frame the key was released
+
 
 #ifdef __cplusplus
 }

@@ -122,6 +122,7 @@ bool pureOsApplication()
   ldkOsWindowTitleSet(window2, "Hello, Friend!");
 
   bool running = true;
+
   while (running)
   {
     LDKEvent e;
@@ -136,7 +137,6 @@ bool pureOsApplication()
           running = false;
           break;
         }
-
       }
     }
 
