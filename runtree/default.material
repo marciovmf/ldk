@@ -9,3 +9,4 @@
 #   texture2d diffuse:    textures/checkers.texture
 vert-shader:          ../runtree/default.vs
 frag-shader:          ../runtree/default.fs
+float intensity: 1.0

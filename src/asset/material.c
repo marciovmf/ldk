@@ -16,7 +16,6 @@ static char* internalSkipWhiteSpace(char* input)
   return p;
 }
 
-
 static bool internalParseInt(const char* path, int line, const char* input, int* out)
 {
   while(*input)
@@ -124,7 +123,7 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
           if (program == LDK_HANDLE_INVALID)
             error = true;
 
-          material = ldkMaterialCreate(program);
+          material = ldkMaterialCreate(program, path);
           if (material == LDK_HANDLE_INVALID)
             error = true;
         }
@@ -152,22 +151,22 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
         else if (strncmp("int", varType, strlen(varType)) == 0)
         {
           int val = 0;
-          char* a = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
+          char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           error &= internalParseInt(path, lineNumber, a, &val);
           error &= ldkMaterialParamSetInt(material, varName, val);
         }
         else if (strncmp("float", varType, strlen(varType)) == 0)
         {
           float val;
-          char* a = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
+          char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           error &= internalParseFloat(path, lineNumber, a, &val);
           error &= ldkMaterialParamSetFloat(material, varName, val);
         }
         else if (strncmp("vec2", varType, strlen(varType)) == 0)
         {
           Vec2 val;
-          char* x = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           error &= internalParseFloat(path, lineNumber, x, &val.x);
           error &= internalParseFloat(path, lineNumber, y, &val.y);
           error &= ldkMaterialParamSetVec2(material, varName, val);
@@ -175,26 +174,31 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
         else if (strncmp("vec3", varType, strlen(varType)) == 0)
         {
           Vec3 val;
-          char* x = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* z = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           error &= internalParseFloat(path, lineNumber, x, &val.x);
           error &= internalParseFloat(path, lineNumber, y, &val.y);
           error &= internalParseFloat(path, lineNumber, z, &val.z);
           error &= ldkMaterialParamSetVec3(material, varName, val);
         }
-        if (strncmp("vec4", varType, strlen(varType)) == 0)
+        else if (strncmp("vec4", varType, strlen(varType)) == 0)
         {
           Vec4 val;
-          char* x = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* z = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* w = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* w = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           error &= internalParseFloat(path, lineNumber, x, &val.x);
           error &= internalParseFloat(path, lineNumber, y, &val.y);
           error &= internalParseFloat(path, lineNumber, z, &val.z);
           error &= internalParseFloat(path, lineNumber, w, &val.w);
           error &= ldkMaterialParamSetVec4(material, varName, val);
+        }
+        else
+        {
+          ldkLogError("Error parsing material file '%s' at line %d: Unknow param type '%s'.", path, lineNumber, varType);
+          error = true;
         }
 
         char* nullToken = strtok_s(NULL,   "  \t", &varNameAndTypeContext);

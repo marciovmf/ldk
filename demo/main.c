@@ -95,11 +95,8 @@ int pureEngineApplication()
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, 0);
 
-  LDKHShader vs = ldkAssetGet("../runtree/default.vs");
-  LDKHShader fs = ldkAssetGet("../runtree/default.fs");
   LDKHMaterial material = ldkAssetGet("../runtree/default.material");
-  //LDKHShaderProgram shader = ldkShaderProgramCreate(vs, fs, LDK_HANDLE_INVALID);
-  //ldkShaderBind(shader);
+  //ldkMaterialBind(material);
 
   glClearColor(0.3f, 0.5f, 0.5f, 0.0f);
   return ldkEngineRun();

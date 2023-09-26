@@ -15,39 +15,31 @@ enum
 
 LDK_API bool ldkRenderInitialize();
 LDK_API void ldkRenderTerminate();
-LDK_API LDKHShaderProgram ldkShaderProgramCreate(LDKHShader hVertex, LDKHShader hFragment, LDKHShader hGeometry);
-LDK_API bool ldkShaderDestroy(LDKHShader hShader);
-LDK_API bool ldkShaderProgramDestroy(LDKHShaderProgram hShader);
-LDK_API LDKHShader ldkFragmentShaderCreate(const char* source);
-LDK_API LDKHShader ldkVertexShaderCreate(const char* source);
-LDK_API LDKHShader ldkGeometryShaderCreate(const char* source);
-
 
 //
 // Shader
 //
-LDK_API bool ldkShaderParamSetUInt(LDKHShader handle, const char* name, uint32 value);
-LDK_API bool ldkShaderParamSetInt(LDKHShader handle, const char* name, int32 value);
-LDK_API bool ldkShaderParamSetFloat(LDKHShader handle, const char* name, float value);
-LDK_API bool ldkShaderParamSetVec2(LDKHShader handle, const char* name, Vec2 value);
-LDK_API bool ldkShaderParamSetVec3(LDKHShader handle, const char* name, Vec3 value);
-LDK_API bool ldkShaderParamSetVec4(LDKHShader handle, const char* name, Vec4 value);
-LDK_API bool ldkShaderParamSetMat4(LDKHShader handle, const char* name, Mat4 value);
-//LDK_API bool ldkShaderParam(LDKHShader handle, const char* name, LDKHTexture value);
+LDK_API LDKHShaderProgram ldkShaderProgramCreate(LDKHShader handleVs, LDKHShader handleFs, LDKHShader handleGs);
+LDK_API LDKHShader ldkFragmentShaderCreate(const char* source);
+LDK_API LDKHShader ldkVertexShaderCreate(const char* source);
+LDK_API LDKHShader ldkGeometryShaderCreate(const char* source);
+LDK_API bool ldkShaderDestroy(LDKHShader handle);
+LDK_API bool ldkShaderProgramDestroy(LDKHShaderProgram handle);
 LDK_API bool ldkShaderBind(LDKHShader handle);
-LDK_API void ldkShadeUnbind(LDKHShader handle);
-
+LDK_API void ldkShaderUnbind(LDKHShader handle);
 
 //
 // Material
 //
-LDK_API LDKHMaterial ldkMaterialCreate(LDKHShaderProgram hProgram);
-LDK_API bool ldkMaterialDestroy(LDKHMaterial hMaterial);
-LDK_API bool ldkMaterialParamSetInt(LDKHMaterial hMaterial, const char* name, int value);
-LDK_API bool ldkMaterialParamSetFloat(LDKHMaterial hMaterial, const char* name, float value);
-LDK_API bool ldkMaterialParamSetVec2(LDKHMaterial hMaterial, const char* name, Vec2 value );
-LDK_API bool ldkMaterialParamSetVec3(LDKHMaterial hMaterial, const char* name, Vec3 value );
-LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial hMaterial, const char* name, Vec4 value );
+LDK_API LDKHMaterial ldkMaterialCreate(LDKHShaderProgram handle, const char* name);
+LDK_API bool ldkMaterialDestroy(LDKHMaterial handle);
+LDK_API bool ldkMaterialParamSetInt(LDKHMaterial handle, const char* name, int value);
+LDK_API bool ldkMaterialParamSetFloat(LDKHMaterial handle, const char* name, float value);
+LDK_API bool ldkMaterialParamSetVec2(LDKHMaterial handle, const char* name, Vec2 value);
+LDK_API bool ldkMaterialParamSetVec3(LDKHMaterial handle, const char* name, Vec3 value);
+LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4 value);
+LDK_API bool ldkMaterialBind(LDKHMaterial handle);
+LDK_API void ldkMaterialUnbind(LDKHMaterial handle);
 
 #endif //RENDER_H
 
