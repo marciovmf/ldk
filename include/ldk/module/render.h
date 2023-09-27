@@ -1,5 +1,13 @@
-#ifndef RENDER_H
-#define RENDER_H
+/**
+ *
+ * render.h
+ * 
+ * High level rendering API for the engine
+ * 
+ */
+
+#ifndef LDK_RENDER_H
+#define LDK_RENDER_H
 
 #include "../common.h"
 #include "../maths.h"
@@ -41,5 +49,5 @@ LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4
 LDK_API bool ldkMaterialBind(LDKHMaterial handle);
 LDK_API void ldkMaterialUnbind(LDKHMaterial handle);
 
-#endif //RENDER_H
+#endif //LDK_RENDER_H
 

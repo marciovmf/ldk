@@ -1,5 +1,12 @@
-#ifndef SHADER_H
-#define SHADER_H
+/**
+ *
+ * shader.h
+ * 
+ * Functions for loading/unloading shader assets
+ */
+
+#ifndef LDK_SHADER_H
+#define LDK_SHADER_H
 
 #include "../common.h"
 #include "../module/render.h"
@@ -8,11 +15,11 @@
 extern "C" {
 #endif
 
-  LDKHShader ldkShaderLoadFunc(const char* path);
-  void ldkShaderUnloadFunc(LDKHShader handle);
+  LDK_API LDKHShader ldkShaderLoadFunc(const char* path);
+  LDK_API void ldkShaderUnloadFunc(LDKHShader handle);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // SHADER_H
+#endif  // LDK_SHADER_H

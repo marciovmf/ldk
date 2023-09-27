@@ -1,5 +1,14 @@
-#ifndef ASSET_H
-#define ASSET_H
+/**
+ *
+ * asset.h
+ *
+ * Interface for retrieveing assets by name.
+ * If an asset is not already loaded, the asset manager will look for an asset
+ * handler for the specific asset's file extention.
+ */
+
+#ifndef LDK_ASSET_H
+#define LDK_ASSET_H
 
 #include "../common.h"
 
@@ -22,4 +31,4 @@ extern "C" {
 }
 #endif
 
-#endif //ASSET_H
+#endif //LDK_ASSET_H

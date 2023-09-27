@@ -1,5 +1,12 @@
-#ifndef MATERIAL_H
-#define MATERIAL_H
+/**
+ *
+ * material.h
+ * 
+ * Functions for loading/unloading material assets
+ */
+
+#ifndef LDK_MATERIAL_H
+#define LDK_MATERIAL_H
 
 #include "../common.h"
 #include "../module/render.h"
@@ -14,5 +21,5 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#endif //MATERIAL_H
+#endif // LKD_MATERIAL_H
 

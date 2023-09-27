@@ -1,5 +1,12 @@
-#ifndef MATHS_H
-#define MATHS_H
+/**
+ *
+ * maths.h
+ * 
+ * Common math functions and types for Floats Vector Quaternions and Matrices
+ * 
+ */
+#ifndef LDK_MATHS_H
+#define LDK_MATHS_H
 
 #include "common.h"
 
@@ -289,5 +296,5 @@ Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
 #ifdef __cplusplus
 }
 #endif
-#endif //MATHS_H
+#endif // LDK_MATHS_H
 
