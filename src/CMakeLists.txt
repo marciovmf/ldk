@@ -14,7 +14,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/eventqueue.h eventqueue.c
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c
   ${INCLUDE_DIR}/module/asset.h module/asset.c
-  ${INCLUDE_DIR}/module/render.h module/gl_render.c
+  ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
   ${INCLUDE_DIR}/asset/material.h asset/material.c
   )
@@ -34,14 +34,13 @@ endif()
 if(CMAKE_CONFIGURATION_TYPES)
     foreach(config ${CMAKE_CONFIGURATION_TYPES})
       if(NOT config STREQUAL "Release")
-            message("Build type is RELEASE for configuration: ${config}")
+            list(APPEND LIBS dbghelp.lib)
         endif()
     endforeach()
 else()
     # Single-configuration generator (e.g., Makefile, Ninja)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Code to be executed when the build type is RELEASE
-        message("Build type is RELEASE")
+        list(APPEND LIBS dbghelp.lib)
     endif()
 endif()
 

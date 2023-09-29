@@ -2,11 +2,12 @@
 #include "ldk/engine.h"
 #include "ldk/eventqueue.h"
 #include "ldk/module/graphics.h"
-#include "ldk/module/render.h"
+#include "ldk/module/renderer.h"
 #include "ldk/module/asset.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
 #include <string.h>
+#include <signal.h>
 
 static struct
 {
@@ -14,26 +15,59 @@ static struct
   int32 exitCode;
 } internal = {0};
 
+static void ldkOnSignal(int32 signal)
+{
+  const char* signalName = "Unknown signal";
+  switch(signal)
+  {
+    case SIGABRT: signalName = (const char*) "SIGABRT"; break;
+    case SIGFPE:  signalName = (const char*) "SIGFPE"; break;
+    case SIGILL:  signalName = (const char*) "SIGILL"; break;
+    case SIGINT:  signalName = (const char*) "SIGINT"; break;
+    case SIGSEGV: signalName = (const char*) "SIGSEGV"; break;
+    case SIGTERM: signalName = (const char*) "SIGTERM"; break;
+  }
+
+  ldkLogError("Signal %s\n", signalName);
+  ldkOsStackTracePrint();
+  ldkEngineStop(signal);
+  ldkEngineTerminate();
+}
+
 void logModuleInit(const char* moduleName, bool success)
 {
-  //ldkLogPrintRaw("LDK", "%s initializing %s",  success ? "[ OK ]" : "[FAIL]", moduleName);
-  ldkLogPrintRaw("INFO", "initializing %s", moduleName);
+  ldkLogInfo("initializing %s", moduleName);
 }
 
 void logModuleTerminate(const char* moduleName)
 {
-  ldkLogPrintRaw("INFO", "Terminating %s", moduleName);
+  ldkLogInfo("Terminating %s", moduleName);
 }
 
 bool ldkEngineInitialize()
 {
+  signal(SIGABRT, ldkOnSignal);
+  signal(SIGFPE, ldkOnSignal);
+  signal(SIGILL, ldkOnSignal);
+  signal(SIGINT, ldkOnSignal);
+  signal(SIGSEGV, ldkOnSignal);
+  signal(SIGTERM, ldkOnSignal);
+
+  ldkOsInitialize();
   ldkOsCwdSetFromExecutablePath();
 
   bool success = true;
   bool stepSuccess;
 
+  LDKDateTime  dateTime;
+  ldkOsSystemDateTimeGet(&dateTime);
+  char strDateTime[64];
+  snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK Engine Startup ----",
+      dateTime.year, dateTime.month, dateTime.day,
+      dateTime.hour, dateTime.minute, dateTime.Second);
+
   // Startup Log
-  stepSuccess = ldkLogInitialize("ldk.log");
+  stepSuccess = ldkLogInitialize("ldk.log", strDateTime);
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
 
@@ -75,6 +109,7 @@ void ldkEngineTerminate()
   ldkGraphicsTerminate();
   logModuleTerminate("Log\n ---");
   ldkLogTerminate();
+  ldkOsTerminate();
 }
 
 LDK_API int32 ldkEngineRun()

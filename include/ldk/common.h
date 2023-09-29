@@ -221,16 +221,17 @@ typedef struct
 // Logging
 //
 
-LDK_API bool ldkLogInitialize(const char* path);
+LDK_API bool ldkLogInitialize(const char* path, const char* initalMessage);
 LDK_API void ldkLogTerminate();
-LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const char* function, const char* format, ...);
-LDK_API void ldkLogPrintRaw(const char* prefix, const char* fmt, ...);
+LDK_API void ldkLogPrint(const char* prefix, const char* format, ...);
+LDK_API void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...);
+LDK_API void ldkLogPrintRaw(const char* fmt, ...);
 
-#define ldkLogInfo(fmt, ...) ldkLogPrintRaw("INFO", fmt, __VA_ARGS__)
-#define ldkLogError(fmt, ...) ldkLogPrint("ERROR", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
-#define ldkLogWarning(fmt, ...) ldkLogPrint("WARNING", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#define ldkLogInfo(fmt, ...) ldkLogPrint("INFO",  fmt, __VA_ARGS__)
+#define ldkLogError(fmt, ...) ldkLogPrintDetailed("ERROR", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#define ldkLogWarning(fmt, ...) ldkLogPrintDetailed("WARNING", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #ifdef LDK_DEBUG
-#define ldkLogDebug(fmt, ...) ldkLogPrint("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
+#define ldkLogDebug(fmt, ...) ldkLogPrintDetailed("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #else
 #define ldkLogDebug(fmt, ...)
 #endif

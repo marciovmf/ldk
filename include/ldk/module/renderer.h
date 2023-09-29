@@ -15,6 +15,7 @@
 typedef LDKHandle LDKHMaterial;
 typedef LDKHandle LDKHShader;
 typedef LDKHandle LDKHShaderProgram;
+typedef LDKHandle LDKHMesh;
 
 enum
 {
@@ -49,5 +50,8 @@ LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4
 LDK_API bool ldkMaterialBind(LDKHMaterial handle);
 LDK_API void ldkMaterialUnbind(LDKHMaterial handle);
 
+//
+// render
+//
 #endif //LDK_RENDER_H
 

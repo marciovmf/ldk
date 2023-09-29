@@ -11,7 +11,7 @@
 
 static FILE* logFile_ = 0;
 
-LDK_API bool ldkLogInitialize(const char* path)
+bool ldkLogInitialize(const char* path, const char* initialMessage)
 {
   if (logFile_)
     return false;
@@ -23,16 +23,33 @@ LDK_API bool ldkLogInitialize(const char* path)
   if (!logFile_)
     return false;
 
+  if (initialMessage)
+  {
+    printf("\n\n%s\n", initialMessage);
+    fprintf(logFile_, "\n\n%s\n", initialMessage);
+  }
   return true;
 }
 
-LDK_API void ldkLogTerminate()
+void ldkLogTerminate()
 {
   if (logFile_)
     fclose(logFile_);
 }
 
-LDK_API void ldkLogPrintRaw(const char* prefix, const char* fmt, ...)
+void ldkLogPrintRaw(const char* fmt, ...)
+{
+  va_list argList;
+  va_start(argList, fmt);
+  vfprintf(stdout, fmt, argList);
+  if (logFile_)
+  {
+    vfprintf(logFile_, fmt, argList);
+  }
+  va_end(argList);
+}
+
+void ldkLogPrint(const char* prefix, const char* fmt, ...)
 {
   va_list argList;
   va_start(argList, fmt);
@@ -46,7 +63,7 @@ LDK_API void ldkLogPrintRaw(const char* prefix, const char* fmt, ...)
   va_end(argList);
 }
 
-LDK_API void ldkLogPrint(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...)
+void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...)
 {
   va_list argList;
   va_start(argList, fmt);

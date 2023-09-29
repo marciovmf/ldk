@@ -19,7 +19,7 @@
 
 /* Modules */
 #include "module/graphics.h"
-#include "module/render.h"
+#include "module/renderer.h"
 #include "module/asset.h"
 
 #endif //LDK_H

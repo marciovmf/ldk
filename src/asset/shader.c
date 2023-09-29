@@ -1,5 +1,5 @@
 #include "ldk/asset/shader.h"
-#include "ldk/module/render.h"
+#include "ldk/module/renderer.h"
 #include "ldk/common.h"
 #include "ldk/os.h"
 
@@ -28,7 +28,8 @@ LDKHShader ldkShaderLoadFunc(const char* path)
   {
     handle = ldkGeometryShaderCreate((const char*) buffer);
   }
-  else {
+  else
+  {
     ldkLogError("Unknown shader file type '%s'", path);
     return LDK_HANDLE_INVALID;
   }

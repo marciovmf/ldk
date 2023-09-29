@@ -9,7 +9,7 @@
 #define LDK_MATERIAL_H
 
 #include "../common.h"
-#include "../module/render.h"
+#include "../module/renderer.h"
 
 #ifdef __cplusplus
 extern "C" {

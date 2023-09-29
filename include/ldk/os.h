@@ -32,6 +32,14 @@ extern "C" {
 
 
   //
+  // Initialization / Termination
+  //
+  
+  LDK_API bool ldkOsInitialize();
+  LDK_API void ldkOsTerminate();
+  LDK_API void ldkOsStackTracePrint();
+
+  //
   // Filesytem
   //
   LDK_API byte*   ldkOsFileRead(const char* path);
