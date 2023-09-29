@@ -22,8 +22,8 @@ enum
   LDK_SHADER_MAX_PARAM = 16,
 };
 
-LDK_API bool ldkRenderInitialize();
-LDK_API void ldkRenderTerminate();
+LDK_API bool ldkRendererInitialize();
+LDK_API void ldkRendererTerminate();
 
 //
 // Shader

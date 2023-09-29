@@ -105,7 +105,7 @@ int pureEngineApplication()
 // Pure OS approach
 bool pureOsApplication()
 {
-  ldkLogInitialize(0);
+  ldkLogInitialize(0, "-- Start --");
   ldkOsCwdSetFromExecutablePath();
 
   LDKGCtx context = ldkOsGraphicsContextOpenglCreate(3, 3, 24, 8);

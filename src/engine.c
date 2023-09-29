@@ -47,9 +47,9 @@ void logModuleTerminate(const char* moduleName)
 bool ldkEngineInitialize()
 {
   signal(SIGABRT, ldkOnSignal);
-  signal(SIGFPE, ldkOnSignal);
-  signal(SIGILL, ldkOnSignal);
-  signal(SIGINT, ldkOnSignal);
+  signal(SIGFPE,  ldkOnSignal);
+  signal(SIGILL,  ldkOnSignal);
+  signal(SIGINT,  ldkOnSignal);
   signal(SIGSEGV, ldkOnSignal);
   signal(SIGTERM, ldkOnSignal);
 
@@ -71,7 +71,7 @@ bool ldkEngineInitialize()
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
 
-  // Register common types
+  // Register LDKHandle so any other handle type is larger than 0
   typeid(LDKHandle);
 
   // Startup Graphics
@@ -80,8 +80,8 @@ bool ldkEngineInitialize()
   success &= stepSuccess;
 
   // Startup renderer
-  stepSuccess = ldkRenderInitialize();
-  logModuleInit("Render", stepSuccess);
+  stepSuccess = ldkRendererInitialize();
+  logModuleInit("Renderer", stepSuccess);
   success &= stepSuccess;
 
   // Startup Asset Handlers
@@ -103,8 +103,8 @@ void ldkEngineTerminate()
 {
   logModuleTerminate("Asset Handler");
   ldkAssetTerminate();
-  logModuleTerminate("Render");
-  ldkRenderTerminate();
+  logModuleTerminate("Renderer");
+  ldkRendererTerminate();
   logModuleTerminate("Graphics");
   ldkGraphicsTerminate();
   logModuleTerminate("Log\n ---");

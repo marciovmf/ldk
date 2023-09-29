@@ -53,7 +53,7 @@ static struct
 // Renderer
 //
 
-bool ldkRenderInitialize()
+bool ldkRendererInitialize()
 {
   LDK_ASSERT(internal.initialized == false);
   internal.initialized = true;
@@ -63,7 +63,7 @@ bool ldkRenderInitialize()
   return success;
 }
 
-void ldkRenderTerminate()
+void ldkRendererTerminate()
 {
   if (!internal.initialized)
     return;
