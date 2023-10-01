@@ -37,8 +37,9 @@ void ldkEventHandlerAdd(LDKEventHandler handler, LDKEventType mask, void *data)
     return;
   }
 
-  internal.mask[index]       = mask;
-  internal.callbacks[index]  = handler;
+  internal.callbacks[index] = handler;
+  internal.data[index]      = data;
+  internal.mask[index]      = mask;
 }
 
 void ldkEventHandlerRemove(LDKEventHandler handler)
@@ -104,7 +105,7 @@ void ldkEventQueueBroadcast()
     {
       LDKEventType mask = internal.mask[handlerIndex];
       if (mask & internal.events[eventIndex].type)
-        if (internal.callbacks[handlerIndex](&internal.events[eventIndex], internal.data[eventIndex]))
+        if (internal.callbacks[handlerIndex](&internal.events[eventIndex], internal.data[handlerIndex]))
           break;
     }
   } 
