@@ -40,7 +40,7 @@ inline static void handle_decode(LDKHandleInfo* hInfo, LDKHandle handle)
 
 bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
 {
-  hlist->elementType       = type;
+  hlist->elementType       = type; // We just store the type to validate handles
   hlist->elementSize       = elementSize;
   hlist->elementCount      = 0;
   hlist->freeSlotListCount = 0;

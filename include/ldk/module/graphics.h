@@ -19,15 +19,36 @@ extern "C" {
   // LDKGraphicsAPI
   typedef enum
   {
-    LDK_GRAPHICS_API_NONE           = 0x00,
-    LDK_GRAPHICS_API_OPENGL_ES_2_0  = 0x01,
-    LDK_GRAPHICS_API_OPENGL_ES_3_0  = 0x02,
-    LDK_GRAPHICS_API_OPENGL_3_0     = 0x03,
-    LDK_GRAPHICS_API_OPENGL_3_3     = 0x04,
-    LDK_GRAPHICS_API_OPENGL_4_0     = 0x05,
+    LDK_GRAPHICS_API_NONE           = 0,
+    LDK_GRAPHICS_API_OPENGL_ES_2_0  = 1 << 1,
+    LDK_GRAPHICS_API_OPENGL_ES_3_0  = 1 << 2,
+    LDK_GRAPHICS_API_OPENGL_3_0     = 1 << 3,
+    LDK_GRAPHICS_API_OPENGL_3_3     = 1 << 4,
+    LDK_GRAPHICS_API_OPENGL_4_0     = 1 << 5,
+
+    // Used to match if currecnt api is opengl
+    LDK_GRAPHICS_OPENGL =
+      LDK_GRAPHICS_API_OPENGL_ES_2_0
+      | LDK_GRAPHICS_API_OPENGL_ES_3_0 
+      | LDK_GRAPHICS_API_OPENGL_3_0
+      | LDK_GRAPHICS_API_OPENGL_3_3
+      | LDK_GRAPHICS_API_OPENGL_4_0,
+
+    // Used to match if currecnt api is opengl core
+    LDK_GRAPHICS_API_OPENGL_CORE = 
+       LDK_GRAPHICS_API_OPENGL_3_0
+      | LDK_GRAPHICS_API_OPENGL_3_3
+      | LDK_GRAPHICS_API_OPENGL_4_0,
+
+    // Used to match if currecnt api is opengl es
+    LDK_GRAPHICS_OPENGL_ES =
+      LDK_GRAPHICS_API_OPENGL_ES_2_0
+      | LDK_GRAPHICS_API_OPENGL_ES_3_0 
+
   } LDKGraphicsAPI;
 
   LDK_API bool    ldkGraphicsInitialize(LDKGraphicsAPI api);
+  LDK_API LDKGraphicsAPI ldkGraphicsApiName();
   LDK_API void    ldkGraphicsTerminate();
   LDK_API void    ldkGraphicsFullscreenSet(bool fullscreen);
   LDK_API bool    ldkGraphicsFullscreenGet();

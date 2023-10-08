@@ -99,8 +99,6 @@ void ldkEventQueueBroadcast()
 
   for (uint32 eventIndex = 0; eventIndex < internal.numEvents; eventIndex++)
   {
-    LDKEventType eventType = internal.mask[eventIndex];
-
     for (uint32 handlerIndex = 0; handlerIndex < internal.numHandlers; handlerIndex++)
     {
       LDKEventType mask = internal.mask[handlerIndex];

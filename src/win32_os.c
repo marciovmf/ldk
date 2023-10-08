@@ -1,5 +1,6 @@
 #include "ldk/os.h"
 #include "ldk/gl.h"
+#include "ldk/maths.h"
 #include "ldk/common.h"
 
 #include <stdbool.h>
@@ -30,16 +31,71 @@
 // Extern
 //
 extern void* ldkWin32OpenglProcAddressGet(char* name);
-
 extern void ldkOpenglFunctionPointersGet();
 
+// XInput specifics
+typedef struct _XINPUT_GAMEPAD
+{
+  WORD  wButtons;
+  BYTE  bLeftTrigger;
+  BYTE  bRightTrigger;
+  SHORT sThumbLX;
+  SHORT sThumbLY;
+  SHORT sThumbRX;
+  SHORT sThumbRY;
+} XINPUT_GAMEPAD, *PXINPUT_GAMEPAD;
+
+typedef struct _XINPUT_STATE
+{
+  DWORD          dwPacketNumber;
+  XINPUT_GAMEPAD Gamepad;
+} XINPUT_STATE, *PXINPUT_STATE;
+
+typedef struct _XINPUT_VIBRATION {
+  WORD wLeftMotorSpeed;
+  WORD wRightMotorSpeed;
+} XINPUT_VIBRATION, *PXINPUT_VIBRATION;
+
+#define XINPUT_GAMEPAD_DPAD_UP	0x0001
+#define XINPUT_GAMEPAD_DPAD_DOWN	0x0002
+#define XINPUT_GAMEPAD_DPAD_LEFT	0x0004
+#define XINPUT_GAMEPAD_DPAD_RIGHT	0x0008
+#define XINPUT_GAMEPAD_START	0x0010
+#define XINPUT_GAMEPAD_BACK	0x0020
+#define XINPUT_GAMEPAD_LEFT_THUMB	0x0040
+#define XINPUT_GAMEPAD_RIGHT_THUMB	0x0080
+#define XINPUT_GAMEPAD_LEFT_SHOULDER	0x0100
+#define XINPUT_GAMEPAD_RIGHT_SHOULDER	0x0200
+#define XINPUT_GAMEPAD_A	0x1000
+#define XINPUT_GAMEPAD_B	0x2000
+#define XINPUT_GAMEPAD_X	0x4000
+#define XINPUT_GAMEPAD_Y	0x8000
+//#define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  7849
+#define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  9000
+#define XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE 8689
+#define XINPUT_GAMEPAD_TRIGGER_THRESHOLD    30
+#define XINPUT_MAX_AXIS_VALUE 32767
+#define XINPUT_MIN_AXIS_VALUE -32768
+#define XINPUT_MAX_TRIGGER_VALUE 255
+
+typedef DWORD (*XInputGetStateFunc)(DWORD dwUserIndex, XINPUT_STATE *pState);
+typedef DWORD (*XInputSetStateFunc)(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration);
+
+DWORD internalXInputGetStateDUMMY(DWORD dwUserIndex, XINPUT_STATE *pState)
+{
+  ldkLogError("No XInput ...");
+  return ERROR_DEVICE_NOT_CONNECTED;
+}
+
+DWORD internalXInputSetStateDUMMY(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
+{
+  ldkLogError("No XInput ...");
+  return ERROR_DEVICE_NOT_CONNECTED;
+}
 
 //
 // Internal
 //
-
-static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 typedef struct
 {
   bool closeFlag;
@@ -86,9 +142,10 @@ typedef struct
 {
   LARGE_INTEGER frequency;
 
-  // Keyboard state
-  LDKKeyboardState keyboardState;
-  LDKMouseState mouseState;
+  // input state
+  LDKKeyboardState  keyboardState;
+  LDKMouseState     mouseState;
+  LDKJoystickState  joysickState[LDK_JOYSTICK_MAX];
 
   // Event queue
   LDKEvent events[LDK_WIN32_MAX_EVENTS];
@@ -101,10 +158,170 @@ typedef struct
   uint32 windowCount;
 
   HCURSOR defaultCursor;
+  XInputGetStateFunc XInputGetState;
+  XInputSetStateFunc XInputSetState;
 } LDKWin32Internal;
 
 static LDKWin32Internal *internal = NULL;
 
+static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+static bool internalXInputInit(LDKWin32Internal* internal)
+{
+  memset(internal->joysickState, 0, sizeof(internal->joysickState));
+
+  char* xInputDllName = "xinput1_1.dll"; 
+  HMODULE hXInput = LoadLibraryA(xInputDllName);
+  if (!hXInput)
+  {				
+    xInputDllName = "xinput9_1_0.dll";
+    hXInput = LoadLibraryA(xInputDllName);
+  }
+
+  if (!hXInput)
+  {
+    xInputDllName = "xinput1_3.dll";
+    hXInput = LoadLibraryA(xInputDllName);
+  }
+
+  if (!hXInput)
+  {
+    ldkLogError("could not initialize xinput. No valid xinput dll found");
+    internal->XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
+    internal->XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+    return false;
+  }
+
+  //get xinput function pointers
+  internal->XInputGetState = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
+  internal->XInputSetState = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
+
+  if (!internal->XInputGetState)
+    internal->XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
+
+  if (!internal->XInputSetState)
+    internal->XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+  return true;
+}
+
+static inline void internalXInputPollEvents()
+{
+  // get gamepad input
+  for(int32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
+  {
+    XINPUT_STATE xinputState = {0};
+    LDKJoystickState* joystickState = &internal->joysickState[gamepadIndex];
+
+    // ignore unconnected controllers
+    if (internal->XInputGetState(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
+    {
+      joystickState->connected = false;
+      continue;
+    }
+
+    // digital buttons
+    WORD buttons = xinputState.Gamepad.wButtons;
+    uint8 isDown=0;
+    uint8 wasDown=0;
+
+    const uint32 pressedBit = LDK_JOYSTICK_PRESSED_BIT;
+
+    // Buttons
+    isDown = (buttons & XINPUT_GAMEPAD_DPAD_UP) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_UP] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_UP] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_DPAD_LEFT) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_DPAD_RIGHT) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_START) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_START] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_START] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_BACK) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_BACK] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_BACK] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_LEFT_THUMB) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_RIGHT_THUMB) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_LEFT_SHOULDER) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_RIGHT_SHOULDER) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_A) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_A] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_A] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_B) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_B] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_B] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_X) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_X] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_X] = ((isDown ^ wasDown) << 1) | isDown;
+
+    isDown = (buttons & XINPUT_GAMEPAD_Y) > 0;
+    wasDown = joystickState->button[LDK_JOYSTICK_BUTTON_Y] & pressedBit;
+    joystickState->button[LDK_JOYSTICK_BUTTON_Y] = ((isDown ^ wasDown) << 1) | isDown;
+
+#define GAMEPAD_AXIS_VALUE(value) (value/(float)(value < 0 ? XINPUT_MIN_AXIS_VALUE * -1: XINPUT_MAX_AXIS_VALUE))
+#define GAMEPAD_AXIS_IS_DEADZONE(value, deadzone) ( value > -deadzone && value < deadzone)
+
+    // Left thumb axis
+    int32 axisX = xinputState.Gamepad.sThumbLX;
+    int32 axisY = xinputState.Gamepad.sThumbLY;
+    int32 deadZone = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
+
+    // TODO(marcio): Implement deadZone filtering correctly. This is not enough!
+    joystickState->axis[LDK_JOYSTICK_AXIS_LX] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :
+      GAMEPAD_AXIS_VALUE(axisX);
+
+    joystickState->axis[LDK_JOYSTICK_AXIS_LY] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
+      GAMEPAD_AXIS_VALUE(axisY);
+
+    // Right thumb axis
+    axisX = xinputState.Gamepad.sThumbRX;
+    axisY = xinputState.Gamepad.sThumbRY;
+    deadZone = XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE;
+
+    joystickState->axis[LDK_JOYSTICK_AXIS_RX] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :
+      GAMEPAD_AXIS_VALUE(axisX);
+
+    joystickState->axis[LDK_JOYSTICK_AXIS_RY] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
+      GAMEPAD_AXIS_VALUE(axisY);
+
+    // Left trigger
+    axisX = xinputState.Gamepad.bLeftTrigger;
+    axisY = xinputState.Gamepad.bRightTrigger;
+    deadZone = XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
+
+    joystickState->axis[LDK_JOYSTICK_AXIS_LTRIGGER] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :	
+      axisX/(float) XINPUT_MAX_TRIGGER_VALUE;
+
+    joystickState->axis[LDK_JOYSTICK_AXIS_RTRIGGER] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
+      axisY/(float) XINPUT_MAX_TRIGGER_VALUE;
+
+#undef GAMEPAD_AXIS_IS_DEADZONE
+#undef GAMEPAD_AXIS_VALUE
+
+    joystickState->connected = true;
+  }
+}
 
 inline static bool internalGraphicsApiIsOpengl(Win32GraphicsAPI api)
 {
@@ -224,7 +441,7 @@ inline static bool internalOpenglInit(Win32GraphicsAPI api, int32 glVersionMajor
 
   // Get function pointers
   ldkOpenglFunctionPointersGet();
-    
+
   wglMakeCurrent(0, 0);
   wglDeleteContext(rc);
   ldkOsWindowDestroy(dummyWindow);
@@ -252,6 +469,7 @@ bool ldkOsInitialize()
   internal = (LDKWin32Internal*) ldkOsMemoryAlloc(sizeof(LDKWin32Internal));
   memset(internal, 0, sizeof(LDKWin32Internal));
   QueryPerformanceFrequency(&internal->frequency);
+  internalXInputInit(internal);
   return true;
 }
 
@@ -293,7 +511,10 @@ void ldkOsStackTracePrint()
 
 #ifdef LDK_COMPILER_MSVC
     if (lineInfo.FileName && (ldkStringEndsWith(lineInfo.FileName, "vcstartup\\src\\startup\\exe_common.inl")
-          || ldkStringEndsWith(lineInfo.FileName, "src\\vctools\\crt\\vcstartup\\src\\startup\\exe_main.cpp")))
+          || ldkStringEndsWith(lineInfo.FileName, "src\\vctools\\crt\\vcstartup\\src\\startup\\exe_main.cpp")
+          || ldkStringEndsWith(lineInfo.FileName, "vctools\\crt\\vcstartup\\src\\rtc\\error.cpp")
+          || ldkStringEndsWith(lineInfo.FileName, "vctools\\crt\\vcstartup\\src\\rtc\\stack.cpp")
+          ))
     {
       continue;
     }
@@ -314,7 +535,7 @@ void ldkOsStackTracePrint()
 
 bool ldkOsFileCreate(const char* path, const byte* data)
 {
-  HANDLE hFile = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  HANDLE hFile = CreateFile(path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
   if (hFile == INVALID_HANDLE_VALUE)
   {
@@ -366,10 +587,13 @@ byte* ldkOsFileRead(const char* path)
 
 byte* ldkOsFileReadOffset(const char* path, size_t* outFileSize, size_t extraSize, size_t offset)
 {
-  HANDLE hFile = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
   if (hFile == INVALID_HANDLE_VALUE)
   {
+    DWORD error = GetLastError();
+
+    ldkLogError("Could not open file '%s': Error %d (0x%x)", path, error, error);
     return NULL;
   }
 
@@ -379,7 +603,7 @@ byte* ldkOsFileReadOffset(const char* path, size_t* outFileSize, size_t extraSiz
   if (outFileSize != NULL)
     *outFileSize = fileSize.QuadPart;
 
-  if((offset + fileSize.QuadPart) >= (fileSize.QuadPart + extraSize))
+  if((offset + fileSize.QuadPart) > (fileSize.QuadPart + extraSize))
   {
     ldkLogError("Could not read file '%s' into buffer at offset %lu because fize size (%lu) + offset would overflow the buffer size",
         path, offset, fileSize.QuadPart);
@@ -799,6 +1023,17 @@ bool ldkOsEventsPoll(LDKEvent* event)
       DispatchMessage(&msg);
     }
   }
+
+  // clean up changed bit for joystick buttons
+  for (uint32 joystickId = 0; joystickId < LDK_JOYSTICK_MAX; joystickId++)
+  {
+    for(int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
+    {
+      internal->joysickState[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+    }
+  }
+
+  internalXInputPollEvents();
 
   // WindowProc might have enqueued some events...
   if (internal->eventsPollIndex < internal->eventsCount)
@@ -1283,4 +1518,113 @@ bool ldkOsKeyboardKeyDown(LDKKeyboardState* state, LDKKeycode keycode)
 bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode)
 {
   return state->key[keycode] == LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+}
+
+//
+// Joystick
+//
+
+void ldkOsJoystickGetState(LDKJoystickState* outState, LDKJoystickID id)
+{
+  LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  memcpy(outState, &internal->joysickState[id], sizeof(LDKJoystickState));
+}
+
+bool ldkOsJoystickButtonIsPressed(LDKJoystickState* state, LDKJoystickButton key)
+{
+  return 	state->connected && (state->button[key] & LDK_JOYSTICK_PRESSED_BIT) == LDK_JOYSTICK_PRESSED_BIT;
+}
+
+bool ldkOsJoystickButtonDown(LDKJoystickState* state, LDKJoystickButton key)
+{
+  uint32 mask = LDK_JOYSTICK_PRESSED_BIT | LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+  return 	state->connected && (state->button[key] & mask) == mask;
+}
+
+bool ldkOsJoystickButtonUp(LDKJoystickState* state, LDKJoystickButton key)
+{
+  return state->connected && state->button[key] == LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+}
+
+float ldkOsJoystickAxisGet(LDKJoystickState* state, LDKJoystickAxis axis)
+{
+  if (!state->connected)
+    return 0.0f;
+
+  return state->axis[axis];
+}
+
+uint32 ldkOsJoystickCount()
+{
+  uint32 count = 0;
+  for (uint32 i = 0; i < LDK_JOYSTICK_MAX; i++)
+  {
+    if (internal->joysickState[i].connected)
+      count++;
+  }
+  return count;
+}
+
+uint32 ldkOsJoystickIsConnected(LDKJoystickID id)
+{
+  const bool connected = (internal->joysickState[id].connected);
+  return connected;
+}
+
+void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
+{
+  const float almostZero = 0.0001f;
+  LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  if (!internal->joysickState[id].connected)
+    return;
+
+  XINPUT_VIBRATION vibration;
+  if (speed < 0.0f) speed = 0.0f;
+  if (speed > 1.0f) speed = 1.0f;
+
+  // we store speed as floats
+  internal->joysickState[id].vibrationLeft = speed;
+
+  // xinput wants them as short int
+  WORD shortIntSpeedLeft = (WORD) (0xFFFF * speed);
+  WORD shortIntSpeedRight = (WORD) (internal->joysickState[id].vibrationRight * 0XFFFF);
+
+  vibration.wLeftMotorSpeed = shortIntSpeedLeft;
+  vibration.wRightMotorSpeed = shortIntSpeedRight;
+  internal->XInputSetState(id, &vibration);
+}
+
+void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
+{
+  const float almostZero = 0.0001f;
+  LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  if (!internal->joysickState[id].connected)
+    return;
+
+  XINPUT_VIBRATION vibration;
+  if (speed < 0.0f) speed = 0.0f;
+  if (speed > 1.0f) speed = 1.0f;
+
+  // we store speed as floats
+  internal->joysickState[id].vibrationRight = speed;
+
+  // xinput wants them as short int
+  WORD shortIntSpeedLeft = (WORD) (internal->joysickState[id].vibrationLeft * 0XFFFF);
+  WORD shortIntSpeedRight = (WORD) (0xFFFF * speed);
+
+  vibration.wLeftMotorSpeed = shortIntSpeedLeft;
+  vibration.wRightMotorSpeed = shortIntSpeedRight;
+  internal->XInputSetState(id, &vibration);
+}
+
+float ldkOsJoystickVibrationLeftGet(LDKJoystickID id)
+{
+  LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  return internal->joysickState[id].vibrationLeft;
+}
+
+float ldkOsJoystickVibrationRightGet(LDKJoystickID id)
+{
+  LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  return internal->joysickState[id].vibrationRight;
 }

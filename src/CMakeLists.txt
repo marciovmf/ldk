@@ -17,6 +17,9 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
   ${INCLUDE_DIR}/asset/material.h asset/material.c
+  ${INCLUDE_DIR}/asset/image.h asset/image.c
+  ${INCLUDE_DIR}/asset/mesh.h asset/mesh.c
+  ${INCLUDE_DIR}/asset/texture.h asset/texture.c
   )
 
 if(WIN32)

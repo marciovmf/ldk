@@ -1,15 +1,18 @@
 #include "ldk/ldk.h"
 #include "ldk/module/asset.h"
+#include "ldk/asset/mesh.h"
 #include "ldk/common.h"
 
-// Pure engine approach
-void terminate()
-{
-  ldkEngineStop(0);
-  ldkEngineTerminate();
-}
+//TODO: Create Events for Joystick button and axis input
 
-bool onKeyboardEvent(const LDKEvent* event, void* unused)
+typedef struct
+{
+  LDKHMaterial material;
+  LDKHMesh mesh;
+} GameState;
+
+// Pure engine approach
+bool onKeyboardEvent(const LDKEvent* event, void* data)
 {
   if (event->type != LDK_EVENT_TYPE_KEYBOARD)
   {
@@ -25,9 +28,10 @@ bool onKeyboardEvent(const LDKEvent* event, void* unused)
 
   ldkLogDebug("Keyboard event: %s %d", eventName, event->keyboardEvent.keyCode);
 
-  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN && event->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
+  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN
+      && event->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
   {
-    terminate();
+       ldkEngineStop(0);
   }
 
   return true;
@@ -64,20 +68,34 @@ bool onMouseEvent(const LDKEvent* event, void* unused)
   return true;
 }
 
-bool onFrameEvent(const LDKEvent* event, void* unused)
+bool onWindowEvent(const LDKEvent* event, void* state)
 {
-  if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
+  if (event->windowEvent.type == LDK_WINDOW_EVENT_CLOSE)
   {
-    glClear(GL_COLOR_BUFFER_BIT);
+    ldkEngineStop(0);
+  }
+  else if (event->windowEvent.type == LDK_WINDOW_EVENT_RESIZED
+  || event->windowEvent.type == LDK_WINDOW_EVENT_MAXIMIZED)
+  {
+    uint32 width = event->windowEvent.width;
+    uint32 height = event->windowEvent.height;
+    glViewport(0, 0, width, height);
   }
   return true;
 }
 
-bool onWindowEvent(const LDKEvent* event, void* unused)
+bool onFrameEvent(const LDKEvent* event, void* data)
 {
-  if (event->windowEvent.type == LDK_WINDOW_EVENT_CLOSE)
+  if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
   {
-    terminate();
+    GameState* state = (GameState*) data;
+    glClear(GL_COLOR_BUFFER_BIT);
+    LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(state->mesh);
+    ldkMaterialBind(state->material);
+    ldkVertexBufferBind(vBuffer);
+    ldkRenderMesh(vBuffer, 6, 0);
+    ldkMaterialBind(0);
+    ldkVertexBufferBind(0);
   }
   return true;
 }
@@ -85,18 +103,19 @@ bool onWindowEvent(const LDKEvent* event, void* unused)
 // Engine driven approach
 int pureEngineApplication()
 {
+  GameState state = {0};
   ldkEngineInitialize();
   ldkGraphicsViewportTitleSet("LDK: Event test");
   ldkGraphicsViewportIconSet("../ldk.ico");
   ldkGraphicsVsyncSet(true);
   ldkGraphicsMultisamplesSet(true);
   ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, 0);
-  ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_BUTTON | LDK_EVENT_TYPE_MOUSE_WHEEL, 0);
+  ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_WHEEL | LDK_EVENT_TYPE_MOUSE_BUTTON, 0);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
-  ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, 0);
+  ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
-  LDKHMaterial material = ldkAssetGet("../runtree/default.material");
-  //ldkMaterialBind(material);
+  state.material = ldkAssetGet("../runtree/default.material");
+  state.mesh = ldkAssetGet("../runtree/default.mesh");
 
   glClearColor(0.3f, 0.5f, 0.5f, 0.0f);
   return ldkEngineRun();
@@ -105,10 +124,12 @@ int pureEngineApplication()
 // Pure OS approach
 bool pureOsApplication()
 {
+  ldkOsInitialize();
   ldkLogInitialize(0, "-- Start --");
   ldkOsCwdSetFromExecutablePath();
 
   LDKGCtx context = ldkOsGraphicsContextOpenglCreate(3, 3, 24, 8);
+
   LDKWindow window = ldkOsWindowCreate("Window 1", 800, 600);
   ldkOsWindowTitleSet(window, "Hello, Sailor!");
   ldkOsWindowIconSet(window, "../ldk.ico");
@@ -150,6 +171,7 @@ bool pureOsApplication()
 
   ldkOsWindowDestroy(window);
   ldkLogTerminate();
+  ldkOsTerminate();
   return 0;
 }
 

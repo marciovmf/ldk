@@ -2578,10 +2578,10 @@ const char* ldkOpenglTypeName(GLenum type)
 {
   switch(type)
   {
-    case GL_FLOAT: return "int"; break;
-    case GL_FLOAT_VEC2: return "int"; break;
-    case GL_FLOAT_VEC3: return "int"; break;
-    case GL_FLOAT_VEC4: return "int"; break;
+    case GL_FLOAT: return "float"; break;
+    case GL_FLOAT_VEC2: return "vec2"; break;
+    case GL_FLOAT_VEC3: return "vec3"; break;
+    case GL_FLOAT_VEC4: return "vec4"; break;
     case GL_DOUBLE: return "double"; break;
     case GL_DOUBLE_VEC2: return "dvec2"; break;
     case GL_DOUBLE_VEC3: return "dvec3"; break;

@@ -1,10 +1,13 @@
 #include "ldk/asset/material.h"
+#include "ldk/asset/texture.h"
+#include "ldk/asset/image.h"
 #include "ldk/common.h"
 #include "ldk/module/asset.h"
 #include "ldk/os.h"
 #include <stdlib.h>
 #include <string.h>
 
+//TODO(marcio): Move this function to common
 static char* internalSkipWhiteSpace(char* input)
 {
   if (input == NULL)
@@ -65,19 +68,21 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
   return true;
 }
 
-LDKHMaterial ldkMaterialLoadFunc(const char* path)
+LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
 {
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
+  if (buffer == NULL)
+    return LDK_HANDLE_INVALID;
+
   buffer[fileSize] = 0;
 
   LDKHShader vs = LDK_HANDLE_INVALID;
   LDKHShader fs = LDK_HANDLE_INVALID;
   LDKHShader gs = LDK_HANDLE_INVALID;
-  LDKHShaderProgram program = LDK_HANDLE_INVALID;
   LDKHMaterial material = LDK_HANDLE_INVALID;
   const char* SPACE_OR_TAB = "\t ";
-  bool error = false;
+  bool created = false;
 
   char* context;
   char* line = strtok_s((char*) buffer, "\n\r", &context);
@@ -96,7 +101,6 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
       if (lhs == NULL || rhs == NULL)
       {
         ldkLogError("Error parsing material file '%s' at line %d: Invalid entry format.", path, lineNumber);
-        error = true;
         break;
       }
 
@@ -105,27 +109,43 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
 
       if (strncmp("vert-shader", lhs, strlen(lhs)) == 0)
       {
-        vs = (LDKHShader) ldkAssetGet(rhs);
+        if (ldkStringEndsWith(rhs, ".vs"))
+        {
+          vs = (LDKHShader) ldkAssetGet(rhs);
+        }
+        else
+        {
+            ldkLogError("Error parsing material file '%s' at line %d: vert-shader param '%s' must point to a .vs file", path, lineNumber, lhs);
+        }
       }
       else if (strncmp("frag-shader", lhs, strlen(lhs)) == 0)
       {
-        fs = (LDKHShader) ldkAssetGet(rhs);
+        if (ldkStringEndsWith(rhs, ".fs"))
+        {
+          fs = (LDKHShader) ldkAssetGet(rhs);
+        }
+        else
+        {
+            ldkLogError("Error parsing material file '%s' at line %d: frag-shader param '%s' must point to a .fs file", path, lineNumber, lhs);
+        }
       }
       else if (strncmp("geom-shader", lhs, strlen(lhs)) == 0)
       {
-        gs = (LDKHShader) ldkAssetGet(rhs);
+        if (ldkStringEndsWith(rhs, ".gs"))
+        {
+          gs = (LDKHShader) ldkAssetGet(rhs);
+        }
+        else
+        {
+            ldkLogError("Error parsing material file '%s' at line %d: geom-shader param '%s' must point to a .gs file", path, lineNumber, lhs);
+        }
       }
       else
       {
-        if (program == LDK_HANDLE_INVALID && error == false)
+        if (!created)
         {
-          program = ldkShaderProgramCreate(vs, fs, gs);
-          if (program == LDK_HANDLE_INVALID)
-            error = true;
-
-          material = ldkMaterialCreate(program, path);
-          if (material == LDK_HANDLE_INVALID)
-            error = true;
+          material = ldkMaterialCreate(ldkShaderProgramCreate(vs, fs, gs) , path);
+          created = true;
         }
 
         char* varNameAndTypeContext;
@@ -140,8 +160,15 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
 
         if (strncmp("texture2d", varType, strlen(varType)) == 0)
         {
-          char* a = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-          ldkLogWarning("NOT IMPLEMENTED YET! texture2d variable %s = %s", varName, a);
+          if (ldkStringEndsWith(rhs, ".texture"))
+          {
+            LDKHImage texture = ldkAssetGet(rhs);
+            ldkMaterialParamSetTexture(material, varName, texture);
+          }
+          else
+          {
+            ldkLogError("Error parsing material file '%s' at line %d: Texture param '%s' must point to a .texture file", path, lineNumber, varName);
+          }
         }
         else if (strncmp("texture3d", varType, strlen(varType)) == 0)
         {
@@ -152,24 +179,24 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
         {
           int val = 0;
           char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          error &= internalParseInt(path, lineNumber, a, &val);
-          error &= ldkMaterialParamSetInt(material, varName, val);
+          internalParseInt(path, lineNumber, a, &val);
+          ldkMaterialParamSetInt(material, varName, val);
         }
         else if (strncmp("float", varType, strlen(varType)) == 0)
         {
           float val;
           char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          error &= internalParseFloat(path, lineNumber, a, &val);
-          error &= ldkMaterialParamSetFloat(material, varName, val);
+          internalParseFloat(path, lineNumber, a, &val);
+          ldkMaterialParamSetFloat(material, varName, val);
         }
         else if (strncmp("vec2", varType, strlen(varType)) == 0)
         {
           Vec2 val;
           char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          error &= internalParseFloat(path, lineNumber, x, &val.x);
-          error &= internalParseFloat(path, lineNumber, y, &val.y);
-          error &= ldkMaterialParamSetVec2(material, varName, val);
+          internalParseFloat(path, lineNumber, x, &val.x);
+          internalParseFloat(path, lineNumber, y, &val.y);
+          ldkMaterialParamSetVec2(material, varName, val);
         }
         else if (strncmp("vec3", varType, strlen(varType)) == 0)
         {
@@ -177,10 +204,10 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
           char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          error &= internalParseFloat(path, lineNumber, x, &val.x);
-          error &= internalParseFloat(path, lineNumber, y, &val.y);
-          error &= internalParseFloat(path, lineNumber, z, &val.z);
-          error &= ldkMaterialParamSetVec3(material, varName, val);
+          internalParseFloat(path, lineNumber, x, &val.x);
+          internalParseFloat(path, lineNumber, y, &val.y);
+          internalParseFloat(path, lineNumber, z, &val.z);
+          ldkMaterialParamSetVec3(material, varName, val);
         }
         else if (strncmp("vec4", varType, strlen(varType)) == 0)
         {
@@ -189,35 +216,38 @@ LDKHMaterial ldkMaterialLoadFunc(const char* path)
           char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           char* w = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          error &= internalParseFloat(path, lineNumber, x, &val.x);
-          error &= internalParseFloat(path, lineNumber, y, &val.y);
-          error &= internalParseFloat(path, lineNumber, z, &val.z);
-          error &= internalParseFloat(path, lineNumber, w, &val.w);
-          error &= ldkMaterialParamSetVec4(material, varName, val);
+          internalParseFloat(path, lineNumber, x, &val.x);
+          internalParseFloat(path, lineNumber, y, &val.y);
+          internalParseFloat(path, lineNumber, z, &val.z);
+          internalParseFloat(path, lineNumber, w, &val.w);
+          ldkMaterialParamSetVec4(material, varName, val);
         }
         else
         {
           ldkLogError("Error parsing material file '%s' at line %d: Unknow param type '%s'.", path, lineNumber, varType);
-          error = true;
         }
 
         char* nullToken = strtok_s(NULL,   "  \t", &varNameAndTypeContext);
         if(nullToken != NULL)
         {
           ldkLogError("Error parsing material file '%s' at line %d: Unexpected token '%s'.", path, lineNumber, nullToken);
-          error = true;
         }
       }
-
     }
     line = strtok_s(NULL, "\n\r", &context);
   }
 
+  if (!created)
+  {
+    material = ldkMaterialCreate(ldkShaderProgramCreate(vs, fs, gs) , path);
+  }
+
   ldkOsMemoryFree(buffer);
 
-  return 0;
+  return material;
 }
 
-void ldkMaterialUnloadFunc(LDKHMaterial handle)
+void ldkAssetMaterialUnloadFunc(LDKHMaterial handle)
 {
+  ldkMaterialDestroy(handle);
 }

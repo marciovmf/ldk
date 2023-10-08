@@ -95,6 +95,17 @@ bool ldkAssetInitialize()
 
 void ldkAssetTerminate()
 {
+  const uint32 numAssets = (uint32) (ldkArenaUsedGet(&internal.assetInfoList) / sizeof(LDKAssetInfo));
+  LDKAssetInfo* assetInfo = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
+
+  // is it really necessary ?
+  for(uint32 i = 0; i < numAssets; i++)
+  {
+    LDKAssetHandler* handler = &internal.handlers[assetInfo->handlerId];
+    handler->unloadFunc(assetInfo->handle);
+    assetInfo++;
+  }
+
   ldkArenaDestroy(&internal.assetInfoList);
 }
 

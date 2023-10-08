@@ -3,7 +3,7 @@
 #include "ldk/common.h"
 #include "ldk/os.h"
 
-LDKHShader ldkShaderLoadFunc(const char* path)
+LDKHShader ldkAssetShaderLoadFunc(const char* path)
 {
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
@@ -38,7 +38,7 @@ LDKHShader ldkShaderLoadFunc(const char* path)
   return handle;
 }
 
-void ldkShaderUnloadFunc(LDKHShader handle)
+void ldkAssetShaderUnloadFunc(LDKHShader handle)
 {
   ldkShaderDestroy(handle);
 }

@@ -15,8 +15,8 @@
 extern "C" {
 #endif
 
-  LDK_API LDKHMaterial ldkMaterialLoadFunc(const char* path);
-  LDK_API void ldkMaterialUnloadFunc(LDKHMaterial handle);
+  LDK_API LDKHMaterial ldkAssetMaterialLoadFunc(const char* path);
+  LDK_API void ldkAssetMaterialUnloadFunc(LDKHMaterial handle);
 
 #ifdef __cplusplus
 }

@@ -2,7 +2,6 @@
 #include "ldk/gl.h"
 #include "ldk/os.h"
 
-
 static struct
 {
   LDKWindow mainWindow;
@@ -44,6 +43,11 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api)
 
   internal.api = api;
   return success;
+}
+
+LDKGraphicsAPI ldkGraphicsApiName()
+{
+  return internal.api;
 }
 
 void ldkGraphicsTerminate()

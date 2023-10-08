@@ -322,6 +322,92 @@ extern "C" {
   LDK_API bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode);       // True in the frame the key was released
 
 
+  //
+  // Joystick
+  //
+#define LDK_JOYSTICK_BUTTONS \
+  X(LDK_JOYSTICK_BUTTON_DPAD_UP,     "LDK_JOYSTICK_BUTTON_DPAD_UP",   0x00) \
+  X(LDK_JOYSTICK_BUTTON_DPAD_DOWN,   "LDK_JOYSTICK_BUTTON_DPAD_DOWN", 0x01) \
+  X(LDK_JOYSTICK_BUTTON_DPAD_LEFT,   "LDK_JOYSTICK_BUTTON_DPAD_LEFT", 0x02) \
+  X(LDK_JOYSTICK_BUTTON_DPAD_RIGHT,  "LDK_JOYSTICK_BUTTON_DPAD_RIGHT",0x03) \
+  X(LDK_JOYSTICK_BUTTON_START,       "LDK_JOYSTICK_BUTTON_START",     0x04) \
+  X(LDK_JOYSTICK_BUTTON_FN1,         "LDK_JOYSTICK_BUTTON_FN1",       0x04) \
+  X(LDK_JOYSTICK_BUTTON_BACK,        "LDK_JOYSTICK_BUTTON_BACK",      0x05) \
+  X(LDK_JOYSTICK_BUTTON_FN2,         "LDK_JOYSTICK_BUTTON_FN2",       0x05) \
+  X(LDK_JOYSTICK_BUTTON_LEFT_THUMB,  "LDK_JOYSTICK_BUTTON_LEFT_THUMB",    0x06) \
+  X(LDK_JOYSTICK_BUTTON_RIGHT_THUMB, "LDK_JOYSTICK_BUTTON_RIGHT_THUMB",    0x07) \
+  X(LDK_JOYSTICK_BUTTON_LEFT_SHOULDER, "LDK_JOYSTICK_BUTTON_LEFT_SHOULDER", 0x08) \
+  X(LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER, "LDK_JOYSTICK_BUTTON_RIGHT_SHOULRDER", 0x09) \
+  X(LDK_JOYSTICK_BUTTON_A, "LDK_JOYSTICK_BUTTON_A", 0x0A) \
+  X(LDK_JOYSTICK_BUTTON_B, "LDK_JOYSTICK_BUTTON_B", 0x0B) \
+  X(LDK_JOYSTICK_BUTTON_X, "LDK_JOYSTICK_BUTTON_X", 0x0C) \
+  X(LDK_JOYSTICK_BUTTON_Y, "LDK_JOYSTICK_BUTTON_Y", 0x0D) \
+  X(LDK_JOYSTICK_BUTTON_BTN1, "LDK_JOYSTICK_BUTTON1", 0x0A) \
+  X(LDK_JOYSTICK_BUTTON_BTN2, "LDK_JOYSTICK_BUTTON2", 0x0B) \
+  X(LDK_JOYSTICK_BUTTON_BTN3, "LDK_JOYSTICK_BUTTON3", 0x0C) \
+  X(LDK_JOYSTICK_BUTTON_BTN4, "LDK_JOYSTICK_BUTTON4", 0x0D)
+
+#define X(keycode, name, value) keycode = value,
+  typedef enum
+  {
+    LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT = 1 << 1,
+    LDK_JOYSTICK_PRESSED_BIT     = 1,
+    LDK_JOYSTICK_NUM_BUTTONS     = 14, // NOTICE that some entry values are repeated
+    // expand X macro ...
+    LDK_JOYSTICK_BUTTONS
+  } LDKJoystickButton;
+#undef X
+
+#define LDK_JOYSTICK_AXIS \
+  X(LDK_JOYSTICK_AXIS_LX, "LDK_JOYSTICK_AXIS_LX", 0x00) \
+  X(LDK_JOYSTICK_AXIS_LY, "LDK_JOYSTICK_AXIS_LY", 0x01) \
+  X(LDK_JOYSTICK_AXIS_RX, "LDK_JOYSTICK_AXIS_RX", 0x02) \
+  X(LDK_JOYSTICK_AXIS_RY, "LDK_JOYSTICK_AXIS_RY", 0x03) \
+  X(LDK_JOYSTICK_AXIS_LTRIGGER, "LDK_JOYSTICK_AXIS_LTRIGGER", 0x04) \
+  X(LDK_JOYSTICK_AXIS_RTRIGGER, "LDK_JOYSTICK_AXIS_RTRIGGER", 0x05) \
+
+#define LDK_JOYSTICK_MAX 4
+
+  typedef enum
+  {
+    LDK_JOYSTICK_0,
+    LDK_JOYSTICK_1,
+    LDK_JOYSTICK_2,
+    LDK_JOYSTICK_3,
+  } LDKJoystickID;
+
+#define X(keycode, name, value) keycode = value,
+  typedef enum
+  {
+    LDK_JOYSTICK_NUM_AXIS = 6,
+    LDK_JOYSTICK_AXIS
+  } LDKJoystickAxis;
+#undef X
+
+  typedef struct
+  {
+    uint32 button[LDK_JOYSTICK_NUM_BUTTONS];
+    float axis[LDK_JOYSTICK_NUM_AXIS];
+    bool connected;
+    float vibrationLeft;
+    float vibrationRight;
+  } LDKJoystickState;
+
+
+  LDK_API void ldkOsJoystickGetState(LDKJoystickState* outState, LDKJoystickID id);
+  LDK_API bool ldkOsJoystickButtonIsPressed(LDKJoystickState* state, LDKJoystickButton key);
+  LDK_API bool ldkOsJoystickButtonDown(LDKJoystickState* state, LDKJoystickButton key);
+  LDK_API bool ldkOsJoystickButtonUp(LDKJoystickState* state, LDKJoystickButton key);
+  LDK_API float ldkOsJoystickAxisGet(LDKJoystickState* state, LDKJoystickAxis key);
+  LDK_API uint32 ldkOsJoystickCount();
+  LDK_API uint32 ldkOsJoystickIsConnected(LDKJoystickID id);
+
+  LDK_API void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed);
+  LDK_API void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed);
+
+  LDK_API float ldkOsJoystickVibrationRightGet(LDKJoystickID id);
+  LDK_API float ldkOsJoystickVibrationRightGet(LDKJoystickID id);
+
 #ifdef __cplusplus
 }
 #endif

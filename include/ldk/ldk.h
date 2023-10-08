@@ -22,4 +22,11 @@
 #include "module/renderer.h"
 #include "module/asset.h"
 
+/* Assets */
+#include "asset/shader.h"
+#include "asset/material.h"
+#include "asset/mesh.h"
+#include "asset/image.h"
+#include "asset/texture.h"
+
 #endif //LDK_H

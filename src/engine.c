@@ -6,6 +6,9 @@
 #include "ldk/module/asset.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
+#include "ldk/asset/mesh.h"
+#include "ldk/asset/image.h"
+#include "ldk/asset/texture.h"
 #include <string.h>
 #include <signal.h>
 
@@ -86,10 +89,25 @@ bool ldkEngineInitialize()
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkShaderLoadFunc, ldkShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "material", ldkMaterialLoadFunc, ldkMaterialUnloadFunc);
+
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMesh), "mesh", ldkAssetMeshLoadFunc, ldkAssetMeshUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMaterial), "material", ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc);
+
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "png", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "bmp", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "tga", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "hdr", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+
+#ifdef LDK_DEBUG
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "psd", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+#endif
+  
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHTexture), "texture", ldkAssetTextureLoadFunc, ldkAssetTextureUnloadFunc);
+
+
   logModuleInit("Asset Handler", stepSuccess);
 
   success &= stepSuccess;
@@ -137,7 +155,9 @@ LDK_API int32 ldkEngineRun()
     ldkEventPush(&event);
     ldkEventQueueBroadcast();
   }
+  // unload all assets
 
+  ldkEngineTerminate();
   return internal.exitCode;
 }
 

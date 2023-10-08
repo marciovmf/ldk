@@ -125,7 +125,7 @@ enum
   LDK_PATH_MAX_LENGTH         = 512,
 
   LDK_TYPE_ID_UNKNOWN         = 0xFFFF,
-  LDK_HANDLE_INVALID          = 0xFFFFFFFFFFFFFFFF,
+  LDK_HANDLE_INVALID          = 0
 };
 
 //

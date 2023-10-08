@@ -15,8 +15,8 @@
 extern "C" {
 #endif
 
-  LDK_API LDKHShader ldkShaderLoadFunc(const char* path);
-  LDK_API void ldkShaderUnloadFunc(LDKHShader handle);
+  LDK_API LDKHShader ldkAssetShaderLoadFunc(const char* path);
+  LDK_API void ldkAssetShaderUnloadFunc(LDKHShader handle);
 
 #ifdef __cplusplus
 }

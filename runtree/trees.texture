@@ -1,0 +1,19 @@
+# Texure file ----
+#  -- Wrap constants
+#  clamp-to-edge
+#  clamp-to-border
+#  mirrored-repeat
+#  REPEAT
+#  -- Filter constants
+#  linear
+#  nearest
+# -- Mipma mode constatns 
+#  none
+#  nearest
+#  linear 
+
+image:          ../runtree/trees.png
+wrap:           clamp-to-edge
+filter-min:     linear
+filter-max:     linear
+mipmap:         none
