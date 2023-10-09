@@ -163,8 +163,8 @@ typedef struct
 // LDKSize
 typedef struct
 {
-  int width;
-  int height;
+  int32 width;
+  int32 height;
 } LDKSize;
 
 // LDKRect
@@ -382,8 +382,10 @@ typedef struct
 typedef struct
 {
   LDKEventType type;
-  int cursorX;
-  int cursorY;
+  int32 cursorX;
+  int32 cursorY;
+  int32 xRel;
+  int32 yRel;
 
   union
   {

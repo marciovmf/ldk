@@ -1321,6 +1321,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         internal->mouseState.wheelDelta = delta;
 
         // update cursor position
+        int32 lastX = internal->mouseState.cursor.x;
+        int32 lastY = internal->mouseState.cursor.y;
         internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
         internal->mouseState.cursor.y = GET_Y_LPARAM(lParam); 
 
@@ -1331,12 +1333,16 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
+        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
+        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
       }
       break;
 
     case WM_MOUSEMOVE:
       {
         // update cursor position
+        int32 lastX = internal->mouseState.cursor.x;
+        int32 lastY = internal->mouseState.cursor.y;
         internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
         internal->mouseState.cursor.y = GET_Y_LPARAM(lParam);
 
@@ -1346,6 +1352,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.type = LDK_MOUSE_EVENT_MOVE;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
+        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
+        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
       }
       break;
 
@@ -1398,6 +1406,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         *buttonExtra2 = (((isDown ^ wasDown) << 1) | isDown);
 
         // update cursor position
+        int32 lastX = internal->mouseState.cursor.x;
+        int32 lastY = internal->mouseState.cursor.y;
         internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
         internal->mouseState.cursor.y = GET_Y_LPARAM(lParam);
 
@@ -1408,6 +1418,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.mouseButton = mouseButtonId;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam);
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam);
+        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
+        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
       }
       break;
 
