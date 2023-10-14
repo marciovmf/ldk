@@ -224,12 +224,24 @@ size_t ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallStri
 // Hash
 //
 
-LDKHash ldkHash(const char* str)
+LDKHash ldkHashStr(const char* str)
 {
   uint32_t hash = 2166136261u; // FNV offset basis
   while (*str)
   {
     hash ^= (uint32_t) *str++;
+    hash *= 16777619u; // FNV prime
+  }
+  return hash;
+}
+
+LDKHash ldkHash(const void* data, size_t size)
+{
+  const char* p = (const char*) data; 
+  uint32_t hash = 2166136261u; // FNV offset basis
+  for (uint32 i = 0; i < size; i++)
+  {
+    hash ^= (uint32_t) p[i];
     hash *= 16777619u; // FNV prime
   }
   return hash;

@@ -161,7 +161,7 @@ LDKHandle ldkAssetGet(const char* path)
   }
 
   // Find asset
-  LDKHash hash = ldkHash(path);
+  LDKHash hash = ldkHashStr(path);
   LDKAssetInfo* assetInfo = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
   for (uint32 i = 0; i < numAssets; i++)
   {

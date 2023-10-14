@@ -268,8 +268,9 @@ LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* out
 
 typedef uint32 LDKHash;
 
-LDK_API LDKHash ldkHash(const char*);
+LDK_API LDKHash ldkHashStr(const char*);
 LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
+LDK_API LDKHash ldkHash(const void* data, size_t length);
 
 
 //
