@@ -6,6 +6,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk.h
   ${INCLUDE_DIR}/os.h
   ${INCLUDE_DIR}/gl.h gl.c
+  ${INCLUDE_DIR}/hashmap.h hashmap.c
   ${INCLUDE_DIR}/maths.h maths.c
   ${INCLUDE_DIR}/arena.h arena.c
   ${INCLUDE_DIR}/hlist.h hlist.c
