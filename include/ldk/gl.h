@@ -11,7 +11,9 @@
 
 #include "common.h"
 #include "gl/glcorearb.h"
+#ifdef LDK_OS_WINDOWS
 #include "gl/wglext.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
