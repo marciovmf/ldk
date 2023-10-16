@@ -25,8 +25,11 @@ extern "C" {
     LDK_GRAPHICS_API_OPENGL_3_0     = 1 << 3,
     LDK_GRAPHICS_API_OPENGL_3_3     = 1 << 4,
     LDK_GRAPHICS_API_OPENGL_4_0     = 1 << 5,
+  } LDKGraphicsAPI;
 
-    // Used to match if currecnt api is opengl
+  enum
+  {
+    // Used to match if current api is opengl
     LDK_GRAPHICS_OPENGL =
       LDK_GRAPHICS_API_OPENGL_ES_2_0
       | LDK_GRAPHICS_API_OPENGL_ES_3_0 
@@ -34,18 +37,17 @@ extern "C" {
       | LDK_GRAPHICS_API_OPENGL_3_3
       | LDK_GRAPHICS_API_OPENGL_4_0,
 
-    // Used to match if currecnt api is opengl core
+    // Used to match if current api is opengl core
     LDK_GRAPHICS_API_OPENGL_CORE = 
        LDK_GRAPHICS_API_OPENGL_3_0
       | LDK_GRAPHICS_API_OPENGL_3_3
       | LDK_GRAPHICS_API_OPENGL_4_0,
 
-    // Used to match if currecnt api is opengl es
+    // Used to match if current api is opengl es
     LDK_GRAPHICS_OPENGL_ES =
       LDK_GRAPHICS_API_OPENGL_ES_2_0
       | LDK_GRAPHICS_API_OPENGL_ES_3_0 
-
-  } LDKGraphicsAPI;
+  };
 
   LDK_API bool    ldkGraphicsInitialize(LDKGraphicsAPI api);
   LDK_API LDKGraphicsAPI ldkGraphicsApiName();
