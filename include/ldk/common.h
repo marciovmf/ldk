@@ -227,6 +227,8 @@ LDK_API void ldkLogPrint(const char* prefix, const char* format, ...);
 LDK_API void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...);
 LDK_API void ldkLogPrintRaw(const char* fmt, ...);
 
+
+#ifdef LDK_COMPILER_MSVC
 #define ldkLogInfo(fmt, ...) ldkLogPrint("INFO",  fmt, __VA_ARGS__)
 #define ldkLogError(fmt, ...) ldkLogPrintDetailed("ERROR", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #define ldkLogWarning(fmt, ...) ldkLogPrintDetailed("WARNING", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
@@ -234,6 +236,17 @@ LDK_API void ldkLogPrintRaw(const char* fmt, ...);
 #define ldkLogDebug(fmt, ...) ldkLogPrintDetailed("DEBUG", __FILE__, __LINE__, __func__, fmt, __VA_ARGS__)
 #else
 #define ldkLogDebug(fmt, ...)
+#endif
+#else
+#define ldkLogInfo(fmt, ...) ldkLogPrint("INFO",  fmt, ##__VA_ARGS__)
+#define ldkLogError(fmt, ...) ldkLogPrintDetailed("ERROR", __FILE__, __LINE__, __func__, fmt, ##__VA_ARGS__)
+#define ldkLogWarning(fmt, ...) ldkLogPrintDetailed("WARNING", __FILE__, __LINE__, __func__, fmt, ##__VA_ARGS__)
+#ifdef LDK_DEBUG
+#define ldkLogDebug(fmt, ...) ldkLogPrintDetailed("DEBUG", __FILE__, __LINE__, __func__, fmt, ##__VA_ARGS__)
+#else
+#define ldkLogDebug(fmt, ...)
+#endif
+
 #endif
 
 //

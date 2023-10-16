@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef LDK_OS_WINDOWS
+#define strtok_r strtok_s
+#endif
+
 //TODO(marcio): Move this function to common
 static char* internalSkipWhiteSpace(char* input)
 {
@@ -35,7 +39,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
   buffer[fileSize] = 0;
   char* context;
   int lineNumber = 0;
-  bool error = false;
 
   char* line = strtok_s((char*) buffer, "\n\r", &context);
 
@@ -53,7 +56,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
       if (lhs == NULL || rhs == NULL)
       {
         ldkLogError("Error parsing material file '%s' at line %d: Invalid entry format.", path, lineNumber);
-        error = true;
         break;
       }
 
@@ -82,7 +84,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid texture wrap mode\nValid modes are: [clamp-to-edge, clamp-to-border, repeat].", path, lineNumber);
-          error = true;
         }
       }
       else if (strncmp("filter-min", lhs, strlen(lhs)) == 0)
@@ -99,7 +100,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
           else
           {
             ldkLogError("Error parsing texture file '%s' at line %d: Invalid filter-min mode\nValid modes are: [linear, nearest].", path, lineNumber);
-            error = true;
           }
       }
       else if (strncmp("filter-max", lhs, strlen(lhs)) == 0)
@@ -115,7 +115,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid filter-max mode\nValid modes are: [linear, nearest].", path, lineNumber);
-          error = true;
         }
       }
       else if (strncmp("mipmap", lhs, strlen(lhs)) == 0)
@@ -135,7 +134,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid mipmap mode\nValid modes are: [linear, nearest].", path, lineNumber);
-          error = true;
         }
       }
     }
