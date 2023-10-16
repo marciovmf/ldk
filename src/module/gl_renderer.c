@@ -468,7 +468,7 @@ bool ldkMaterialBind(LDKHMaterial handle)
 // Texture
 //
 
-LDKHTexture ldkTextureCreate(LDKTextureParam mipmapModeParam, LDKTextureParam wrapParam, LDKTextureParam filterMinParam, LDKTextureParam filterMaxParam)
+LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam)
 {
   LDKHTexture handle = ldkHListReserve(&internal.hlistTexture);
   LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);

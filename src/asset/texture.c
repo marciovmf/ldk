@@ -25,10 +25,10 @@ static char* internalSkipWhiteSpace(char* input)
 LDKHTexture ldkAssetTextureLoadFunc(const char* path)
 {
   // Defaults
-  LDKTextureParam mipmapMode  = LDK_TEXTURE_MIPMAP_MODE_NONE;
-  LDKTextureParam wrap        = LDK_TEXTURE_WRAP_CLAMP_TO_EDGE;
-  LDKTextureParam filterMin   = LDK_TEXTURE_FILTER_LINEAR;
-  LDKTextureParam filterMax   = LDK_TEXTURE_FILTER_LINEAR;
+  LDKTextureParamMipmap mipmapMode  = LDK_TEXTURE_MIPMAP_MODE_NONE;
+  LDKTextureParamWrap wrap          = LDK_TEXTURE_WRAP_CLAMP_TO_EDGE;
+  LDKTextureParamFilter filterMin   = LDK_TEXTURE_FILTER_LINEAR;
+  LDKTextureParamFilter filterMax   = LDK_TEXTURE_FILTER_LINEAR;
   LDKHImage image;
 
   size_t fileSize = 0;

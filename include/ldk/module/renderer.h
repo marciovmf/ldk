@@ -63,21 +63,26 @@ LDK_API bool ldkMaterialBind(LDKHMaterial handle); // Passing in NULL will unbin
 
 typedef enum
 {
- LDK_TEXTURE_WRAP_CLAMP_TO_EDGE   = 1,
- LDK_TEXTURE_WRAP_CLAMP_TO_BORDER = 2,
- LDK_TEXTURE_WRAP_MIRRORED_REPEAT = 3,
- LDK_TEXTURE_WRAP_REPEAT          = 4,
+ LDK_TEXTURE_WRAP_CLAMP_TO_EDGE   = 0,
+ LDK_TEXTURE_WRAP_CLAMP_TO_BORDER = 1,
+ LDK_TEXTURE_WRAP_MIRRORED_REPEAT = 2,
+ LDK_TEXTURE_WRAP_REPEAT          = 3,
+} LDKTextureParamWrap;
 
- LDK_TEXTURE_FILTER_LINEAR        = 5,
- LDK_TEXTURE_FILTER_NEAREST       = 6,
+typedef enum
+{
+ LDK_TEXTURE_FILTER_LINEAR        = 0,
+ LDK_TEXTURE_FILTER_NEAREST       = 1,
+} LDKTextureParamFilter;
 
+typedef enum
+{
  LDK_TEXTURE_MIPMAP_MODE_NONE     = 0,
- LDK_TEXTURE_MIPMAP_MODE_NEAREST  = 7,
- LDK_TEXTURE_MIPMAP_MODE_LINEAR   = 8,
+ LDK_TEXTURE_MIPMAP_MODE_NEAREST  = 1,
+ LDK_TEXTURE_MIPMAP_MODE_LINEAR   = 2,
+} LDKTextureParamMipmap;
 
-} LDKTextureParam;
-
-LDK_API LDKHTexture ldkTextureCreate(LDKTextureParam mipmapModeParam, LDKTextureParam wrapParam, LDKTextureParam filterMinParam, LDKTextureParam filterMaxParam);
+LDK_API LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam);
 LDK_API bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data, uint32 bitsPerPixel);
 LDK_API bool ldkTextureDestroy(LDKHTexture handle);
 
