@@ -2,6 +2,7 @@
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
+#include <string.h>
 
 extern const char* ldkOpenglTypeName(GLenum type);
 

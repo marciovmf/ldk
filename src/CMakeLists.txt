@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.9)
 project("ldk-core")
 find_package(OpenGL REQUIRED)
 set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include/ldk")

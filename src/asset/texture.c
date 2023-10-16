@@ -40,7 +40,7 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
   char* context;
   int lineNumber = 0;
 
-  char* line = strtok_s((char*) buffer, "\n\r", &context);
+  char* line = strtok_r((char*) buffer, "\n\r", &context);
 
   while (line)
   {
@@ -50,8 +50,8 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
     if (line[0] != '#')
     {
       char* entryContext;
-      char* lhs = strtok_s(line, ":", &entryContext);
-      char* rhs = strtok_s(NULL, ":", &entryContext);
+      char* lhs = strtok_r(line, ":", &entryContext);
+      char* rhs = strtok_r(NULL, ":", &entryContext);
 
       if (lhs == NULL || rhs == NULL)
       {
@@ -137,7 +137,7 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         }
       }
     }
-    line = strtok_s(NULL, "\n\r", &context);
+    line = strtok_r(NULL, "\n\r", &context);
   }
 
   LDKImage* imagePtr = ldkAssetImageGetPointer(image);
