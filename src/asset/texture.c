@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef LDK_OS_WINDOWS
+#define strtok_r strtok_s
+#endif
+
 //TODO(marcio): Move this function to common
 static char* internalSkipWhiteSpace(char* input)
 {
@@ -21,10 +25,10 @@ static char* internalSkipWhiteSpace(char* input)
 LDKHTexture ldkAssetTextureLoadFunc(const char* path)
 {
   // Defaults
-  LDKTextureParam mipmapMode  = LDK_TEXTURE_MIPMAP_MODE_NONE;
-  LDKTextureParam wrap        = LDK_TEXTURE_WRAP_CLAMP_TO_EDGE;
-  LDKTextureParam filterMin   = LDK_TEXTURE_FILTER_LINEAR;
-  LDKTextureParam filterMax   = LDK_TEXTURE_FILTER_LINEAR;
+  LDKTextureParamMipmap mipmapMode  = LDK_TEXTURE_MIPMAP_MODE_NONE;
+  LDKTextureParamWrap wrap          = LDK_TEXTURE_WRAP_CLAMP_TO_EDGE;
+  LDKTextureParamFilter filterMin   = LDK_TEXTURE_FILTER_LINEAR;
+  LDKTextureParamFilter filterMax   = LDK_TEXTURE_FILTER_LINEAR;
   LDKHImage image;
 
   size_t fileSize = 0;
@@ -35,9 +39,8 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
   buffer[fileSize] = 0;
   char* context;
   int lineNumber = 0;
-  bool error = false;
 
-  char* line = strtok_s((char*) buffer, "\n\r", &context);
+  char* line = strtok_r((char*) buffer, "\n\r", &context);
 
   while (line)
   {
@@ -47,13 +50,12 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
     if (line[0] != '#')
     {
       char* entryContext;
-      char* lhs = strtok_s(line, ":", &entryContext);
-      char* rhs = strtok_s(NULL, ":", &entryContext);
+      char* lhs = strtok_r(line, ":", &entryContext);
+      char* rhs = strtok_r(NULL, ":", &entryContext);
 
       if (lhs == NULL || rhs == NULL)
       {
         ldkLogError("Error parsing material file '%s' at line %d: Invalid entry format.", path, lineNumber);
-        error = true;
         break;
       }
 
@@ -82,7 +84,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid texture wrap mode\nValid modes are: [clamp-to-edge, clamp-to-border, repeat].", path, lineNumber);
-          error = true;
         }
       }
       else if (strncmp("filter-min", lhs, strlen(lhs)) == 0)
@@ -99,7 +100,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
           else
           {
             ldkLogError("Error parsing texture file '%s' at line %d: Invalid filter-min mode\nValid modes are: [linear, nearest].", path, lineNumber);
-            error = true;
           }
       }
       else if (strncmp("filter-max", lhs, strlen(lhs)) == 0)
@@ -115,7 +115,6 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid filter-max mode\nValid modes are: [linear, nearest].", path, lineNumber);
-          error = true;
         }
       }
       else if (strncmp("mipmap", lhs, strlen(lhs)) == 0)
@@ -135,11 +134,10 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
         else
         {
           ldkLogError("Error parsing texture file '%s' at line %d: Invalid mipmap mode\nValid modes are: [linear, nearest].", path, lineNumber);
-          error = true;
         }
       }
     }
-    line = strtok_s(NULL, "\n\r", &context);
+    line = strtok_r(NULL, "\n\r", &context);
   }
 
   LDKImage* imagePtr = ldkAssetImageGetPointer(image);

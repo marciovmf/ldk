@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef LDK_OS_WINDOWS
+#define strtok_r strtok_s
+#endif
+
 //TODO(marcio): Move this function to common
 static char* internalSkipWhiteSpace(char* input)
 {
@@ -85,7 +89,7 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
   bool created = false;
 
   char* context;
-  char* line = strtok_s((char*) buffer, "\n\r", &context);
+  char* line = strtok_r((char*) buffer, "\n\r", &context);
   int lineNumber = 0;
   while (line)
   {
@@ -95,8 +99,8 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
     if (line[0] != '#')
     {
       char* entryContext;
-      char* lhs = strtok_s(line, ":", &entryContext);
-      char* rhs = strtok_s(NULL, ":", &entryContext);
+      char* lhs = strtok_r(line, ":", &entryContext);
+      char* rhs = strtok_r(NULL, ":", &entryContext);
 
       if (lhs == NULL || rhs == NULL)
       {
@@ -149,8 +153,8 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         }
 
         char* varNameAndTypeContext;
-        char* varType = strtok_s(lhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-        char* varName = strtok_s(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
+        char* varType = strtok_r(lhs,   SPACE_OR_TAB, &varNameAndTypeContext);
+        char* varName = strtok_r(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
 
         if (varName == NULL || strlen(varName) == 0)
         {
@@ -172,28 +176,28 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         }
         else if (strncmp("texture3d", varType, strlen(varType)) == 0)
         {
-          char* a = strtok_s(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
+          char* a = strtok_r(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
           ldkLogWarning("NOT IMPLEMENTED YET! texture3d variable %s = %s", varName, a);
         }
         else if (strncmp("int", varType, strlen(varType)) == 0)
         {
           int val = 0;
-          char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* a = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           internalParseInt(path, lineNumber, a, &val);
           ldkMaterialParamSetInt(material, varName, val);
         }
         else if (strncmp("float", varType, strlen(varType)) == 0)
         {
           float val;
-          char* a = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* a = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
           internalParseFloat(path, lineNumber, a, &val);
           ldkMaterialParamSetFloat(material, varName, val);
         }
         else if (strncmp("vec2", varType, strlen(varType)) == 0)
         {
           Vec2 val;
-          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           internalParseFloat(path, lineNumber, x, &val.x);
           internalParseFloat(path, lineNumber, y, &val.y);
           ldkMaterialParamSetVec2(material, varName, val);
@@ -201,9 +205,9 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         else if (strncmp("vec3", varType, strlen(varType)) == 0)
         {
           Vec3 val;
-          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* z = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           internalParseFloat(path, lineNumber, x, &val.x);
           internalParseFloat(path, lineNumber, y, &val.y);
           internalParseFloat(path, lineNumber, z, &val.z);
@@ -212,10 +216,10 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         else if (strncmp("vec4", varType, strlen(varType)) == 0)
         {
           Vec4 val;
-          char* x = strtok_s(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          char* y = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          char* z = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
-          char* w = strtok_s(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* x = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          char* y = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* z = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
+          char* w = strtok_r(NULL, SPACE_OR_TAB, &varNameAndTypeContext);
           internalParseFloat(path, lineNumber, x, &val.x);
           internalParseFloat(path, lineNumber, y, &val.y);
           internalParseFloat(path, lineNumber, z, &val.z);
@@ -227,14 +231,14 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
           ldkLogError("Error parsing material file '%s' at line %d: Unknow param type '%s'.", path, lineNumber, varType);
         }
 
-        char* nullToken = strtok_s(NULL,   "  \t", &varNameAndTypeContext);
+        char* nullToken = strtok_r(NULL,   "  \t", &varNameAndTypeContext);
         if(nullToken != NULL)
         {
           ldkLogError("Error parsing material file '%s' at line %d: Unexpected token '%s'.", path, lineNumber, nullToken);
         }
       }
     }
-    line = strtok_s(NULL, "\n\r", &context);
+    line = strtok_r(NULL, "\n\r", &context);
   }
 
   if (!created)

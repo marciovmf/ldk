@@ -8,10 +8,11 @@
 // Float operations
 //
 
+
 float clamp(float x, float bottom, float top)
 {
-  x = max(x, bottom);
-  x = min(x, top);
+  x = fmaxf(x, bottom);
+  x = fminf(x, top);
   return x;
 }
 
@@ -133,17 +134,17 @@ Vec2 vec2Fmod(Vec2 v, float val)
   return v;
 }
 
-Vec2 vec2Max(Vec2 v, float x)
+Vec2 vec2fmaxf(Vec2 v, float x)
 {
-  v.x = max(v.x, x);
-  v.y = max(v.y, x);
+  v.x = fmaxf(v.x, x);
+  v.y = fmaxf(v.y, x);
   return v;
 }
 
-Vec2 vec2Min(Vec2 v, float x)
+Vec2 vec2fminf(Vec2 v, float x)
 {
-  v.x = min(v.x, x);
-  v.y = min(v.y, x);
+  v.x = fminf(v.x, x);
+  v.y = fminf(v.y, x);
   return v;
 }
 
@@ -653,21 +654,21 @@ Vec4 vec4Reflect(Vec4 v1, Vec4 v2)
   return vec4Sub(v1, vec4Mul(v2, 2 * vec4Dot(v1, v2)));
 }
 
-Vec4 vec4Max(Vec4 v1, Vec4 v2)
+Vec4 vec4fmaxf(Vec4 v1, Vec4 v2)
 {
-  v1.x = max(v1.x, v2.x);
-  v1.y = max(v1.y, v2.y);
-  v1.z = max(v1.z, v2.z);
-  v1.w = max(v1.w, v2.w);
+  v1.x = fmaxf(v1.x, v2.x);
+  v1.y = fmaxf(v1.y, v2.y);
+  v1.z = fmaxf(v1.z, v2.z);
+  v1.w = fmaxf(v1.w, v2.w);
   return v1;
 }
 
-Vec4 vec4Min(Vec4 v1, Vec4 v2)
+Vec4 vec4fminf(Vec4 v1, Vec4 v2)
 {
-  v1.x = min(v1.x, v2.x);
-  v1.y = min(v1.y, v2.y);
-  v1.z = min(v1.z, v2.z);
-  v1.w = min(v1.w, v2.w);
+  v1.x = fminf(v1.x, v2.x);
+  v1.y = fminf(v1.y, v2.y);
+  v1.z = fminf(v1.z, v2.z);
+  v1.w = fminf(v1.w, v2.w);
   return v1;
 }
 
