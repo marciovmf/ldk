@@ -4,6 +4,7 @@ find_package(OpenGL REQUIRED)
 set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include/ldk")
 
 list(APPEND SOURCE
+  # Core
   ${INCLUDE_DIR}/ldk.h
   ${INCLUDE_DIR}/os.h
   ${INCLUDE_DIR}/gl.h gl.c
@@ -14,6 +15,11 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/engine.h engine.c
   ${INCLUDE_DIR}/common.h common.c
   ${INCLUDE_DIR}/eventqueue.h eventqueue.c
+
+  # Entities
+  ${INCLUDE_DIR}/entity/camera.h entity/camera.c
+
+  # Modules
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c
   ${INCLUDE_DIR}/module/asset.h module/asset.c
   ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c

@@ -15,13 +15,16 @@ extern "C" {
 #endif
 
 //
-// Float operations
+// Float/double operations
 //
 
 LDK_API float clamp(float x, float bottom, float top);
 LDK_API bool  between(float x, float bottom, float top);
 LDK_API float lerp(float p1, float p2, float amount);
 LDK_API float smoothstep(float p1, float p2, float amount);
+
+LDK_API double degToRadian(double deg);
+LDK_API double radianToDeg(double radian);
 
 //
 // Vec2

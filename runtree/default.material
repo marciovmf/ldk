@@ -10,4 +10,3 @@
 vert-shader:          ../runtree/default.vs
 frag-shader:          ../runtree/default.fs
 texture2d colorMap:   ../runtree/trees.texture
-

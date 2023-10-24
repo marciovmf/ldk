@@ -1,6 +1,7 @@
 #include "ldk/ldk.h"
 #include "ldk/module/asset.h"
 #include "ldk/asset/mesh.h"
+#include "ldk/maths.h"
 #include "ldk/common.h"
 
 //TODO: Create Events for Joystick button and axis input
@@ -9,25 +10,57 @@ typedef struct
 {
   LDKHMaterial material;
   LDKHMesh mesh;
+  LDKCamera* camera;
+  uint64 ticksStart;
+  uint64 ticksEnd;
+  float deltaTime;
+  bool looking;
 } GameState;
 
 // Pure engine approach
 bool onKeyboardEvent(const LDKEvent* event, void* data)
 {
+  GameState* state = (GameState*) data;
   if (event->type != LDK_EVENT_TYPE_KEYBOARD)
   {
     ldkLogError("Unexpected event type %d", event->type);
     return false;
   }
 
-  const char* eventName = 
-    event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP ? "KEY_UP" :
-    event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN ? "KEY_DOWN" :
-    event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_HOLD ? "KEY_HOLD" :
-    "UNKNOWN";
+  if ( event->keyboardEvent.type != LDK_KEYBOARD_EVENT_KEY_UP)
+  {
+    //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
+    Vec3 cam_dir = ldkCameraDirectionNormalized(state->camera);
+    Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
+    const float speed = 0.01f * state->deltaTime;
 
-  ldkLogDebug("Keyboard event: %s %d", eventName, event->keyboardEvent.keyCode);
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
+    {
+      state->camera->position = vec3Add(state->camera->position, vec3Mul(cam_dir, speed));
+      state->camera->target = vec3Add(state->camera->target, vec3Mul(cam_dir, speed));
+    }
 
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_S)
+    {
+      state->camera->position = vec3Sub(state->camera->position, vec3Mul(cam_dir, speed));
+      state->camera->target = vec3Sub(state->camera->target, vec3Mul(cam_dir, speed));
+    }
+
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_A)
+    {
+      state->camera->position = vec3Add(state->camera->position, vec3Mul(side_dir, speed));
+      state->camera->target = vec3Add(state->camera->target, vec3Mul(side_dir, speed));
+    }
+
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_D)
+    {
+      state->camera->position = vec3Sub(state->camera->position, vec3Mul(side_dir, speed));
+      state->camera->target = vec3Sub(state->camera->target, vec3Mul(side_dir, speed));
+    }
+
+  }
+
+  // Stop on ESC
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN
       && event->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
   {
@@ -37,34 +70,29 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
   return true;
 }
 
-bool onMouseEvent(const LDKEvent* event, void* unused)
+bool onMouseEvent(const LDKEvent* event, void* data)
 {
-  const char* eventName = "";
-  uint32 value = 0;
+  GameState* state = (GameState*) data;
 
-  if (event->type == LDK_EVENT_TYPE_MOUSE_WHEEL)
+  if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON && event->mouseEvent.mouseButton == LDK_MOUSE_BUTTON_LEFT)
   {
-    eventName = 
-      event->mouseEvent.type == LDK_MOUSE_EVENT_WHEEL_FORWARD ? "WHEEL_FORWARD" :
-      event->mouseEvent.type == LDK_MOUSE_EVENT_WHEEL_BACKWARD ? "WHEEL_BACKWARD" :
-      "UNKNOWN";
-    value = event->mouseEvent.wheelDelta;
-  }
-  else if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON)
-  {
-    eventName = 
-      event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_UP ? "BUTTON_UP" :
-      event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_DOWN ? "BUTTON_DOWN" :
-      "UNKNOWN";
-    value = event->mouseEvent.mouseButton;
-  }
-  else
-  {
-    ldkLogError("Unexpected event type %d", event->type);
-    return false;
+    if (event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_UP)
+      state->looking = false;
+    else
+      state->looking = true;
   }
 
-  ldkLogDebug("Mouse event: %s %d", eventName, value);
+  if (state->looking)
+  {
+    const float speed = 0.0001f * state->deltaTime;
+    Vec3 cam_dir = ldkCameraDirectionNormalized(state->camera);
+    cam_dir.y += -(event->mouseEvent.yRel * speed);
+
+    Vec3 side_dir = vec3Cross(cam_dir, vec3Up());
+    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, -(event->mouseEvent.xRel * speed)));
+    state->camera->target = vec3Add(state->camera->position, vec3Normalize(cam_dir));
+  }
+
   return true;
 }
 
@@ -86,16 +114,28 @@ bool onWindowEvent(const LDKEvent* event, void* state)
 
 bool onFrameEvent(const LDKEvent* event, void* data)
 {
+  GameState* state = (GameState*) data;
+
   if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
   {
-    GameState* state = (GameState*) data;
-    glClear(GL_COLOR_BUFFER_BIT);
+    //double delta = ldkOsTimeTicksIntervalGetNanoseconds(state->ticksStart, state->ticksEnd) / 1000000.0f;
+    double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(state->ticksStart, state->ticksEnd);
+    state->deltaTime = (float) delta;
+    state->ticksStart = ldkOsTimeTicksGet();
+
+    ldkRendererCameraSet(state->camera);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(state->mesh);
     ldkMaterialBind(state->material);
     ldkVertexBufferBind(vBuffer);
-    ldkRenderMesh(vBuffer, 6, 0);
+    ldkRenderMesh(vBuffer, 36, 0);
     ldkMaterialBind(0);
     ldkVertexBufferBind(0);
+  }
+  else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
+  {
+    state->ticksEnd = ldkOsTimeTicksGet();
   }
   return true;
 }
@@ -109,13 +149,20 @@ int pureEngineApplication()
   ldkGraphicsViewportIconSet("../ldk.ico");
   ldkGraphicsVsyncSet(true);
   ldkGraphicsMultisamplesSet(true);
-  ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, 0);
-  ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_WHEEL | LDK_EVENT_TYPE_MOUSE_BUTTON, 0);
+  ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, (void*) &state);
+  ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_WHEEL | LDK_EVENT_TYPE_MOUSE_BUTTON | LDK_EVENT_TYPE_MOUSE_MOVE, (void*) &state);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
   state.material = ldkAssetGet("../runtree/default.material");
   state.mesh = ldkAssetGet("../runtree/default.mesh");
+
+  state.camera = ldkCameraCreate();
+  state.camera->position = vec3(0.0f, 1.0f, 2.0f);
+
+  glFrontFace(GL_CW);
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
 
   glClearColor(0.3f, 0.5f, 0.5f, 0.0f);
   return ldkEngineRun();
@@ -160,7 +207,7 @@ bool pureOsApplication()
 
     ldkOsGraphicsContextCurrent(window, context);
     glClearColor(0, 0, 255, 0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     ldkOsWindowBuffersSwap(window);
 
     ldkOsGraphicsContextCurrent(window2, context);

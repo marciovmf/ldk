@@ -12,8 +12,11 @@ LDK_VERTEX_ATTRIBUTE_TEXCOORD  vec2 vTexcoord;
 
 out vec2 fragTexCoord;
 
+uniform mat4 mView;
+uniform mat4 mProj;
+
 void main()
 {
-  gl_Position = vec4(vPosition, 1.0);
+  gl_Position = mProj * mView * vec4(vPosition, 1.0);
   fragTexCoord = vTexcoord;
 }

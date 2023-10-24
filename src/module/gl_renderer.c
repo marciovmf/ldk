@@ -1,4 +1,6 @@
 #include "ldk/module/renderer.h"
+#include "ldk/entity/camera.h"
+#include "ldk/module/graphics.h"
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
@@ -71,6 +73,8 @@ static struct
   LDKHList hlistShader;
   LDKHList hlistMaterial;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
+
+  LDKCamera* camera;
 } internal = { 0 };
 
 //
@@ -424,8 +428,14 @@ bool ldkMaterialBind(LDKHMaterial handle)
   if (material == NULL)
     return false;
 
-  if (! ldkShaderProgramBind(material->program))
+  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, material->program);
+  if (!shader || !shader->isProgram)
     return false;
+
+  glUseProgram(shader->id);
+
+  //if (! ldkShaderProgramBind(material->program))
+  //  return false;
 
   for (uint32 i = 0; i < material->numParam; i++)
   {
@@ -461,6 +471,28 @@ bool ldkMaterialBind(LDKHMaterial handle)
     }
   }
 
+  // set camera matrices
+  GLint uniformView = glGetUniformLocation(shader->id, "mView");
+  if (uniformView != -1)
+  {
+    Mat4 viewMatrix = ldkCameraViewMatrix(internal.camera);
+    glUniformMatrix4fv(uniformView, 1, GL_TRUE, (float*) &viewMatrix);
+  }
+
+  GLint uniformProj = glGetUniformLocation(shader->id, "mProj");
+  if (uniformProj != -1)
+  {
+    Mat4 projMatrix = ldkCameraProjectMatrix(internal.camera);
+    glUniformMatrix4fv(uniformProj, 1, GL_TRUE, (float*) &projMatrix);
+  }
+
+  GLint uniformViewProj = glGetUniformLocation(shader->id, "mViewProj");
+  if (uniformViewProj != -1)
+  {
+    Mat4 projViewMatrix = ldkCameraViewProjectMatrix(internal.camera);
+    glUniformMatrix4fv(uniformViewProj, 1, GL_TRUE, (float*) &projViewMatrix);
+  }
+
   return true;
 }
 
@@ -478,8 +510,8 @@ LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTexturePa
 
   // Mipmap generation
   LDK_ASSERT(mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_NEAREST
- || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_LINEAR
- || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_NONE);
+      || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_LINEAR
+      || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_NONE);
 
   if (mipmapModeParam != LDK_TEXTURE_MIPMAP_MODE_NONE)
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -495,7 +527,7 @@ LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTexturePa
   switch(wrapParam)
   {
     case LDK_TEXTURE_WRAP_CLAMP_TO_EDGE:
-    flag = GL_CLAMP_TO_EDGE;
+      flag = GL_CLAMP_TO_EDGE;
     case LDK_TEXTURE_WRAP_CLAMP_TO_BORDER:
       flag = GL_CLAMP_TO_BORDER; break;
     case LDK_TEXTURE_WRAP_MIRRORED_REPEAT:
@@ -557,7 +589,7 @@ bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data,
 
   //TODO(marcio): Handle SRGB here !
   bool srgb = true;
- 
+
   GLenum textureFormat;
   GLenum textureType;
 
@@ -780,4 +812,11 @@ void ldkRenderMesh(LDKVertexBuffer buffer, uint32 count, size_t start)
   //ldkVertexBufferBind(buffer);
   glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, (void *) start);
   //ldkVertexBufferBind(NULL);
+}
+
+
+
+void ldkRendererCameraSet(LDKCamera* camera)
+{
+  internal.camera = camera;
 }

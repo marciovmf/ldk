@@ -782,13 +782,13 @@ double ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end)
 
 double ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end)
 {
-  double difference = (double)((end - start) * 1000);
+  double difference = (end - start) * 1000.0;
   return (difference / internal->frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end)
 {
-  double difference = (double)((end - start) * 1000000000);
+  double difference = (end - start) * 1000000000.0;
   return (difference / internal->frequency.QuadPart);
 }
 
