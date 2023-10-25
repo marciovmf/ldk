@@ -58,8 +58,6 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
 
   mesh->materials[0] = ldkAssetGet("../runtree/default.material");
 
-  mesh->surfaces[0].first = 0;
-  mesh->surfaces[0].count = numIndices;
   mesh->vBuffer = ldkVertexBufferCreate(LDK_VERTEX_LAYOUT_PNU);
   ldkVertexBufferData(mesh->vBuffer, (void*) vertices, sizeof(vertices));
   ldkVertexBufferIndexData(mesh->vBuffer, indices, sizeof(indices));
