@@ -1866,10 +1866,12 @@ void mat4Print(Mat4 m)
 
 Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up)
 {
+  // Calculating Local Coordinate System
   Vec3 zaxis = vec3Normalize(vec3Sub(target, position));
-  Vec3 xaxis = vec3Normalize(vec3Cross(up, zaxis));
-  Vec3 yaxis = vec3Cross(zaxis, xaxis);
+  Vec3 xaxis = vec3Normalize(vec3Cross(zaxis, up));
+  Vec3 yaxis = vec3Cross(xaxis, zaxis);
 
+  // Constructing the View Matrix
   Mat4 viewMatrix = mat4Id();
   viewMatrix.xx = xaxis.x;
   viewMatrix.xy = xaxis.y;
@@ -1883,79 +1885,37 @@ Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up)
   viewMatrix.zy = -zaxis.y;
   viewMatrix.zz = -zaxis.z;
 
+  // Translate to Camera Position
+  // Multiply the view matrix by a translation matrix that moves the camera to its position.
+  // The vec3Neg(position) is used to create a translation matrix that moves in the opposite direction of the camera position.
   viewMatrix = mat4MulMat4(viewMatrix, mat4Translation(vec3Neg(position)));
   return viewMatrix;
 }
 
-//ldkLogInfo("left = %f, right = %f, top = %f, bottom = %f", left, right, top, bottom);
-
 Mat4 mat4Perspective(float fov, float nearClip, float farClip, float ratio)
 {
-#if 0
- float right, left, bottom, top;
+  float right, left, bottom, top;
 
-  right = -(nearClip * tanf(fov));
+  top = tanf(fov / 2.0f) * nearClip;
+  bottom = -top;
+  right = ratio * top;
   left = -right;
 
-  top = ratio * nearClip * tanf(fov);
-  bottom = -top;
+  Mat4 projMatrix = mat4Zero(); // just creates a zero-filled matrix4
+  projMatrix.xx = (2.0f * nearClip) / (right - left);
+  projMatrix.yy = (2.0f * nearClip) / (top - bottom);
 
+  // Adjust the signs based on the handedness of the coordinate system
+  projMatrix.xz = (right + left) / (right - left);
+  projMatrix.yz = (top + bottom) / (top - bottom);
 
-ldkLogInfo("left = %f, right = %f, top = %f, bottom = %f", left, right, top, bottom);
+  // Adjust the signs for left-handed coordinate system
+  projMatrix.zz = farClip / (nearClip - farClip);
+  projMatrix.wz = -1.0f;
+  projMatrix.zw = (nearClip * farClip) / (nearClip - farClip);
 
-  Mat4 projMatrix = mat4Zero();
-  projMatrix.xx = (float) (2.0 * nearClip) / (right - left);
-  projMatrix.yy = (float) (2.0 * nearClip) / (top - bottom);
-  projMatrix.xz = (float) (right + left) / (right - left);
-  projMatrix.yz = (float) (top + bottom) / (top - bottom);
-  projMatrix.zz = (float) (-farClip - nearClip) / (farClip - nearClip);
-  projMatrix.wz = (float) -1.0;
-  projMatrix.zw = (float) (-(2.0 * nearClip) * farClip) / (farClip - nearClip);
-
+  //ldkLogInfo("left = %f, right = %f, top = %f, bottom = %f", left, right, top, bottom);
   return projMatrix;
-
-#else
-  //float top, bottom, right, left;
-
-  //  top = nearClip * tanf(0.5f * fov);
-  //  bottom = -top;
-
-  //  right = top * ratio;
-  //  left = -right;
-  //  ldkLogInfo("left = %f, right = %f, top = %f, bottom = %f", left, right, top, bottom);
-
-  //  Mat4 projMatrix = mat4Zero();
-  //  projMatrix.xx = (2.0f * nearClip) / (right - left);
-  //  projMatrix.yy = (2.0f * nearClip) / (top - bottom);
-  //  projMatrix.xz = (right + left) / (right - left);
-  //  projMatrix.yz = (top + bottom) / (top - bottom);
-  //  projMatrix.zz = (-farClip - nearClip) / (farClip - nearClip);
-  //  projMatrix.wz = -1.0f;
-  //  projMatrix.zw = (-(2.0f * nearClip) * farClip) / (farClip - nearClip);
-
-  //  return projMatrix;
-    float right, left, bottom, top;
-
-    // Calculate right and left based on the aspect ratio
-    right = nearClip * tanf(0.5f * fov);
-    left = -right;
-
-    // Calculate top and bottom based on the aspect ratio
-    top = right / ratio;
-    bottom = left / ratio;
-
-    Mat4 projMatrix = mat4Zero();
-    projMatrix.xx = (2.0f * nearClip) / (right - left);
-    projMatrix.yy = (2.0f * nearClip) / (top - bottom);
-    projMatrix.xz = -(right + left) / (right - left);  // Negate this element
-    projMatrix.yz = -(top + bottom) / (top - bottom);  // Negate this element
-    projMatrix.zz = (-farClip - nearClip) / (farClip - nearClip);
-    projMatrix.wz = -1.0f;
-    projMatrix.zw = -(2.0f * nearClip * farClip) / (farClip - nearClip);  // Negate this element
-
-    return projMatrix;
-
-#endif
 }
 
 Mat4 mat4Orthographic(float left, float right, float bottom, float top, float clipNear, float clipFar)

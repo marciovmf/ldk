@@ -24,6 +24,7 @@ extern "C" {
   typedef LDKHandle LDKHTexture;
 
   typedef void* LDKVertexBuffer;
+  //TODO: replace by typedef struct LDKIndexBuffer;
   typedef void* LDKIndexBuffer;
 
   typedef enum
@@ -33,6 +34,19 @@ extern "C" {
     LDK_VERTEX_LAYOUT_PNTBU = 2,  // Position, Normal, Tangent, Binormal, UV
   } LDKVertexLayout;
 
+  typedef struct
+  {
+    float minX;
+    float minY;
+    float maxX;
+    float maxY;
+  }LDKBoundingBox;
+
+  typedef struct
+  {
+    Vec3 center;
+    float radius;
+  }LDKBoundingSphere;
 
   LDK_API bool ldkRendererInitialize();
   LDK_API void ldkRendererTerminate();
@@ -106,7 +120,7 @@ extern "C" {
   //
   // Rendering
   //
-  LDK_API void ldkRenderMesh(LDKVertexBuffer buffer, uint32 count, size_t satrt);
+  LDK_API void ldkRenderMesh(LDKHMesh mesh, uint32 count, size_t start);
   LDK_API void ldkRendererCameraSet(LDKCamera* camera);
 
 #ifdef __cplusplus

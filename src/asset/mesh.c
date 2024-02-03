@@ -136,9 +136,9 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
     line = internalSkipWhiteSpace(line);
     if (line[0] != '#')
     {
-      char* entryContext;
-      char* lhs = strtok_r(line, ":", &entryContext);
-      char* rhs = strtok_r(NULL, ":", &entryContext);
+      char* context;
+      char* lhs = strtok_r(line, SPACE_OR_TAB, &context);
+      char* rhs = strtok_r(NULL, SPACE_OR_TAB, &context);
 
       if (lhs == NULL || rhs == NULL)
       {
@@ -212,9 +212,8 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       {
         LDK_ASSERT(mesh != NULL && mesh->vertices != NULL);
 
-        char* context;
         Vec3 pos;
-        char* x = strtok_r(rhs,  SPACE_OR_TAB, &context);
+        char* x = rhs;//strtok_r(NULL,  SPACE_OR_TAB, &context);
         char* y = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* z = strtok_r(NULL, SPACE_OR_TAB, &context);
         internalParseFloat(path, lineNumber, x, &pos.x);
@@ -246,8 +245,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       }
       else if (strncmp("index_list", lhs, MAX_LHS_SIZE) == 0)
       {
-        char* context;
-        char* strIndex = strtok_r(rhs, SPACE_OR_TAB, &context);
+        char* strIndex = rhs;
         while (strIndex)
         {
           uint32 index;
@@ -258,8 +256,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       }
       else if (strncmp("material", lhs, MAX_LHS_SIZE) == 0)
       {
-        char* context;
-        char* matId   = strtok_r(rhs,  SPACE_OR_TAB, &context);
+        char* matId   = rhs;
         char* matName = strtok_r(NULL, SPACE_OR_TAB, &context);
 
         uint32 materialId;
@@ -269,8 +266,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       }
       else if (strncmp("surface", lhs, MAX_LHS_SIZE) == 0)
       {
-        char* context;
-        char* materialId = strtok_r(rhs,  SPACE_OR_TAB, &context);
+        char* materialId = rhs;
         char* indexStart = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* indexCount = strtok_r(NULL, SPACE_OR_TAB, &context);
 
@@ -289,8 +285,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       }
       else if (strncmp("bounding_sphere", lhs, MAX_LHS_SIZE) == 0)
       {
-        char* context;
-        char* x = strtok_r(rhs,  SPACE_OR_TAB, &context);
+        char* x = rhs;
         char* y = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* z = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* r = strtok_r(NULL, SPACE_OR_TAB, &context);
@@ -301,8 +296,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       }
       else if (strncmp("bounding_box", lhs, strlen(lhs)) == 0)
       {
-        char* context;
-        char* minX = strtok_r(rhs,  SPACE_OR_TAB, &context);
+        char* minX = rhs;
         char* minY = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxX = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxY = strtok_r(NULL, SPACE_OR_TAB, &context);

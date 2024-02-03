@@ -25,6 +25,10 @@ static char* internalSkipWhiteSpace(char* input)
 
 static bool internalParseInt(const char* path, int line, const char* input, int* out)
 {
+  const char* p = input;
+  if ((*input == '-' || *input == '+') && *(input + 1) != 0)
+    input++;
+
   while(*input)
   {
     if (*input < '0' || *input > '9')
@@ -35,7 +39,7 @@ static bool internalParseInt(const char* path, int line, const char* input, int*
     input++;
   }
 
-  *out = atoi(input);
+  *out = atoi(p);
   return true;
 }
 

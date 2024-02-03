@@ -89,7 +89,7 @@ bool onMouseEvent(const LDKEvent* event, void* data)
     cam_dir.y += -(event->mouseEvent.yRel * speed);
 
     Vec3 side_dir = vec3Cross(cam_dir, vec3Up());
-    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, -(event->mouseEvent.xRel * speed)));
+    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, (event->mouseEvent.xRel * speed)));
     state->camera->target = vec3Add(state->camera->position, vec3Normalize(cam_dir));
   }
 
@@ -118,7 +118,6 @@ bool onFrameEvent(const LDKEvent* event, void* data)
 
   if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
   {
-    //double delta = ldkOsTimeTicksIntervalGetNanoseconds(state->ticksStart, state->ticksEnd) / 1000000.0f;
     double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(state->ticksStart, state->ticksEnd);
     state->deltaTime = (float) delta;
     state->ticksStart = ldkOsTimeTicksGet();
@@ -126,10 +125,12 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     ldkRendererCameraSet(state->camera);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(state->mesh);
+    //LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(state->mesh);
     ldkMaterialBind(state->material);
-    ldkVertexBufferBind(vBuffer);
-    ldkRenderMesh(vBuffer, 36, 0);
+    //ldkVertexBufferBind(vBuffer);
+    ldkRenderMesh(state->mesh, 36, 0);
+  
+
     ldkMaterialBind(0);
     ldkVertexBufferBind(0);
   }
@@ -155,12 +156,12 @@ int pureEngineApplication()
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
   state.material = ldkAssetGet("../runtree/default.material");
-  state.mesh = ldkAssetGet("../runtree/default.mesh");
+  state.mesh = ldkAssetGet("../runtree/pyramid.mesh");
 
   state.camera = ldkCameraCreate();
   state.camera->position = vec3(0.0f, 1.0f, 2.0f);
 
-  glFrontFace(GL_CW);
+  glFrontFace(GL_CCW);
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
 

@@ -1,6 +1,7 @@
 #include "ldk/module/renderer.h"
 #include "ldk/entity/camera.h"
 #include "ldk/module/graphics.h"
+#include "ldk/asset/mesh.h"
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
@@ -646,6 +647,12 @@ typedef struct
   LDKVertexLayout layout;
 } LDKVertexBufferInfo;
 
+LDKVertexLayout ldkVertexBufferLayoutGet(LDKVertexBuffer buffer)
+{
+  LDKVertexBufferInfo* b = (LDKVertexBufferInfo*) buffer;
+  return b->layout;
+}
+
 LDKVertexBuffer ldkVertexBufferCreate(LDKVertexLayout layout)
 {
   LDKVertexBufferInfo* buffer = (LDKVertexBufferInfo*) ldkOsMemoryAlloc(sizeof(LDKVertexBufferInfo));
@@ -760,7 +767,7 @@ void ldkVertexBufferDestroy(LDKVertexBuffer vertexBuffer)
   glDeleteVertexArrays(1, &buffer->vao);
   glDeleteBuffers(1, &buffer->vbo);
   glDeleteBuffers(1, &buffer->ibo);
-  ldkOsMemoryFree(vertexBuffer);
+  ldkOsMemoryFree(buffer);
 }
 
 void ldkVertexBufferData(LDKVertexBuffer buffer, void* data, size_t size)
@@ -807,14 +814,20 @@ void ldkVertexBufferIndexSubData(LDKVertexBuffer buffer, size_t offset, void* da
 // Rendering
 //
 
-void ldkRenderMesh(LDKVertexBuffer buffer, uint32 count, size_t start)
+void ldkRenderMesh(LDKHMesh hMesh, uint32 count, size_t start)
 {
-  //ldkVertexBufferBind(buffer);
-  glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, (void *) start);
-  //ldkVertexBufferBind(NULL);
+    LDKMesh* mesh = (LDKMesh*) hMesh;
+    LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(hMesh);
+    ldkVertexBufferBind(vBuffer);
+
+    for(uint32 i = 0; i < mesh->numSurfaces; i++)
+    {
+      LDKSurface* surface = &mesh->surfaces[i];
+      LDKHMaterial material = mesh->materials[surface->materialIndex];
+      ldkMaterialBind(material);
+      glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) surface->first);
+    }
 }
-
-
 
 void ldkRendererCameraSet(LDKCamera* camera)
 {

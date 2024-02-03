@@ -216,7 +216,6 @@ typedef struct
   int32 a;
 } LDKRGBA;
 
-
 //
 // Logging
 //

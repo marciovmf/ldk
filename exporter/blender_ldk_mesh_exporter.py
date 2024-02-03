@@ -140,21 +140,21 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
         lines = []
         lines.append("# ldk mesh file")
         lines.append("# Format for complex types")
-        lines.append("# vertex:           pos_x pos_y pos_z normal_x normal_y normal_z uv_x uv_y")
-        lines.append("# material:         id name")
-        lines.append("# surface:          material_id index_start index_count")
-        lines.append("# bounding_box:     min_x min_y min_z max_x max_y max_z")
-        lines.append("# bounding_sphere:  center.x center.y center.z radius")
+        lines.append("# vertex           pos_x pos_y pos_z normal_x normal_y normal_z uv_x uv_y")
+        lines.append("# material         id name")
+        lines.append("# surface          material_id index_start index_count")
+        lines.append("# bounding_box     min_x min_y min_z max_x max_y max_z")
+        lines.append("# bounding_sphere  center.x center.y center.z radius")
         lines.append("")
 
         lines.append("version 1.0")
+        lines.append("vertex_format PNU")
         lines.append(f"vertex_count {len(vertex_dict)}")
         lines.append(f"index_count {len(index_list)}")
         lines.append(f"material_count {len(materials)}")
         lines.append(f"surface_count {len(surface_list)}")
         lines.append("")
 
-        lines.append("vertex_format PNUV")
         for vertex_id, vertex in vertex_dict.items():
             v, vt, vn = vertex_id
             pos = v_list[v-1]
@@ -162,6 +162,7 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
             uv = vt_list[vt-1]
             lines.append(f"vertex {pos[0]} {pos[1]} {pos[2]} {normal[0]} {normal[1]} {normal[2]} {uv[0]} {uv[1]}")
 
+        lines.append("")
         lines.append(f"index_list {' '.join([str(x) for x in index_list])}")
         lines.append("")
 
@@ -222,8 +223,8 @@ class ExportOBJWithOptionsOperator(bpy.types.Operator):
                 # use_smooth_groups=True,
                 global_scale=self.global_scale,
                 path_mode='AUTO',
-                axis_forward='Y',
-                axis_up='Z'
+                axis_forward='-Z',
+                axis_up='Y'
                 )
 
         objFileToLDKMesh(temp_file_path, self.filepath)
