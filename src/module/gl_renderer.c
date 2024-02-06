@@ -825,7 +825,7 @@ void ldkRenderMesh(LDKHMesh hMesh, uint32 count, size_t start)
       LDKSurface* surface = &mesh->surfaces[i];
       LDKHMaterial material = mesh->materials[surface->materialIndex];
       ldkMaterialBind(material);
-      glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) surface->first);
+      glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
     }
 }
 

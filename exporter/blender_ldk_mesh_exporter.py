@@ -106,6 +106,8 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
 
         currentSurface = None
 
+        currentVertexPos = 0
+
         for line in file:
             if line.startswith("usemtl "):
                 materialName = line.split()[1]
@@ -133,9 +135,12 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
                         currentSurface = surface_list[0]
 
                     if currentSurface.firstIndex == -1:
-                        currentSurface.firstIndex = vertex_dict[vertex_index]
+                        #currentSurface.firstIndex = vertex_dict[vertex_index]
+                        currentSurface.firstIndex = currentVertexPos
 
                     currentSurface.indexCount = currentSurface.indexCount + 1
+                    currentVertexPos += 1
+
 
         lines = []
         lines.append("# ldk mesh file")
@@ -167,6 +172,8 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
         lines.append("")
 
         for material in materials.values():
+            if not material.name.endswith(".material"):
+                material.name += ".material"
             lines.append(f"material {material.id} {material.name}")
         lines.append("")
 
@@ -211,16 +218,17 @@ class ExportOBJWithOptionsOperator(bpy.types.Operator):
         # Set the export options
         bpy.ops.export_scene.obj(
                 filepath=temp_file_path,
-                use_selection=True,  # Export selected objects
+                use_selection=False,  # Export selected objects
                 use_materials=True,  # Write Materials
                 use_triangles=True,  # Triangulate Faces
                 use_normals=True,  # Include Normals
                 use_uvs=True,  # Include UVs,
                 use_mesh_modifiers=True,
-                # use_animation=True,
-                # use_blen_objects=True,
-                # use_edges=False,
-                # use_smooth_groups=True,
+                keep_vertex_order=True,
+                use_animation=False,
+                use_blen_objects=False,
+                use_edges=False,
+                use_smooth_groups=False,
                 global_scale=self.global_scale,
                 path_mode='AUTO',
                 axis_forward='-Z',

@@ -32,7 +32,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
     Vec3 cam_dir = ldkCameraDirectionNormalized(state->camera);
     Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-    const float speed = 0.01f * state->deltaTime;
+    const float speed = 0.006f * state->deltaTime;
 
     if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
     {
@@ -46,13 +46,13 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
       state->camera->target = vec3Sub(state->camera->target, vec3Mul(cam_dir, speed));
     }
 
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_A)
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_D)
     {
       state->camera->position = vec3Add(state->camera->position, vec3Mul(side_dir, speed));
       state->camera->target = vec3Add(state->camera->target, vec3Mul(side_dir, speed));
     }
 
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_D)
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_A)
     {
       state->camera->position = vec3Sub(state->camera->position, vec3Mul(side_dir, speed));
       state->camera->target = vec3Sub(state->camera->target, vec3Mul(side_dir, speed));
@@ -156,7 +156,7 @@ int pureEngineApplication()
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
   state.material = ldkAssetGet("../runtree/default.material");
-  state.mesh = ldkAssetGet("../runtree/pyramid.mesh");
+  state.mesh = ldkAssetGet("../runtree/dock.mesh");
 
   state.camera = ldkCameraCreate();
   state.camera->position = vec3(0.0f, 1.0f, 2.0f);

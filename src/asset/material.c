@@ -81,7 +81,14 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
   if (buffer == NULL)
-    return LDK_HANDLE_INVALID;
+  {
+    if (ldkStringEndsWith(path, "default.material"))
+      return LDK_HANDLE_INVALID;
+
+    //TODO(marcio): We should not have this relative path here. This should be only default.material. Runtree path should be implicit
+    return ldkAssetGet("../runtree/default.material");
+  }
+
 
   buffer[fileSize] = 0;
 
