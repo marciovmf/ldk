@@ -86,7 +86,7 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
       return LDK_HANDLE_INVALID;
 
     //TODO(marcio): We should not have this relative path here. This should be only default.material. Runtree path should be implicit
-    return ldkAssetGet("../runtree/default.material");
+    return ldkAssetGet("assets/default.material");
   }
 
 

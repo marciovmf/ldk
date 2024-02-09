@@ -7,6 +7,6 @@
 #   vec4 myVec4Var:       41.0 42.0 44.7 0.3
 #   float myFloatVar:     .42
 #   texture2d diffuse:    textures/checkers.texture
-vert-shader:          ../runtree/default.vs
-frag-shader:          ../runtree/default.fs
-texture2d colorMap:   ../runtree/trees.texture
+vert-shader:          assets/default.vs
+frag-shader:          assets/default.fs
+texture2d colorMap:   assets/default.texture

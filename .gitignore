@@ -7,3 +7,7 @@ lib
 .clangd
 *.rdbg
 *.log
+*.exe
+*.ilk
+*.pdb
+*.dll

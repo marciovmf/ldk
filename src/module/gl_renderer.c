@@ -52,8 +52,7 @@ typedef struct
     Vec3      vec3Value;
     Vec4      vec4Value;
   };
-
-}LDKMaterialParam;
+} LDKMaterialParam;
 
 typedef struct
 {
@@ -63,7 +62,7 @@ typedef struct
   LDKHTexture textures[LDK_MATERIAL_MAX_TEXTURES];
   uint32 numParam;
   uint32 numTextures;
-}LDKGLMaterial;
+} LDKGLMaterial;
 
 
 #define LDK_GL_ERROR_LOG_SIZE 1024

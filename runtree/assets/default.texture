@@ -12,7 +12,7 @@
 #  nearest
 #  linear 
 
-image:          ../runtree/trees.png
+image:          assets/default.png
 wrap:           clamp-to-edge
 filter-min:     linear
 filter-max:     linear

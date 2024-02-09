@@ -155,8 +155,8 @@ int pureEngineApplication()
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
-  state.material = ldkAssetGet("../runtree/default.material");
-  state.mesh = ldkAssetGet("../runtree/dock.mesh");
+  state.material = ldkAssetGet("assets/default.material");
+  state.mesh = ldkAssetGet("assets/object.mesh");
 
   state.camera = ldkCameraCreate();
   state.camera->position = vec3(0.0f, 1.0f, 2.0f);
