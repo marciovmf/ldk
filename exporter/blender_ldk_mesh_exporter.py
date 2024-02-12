@@ -194,7 +194,7 @@ def objFileToLDKMesh(objFileName, ldkMeshFileName):
 
 class ExportOBJWithOptionsOperator(bpy.types.Operator):
     bl_idname = "export.ldk_mesh_from_obj"
-    bl_label = "Export ldk mesh"
+    bl_label = "LDK mesh"
 
     #export_materials: BoolProperty(
     #    name="Material color as vertex attribute",
@@ -243,7 +243,7 @@ class ExportOBJWithOptionsOperator(bpy.types.Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        self.filepath = "object.ldkmesh"
+        self.filepath = "object.mesh"
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
