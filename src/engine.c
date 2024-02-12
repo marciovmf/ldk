@@ -74,27 +74,8 @@ bool ldkEngineInitialize()
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
 
-  // Register LDKHandle so any other handle type is larger than 0
-  typeid(LDKHandle);
-
-  // Startup Graphics
-  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
-  logModuleInit("Graphics", stepSuccess);
-  success &= stepSuccess;
-
-  // Startup renderer
-  stepSuccess = ldkRendererInitialize();
-  logModuleInit("Renderer", stepSuccess);
-  success &= stepSuccess;
-
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
-
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMesh), "mesh", ldkAssetMeshLoadFunc, ldkAssetMeshUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMaterial), "material", ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc);
 
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "png", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "bmp", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
@@ -107,8 +88,31 @@ bool ldkEngineInitialize()
   
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHTexture), "texture", ldkAssetTextureLoadFunc, ldkAssetTextureUnloadFunc);
 
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
+
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMaterial), "material", ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMesh), "mesh", ldkAssetMeshLoadFunc, ldkAssetMeshUnloadFunc);
+
+
 
   logModuleInit("Asset Handler", stepSuccess);
+
+
+
+  // Register LDKHandle so any other handle type is larger than 0
+  typeid(LDKHandle);
+
+  // Startup Graphics
+  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
+  logModuleInit("Graphics", stepSuccess);
+  success &= stepSuccess;
+
+  // Startup renderer
+  stepSuccess = ldkRendererInitialize();
+  logModuleInit("Renderer", stepSuccess);
+  success &= stepSuccess;
 
   success &= stepSuccess;
   logModuleInit("LDK is ready", stepSuccess);
