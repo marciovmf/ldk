@@ -29,6 +29,7 @@ typedef struct
 typedef struct
 {
   GLuint id;
+  bool useMipmap;
 } LDKGLTexture;
 
 #ifndef LDK_MATERIAL_MAX_PARAMS
@@ -467,7 +468,7 @@ bool ldkMaterialBind(LDKHMaterial handle)
         LDKHTexture hTexture = material->textures[param->textureIndexValue];
         LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, hTexture);
         glBindTexture(GL_TEXTURE_2D, texture->id);
-      break;
+        break;
     }
   }
 
@@ -502,19 +503,16 @@ bool ldkMaterialBind(LDKHMaterial handle)
 
 LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam)
 {
-  LDKHTexture handle = ldkHListReserve(&internal.hlistTexture);
-  LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);
-  glGenTextures(1, &texture->id);
-
-  glBindTexture(GL_TEXTURE_2D, texture->id);
+  GLenum flagWrap = 0;
+  GLenum flagMin = 0;
+  GLenum flagMax = 0;
+  bool useMipmap = mipmapModeParam != LDK_TEXTURE_MIPMAP_MODE_NONE;
+  bool mipmapModeIsLinear = mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_LINEAR;
 
   // Mipmap generation
   LDK_ASSERT(mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_NEAREST
       || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_LINEAR
       || mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_NONE);
-
-  if (mipmapModeParam != LDK_TEXTURE_MIPMAP_MODE_NONE)
-    glGenerateMipmap(GL_TEXTURE_2D);
 
 
   // Wrapping 
@@ -523,59 +521,84 @@ LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTexturePa
       || wrapParam == LDK_TEXTURE_WRAP_MIRRORED_REPEAT
       || wrapParam == LDK_TEXTURE_WRAP_REPEAT);
 
-  GLenum flag = 0;
   switch(wrapParam)
   {
     case LDK_TEXTURE_WRAP_CLAMP_TO_EDGE:
-      flag = GL_CLAMP_TO_EDGE;
+      flagWrap = GL_CLAMP_TO_EDGE;
     case LDK_TEXTURE_WRAP_CLAMP_TO_BORDER:
-      flag = GL_CLAMP_TO_BORDER; break;
+      flagWrap = GL_CLAMP_TO_BORDER; break;
     case LDK_TEXTURE_WRAP_MIRRORED_REPEAT:
-      flag = GL_MIRRORED_REPEAT; break;
+      flagWrap = GL_MIRRORED_REPEAT; break;
     case LDK_TEXTURE_WRAP_REPEAT:
-      flag = GL_REPEAT; break;
+      flagWrap = GL_REPEAT; break;
   }
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, flag);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, flag);
-
-  // Filter min
+  // Filter min and mag
   LDK_ASSERT(filterMinParam  == LDK_TEXTURE_FILTER_LINEAR || filterMinParam  == LDK_TEXTURE_FILTER_NEAREST);
+  LDK_ASSERT(filterMaxParam  == LDK_TEXTURE_FILTER_LINEAR || filterMaxParam  == LDK_TEXTURE_FILTER_NEAREST);
 
-  bool mipmap = mipmapModeParam != LDK_TEXTURE_MIPMAP_MODE_NONE;
-  bool mipmapModeIsLinear = mipmapModeParam == LDK_TEXTURE_MIPMAP_MODE_LINEAR;
-
-  if (mipmap)
+  if (useMipmap)
   {
     if (mipmapModeIsLinear)
     {
       if (filterMinParam == LDK_TEXTURE_FILTER_LINEAR)
-        flag = GL_LINEAR_MIPMAP_LINEAR;
+        flagMin = GL_LINEAR_MIPMAP_LINEAR;
       else
-        flag = GL_LINEAR_MIPMAP_NEAREST;
+        flagMin = GL_LINEAR_MIPMAP_NEAREST;
+
+
+      if (filterMaxParam == LDK_TEXTURE_FILTER_LINEAR)
+        flagMax = GL_LINEAR_MIPMAP_LINEAR;
+      else
+        flagMax = GL_LINEAR_MIPMAP_NEAREST;
+
     }
     else
     {
       if (filterMinParam == LDK_TEXTURE_FILTER_LINEAR)
-        flag = GL_NEAREST_MIPMAP_LINEAR;
+        flagMin = GL_NEAREST_MIPMAP_LINEAR;
       else
-        flag = GL_NEAREST_MIPMAP_NEAREST;
+        flagMin = GL_NEAREST_MIPMAP_NEAREST;
+
+
+      if (filterMaxParam == LDK_TEXTURE_FILTER_LINEAR)
+        flagMax = GL_NEAREST_MIPMAP_LINEAR;
+      else
+        flagMax = GL_NEAREST_MIPMAP_NEAREST;
     }
-  }
-  else if (filterMinParam == LDK_TEXTURE_FILTER_LINEAR)
-  {
-    flag = GL_LINEAR;
   }
   else
   {
-    flag = GL_NEAREST;
+    if (filterMinParam == LDK_TEXTURE_FILTER_LINEAR)
+    {
+      flagMin = GL_LINEAR;
+    }
+    else
+    {
+      flagMin = GL_NEAREST;
+    }
+
+
+    if (filterMaxParam == LDK_TEXTURE_FILTER_LINEAR)
+    {
+      flagMax = GL_LINEAR;
+    }
+    else
+    {
+      flagMax = GL_NEAREST;
+    }
   }
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flag);
+  LDKHTexture handle = ldkHListReserve(&internal.hlistTexture);
+  LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);
+  texture->useMipmap = useMipmap;
 
-  // Filter max
-  LDK_ASSERT(filterMaxParam  == LDK_TEXTURE_FILTER_LINEAR || filterMaxParam  == LDK_TEXTURE_FILTER_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flag);
+  glGenTextures(1, &texture->id);
+  glBindTexture(GL_TEXTURE_2D, texture->id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, flagWrap);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, flagWrap);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flagMin);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flagMax);
 
   glBindTexture(GL_TEXTURE_2D, 0);
   return (LDKHTexture) handle;
@@ -617,6 +640,9 @@ bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data,
 
   glBindTexture(GL_TEXTURE_2D, texture->id);
   glTexImage2D(GL_TEXTURE_2D, 0, srgb ? GL_SRGB_ALPHA : GL_RGBA, width, height, 0, textureFormat, textureType, data);
+
+  if (texture->useMipmap)
+    glGenerateMipmap(GL_TEXTURE_2D);
 
   glBindTexture(GL_TEXTURE_2D, 0);
   return true;
