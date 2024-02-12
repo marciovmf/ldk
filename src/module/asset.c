@@ -172,7 +172,6 @@ LDKHandle ldkAssetGet(const char* path)
   }
 
   // Add if not found
-  //assetInfo = (LDKAssetInfo*) ldkArenaAllocate(&internal.assetInfoList, sizeof(LDKAssetInfo));
   ldkLogInfo("Loading asset %s", path);
   assetInfo = internalAssetInfoGetNewOrRecycled();
   ldkPath(&assetInfo->path, path);

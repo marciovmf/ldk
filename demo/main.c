@@ -32,7 +32,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
     Vec3 cam_dir = ldkCameraDirectionNormalized(state->camera);
     Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-    const float speed = 0.006f * state->deltaTime;
+    const float speed = 0.001f * state->deltaTime;
 
     if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
     {
@@ -123,16 +123,8 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     state->ticksStart = ldkOsTimeTicksGet();
 
     ldkRendererCameraSet(state->camera);
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(state->mesh);
-    ldkMaterialBind(state->material);
-    //ldkVertexBufferBind(vBuffer);
-    ldkRenderMesh(state->mesh, 36, 0);
-  
-
-    ldkMaterialBind(0);
-    ldkVertexBufferBind(0);
+    ldkRendererAddStaticMesh(state->mesh);
+    ldkRendererRender();
   }
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
   {
@@ -155,17 +147,11 @@ int pureEngineApplication()
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
-  state.material = ldkAssetGet("assets/default.material");
-  state.mesh = ldkAssetGet("assets/object.mesh");
+  state.mesh = ldkAssetGet("assets/dock.mesh");
 
   state.camera = ldkCameraCreate();
   state.camera->position = vec3(0.0f, 1.0f, 2.0f);
 
-  glFrontFace(GL_CCW);
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-
-  glClearColor(0.3f, 0.5f, 0.5f, 0.0f);
   return ldkEngineRun();
 }
 

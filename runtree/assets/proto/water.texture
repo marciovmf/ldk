@@ -12,7 +12,7 @@
 #  nearest
 #  linear 
 
-image:          assets/default.png
+image:          assets/proto/water.png
 wrap:           repeat
 filter-min:     nearest
 filter-max:     nearest

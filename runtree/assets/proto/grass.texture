@@ -12,8 +12,8 @@
 #  nearest
 #  linear 
 
-image:          assets/default.png
+image:          assets/proto/grass.png
 wrap:           repeat
 filter-min:     nearest
 filter-max:     nearest
-mipmap:         linear
+mipmap:         nearest

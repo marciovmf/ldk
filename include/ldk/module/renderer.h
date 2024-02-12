@@ -120,8 +120,12 @@ extern "C" {
   //
   // Rendering
   //
-  LDK_API void ldkRenderMesh(LDKHMesh mesh, uint32 count, size_t start);
+  LDK_API void ldkRenderMesh(LDKHMesh mesh);
   LDK_API void ldkRendererCameraSet(LDKCamera* camera);
+  LDK_API void ldkRendererClearColor(LDKRGB color);
+
+  LDK_API void ldkRendererAddStaticMesh(LDKHMesh hStaticMesh);
+  LDK_API void ldkRendererRender();
 
 #ifdef __cplusplus
 }

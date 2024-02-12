@@ -2,6 +2,7 @@
 #include "ldk/entity/camera.h"
 #include "ldk/module/graphics.h"
 #include "ldk/asset/mesh.h"
+#include "ldk/common.h"
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
@@ -70,13 +71,29 @@ typedef struct
 static struct 
 {
   bool initialized;
+  LDKRGB clearColor;
   LDKHList hlistTexture;
   LDKHList hlistShader;
   LDKHList hlistMaterial;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
-
+  LDKArena bucketROStaticMesh;
   LDKCamera* camera;
 } internal = { 0 };
+
+typedef enum
+{
+  LDK_RENDER_OBJECT_STATIC_MESH
+}  LDKRenderObjectType;
+
+typedef struct
+{
+  LDKRenderObjectType type; 
+  union
+  {
+    LDKHMesh mesh;
+  };
+
+} LDKRenderObject;
 
 //
 // Renderer
@@ -87,9 +104,12 @@ bool ldkRendererInitialize()
   LDK_ASSERT(internal.initialized == false);
   internal.initialized = true;
   bool success = true;
+  internal.clearColor = (LDKRGB){0, 100, 120};
   success &= ldkHListCreate(&internal.hlistTexture, typeid(LDKHTexture), sizeof(LDKGLTexture), 32);
   success &= ldkHListCreate(&internal.hlistShader, typeid(LDKHShader), sizeof(LDKGLShader), 32);
   success &= ldkHListCreate(&internal.hlistMaterial, typeid(LDKHMaterial), sizeof(LDKGLMaterial), 32);
+  success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
+
   return success;
 }
 
@@ -102,6 +122,7 @@ void ldkRendererTerminate()
   ldkHListDestroy(&internal.hlistTexture);
   ldkHListDestroy(&internal.hlistShader);
   ldkHListDestroy(&internal.hlistMaterial);
+  ldkArenaDestroy(&internal.bucketROStaticMesh);
 }
 
 //
@@ -839,22 +860,57 @@ void ldkVertexBufferIndexSubData(LDKVertexBuffer buffer, size_t offset, void* da
 // Rendering
 //
 
-void ldkRenderMesh(LDKHMesh hMesh, uint32 count, size_t start)
+void ldkRendererClearColor(LDKRGB color)
 {
-    LDKMesh* mesh = (LDKMesh*) hMesh;
-    LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(hMesh);
-    ldkVertexBufferBind(vBuffer);
-
-    for(uint32 i = 0; i < mesh->numSurfaces; i++)
-    {
-      LDKSurface* surface = &mesh->surfaces[i];
-      LDKHMaterial material = mesh->materials[surface->materialIndex];
-      ldkMaterialBind(material);
-      glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
-    }
+  internal.clearColor = color;
 }
 
 void ldkRendererCameraSet(LDKCamera* camera)
 {
   internal.camera = camera;
 }
+
+void ldkRendererAddStaticMesh(LDKHMesh hStaticMesh)
+{
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
+  ro->type = LDK_RENDER_OBJECT_STATIC_MESH;
+  ro->mesh = hStaticMesh;
+}
+
+void internalRenderMesh(LDKHMesh hMesh)
+{
+  LDKMesh* mesh = (LDKMesh*) hMesh;
+  LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(hMesh);
+  ldkVertexBufferBind(vBuffer);
+
+  for(uint32 i = 0; i < mesh->numSurfaces; i++)
+  {
+    LDKSurface* surface = &mesh->surfaces[i];
+    LDKHMaterial material = mesh->materials[surface->materialIndex];
+    ldkMaterialBind(material);
+    glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
+  }
+}
+
+void ldkRendererRender()
+{
+  uint32 count = (uint32) ldkArenaUsedGet(&internal.bucketROStaticMesh) / sizeof(LDKRenderObject);
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+
+  glEnable(GL_CULL_FACE);
+  glEnable(GL_DEPTH_TEST); 
+  glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  for(uint32 i = 0; i < count; i++)
+  {
+    LDK_ASSERT(ro->type == LDK_RENDER_OBJECT_STATIC_MESH);
+    internalRenderMesh(ro->mesh);
+    ro++;
+  }
+
+  ldkArenaReset(&internal.bucketROStaticMesh);
+  ldkMaterialBind(0);
+  ldkVertexBufferBind(0);
+}
+
