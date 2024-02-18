@@ -1,6 +1,13 @@
-#ifndef IMAGE_H
-#define IMAGE_H
-  
+/**
+ * image.h
+ *
+ * Asset handler for .image asset files
+ *
+ */
+
+#ifndef LDK_IMAGE_H
+#define LDK_IMAGE_H
+
 #include "../common.h"
 
 #ifdef __cplusplus
@@ -14,14 +21,14 @@ extern "C" {
     unsigned char* data;
   } LDKImage;
 
-typedef LDKHandle LDKHImage;
+  typedef LDKHandle LDKHImage;
 
-LDK_API LDKHImage ldkAssetImageLoadFunc(const char* path);
-LDK_API void ldkAssetImageUnloadFunc(LDKHImage handle);
-LDK_API LDKImage* ldkAssetImageGetPointer(LDKHImage handle);
+  LDK_API LDKHImage ldkAssetImageLoadFunc(const char* path);
+  LDK_API void ldkAssetImageUnloadFunc(LDKHImage handle);
+  LDK_API LDKImage* ldkAssetImageGetPointer(LDKHImage handle);
 
 #ifdef __cplusplus
 }
 #endif
-#endif //IMAGE_H
+#endif //LDK_IMAGE_H
 

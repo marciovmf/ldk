@@ -10,7 +10,13 @@ static struct
   void*           data[LDK_EVENT_QUEUE_SIZE];
   uint32          numEvents;
   uint32          numHandlers;
-} internal = { 0 };
+} internalEventQueue = { 0 };
+
+#ifdef internal
+#undef internal
+#endif
+
+#define internal internalEventQueue
 
 void ldkEventPush(LDKEvent* event)
 {
@@ -109,3 +115,5 @@ void ldkEventQueueBroadcast()
   } 
   internal.numEvents = 0;
 }
+
+#undef internal

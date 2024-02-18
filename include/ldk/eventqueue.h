@@ -2,7 +2,7 @@
  *
  * eventqueue.h
  * 
- * Provides an event queue that can be subscribed for event notifications
+ * An event queue that can be subscribed for event notifications
  *
  */
 

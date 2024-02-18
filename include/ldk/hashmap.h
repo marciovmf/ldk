@@ -26,7 +26,6 @@ extern "C" {
   } LDKHashMapIterator;
 
   LDK_API typedef struct LDKHashMap LDKHashMap;
-  LDK_API typedef struct LDKHashMap LDKHashMap;
 
   LDK_API typedef LDKHash (*ldkHashMapHashFunc)(const void* key);
   LDK_API typedef bool (*ldkHashMapCompareFunc)(const void* key1, const void* key2);

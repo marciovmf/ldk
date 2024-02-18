@@ -3,7 +3,10 @@
 #include "ldk/eventqueue.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/renderer.h"
+#include "ldk/module/entity.h"
 #include "ldk/module/asset.h"
+#include "ldk/entity/camera.h"
+#include "ldk/entity/staticobject.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
 #include "ldk/asset/mesh.h"
@@ -16,7 +19,14 @@ static struct
 {
   bool running;
   int32 exitCode;
-} internal = {0};
+} internalEngine = {0};
+
+#ifdef internal
+#undef internal
+#endif
+
+#define internal internalEngine
+
 
 static void ldkOnSignal(int32 signal)
 {
@@ -39,7 +49,8 @@ static void ldkOnSignal(int32 signal)
 
 void logModuleInit(const char* moduleName, bool success)
 {
-  ldkLogInfo("initializing %s", moduleName);
+  uint32 dotsCount = 25 - (int32) strlen(moduleName) - 4;
+  ldkLogInfo("Init %s%.*s%s", moduleName, dotsCount, ".........................", success ? " OK " : "FAIL");
 }
 
 void logModuleTerminate(const char* moduleName)
@@ -69,66 +80,67 @@ bool ldkEngineInitialize()
       dateTime.year, dateTime.month, dateTime.day,
       dateTime.hour, dateTime.minute, dateTime.Second);
 
+
   // Startup Log
   stepSuccess = ldkLogInitialize("ldk.log", strDateTime);
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
 
+  // Register LDKHandle so any other handle type is larger than 0
+  typeid(LDKHandle);
+
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
-
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "png", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "bmp", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "tga", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "hdr", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
 
 #ifdef LDK_DEBUG
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "psd", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
 #endif
-  
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "png", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "bmp", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "tga", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "hdr", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHTexture), "texture", ldkAssetTextureLoadFunc, ldkAssetTextureUnloadFunc);
-
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMaterial), "material", ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc);
   stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMesh), "mesh", ldkAssetMeshLoadFunc, ldkAssetMeshUnloadFunc);
-
-
-
   logModuleInit("Asset Handler", stepSuccess);
 
-
-
-  // Register LDKHandle so any other handle type is larger than 0
-  typeid(LDKHandle);
+  // Register EntityManager
+  stepSuccess &= ldkEntityManagerInit();
+  stepSuccess &= ldkEntityTypeRegister(LDKCamera, (LDKEntityHandlerCreateFunc) ldkCameraEntityCreate, (LDKEntityHandlerDestroyFunc) ldkCameraEntityDestroy,2 );
+  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, (LDKEntityHandlerCreateFunc) ldkStaticObjectEntityCreate, (LDKEntityHandlerDestroyFunc) ldkStaticObjectEntityDestroy, 32);
+  success &= stepSuccess;
+  logModuleInit("Entity Manager", stepSuccess);
 
   // Startup Graphics
   stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
-  logModuleInit("Graphics", stepSuccess);
   success &= stepSuccess;
+  logModuleInit("Graphics", stepSuccess);
 
   // Startup renderer
   stepSuccess = ldkRendererInitialize();
+  success &= stepSuccess;
   logModuleInit("Renderer", stepSuccess);
-  success &= stepSuccess;
 
   success &= stepSuccess;
-  logModuleInit("LDK is ready", stepSuccess);
+  logModuleInit("LDK", success);
+
   lkdGraphicsInfoPrint();
-
   return success;
 }
 
 void ldkEngineTerminate()
 {
-  logModuleTerminate("Asset Handler");
-  ldkAssetTerminate();
   logModuleTerminate("Renderer");
   ldkRendererTerminate();
   logModuleTerminate("Graphics");
   ldkGraphicsTerminate();
+  logModuleTerminate("EntityManager Handler");
+  ldkEntityManagerTerminate();
+  logModuleTerminate("Asset Handler");
+  ldkAssetTerminate();
   logModuleTerminate("Log\n ---");
   ldkLogTerminate();
   ldkOsTerminate();
@@ -170,3 +182,6 @@ void ldkEngineStop(int32 exitCode)
   internal.exitCode = exitCode;
   internal.running = false;
 }
+
+#undef internal
+

@@ -4,18 +4,6 @@
 #include "ldk/arena.h"
 #include <string.h>
 
-#ifndef LDK_ASSET_FILE_EXTENTION_MAX_LENGTH
-#define LDK_ASSET_FILE_EXTENTION_MAX_LENGTH 32
-#endif
-
-#ifndef LDK_ASSET_MAX_HANDLERS
-#define LDK_ASSET_MAX_HANDLERS 32
-#endif
-
-#ifndef LDK_ASSET_INFO_INITIAL_CAPACITY
-#define LDK_ASSET_INFO_INITIAL_CAPACITY 32
-#endif
-
 typedef struct
 {
   char fileExtention[LDK_ASSET_FILE_EXTENTION_MAX_LENGTH];
@@ -42,7 +30,14 @@ static struct
   LDKArena recycledAssetInfoIndex;  // List of assetInfo slots to be reused
   uint32 numRecycled;               // How many recycled assetInfo entries are there
   uint32 numHandlers;
-} internal = { 0 };
+} internalAssetManager = { 0 };
+
+
+#ifdef internal
+#undef internal
+#endif
+
+#define internal internalAssetManager
 
 static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtention)
 {
@@ -172,7 +167,6 @@ LDKHandle ldkAssetGet(const char* path)
   }
 
   // Add if not found
-  ldkLogInfo("Loading asset %s", path);
   assetInfo = internalAssetInfoGetNewOrRecycled();
   ldkPath(&assetInfo->path, path);
   assetInfo->hash = hash;
@@ -180,6 +174,8 @@ LDKHandle ldkAssetGet(const char* path)
   assetInfo->assetType = handler->assetTypeId;
   assetInfo->handle = handler->loadFunc(path);
   assetInfo->handlerId = handler->handlerId;
+
+  ldkLogInfo("%s %s", assetInfo->handle != LDK_HANDLE_INVALID ? "Loaded" : "Failed to load" ,path);
   return assetInfo->handle;
 }
 
@@ -202,3 +198,4 @@ void ldkAssetDispose(LDKHandle handle)
   }
 }
 
+#undef internal

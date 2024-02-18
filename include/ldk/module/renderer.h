@@ -4,14 +4,19 @@
  * 
  * Provides a high-level rendering API for the engine.
  * Separates and encapsulates Graphics API-specific code, allowing the engine to
- *  function without being tied to any particular Graphics API.
+ * function without being tied to any particular Graphics API.
  */
 
 #ifndef LDK_RENDER_H
 #define LDK_RENDER_H
 
 #include "../entity/camera.h"
+#include "../entity/staticobject.h"
 #include "../maths.h"
+
+#ifndef LDK_MATERIAL_MAX_PARAMS
+#define LDK_MATERIAL_MAX_PARAMS 8
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,6 +78,7 @@ extern "C" {
   LDK_API bool ldkMaterialParamSetVec2(LDKHMaterial handle, const char* name, Vec2 value);
   LDK_API bool ldkMaterialParamSetVec3(LDKHMaterial handle, const char* name, Vec3 value);
   LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4 value);
+  LDK_API bool ldkMaterialParamSetMat4(LDKHMaterial handle, const char* name, Mat4 value);
   LDK_API bool ldkMaterialParamSetTexture(LDKHMaterial handle, const char* name, LDKHTexture value);
   LDK_API bool ldkMaterialBind(LDKHMaterial handle); // Passing in NULL will unbind current Material
 
@@ -124,7 +130,7 @@ extern "C" {
   LDK_API void ldkRendererCameraSet(LDKCamera* camera);
   LDK_API void ldkRendererClearColor(LDKRGB color);
 
-  LDK_API void ldkRendererAddStaticMesh(LDKHMesh hStaticMesh);
+  LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
   LDK_API void ldkRendererRender();
 
 #ifdef __cplusplus

@@ -8,7 +8,14 @@ static struct
   LDKGCtx context;
   LDKGraphicsAPI  api;
   int32 multiSampleLevel;
-} internal;
+} internalGraphics;
+
+
+#ifdef internal
+#undef internal
+#endif
+
+#define internal internalGraphics
 
 bool ldkGraphicsInitialize(LDKGraphicsAPI api)
 {
@@ -160,7 +167,7 @@ void lkdGraphicsInfoPrint()
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
   {
-    ldkLogInfo("OpenGL Renderer:\n\tVendor: %s\n\tRenderer: %s\n\tVersion: %s\n\tShading Language Version: %s",
+    ldkLogInfo("OpenGL Renderer: Vendor: %s Renderer: %s Version: %s Shading Language Version: %s",
         glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
   }
   else
@@ -168,3 +175,6 @@ void lkdGraphicsInfoPrint()
     LDK_NOT_IMPLEMENTED();
   }
 }
+
+#undef internal
+

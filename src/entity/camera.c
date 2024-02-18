@@ -3,24 +3,19 @@
 #include "ldk/maths.h"
 #include "ldk/os.h"
 
-LDKCamera* ldkCameraCreate()
+LDKCamera* ldkCameraEntityCreate(LDKCamera* entity)
 {
-  LDKCamera* camera = ldkOsMemoryAlloc(sizeof(LDKCamera));
-  if (camera == NULL)
-    return NULL;
+  entity->fovRadian = (float) degToRadian(40.0f);
+  entity->nearPlane = 0.1f;
+  entity->farPlane  = 100.0f;
+  entity->position  = vec3(0.0f, 0.0f, 10.0f);
+  entity->target    = vec3Zero();
 
-  camera->fovRadian = (float) degToRadian(40.0f);
-  camera->nearPlane = 0.1f;
-  camera->farPlane  = 100.0f;
-  camera->position  = vec3(0.0f, 0.0f, 10.0f);
-  camera->target    = vec3Zero();
-
-  return camera;
+  return entity;
 }
 
-void ldkCameraDestroy(LDKCamera* camera)
+void ldkCameraEntityDestroy(LDKCamera* entity)
 {
-  ldkOsMemoryFree(camera);
 }
 
 Vec3 ldkCameraDirectionNormalized(LDKCamera* camera)

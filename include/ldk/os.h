@@ -5,7 +5,7 @@
  * Provides OS specific functionality for:
  * - Filesystem
  * - Memory
- * - Time
+ * - Timer, Time and date
  * - Graphics API initialization
  * - Windowing
  *
@@ -34,7 +34,7 @@ extern "C" {
   //
   // Initialization / Termination
   //
-  
+
   LDK_API bool ldkOsInitialize();
   LDK_API void ldkOsTerminate();
   LDK_API void ldkOsStackTracePrint();
@@ -53,27 +53,27 @@ extern "C" {
   LDK_API bool    ldkOsDirectoryCreate(const char* path);
   LDK_API bool    ldkOsDirectoryCreateRecursive(const char* path); // path can be absolute or relative. If path does not end with a path separator, it's assumed to be a file path and the file portion will be ignored.
   LDK_API bool    ldkOsDirectoryDelete(const char* directory);
-  
+
   //
   // Cwd
   //
   LDK_API size_t  ldkOsCwdGet(LDKPath* path);
   LDK_API size_t  ldkOsCwdSet(const char* path);
   LDK_API size_t  ldkOsCwdSetFromExecutablePath();
-  
+
   //
   // Path
   //
   LDK_API bool    ldkOsPathIsFile(const char* path);
   LDK_API bool    ldkOsPathIsDirectory(const char* path);
-  
+
   //
   // Memory
   //
   LDK_API void*   ldkOsMemoryAlloc(size_t size);
   LDK_API void    ldkOsMemoryFree(void* memory);
   LDK_API void*   ldkOsMemoryResize(void* memory, size_t size);
-  
+
   //
   // Time
   //
@@ -97,7 +97,7 @@ extern "C" {
   } LDKDateTime;
 
   LDK_API void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime);
-  
+
   //
   // Windowing
   //
@@ -353,7 +353,7 @@ extern "C" {
     LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT = 1 << 1,
     LDK_JOYSTICK_PRESSED_BIT     = 1,
     LDK_JOYSTICK_NUM_BUTTONS     = 14, // NOTICE that some entry values are repeated
-    // expand X macro ...
+                                       // expand X macro ...
     LDK_JOYSTICK_BUTTONS
   } LDKJoystickButton;
 #undef X

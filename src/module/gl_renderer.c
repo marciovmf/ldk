@@ -1,5 +1,6 @@
 #include "ldk/module/renderer.h"
 #include "ldk/entity/camera.h"
+#include "ldk/entity/staticobject.h"
 #include "ldk/module/graphics.h"
 #include "ldk/asset/mesh.h"
 #include "ldk/common.h"
@@ -33,9 +34,6 @@ typedef struct
   bool useMipmap;
 } LDKGLTexture;
 
-#ifndef LDK_MATERIAL_MAX_PARAMS
-#define LDK_MATERIAL_MAX_PARAMS 8
-#endif
 
 #define LDK_MATERIAL_MAX_TEXTURES LDK_MATERIAL_MAX_PARAMS
 
@@ -53,6 +51,7 @@ typedef struct
     Vec2      vec2Value;
     Vec3      vec3Value;
     Vec4      vec4Value;
+    Mat4      mat4Value;
   };
 } LDKMaterialParam;
 
@@ -78,7 +77,13 @@ static struct
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArena bucketROStaticMesh;
   LDKCamera* camera;
-} internal = { 0 };
+} internalRenderer = { 0 };
+
+#ifdef internal
+#undef internal
+#endif
+
+#define internal internalRenderer
 
 typedef enum
 {
@@ -90,7 +95,7 @@ typedef struct
   LDKRenderObjectType type; 
   union
   {
-    LDKHMesh mesh;
+    LDKStaticObject* staticMesh;
   };
 
 } LDKRenderObject;
@@ -415,6 +420,19 @@ bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4 value)
 
   param->vec4Value = value;
   glUniform4f(param->location, value.x, value.y, value.z, value.w);
+  return true;
+}
+
+bool ldkMaterialParamSetMat4(LDKHMaterial handle, const char* name, Mat4 value)
+{
+  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
+  if (!material) return false;
+
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_MAT4);
+  if (!param) return false;
+
+  param->mat4Value = value;
+  glUniformMatrix4fv(param->location, 1, GL_TRUE, (float*)&value);
   return true;
 }
 
@@ -870,17 +888,17 @@ void ldkRendererCameraSet(LDKCamera* camera)
   internal.camera = camera;
 }
 
-void ldkRendererAddStaticMesh(LDKHMesh hStaticMesh)
+void ldkRendererAddStaticObject(LDKStaticObject* entity)
 {
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
   ro->type = LDK_RENDER_OBJECT_STATIC_MESH;
-  ro->mesh = hStaticMesh;
+  ro->staticMesh = entity;
 }
 
-void internalRenderMesh(LDKHMesh hMesh)
+void internalRenderMesh(LDKStaticObject* entity)
 {
-  LDKMesh* mesh = (LDKMesh*) hMesh;
-  LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(hMesh);
+  LDKMesh* mesh = (LDKMesh*) entity->mesh;
+  LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(entity->mesh);
   ldkVertexBufferBind(vBuffer);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
@@ -888,6 +906,8 @@ void internalRenderMesh(LDKHMesh hMesh)
     LDKSurface* surface = &mesh->surfaces[i];
     LDKHMaterial material = mesh->materials[surface->materialIndex];
     ldkMaterialBind(material);
+    Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
+    ldkMaterialParamSetMat4(material, "mModel", world);
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
 }
@@ -905,7 +925,7 @@ void ldkRendererRender()
   for(uint32 i = 0; i < count; i++)
   {
     LDK_ASSERT(ro->type == LDK_RENDER_OBJECT_STATIC_MESH);
-    internalRenderMesh(ro->mesh);
+    internalRenderMesh(ro->staticMesh);
     ro++;
   }
 

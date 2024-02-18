@@ -1,3 +1,9 @@
+/**
+ * mesh.h
+ *
+ * Asset handler for .mesh asset files.
+ */
+
 #ifndef LDK_MESH_H
 #define LDK_MESH_H
 

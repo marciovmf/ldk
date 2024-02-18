@@ -2,7 +2,7 @@
  *
  * material.h
  * 
- * Functions for loading/unloading material assets
+ * Asset handler for .material asset files.
  */
 
 #ifndef LDK_MATERIAL_H

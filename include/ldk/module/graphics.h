@@ -39,7 +39,7 @@ extern "C" {
 
     // Used to match if current api is opengl core
     LDK_GRAPHICS_API_OPENGL_CORE = 
-       LDK_GRAPHICS_API_OPENGL_3_0
+      LDK_GRAPHICS_API_OPENGL_3_0
       | LDK_GRAPHICS_API_OPENGL_3_3
       | LDK_GRAPHICS_API_OPENGL_4_0,
 

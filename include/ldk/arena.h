@@ -4,8 +4,8 @@
  * 
  * An arena is a pre-allocated, fixed-size (but expandable) block of memory that is divided into smaller sized blocks called "chunks"".
  * Arenas are used to manage memory efficiently by reducing the overhead of frequent allocation and deallocation of small memory segments.
- * 
  */
+
 #ifndef LDK_ARENA_H
 #define LDK_ARENA_H
 

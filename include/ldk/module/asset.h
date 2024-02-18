@@ -4,13 +4,25 @@
  *
  * Interface for retrieveing assets by name.
  * If an asset is not already loaded, the asset manager will look for an asset
- * handler for the specific asset's file extention.
+ * handler for the specific asset file extention.
  */
 
 #ifndef LDK_ASSET_H
 #define LDK_ASSET_H
 
 #include "../common.h"
+
+#ifndef LDK_ASSET_FILE_EXTENTION_MAX_LENGTH
+#define LDK_ASSET_FILE_EXTENTION_MAX_LENGTH 32
+#endif
+
+#ifndef LDK_ASSET_MAX_HANDLERS
+#define LDK_ASSET_MAX_HANDLERS 32
+#endif
+
+#ifndef LDK_ASSET_INFO_INITIAL_CAPACITY
+#define LDK_ASSET_INFO_INITIAL_CAPACITY 32
+#endif
 
 #ifdef __cplusplus
 extern "C" {

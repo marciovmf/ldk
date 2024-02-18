@@ -1,6 +1,5 @@
 /**
- *
- * common
+ * common.h
  * 
  * Common macros, functions and types used across the whole engine.
  *
@@ -16,7 +15,7 @@
 extern "C" {
 #endif
 
-// OS Detection macros
+  // OS Detection macros
 
 #if defined(_WIN32) || defined(_WIN64)
 #define LDK_OS_WINDOWS
@@ -29,7 +28,7 @@ extern "C" {
 #define LDK_OS_UNKNOWN
 #endif
 
-// Compiler detection macros
+  // Compiler detection macros
 
 #if defined(__GNUC__) || defined(__GNUG__)
 #define LDK_COMPILER_NAME "GCC"
@@ -54,7 +53,7 @@ extern "C" {
 #endif
 
 
-// Assertion macros
+  // Assertion macros
 
 #define LDK_STATEMENT(S) do { S; }while(0)
 #define LDK_ASSERT_BREAK() (*(volatile int*)0 = 0)
@@ -70,7 +69,7 @@ extern "C" {
     LDK_ASSERT(false))
 
 
-// Helper macros
+  // Helper macros
 
 #define LDK_STRINGFY_(S) #S
 #define LDK_STRINGFY(S) LDK_STRINGFY_(S)
@@ -87,7 +86,7 @@ extern "C" {
 #define LDK_GIGABYTE(value) (size_t) (MEGABYTE(value) * 1024LL)
 
 
-// Debug macros
+  // Debug macros
 
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef LDK_DEBUG
@@ -104,127 +103,126 @@ extern "C" {
 #endif  
 
 #ifdef LDK_AS_SHARED_LIB
-  #ifdef LDK_COMPILER_MSVC
-    #ifdef LDK_EXPORT_API
-      #define LDK_API __declspec(dllexport) 
-    #else
-      #define LDK_API __declspec(dllimport) 
-    #endif
-  #endif
+#ifdef LDK_COMPILER_MSVC
+#ifdef LDK_EXPORT_API
+#define LDK_API __declspec(dllexport) 
+#else
+#define LDK_API __declspec(dllimport) 
+#endif
+#endif
 #else
 #define LDK_API
 #endif
 
 
-//
-// Global constants
-//
-enum
-{
-  LDK_SMALL_STRING_MAX_LENGTH = 512,
-  LDK_PATH_MAX_LENGTH         = 512,
+  //
+  // Global constants
+  //
+  enum
+  {
+    LDK_SMALL_STRING_MAX_LENGTH = 512,
+    LDK_PATH_MAX_LENGTH         = 512,
 
-  LDK_TYPE_ID_UNKNOWN         = 0xFFFF,
-  LDK_HANDLE_INVALID          = 0
-};
+    LDK_TYPE_ID_UNKNOWN         = 0xFFFF,
+    LDK_HANDLE_INVALID          = 0
+  };
 
-//
-// Common types
-//
+  //
+  // Common types
+  //
 
-typedef int8_t    int8;
-typedef uint8_t   uint8;
-typedef uint8_t   byte;
-typedef int16_t   int16;
-typedef uint16_t  uint16;
-typedef int32_t   int32;
-typedef uint32_t  uint32;
-typedef int64_t   int64;
-typedef uint64_t  uint64;
-typedef uintptr_t LDKHandle;
-typedef uint16_t  LDKHandleType;
-typedef void*     LDKWindow;
+  typedef int8_t    int8;
+  typedef uint8_t   uint8;
+  typedef uint8_t   byte;
+  typedef int16_t   int16;
+  typedef uint16_t  uint16;
+  typedef int32_t   int32;
+  typedef uint32_t  uint32;
+  typedef int64_t   int64;
+  typedef uint64_t  uint64;
+  typedef uintptr_t LDKHandle;
+  typedef void*     LDKWindow;
 
 
-// SmallStr
-typedef struct
-{
-  char str[LDK_SMALL_STRING_MAX_LENGTH];
-  size_t length;
-} LDKSmallStr;
+  // SmallStr
+  typedef struct
+  {
+    char str[LDK_SMALL_STRING_MAX_LENGTH];
+    size_t length;
+  } LDKSmallStr;
 
-// LDKSubstring
-typedef struct
-{
-  char* ptr;
-  size_t length;
-} LDKSubStr;
+  // LDKSubstring
+  typedef struct
+  {
+    char* ptr;
+    size_t length;
+  } LDKSubStr;
 
-// LDKSize
-typedef struct
-{
-  int32 width;
-  int32 height;
-} LDKSize;
+  // LDKSize
+  typedef struct
+  {
+    int32 width;
+    int32 height;
+  } LDKSize;
 
-// LDKRect
-typedef struct 
-{
-  int32 x;
-  int32 y;
-  int32 w;
-  int32 h;
-} LDKRect;
+  // LDKRect
+  typedef struct 
+  {
+    int32 x;
+    int32 y;
+    int32 w;
+    int32 h;
+  } LDKRect;
 
-// LDKRectf
-typedef struct 
-{
-  float x;
-  float y;
-  float w;
-  float h;
-} LDKRectf;
+  // LDKRectf
+  typedef struct 
+  {
+    float x;
+    float y;
+    float w;
+    float h;
+  } LDKRectf;
 
-// LDKPoint
-typedef struct
-{
-  int32 x;
-  int32 y;
-} LDKPoint;
+  // LDKPoint
+  typedef struct
+  {
+    int32 x;
+    int32 y;
+  } LDKPoint;
 
-// LDKPointf
-typedef struct
-{
-  float x;
-  float y;
-} LDKPointf;
+  // LDKPointf
+  typedef struct
+  {
+    float x;
+    float y;
+  } LDKPointf;
 
-// LDKRGB
-typedef struct
-{
-  int32 r;
-  int32 g;
-  int32 b;
-} LDKRGB;
+  // LDKRGB
+  typedef struct
+  {
+    int32 r;
+    int32 g;
+    int32 b;
+  } LDKRGB;
 
-// LDKRGBA
-typedef struct
-{
-  int32 r;
-  int32 g;
-  int32 b;
-  int32 a;
-} LDKRGBA;
+  // LDKRGBA
+  typedef struct
+  {
+    int32 r;
+    int32 g;
+    int32 b;
+    int32 a;
+  } LDKRGBA;
 
-//
-// Logging
-//
+  //
+  // Logging
+  //
 
-LDK_API bool ldkLogInitialize(const char* path, const char* initalMessage);
-LDK_API void ldkLogTerminate();
-LDK_API void ldkLogPrint(const char* prefix, const char* format, ...);
-LDK_API void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...);
-LDK_API void ldkLogPrintRaw(const char* fmt, ...);
+  LDK_API bool ldkLogInitialize(const char* path, const char* initalMessage);
+  LDK_API void ldkLogTerminate();
+  LDK_API void ldkLogPrint(const char* prefix, const char* format, ...);
+  LDK_API void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...);
+  LDK_API void ldkLogPrintRaw(const char* fmt, ...);
 
 
 #ifdef LDK_COMPILER_MSVC
@@ -248,66 +246,67 @@ LDK_API void ldkLogPrintRaw(const char* fmt, ...);
 
 #endif
 
-//
-// Type system
-//
+  //
+  // Type system
+  //
 
-typedef uint16 LDKTypeId;
+  typedef uint16 LDKTypeId;
+  typedef LDKTypeId LDKHandleType;
 
 #define typeid(type) ldkTypeId(LDK_STRINGFY(type), sizeof(type))
-#define typename(type) ldkTypeName(typeid(type))
-#define typesize(type) ldkTypeSize(typeid(type))
+#define typename(id) ldkTypeName(id)
+#define typesize(id) ldkTypeSize(id)
 
-LDK_API LDKTypeId   ldkTypeId(const char* name, size_t size);
-LDK_API const char* ldkTypeName(LDKTypeId typeId);
-LDK_API size_t      ldkTypeSize(LDKTypeId typeId);
+  LDK_API LDKTypeId   ldkTypeId(const char* name, size_t size);
+  LDK_API const char* ldkTypeName(LDKTypeId typeId);
+  LDK_API size_t      ldkTypeSize(LDKTypeId typeId);
 
-//
-// String
-//
+  //
+  // String
+  //
 
-LDK_API bool    ldkStringEndsWith(const char* str, const char* suffix);
-LDK_API bool    ldkStringStartsWith(const char* str, const char* prefix);
-LDK_API size_t  ldkSmallString(LDKSmallStr* smallString, const char* str);
-LDK_API size_t  ldkSmallStringLength(LDKSmallStr* smallString);
-LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
-LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
-LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
+  LDK_API bool    ldkStringEndsWith(const char* str, const char* suffix);
+  LDK_API bool    ldkStringStartsWith(const char* str, const char* prefix);
+  LDK_API size_t  ldkSmallString(LDKSmallStr* smallString, const char* str);
+  LDK_API size_t  ldkSmallStringLength(LDKSmallStr* smallString);
+  LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
+  LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
+  LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
 
-//
-// Hash
-//
+  //
+  // Hash
+  //
 
-typedef uint32 LDKHash;
+  typedef uint32 LDKHash;
 
-LDK_API LDKHash ldkHashStr(const char*);
-LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
-LDK_API LDKHash ldkHash(const void* data, size_t length);
+  LDK_API LDKHash ldkHashStr(const char*);
+  LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
+  LDK_API LDKHash ldkHash(const void* data, size_t length);
 
 
-//
-// Path
-//
+  //
+  // Path
+  //
 
-// LDKPath
-typedef struct
-{
-  char path[LDK_PATH_MAX_LENGTH];
-  size_t length;
-} LDKPath;
+  // LDKPath
+  typedef struct
+  {
+    char path[LDK_PATH_MAX_LENGTH];
+    size_t length;
+  } LDKPath;
 
-LDK_API LDKSubStr ldkPathFileNameGetSubstring(const char* path);
-LDK_API LDKSubStr ldkPathFileExtentionGetSubstring(const char* path);
+  LDK_API LDKSubStr ldkPathFileNameGetSubstring(const char* path);
+  LDK_API LDKSubStr ldkPathFileExtentionGetSubstring(const char* path);
 
-LDK_API size_t    ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize);
-LDK_API size_t    ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize);
+  LDK_API size_t    ldkPathFileNameGet(const char* path, char* outBuffer, size_t bufferSize);
+  LDK_API size_t    ldkPathFileExtentionGet(const char* path, char* outBuffer, size_t bufferSize);
 
-LDK_API bool      ldkPathIsAbsolute(const char* path);
-LDK_API bool      ldkPathIsRelative(const char* path);
+  LDK_API bool      ldkPathIsAbsolute(const char* path);
+  LDK_API bool      ldkPathIsRelative(const char* path);
 
-LDK_API bool      ldkPath(LDKPath* outPath, const char* path);
-LDK_API void      ldkPathClone(LDKPath* outPath, const LDKPath* path);
-LDK_API void      ldkPathNormalize(LDKPath* path);
+  LDK_API bool      ldkPath(LDKPath* outPath, const char* path);
+  LDK_API void      ldkPathClone(LDKPath* outPath, const LDKPath* path);
+  LDK_API void      ldkPathNormalize(LDKPath* path);
 
 
 #ifdef LDK_OS_WINDOWS
@@ -316,119 +315,119 @@ LDK_API void      ldkPathNormalize(LDKPath* path);
 #define LDK_PATH_SEPARATOR '/'
 #endif
 
-//
-// Events
-//
+  //
+  // Events
+  //
 
-typedef enum
-{
-  /* Event Types */
-  LDK_EVENT_NONE                  = 0,
-  LDK_EVENT_TYPE_GAME             = 1,
-  LDK_EVENT_TYPE_WINDOW           = 1 << 1,
-  LDK_EVENT_TYPE_TEXT             = 1 << 2,
-  LDK_EVENT_TYPE_APPLICATION      = 1 << 3,
-  LDK_EVENT_TYPE_KEYBOARD         = 1 << 4,
-  LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
-  LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
-  LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
-  LDK_EVENT_TYPE_FRAME            = 1 << 8,
-  LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
-
-  /* Keyboard Event types */
-  LDK_KEYBOARD_EVENT_KEY_DOWN     = 1,
-  LDK_KEYBOARD_EVENT_KEY_UP       = 2,
-  LDK_KEYBOARD_EVENT_KEY_HOLD     = 3,
-
-  /* Text Event types */
-  LDK_TEXT_EVENT_CHARACTER_INPUT  = 4,
-  LDK_TEXT_EVENT_BACKSPACE        = 5,
-  LDK_TEXT_EVENT_DEL              = 6,
-
-  /* Mouse event types */
-  LDK_MOUSE_EVENT_MOVE            = 7,
-  LDK_MOUSE_EVENT_BUTTON_DOWN     = 8,
-  LDK_MOUSE_EVENT_BUTTON_UP       = 9,
-  LDK_MOUSE_EVENT_WHEEL_FORWARD   = 10,
-  LDK_MOUSE_EVENT_WHEEL_BACKWARD  = 11,
-
-  /* Frame event types */
-  LDK_FRAME_EVENT_BEFORE_RENDER   = 12,
-  LDK_FRAME_EVENT_AFTER_RENDER    = 13,
-
-  /* Window event types */
-  LDK_WINDOW_EVENT_RESIZED        = 14,
-  LDK_WINDOW_EVENT_CLOSE          = 15,
-  LDK_WINDOW_EVENT_ACTIVATE       = 16,
-  LDK_WINDOW_EVENT_DEACTIVATE     = 17,
-  LDK_WINDOW_EVENT_MINIMIZED      = 18,
-  LDK_WINDOW_EVENT_MAXIMIZED      = 19,
-
-} LDKEventType;
-
-// LDKTextEvent
-typedef struct
-{
-  LDKEventType type;
-  uint32 character;
-} LDKTextEvent;
-
-// LDKWindowEvent
-typedef struct
-{
-  LDKEventType type;
-  uint32 width;
-  uint32 height;
-} LDKWindowEvent;
-
-// LDKKeyboardEvent
-typedef struct
-{
-  LDKEventType type;
-  uint32 keyCode; 
-  bool ctrlIsDown;
-  bool shiftIsDown;
-  bool altIsDown;
-} LDKKeyboardEvent;
-
-// LDKMouseEvent
-typedef struct
-{
-  LDKEventType type;
-  int32 cursorX;
-  int32 cursorY;
-  int32 xRel;
-  int32 yRel;
-
-  union
+  typedef enum
   {
-    int32 wheelDelta;
-    int32 mouseButton;
-  };
+    /* Event Types */
+    LDK_EVENT_NONE                  = 0,
+    LDK_EVENT_TYPE_GAME             = 1,
+    LDK_EVENT_TYPE_WINDOW           = 1 << 1,
+    LDK_EVENT_TYPE_TEXT             = 1 << 2,
+    LDK_EVENT_TYPE_APPLICATION      = 1 << 3,
+    LDK_EVENT_TYPE_KEYBOARD         = 1 << 4,
+    LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
+    LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
+    LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
+    LDK_EVENT_TYPE_FRAME            = 1 << 8,
+    LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
-} LDKMouseEvent;
+    /* Keyboard Event types */
+    LDK_KEYBOARD_EVENT_KEY_DOWN     = 1,
+    LDK_KEYBOARD_EVENT_KEY_UP       = 2,
+    LDK_KEYBOARD_EVENT_KEY_HOLD     = 3,
 
-// LDKFrameEvent
-typedef struct
-{
-  LDKEventType type;
-  uint64 ticks;
-} LDKFrameEvent;
+    /* Text Event types */
+    LDK_TEXT_EVENT_CHARACTER_INPUT  = 4,
+    LDK_TEXT_EVENT_BACKSPACE        = 5,
+    LDK_TEXT_EVENT_DEL              = 6,
 
-// LDKEvent
-typedef struct
-{
-  LDKWindow window;
-  LDKEventType type;
-  union
+    /* Mouse event types */
+    LDK_MOUSE_EVENT_MOVE            = 7,
+    LDK_MOUSE_EVENT_BUTTON_DOWN     = 8,
+    LDK_MOUSE_EVENT_BUTTON_UP       = 9,
+    LDK_MOUSE_EVENT_WHEEL_FORWARD   = 10,
+    LDK_MOUSE_EVENT_WHEEL_BACKWARD  = 11,
+
+    /* Frame event types */
+    LDK_FRAME_EVENT_BEFORE_RENDER   = 12,
+    LDK_FRAME_EVENT_AFTER_RENDER    = 13,
+
+    /* Window event types */
+    LDK_WINDOW_EVENT_RESIZED        = 14,
+    LDK_WINDOW_EVENT_CLOSE          = 15,
+    LDK_WINDOW_EVENT_ACTIVATE       = 16,
+    LDK_WINDOW_EVENT_DEACTIVATE     = 17,
+    LDK_WINDOW_EVENT_MINIMIZED      = 18,
+    LDK_WINDOW_EVENT_MAXIMIZED      = 19,
+
+  } LDKEventType;
+
+  // LDKTextEvent
+  typedef struct
   {
-    LDKTextEvent        textEvent;
-    LDKWindowEvent      windowEvent;
-    LDKKeyboardEvent    keyboardEvent;
-    LDKMouseEvent       mouseEvent;
-    LDKFrameEvent       frameEvent;
-  };
-} LDKEvent;
+    LDKEventType type;
+    uint32 character;
+  } LDKTextEvent;
+
+  // LDKWindowEvent
+  typedef struct
+  {
+    LDKEventType type;
+    uint32 width;
+    uint32 height;
+  } LDKWindowEvent;
+
+  // LDKKeyboardEvent
+  typedef struct
+  {
+    LDKEventType type;
+    uint32 keyCode; 
+    bool ctrlIsDown;
+    bool shiftIsDown;
+    bool altIsDown;
+  } LDKKeyboardEvent;
+
+  // LDKMouseEvent
+  typedef struct
+  {
+    LDKEventType type;
+    int32 cursorX;
+    int32 cursorY;
+    int32 xRel;
+    int32 yRel;
+
+    union
+    {
+      int32 wheelDelta;
+      int32 mouseButton;
+    };
+
+  } LDKMouseEvent;
+
+  // LDKFrameEvent
+  typedef struct
+  {
+    LDKEventType type;
+    uint64 ticks;
+  } LDKFrameEvent;
+
+  // LDKEvent
+  typedef struct
+  {
+    LDKWindow window;
+    LDKEventType type;
+    union
+    {
+      LDKTextEvent        textEvent;
+      LDKWindowEvent      windowEvent;
+      LDKKeyboardEvent    keyboardEvent;
+      LDKMouseEvent       mouseEvent;
+      LDKFrameEvent       frameEvent;
+    };
+  } LDKEvent;
 
 
 #ifdef __cplusplus

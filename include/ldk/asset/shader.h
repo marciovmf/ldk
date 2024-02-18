@@ -1,8 +1,9 @@
 /**
  *
  * shader.h
+ *
+ * Asset handler for .shader asset files.
  * 
- * Functions for loading/unloading shader assets
  */
 
 #ifndef LDK_SHADER_H

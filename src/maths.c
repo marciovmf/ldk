@@ -258,12 +258,12 @@ Vec3 vec3(float x, float y, float z)
   return v;
 }
 
-inline Vec3 vec3Zero()
+Vec3 vec3Zero()
 {
   return vec3(0, 0, 0);
 }
 
-inline Vec3 vec3One()
+Vec3 vec3One()
 {
   return vec3(1, 1, 1);
 }

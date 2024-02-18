@@ -130,7 +130,7 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         }
         else
         {
-            ldkLogError("Error parsing material file '%s' at line %d: vert-shader param '%s' must point to a .vs file", path, lineNumber, lhs);
+          ldkLogError("Error parsing material file '%s' at line %d: vert-shader param '%s' must point to a .vs file", path, lineNumber, lhs);
         }
       }
       else if (strncmp("frag-shader", lhs, strlen(lhs)) == 0)
@@ -141,7 +141,7 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         }
         else
         {
-            ldkLogError("Error parsing material file '%s' at line %d: frag-shader param '%s' must point to a .fs file", path, lineNumber, lhs);
+          ldkLogError("Error parsing material file '%s' at line %d: frag-shader param '%s' must point to a .fs file", path, lineNumber, lhs);
         }
       }
       else if (strncmp("geom-shader", lhs, strlen(lhs)) == 0)
@@ -152,7 +152,7 @@ LDKHMaterial ldkAssetMaterialLoadFunc(const char* path)
         }
         else
         {
-            ldkLogError("Error parsing material file '%s' at line %d: geom-shader param '%s' must point to a .gs file", path, lineNumber, lhs);
+          ldkLogError("Error parsing material file '%s' at line %d: geom-shader param '%s' must point to a .gs file", path, lineNumber, lhs);
         }
       }
       else
