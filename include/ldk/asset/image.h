@@ -21,13 +21,13 @@ extern "C" {
     uint32 width;
     uint32 height;
     unsigned char* data;
+    bool raw;
   } LDKImage;
 
   typedef LDKHandle LDKHImage;
 
   LDK_API bool ldkAssetImageLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetImageUnloadFunc(LDKAsset asset);
-  LDK_API LDKImage* ldkAssetImageGetPointer(LDKHImage handle);
 
 #ifdef __cplusplus
 }
