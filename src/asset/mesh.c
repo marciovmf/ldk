@@ -102,7 +102,7 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
   return true;
 }
 
-LDKHMesh ldkAssetMeshLoadFunc(const char* path)
+bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
 {
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
@@ -119,14 +119,24 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
   LDKVertexLayout vertexLayout = LDK_VERTEX_LAYOUT_NONE;
   char* line = strtok_r((char*) buffer, LINEBREAK, &lineBreakContext);
 
-  LDKMesh* mesh   = (LDKMesh*)  ldkOsMemoryAlloc(sizeof(LDKMesh));
-  memset((void*) mesh, 0, sizeof(LDKMesh));
+  LDKMesh* mesh = (LDKMesh*) asset;
+  mesh->vertices = 0;
+  mesh->indices = 0;
+  mesh->materials = 0;
+  mesh->surfaces = 0;
+  mesh->numVertices = 0;
+  mesh->numIndices = 0;
+  mesh->numSurfaces = 0;
+  mesh->numMaterials = 0;
+  memset(&mesh->boundingBox, 0, sizeof(LDKBoundingBox));
+  memset(&mesh->boundingSphere, 0, sizeof(LDKBoundingSphere));
+
   bool error = false;
 
   float* vertices = NULL;
   uint16* indices = NULL;
   LDKSurface* surfaces = NULL;
-  LDKHMaterial* materials = NULL;
+  LDKHandle* materials = NULL;
   size_t vertexBufferSize = 0;
   size_t indexBufferSize = 0;
 
@@ -199,7 +209,7 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
       else if (strncmp("material_count", lhs, MAX_LHS_SIZE) == 0)
       {
         internalParseUInt(path, lineNumber, rhs, &mesh->numMaterials);
-        mesh->materials = (LDKHMaterial*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHMaterial)));
+        mesh->materials = (LDKHandle*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHandle)));
         materials = mesh->materials;
       }
       else if (strncmp("surface_count", lhs, MAX_LHS_SIZE) == 0)
@@ -262,7 +272,8 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
         uint32 materialId;
         internalParseUInt(path, lineNumber, matId, &materialId);
         LDK_ASSERT(materialId < mesh->numMaterials);
-        *materials++ = ldkAssetGet(matName);
+        LDKMaterial* material = ldkAssetGet(LDKMaterial, matName);
+        *materials++ = material->asset.handle;
       }
       else if (strncmp("surface", lhs, MAX_LHS_SIZE) == 0)
       {
@@ -321,28 +332,17 @@ LDKHMesh ldkAssetMeshLoadFunc(const char* path)
   mesh->vBuffer = ldkVertexBufferCreate(LDK_VERTEX_LAYOUT_PNU);
   ldkVertexBufferData(mesh->vBuffer, (void*) mesh->vertices, vertexBufferSize);
   ldkVertexBufferIndexData(mesh->vBuffer, (void*) mesh->indices, indexBufferSize);
-  return (LDKHMesh) mesh;
+
+  return true;
 }
 
-LDKVertexBuffer ldkAssetMeshGetVertexBuffer(LDKHMesh handle)
+void ldkAssetMeshUnloadFunc(LDKAsset asset)
 {
-  LDKMesh* mesh = (LDKMesh*) handle;
-  return mesh->vBuffer;
-}
-
-void ldkAssetMeshUnloadFunc(LDKHMesh handle)
-{
-  LDKMesh* mesh = (LDKMesh*) handle;
-
+  LDKMesh* mesh = (LDKMesh*) asset;
   ldkOsMemoryFree(mesh->vertices);
   ldkOsMemoryFree(mesh->materials);
   ldkOsMemoryFree(mesh->indices);
   ldkOsMemoryFree(mesh->surfaces);
   ldkVertexBufferDestroy(mesh->vBuffer);
   ldkOsMemoryFree(mesh);
-}
-
-LDKMesh* ldkAssetMeshGetPointer(LDKHMesh handle)
-{
-  return (LDKMesh*) handle;
 }

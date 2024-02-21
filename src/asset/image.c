@@ -19,7 +19,7 @@
 #include "../depend/stb_image.h"
 
 
-LDKHImage ldkAssetImageLoadFunc(const char* path)
+bool ldkAssetImageLoadFunc(const char* path, LDKAsset asset)
 {
   size_t fileSize;
   unsigned char* fileMemory = ldkOsFileReadOffset(path, &fileSize, 0, 0);
@@ -30,7 +30,7 @@ LDKHImage ldkAssetImageLoadFunc(const char* path)
     return LDK_HANDLE_INVALID;
   }
 
-  LDKImage* image = (LDKImage*) ldkOsMemoryAlloc(sizeof(LDKImage));
+  LDKImage* image = (LDKImage*) asset;
 
   if (ldkGraphicsApiName() & LDK_GRAPHICS_OPENGL)
     stbi_set_flip_vertically_on_load(true);
@@ -41,9 +41,10 @@ LDKHImage ldkAssetImageLoadFunc(const char* path)
   return (LDKHImage) image;
 }
 
-void ldkAssetImageUnloadFunc(LDKHImage image)
+void ldkAssetImageUnloadFunc(LDKAsset asset)
 {
-  ldkOsMemoryFree((LDKImage*) image);
+  LDKImage* image = (LDKImage*) asset;
+  stbi_image_free(image->data);
 }
 
 LDKImage* ldkAssetImageGetPointer(LDKHImage handle)

@@ -142,6 +142,8 @@ extern "C" {
   typedef uint64_t  uint64;
   typedef uintptr_t LDKHandle;
   typedef void*     LDKWindow;
+  typedef void*     LDKVertexBuffer;
+  typedef void*     LDKIndexBuffer;
 
 
   // SmallStr
@@ -314,6 +316,7 @@ extern "C" {
 #else
 #define LDK_PATH_SEPARATOR '/'
 #endif
+
 
   //
   // Events

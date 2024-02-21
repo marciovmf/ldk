@@ -13,7 +13,7 @@
 typedef struct
 {
   LDKHandle hObjToDelete;
-  LDKHMaterial material;
+  LDKMaterial material;
   LDKHandle hCamera;
   uint64 ticksStart;
   uint64 ticksEnd;
@@ -120,7 +120,6 @@ bool onMouseEvent(const LDKEvent* event, void* data)
     camera->target = vec3Add(camera->position, vec3Normalize(cam_dir));
   }
 
-
   if (state->strafing)
   {
     if (abs(event->mouseEvent.yRel) > abs(event->mouseEvent.xRel))
@@ -208,9 +207,10 @@ bool onFrameEvent(const LDKEvent* event, void* data)
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
   {
     state->ticksEnd = ldkOsTimeTicksGet();
-
+#if 0
     if (camera)
       ldkLogInfo("Camera position = %f, %f, %f", camera->position.x, camera->position.y, camera->position.z);
+#endif
   }
   return true;
 }
@@ -220,7 +220,7 @@ int main()
   // Initialize stuff
   GameState state = {0};
   ldkEngineInitialize();
-  ldkGraphicsViewportTitleSet("LDK: Event test");
+  ldkGraphicsViewportTitleSet("LDK demo game");
   ldkGraphicsViewportIconSet("../ldk.ico");
   ldkGraphicsVsyncSet(true);
   ldkGraphicsMultisamplesSet(true);
@@ -239,11 +239,13 @@ int main()
   camera->position = vec3(0.0f, 1.0f, 2.0f);
 
   LDKStaticObject* obj = ldkEntityCreate(LDKStaticObject);
-  obj->mesh = ldkAssetGet("assets/dock.mesh");
+  LDKMesh* mesh = ldkAssetGet(LDKMesh, "assets/dock.mesh");
+  obj->mesh = mesh->asset.handle;
   obj->scale = vec3(3.0f, 3.0f, 3.0f);
 
   obj = ldkEntityCreate(LDKStaticObject);
-  obj->mesh = ldkAssetGet("assets/dock.mesh");
+  mesh = ldkAssetGet(LDKMesh, "assets/dock.mesh");
+  obj->mesh = mesh->asset.handle;
   obj->position.x = 5.0f;
   obj->scale = vec3(3.0f, 3.0f, 3.0f);
 

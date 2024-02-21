@@ -1,8 +1,12 @@
 #include "ldk/module/renderer.h"
+#include "ldk/module/graphics.h"
+#include "ldk/module/asset.h"
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
-#include "ldk/module/graphics.h"
 #include "ldk/asset/mesh.h"
+#include "ldk/asset/texture.h"
+#include "ldk/asset/material.h"
+#include "ldk/asset/shader.h"
 #include "ldk/common.h"
 #include "ldk/os.h"
 #include "ldk/hlist.h"
@@ -22,58 +26,12 @@ enum
   LDK_VERTEX_ATTRIBUTE_TEXCOORD = 4,
 };
 
-typedef struct 
-{
-  GLuint id;
-  int32 isProgram;
-} LDKGLShader;
-
-typedef struct
-{
-  GLuint id;
-  bool useMipmap;
-} LDKGLTexture;
-
-
-#define LDK_MATERIAL_MAX_TEXTURES LDK_MATERIAL_MAX_PARAMS
-
-typedef struct
-{
-  GLenum type;
-  GLint size;
-  LDKSmallStr name;
-  GLuint location;
-  union
-  {
-    uint32    textureIndexValue;
-    int       intValue;
-    float     floatValue;
-    Vec2      vec2Value;
-    Vec3      vec3Value;
-    Vec4      vec4Value;
-    Mat4      mat4Value;
-  };
-} LDKMaterialParam;
-
-typedef struct
-{
-  const char* name;
-  LDKHShaderProgram program;
-  LDKMaterialParam param[LDK_MATERIAL_MAX_PARAMS];
-  LDKHTexture textures[LDK_MATERIAL_MAX_TEXTURES];
-  uint32 numParam;
-  uint32 numTextures;
-} LDKGLMaterial;
-
-
 #define LDK_GL_ERROR_LOG_SIZE 1024
+
 static struct 
 {
   bool initialized;
   LDKRGB clearColor;
-  LDKHList hlistTexture;
-  LDKHList hlistShader;
-  LDKHList hlistMaterial;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArena bucketROStaticMesh;
   LDKCamera* camera;
@@ -110,9 +68,6 @@ bool ldkRendererInitialize()
   internal.initialized = true;
   bool success = true;
   internal.clearColor = (LDKRGB){0, 100, 120};
-  success &= ldkHListCreate(&internal.hlistTexture, typeid(LDKHTexture), sizeof(LDKGLTexture), 32);
-  success &= ldkHListCreate(&internal.hlistShader, typeid(LDKHShader), sizeof(LDKGLShader), 32);
-  success &= ldkHListCreate(&internal.hlistMaterial, typeid(LDKHMaterial), sizeof(LDKGLMaterial), 32);
   success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
 
   return success;
@@ -124,9 +79,6 @@ void ldkRendererTerminate()
     return;
 
   internal.initialized = false;
-  ldkHListDestroy(&internal.hlistTexture);
-  ldkHListDestroy(&internal.hlistShader);
-  ldkHListDestroy(&internal.hlistMaterial);
   ldkArenaDestroy(&internal.bucketROStaticMesh);
 }
 
@@ -134,85 +86,39 @@ void ldkRendererTerminate()
 // Shader
 //
 
-LDKHShaderProgram ldkShaderProgramCreate(LDKHShader handleVs, LDKHShader handleFs, LDKHShader handleGs)
-{
-  LDKHShader handle = ldkHListReserve(&internal.hlistShader);
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  GLuint program = glCreateProgram();
-  shader->id = program;
-  shader->isProgram = 1;
-
-  if (handleVs != LDK_HANDLE_INVALID)
-  {
-    LDKGLShader* vertShader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handleVs);
-    if (vertShader != NULL)
-      glAttachShader(program, vertShader->id);
-  }
-
-  if (handleFs != LDK_HANDLE_INVALID)
-  {
-    LDKGLShader* fragShader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handleFs);
-    if (fragShader != NULL)
-      glAttachShader(program, fragShader->id);
-  }
-
-  if (handleGs != LDK_HANDLE_INVALID)
-  {
-    LDKGLShader* geomShader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handleGs);
-    if (geomShader != NULL)
-      glAttachShader(program, geomShader->id);
-  }
-
-  GLint status;
-  GLsizei errorBufferLen = 0;
-  glLinkProgram(program);
-  glGetProgramiv(program, GL_LINK_STATUS, &status);
-
-  if (!status)
-  {
-    glGetProgramInfoLog(program, LDK_GL_ERROR_LOG_SIZE, &errorBufferLen, internal.errorBuffer);
-    ldkLogError("linking SHADER: %s\n", internal.errorBuffer);
-    return  LDK_HANDLE_INVALID;
-  }
-
-  return handle;
-}
-
-bool ldkShaderProgramDestroy(LDKHShaderProgram handle)
-{
-  return ldkShaderDestroy(handle);
-}
-
-bool ldkShaderDestroy(LDKHShader handle)
-{
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  if (!shader)
-    return false;
-
-  glDeleteProgram(shader->id);
-  shader->id = 0;
-  shader->isProgram = 0;
-  return true;
-}
-
 static inline GLuint internalShaderSourceCompile(GLuint type, const char* source)
 {
+  const char* version = "#version 330 core\n";
+  const char* macro;
+  const char* typeName;
+  if (type == GL_VERTEX_SHADER)
+  {
+    typeName = "VERTEX SHADER";
+    macro = "#define LDK_COMPILE_VETEX_SHADER\n";
+  }
+  else if (type == GL_FRAGMENT_SHADER)
+  {
+    typeName = "FRAGMENT SHADER";
+    macro = "#define LDK_COMPILE_FRAGMENT_SHADER\n";
+  }
+  else if (type == GL_GEOMETRY_SHADER)
+  {
+    typeName = "GEOMETRY SHADER";
+    macro = "#define LDK_COMPILE_GEOMETRY_SHADER\n";
+  }
+  else
+  {
+    macro = "";
+    typeName = "UNKNOW SHADER TYPE";
+  }
+
   GLint status;
   GLsizei errorBufferLen = 0;
   GLuint shader = glCreateShader(type);
-  glShaderSource(shader, 1, &source, 0);
+  const char* sources[] = {version, macro, source};
+  glShaderSource(shader, 3, sources, 0);
   glCompileShader(shader);
   glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-
-  const char* typeName;
-  if (type == GL_VERTEX_SHADER)
-    typeName = "VERTEX SHADER";
-  else if (type == GL_FRAGMENT_SHADER)
-    typeName = "FRAGMENT SHADER";
-  else if (type == GL_GEOMETRY_SHADER)
-    typeName = "GEOMETRY SHADER";
-  else
-    typeName = "UNKNOW SHADER TYPE";
 
   if (! status)
   {
@@ -225,60 +131,101 @@ static inline GLuint internalShaderSourceCompile(GLuint type, const char* source
   return shader;
 }
 
-static LDKMaterialParam* internalMaterialParamGet(LDKGLMaterial* material, const char* name, GLenum type)
+bool ldkShaderProgramCreate(const char* vs, const char* fs, const char* gs, LDKShader* out)
+{
+  GLuint vsId = 0;
+  GLuint fsId = 0;
+  GLuint gsId = 0;
+  GLuint program = glCreateProgram();
+  out->gl.id = program;
+
+  if (vs)
+  {
+    vsId = internalShaderSourceCompile(GL_VERTEX_SHADER, vs);
+    glAttachShader(program, vsId);
+  }
+
+  if(fs)
+  {
+    fsId = internalShaderSourceCompile(GL_FRAGMENT_SHADER, fs);
+    glAttachShader(program, fsId);
+  }
+
+  if (gs)
+  {
+    gsId = internalShaderSourceCompile(GL_GEOMETRY_SHADER, gs);
+    glAttachShader(program, gsId);
+  }
+
+  GLint status;
+  GLsizei errorBufferLen = 0;
+  glLinkProgram(program);
+  glGetProgramiv(program, GL_LINK_STATUS, &status);
+
+  if (!status)
+  {
+    glGetProgramInfoLog(program, LDK_GL_ERROR_LOG_SIZE, &errorBufferLen, internal.errorBuffer);
+    ldkLogError("linking SHADER: %s\n", internal.errorBuffer);
+    return false;
+  }
+
+  return true;
+}
+
+bool ldkShaderDestroy(LDKShader* shader)
+{
+  if (!shader)
+    return false;
+
+  glDeleteProgram(shader->gl.id);
+  shader->gl.id = 0;
+  return true;
+}
+
+static LDKMaterialParam* internalMaterialParamGet(LDKMaterial* material, const char* name, GLenum type)
 {
   for (uint32 i = 0; i < material->numParam; i++)
   {
-    if (material->param[i].type == type && strncmp(name, (const char*) &material->param[i].name, material->param[i].name.length) == 0)
+    if (material->param[i].gl.type == type && strncmp(name, (const char*) &material->param[i].name, material->param[i].name.length) == 0)
       return &material->param[i];
   }
-  ldkLogError("Material '%s' references unknown param '%s %s'", material->name, ldkOpenglTypeName(type), name);
+  ldkLogError("Material '%s' references unknown param '%s %s'", material->asset.path, ldkOpenglTypeName(type), name);
   return NULL;
 }
 
-LDKHShader ldkFragmentShaderCreate(const char* source)
+bool ldkFragmentShaderCreate(const char* source, LDKShader* shaderAsset)
 {
-  LDKHShader handle = ldkHListReserve(&internal.hlistShader);
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  GLuint id = internalShaderSourceCompile(GL_FRAGMENT_SHADER, source);
-  shader->id = id;
-  shader->isProgram = 0;
-  return handle;
+  shaderAsset->gl.id = internalShaderSourceCompile(GL_FRAGMENT_SHADER, source);
+  bool success = shaderAsset->gl.id != 0;
+  return success;
 }
 
-LDKHShader ldkVertexShaderCreate(const char* source)
+bool ldkVertexShaderCreate(const char* source, LDKShader* shaderAsset)
 {
-  LDKHShader handle = ldkHListReserve(&internal.hlistShader);
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  GLuint id = internalShaderSourceCompile(GL_VERTEX_SHADER, source);
-  shader->id = id;
-  shader->isProgram = 0;
-  return handle;
+  shaderAsset->gl.id = internalShaderSourceCompile(GL_VERTEX_SHADER, source);
+  bool success = shaderAsset->gl.id != 0;
+  return success;
 }
 
-LDKHShader ldkGeometryShaderCreate(const char* source)
+bool ldkGeometryShaderCreate(const char* source, LDKShader* shaderAsset)
 {
-  LDKHShader handle = ldkHListReserve(&internal.hlistShader);
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  GLuint id = internalShaderSourceCompile(GL_GEOMETRY_SHADER, source);
-  shader->id = id;
-  shader->isProgram = 0;
-  return handle;
+  shaderAsset->gl.id = internalShaderSourceCompile(GL_GEOMETRY_SHADER, source);
+  bool success = shaderAsset->gl.id != 0;
+  return success;
 }
 
-bool ldkShaderProgramBind(LDKHShaderProgram handle)
+bool ldkShaderProgramBind(LDKShader* shaderAsset)
 {
-  if (handle == 0)
+  if (!shaderAsset)
   {
     glUseProgram(0);
     return true;
   }
 
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  if (!shader || !shader->isProgram)
+  if (!shaderAsset)
     return false;
 
-  glUseProgram(shader->id);
+  glUseProgram(shaderAsset->gl.id);
   return true;
 }
 
@@ -286,159 +233,145 @@ bool ldkShaderProgramBind(LDKHShaderProgram handle)
 // Material
 //
 
-LDKHMaterial ldkMaterialCreate(LDKHShaderProgram handle, const char* name)
+bool ldkMaterialCreate(LDKShader* program, LDKMaterial* out)
 {
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, handle);
-  if (!shader->isProgram)
-  {
-    return LDK_HANDLE_INVALID;
-  }
+  if (!program)
+    return false;
 
   int32 numUniforms = 0;
-  glGetProgramiv(shader->id, GL_ACTIVE_UNIFORMS, &numUniforms);
+  glGetProgramiv(program->gl.id, GL_ACTIVE_UNIFORMS, &numUniforms);
   if (numUniforms > LDK_MATERIAL_MAX_PARAMS)
   {
-    ldkLogError("Shader %x declares too many uniforms (%d). MAximum is %d.", handle, numUniforms, LDK_MATERIAL_MAX_PARAMS);
-    return LDK_HANDLE_INVALID;
+    ldkLogError("Shader %s declares too many uniforms (%d). MAximum is %d.", program->asset.path, numUniforms, LDK_MATERIAL_MAX_PARAMS);
+    return false;
   }
 
   int32 maxUniformNameLength = 0;
-  glGetProgramiv(shader->id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxUniformNameLength);
+  glGetProgramiv(program->gl.id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxUniformNameLength);
   if (numUniforms > LDK_MATERIAL_MAX_PARAMS)
   {
-    ldkLogError("Shader %x declares at least one uniform names longer than (%d)", handle, LDK_SMALL_STRING_MAX_LENGTH);
+    ldkLogError("Shader %s declares at least one uniform names longer than (%d)", program->asset.path, LDK_SMALL_STRING_MAX_LENGTH);
     return LDK_HANDLE_INVALID;
   }
 
-  LDKHMaterial handleMaterial = ldkHListReserve(&internal.hlistMaterial);
-  LDKGLMaterial* material     = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handleMaterial);
-  material->name        = NULL ? (const char*) "unnamed-material" : name;
-  material->numParam    = numUniforms;
-  material->program     = handle;
-  material->numTextures = 0;
-  memset(&material->param, 0, (sizeof(LDKMaterialParam) * LDK_MATERIAL_MAX_PARAMS));
-  memset(&material->textures, 0, (sizeof(LDKHTexture) * LDK_MATERIAL_MAX_TEXTURES));
+  out->name        = (const char*) "unnamed-material";
+  out->numParam    = numUniforms;
+  out->program     = program->asset.handle;
+  out->numTextures = 0;
+  memset(&out->param, 0, (sizeof(LDKMaterialParam) * LDK_MATERIAL_MAX_PARAMS));
+  memset(&out->textures, 0, (sizeof(LDKHandle) * LDK_MATERIAL_MAX_TEXTURES));
 
   for (int i = 0; i < numUniforms; i ++)
   {
-    LDKMaterialParam* param = &material->param[i];
-    glGetActiveUniform(shader->id, i,
+    LDKMaterialParam* param = &out->param[i];
+    glGetActiveUniform(program->gl.id, i,
         LDK_SMALL_STRING_MAX_LENGTH,
         (GLsizei*) &param->name.length,
-        &param->size,
-        &param->type,
-        (char*) &material->param[i].name.str);
+        &param->gl.size,
+        &param->gl.type,
+        (char*) &out->param[i].name.str);
 
-    if ( param->type != GL_INT
-        && param->type != GL_FLOAT
-        && param->type != GL_FLOAT_VEC2
-        && param->type != GL_FLOAT_VEC3
-        && param->type != GL_FLOAT_VEC4
-        && param->type != GL_FLOAT_MAT4
-        && param->type != GL_SAMPLER_2D
+    if ( param->gl.type != GL_INT
+        && param->gl.type != GL_FLOAT
+        && param->gl.type != GL_FLOAT_VEC2
+        && param->gl.type != GL_FLOAT_VEC3
+        && param->gl.type != GL_FLOAT_VEC4
+        && param->gl.type != GL_FLOAT_MAT4
+        && param->gl.type != GL_SAMPLER_2D
        )
     {
       ldkLogWarning("Material '%s' references param with unsupported type '%s %s'",
-          material->name,
-          ldkOpenglTypeName(param->type),
-          (const char*) &material->param[i].name);
+          out->asset.path,
+          ldkOpenglTypeName(param->gl.type),
+          (const char*) &out->param[i].name);
       continue;
     }
-    material->param[i].location = glGetUniformLocation(shader->id, (const char*) &material->param[i].name);
+    out->param[i].gl.location = glGetUniformLocation(program->gl.id, (const char*) &out->param[i].name);
   }
 
-  return handleMaterial;
-}
-
-bool ldkMaterialDestroy(LDKHMaterial handle)
-{
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
-  if (!material)
-    return false;
   return true;
 }
 
-bool ldkMaterialParamSetInt(LDKHMaterial handle, const char* name, int value)
+bool ldkMaterialDestroy(LDKMaterial* material)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
+  //TODO(marcio): I need to decide if destroying a material will also causing it's shader and textures to be destroyed.
+  return true;
+}
+
+bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value)
+{
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_INT);
   if (!param) return false;
 
   param->intValue = value;
-  glUniform1i(param->location, value);
+  glUniform1i(param->gl.location, value);
   return true;
 }
 
-bool ldkMaterialParamSetFloat(LDKHMaterial handle, const char* name, float value)
+bool ldkMaterialParamSetFloat(LDKMaterial* material, const char* name, float value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param =  internalMaterialParamGet(material, name, GL_FLOAT);
   if (!param) return false;
 
   param->floatValue = value;
-  glUniform1f(param->location, value);
+  glUniform1f(param->gl.location, value);
   return true;
 }
 
-bool ldkMaterialParamSetVec2(LDKHMaterial handle, const char* name, Vec2 value)
+bool ldkMaterialParamSetVec2(LDKMaterial* material, const char* name, Vec2 value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC2);
   if (!param) return false;
 
   param->vec2Value = value;
-  glUniform2f(param->location, value.x, value.y);
+  glUniform2f(param->gl.location, value.x, value.y);
   return true;
 }
 
-bool ldkMaterialParamSetVec3(LDKHMaterial handle, const char* name, Vec3 value)
+bool ldkMaterialParamSetVec3(LDKMaterial* material, const char* name, Vec3 value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC3);
   if (!param) return false;
 
   param->vec3Value = value;
-  glUniform3f(param->location, value.x, value.y, value.z);
+  glUniform3f(param->gl.location, value.x, value.y, value.z);
   return true;
 }
 
-bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4 value)
+bool ldkMaterialParamSetVec4(LDKMaterial* material, const char* name, Vec4 value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC4);
   if (!param) return false;
 
   param->vec4Value = value;
-  glUniform4f(param->location, value.x, value.y, value.z, value.w);
+  glUniform4f(param->gl.location, value.x, value.y, value.z, value.w);
   return true;
 }
 
-bool ldkMaterialParamSetMat4(LDKHMaterial handle, const char* name, Mat4 value)
+bool ldkMaterialParamSetMat4(LDKMaterial* material, const char* name, Mat4 value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_MAT4);
   if (!param) return false;
 
   param->mat4Value = value;
-  glUniformMatrix4fv(param->location, 1, GL_TRUE, (float*)&value);
+  glUniformMatrix4fv(param->gl.location, 1, GL_TRUE, (float*)&value);
   return true;
 }
 
-bool ldkMaterialParamSetTexture(LDKHMaterial handle, const char* name, LDKHTexture value)
+bool ldkMaterialParamSetTexture(LDKMaterial* material, const char* name, LDKTexture* value)
 {
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (!material) return false;
 
   LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_SAMPLER_2D);
@@ -452,81 +385,78 @@ bool ldkMaterialParamSetTexture(LDKHMaterial handle, const char* name, LDKHTextu
 
   uint32 textureId = material->numTextures++;
   param->textureIndexValue = textureId; // this is the texture index in the Material texture array
-  material->textures[textureId] = value;
+  material->textures[textureId] = value->asset.handle;
   return true;
 }
 
-bool ldkMaterialBind(LDKHMaterial handle)
+bool ldkMaterialBind(LDKMaterial* material)
 {
-  if ((void*) handle == NULL)
+  if (!material)
   {
     glUseProgram(0);
     return true;
   }
 
-  LDKGLMaterial* material = (LDKGLMaterial*) ldkHListLookup(&internal.hlistMaterial, handle);
   if (material == NULL)
     return false;
 
-  LDKGLShader* shader = (LDKGLShader*) ldkHListLookup(&internal.hlistShader, material->program);
-  if (!shader || !shader->isProgram)
+  LDKShader* shader = ldkAssetLookup(LDKShader,  material->program);
+
+  if (!shader)
     return false;
 
-  glUseProgram(shader->id);
-
-  //if (! ldkShaderProgramBind(material->program))
-  //  return false;
+  glUseProgram(shader->gl.id);
 
   for (uint32 i = 0; i < material->numParam; i++)
   {
     LDKMaterialParam* param = &material->param[i];
-    switch(param->type)
+    switch(param->gl.type)
     {
       case GL_INT:
-        ldkMaterialParamSetInt(handle, param->name.str, param->intValue);
+        ldkMaterialParamSetInt(material, param->name.str, param->intValue);
         break;
 
       case GL_FLOAT:
-        ldkMaterialParamSetFloat(handle, param->name.str, param->floatValue);
+        ldkMaterialParamSetFloat(material, param->name.str, param->floatValue);
         break;
 
       case GL_FLOAT_VEC2:
-        ldkMaterialParamSetVec2(handle, param->name.str, param->vec2Value);
+        ldkMaterialParamSetVec2(material, param->name.str, param->vec2Value);
         break;
 
       case GL_FLOAT_VEC3:
-        ldkMaterialParamSetVec3(handle, param->name.str, param->vec3Value);
+        ldkMaterialParamSetVec3(material, param->name.str, param->vec3Value);
         break;
 
       case GL_FLOAT_VEC4:
-        ldkMaterialParamSetVec4(handle, param->name.str, param->vec4Value);
+        ldkMaterialParamSetVec4(material, param->name.str, param->vec4Value);
         break;
 
       case GL_SAMPLER_2D:
         glActiveTexture(GL_TEXTURE0 + param->textureIndexValue);
-        LDKHTexture hTexture = material->textures[param->textureIndexValue];
-        LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, hTexture);
-        glBindTexture(GL_TEXTURE_2D, texture->id);
+        LDKHandle hTexture = material->textures[param->textureIndexValue];
+        LDKTexture* texture = ldkAssetLookup(LDKTexture, hTexture);
+        glBindTexture(GL_TEXTURE_2D, texture->gl.id);
         break;
     }
   }
 
   // set camera matrices
-  GLint uniformView = glGetUniformLocation(shader->id, "mView");
+  GLint uniformView = glGetUniformLocation(shader->gl.id, "mView");
   if (uniformView != -1)
   {
     Mat4 viewMatrix = ldkCameraViewMatrix(internal.camera);
     glUniformMatrix4fv(uniformView, 1, GL_TRUE, (float*) &viewMatrix);
   }
 
-  GLint uniformProj = glGetUniformLocation(shader->id, "mProj");
+  GLint uniformProj = glGetUniformLocation(shader->gl.id, "mProj");
   if (uniformProj != -1)
   {
     Mat4 projMatrix = ldkCameraProjectMatrix(internal.camera);
     glUniformMatrix4fv(uniformProj, 1, GL_TRUE, (float*) &projMatrix);
   }
 
-  GLint uniformViewProj = glGetUniformLocation(shader->id, "mViewProj");
+  GLint uniformViewProj = glGetUniformLocation(shader->gl.id, "mViewProj");
   if (uniformViewProj != -1)
   {
     Mat4 projViewMatrix = ldkCameraViewProjectMatrix(internal.camera);
@@ -540,7 +470,7 @@ bool ldkMaterialBind(LDKHMaterial handle)
 // Texture
 //
 
-LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam)
+bool ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam, LDKTexture* out)
 {
   GLenum flagWrap = 0;
   GLenum flagMin = 0;
@@ -617,7 +547,6 @@ LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTexturePa
       flagMin = GL_NEAREST;
     }
 
-
     if (filterMaxParam == LDK_TEXTURE_FILTER_LINEAR)
     {
       flagMax = GL_LINEAR;
@@ -628,25 +557,22 @@ LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTexturePa
     }
   }
 
-  LDKHTexture handle = ldkHListReserve(&internal.hlistTexture);
-  LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);
-  texture->useMipmap = useMipmap;
+  out->useMipmap = useMipmap;
 
-  glGenTextures(1, &texture->id);
-  glBindTexture(GL_TEXTURE_2D, texture->id);
+  glGenTextures(1, &out->gl.id);
+  glBindTexture(GL_TEXTURE_2D, out->gl.id);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, flagWrap);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, flagWrap);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, flagMin);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, flagMax);
 
   glBindTexture(GL_TEXTURE_2D, 0);
-  return (LDKHTexture) handle;
+  return true;
 }
 
-bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data, uint32 bitsPerPixel)
+bool ldkTextureData(LDKTexture* texture, uint32 width, uint32 height, void* data, uint32 bitsPerPixel)
 {
-  LDKGLTexture *texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);
-  if (texture == NULL)
+  if (!texture)
     return false;
 
   //TODO(marcio): Handle SRGB here !
@@ -677,7 +603,7 @@ bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data,
     textureType = GL_UNSIGNED_BYTE;
   }
 
-  glBindTexture(GL_TEXTURE_2D, texture->id);
+  glBindTexture(GL_TEXTURE_2D, texture->gl.id);
   glTexImage2D(GL_TEXTURE_2D, 0, srgb ? GL_SRGB_ALPHA : GL_RGBA, width, height, 0, textureFormat, textureType, data);
 
   if (texture->useMipmap)
@@ -687,13 +613,14 @@ bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data,
   return true;
 }
 
-bool ldkTextureDestroy(LDKHTexture handle)
+bool ldkTextureDestroy(LDKTexture* texture)
 {
-  LDKGLTexture* texture = (LDKGLTexture*) ldkHListLookup(&internal.hlistTexture, handle);
-  if (texture == NULL)
+  if (!texture)
     return false;
 
-  glDeleteTextures(1, &texture->id);
+  glDeleteTextures(1, &texture->gl.id);
+  texture->gl.id = 0;
+  texture->useMipmap = false;
   return true;
 }
 
@@ -897,14 +824,18 @@ void ldkRendererAddStaticObject(LDKStaticObject* entity)
 
 void internalRenderMesh(LDKStaticObject* entity)
 {
-  LDKMesh* mesh = (LDKMesh*) entity->mesh;
-  LDKVertexBuffer vBuffer = ldkAssetMeshGetVertexBuffer(entity->mesh);
-  ldkVertexBufferBind(vBuffer);
+  LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
+
+  if(!mesh)
+    return;
+
+  ldkVertexBufferBind(mesh->vBuffer);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
     LDKSurface* surface = &mesh->surfaces[i];
-    LDKHMaterial material = mesh->materials[surface->materialIndex];
+    LDKHandle hMaterial = mesh->materials[surface->materialIndex];
+    LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
     ldkMaterialBind(material);
     Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
     ldkMaterialParamSetMat4(material, "mModel", world);

@@ -297,6 +297,25 @@ extern "C" {
   Mat4 mat4Lerp(Mat4 m1, Mat4 mat2, float amount);
   Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
 
+
+  //
+  // Bounds
+  //
+
+  typedef struct
+  {
+    float minX;
+    float minY;
+    float maxX;
+    float maxY;
+  }LDKBoundingBox;
+
+  typedef struct
+  {
+    Vec3 center;
+    float radius;
+  }LDKBoundingSphere;
+
 #ifdef __cplusplus
 }
 #endif

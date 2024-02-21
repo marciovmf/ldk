@@ -1,0 +1,69 @@
+/*
+ *  A shader file contains source code for VERTEX, FRAGMENT and GEOMETRY stages.
+ *  each stage source must be enclosed in #ifdef /#endif directives as follows:
+ *
+ *  #ifdef LDK_COMPILE_VETEX_SHADER
+ *  // your vertex shader source goes here
+ *  #endif
+ *
+ *  #ifdef LDK_COMPILE_FRAGMENT_SHADER
+ *  // your vertex shader source goes here
+ *  #endif
+ *
+ *  #ifdef LDK_COMPILE_FRAGMENT_SHADER
+ *  // your geometry shader source goes here
+ *  #endif
+ *
+ * IMPORTANT: as the geometry stage is optional, if your shader includes a
+ * GEOMETRY source, the very first line of the .shader file must be exaclty '//@use-geomety-shader'
+ * if this line is missing, no geometry shader will be compiled at all.
+ *
+ */
+
+
+//
+// Vertes Shader
+//
+
+
+#ifdef LDK_COMPILE_VETEX_SHADER
+
+#define LDK_VERTEX_ATTRIBUTE_POSITION layout (location = 0) in
+#define LDK_VERTEX_ATTRIBUTE_NORMAL   layout (location = 1) in
+#define LDK_VERTEX_ATTRIBUTE_TANGENT  layout (location = 2) in
+#define LDK_VERTEX_ATTRIBUTE_BINORMAL layout (location = 3) in
+#define LDK_VERTEX_ATTRIBUTE_TEXCOORD layout (location = 4) in
+
+LDK_VERTEX_ATTRIBUTE_POSITION  vec3 vPosition;
+LDK_VERTEX_ATTRIBUTE_NORMAL    vec3 vNormal;
+LDK_VERTEX_ATTRIBUTE_TEXCOORD  vec2 vTexcoord;
+
+out vec2 fragTexCoord;
+
+uniform mat4 mView;
+uniform mat4 mProj;
+uniform mat4 mModel;
+
+void main()
+{
+  gl_Position = mProj * mView * mModel * vec4(vPosition, 1.0);
+  fragTexCoord = vTexcoord;
+}
+#endif
+
+
+//
+// Fragment Shader
+//
+#ifdef LDK_COMPILE_FRAGMENT_SHADER
+
+uniform sampler2D colorMap;
+in vec2 fragTexCoord;
+out vec4 fragColor;
+
+void main()
+{
+  fragColor = texture(colorMap, fragTexCoord / 5);
+}
+#endif
+

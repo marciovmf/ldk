@@ -2,6 +2,7 @@
 #include "ldk/module/asset.h"
 #include "ldk/asset/texture.h"
 #include "ldk/asset/image.h"
+#include "ldk/module/renderer.h"
 #include "ldk/os.h"
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +23,15 @@ static char* internalSkipWhiteSpace(char* input)
   return p;
 }
 
-LDKHTexture ldkAssetTextureLoadFunc(const char* path)
+bool ldkAssetTextureLoadFunc(const char* path, LDKAsset asset)
 {
   // Defaults
   LDKTextureParamMipmap mipmapMode  = LDK_TEXTURE_MIPMAP_MODE_NONE;
   LDKTextureParamWrap wrap          = LDK_TEXTURE_WRAP_CLAMP_TO_EDGE;
   LDKTextureParamFilter filterMin   = LDK_TEXTURE_FILTER_LINEAR;
   LDKTextureParamFilter filterMax   = LDK_TEXTURE_FILTER_LINEAR;
-  LDKHImage image;
+  LDKImage* image;
+  LDKTexture* texture = (LDKTexture*) asset;
 
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
@@ -65,7 +67,7 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
 
       if (strncmp("image", lhs, strlen(lhs)) == 0)
       {
-        image = ldkAssetGet(rhs);
+        image = ldkAssetGet(LDKImage, rhs);
       }
       else if (strncmp("wrap", lhs, strlen(lhs)) == 0)
       {
@@ -140,13 +142,13 @@ LDKHTexture ldkAssetTextureLoadFunc(const char* path)
     line = strtok_r(NULL, "\n\r", &context);
   }
 
-  LDKImage* imagePtr = ldkAssetImageGetPointer(image);
-  LDKHTexture texture = ldkTextureCreate(mipmapMode, wrap, filterMin, filterMax);
-  ldkTextureData(texture, imagePtr->width, imagePtr->height, imagePtr->data, 32);
-
-  return texture;
+  bool success = ldkTextureCreate(mipmapMode, wrap, filterMin, filterMax, texture);
+  success &= ldkTextureData(texture, image->width, image->height, image->data, 32);
+  return success;
 }
 
-void ldkAssetTextureUnloadFunc(LDKHTexture handle)
+void ldkAssetTextureUnloadFunc(LDKAsset asset)
 {
+  LDKTexture* texture = (LDKTexture*) asset;
+  ldkTextureDestroy(texture);
 }

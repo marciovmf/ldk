@@ -23,7 +23,7 @@ extern "C" {
   {
     LDKTypeId typeId;     // The type of the entity
     uint32 flags;         // Space for user defined flags
-    LDKHandle handle;     // The uniqu entity handle for this entity.
+    LDKHandle handle;     // The unique entity handle for this entity.
   } LDKEntityInfo;
 
   /*
@@ -33,7 +33,7 @@ extern "C" {
 #define LDK_DECLARE_ENTITY LDKEntityInfo entity
 
 
-#define ldkEntityTypeRegister(type, createFunc, destroyFunc, capacity) ldkEntityHandlerRegisterNew(typeid(type), createFunc, destroyFunc, capacity)
+#define ldkEntityTypeRegister(type, createFunc, destroyFunc, capacity) ldkEntityHandlerRegisterNew(typeid(type), (LDKEntityHandlerCreateFunc) createFunc,  (LDKEntityHandlerDestroyFunc)  destroyFunc, capacity)
 
 #define ldkEntityCreate(e) ((e*) ldkEntityManagerEntityCreate(typeid(e)))
 
@@ -44,7 +44,8 @@ extern "C" {
 
   typedef void* LDKEntity;
   typedef void (*LDKEntityHandlerCreateFunc) (LDKEntity);
-  typedef void (*LDKEntityHandlerDestroyFunc) (LDKEntity entity);
+  typedef void (*LDKEntityHandlerDestroyFunc) (LDKEntity);
+
 
   LDK_API bool ldkEntityManagerInit();
   LDK_API void ldkEntityManagerTerminate();

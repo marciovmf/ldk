@@ -52,6 +52,8 @@ extern "C" {
   LDK_API LDKHash ldkHashMapStrHashFunc(const void* data);
   LDK_API bool ldkHashMapStrCompareFunc(const void* key1, const void* key2);
 
+  LDK_API LDKHash ldkHashMapPathHashFunc(const void* data);
+  LDK_API bool ldkHashMapPathCompareFunc(const void* key1, const void* key2);
 
 #ifdef __cplusplus
 } 

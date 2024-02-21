@@ -7,6 +7,7 @@
 #include "ldk/module/asset.h"
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
+#include "ldk/asset/image.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
 #include "ldk/asset/mesh.h"
@@ -91,26 +92,17 @@ bool ldkEngineInitialize()
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
-
-#ifdef LDK_DEBUG
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "psd", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-#endif
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "png", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "bmp", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "tga", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHImage), "hdr", ldkAssetImageLoadFunc, ldkAssetImageUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHTexture), "texture", ldkAssetTextureLoadFunc, ldkAssetTextureUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "vs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "fs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHShader), "gs", ldkAssetShaderLoadFunc, ldkAssetShaderUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMaterial), "material", ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc);
-  stepSuccess &= ldkAssetHandlerRegister(typeid(LDKHMesh), "mesh", ldkAssetMeshLoadFunc, ldkAssetMeshUnloadFunc);
+  stepSuccess &= ldkAssetHandlerRegister(LDKImage,    ldkAssetImageLoadFunc,    ldkAssetImageUnloadFunc,    8,  "png", "bmp", "tga", "hdr");
+  stepSuccess &= ldkAssetHandlerRegister(LDKTexture,  ldkAssetTextureLoadFunc,  ldkAssetTextureUnloadFunc,  8,  "texture");
+  stepSuccess &= ldkAssetHandlerRegister(LDKShader,   ldkAssetShaderLoadFunc,   ldkAssetShaderUnloadFunc,   8,  "shader");
+  stepSuccess &= ldkAssetHandlerRegister(LDKMaterial, ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc, 8,  "material");
+  stepSuccess &= ldkAssetHandlerRegister(LDKMesh,     ldkAssetMeshLoadFunc,     ldkAssetMeshUnloadFunc,     16, "mesh");
   logModuleInit("Asset Handler", stepSuccess);
 
   // Register EntityManager
   stepSuccess &= ldkEntityManagerInit();
-  stepSuccess &= ldkEntityTypeRegister(LDKCamera, (LDKEntityHandlerCreateFunc) ldkCameraEntityCreate, (LDKEntityHandlerDestroyFunc) ldkCameraEntityDestroy,2 );
-  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, (LDKEntityHandlerCreateFunc) ldkStaticObjectEntityCreate, (LDKEntityHandlerDestroyFunc) ldkStaticObjectEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKCamera,       ldkCameraEntityCreate,        ldkCameraEntityDestroy,       2);
+  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate,  ldkStaticObjectEntityDestroy, 32);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 

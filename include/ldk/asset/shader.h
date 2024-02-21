@@ -10,14 +10,28 @@
 #define LDK_SHADER_H
 
 #include "../common.h"
-#include "../module/renderer.h"
+#include "../module/asset.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-  LDK_API LDKHShader ldkAssetShaderLoadFunc(const char* path);
-  LDK_API void ldkAssetShaderUnloadFunc(LDKHShader handle);
+  typedef struct 
+  {
+    uint32 id;
+  } LDKGLShader;
+
+  typedef struct
+  {
+    LDK_DECLARE_ASSET;
+    union
+    {
+      LDKGLShader gl;
+    };
+  }LDKShader;
+
+  LDK_API bool ldkAssetShaderLoadFunc(const char* path, LDKAsset asset);
+  LDK_API void ldkAssetShaderUnloadFunc(LDKAsset handle);
 
 #ifdef __cplusplus
 }

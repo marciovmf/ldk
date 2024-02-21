@@ -221,3 +221,19 @@ bool ldkHashMapStrCompareFunc(const void* key1, const void* key2)
   return strcmp((const char*)key1, (const char*)key2) == 0;
 }
 
+LDKHash ldkHashMapPathHashFunc(const void* data)
+{
+  LDKPath* a = (LDKPath*) data;
+  return ldkHashStr(a->path);
+}
+
+bool ldkHashMapPathCompareFunc(const void* key1, const void* key2)
+{
+  LDKPath* a = (LDKPath*) key1;
+  LDKPath* b = (LDKPath*) key2;
+  if (a->length != b->length)
+    return false;
+
+  return strncmp(a->path, b->path, a->length) == 0;
+}
+
