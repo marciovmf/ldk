@@ -30,6 +30,9 @@ static struct
 
 static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtension)
 {
+  if (!fileExtension)
+    return NULL;
+
   //TODO(marcio): Should I use a dictionary here ?
   for (uint32 i = 0; i < internal.numHandlers; i++)
   {
@@ -176,7 +179,6 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   LDKHash hash = ldkHashStr(path);
   uint64 loadTime = ldkOsTimeTicksGet();
 
-
   // Set asset information so user code read it if necessary
   asset->hash = hash;
   asset->loadTime = loadTime;
@@ -185,7 +187,7 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   asset->handlerId = handler->handlerId;
 
   // Call user code to initialize the asset
-  handler->loadFunc(path, asset);
+  bool success = handler->loadFunc(path, asset);
 
   // We set up everything again, in case user code has messed up anything
   asset->hash = hash;
@@ -197,7 +199,13 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   char* key = _strdup(path);
   ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
 
-  ldkLogInfo("%s %s", asset->handle != LDK_HANDLE_INVALID ? "Loaded" : "Failed to load" ,path);
+  if (!success)
+    ldkLogError("Failed to load %s", path);
+#ifdef LDK_DEBUG
+  else
+    ldkLogInfo("Loaded %s", path);
+#endif
+
   return asset;
 }
 
@@ -215,7 +223,6 @@ void ldkAssetDispose(LDKAsset asset)
   internal.handlers[assetInfo->handlerId].unloadFunc(asset);
   ldkHashMapRemoveWith(internal.assetMap, &assetInfo->path, disposeHashmapKey);
 }
-
 
 LDKAsset ldkAssetLookupType(LDKTypeId typeId, LDKHandle handle)
 {

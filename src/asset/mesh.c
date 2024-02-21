@@ -105,9 +105,18 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
 bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
 {
   size_t fileSize = 0;
+  LDKMesh* mesh = (LDKMesh*) asset;
+
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
   if (buffer == NULL)
-    return LDK_HANDLE_INVALID;
+  {
+    mesh->vBuffer = NULL;
+    mesh->numIndices = 0;
+    mesh->numSurfaces = 0;
+    mesh->numVertices = 0;
+    mesh->numMaterials = 0;
+    return false;
+  }
 
   buffer[fileSize] = 0;
 
@@ -119,7 +128,6 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   LDKVertexLayout vertexLayout = LDK_VERTEX_LAYOUT_NONE;
   char* line = strtok_r((char*) buffer, LINEBREAK, &lineBreakContext);
 
-  LDKMesh* mesh = (LDKMesh*) asset;
   mesh->vertices = 0;
   mesh->indices = 0;
   mesh->materials = 0;

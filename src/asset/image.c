@@ -18,7 +18,6 @@
 #define STBI_REALLOC ldkOsMemoryResize
 #include "../depend/stb_image.h"
 
-
 static uint32 magentaPixel = 0xFFFF00FF;
 
 bool ldkAssetImageLoadFunc(const char* path, LDKAsset asset)
@@ -27,14 +26,11 @@ bool ldkAssetImageLoadFunc(const char* path, LDKAsset asset)
   unsigned char* fileMemory = ldkOsFileReadOffset(path, &fileSize, 0, 0);
   if (fileMemory == NULL)
   {
-    ldkLogError("Unable to load image '%s'", path);
-
     LDKImage* image = (LDKImage*) asset;
     image->data = (unsigned char*) &magentaPixel;
     image->width = 1;
     image->height = 1;
     image->raw = true;
-    ldkPath(&image->asset.path, "@horrible-magenta");
     return false;
   }
 
