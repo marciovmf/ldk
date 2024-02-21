@@ -47,8 +47,8 @@ extern "C" {
   typedef void (*LDKEntityHandlerDestroyFunc) (LDKEntity);
 
 
-  LDK_API bool ldkEntityManagerInit();
-  LDK_API void ldkEntityManagerTerminate();
+  LDK_API bool ldkEntityManagerInit(void);
+  LDK_API void ldkEntityManagerTerminate(void);
   LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity);
   LDK_API LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId);
   LDK_API LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle);

@@ -221,7 +221,7 @@ extern "C" {
   //
 
   LDK_API bool ldkLogInitialize(const char* path, const char* initalMessage);
-  LDK_API void ldkLogTerminate();
+  LDK_API void ldkLogTerminate(void);
   LDK_API void ldkLogPrint(const char* prefix, const char* format, ...);
   LDK_API void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const char* function, const char* fmt, ...);
   LDK_API void ldkLogPrintRaw(const char* fmt, ...);

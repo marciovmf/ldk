@@ -8,14 +8,7 @@ static struct
   LDKGCtx context;
   LDKGraphicsAPI  api;
   int32 multiSampleLevel;
-} internalGraphics;
-
-
-#ifdef internal
-#undef internal
-#endif
-
-#define internal internalGraphics
+} internal;
 
 bool ldkGraphicsInitialize(LDKGraphicsAPI api)
 {
@@ -52,12 +45,12 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api)
   return success;
 }
 
-LDKGraphicsAPI ldkGraphicsApiName()
+LDKGraphicsAPI ldkGraphicsApiName(void)
 {
   return internal.api;
 }
 
-void ldkGraphicsTerminate()
+void ldkGraphicsTerminate(void)
 {
   ldkOsWindowDestroy(internal.mainWindow);
   ldkOsGraphicsContextDestroy(internal.context);
@@ -68,7 +61,7 @@ void ldkGraphicsFullscreenSet(bool fullscreen)
   ldkOsWindowFullscreenSet(internal.mainWindow, true);
 }
 
-bool ldkGraphicsFullscreenGet()
+bool ldkGraphicsFullscreenGet(void)
 {
   return ldkOsWindowFullscreenGet(internal.mainWindow);
 }
@@ -98,13 +91,13 @@ void ldkGraphicsViewportSizeSet(int w, int h)
   ldkOsWindowClientAreaSizeSet(internal.mainWindow, w, h);
 }
 
-LDKSize ldkGraphicsViewportSizeGet()
+LDKSize ldkGraphicsViewportSizeGet(void)
 {
   LDKSize size = ldkOsWindowClientAreaSizeGet(internal.mainWindow);
   return size;
 }
 
-float ldkGraphicsViewportRatio()
+float ldkGraphicsViewportRatio(void)
 {
   LDKSize size = ldkGraphicsViewportSizeGet();
   if (size.height <= 0)
@@ -113,12 +106,12 @@ float ldkGraphicsViewportRatio()
   return (size.width / (float) size.height);
 }
 
-LDKGCtx ldkGraphicsContextGet()
+LDKGCtx ldkGraphicsContextGet(void)
 {
   return internal.context;
 }
 
-void ldkGraphicsSwapBuffers()
+void ldkGraphicsSwapBuffers(void)
 {
   ldkOsWindowBuffersSwap(internal.mainWindow);
 }
@@ -129,7 +122,7 @@ void ldkGraphicsVsyncSet(bool vsync)
   ldkOsGraphicsVSyncSet(vsync);
 }
 
-int32 ldkGraphicsVsyncGet()
+int32 ldkGraphicsVsyncGet(void)
 {
   return ldkOsGraphicsVSyncGet();
 }
@@ -153,12 +146,12 @@ void  ldkGraphicsMultisamplesSet(int32 samples)
   }
 }
 
-int32 ldkGraphicsMultisamplesGet()
+int32 ldkGraphicsMultisamplesGet(void)
 {
   return internal.multiSampleLevel;
 }
 
-void lkdGraphicsInfoPrint()
+void lkdGraphicsInfoPrint(void)
 {
   if (internal.api == LDK_GRAPHICS_API_OPENGL_3_3
       || internal.api == LDK_GRAPHICS_API_OPENGL_3_0
@@ -175,6 +168,4 @@ void lkdGraphicsInfoPrint()
     LDK_NOT_IMPLEMENTED();
   }
 }
-
-#undef internal
 

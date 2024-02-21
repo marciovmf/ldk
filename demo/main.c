@@ -3,11 +3,9 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/module/entity.h"
 #include "ldk/entity/staticobject.h"
-#include "ldk/maths.h"
 #include "ldk/common.h"
 #include "ldk/maths.h"
 #include <math.h>
-
 #include <stdlib.h>
 
 typedef struct
@@ -215,7 +213,7 @@ bool onFrameEvent(const LDKEvent* event, void* data)
   return true;
 }
 
-int main()
+int main(void)
 {
   // Initialize stuff
   GameState state = {0};

@@ -24,9 +24,9 @@
 extern "C" {
 #endif
 
-  LDK_API bool ldkEngineInitialize();
-  LDK_API void ldkEngineTerminate();
-  LDK_API int32 ldkEngineRun();
+  LDK_API bool ldkEngineInitialize(void);
+  LDK_API void ldkEngineTerminate(void);
+  LDK_API int32 ldkEngineRun(void);
   LDK_API void ldkEngineStop(int32);
 
 #endif //LDK_ENGINE_H

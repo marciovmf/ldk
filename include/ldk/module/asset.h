@@ -40,7 +40,7 @@ extern "C" {
     LDKHandle handle;
     LDKHash   hash;
     uint64    loadTime;
-    uint32    handlerId;    //Index of the handler on the handler list
+    uint32    handlerId;    // Index of the handler on the handler list
   } LDKAssetInfo;
 
   /*
@@ -58,8 +58,8 @@ extern "C" {
   typedef bool (*LDKAssetHandlerLoadFunc) (const char* path, LDKAsset asset);
   typedef void (*LDKAssetHandlerUnloadFunc) (LDKAsset asset);
 
-  LDK_API bool ldkAssetInitialize();
-  LDK_API void ldkAssetTerminate();
+  LDK_API bool ldkAssetInitialize(void);
+  LDK_API void ldkAssetTerminate(void);
   LDK_API bool ldkAssetHandlerIsRegistered(const char* fileExtension);
   LDK_API bool ldkAssetHandlerRegisterNew(LDKTypeId id, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc, uint32 capacity, const char* ext, ...);
   LDK_API LDKAsset ldkAssetGetByType(LDKTypeId typeId, const char* path);

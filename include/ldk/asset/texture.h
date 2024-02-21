@@ -35,7 +35,6 @@ extern "C" {
     LDK_TEXTURE_MIPMAP_MODE_LINEAR   = 2,
   } LDKTextureParamMipmap;
 
-
   typedef struct
   {
     uint32 id;

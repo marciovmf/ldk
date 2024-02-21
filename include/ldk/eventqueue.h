@@ -21,13 +21,21 @@
 
 typedef bool (*LDKEventHandler)(const LDKEvent* event, void* optional);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 LDK_API void ldkEventPush(LDKEvent* event);
 LDK_API void ldkEventHandlerAdd(LDKEventHandler handler, LDKEventType mask, void* optional);
 LDK_API void ldkEventHandlerRemove(LDKEventHandler handler);
 LDK_API LDKEventType ldkEventHandlerMaskGet(LDKEventHandler handler);
 LDK_API void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask);
-LDK_API void ldkEventQueueCleanup();
-LDK_API void ldkEventQueueBroadcast();
+LDK_API void ldkEventQueueCleanup(void);
+LDK_API void ldkEventQueueBroadcast(void);
+
+#ifdef __cplusplus
+extern }
+#endif
 
 #endif //LDK_EVENT_QUEUE_H
 

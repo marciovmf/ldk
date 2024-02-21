@@ -50,33 +50,33 @@ extern "C" {
   };
 
   LDK_API bool    ldkGraphicsInitialize(LDKGraphicsAPI api);
-  LDK_API LDKGraphicsAPI ldkGraphicsApiName();
-  LDK_API void    ldkGraphicsTerminate();
+  LDK_API LDKGraphicsAPI ldkGraphicsApiName(void);
+  LDK_API void    ldkGraphicsTerminate(void);
   LDK_API void    ldkGraphicsFullscreenSet(bool fullscreen);
-  LDK_API bool    ldkGraphicsFullscreenGet();
+  LDK_API bool    ldkGraphicsFullscreenGet(void);
   LDK_API void    ldkGraphicsViewportTitleSet(const char* title);
   LDK_API size_t  ldkGraphicsViewportTitleGet(LDKSmallStr* outTitle);
   LDK_API bool    ldkGraphicsViewportIconSet(const char* iconPath);
   LDK_API void    ldkGraphicsViewportPositionSet(int x, int y);
   LDK_API void    ldkGraphicsViewportSizeSet(int w, int h);
-  LDK_API LDKSize ldkGraphicsViewportSizeGet();
-  LDK_API float   ldkGraphicsViewportRatio();
-  LDK_API LDKGCtx ldkGraphicsContextGet();
-  LDK_API void    ldkGraphicsSwapBuffers();
+  LDK_API LDKSize ldkGraphicsViewportSizeGet(void);
+  LDK_API float   ldkGraphicsViewportRatio(void);
+  LDK_API LDKGCtx ldkGraphicsContextGet(void);
+  LDK_API void    ldkGraphicsSwapBuffers(void);
   LDK_API void    ldkGraphicsVsyncSet(bool vsync);
-  LDK_API int32   ldkGraphicsVsyncGet();
+  LDK_API int32   ldkGraphicsVsyncGet(void);
   LDK_API void    ldkGraphicsMultisamplesSet(int samples);
-  LDK_API int32   ldkGraphicsMultisamplesGet();
-  LDK_API void    lkdGraphicsInfoPrint();
+  LDK_API int32   ldkGraphicsMultisamplesGet(void);
+  LDK_API void    lkdGraphicsInfoPrint(void);
   //LDK_API void  ldkGraphicsAntialiasingSet(int quality);
-  //LDK_API int32 ldkGraphicsAntialiasingGet();
-  //LDK_API void  ldkGraphicsViewportScreenshot();
+  //LDK_API int32 ldkGraphicsAntialiasingGet(void);
+  //LDK_API void  ldkGraphicsViewportScreenshot(void);
 
   /* Viewport */
 
   /* Cursor */
   //LDK_API void ldkGraphicsCursorHiddenSet(bool hidden);
-  //LDK_API bool ldkGraphicsCursorHiddenGet();
+  //LDK_API bool ldkGraphicsCursorHiddenGet(void);
 
 
 #ifdef __cplusplus

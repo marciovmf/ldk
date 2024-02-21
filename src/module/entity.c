@@ -21,12 +21,12 @@ static struct
   uint32 numEntities;
 } internal = { 0 };
 
-bool ldkEntityManagerInit()
+bool ldkEntityManagerInit(void)
 {
   return true;
 }
 
-void ldkEntityManagerTerminate()
+void ldkEntityManagerTerminate(void)
 {
   for (uint32 i = 0; i < internal.numHandlers; i++)
   {

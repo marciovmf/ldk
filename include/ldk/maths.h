@@ -38,8 +38,8 @@ extern "C" {
   } Vec2;
 
   LDK_API Vec2  vec2(float x, float y);
-  LDK_API Vec2  vec2Zero();
-  LDK_API Vec2  vec2One();
+  LDK_API Vec2  vec2Zero(void);
+  LDK_API Vec2  vec2One(void);
   LDK_API Vec2  vec2Add(Vec2 v1, Vec2 v2);
   LDK_API Vec2  vec2Sub(Vec2 v1, Vec2 v2);
   LDK_API Vec2  vec2Mul(Vec2 v, float fac);
@@ -80,9 +80,9 @@ extern "C" {
   } Vec3;
 
   LDK_API Vec3 vec3(float x, float y, float z);
-  LDK_API Vec3 vec3Zero();
-  LDK_API Vec3 vec3One();
-  LDK_API Vec3 vec3Up();
+  LDK_API Vec3 vec3Zero(void);
+  LDK_API Vec3 vec3One(void);
+  LDK_API Vec3 vec3Up(void);
   LDK_API Vec3 vec3Add(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Sub(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Mul(Vec3 v, float fac);
@@ -123,8 +123,8 @@ extern "C" {
   } Vec4;
 
   LDK_API Vec4 vec4(float x, float y, float z, float w);
-  LDK_API Vec4 vec4Zero();
-  LDK_API Vec4 vec4One();
+  LDK_API Vec4 vec4Zero(void);
+  LDK_API Vec4 vec4One(void);
   LDK_API Vec4 vec4Add(Vec4 v1, Vec4 v2);
   LDK_API Vec4 vec4Sub(Vec4 v1, Vec4 v2);
   LDK_API Vec4 vec4Mul(Vec4 v, float fac);
@@ -160,7 +160,7 @@ extern "C" {
 
   typedef Vec4 Quat;
 
-  LDK_API Quat quatId();
+  LDK_API Quat quatId(void);
   LDK_API Quat quatNew(float x, float y, float z, float w);
   LDK_API Quat quatFromEuler(Vec3 r);
   LDK_API Quat quatAngleAxis(float angle, Vec3 axis);
@@ -194,7 +194,7 @@ extern "C" {
     Quat dual;
   } QuatDual;
 
-  LDK_API QuatDual quatDualId();
+  LDK_API QuatDual quatDualId(void);
   LDK_API QuatDual quatDual(Quat real, Quat dual);
   LDK_API QuatDual quatDualTransform(Quat q, Vec3 t);
   LDK_API QuatDual quatDualMul(QuatDual q0, QuatDual q1);
@@ -210,8 +210,8 @@ extern "C" {
     float yx; float yy;
   } Mat2;
 
-  LDK_API Mat2 mat2Id();
-  LDK_API Mat2 mat2Zero();
+  LDK_API Mat2 mat2Id(void);
+  LDK_API Mat2 mat2Zero(void);
   LDK_API Mat2 mat2New(float xx, float xy, float yx, float yy);
   LDK_API Mat2 mat2MulMat2(Mat2 m1, Mat2 mat2);
   LDK_API Vec2 mat2MulVec2(Mat2 m, Vec2 v);
@@ -232,8 +232,8 @@ extern "C" {
     float zx; float zy; float zz;
   } Mat3;
 
-  Mat3 mat3Id();
-  Mat3 mat3Zero();
+  Mat3 mat3Id(void);
+  Mat3 mat3Zero(void);
   Mat3 mat3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
   Mat3 mat3MulMat3(Mat3 m1, Mat3 mat2);
   Vec3 mat3MulVec3(Mat3 m, Vec3 v);
@@ -260,8 +260,8 @@ extern "C" {
     float wx; float wy; float wz; float ww;
   } Mat4;
 
-  Mat4 mat4Id();
-  Mat4 mat4Zero();
+  Mat4 mat4Id(void);
+  Mat4 mat4Zero(void);
   Mat4 mat4New(float xx, float xy, float xz, float xw,
       float yx, float yy, float yz, float yw,
       float zx, float zy, float zz, float zw,

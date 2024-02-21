@@ -62,7 +62,7 @@ typedef struct
 // Renderer
 //
 
-bool ldkRendererInitialize()
+bool ldkRendererInitialize(void)
 {
   LDK_ASSERT(internal.initialized == false);
   internal.initialized = true;
@@ -73,7 +73,7 @@ bool ldkRendererInitialize()
   return success;
 }
 
-void ldkRendererTerminate()
+void ldkRendererTerminate(void)
 {
   if (!internal.initialized)
     return;
@@ -172,14 +172,13 @@ bool ldkShaderProgramCreate(const char* vs, const char* fs, const char* gs, LDKS
   return true;
 }
 
-bool ldkShaderDestroy(LDKShader* shader)
+void ldkShaderDestroy(LDKShader* shader)
 {
   if (!shader)
-    return false;
+    return;
 
   glDeleteProgram(shader->gl.id);
   shader->gl.id = 0;
-  return true;
 }
 
 static LDKMaterialParam* internalMaterialParamGet(LDKMaterial* material, const char* name, GLenum type)
@@ -292,10 +291,9 @@ bool ldkMaterialCreate(LDKShader* program, LDKMaterial* out)
   return true;
 }
 
-bool ldkMaterialDestroy(LDKMaterial* material)
+void ldkMaterialDestroy(LDKMaterial* material)
 {
-  //TODO(marcio): I need to decide if destroying a material will also causing it's shader and textures to be destroyed.
-  return true;
+  ldkAssetDispose(material);
 }
 
 bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value)
@@ -613,15 +611,15 @@ bool ldkTextureData(LDKTexture* texture, uint32 width, uint32 height, void* data
   return true;
 }
 
-bool ldkTextureDestroy(LDKTexture* texture)
+void ldkTextureDestroy(LDKTexture* texture)
 {
   if (!texture)
-    return false;
+    return;
 
   glDeleteTextures(1, &texture->gl.id);
   texture->gl.id = 0;
   texture->useMipmap = false;
-  return true;
+  return;
 }
 
 //
@@ -843,7 +841,7 @@ void internalRenderMesh(LDKStaticObject* entity)
   }
 }
 
-void ldkRendererRender()
+void ldkRendererRender(void)
 {
   uint32 count = (uint32) ldkArenaUsedGet(&internal.bucketROStaticMesh) / sizeof(LDKRenderObject);
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);

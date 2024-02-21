@@ -160,20 +160,12 @@ static struct
   HCURSOR defaultCursor;
   XInputGetStateFunc XInputGetState;
   XInputSetStateFunc XInputSetState;
-} internalOsWin32;
-
-#ifdef internal
-#undef internal
-#endif
-
-#define internal internalOsWin32
-
-//static LDKWin32Internal *internal = NULL;
+} internal;
 
 
 static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static bool internalXInputInit()
+static bool internalXInputInit(void)
 {
   memset(&internal.joysickState, 0, sizeof(internal.joysickState));
 
@@ -211,7 +203,7 @@ static bool internalXInputInit()
   return true;
 }
 
-static inline void internalXInputPollEvents()
+static inline void internalXInputPollEvents(void)
 {
   // get gamepad input
   for(int32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
@@ -335,7 +327,7 @@ inline static bool internalGraphicsApiIsOpengl(Win32GraphicsAPI api)
   return (api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
 }
 
-static LDKEvent* internalWin32EventNew()
+static LDKEvent* internalWin32EventNew(void)
 {
   if (internal.eventsCount >= LDK_WIN32_MAX_EVENTS)
   {
@@ -471,7 +463,7 @@ inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
 // Initialization
 //
 
-bool ldkOsInitialize()
+bool ldkOsInitialize(void)
 {
   //internal = (LDKWin32Internal*) ldkOsMemoryAlloc(sizeof(LDKWin32Internal));
   //memset(internal, 0, sizeof(LDKWin32Internal));
@@ -480,11 +472,11 @@ bool ldkOsInitialize()
   return true;
 }
 
-void ldkOsTerminate()
+void ldkOsTerminate(void)
 {
 }
 
-void ldkOsStackTracePrint()
+void ldkOsStackTracePrint(void)
 {
 #ifdef LDK_DEBUG
 
@@ -728,7 +720,7 @@ size_t ldkOsCwdSet(const char* path)
   return SetCurrentDirectory(path) != 0;
 }
 
-size_t ldkOsCwdSetFromExecutablePath()
+size_t ldkOsCwdSetFromExecutablePath(void)
 {
   LDKPath programPath;
   size_t bytesCopied = ldkOsExecutablePathGet(&programPath);
@@ -773,7 +765,7 @@ void* ldkOsMemoryResize(void* memory, size_t size)
 // Time
 //
 
-uint64 ldkOsTimeTicksGet()
+uint64 ldkOsTimeTicksGet(void)
 {
   LARGE_INTEGER counter;
   QueryPerformanceCounter(&counter);
@@ -1477,7 +1469,7 @@ bool ldkOsGraphicsVSyncSet(bool vsync)
   return false;
 }
 
-int32 ldkOsGraphicsVSyncGet()
+int32 ldkOsGraphicsVSyncGet(void)
 {
   if (internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
   {
@@ -1571,7 +1563,7 @@ float ldkOsJoystickAxisGet(LDKJoystickState* state, LDKJoystickAxis axis)
   return state->axis[axis];
 }
 
-uint32 ldkOsJoystickCount()
+uint32 ldkOsJoystickCount(void)
 {
   uint32 count = 0;
   for (uint32 i = 0; i < LDK_JOYSTICK_MAX; i++)
@@ -1590,7 +1582,6 @@ uint32 ldkOsJoystickIsConnected(LDKJoystickID id)
 
 void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
 {
-  const float almostZero = 0.0001f;
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   if (!internal.joysickState[id].connected)
     return;
@@ -1613,7 +1604,6 @@ void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
 
 void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
 {
-  const float almostZero = 0.0001f;
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   if (!internal.joysickState[id].connected)
     return;
@@ -1646,4 +1636,3 @@ float ldkOsJoystickVibrationRightGet(LDKJoystickID id)
   return internal.joysickState[id].vibrationRight;
 }
 
-#undef internal

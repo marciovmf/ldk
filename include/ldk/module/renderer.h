@@ -30,8 +30,8 @@ extern "C" {
     LDK_VERTEX_LAYOUT_PNTBU = 2,  // Position, Normal, Tangent, Binormal, UV
   } LDKVertexLayout;
 
-  LDK_API bool ldkRendererInitialize();
-  LDK_API void ldkRendererTerminate();
+  LDK_API bool ldkRendererInitialize(void);
+  LDK_API void ldkRendererTerminate(void);
 
   //
   // Shader
@@ -42,14 +42,14 @@ extern "C" {
   LDK_API bool ldkVertexShaderCreate(const char* source, LDKShader* shader);
   LDK_API bool ldkGeometryShaderCreate(const char* source, LDKShader* shader);
 
-  LDK_API bool ldkShaderDestroy(LDKShader* shader);
+  LDK_API void ldkShaderDestroy(LDKShader* shader);
   LDK_API bool ldkShaderProgramBind(LDKShader* shaderAsset); // Passing in NULL will unbind current Shader program
 
   //
   // Material
   //
   LDK_API bool ldkMaterialCreate(LDKShader* handle, LDKMaterial* out);
-  LDK_API bool ldkMaterialDestroy(LDKMaterial* material);
+  LDK_API void ldkMaterialDestroy(LDKMaterial* material);
   LDK_API bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value);
   LDK_API bool ldkMaterialParamSetFloat(LDKMaterial* material, const char* name, float value);
   LDK_API bool ldkMaterialParamSetVec2(LDKMaterial* material, const char* name, Vec2 value);
@@ -65,7 +65,7 @@ extern "C" {
 
   LDK_API bool ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam, LDKTexture* texture);
   LDK_API bool ldkTextureData(LDKTexture* texture, uint32 width, uint32 height, void* data, uint32 bitsPerPixel);
-  LDK_API bool ldkTextureDestroy(LDKTexture* texture);
+  LDK_API void ldkTextureDestroy(LDKTexture* texture);
 
 
   //
@@ -87,7 +87,7 @@ extern "C" {
   LDK_API void ldkRendererClearColor(LDKRGB color);
 
   LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
-  LDK_API void ldkRendererRender();
+  LDK_API void ldkRendererRender(void);
 
 #ifdef __cplusplus
 }

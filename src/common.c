@@ -31,7 +31,7 @@ bool ldkLogInitialize(const char* path, const char* initialMessage)
   return true;
 }
 
-void ldkLogTerminate()
+void ldkLogTerminate(void)
 {
   if (logFile_)
     fclose(logFile_);

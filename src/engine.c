@@ -20,14 +20,7 @@ static struct
 {
   bool running;
   int32 exitCode;
-} internalEngine = {0};
-
-#ifdef internal
-#undef internal
-#endif
-
-#define internal internalEngine
-
+} internal = {0};
 
 static void ldkOnSignal(int32 signal)
 {
@@ -59,7 +52,7 @@ void logModuleTerminate(const char* moduleName)
   ldkLogInfo("Terminating %s", moduleName);
 }
 
-bool ldkEngineInitialize()
+bool ldkEngineInitialize(void)
 {
   signal(SIGABRT, ldkOnSignal);
   signal(SIGFPE,  ldkOnSignal);
@@ -123,7 +116,7 @@ bool ldkEngineInitialize()
   return success;
 }
 
-void ldkEngineTerminate()
+void ldkEngineTerminate(void)
 {
   logModuleTerminate("Renderer");
   ldkRendererTerminate();
@@ -138,7 +131,7 @@ void ldkEngineTerminate()
   ldkOsTerminate();
 }
 
-LDK_API int32 ldkEngineRun()
+LDK_API int32 ldkEngineRun(void)
 {
   internal.running = true;
   while (internal.running)
@@ -174,6 +167,4 @@ void ldkEngineStop(int32 exitCode)
   internal.exitCode = exitCode;
   internal.running = false;
 }
-
-#undef internal
 

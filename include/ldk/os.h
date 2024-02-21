@@ -35,9 +35,9 @@ extern "C" {
   // Initialization / Termination
   //
 
-  LDK_API bool ldkOsInitialize();
-  LDK_API void ldkOsTerminate();
-  LDK_API void ldkOsStackTracePrint();
+  LDK_API bool ldkOsInitialize(void);
+  LDK_API void ldkOsTerminate(void);
+  LDK_API void ldkOsStackTracePrint(void);
 
   //
   // Filesytem
@@ -59,7 +59,7 @@ extern "C" {
   //
   LDK_API size_t  ldkOsCwdGet(LDKPath* path);
   LDK_API size_t  ldkOsCwdSet(const char* path);
-  LDK_API size_t  ldkOsCwdSetFromExecutablePath();
+  LDK_API size_t  ldkOsCwdSetFromExecutablePath(void);
 
   //
   // Path
@@ -77,7 +77,7 @@ extern "C" {
   //
   // Time
   //
-  LDK_API uint64  ldkOsTimeTicksGet();
+  LDK_API uint64  ldkOsTimeTicksGet(void);
   LDK_API double  ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end);
   LDK_API double  ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end);
   LDK_API double  ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end);
@@ -136,7 +136,7 @@ extern "C" {
   LDK_API void    ldkOsGraphicsContextCurrent(LDKWindow window, LDKGCtx context);
   LDK_API void    ldkOsGraphicsContextDestroy(LDKGCtx context);
   LDK_API bool    ldkOsGraphicsVSyncSet(bool vsync);
-  LDK_API int32   ldkOsGraphicsVSyncGet();
+  LDK_API int32   ldkOsGraphicsVSyncGet(void);
 
   //
   // Misc
@@ -399,7 +399,7 @@ extern "C" {
   LDK_API bool ldkOsJoystickButtonDown(LDKJoystickState* state, LDKJoystickButton key);
   LDK_API bool ldkOsJoystickButtonUp(LDKJoystickState* state, LDKJoystickButton key);
   LDK_API float ldkOsJoystickAxisGet(LDKJoystickState* state, LDKJoystickAxis key);
-  LDK_API uint32 ldkOsJoystickCount();
+  LDK_API uint32 ldkOsJoystickCount(void);
   LDK_API uint32 ldkOsJoystickIsConnected(LDKJoystickID id);
 
   LDK_API void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed);

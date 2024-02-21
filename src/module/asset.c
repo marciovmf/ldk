@@ -46,15 +46,14 @@ static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtension)
   return NULL;
 }
 
-
-bool ldkAssetInitialize()
+bool ldkAssetInitialize(void)
 {
   internal.assetMap = ldkHashMapCreate((ldkHashMapHashFunc) ldkHashStr, ldkHashMapStrCompareFunc);
   bool success = internal.assetMap != NULL;
   return success;
 }
 
-void ldkAssetTerminate()
+void ldkAssetTerminate(void)
 {
   for(uint32 i = 0; i < internal.numHandlers; i++)
   {
@@ -67,8 +66,7 @@ void ldkAssetTerminate()
 
 bool ldkAssetHandlerIsRegistered(const char* fileExtension)
 {
-  LDK_NOT_IMPLEMENTED();
-  return false;
+  return internalAssetHandlerGet(fileExtension) != NULL;
 }
 
 bool ldkAssetHandlerRegisterNew(LDKTypeId typeId, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc, uint32 capacity, const char* ext, ...)
@@ -174,12 +172,27 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
 
   ldkPath(&asset->path, path);
-  asset->hash = ldkHashStr(path);
-  asset->loadTime = ldkOsTimeTicksGet();
+
+  LDKHash hash = ldkHashStr(path);
+  uint64 loadTime = ldkOsTimeTicksGet();
+
+
+  // Set asset information so user code read it if necessary
+  asset->hash = hash;
+  asset->loadTime = loadTime;
   asset->assetType = handler->assetTypeId;
   asset->handle = hAsset;
   asset->handlerId = handler->handlerId;
+
+  // Call user code to initialize the asset
   handler->loadFunc(path, asset);
+
+  // We set up everything again, in case user code has messed up anything
+  asset->hash = hash;
+  asset->loadTime = loadTime;
+  asset->assetType = handler->assetTypeId;
+  asset->handle = hAsset;
+  asset->handlerId = handler->handlerId;
 
   char* key = _strdup(path);
   ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
