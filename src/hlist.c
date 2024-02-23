@@ -83,9 +83,6 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
 
   slotPtr->elementIndex = hlist->elementCount - 1;
 
-  // gets the element this slot points to
-  byte* element = ((byte*) ldkArenaDataGet(&hlist->elements)) + slotPtr->elementIndex;
-
   // Create a handle to the element
   LDKHandleInfo hInfo;
   hInfo.type = hlist->elementType;
@@ -144,6 +141,11 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
   SlotInfo* allSlots = (SlotInfo*) ldkArenaDataGet(&hlist->slots);
   SlotInfo* slotOfLast    = allSlots + (elementCount-1);
   SlotInfo* slotOfRemoved = allSlots + hInfo.slotIndex;
+
+  // Prevent deleting from an outdated handle
+  if (slotOfRemoved->version != hInfo.version)
+    return false;
+
   ++slotOfRemoved->version;
 
   if (slotOfRemoved != slotOfLast)
@@ -188,4 +190,11 @@ bool ldkHListDestroy(LDKHList* hlist)
   hlist->freeSlotListCount = 0;
   hlist->freeSlotListStart = -1;
   return true;
+}
+
+LDKTypeId ldkHandleType(LDKHandle handle)
+{
+  LDKHandleInfo hInfo;
+  handle_decode(&hInfo, handle);
+  return hInfo.type;
 }

@@ -1,10 +1,16 @@
+/**
+ * mesh.h
+ *
+ * Asset handler for .mesh asset files.
+ */
+
 #ifndef LDK_MESH_H
 #define LDK_MESH_H
 
 #include "common.h"
 #include "maths.h"
 #include "material.h"
-#include "../module/renderer.h"
+#include "../module/asset.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,10 +25,11 @@ extern "C" {
 
   typedef struct
   {
+    LDK_DECLARE_ASSET;
     LDKVertexBuffer   vBuffer;
     float*            vertices;
     uint16*           indices;
-    LDKHMaterial*     materials;
+    LDKHandle*        materials;
     LDKSurface*       surfaces;
     LDKBoundingBox    boundingBox;
     LDKBoundingSphere boundingSphere;
@@ -33,10 +40,8 @@ extern "C" {
   } LDKMesh;
 
 
-  LDK_API LDKHMesh ldkAssetMeshLoadFunc(const char* path);
-  LDK_API void ldkAssetMeshUnloadFunc(LDKHMesh handle);
-  LDK_API LDKVertexBuffer ldkAssetMeshGetVertexBuffer(LDKHMesh handle);
-  LDK_API LDKMesh* ldkAssetMeshGetPointer(LDKHMesh handle);
+  LDK_API bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset);
+  LDK_API void ldkAssetMeshUnloadFunc(LDKAsset asset);
 
 #ifdef __cplusplus
 }

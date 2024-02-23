@@ -4,28 +4,24 @@
  * 
  * Provides a high-level rendering API for the engine.
  * Separates and encapsulates Graphics API-specific code, allowing the engine to
- *  function without being tied to any particular Graphics API.
+ * function without being tied to any particular Graphics API.
  */
 
 #ifndef LDK_RENDER_H
 #define LDK_RENDER_H
 
+#include "../common.h"
 #include "../entity/camera.h"
+#include "../entity/staticobject.h"
+#include "../asset/shader.h"
+#include "../asset/material.h"
+#include "../asset/mesh.h"
 #include "../maths.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-  typedef LDKHandle LDKHMaterial;
-  typedef LDKHandle LDKHShader;
-  typedef LDKHandle LDKHShaderProgram;
-  typedef LDKHandle LDKHMesh;
-  typedef LDKHandle LDKHTexture;
-
-  typedef void* LDKVertexBuffer;
-  //TODO: replace by typedef struct LDKIndexBuffer;
-  typedef void* LDKIndexBuffer;
 
   typedef enum
   {
@@ -34,76 +30,42 @@ extern "C" {
     LDK_VERTEX_LAYOUT_PNTBU = 2,  // Position, Normal, Tangent, Binormal, UV
   } LDKVertexLayout;
 
-  typedef struct
-  {
-    float minX;
-    float minY;
-    float maxX;
-    float maxY;
-  }LDKBoundingBox;
-
-  typedef struct
-  {
-    Vec3 center;
-    float radius;
-  }LDKBoundingSphere;
-
-  LDK_API bool ldkRendererInitialize();
-  LDK_API void ldkRendererTerminate();
+  LDK_API bool ldkRendererInitialize(void);
+  LDK_API void ldkRendererTerminate(void);
 
   //
   // Shader
   //
-  LDK_API LDKHShaderProgram ldkShaderProgramCreate(LDKHShader handleVs, LDKHShader handleFs, LDKHShader handleGs);
-  LDK_API LDKHShader ldkFragmentShaderCreate(const char* source);
-  LDK_API LDKHShader ldkVertexShaderCreate(const char* source);
-  LDK_API LDKHShader ldkGeometryShaderCreate(const char* source);
 
-  LDK_API bool ldkShaderDestroy(LDKHShader handle);
-  LDK_API bool ldkShaderProgramDestroy(LDKHShaderProgram handle);
-  LDK_API bool ldkShaderProgramBind(LDKHShaderProgram handle); // Passing in NULL will unbind current Shader program
+  LDK_API bool ldkShaderProgramCreate(const char* vs, const char* fs, const char* gs, LDKShader* out);
+  LDK_API bool ldkFragmentShaderCreate(const char* source, LDKShader* shader);
+  LDK_API bool ldkVertexShaderCreate(const char* source, LDKShader* shader);
+  LDK_API bool ldkGeometryShaderCreate(const char* source, LDKShader* shader);
+
+  LDK_API void ldkShaderDestroy(LDKShader* shader);
+  LDK_API bool ldkShaderProgramBind(LDKShader* shaderAsset); // Passing in NULL will unbind current Shader program
 
   //
   // Material
   //
-  LDK_API LDKHMaterial ldkMaterialCreate(LDKHShaderProgram handle, const char* name);
-  LDK_API bool ldkMaterialDestroy(LDKHMaterial handle);
-  LDK_API bool ldkMaterialParamSetInt(LDKHMaterial handle, const char* name, int value);
-  LDK_API bool ldkMaterialParamSetFloat(LDKHMaterial handle, const char* name, float value);
-  LDK_API bool ldkMaterialParamSetVec2(LDKHMaterial handle, const char* name, Vec2 value);
-  LDK_API bool ldkMaterialParamSetVec3(LDKHMaterial handle, const char* name, Vec3 value);
-  LDK_API bool ldkMaterialParamSetVec4(LDKHMaterial handle, const char* name, Vec4 value);
-  LDK_API bool ldkMaterialParamSetTexture(LDKHMaterial handle, const char* name, LDKHTexture value);
-  LDK_API bool ldkMaterialBind(LDKHMaterial handle); // Passing in NULL will unbind current Material
+  LDK_API bool ldkMaterialCreate(LDKShader* handle, LDKMaterial* out);
+  LDK_API void ldkMaterialDestroy(LDKMaterial* material);
+  LDK_API bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value);
+  LDK_API bool ldkMaterialParamSetFloat(LDKMaterial* material, const char* name, float value);
+  LDK_API bool ldkMaterialParamSetVec2(LDKMaterial* material, const char* name, Vec2 value);
+  LDK_API bool ldkMaterialParamSetVec3(LDKMaterial* material, const char* name, Vec3 value);
+  LDK_API bool ldkMaterialParamSetVec4(LDKMaterial* material, const char* name, Vec4 value);
+  LDK_API bool ldkMaterialParamSetMat4(LDKMaterial* material, const char* name, Mat4 value);
+  LDK_API bool ldkMaterialParamSetTexture(LDKMaterial* handle, const char* name, LDKTexture* value);
+  LDK_API bool ldkMaterialBind(LDKMaterial* material); // Passing in NULL will unbind current Material
 
   //
   // Texture
   //
 
-  typedef enum
-  {
-    LDK_TEXTURE_WRAP_CLAMP_TO_EDGE   = 0,
-    LDK_TEXTURE_WRAP_CLAMP_TO_BORDER = 1,
-    LDK_TEXTURE_WRAP_MIRRORED_REPEAT = 2,
-    LDK_TEXTURE_WRAP_REPEAT          = 3,
-  } LDKTextureParamWrap;
-
-  typedef enum
-  {
-    LDK_TEXTURE_FILTER_LINEAR        = 0,
-    LDK_TEXTURE_FILTER_NEAREST       = 1,
-  } LDKTextureParamFilter;
-
-  typedef enum
-  {
-    LDK_TEXTURE_MIPMAP_MODE_NONE     = 0,
-    LDK_TEXTURE_MIPMAP_MODE_NEAREST  = 1,
-    LDK_TEXTURE_MIPMAP_MODE_LINEAR   = 2,
-  } LDKTextureParamMipmap;
-
-  LDK_API LDKHTexture ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam);
-  LDK_API bool ldkTextureData(LDKHTexture handle, uint32 width, uint32 height, void* data, uint32 bitsPerPixel);
-  LDK_API bool ldkTextureDestroy(LDKHTexture handle);
+  LDK_API bool ldkTextureCreate(LDKTextureParamMipmap mipmapModeParam, LDKTextureParamWrap wrapParam, LDKTextureParamFilter filterMinParam, LDKTextureParamFilter filterMaxParam, LDKTexture* texture);
+  LDK_API bool ldkTextureData(LDKTexture* texture, uint32 width, uint32 height, void* data, uint32 bitsPerPixel);
+  LDK_API void ldkTextureDestroy(LDKTexture* texture);
 
 
   //
@@ -120,12 +82,12 @@ extern "C" {
   //
   // Rendering
   //
-  LDK_API void ldkRenderMesh(LDKHMesh mesh);
+  LDK_API void ldkRenderMesh(LDKMesh* mesh);
   LDK_API void ldkRendererCameraSet(LDKCamera* camera);
   LDK_API void ldkRendererClearColor(LDKRGB color);
 
-  LDK_API void ldkRendererAddStaticMesh(LDKHMesh hStaticMesh);
-  LDK_API void ldkRendererRender();
+  LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
+  LDK_API void ldkRendererRender(void);
 
 #ifdef __cplusplus
 }

@@ -54,12 +54,12 @@ Vec2 vec2(float x, float y)
   return v;
 }
 
-Vec2 vec2Zero()
+Vec2 vec2Zero(void)
 {
   return vec2(0, 0);
 }
 
-Vec2 vec2One()
+Vec2 vec2One(void)
 {
   return vec2(1, 1);
 }
@@ -258,17 +258,17 @@ Vec3 vec3(float x, float y, float z)
   return v;
 }
 
-inline Vec3 vec3Zero()
+Vec3 vec3Zero(void)
 {
   return vec3(0, 0, 0);
 }
 
-inline Vec3 vec3One()
+Vec3 vec3One(void)
 {
   return vec3(1, 1, 1);
 }
 
-Vec3 vec3Up()
+Vec3 vec3Up(void)
 {
   return vec3(0, 1, 0);
 }
@@ -488,17 +488,17 @@ Vec4 vec4(float x, float y, float z, float w)
   return v;
 }
 
-Vec4 vec4Zero()
+Vec4 vec4Zero(void)
 {
   return vec4(0, 0, 0, 0);
 }
 
-Vec4 vec4One()
+Vec4 vec4One(void)
 {
   return vec4(1, 1, 1, 1);
 }
 
-Vec4 vec4Red()
+Vec4 vec4Red(void)
 {
   return vec4(1,0,0,1);
 }
@@ -740,7 +740,7 @@ Quat quat(float x, float y, float z, float w)
   return q;
 }
 
-Quat quatId()
+Quat quatId(void)
 {
   return quat(0, 0, 0, 1);
 }
@@ -1084,7 +1084,7 @@ QuatDual quatDual(Quat real, Quat dual)
   return qd;
 }
 
-QuatDual quatDualId()
+QuatDual quatDualId(void)
 {
   return quatDual(quatId(), vec4Zero());
 }
@@ -1148,7 +1148,7 @@ Vec3 quatDualMulVec3Rot(QuatDual q, Vec3 v)
 // Mat2
 //
 
-Mat2 mat2Id()
+Mat2 mat2Id(void)
 {
   Mat2 mat;
   mat.xx = 1.0f; mat.xy = 0.0f;
@@ -1156,7 +1156,7 @@ Mat2 mat2Id()
   return mat;
 }
 
-Mat2 mat2Zero()
+Mat2 mat2Zero(void)
 {
   Mat2 mat;
   mat.xx = 0.0f; mat.xy = 0.0f;
@@ -1259,7 +1259,7 @@ Mat2 mat2Rotation(float a)
 // Mat3
 //
 
-Mat3 mat3Zero()
+Mat3 mat3Zero(void)
 {
   Mat3 mat;
 
@@ -1278,7 +1278,7 @@ Mat3 mat3Zero()
   return mat;
 }
 
-Mat3 mat3Id()
+Mat3 mat3Id(void)
 {
   Mat3 mat;
 
@@ -1500,7 +1500,7 @@ Mat3 mat3RotationAngleAxis(float a, Vec3 v)
 // Mat4
 //
 
-Mat4 mat4Zero()
+Mat4 mat4Zero(void)
 {
   Mat4 mat;
 
@@ -1527,16 +1527,14 @@ Mat4 mat4Zero()
   return mat;
 }
 
-Mat4 mat4Id(){
-
+Mat4 mat4Id(void)
+{
   Mat4 mat = mat4Zero();
 
   mat.xx = 1.0f;
   mat.yy = 1.0f;
   mat.zz = 1.0f;
   mat.ww = 1.0f;
-
-
   return mat;
 }
 
@@ -2148,3 +2146,4 @@ Mat4 mat4Smoothstep(Mat4 m1, Mat4 m2, float amount)
 
   return m;
 }
+

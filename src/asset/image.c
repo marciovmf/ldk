@@ -18,19 +18,23 @@
 #define STBI_REALLOC ldkOsMemoryResize
 #include "../depend/stb_image.h"
 
+static uint32 magentaPixel = 0xFFFF00FF;
 
-LDKHImage ldkAssetImageLoadFunc(const char* path)
+bool ldkAssetImageLoadFunc(const char* path, LDKAsset asset)
 {
   size_t fileSize;
   unsigned char* fileMemory = ldkOsFileReadOffset(path, &fileSize, 0, 0);
-
   if (fileMemory == NULL)
   {
-    ldkLogError("Unable to load image '%s'", path);
-    return LDK_HANDLE_INVALID;
+    LDKImage* image = (LDKImage*) asset;
+    image->data = (unsigned char*) &magentaPixel;
+    image->width = 1;
+    image->height = 1;
+    image->raw = true;
+    return false;
   }
 
-  LDKImage* image = (LDKImage*) ldkOsMemoryAlloc(sizeof(LDKImage));
+  LDKImage* image = (LDKImage*) asset;
 
   if (ldkGraphicsApiName() & LDK_GRAPHICS_OPENGL)
     stbi_set_flip_vertically_on_load(true);
@@ -38,16 +42,19 @@ LDKHImage ldkAssetImageLoadFunc(const char* path)
   image->data = stbi_load_from_memory(fileMemory, (int) fileSize,
       (int32*) &image->width, (int32*) &image->height, NULL, 4);
   ldkOsMemoryFree(fileMemory);
-  return (LDKHImage) image;
+  return true;
 }
 
-void ldkAssetImageUnloadFunc(LDKHImage image)
+void ldkAssetImageUnloadFunc(LDKAsset asset)
 {
-  ldkOsMemoryFree((LDKImage*) image);
-}
+  LDKImage* image = (LDKImage*) asset;
 
-LDKImage* ldkAssetImageGetPointer(LDKHImage handle)
-{
-  return (LDKImage*) handle;
+  if (image->data == (unsigned char*) &magentaPixel) 
+    return;
+
+  if (image->raw)
+    ldkOsMemoryFree(image->data);
+  else
+    stbi_image_free(image->data);
 }
 

@@ -3,30 +3,29 @@
 #include "ldk/common.h"
 #include "ldk/os.h"
 
-LDKHShader ldkAssetShaderLoadFunc(const char* path)
+bool ldkAssetShaderLoadFunc(const char* path, LDKAsset asset)
 {
+  bool success = true;
   size_t fileSize = 0;
   byte* buffer = ldkOsFileReadOffset(path, &fileSize, 1, 0);
   if (buffer == NULL)
   {
     ldkLogError("Unable to read shader file '%s'", path);
-    return LDK_HANDLE_INVALID;
+    return false;
   }
 
   buffer[fileSize] = 0;
-  LDKHShader handle = LDK_HANDLE_INVALID;
+  LDKShader* shader = (LDKShader*) asset;
 
-  if (ldkStringEndsWith(path, ".fs"))
+  bool hasGeometryShader = false;
+  if (ldkStringEndsWith(path, ".shader"))
   {
-    handle = ldkFragmentShaderCreate((const char*) buffer);
-  }
-  else if(ldkStringEndsWith(path, ".vs"))
-  {
-    handle = ldkVertexShaderCreate((const char*) buffer);
-  }
-  else if(ldkStringEndsWith(path, ".gs"))
-  {
-    handle = ldkGeometryShaderCreate((const char*) buffer);
+    if (ldkStringStartsWith((const char*) buffer, "//@use-geomety-shader"))
+    {
+      hasGeometryShader = true;
+    }
+    const char* src = (const char*) buffer;
+    success &= ldkShaderProgramCreate(src, src, hasGeometryShader ? src : NULL, shader);
   }
   else
   {
@@ -35,10 +34,10 @@ LDKHShader ldkAssetShaderLoadFunc(const char* path)
   }
 
   ldkOsMemoryFree(buffer);
-  return handle;
+  return success;
 }
 
-void ldkAssetShaderUnloadFunc(LDKHShader handle)
+void ldkAssetShaderUnloadFunc(LDKAsset asset)
 {
-  ldkShaderDestroy(handle);
+  LDK_NOT_IMPLEMENTED();
 }

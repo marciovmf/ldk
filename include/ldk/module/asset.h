@@ -4,7 +4,7 @@
  *
  * Interface for retrieveing assets by name.
  * If an asset is not already loaded, the asset manager will look for an asset
- * handler for the specific asset's file extention.
+ * handler for the specific asset file extention.
  */
 
 #ifndef LDK_ASSET_H
@@ -12,19 +12,59 @@
 
 #include "../common.h"
 
+#ifndef LDK_ASSET_FILE_EXTENTION_MAX_LENGTH
+#define LDK_ASSET_FILE_EXTENTION_MAX_LENGTH 32
+#endif
+
+#ifndef LDK_ASSET_MAX_HANDLERS
+#define LDK_ASSET_MAX_HANDLERS 32
+#endif
+
+#ifndef LDK_ASSET_HANDLER_MAX_EXTENSIONS
+#define LDK_ASSET_HANDLER_MAX_EXTENSIONS 8
+#endif
+
+#ifndef LDK_ASSET_INFO_INITIAL_CAPACITY
+#define LDK_ASSET_INFO_INITIAL_CAPACITY 32
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-  typedef LDKHandle (*LDKAssetHandlerLoadFunc) (const char* path);
-  typedef void (*LDKAssetHandlerUnloadFunc) (LDKHandle handle);
 
-  LDK_API bool ldkAssetInitialize();
-  LDK_API void ldkAssetTerminate();
-  LDK_API bool ldkAssetHandlerIsRegistered(const char* fileExtention);
-  LDK_API bool ldkAssetHandlerRegister(LDKTypeId id, const char* fileExtention, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc);
-  LDK_API LDKHandle ldkAssetGet(const char* path);
-  LDK_API void ldkAssetDispose(LDKHandle handle);
+  typedef struct
+  {
+    LDKPath   path;
+    LDKTypeId assetType;
+    LDKHandle handle;
+    LDKHash   hash;
+    uint64    loadTime;
+    uint32    handlerId;    // Index of the handler on the handler list
+  } LDKAssetInfo;
+
+  /*
+   * This macro must be included inside the declaration of an asset structure
+   * to ensure the entity contains an LDKAssetInfo struct;
+   */
+#define LDK_DECLARE_ASSET LDKAssetInfo asset
+
+#define ldkAssetGet(type, path) ((type*) ldkAssetGetByType(typeid(type), path))
+#define ldkAssetLookup(type, handle) (type*) ldkAssetLookupType(typeid(type), handle)
+
+#define ldkAssetHandlerRegister(type, loadFunc, unloadFunc, capacity,  ...) ldkAssetHandlerRegisterNew(typeid(type), loadFunc, unloadFunc, capacity, __VA_ARGS__, NULL)
+
+  typedef void* LDKAsset;
+  typedef bool (*LDKAssetHandlerLoadFunc) (const char* path, LDKAsset asset);
+  typedef void (*LDKAssetHandlerUnloadFunc) (LDKAsset asset);
+
+  LDK_API bool ldkAssetInitialize(void);
+  LDK_API void ldkAssetTerminate(void);
+  LDK_API bool ldkAssetHandlerIsRegistered(const char* fileExtension);
+  LDK_API bool ldkAssetHandlerRegisterNew(LDKTypeId id, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc, uint32 capacity, const char* ext, ...);
+  LDK_API LDKAsset ldkAssetGetByType(LDKTypeId typeId, const char* path);
+  LDK_API void ldkAssetDispose(LDKAsset asset);
+  LDK_API LDKAsset ldkAssetLookupType(LDKTypeId type, LDKHandle handle);
 
 
 #ifdef __cplusplus

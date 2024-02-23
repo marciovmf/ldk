@@ -31,7 +31,7 @@ bool ldkLogInitialize(const char* path, const char* initialMessage)
   return true;
 }
 
-void ldkLogTerminate()
+void ldkLogTerminate(void)
 {
   if (logFile_)
     fclose(logFile_);
@@ -126,7 +126,7 @@ LDKTypeId ldkTypeId(const char* name, size_t size)
     ldkLogError("Could not register type '%s' as the type is too long. Maximum supportd is %d)", (LDK_TYPE_NAME_MAX_LENGTH - 1));
     return LDK_TYPE_ID_UNKNOWN;
   }
- 
+
   uint32 typeId = ldkTypeCatalog_.count++;
   strncpy((char*) &ldkTypeCatalog_.type[typeId].name, name, LDK_TYPE_NAME_MAX_LENGTH);
   ldkTypeCatalog_.type[typeId].size = size;

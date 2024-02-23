@@ -2,203 +2,242 @@
 #include "ldk/os.h"
 #include "ldk/module/asset.h"
 #include "ldk/arena.h"
+#include "ldk/hashmap.h"
+#include "ldk/hlist.h"
+#include <stdbool.h>
 #include <string.h>
-
-#ifndef LDK_ASSET_FILE_EXTENTION_MAX_LENGTH
-#define LDK_ASSET_FILE_EXTENTION_MAX_LENGTH 32
-#endif
-
-#ifndef LDK_ASSET_MAX_HANDLERS
-#define LDK_ASSET_MAX_HANDLERS 32
-#endif
-
-#ifndef LDK_ASSET_INFO_INITIAL_CAPACITY
-#define LDK_ASSET_INFO_INITIAL_CAPACITY 32
-#endif
+#include <stdarg.h>
+#include <vadefs.h>
 
 typedef struct
 {
-  char fileExtention[LDK_ASSET_FILE_EXTENTION_MAX_LENGTH];
+  char fileExtension[LDK_ASSET_HANDLER_MAX_EXTENSIONS][LDK_ASSET_FILE_EXTENTION_MAX_LENGTH];
   LDKAssetHandlerLoadFunc loadFunc;
   LDKAssetHandlerUnloadFunc unloadFunc;
+  LDKHList assets;
   LDKTypeId assetTypeId;
   uint32 handlerId;     //Index of this handler on the handler list
+  uint32 numExtensions;
 } LDKAssetHandler;
-
-typedef struct
-{
-  LDKPath   path;
-  LDKTypeId assetType;
-  LDKHandle handle;
-  LDKHash   hash;
-  uint64    loadTime;
-  uint32    handlerId;    //Index of the handler on the handler list
-} LDKAssetInfo;
 
 static struct
 {
   LDKAssetHandler handlers[LDK_ASSET_MAX_HANDLERS];
-  LDKArena assetInfoList;           // List of assetInfo
-  LDKArena recycledAssetInfoIndex;  // List of assetInfo slots to be reused
-  uint32 numRecycled;               // How many recycled assetInfo entries are there
+  LDKHashMap* assetMap;              // Maps asset names to asset handle
   uint32 numHandlers;
 } internal = { 0 };
 
-static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtention)
+
+static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtension)
 {
+  if (!fileExtension)
+    return NULL;
+
+  //TODO(marcio): Should I use a dictionary here ?
   for (uint32 i = 0; i < internal.numHandlers; i++)
   {
-    if(strncmp((char*) &internal.handlers[i].fileExtention, fileExtention, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH) == 0)
+    LDKAssetHandler* handler = &internal.handlers[i];
+
+    for (uint32 extIndex = 0; extIndex < handler->numExtensions; extIndex++)
     {
-      return &internal.handlers[i];
+      if(strncmp((char*) &handler->fileExtension[extIndex], fileExtension, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH) == 0)
+      {
+        return handler;
+      }
     }
+  }
+  return NULL;
+}
+
+bool ldkAssetInitialize(void)
+{
+  internal.assetMap = ldkHashMapCreate((ldkHashMapHashFunc) ldkHashStr, ldkHashMapStrCompareFunc);
+  bool success = internal.assetMap != NULL;
+  return success;
+}
+
+void ldkAssetTerminate(void)
+{
+  for(uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    LDKAssetHandler handler = internal.handlers[i];
+    ldkHListDestroy(&handler.assets);
+  }
+
+  ldkHashMapDestroy(internal.assetMap);
+}
+
+bool ldkAssetHandlerIsRegistered(const char* fileExtension)
+{
+  return internalAssetHandlerGet(fileExtension) != NULL;
+}
+
+bool ldkAssetHandlerRegisterNew(LDKTypeId typeId, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc, uint32 capacity, const char* ext, ...)
+{
+  if (internal.numHandlers >= (LDK_ASSET_MAX_HANDLERS - 1))
+  {
+    ldkLogError("Unable to register handler for  '%s'. The maximum number of handlers (%d) was reached.", ldkTypeName(typeId), LDK_ASSET_MAX_HANDLERS);
+    return false;
+  }
+
+  for(uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    if (internal.handlers[i].assetTypeId == typeId)
+    {
+      ldkLogError("A handler for Asset type '%s' is already registered", ldkTypeName(typeId));
+      return false;
+    }
+  }
+
+  va_list args;
+  va_start(args, ext);
+  bool success = true;
+
+  const uint32 handlerId = internal.numHandlers;
+  LDKAssetHandler* handler = &internal.handlers[handlerId];
+  handler->assetTypeId = typeId;
+  handler->loadFunc = loadFunc;
+  handler->unloadFunc = unloadFunc;
+  handler->handlerId = handlerId;
+  handler->numExtensions = 0;
+
+  const char* fileExtension = ext;
+
+  while(1)
+  {
+    if (!fileExtension)
+      break;
+
+    LDKAssetHandler* existingHandler = internalAssetHandlerGet(ext);
+    if (existingHandler)
+    {
+      ldkLogError("A handler for type file extention '%s' is already registered and associated with '%s' types",
+          fileExtension, ldkTypeName(handler->assetTypeId));
+      success = false;
+      break;
+    }
+
+    if (strlen(fileExtension) >= LDK_ASSET_FILE_EXTENTION_MAX_LENGTH)
+    {
+      ldkLogError("Unable to register handler for file extention '%s'. The maximum length of an asset file extention is (%d).",
+          fileExtension, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH);
+      success = false;
+      break;
+    }
+
+    if (handler->numExtensions >= LDK_ASSET_HANDLER_MAX_EXTENSIONS)
+    {
+      ldkLogError("Unable to register handler for file extention '%s'. The maximum number file extentions is per handler was reached (%d).",
+          fileExtension, LDK_ASSET_HANDLER_MAX_EXTENSIONS);
+      success = false;
+      break;
+    }
+
+    uint32 extensionIndex = handler->numExtensions++;
+    strncpy(handler->fileExtension[extensionIndex], fileExtension, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH);
+
+    fileExtension = va_arg(args, const char*);
+    if (!fileExtension)
+      break;
+  }
+
+  if (success)
+  {
+    success &= ldkHListCreate(&handler->assets, typeId, typesize(typeId), capacity);
+    if (success)
+      internal.numHandlers++;
+  }
+
+  va_end(args);
+  return success;
+}
+
+LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
+{
+  LDKHandle handle = (LDKHandle) ldkHashMapGet(internal.assetMap, (void*) path);
+
+  if (handle)
+  {
+    return ldkAssetLookupType(id, handle);
+  }
+
+  LDKSubStr extention = ldkPathFileExtentionGetSubstring(path);
+  LDKAssetHandler* handler = internalAssetHandlerGet(extention.ptr);
+
+  if (handler == NULL)
+  {
+    ldkLogError("There are no handlers for files with extention '%s'", extention);
+    return NULL;
+  }
+
+  // Add if not found
+  LDKHandle hAsset = ldkHListReserve(&handler->assets);
+  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
+
+  ldkPath(&asset->path, path);
+
+  LDKHash hash = ldkHashStr(path);
+  uint64 loadTime = ldkOsTimeTicksGet();
+
+  // Set asset information so user code read it if necessary
+  asset->hash = hash;
+  asset->loadTime = loadTime;
+  asset->assetType = handler->assetTypeId;
+  asset->handle = hAsset;
+  asset->handlerId = handler->handlerId;
+
+  // Call user code to initialize the asset
+  bool success = handler->loadFunc(path, asset);
+
+  // We set up everything again, in case user code has messed up anything
+  asset->hash = hash;
+  asset->loadTime = loadTime;
+  asset->assetType = handler->assetTypeId;
+  asset->handle = hAsset;
+  asset->handlerId = handler->handlerId;
+
+  char* key = _strdup(path);
+  ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
+
+  if (!success)
+    ldkLogError("Failed to load %s", path);
+#ifdef LDK_DEBUG
+  else
+    ldkLogInfo("Loaded %s", path);
+#endif
+
+  return asset;
+}
+
+static void disposeHashmapKey(void* key, void* value)
+{
+  free(key);
+}
+
+void ldkAssetDispose(LDKAsset asset)
+{
+  if (!asset)
+    return;
+
+  LDKAssetInfo* assetInfo = (LDKAssetInfo*) asset;
+  internal.handlers[assetInfo->handlerId].unloadFunc(asset);
+  ldkHashMapRemoveWith(internal.assetMap, &assetInfo->path, disposeHashmapKey);
+}
+
+LDKAsset ldkAssetLookupType(LDKTypeId typeId, LDKHandle handle)
+{
+  LDKTypeId handleType = ldkHandleType(handle);
+
+  for (uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    LDKAssetHandler* handler = &internal.handlers[i];
+    if (handler->assetTypeId != handleType)
+      continue;
+
+    return ldkHListLookup(&handler->assets, handle);
   }
 
   return NULL;
 }
 
-static inline void internalAssetInfoRecycle(uint32 index)
-{
-  uint32* mem = (uint32*) ldkArenaAllocate(&internal.recycledAssetInfoIndex, sizeof(uint32));
-  *mem = index;
-  internal.numRecycled++;
-}
-
-static inline LDKAssetInfo* internalAssetInfoGetNewOrRecycled()
-{
-  if (internal.numRecycled == 0)
-  {
-    return (LDKAssetInfo*) ldkArenaAllocate(&internal.assetInfoList, sizeof(LDKAssetInfo));
-  }
-
-  uint32* indexArray = (uint32*) ldkArenaDataGet(&internal.recycledAssetInfoIndex);
-  uint32 lastIndex = indexArray[internal.numRecycled - 1];
-  ldkArenaFree(&internal.recycledAssetInfoIndex, sizeof(uint32));
-  internal.numRecycled--;
-
-  LDKAssetInfo* assetInfoArray = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
-  LDKAssetInfo* recycledAssetInfo = &assetInfoArray[lastIndex];
-  return recycledAssetInfo;
-}
-
-bool ldkAssetInitialize()
-{
-  if (internal.assetInfoList.bufferSize != 0)
-  {
-    return false;
-  }
-
-  ldkArenaCreate(&internal.assetInfoList, LDK_ASSET_INFO_INITIAL_CAPACITY * sizeof(LDKAssetInfo));
-  ldkArenaCreate(&internal.recycledAssetInfoIndex, LDK_ASSET_INFO_INITIAL_CAPACITY * sizeof(uint32));
-  return true;
-}
-
-void ldkAssetTerminate()
-{
-  const uint32 numAssets = (uint32) (ldkArenaUsedGet(&internal.assetInfoList) / sizeof(LDKAssetInfo));
-  LDKAssetInfo* assetInfo = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
-
-  // is it really necessary ?
-  for(uint32 i = 0; i < numAssets; i++)
-  {
-    LDKAssetHandler* handler = &internal.handlers[assetInfo->handlerId];
-    handler->unloadFunc(assetInfo->handle);
-    assetInfo++;
-  }
-
-  ldkArenaDestroy(&internal.assetInfoList);
-}
-
-bool ldkAssetHandlerIsRegistered(const char* fileExtention)
-{
-  return internalAssetHandlerGet(fileExtention) != NULL;
-}
-
-bool ldkAssetHandlerRegister(LDKTypeId id, const char* fileExtention, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc)
-{
-  LDKAssetHandler* handler = internalAssetHandlerGet(fileExtention);
-  if (handler != NULL)
-  {
-    ldkLogError("A handler for type file extention '%s' is already registered and associated with '%s' types",
-        fileExtention, ldkTypeName(handler->assetTypeId));
-    return false;
-  }
-
-  if (internal.numHandlers >= (LDK_ASSET_MAX_HANDLERS - 1))
-  {
-    ldkLogError("Unable to register handler for file extention '%s'. The maximum number of handlers (%d) was reached.",
-        fileExtention, LDK_ASSET_MAX_HANDLERS);
-    return false;
-  }
-
-  if (strlen(fileExtention) >= LDK_ASSET_FILE_EXTENTION_MAX_LENGTH)
-  {
-    ldkLogError("Unable to register handler for file extention '%s'. The maximum length of an asset file extention is (%d).",
-        fileExtention, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH);
-    return false;
-  }
-
-  const uint32 handlerId = internal.numHandlers++;
-  handler = &internal.handlers[handlerId];
-  strncpy(handler->fileExtention, fileExtention, LDK_ASSET_FILE_EXTENTION_MAX_LENGTH);
-  handler->assetTypeId = id;
-  handler->loadFunc = loadFunc;
-  handler->unloadFunc = unloadFunc;
-  handler->handlerId = handlerId;
-  return true;
-}
-
-LDKHandle ldkAssetGet(const char* path)
-{
-  LDKSubStr extention = ldkPathFileExtentionGetSubstring(path);
-  LDKAssetHandler* handler = internalAssetHandlerGet(extention.ptr);
-  const uint32 numAssets = (uint32) (ldkArenaUsedGet(&internal.assetInfoList) / sizeof(LDKAssetInfo));
-
-  if (handler == NULL)
-  {
-    ldkLogError("There are no handlers for files with extention '%s'", extention);
-    return LDK_HANDLE_INVALID;
-  }
-
-  // Find asset
-  LDKHash hash = ldkHashStr(path);
-  LDKAssetInfo* assetInfo = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
-  for (uint32 i = 0; i < numAssets; i++)
-  {
-    if (assetInfo->hash == hash && strncmp(path, assetInfo->path.path, assetInfo->path.length) == 0)
-      return assetInfo->handle;
-
-    assetInfo++;
-  }
-
-  // Add if not found
-  ldkLogInfo("Loading asset %s", path);
-  assetInfo = internalAssetInfoGetNewOrRecycled();
-  ldkPath(&assetInfo->path, path);
-  assetInfo->hash = hash;
-  assetInfo->loadTime = ldkOsTimeTicksGet();
-  assetInfo->assetType = handler->assetTypeId;
-  assetInfo->handle = handler->loadFunc(path);
-  assetInfo->handlerId = handler->handlerId;
-  return assetInfo->handle;
-}
-
-void ldkAssetDispose(LDKHandle handle)
-{
-  LDKAssetInfo* assetInfo = (LDKAssetInfo*) ldkArenaDataGet(&internal.assetInfoList);
-  const uint32 numAssets = (uint32) (ldkArenaUsedGet(&internal.assetInfoList) / sizeof(LDKAssetInfo));
-  for (uint32 i = 0; i < numAssets; i++)
-  {
-    if (assetInfo->handle == handle)
-    {
-      LDKAssetHandler* handler = &internal.handlers[assetInfo->handlerId];
-      LDK_ASSERT(handler->handlerId == assetInfo->handlerId);
-      handler->unloadFunc(handle);
-      memset(assetInfo, 0, sizeof(LDKAssetInfo));
-      internalAssetInfoRecycle(i);
-      break;
-    }
-    assetInfo++;
-  }
-}
 

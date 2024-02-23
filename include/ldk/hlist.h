@@ -74,6 +74,9 @@ extern "C" {
    */
   LDK_API bool ldkHListDestroy(LDKHList* hlist);
 
+
+  LDK_API LDKTypeId ldkHandleType(LDKHandle handle);
+
 #ifdef __cplusplus
 }
 #endif

@@ -3,30 +3,37 @@
  * ldk.h
  * 
  * This is the main public include for projects using this engine.
- * 
+ *
  */
 
 #ifndef LDK_H
 #define LDK_H
 
 /* Core */
-#include "common.h"
-#include "os.h"
-#include "gl.h"
-#include "maths.h"
-#include "engine.h"
-#include "eventqueue.h"
+#include <ldk/common.h>
+#include <ldk/os.h>
+#include <ldk/gl.h>
+#include <ldk/hlist.h>
+#include <ldk/maths.h>
+#include <ldk/engine.h>
+#include <ldk/eventqueue.h>
 
 /* Modules */
-#include "module/graphics.h"
-#include "module/renderer.h"
-#include "module/asset.h"
+#include <ldk/module/graphics.h>
+#include <ldk/module/entity.h>
+#include <ldk/module/renderer.h>
+#include <ldk/module/asset.h>
 
 /* Assets */
-#include "asset/shader.h"
-#include "asset/material.h"
-#include "asset/mesh.h"
-#include "asset/image.h"
-#include "asset/texture.h"
+#include <ldk/asset/shader.h>
+#include <ldk/asset/material.h>
+#include <ldk/asset/mesh.h>
+#include <ldk/asset/image.h>
+#include <ldk/asset/texture.h>
+
+/* Entities */
+#include <ldk/entity/camera.h>
+#include <ldk/entity/staticobject.h>
+
 
 #endif //LDK_H

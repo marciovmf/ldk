@@ -12,6 +12,7 @@ static struct
   uint32          numHandlers;
 } internal = { 0 };
 
+
 void ldkEventPush(LDKEvent* event)
 {
   uint32 index = internal.numEvents++;
@@ -23,7 +24,7 @@ void ldkEventPush(LDKEvent* event)
   memcpy((void*) &internal.events[index], event, sizeof(LDKEvent));
 }
 
-void ldkEventCleanup()
+void ldkEventCleanup(void)
 {
   internal.numEvents = 0;
 }
@@ -92,7 +93,7 @@ void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask)
   }
 }
 
-void ldkEventQueueBroadcast()
+void ldkEventQueueBroadcast(void)
 {
   if (internal.numHandlers == 0 || internal.numEvents == 0)
     return;
@@ -109,3 +110,4 @@ void ldkEventQueueBroadcast()
   } 
   internal.numEvents = 0;
 }
+

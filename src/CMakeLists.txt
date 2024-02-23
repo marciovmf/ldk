@@ -18,11 +18,13 @@ list(APPEND SOURCE
 
   # Entities
   ${INCLUDE_DIR}/entity/camera.h entity/camera.c
+  ${INCLUDE_DIR}/entity/staticobject.h entity/staticobject.c
 
   # Modules
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c
   ${INCLUDE_DIR}/module/asset.h module/asset.c
   ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
+  ${INCLUDE_DIR}/module/entity.h module/entity.c
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
   ${INCLUDE_DIR}/asset/material.h asset/material.c
   ${INCLUDE_DIR}/asset/image.h asset/image.c
@@ -46,11 +48,11 @@ endif()
 if(CMAKE_CONFIGURATION_TYPES)
   foreach(config ${CMAKE_CONFIGURATION_TYPES})
     if(NOT config STREQUAL "Release")
-    if(WIN32)
-      list(APPEND LIBS dbghelp.lib)
-    else()
-      target_compile_definitions(ldk PRIVATE LDK_DEBUG)
-    endif()
+      if(WIN32)
+        list(APPEND LIBS dbghelp.lib)
+      else()
+        target_compile_definitions(ldk PRIVATE LDK_DEBUG)
+      endif()
     endif()
   endforeach()
 else()
@@ -66,3 +68,4 @@ endif()
 
 target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
 target_link_libraries(ldk PRIVATE ${LIBS} ${OPENGL_LIBRARY})
+

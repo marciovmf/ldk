@@ -138,7 +138,7 @@ static struct
   };
 } win32GraphicsAPIInfo = {0};
 
-typedef struct 
+static struct 
 {
   LARGE_INTEGER frequency;
 
@@ -160,15 +160,14 @@ typedef struct
   HCURSOR defaultCursor;
   XInputGetStateFunc XInputGetState;
   XInputSetStateFunc XInputSetState;
-} LDKWin32Internal;
+} internal;
 
-static LDKWin32Internal *internal = NULL;
 
 static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static bool internalXInputInit(LDKWin32Internal* internal)
+static bool internalXInputInit(void)
 {
-  memset(internal->joysickState, 0, sizeof(internal->joysickState));
+  memset(&internal.joysickState, 0, sizeof(internal.joysickState));
 
   char* xInputDllName = "xinput1_1.dll"; 
   HMODULE hXInput = LoadLibraryA(xInputDllName);
@@ -187,33 +186,33 @@ static bool internalXInputInit(LDKWin32Internal* internal)
   if (!hXInput)
   {
     ldkLogError("could not initialize xinput. No valid xinput dll found");
-    internal->XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
-    internal->XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+    internal.XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
+    internal.XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
     return false;
   }
 
   //get xinput function pointers
-  internal->XInputGetState = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
-  internal->XInputSetState = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
+  internal.XInputGetState = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
+  internal.XInputSetState = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
 
-  if (!internal->XInputGetState)
-    internal->XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
+  if (!internal.XInputGetState)
+    internal.XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
 
-  if (!internal->XInputSetState)
-    internal->XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+  if (!internal.XInputSetState)
+    internal.XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
   return true;
 }
 
-static inline void internalXInputPollEvents()
+static inline void internalXInputPollEvents(void)
 {
   // get gamepad input
   for(int32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
   {
     XINPUT_STATE xinputState = {0};
-    LDKJoystickState* joystickState = &internal->joysickState[gamepadIndex];
+    LDKJoystickState* joystickState = &internal.joysickState[gamepadIndex];
 
     // ignore unconnected controllers
-    if (internal->XInputGetState(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
+    if (internal.XInputGetState(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
     {
       joystickState->connected = false;
       continue;
@@ -328,15 +327,15 @@ inline static bool internalGraphicsApiIsOpengl(Win32GraphicsAPI api)
   return (api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
 }
 
-static LDKEvent* internalWin32EventNew()
+static LDKEvent* internalWin32EventNew(void)
 {
-  if (internal->eventsCount >= LDK_WIN32_MAX_EVENTS)
+  if (internal.eventsCount >= LDK_WIN32_MAX_EVENTS)
   {
     ldkLogError("Reached the maximum number of OS events %d.", LDK_WIN32_MAX_EVENTS);
     return NULL;
   }
 
-  LDKEvent* eventPtr = &(internal->events[internal->eventsCount++]);
+  LDKEvent* eventPtr = &(internal.events[internal.eventsCount++]);
   return eventPtr;
 }
 
@@ -450,10 +449,10 @@ inline static bool internalOpenglInit(Win32GraphicsAPI api, int32 glVersionMajor
 
 inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
 {
-  for (uint32 i =0; i < internal->windowCount; i++)
+  for (uint32 i =0; i < internal.windowCount; i++)
   {
-    if ( internal->allHWND[i] == hWnd)
-      return internal->allWindows[i];
+    if ( internal.allHWND[i] == hWnd)
+      return internal.allWindows[i];
   }
 
   return NULL;
@@ -464,22 +463,20 @@ inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
 // Initialization
 //
 
-bool ldkOsInitialize()
+bool ldkOsInitialize(void)
 {
-  internal = (LDKWin32Internal*) ldkOsMemoryAlloc(sizeof(LDKWin32Internal));
-  memset(internal, 0, sizeof(LDKWin32Internal));
-  QueryPerformanceFrequency(&internal->frequency);
-  internalXInputInit(internal);
+  //internal = (LDKWin32Internal*) ldkOsMemoryAlloc(sizeof(LDKWin32Internal));
+  //memset(internal, 0, sizeof(LDKWin32Internal));
+  QueryPerformanceFrequency(&internal.frequency);
+  internalXInputInit();
   return true;
 }
 
-void ldkOsTerminate()
+void ldkOsTerminate(void)
 {
-  ldkOsMemoryFree(internal);
-  internal = NULL;
 }
 
-void ldkOsStackTracePrint()
+void ldkOsStackTracePrint(void)
 {
 #ifdef LDK_DEBUG
 
@@ -723,7 +720,7 @@ size_t ldkOsCwdSet(const char* path)
   return SetCurrentDirectory(path) != 0;
 }
 
-size_t ldkOsCwdSetFromExecutablePath()
+size_t ldkOsCwdSetFromExecutablePath(void)
 {
   LDKPath programPath;
   size_t bytesCopied = ldkOsExecutablePathGet(&programPath);
@@ -768,7 +765,7 @@ void* ldkOsMemoryResize(void* memory, size_t size)
 // Time
 //
 
-uint64 ldkOsTimeTicksGet()
+uint64 ldkOsTimeTicksGet(void)
 {
   LARGE_INTEGER counter;
   QueryPerformanceCounter(&counter);
@@ -777,19 +774,19 @@ uint64 ldkOsTimeTicksGet()
 
 double ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end)
 {
-  return ((end - start) / (double) internal->frequency.QuadPart);
+  return ((end - start) / (double) internal.frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end)
 {
   double difference = (end - start) * 1000.0;
-  return (difference / internal->frequency.QuadPart);
+  return (difference / internal.frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end)
 {
   double difference = (end - start) * 1000000000.0;
-  return (difference / internal->frequency.QuadPart);
+  return (difference / internal.frequency.QuadPart);
 }
 
 //
@@ -829,20 +826,20 @@ void LDK_API ldkOsGraphicsContextDestroy(LDKGCtx context)
 
 void ldkOsWindowDestroy(LDKWindow window)
 {
-  uint32 lastWindowIndex = internal->windowCount - 1;
-  for (uint32 i =0; i < internal->windowCount; i++)
+  uint32 lastWindowIndex = internal.windowCount - 1;
+  for (uint32 i =0; i < internal.windowCount; i++)
   {
-    if (internal->allWindows[i] == window)
+    if (internal.allWindows[i] == window)
     {
       if (i != lastWindowIndex)
       {
-        internal->allWindows[i] = internal->allWindows[lastWindowIndex];
-        internal->allHWND[i] = internal->allHWND[lastWindowIndex];
+        internal.allWindows[i] = internal.allWindows[lastWindowIndex];
+        internal.allHWND[i] = internal.allHWND[lastWindowIndex];
       }
 
-      internal->allWindows[lastWindowIndex] = NULL;
-      internal->allHWND[lastWindowIndex] = NULL;
-      internal->windowCount--;
+      internal.allWindows[lastWindowIndex] = NULL;
+      internal.allHWND[lastWindowIndex] = NULL;
+      internal.windowCount--;
       break;
     }
   }
@@ -855,7 +852,7 @@ void ldkOsWindowDestroy(LDKWindow window)
 
 LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 height, LDKWindowFlags flags)
 {
-  if (internal->windowCount > LDK_WIN32_MAX_WINDOWS)
+  if (internal.windowCount > LDK_WIN32_MAX_WINDOWS)
   {
     ldkLogError("Exceeded maximum number of windows %d", LDK_WIN32_MAX_WINDOWS);
     return NULL;
@@ -976,13 +973,13 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
     }
   }
 
-  if (internal->defaultCursor == 0)
-    internal->defaultCursor = LoadCursor(NULL, IDC_ARROW);
+  if (internal.defaultCursor == 0)
+    internal.defaultCursor = LoadCursor(NULL, IDC_ARROW);
 
-  SetCursor(internal->defaultCursor);
-  uint32 windowIndex = internal->windowCount++;
-  internal->allWindows[windowIndex] = window;
-  internal->allHWND[windowIndex] = window->handle;
+  SetCursor(internal.defaultCursor);
+  uint32 windowIndex = internal.windowCount++;
+  internal.allWindows[windowIndex] = window;
+  internal.allHWND[windowIndex] = window->handle;
   return window;
 }
 
@@ -1001,22 +998,22 @@ bool ldkOsEventsPoll(LDKEvent* event)
 {
   MSG msg;
 
-  if (internal->eventsCount == 0)
+  if (internal.eventsCount == 0)
   {
     // clean up changed bit for keyboard keys
     for(int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
     {
-      internal->keyboardState.key[keyCode] &= ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+      internal.keyboardState.key[keyCode] &= ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
     }
 
     // clean up changed bit for mouse buttons
     for(int button = 0; button <  LDK_MOUSE_MAX_BUTTONS; button++)
     {
-      internal->mouseState.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+      internal.mouseState.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
     }
 
     // reset wheel delta
-    internal->mouseState.wheelDelta = 0;
+    internal.mouseState.wheelDelta = 0;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
       TranslateMessage(&msg);
@@ -1029,22 +1026,22 @@ bool ldkOsEventsPoll(LDKEvent* event)
   {
     for(int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
     {
-      internal->joysickState[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+      internal.joysickState[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
     }
   }
 
   internalXInputPollEvents();
 
   // WindowProc might have enqueued some events...
-  if (internal->eventsPollIndex < internal->eventsCount)
+  if (internal.eventsPollIndex < internal.eventsCount)
   {
-    memcpy(event, &internal->events[internal->eventsPollIndex++], sizeof(LDKEvent));
+    memcpy(event, &internal.events[internal.eventsPollIndex++], sizeof(LDKEvent));
     return true;
   }
   else
   {
-    internal->eventsCount = 0;
-    internal->eventsPollIndex = 0;
+    internal.eventsCount = 0;
+    internal.eventsPollIndex = 0;
     event->type = LDK_EVENT_NONE;
     return false;
   }
@@ -1241,7 +1238,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         if(result == HTCLIENT && window->cursorChanged)
         {
           window->cursorChanged = false;
-          SetCursor(internal->defaultCursor);
+          SetCursor(internal.defaultCursor);
         }
         else
           window->cursorChanged = true;
@@ -1273,11 +1270,11 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         //WM_SIZE is sent a lot of times in a row and would easily overflow our
         //event buffer. We just update the last event if it is a LDK_EVENT_TYPE_WINDOW instead of adding a new event
         LDKEvent* e = NULL;
-        uint32 lastEventIndex = internal->eventsCount - 1;
-        if (internal->eventsCount > 0 && internal->events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
+        uint32 lastEventIndex = internal.eventsCount - 1;
+        if (internal.eventsCount > 0 && internal.events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
         {
-          if(internal->events[lastEventIndex].windowEvent.type == LDK_WINDOW_EVENT_RESIZED)
-            e = &internal->events[lastEventIndex];
+          if(internal.events[lastEventIndex].windowEvent.type == LDK_WINDOW_EVENT_RESIZED)
+            e = &internal.events[lastEventIndex];
         }
 
         if (e == NULL)
@@ -1299,7 +1296,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         int32 wasDown = (lParam & (1 << 30)) !=0;
         int32 state = (((isDown ^ wasDown) << 1) | isDown);
         int16 vkCode = (int16) wParam;
-        internal->keyboardState.key[vkCode] = (uint8) state;
+        internal.keyboardState.key[vkCode] = (uint8) state;
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_KEYBOARD;
@@ -1309,22 +1306,22 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
           LDK_KEYBOARD_EVENT_KEY_DOWN : LDK_KEYBOARD_EVENT_KEY_HOLD;
 
         e->keyboardEvent.keyCode      = vkCode;
-        e->keyboardEvent.ctrlIsDown   = internal->keyboardState.key[LDK_KEYCODE_CONTROL];
-        e->keyboardEvent.shiftIsDown  = internal->keyboardState.key[LDK_KEYCODE_SHIFT];
-        e->keyboardEvent.altIsDown    = internal->keyboardState.key[LDK_KEYCODE_ALT];
+        e->keyboardEvent.ctrlIsDown   = internal.keyboardState.key[LDK_KEYCODE_CONTROL];
+        e->keyboardEvent.shiftIsDown  = internal.keyboardState.key[LDK_KEYCODE_SHIFT];
+        e->keyboardEvent.altIsDown    = internal.keyboardState.key[LDK_KEYCODE_ALT];
       }
       break;
 
     case WM_MOUSEWHEEL:
       {
         int32 delta = GET_WHEEL_DELTA_WPARAM(wParam);
-        internal->mouseState.wheelDelta = delta;
+        internal.mouseState.wheelDelta = delta;
 
         // update cursor position
-        int32 lastX = internal->mouseState.cursor.x;
-        int32 lastY = internal->mouseState.cursor.y;
-        internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal->mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        int32 lastX = internal.mouseState.cursor.x;
+        int32 lastY = internal.mouseState.cursor.y;
+        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_WHEEL;
@@ -1341,10 +1338,10 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case WM_MOUSEMOVE:
       {
         // update cursor position
-        int32 lastX = internal->mouseState.cursor.x;
-        int32 lastY = internal->mouseState.cursor.y;
-        internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal->mouseState.cursor.y = GET_Y_LPARAM(lParam);
+        int32 lastX = internal.mouseState.cursor.x;
+        int32 lastY = internal.mouseState.cursor.y;
+        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam);
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_MOVE;
@@ -1378,11 +1375,11 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
         isMouseButtonDownEvent = uMsg == WM_XBUTTONDOWN || uMsg == WM_LBUTTONDOWN || uMsg == WM_MBUTTONDOWN || uMsg == WM_RBUTTONDOWN;
 
-        unsigned char* buttonLeft   = (unsigned char*) &(internal->mouseState.button[LDK_MOUSE_BUTTON_LEFT]);
-        unsigned char* buttonRight  = (unsigned char*) &(internal->mouseState.button[LDK_MOUSE_BUTTON_RIGHT]);
-        unsigned char* buttonMiddle = (unsigned char*) &(internal->mouseState.button[LDK_MOUSE_BUTTON_MIDDLE]);
-        unsigned char* buttonExtra1 = (unsigned char*) &(internal->mouseState.button[LDK_MOUSE_BUTTON_EXTRA_0]);
-        unsigned char* buttonExtra2 = (unsigned char*) &(internal->mouseState.button[LDK_MOUSE_BUTTON_EXTRA_1]);
+        unsigned char* buttonLeft   = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_LEFT]);
+        unsigned char* buttonRight  = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_RIGHT]);
+        unsigned char* buttonMiddle = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_MIDDLE]);
+        unsigned char* buttonExtra1 = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_0]);
+        unsigned char* buttonExtra2 = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_1]);
         unsigned char isDown, wasDown;
 
         isDown        = (unsigned char) ((wParam & MK_LBUTTON) > 0);
@@ -1406,10 +1403,10 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         *buttonExtra2 = (((isDown ^ wasDown) << 1) | isDown);
 
         // update cursor position
-        int32 lastX = internal->mouseState.cursor.x;
-        int32 lastY = internal->mouseState.cursor.y;
-        internal->mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal->mouseState.cursor.y = GET_Y_LPARAM(lParam);
+        int32 lastX = internal.mouseState.cursor.x;
+        int32 lastY = internal.mouseState.cursor.y;
+        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam);
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_BUTTON;
@@ -1472,7 +1469,7 @@ bool ldkOsGraphicsVSyncSet(bool vsync)
   return false;
 }
 
-int32 ldkOsGraphicsVSyncGet()
+int32 ldkOsGraphicsVSyncGet(void)
 {
   if (internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
   {
@@ -1488,7 +1485,7 @@ int32 ldkOsGraphicsVSyncGet()
 
 void ldkOsMouseStateGet(LDKMouseState* outState)
 {
-  memcpy(outState, &internal->mouseState, sizeof(LDKMouseState));
+  memcpy(outState, &internal.mouseState, sizeof(LDKMouseState));
 }
 
 bool ldkOsMouseButtonIsPressed(LDKMouseState* state, LDKMouseButton button)
@@ -1513,7 +1510,7 @@ bool ldkOsMouseButtonUp(LDKMouseState* state, LDKMouseButton button)
 
 void ldkOsKeyboardStateGet(LDKKeyboardState* outState)
 {
-  memcpy(outState, &internal->keyboardState, sizeof(LDKKeyboardState));
+  memcpy(outState, &internal.keyboardState, sizeof(LDKKeyboardState));
 }
 
 bool ldkOsKeyboardKeyIsPressed(LDKKeyboardState* state, LDKKeycode keycode)
@@ -1539,7 +1536,7 @@ bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode)
 void ldkOsJoystickGetState(LDKJoystickState* outState, LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  memcpy(outState, &internal->joysickState[id], sizeof(LDKJoystickState));
+  memcpy(outState, &internal.joysickState[id], sizeof(LDKJoystickState));
 }
 
 bool ldkOsJoystickButtonIsPressed(LDKJoystickState* state, LDKJoystickButton key)
@@ -1566,12 +1563,12 @@ float ldkOsJoystickAxisGet(LDKJoystickState* state, LDKJoystickAxis axis)
   return state->axis[axis];
 }
 
-uint32 ldkOsJoystickCount()
+uint32 ldkOsJoystickCount(void)
 {
   uint32 count = 0;
   for (uint32 i = 0; i < LDK_JOYSTICK_MAX; i++)
   {
-    if (internal->joysickState[i].connected)
+    if (internal.joysickState[i].connected)
       count++;
   }
   return count;
@@ -1579,15 +1576,14 @@ uint32 ldkOsJoystickCount()
 
 uint32 ldkOsJoystickIsConnected(LDKJoystickID id)
 {
-  const bool connected = (internal->joysickState[id].connected);
+  const bool connected = (internal.joysickState[id].connected);
   return connected;
 }
 
 void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
 {
-  const float almostZero = 0.0001f;
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  if (!internal->joysickState[id].connected)
+  if (!internal.joysickState[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
@@ -1595,22 +1591,21 @@ void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  internal->joysickState[id].vibrationLeft = speed;
+  internal.joysickState[id].vibrationLeft = speed;
 
   // xinput wants them as short int
   WORD shortIntSpeedLeft = (WORD) (0xFFFF * speed);
-  WORD shortIntSpeedRight = (WORD) (internal->joysickState[id].vibrationRight * 0XFFFF);
+  WORD shortIntSpeedRight = (WORD) (internal.joysickState[id].vibrationRight * 0XFFFF);
 
   vibration.wLeftMotorSpeed = shortIntSpeedLeft;
   vibration.wRightMotorSpeed = shortIntSpeedRight;
-  internal->XInputSetState(id, &vibration);
+  internal.XInputSetState(id, &vibration);
 }
 
 void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
 {
-  const float almostZero = 0.0001f;
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  if (!internal->joysickState[id].connected)
+  if (!internal.joysickState[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
@@ -1618,25 +1613,26 @@ void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  internal->joysickState[id].vibrationRight = speed;
+  internal.joysickState[id].vibrationRight = speed;
 
   // xinput wants them as short int
-  WORD shortIntSpeedLeft = (WORD) (internal->joysickState[id].vibrationLeft * 0XFFFF);
+  WORD shortIntSpeedLeft = (WORD) (internal.joysickState[id].vibrationLeft * 0XFFFF);
   WORD shortIntSpeedRight = (WORD) (0xFFFF * speed);
 
   vibration.wLeftMotorSpeed = shortIntSpeedLeft;
   vibration.wRightMotorSpeed = shortIntSpeedRight;
-  internal->XInputSetState(id, &vibration);
+  internal.XInputSetState(id, &vibration);
 }
 
 float ldkOsJoystickVibrationLeftGet(LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return internal->joysickState[id].vibrationLeft;
+  return internal.joysickState[id].vibrationLeft;
 }
 
 float ldkOsJoystickVibrationRightGet(LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return internal->joysickState[id].vibrationRight;
+  return internal.joysickState[id].vibrationRight;
 }
+

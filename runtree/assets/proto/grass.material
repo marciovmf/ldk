@@ -1,12 +1,11 @@
 # Lines starting with '#' are comments
-# Material file must start with shader entries. Format is:
-# xxx-shader: sources
+# Material file must start with shader entry
+# shader: <path to a .shader file>
 # Then parameters. (type name: values)
 # Examples:
 #   vec3 myVec3Var:       .0 .0 .0
 #   vec4 myVec4Var:       41.0 42.0 44.7 0.3
 #   float myFloatVar:     .42
 #   texture2d diffuse:    textures/checkers.texture
-vert-shader:          assets/default.vs
-frag-shader:          assets/default.fs
+shader:               assets/default.shader
 texture2d colorMap:   assets/proto/grass.texture
