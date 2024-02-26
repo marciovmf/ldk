@@ -39,6 +39,7 @@ extern "C" {
     {
       uint32    textureIndexValue;
       int       intValue;
+      uint32    uintValue;
       float     floatValue;
       Vec2      vec2Value;
       Vec3      vec3Value;

@@ -26,8 +26,20 @@ enum
   LDK_VERTEX_ATTRIBUTE_TEXCOORD = 4,
 };
 
-#define LDK_GL_ERROR_LOG_SIZE 1024
+typedef struct 
+{
+  float objectIndex;
+  float surfaceIndex;
+  float triangleIndex;
+} LDKPickingPixelInfo;
 
+typedef enum
+{
+  LDK_RENDER_STATIC_OBJECTS,
+  LDK_RENDER_PHASE_PICKING,
+} RenderPhase;
+
+#define LDK_GL_ERROR_LOG_SIZE 1024
 static struct 
 {
   bool initialized;
@@ -35,13 +47,26 @@ static struct
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArena bucketROStaticMesh;
   LDKCamera* camera;
-} internalRenderer = { 0 };
+  LDKMaterial* fixedMaterial;
+  float elapsedTime;
 
-#ifdef internal
-#undef internal
-#endif
+  RenderPhase phase;
 
-#define internal internalRenderer
+  // Picking
+  GLuint fboPicking;
+  GLuint texturePicking;
+  GLuint textureDepthPicking;
+  LDKHandle materialPickingHandle;
+
+  //GLuint uniformLocationObjIndex;
+  //GLuint uniformLocationSurfaceIndex;
+  //GLuint uniformLocationModelMatrix;
+  //GLuint uniformLocationViewMatrix;
+  //GLuint uniformLocationProjMatrix;
+  //GLuint shaderPicking;
+  LDKHandle selectedEntity;
+  uint32 selectedEntityIndex;
+} internal = { 0 };
 
 typedef enum
 {
@@ -62,6 +87,73 @@ typedef struct
 // Renderer
 //
 
+bool internalPickingFBOCreate(uint32 width, uint32 height)
+{
+  if (internal.fboPicking != 0)
+    return false;
+
+  bool success = false;
+  // Create the FBO
+  glGenFramebuffers(1, &internal.fboPicking);
+  glBindFramebuffer(GL_FRAMEBUFFER, internal.fboPicking);
+
+  // Create the texture object for the primitive information buffer
+  glGenTextures(1, &internal.texturePicking);
+  glBindTexture(GL_TEXTURE_2D, internal.texturePicking);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height,
+      0, GL_RGB, GL_FLOAT, NULL);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+      internal.texturePicking, 0);
+
+  // Create the texture object for the depth buffer
+  glGenTextures(1, &internal.textureDepthPicking);
+  glBindTexture(GL_TEXTURE_2D, internal.textureDepthPicking);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height,
+      0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+      internal.textureDepthPicking, 0);
+
+  // Disable reading to avoid problems with older GPUs
+  glReadBuffer(GL_NONE);
+
+  glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+  // Verify that the FBO is correct
+  GLenum Status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+  if (Status != GL_FRAMEBUFFER_COMPLETE) {
+    printf("FB error, status: 0x%x\n", Status);
+    success = false;
+  }
+
+  // Loads the picking shader
+  internal.materialPickingHandle = ldkAssetGet(LDKMaterial, "assets/picking.material")->asset.handle;
+//  internal.uniformLocationSurfaceIndex = glGetUniformLocation(shaderPicking->gl.id, (const char*) "surfaceIndex");
+//  internal.uniformLocationObjIndex = glGetUniformLocation(shaderPicking->gl.id, (const char*) "objectIndex");
+//  internal.uniformLocationModelMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*) "mModel");
+//  internal.uniformLocationViewMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*)"mView");
+//  internal.uniformLocationProjMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*) "mProj");
+
+  // Restore the default framebuffer
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  return success;
+}
+
+void internalPickingFBODEstroy()
+{
+  // the display can be resized befor we get initialized...
+  if (!internal.initialized)
+    return;
+
+  glDeleteTextures(1, &internal.texturePicking);
+  glDeleteTextures(1, &internal.textureDepthPicking);
+  glDeleteFramebuffers(1, &internal.fboPicking);
+  internal.fboPicking = 0;
+  internal.texturePicking = 0;
+  internal.textureDepthPicking = 0;
+}
+
 bool ldkRendererInitialize(void)
 {
   LDK_ASSERT(internal.initialized == false);
@@ -70,7 +162,19 @@ bool ldkRendererInitialize(void)
   internal.clearColor = (LDKRGB){0, 100, 120};
   success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
 
+  //
+  // Picking Framebuffer setup
+  //
+  LDKSize viewport = ldkGraphicsViewportSizeGet();
+  internalPickingFBOCreate(viewport.width, viewport.height);
   return success;
+}
+
+void ldkRendererResize(uint32 width, uint32 height)
+{
+  glViewport(0, 0, width, height);
+  internalPickingFBODEstroy();
+  internalPickingFBOCreate(width, height);
 }
 
 void ldkRendererTerminate(void)
@@ -271,6 +375,7 @@ bool ldkMaterialCreate(LDKShader* program, LDKMaterial* out)
         (char*) &out->param[i].name.str);
 
     if ( param->gl.type != GL_INT
+        && param->gl.type != GL_UNSIGNED_INT
         && param->gl.type != GL_FLOAT
         && param->gl.type != GL_FLOAT_VEC2
         && param->gl.type != GL_FLOAT_VEC3
@@ -305,6 +410,19 @@ bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value)
 
   param->intValue = value;
   glUniform1i(param->gl.location, value);
+  return true;
+}
+
+
+bool ldkMaterialParamSetUInt(LDKMaterial* material, const char* name, uint32 value)
+{
+  if (!material) return false;
+
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_UNSIGNED_INT);
+  if (!param) return false;
+
+  param->uintValue = value;
+  glUniform1ui(param->gl.location, value);
   return true;
 }
 
@@ -412,6 +530,10 @@ bool ldkMaterialBind(LDKMaterial* material)
     {
       case GL_INT:
         ldkMaterialParamSetInt(material, param->name.str, param->intValue);
+        break;
+
+      case GL_UNSIGNED_INT:
+        ldkMaterialParamSetUInt(material, param->name.str, param->intValue);
         break;
 
       case GL_FLOAT:
@@ -832,22 +954,41 @@ void internalRenderMesh(LDKStaticObject* entity)
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
     LDKSurface* surface = &mesh->surfaces[i];
-    LDKHandle hMaterial = mesh->materials[surface->materialIndex];
-    LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
-    ldkMaterialBind(material);
     Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
+    LDKMaterial* material = NULL;
+
+    // if rendering with picking material, we set the surface index
+    if (internal.fixedMaterial) 
+    {
+      if (internal.fixedMaterial->asset.handle == internal.materialPickingHandle)
+        ldkMaterialParamSetUInt(internal.fixedMaterial, "surfaceIndex", i);
+
+      material = internal.fixedMaterial;
+    }
+    else
+    {
+      LDKHandle hMaterial = mesh->materials[surface->materialIndex];
+      material = ldkAssetLookup(LDKMaterial, hMaterial);
+      ldkMaterialBind(material);
+    }
+
     ldkMaterialParamSetMat4(material, "mModel", world);
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
 }
 
-void ldkRendererRender(void)
+void ldkRendererRender(float deltaTime)
 {
+  internal.elapsedTime += deltaTime;
+
   uint32 count = (uint32) ldkArenaUsedGet(&internal.bucketROStaticMesh) / sizeof(LDKRenderObject);
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  internal.fixedMaterial = NULL;
 
+  glEnable(GL_BLEND);
   glEnable(GL_CULL_FACE);
   glEnable(GL_DEPTH_TEST); 
+  glDepthFunc(GL_LEQUAL);
   glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -858,8 +999,98 @@ void ldkRendererRender(void)
     ro++;
   }
 
+#if 0
+
+  //
+  // Picking
+  //
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
+  internal.fixedMaterial = ldkAssetLookup(LDKMaterial, internal.materialPickingHandle);
+  ldkMaterialBind(internal.fixedMaterial);
+
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  for(uint32 i = 0; i < count; i++)
+  {
+    ldkMaterialParamSetUInt(internal.fixedMaterial, "objectIndex", i + 1);
+    internalRenderMesh(ro->staticMesh);
+    ro++;
+  }
+
+  //
+  // Selection highlight
+  //
+
+  ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  LDKMouseState mouseState;
+
+  ldkOsMouseStateGet(&mouseState);
+  if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    int x = mouseState.cursor.x;
+    int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
+
+    LDKPickingPixelInfo pixelInfo;
+
+    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelInfo);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+    uint32 objectIndex = (uint32) pixelInfo.objectIndex;
+
+    if (objectIndex > 0)
+    {
+      internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
+    }
+    else
+    {
+      internal.selectedEntity = LDK_HANDLE_INVALID; 
+    }
+  }
+
+  // Unbind the picking framebuffer
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+  if (internal.selectedEntity != LDK_HANDLE_INVALID)
+  {
+    LDKStaticObject* staticObject = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
+    if (staticObject)
+    {
+      // Turn on wireframe mode
+      internal.fixedMaterial = ldkAssetGet(LDKMaterial, "assets/solid-color.material");
+      ldkMaterialBind(internal.fixedMaterial);
+      ldkMaterialParamSetFloat(internal.fixedMaterial, "deltaTime", internal.elapsedTime);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+      glLineWidth(3.0);
+
+      // Highlight the selected entity
+      internalRenderMesh(staticObject);
+
+      // Turn off wireframe mode
+      internal.fixedMaterial = NULL;
+      glLineWidth(1.0);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+    else
+    {
+      internal.selectedEntity = LDK_HANDLE_INVALID;
+    }
+  }
+
+#endif
+
   ldkArenaReset(&internal.bucketROStaticMesh);
+
   ldkMaterialBind(0);
   ldkVertexBufferBind(0);
 }
 
+LDKHandle ldkRendererSelectedEntity(void)
+{
+  return internal.selectedEntity;
+}

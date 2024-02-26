@@ -10,7 +10,7 @@ static struct
   int32 multiSampleLevel;
 } internal;
 
-bool ldkGraphicsInitialize(LDKGraphicsAPI api)
+bool ldkGraphicsInitialize(LDKGraphicsAPI api, uint32 width, uint32 height)
 {
   //TODO(marcio): Where should we get these parameters from ?
   const int32 colorBits = 24;
@@ -37,7 +37,7 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api)
       break;
   }
 
-  internal.mainWindow = ldkOsWindowCreate("LDK", 800, 600);
+  internal.mainWindow = ldkOsWindowCreate("LDK", width, height);
   ldkOsGraphicsContextCurrent(internal.mainWindow, internal.context);
   bool success = internal.context != NULL;
 

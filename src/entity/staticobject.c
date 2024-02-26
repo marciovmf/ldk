@@ -7,6 +7,7 @@ LDKStaticObject* ldkStaticObjectEntityCreate(LDKStaticObject* entity)
   entity->position = vec3Zero();
   entity->scale = vec3One();
   entity->rotation = quatId();
+  entity->mesh = LDK_HANDLE_INVALID;
   return entity;
 }
 

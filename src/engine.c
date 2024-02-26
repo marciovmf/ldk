@@ -22,7 +22,7 @@ static struct
   int32 exitCode;
 } internal = {0};
 
-static void ldkOnSignal(int32 signal)
+static void internalOnSignal(int32 signal)
 {
   const char* signalName = "Unknown signal";
   switch(signal)
@@ -41,6 +41,21 @@ static void ldkOnSignal(int32 signal)
   ldkEngineTerminate();
 }
 
+static bool internalEventHandler(const LDKEvent* event, void* data)
+{
+  if (!internal.running)
+    return false;
+
+  if (event->windowEvent.type == LDK_WINDOW_EVENT_RESIZED || event->windowEvent.type == LDK_WINDOW_EVENT_MAXIMIZED)
+  {
+    uint32 width = event->windowEvent.width;
+    uint32 height = event->windowEvent.height;
+    if (width && height)
+      ldkRendererResize(width, height);
+  }
+  return false;
+}
+
 void logModuleInit(const char* moduleName, bool success)
 {
   uint32 dotsCount = 25 - (int32) strlen(moduleName) - 4;
@@ -54,12 +69,12 @@ void logModuleTerminate(const char* moduleName)
 
 bool ldkEngineInitialize(void)
 {
-  signal(SIGABRT, ldkOnSignal);
-  signal(SIGFPE,  ldkOnSignal);
-  signal(SIGILL,  ldkOnSignal);
-  signal(SIGINT,  ldkOnSignal);
-  signal(SIGSEGV, ldkOnSignal);
-  signal(SIGTERM, ldkOnSignal);
+  signal(SIGABRT, internalOnSignal);
+  signal(SIGFPE,  internalOnSignal);
+  signal(SIGILL,  internalOnSignal);
+  signal(SIGINT,  internalOnSignal);
+  signal(SIGSEGV, internalOnSignal);
+  signal(SIGTERM, internalOnSignal);
 
   ldkOsInitialize();
   ldkOsCwdSetFromExecutablePath();
@@ -100,7 +115,8 @@ bool ldkEngineInitialize(void)
   logModuleInit("Entity Manager", stepSuccess);
 
   // Startup Graphics
-  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3);
+  //TODO(marcio): Get initial display width and height from a config file
+  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3, 1920, 1080);
   success &= stepSuccess;
   logModuleInit("Graphics", stepSuccess);
 
@@ -113,6 +129,9 @@ bool ldkEngineInitialize(void)
   logModuleInit("LDK", success);
 
   lkdGraphicsInfoPrint();
+
+  ldkEventHandlerAdd(internalEventHandler, LDK_EVENT_TYPE_WINDOW, NULL);
+
   return success;
 }
 
@@ -134,6 +153,7 @@ void ldkEngineTerminate(void)
 LDK_API int32 ldkEngineRun(void)
 {
   internal.running = true;
+
   while (internal.running)
   {
     LDKEvent event;

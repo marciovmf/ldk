@@ -10,7 +10,6 @@
 
 typedef struct
 {
-  LDKHandle hObjToDelete;
   LDKMaterial material;
   LDKHandle hCamera;
   uint64 ticksStart;
@@ -36,7 +35,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
     Vec3 cam_dir = ldkCameraDirectionNormalized(camera);
     Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-    const float speed = 0.001f * state->deltaTime;
+    const float speed = 5.0f * state->deltaTime;
 
     if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
     {
@@ -66,7 +65,12 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
   {
-    ldkEntityDestroy(state->hObjToDelete);
+    LDKHandle targetEntity = ldkRendererSelectedEntity();
+    if (targetEntity != LDK_HANDLE_INVALID)
+    {
+      ldkLogInfo("Destroying entity %llx", targetEntity);
+      ldkEntityDestroy(targetEntity);
+    }
   }
 
   // Stop on ESC
@@ -82,8 +86,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
 bool onMouseEvent(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
-  const float speed = 0.001f * state->deltaTime;
-  const float lookSpeed = 0.0001f * state->deltaTime;
+  const float speed = 5.0f * state->deltaTime;
 
   if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON)
   {
@@ -112,9 +115,9 @@ bool onMouseEvent(const LDKEvent* event, void* data)
 
   if (state->looking)
   {
-    cam_dir.y += -(event->mouseEvent.yRel * speed);
+    cam_dir.y += -(event->mouseEvent.yRel * state->deltaTime * speed);
 
-    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, (event->mouseEvent.xRel * lookSpeed)));
+    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, (event->mouseEvent.xRel* state->deltaTime * speed)));
     camera->target = vec3Add(camera->position, vec3Normalize(cam_dir));
   }
 
@@ -190,7 +193,7 @@ bool onFrameEvent(const LDKEvent* event, void* data)
   if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
   {
     double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(state->ticksStart, state->ticksEnd);
-    state->deltaTime = (float) delta;
+    state->deltaTime = (float) delta / 1000;
     state->ticksStart = ldkOsTimeTicksGet();
 
     ldkRendererCameraSet(camera);
@@ -200,7 +203,7 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     for (uint32 i = 0; i < numObjects; i++)
       ldkRendererAddStaticObject(&allStaticObjects[i]);
 
-    ldkRendererRender();
+    ldkRendererRender(state->deltaTime);
   }
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
   {
@@ -234,22 +237,23 @@ int main(void)
   //
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
-  camera->position = vec3(0.0f, 1.0f, 2.0f);
+  camera->position = vec3(-19.0f, 7.0f, -1.0f);
 
-  LDKStaticObject* obj = ldkEntityCreate(LDKStaticObject);
-  LDKMesh* mesh = ldkAssetGet(LDKMesh, "assets/dock.mesh");
-  obj->mesh = mesh->asset.handle;
-  obj->scale = vec3(3.0f, 3.0f, 3.0f);
 
-  obj = ldkEntityCreate(LDKStaticObject);
-  mesh = ldkAssetGet(LDKMesh, "assets/dock.mesh");
-  obj->mesh = mesh->asset.handle;
-  obj->position.x = 5.0f;
-  obj->scale = vec3(3.0f, 3.0f, 3.0f);
+  for(uint32 i = 0; i < 10; i++)
+  {
+    LDKStaticObject* obj = ldkEntityCreate(LDKStaticObject);
+    LDKMesh* mesh = ldkAssetGet(LDKMesh, "assets/dock.mesh");
+    obj->mesh = mesh->asset.handle;
+
+    float f = 3.0f + (0.5f * i);
+    obj->scale = vec3(f, f, f);
+    obj->position.z = -25.0f + (i * 5);
+    obj->position.z = -25.0f + i * f;
+  }
 
   // We should never keep pointers to entities. Intead, we keep their Handle
   state.hCamera = camera->entity.handle;
-  state.hObjToDelete = obj->entity.handle;
 
   return ldkEngineRun();
 }

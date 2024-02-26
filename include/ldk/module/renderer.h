@@ -31,6 +31,7 @@ extern "C" {
   } LDKVertexLayout;
 
   LDK_API bool ldkRendererInitialize(void);
+  LDK_API void ldkRendererResize(uint32 width, uint32 height);
   LDK_API void ldkRendererTerminate(void);
 
   //
@@ -87,7 +88,16 @@ extern "C" {
   LDK_API void ldkRendererClearColor(LDKRGB color);
 
   LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
-  LDK_API void ldkRendererRender(void);
+  LDK_API void ldkRendererRender(float deltaTime);
+
+
+  //
+  // Editor
+  //
+
+  // Call this function once per frame when detecting click over the scene.
+  // This call is relatively slow.
+  LDK_API LDKHandle ldkRendererSelectedEntity(void);
 
 #ifdef __cplusplus
 }
