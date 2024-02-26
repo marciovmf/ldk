@@ -18,8 +18,9 @@ extern "C" {
 
   typedef struct
   {
-    LDKArena      slots;
-    LDKArena      elements;
+    LDKArena      slots;        // a list of slot information. It maps a slot index to an element index.
+    LDKArena      revSlots;     // a list of indexes to the slots list. It maps an element index to a slot index.
+    LDKArena      elements;     // a list of actual elements stored.
     size_t        elementSize;
     uint32        elementCount;
     uint32        freeSlotListCount;

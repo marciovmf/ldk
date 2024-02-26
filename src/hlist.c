@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <memory.h>
 
-
 /* Internals */
 
 // A SlotInfo holds the index of the actual element in a LDKHandleList
@@ -46,8 +45,9 @@ bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int
   hlist->freeSlotListCount = 0;
   hlist->freeSlotListStart = 0;
   bool success = true;
-  success &= ldkArenaCreate(&hlist->elements,  count * elementSize);
-  success &= ldkArenaCreate(&hlist->slots,      count * sizeof(SlotInfo));
+  success &= ldkArenaCreate(&hlist->elements, count * elementSize);
+  success &= ldkArenaCreate(&hlist->slots, count * sizeof(SlotInfo));
+  success &= ldkArenaCreate(&hlist->revSlots, count * sizeof(uint32));
   return success;
 }
 
@@ -63,6 +63,10 @@ byte* ldkHListArrayGet(const LDKHList* hlist)
 
 LDKHandle ldkHListReserve(LDKHList* hlist)
 {
+  // A slot is identified by its index. It's contet points to an element.
+  // A revSlot (reverseSlot) is identitied by its index. It's conent points to a slot.
+  // Reverse slots are becessary to allow us to find the the slot from an arbitrary data index.
+
   SlotInfo* slotPtr;
   hlist->elementCount++;
 
@@ -90,6 +94,11 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
   // Get the index of current slot based on it's address.
   hInfo.slotIndex = ((int32)((byte*) (slotPtr) - (byte*) ldkArenaDataGet(&hlist->slots)) / sizeof(SlotInfo));
   hInfo.version = slotPtr->version;
+
+  // The reverse slot list keeps, at the same index as the data, the index of the slot pointing to the data.
+  uint32* revSlot = ((uint32*) ldkArenaDataGet(&hlist->revSlots)) + slotPtr->elementIndex;
+  *revSlot = hInfo.slotIndex;
+
   return handle_encode(&hInfo);
 }
 
@@ -137,9 +146,10 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
   if (hInfo.type != hlist->elementType)
     return false;
 
-  const uint32 elementCount = hlist->elementCount;
   SlotInfo* allSlots = (SlotInfo*) ldkArenaDataGet(&hlist->slots);
-  SlotInfo* slotOfLast    = allSlots + (elementCount-1);
+  uint32* allRevSlots = (uint32*) ldkArenaDataGet(&hlist->revSlots);
+  uint32 indexOfSlotOfLast = *(allRevSlots + (hlist->elementCount - 1));
+  SlotInfo* slotOfLast = allSlots + indexOfSlotOfLast;
   SlotInfo* slotOfRemoved = allSlots + hInfo.slotIndex;
 
   // Prevent deleting from an outdated handle
@@ -157,10 +167,12 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
     void* elementLast    = dataPtr + (slotOfLast->elementIndex * elementSize);
     void* elementRemoved = dataPtr + (slotOfRemoved->elementIndex * elementSize);
     memcpy(elementRemoved, elementLast, elementSize);
+    slotOfLast->elementIndex = slotOfRemoved->elementIndex;
+    allRevSlots[slotOfRemoved->elementIndex] = indexOfSlotOfLast;
   }
 
   slotOfRemoved->nextFreeSlotIndex = hlist->freeSlotListStart;
-  hlist->freeSlotListStart = hInfo.slotIndex;
+  hlist->freeSlotListStart = hInfo.slotIndex; 
   hlist->freeSlotListCount++;
   hlist->elementCount--;
   return true;
