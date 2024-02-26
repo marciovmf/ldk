@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <memory.h>
 
+
 /* Internals */
 
 // A SlotInfo holds the index of the actual element in a LDKHandleList
@@ -19,22 +20,23 @@ typedef struct
 // A struct that holds the same information as a LDKHandle.
 typedef struct
 {
-  LDKHandleType  type;
-  uint16      version;
   uint32      slotIndex;
+  uint16      version;
+  LDKHandleType  type; //16bit
 } LDKHandleInfo;
 
 inline static LDKHandle handle_encode(LDKHandleInfo* hInternal)
 {
-  LDKHandle handle = ((uint64_t) hInternal->type << 48) | ((uint64_t) hInternal->version << 32) | hInternal->slotIndex;
+  LDKHandle handle = ((uint64_t) hInternal->version << 48) | ((uint64_t) hInternal->slotIndex << 16) | hInternal->type;
   return handle;
 }
 
 inline static void handle_decode(LDKHandleInfo* hInfo, LDKHandle handle)
 {
-  hInfo->type       = (uint16_t)((handle >> 48) & 0xFFFF);
-  hInfo->version    = (uint16_t)((handle >> 32) & 0xFFFF);
-  hInfo->slotIndex  = (uint32_t)(handle & 0xFFFFFFFF);
+  hInfo->type       = (uint16)(handle & 0xFFFF);
+  hInfo->slotIndex  = (uint32_t)((handle >> 16) & 0xFFFFFFFF);
+  hInfo->version    = (uint16_t)((handle >> 48) & 0xFFFF);
+
 }
 
 bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
@@ -65,7 +67,8 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
 {
   // A slot is identified by its index. It's contet points to an element.
   // A revSlot (reverseSlot) is identitied by its index. It's conent points to a slot.
-  // Reverse slots are becessary to allow us to find the the slot from an arbitrary data index.
+  // Reverse slots are becessary to allow us to find the the slot from an
+  // arbitrary data index.
 
   SlotInfo* slotPtr;
   hlist->elementCount++;
