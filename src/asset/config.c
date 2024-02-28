@@ -32,7 +32,6 @@ static char* internalSkipWhiteSpace(char* input)
   return p;
 }
 
-
 bool ldkAssetConfigLoadFunc(const char* path, LDKAsset asset)
 {
   bool success = true;
@@ -150,7 +149,7 @@ int64 ldkConfigGetLong(LDKConfig* config, const char* name)
   {
     LDKConfigVariable* v = ldkHashMapGet(config->map, (void*) name);
     if (v && v->type == LDK_CONFIG_VAR_TYPE_LONG)
-      return (int64) v->doubleValue;
+      return v->doubleValue;
     else if (v && v->type == LDK_CONFIG_VAR_TYPE_DOUBLE)
       return (int64) v->doubleValue;
   }
@@ -165,7 +164,7 @@ int32 ldkConfigGetInt(LDKConfig* config, const char* name)
   {
     LDKConfigVariable* v = ldkHashMapGet(config->map, (void*) name);
     if (v && v->type == LDK_CONFIG_VAR_TYPE_LONG)
-      return (int32) v->doubleValue;
+      return (int32) v->longValue;
     else if (v && v->type == LDK_CONFIG_VAR_TYPE_DOUBLE)
       return (int32) v->doubleValue;
   }
@@ -215,7 +214,7 @@ const char* ldkConfigGetString(LDKConfig* config, const char* name)
       return v->strValue;
   }
 
-  ldkLogWarning("Unable to retrieve float::%s variable from config %s", name, config ? config->asset.path.path : "NULL");
+  ldkLogWarning("Unable to retrieve string::%s variable from config %s", name, config ? config->asset.path.path : "NULL");
   return NULL;
 }
 
