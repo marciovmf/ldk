@@ -18,7 +18,6 @@ typedef struct
   float deltaTime;
   float cameraLookSpeed;
   float cameraMoveSpeed;
-  float cameraSpeedWheel;
 } GameState;
 
 bool onKeyboardEvent(const LDKEvent* event, void* data)
@@ -72,7 +71,7 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     state->deltaTime = (float) delta / 1000;
     state->ticksStart = ldkOsTimeTicksGet();
 
-    ldkCameraUpdateFreeCamera(camera, state->deltaTime);
+    ldkCameraUpdateFreeCamera(camera, state->deltaTime, state->cameraLookSpeed, state->cameraMoveSpeed);
     ldkRendererCameraSet(camera);
 
     uint32 numObjects = 0;
@@ -85,10 +84,6 @@ bool onFrameEvent(const LDKEvent* event, void* data)
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
   {
     state->ticksEnd = ldkOsTimeTicksGet();
-#if 0
-    if (camera)
-      ldkLogInfo("Camera position = %f, %f, %f", camera->position.x, camera->position.y, camera->position.z);
-#endif
   }
   return true;
 }
@@ -104,14 +99,12 @@ int main(void)
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 
-
   //
   // Create some entities
   //
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   camera->position = vec3(-19.0f, 7.0f, -1.0f);
-
 
   for(uint32 i = 0; i < 10; i++)
   {
@@ -128,7 +121,6 @@ int main(void)
    LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
    state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
    state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
-   state.cameraSpeedWheel = ldkConfigGetFloat(cfg, "game.camera-speed-wheel");
 
   // We should never keep pointers to entities. Intead, we keep their Handle
   state.hCamera = camera->entity.handle;
