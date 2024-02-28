@@ -49,7 +49,8 @@ void main()
 //
 #ifdef LDK_COMPILE_FRAGMENT_SHADER
 
-uniform vec3 color;
+uniform vec3 color1;
+uniform vec3 color2;
 uniform float deltaTime;
 out vec4 fragColor;
 
@@ -57,8 +58,8 @@ void main()
 {
   float a = abs(sin(deltaTime));
   fragColor = mix(
-      vec4(1.0, 1.0, 1.0, 1.0),
-      vec4(color, 1.0), 
+      vec4(color2, 1.0),
+      vec4(color1, 1.0), 
        a);
 }
 #endif

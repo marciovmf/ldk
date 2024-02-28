@@ -7,5 +7,4 @@
 #   vec4 myVec4Var:       41.0 42.0 44.7 0.3
 #   float myFloatVar:     .42
 #   texture2d diffuse:    textures/checkers.texture
-shader:               assets/solid-color.shader
-vec3 color:  1.0 0.0 1.0
+shader:               assets/editor/picking.shader

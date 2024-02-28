@@ -25,11 +25,14 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/asset.h module/asset.c
   ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
   ${INCLUDE_DIR}/module/entity.h module/entity.c
+
+  # assets
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
   ${INCLUDE_DIR}/asset/material.h asset/material.c
   ${INCLUDE_DIR}/asset/image.h asset/image.c
   ${INCLUDE_DIR}/asset/mesh.h asset/mesh.c
   ${INCLUDE_DIR}/asset/texture.h asset/texture.c
+  ${INCLUDE_DIR}/asset/config.h asset/config.c
   )
 
 if(WIN32)

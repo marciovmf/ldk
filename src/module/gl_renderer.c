@@ -6,6 +6,7 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/asset/texture.h"
 #include "ldk/asset/material.h"
+#include "ldk/asset/config.h"
 #include "ldk/asset/shader.h"
 #include "ldk/common.h"
 #include "ldk/os.h"
@@ -43,6 +44,7 @@ typedef enum
 static struct 
 {
   bool initialized;
+  LDKConfig* config;
   LDKRGB clearColor;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArena bucketROStaticMesh;
@@ -58,12 +60,11 @@ static struct
   GLuint textureDepthPicking;
   LDKHandle materialPickingHandle;
 
-  //GLuint uniformLocationObjIndex;
-  //GLuint uniformLocationSurfaceIndex;
-  //GLuint uniformLocationModelMatrix;
-  //GLuint uniformLocationViewMatrix;
-  //GLuint uniformLocationProjMatrix;
-  //GLuint shaderPicking;
+  LDKHandle materialHighlightHandle;
+
+  Vec3 higlightColor1;
+  Vec3 higlightColor2;
+
   LDKHandle selectedEntity;
   uint32 selectedEntityIndex;
 } internal = { 0 };
@@ -127,12 +128,11 @@ bool internalPickingFBOCreate(uint32 width, uint32 height)
   }
 
   // Loads the picking shader
-  internal.materialPickingHandle = ldkAssetGet(LDKMaterial, "assets/picking.material")->asset.handle;
-//  internal.uniformLocationSurfaceIndex = glGetUniformLocation(shaderPicking->gl.id, (const char*) "surfaceIndex");
-//  internal.uniformLocationObjIndex = glGetUniformLocation(shaderPicking->gl.id, (const char*) "objectIndex");
-//  internal.uniformLocationModelMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*) "mModel");
-//  internal.uniformLocationViewMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*)"mView");
-//  internal.uniformLocationProjMatrix = glGetUniformLocation(shaderPicking->gl.id, (const char*) "mProj");
+  internal.materialPickingHandle = ldkAssetGet(LDKMaterial, "assets/editor/picking.material")->asset.handle;
+  internal.materialHighlightHandle = ldkAssetGet(LDKMaterial, "assets/editor/highlight.material")->asset.handle;
+
+  internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
+  internal.higlightColor2 = ldkConfigGetVec3(internal.config, "editor.highlight-color2");
 
   // Restore the default framebuffer
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -154,12 +154,13 @@ void internalPickingFBODEstroy()
   internal.textureDepthPicking = 0;
 }
 
-bool ldkRendererInitialize(void)
+bool ldkRendererInitialize(LDKConfig* config)
 {
   LDK_ASSERT(internal.initialized == false);
   internal.initialized = true;
   bool success = true;
   internal.clearColor = (LDKRGB){0, 100, 120};
+  internal.config = config;
   success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
 
   //
@@ -999,7 +1000,7 @@ void ldkRendererRender(float deltaTime)
     ro++;
   }
 
-#if 0
+#if 1
 
   //
   // Picking
@@ -1062,9 +1063,12 @@ void ldkRendererRender(float deltaTime)
     if (staticObject)
     {
       // Turn on wireframe mode
-      internal.fixedMaterial = ldkAssetGet(LDKMaterial, "assets/solid-color.material");
+      internal.fixedMaterial = ldkAssetLookup(LDKMaterial, internal.materialHighlightHandle);
+
       ldkMaterialBind(internal.fixedMaterial);
       ldkMaterialParamSetFloat(internal.fixedMaterial, "deltaTime", internal.elapsedTime);
+      ldkMaterialParamSetVec3(internal.fixedMaterial, "color1", internal.higlightColor1);
+      ldkMaterialParamSetVec3(internal.fixedMaterial, "color2", internal.higlightColor2);
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       glLineWidth(3.0);
 

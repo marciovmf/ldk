@@ -30,6 +30,7 @@
 #include <ldk/asset/mesh.h>
 #include <ldk/asset/image.h>
 #include <ldk/asset/texture.h>
+#include <ldk/asset/config.h>
 
 /* Entities */
 #include <ldk/entity/camera.h>

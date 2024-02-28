@@ -14,6 +14,7 @@
 #include "../entity/camera.h"
 #include "../entity/staticobject.h"
 #include "../asset/shader.h"
+#include "../asset/config.h"
 #include "../asset/material.h"
 #include "../asset/mesh.h"
 #include "../maths.h"
@@ -30,7 +31,7 @@ extern "C" {
     LDK_VERTEX_LAYOUT_PNTBU = 2,  // Position, Normal, Tangent, Binormal, UV
   } LDKVertexLayout;
 
-  LDK_API bool ldkRendererInitialize(void);
+  LDK_API bool ldkRendererInitialize(LDKConfig* config);
   LDK_API void ldkRendererResize(uint32 width, uint32 height);
   LDK_API void ldkRendererTerminate(void);
 

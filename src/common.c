@@ -19,7 +19,7 @@ bool ldkLogInitialize(const char* path, const char* initialMessage)
   if (!path)
     path = "ldk.log";
 
-  logFile_ = fopen(path, "a+");
+  logFile_ = fopen(path, "w+");
   if (!logFile_)
     return false;
 

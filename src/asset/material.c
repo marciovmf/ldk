@@ -136,7 +136,7 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
         if (ldkStringEndsWith(rhs, ".shader"))
         {
           program = ldkAssetGet(LDKShader, rhs);
-          ldkMaterialCreate(program , material);
+          ldkMaterialCreate(program, material);
           material->program = program->asset.handle;
           created = true;
         }

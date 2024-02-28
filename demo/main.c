@@ -4,6 +4,7 @@
 #include "ldk/module/entity.h"
 #include "ldk/entity/staticobject.h"
 #include "ldk/common.h"
+#include "ldk/asset/config.h"
 #include "ldk/maths.h"
 #include <math.h>
 #include <stdlib.h>
@@ -15,6 +16,9 @@ typedef struct
   uint64 ticksStart;
   uint64 ticksEnd;
   float deltaTime;
+  float cameraLookSpeed;
+  float cameraMoveSpeed;
+  float cameraSpeedWheel;
   bool looking;
   bool strafing;
 } GameState;
@@ -35,7 +39,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
     Vec3 cam_dir = ldkCameraDirectionNormalized(camera);
     Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-    const float speed = 5.0f * state->deltaTime;
+    const float speed = state->cameraMoveSpeed * state->deltaTime;
 
     if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
     {
@@ -86,7 +90,8 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
 bool onMouseEvent(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
-  const float speed = 5.0f * state->deltaTime;
+  const float speed = state->cameraLookSpeed * state->deltaTime;
+  const float speedWheel = state->cameraSpeedWheel * state->deltaTime;
 
   if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON)
   {
@@ -155,13 +160,13 @@ bool onMouseEvent(const LDKEvent* event, void* data)
   {
     if (event->mouseEvent.wheelDelta > 0)
     {
-      camera->position = vec3Add(camera->position, vec3Mul(cam_dir, 3 * speed));
-      camera->target = vec3Add(camera->target, vec3Mul(cam_dir, 3 * speed));
+      camera->position = vec3Add(camera->position, vec3Mul(cam_dir, speedWheel));
+      camera->target = vec3Add(camera->target, vec3Mul(cam_dir, speedWheel));
     }
     else
     {
-      camera->position = vec3Sub(camera->position, vec3Mul(cam_dir, 3 * speed));
-      camera->target = vec3Sub(camera->target, vec3Mul(cam_dir, 3 * speed));
+      camera->position = vec3Sub(camera->position, vec3Mul(cam_dir, speedWheel));
+      camera->target = vec3Sub(camera->target, vec3Mul(cam_dir, speedWheel));
     }
   }
 
@@ -221,16 +226,13 @@ int main(void)
   // Initialize stuff
   GameState state = {0};
   ldkEngineInitialize();
-  ldkGraphicsViewportTitleSet("LDK demo game");
-  ldkGraphicsViewportIconSet("../ldk.ico");
-  ldkGraphicsVsyncSet(true);
-  ldkGraphicsMultisamplesSet(true);
 
   // Bind events
   ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, (void*) &state);
   ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_WHEEL | LDK_EVENT_TYPE_MOUSE_BUTTON | LDK_EVENT_TYPE_MOUSE_MOVE, (void*) &state);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
+
 
   //
   // Create some entities
@@ -251,6 +253,11 @@ int main(void)
     obj->position.z = -25.0f + (i * 5);
     obj->position.z = -25.0f + i * f;
   }
+
+   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
+   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
+   state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
+   state.cameraSpeedWheel = ldkConfigGetFloat(cfg, "game.camera-speed-wheel");
 
   // We should never keep pointers to entities. Intead, we keep their Handle
   state.hCamera = camera->entity.handle;

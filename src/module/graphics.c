@@ -1,4 +1,5 @@
 #include "ldk/module/graphics.h"
+#include "ldk/asset/config.h"
 #include "ldk/gl.h"
 #include "ldk/os.h"
 
@@ -10,9 +11,10 @@ static struct
   int32 multiSampleLevel;
 } internal;
 
-bool ldkGraphicsInitialize(LDKGraphicsAPI api, uint32 width, uint32 height)
+bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
 {
   //TODO(marcio): Where should we get these parameters from ?
+  internal.api = api;
   const int32 colorBits = 24;
   const int32 depthBits = 8;
 
@@ -37,11 +39,26 @@ bool ldkGraphicsInitialize(LDKGraphicsAPI api, uint32 width, uint32 height)
       break;
   }
 
-  internal.mainWindow = ldkOsWindowCreate("LDK", width, height);
+
+  int32 fullscreen = ldkConfigGetInt(config, "display.fullscreen");
+  Vec2 displaySize = ldkConfigGetVec2(config, "display.size");
+  const char* displayTitle = ldkConfigGetString(config, "display.title");
+  if (displaySize.x == 0 || displaySize.y == 0)
+    displaySize = vec2(800, 600);
+
+  internal.mainWindow = ldkOsWindowCreate(displayTitle, (int32) displaySize.x, (int32) displaySize.y);
   ldkOsGraphicsContextCurrent(internal.mainWindow, internal.context);
   bool success = internal.context != NULL;
 
-  internal.api = api;
+  int32 vSync = ldkConfigGetInt(config, "graphics.vsync");
+  int32 multiSampleLevel = ldkConfigGetInt(config, "graphics.multisamples");
+  const char* icon = ldkConfigGetString(config, "display.icon");
+
+  ldkGraphicsVsyncSet(vSync);
+  ldkGraphicsMultisamplesSet(multiSampleLevel);
+  ldkGraphicsFullscreenSet(fullscreen);
+  ldkGraphicsViewportIconSet(icon);
+
   return success;
 }
 
@@ -58,7 +75,7 @@ void ldkGraphicsTerminate(void)
 
 void ldkGraphicsFullscreenSet(bool fullscreen)
 {
-  ldkOsWindowFullscreenSet(internal.mainWindow, true);
+  ldkOsWindowFullscreenSet(internal.mainWindow, fullscreen);
 }
 
 bool ldkGraphicsFullscreenGet(void)

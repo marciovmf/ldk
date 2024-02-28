@@ -11,7 +11,7 @@
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
 #include "ldk/asset/mesh.h"
-#include "ldk/asset/image.h"
+#include "ldk/asset/config.h"
 #include "ldk/asset/texture.h"
 #include <string.h>
 #include <signal.h>
@@ -89,7 +89,6 @@ bool ldkEngineInitialize(void)
       dateTime.year, dateTime.month, dateTime.day,
       dateTime.hour, dateTime.minute, dateTime.Second);
 
-
   // Startup Log
   stepSuccess = ldkLogInitialize("ldk.log", strDateTime);
   logModuleInit("Log", stepSuccess);
@@ -100,6 +99,10 @@ bool ldkEngineInitialize(void)
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
+  stepSuccess &= ldkAssetHandlerRegister(LDKConfig,   ldkAssetConfigLoadFunc,   ldkAssetConfigUnloadFunc,   2,  "cfg");
+  LDKConfig* config = ldkAssetGet(LDKConfig, "ldk.cfg");
+
+
   stepSuccess &= ldkAssetHandlerRegister(LDKImage,    ldkAssetImageLoadFunc,    ldkAssetImageUnloadFunc,    8,  "png", "bmp", "tga", "hdr");
   stepSuccess &= ldkAssetHandlerRegister(LDKTexture,  ldkAssetTextureLoadFunc,  ldkAssetTextureUnloadFunc,  8,  "texture");
   stepSuccess &= ldkAssetHandlerRegister(LDKShader,   ldkAssetShaderLoadFunc,   ldkAssetShaderUnloadFunc,   8,  "shader");
@@ -116,12 +119,12 @@ bool ldkEngineInitialize(void)
 
   // Startup Graphics
   //TODO(marcio): Get initial display width and height from a config file
-  stepSuccess = ldkGraphicsInitialize(LDK_GRAPHICS_API_OPENGL_3_3, 1920, 1080);
+  stepSuccess = ldkGraphicsInitialize(config, LDK_GRAPHICS_API_OPENGL_3_3);
   success &= stepSuccess;
   logModuleInit("Graphics", stepSuccess);
 
   // Startup renderer
-  stepSuccess = ldkRendererInitialize();
+  stepSuccess = ldkRendererInitialize(config);
   success &= stepSuccess;
   logModuleInit("Renderer", stepSuccess);
 

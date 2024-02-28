@@ -11,6 +11,7 @@
 
 #include "../common.h"
 #include "../os.h"
+#include "ldk/asset/config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,7 +50,7 @@ extern "C" {
       | LDK_GRAPHICS_API_OPENGL_ES_3_0 
   };
 
-  LDK_API bool    ldkGraphicsInitialize(LDKGraphicsAPI api, uint32 width, uint32 height);
+  LDK_API bool    ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api);
   LDK_API LDKGraphicsAPI ldkGraphicsApiName(void);
   LDK_API void    ldkGraphicsTerminate(void);
   LDK_API void    ldkGraphicsFullscreenSet(bool fullscreen);
