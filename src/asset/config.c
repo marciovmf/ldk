@@ -149,7 +149,7 @@ int64 ldkConfigGetLong(LDKConfig* config, const char* name)
   {
     LDKConfigVariable* v = ldkHashMapGet(config->map, (void*) name);
     if (v && v->type == LDK_CONFIG_VAR_TYPE_LONG)
-      return v->doubleValue;
+      return (int64) v->longValue;
     else if (v && v->type == LDK_CONFIG_VAR_TYPE_DOUBLE)
       return (int64) v->doubleValue;
   }

@@ -33,6 +33,7 @@ extern "C" {
   LDK_API Mat4 ldkCameraViewMatrix(LDKCamera* camera);
   LDK_API Mat4 ldkCameraProjectMatrix(LDKCamera* camera);
   LDK_API Mat4 ldkCameraViewProjectMatrix(LDKCamera* camera);
+  LDK_API void ldkCameraUpdateFreeCamera(LDKCamera* camera, float deltaTime);
 
 #ifdef __cplusplus
 }

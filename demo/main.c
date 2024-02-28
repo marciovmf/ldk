@@ -19,53 +19,10 @@ typedef struct
   float cameraLookSpeed;
   float cameraMoveSpeed;
   float cameraSpeedWheel;
-  bool looking;
-  bool strafing;
 } GameState;
 
 bool onKeyboardEvent(const LDKEvent* event, void* data)
 {
-  GameState* state = (GameState*) data;
-  if (event->type != LDK_EVENT_TYPE_KEYBOARD)
-  {
-    ldkLogError("Unexpected event type %d", event->type);
-    return false;
-  }
-
-  if (event->keyboardEvent.type != LDK_KEYBOARD_EVENT_KEY_UP)
-  {
-    LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
-
-    //Vec3 cam_dir = vec3Normalize(vec3Sub(state->camera->target, state->camera->position));
-    Vec3 cam_dir = ldkCameraDirectionNormalized(camera);
-    Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-    const float speed = state->cameraMoveSpeed * state->deltaTime;
-
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_W)
-    {
-      camera->position = vec3Add(camera->position, vec3Mul(cam_dir, speed));
-      camera->target = vec3Add(camera->target, vec3Mul(cam_dir, speed));
-    }
-
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_S)
-    {
-      camera->position = vec3Sub(camera->position, vec3Mul(cam_dir, speed));
-      camera->target = vec3Sub(camera->target, vec3Mul(cam_dir, speed));
-    }
-
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_D)
-    {
-      camera->position = vec3Add(camera->position, vec3Mul(side_dir, speed));
-      camera->target = vec3Add(camera->target, vec3Mul(side_dir, speed));
-    }
-
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_A)
-    {
-      camera->position = vec3Sub(camera->position, vec3Mul(side_dir, speed));
-      camera->target = vec3Sub(camera->target, vec3Mul(side_dir, speed));
-    }
-  }
-
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
   {
@@ -82,92 +39,6 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
       && event->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
   {
     ldkEngineStop(0);
-  }
-
-  return true;
-}
-
-bool onMouseEvent(const LDKEvent* event, void* data)
-{
-  GameState* state = (GameState*) data;
-  const float speed = state->cameraLookSpeed * state->deltaTime;
-  const float speedWheel = state->cameraSpeedWheel * state->deltaTime;
-
-  if (event->type == LDK_EVENT_TYPE_MOUSE_BUTTON)
-  {
-    if (event->mouseEvent.mouseButton == LDK_MOUSE_BUTTON_RIGHT)
-    {
-      if (event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_UP)
-        state->looking = false;
-      else
-        state->looking = true;
-    }
-
-    if (event->mouseEvent.mouseButton == LDK_MOUSE_BUTTON_MIDDLE)
-    {
-      if (event->mouseEvent.type == LDK_MOUSE_EVENT_BUTTON_UP)
-        state->strafing = false;
-      else
-        state->strafing = true;
-    }
-  }
-
-  LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
-
-  Vec3 cam_dir = ldkCameraDirectionNormalized(camera);
-  Vec3 side_dir = vec3Normalize(vec3Cross(cam_dir, vec3Up()));
-  Vec3 cam_up = vec3Normalize(vec3Cross(cam_dir, side_dir));
-
-  if (state->looking)
-  {
-    cam_dir.y += -(event->mouseEvent.yRel * state->deltaTime * speed);
-
-    cam_dir = vec3Add(cam_dir, vec3Mul(side_dir, (event->mouseEvent.xRel* state->deltaTime * speed)));
-    camera->target = vec3Add(camera->position, vec3Normalize(cam_dir));
-  }
-
-  if (state->strafing)
-  {
-    if (abs(event->mouseEvent.yRel) > abs(event->mouseEvent.xRel))
-    {
-      if (event->mouseEvent.yRel < 0)
-      {
-        camera->position = vec3Add(camera->position, vec3Mul(cam_up, speed));
-        camera->target = vec3Add(camera->target, vec3Mul(cam_up, speed));
-      }
-      else if (event->mouseEvent.yRel > 0)
-      {
-        camera->position = vec3Sub(camera->position, vec3Mul(cam_up, speed));
-        camera->target = vec3Sub(camera->target, vec3Mul(cam_up, speed));
-      }
-    }
-    else
-    {
-      if (event->mouseEvent.xRel < 0)
-      {
-        camera->position = vec3Add(camera->position, vec3Mul(side_dir, speed));
-        camera->target = vec3Add(camera->target, vec3Mul(side_dir, speed));
-      }
-      else if (event->mouseEvent.xRel > 0)
-      {
-        camera->position = vec3Sub(camera->position, vec3Mul(side_dir, speed));
-        camera->target = vec3Sub(camera->target, vec3Mul(side_dir, speed));
-      }
-    }
-  }
-
-  if (event->type == LDK_EVENT_TYPE_MOUSE_WHEEL)
-  {
-    if (event->mouseEvent.wheelDelta > 0)
-    {
-      camera->position = vec3Add(camera->position, vec3Mul(cam_dir, speedWheel));
-      camera->target = vec3Add(camera->target, vec3Mul(cam_dir, speedWheel));
-    }
-    else
-    {
-      camera->position = vec3Sub(camera->position, vec3Mul(cam_dir, speedWheel));
-      camera->target = vec3Sub(camera->target, vec3Mul(cam_dir, speedWheel));
-    }
   }
 
   return true;
@@ -201,6 +72,7 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     state->deltaTime = (float) delta / 1000;
     state->ticksStart = ldkOsTimeTicksGet();
 
+    ldkCameraUpdateFreeCamera(camera, state->deltaTime);
     ldkRendererCameraSet(camera);
 
     uint32 numObjects = 0;
@@ -229,7 +101,6 @@ int main(void)
 
   // Bind events
   ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, (void*) &state);
-  ldkEventHandlerAdd(onMouseEvent,    LDK_EVENT_TYPE_MOUSE_WHEEL | LDK_EVENT_TYPE_MOUSE_BUTTON | LDK_EVENT_TYPE_MOUSE_MOVE, (void*) &state);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
   ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
 

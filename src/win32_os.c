@@ -1014,6 +1014,8 @@ bool ldkOsEventsPoll(LDKEvent* event)
 
     // reset wheel delta
     internal.mouseState.wheelDelta = 0;
+    internal.mouseState.cursorRelative.x = 0;
+    internal.mouseState.cursorRelative.y = 0;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
       TranslateMessage(&msg);
@@ -1322,6 +1324,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         int32 lastY = internal.mouseState.cursor.y;
         internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
         internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
+        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_WHEEL;
@@ -1330,27 +1334,30 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
-        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
-        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
+        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
       }
       break;
 
     case WM_MOUSEMOVE:
       {
-        // update cursor position
         int32 lastX = internal.mouseState.cursor.x;
         int32 lastY = internal.mouseState.cursor.y;
         internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam);
+        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
+        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_MOVE;
+        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
+        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
         e->window = window;
         e->mouseEvent.type = LDK_MOUSE_EVENT_MOVE;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
-        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
-        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
+        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
       }
       break;
 
@@ -1406,7 +1413,9 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         int32 lastX = internal.mouseState.cursor.x;
         int32 lastY = internal.mouseState.cursor.y;
         internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam);
+        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
+        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
 
         LDKEvent* e = internalWin32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_BUTTON;
@@ -1415,8 +1424,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.mouseButton = mouseButtonId;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam);
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam);
-        e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
-        e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
+        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
       }
       break;
 
@@ -1502,6 +1511,21 @@ bool ldkOsMouseButtonDown(LDKMouseState* state, LDKMouseButton button)
 bool ldkOsMouseButtonUp(LDKMouseState* state, LDKMouseButton button)
 {
   return state->button[button] == LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+}
+
+LDKPoint ldkOsMouseCursor(LDKMouseState* state)
+{
+  return state->cursor;
+}
+
+LDKPoint ldkOsMouseCursorRelative(LDKMouseState* state)
+{
+  return state->cursorRelative;
+}
+
+int32 ldkOsMouseWheelDelta(LDKMouseState* state)
+{
+  return state->wheelDelta;
 }
 
 //

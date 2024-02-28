@@ -165,6 +165,7 @@ extern "C" {
   {
     int32 wheelDelta;
     LDKPoint cursor;
+    LDKPoint cursorRelative;
     unsigned char button[LDK_MOUSE_MAX_BUTTONS];
   } LDKMouseState;
 
@@ -172,6 +173,9 @@ extern "C" {
   LDK_API bool ldkOsMouseButtonIsPressed(LDKMouseState* state, LDKMouseButton button);  // True while button is pressed
   LDK_API bool ldkOsMouseButtonDown(LDKMouseState* state, LDKMouseButton button);    // True in the frame the button was pressed
   LDK_API bool ldkOsMouseButtonUp(LDKMouseState* state, LDKMouseButton button);      // True in the frame the button was released
+  LDK_API int32 ldkOsMouseWheelDelta(LDKMouseState* state);
+  LDK_API LDKPoint ldkOsMouseCursor(LDKMouseState* state);
+  LDK_API LDKPoint ldkOsMouseCursorRelative(LDKMouseState* state);
 
   //
   // Keyboard
