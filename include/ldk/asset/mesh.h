@@ -26,7 +26,7 @@ extern "C" {
   typedef struct
   {
     LDK_DECLARE_ASSET;
-    LDKVertexBuffer   vBuffer;
+    LDKRenderBuffer*  vBuffer;
     float*            vertices;
     uint16*           indices;
     LDKHandle*        materials;

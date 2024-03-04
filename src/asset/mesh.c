@@ -1,7 +1,7 @@
-#include "ldk/module/asset.h"
 #include "ldk/asset/mesh.h"
-#include "ldk/os.h"
+#include "ldk/module/asset.h"
 #include "ldk/module/renderer.h"
+#include "ldk/os.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -337,9 +337,15 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
     ldkOsMemoryFree(mesh);
   }
 
-  mesh->vBuffer = ldkVertexBufferCreate(LDK_VERTEX_LAYOUT_PNU);
-  ldkVertexBufferData(mesh->vBuffer, (void*) mesh->vertices, vertexBufferSize);
-  ldkVertexBufferIndexData(mesh->vBuffer, (void*) mesh->indices, indexBufferSize);
+
+  const int32 stride = (int32) (8 * sizeof(float));
+  mesh->vBuffer = ldkRenderBufferCreate(1);
+  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_POSITION, 3, stride, 0, 0);
+  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_NORMAL, 3, stride, (const void*) (3 * sizeof(float)), 0);
+  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_TEXCOORD0, 2, stride, (const void* )(6 * sizeof(float)), 0);
+  ldkVertexBufferSetData(mesh->vBuffer, 0, vertexBufferSize, mesh->vertices, false);
+  ldkIndexBufferSetData(mesh->vBuffer, indexBufferSize, mesh->indices, false);
+  ldkRenderBufferBind(NULL);
 
   return true;
 }
@@ -351,6 +357,6 @@ void ldkAssetMeshUnloadFunc(LDKAsset asset)
   ldkOsMemoryFree(mesh->materials);
   ldkOsMemoryFree(mesh->indices);
   ldkOsMemoryFree(mesh->surfaces);
-  ldkVertexBufferDestroy(mesh->vBuffer);
+  ldkRenderBufferDestroy(mesh->vBuffer);
   ldkOsMemoryFree(mesh);
 }
