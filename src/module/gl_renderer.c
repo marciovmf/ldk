@@ -58,7 +58,7 @@ static struct
 
 typedef enum
 {
-  LDK_RENDER_OBJECT_STATIC_MESH
+  LDK_RENDER_OBJECT_STATIC_OBJECT
 }  LDKRenderObjectType;
 
 typedef struct
@@ -1019,7 +1019,7 @@ void ldkRendererCameraSet(LDKCamera* camera)
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
 {
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
-  ro->type = LDK_RENDER_OBJECT_STATIC_MESH;
+  ro->type = LDK_RENDER_OBJECT_STATIC_OBJECT;
   ro->staticMesh = entity;
 }
 
@@ -1077,7 +1077,7 @@ void ldkRendererRender(float deltaTime)
 
   for(uint32 i = 0; i < count; i++)
   {
-    LDK_ASSERT(ro->type == LDK_RENDER_OBJECT_STATIC_MESH);
+    LDK_ASSERT(ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT);
     internalRenderMesh(ro->staticMesh);
     ro++;
   }
