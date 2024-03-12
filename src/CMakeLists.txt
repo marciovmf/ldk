@@ -19,6 +19,7 @@ list(APPEND SOURCE
   # Entities
   ${INCLUDE_DIR}/entity/camera.h entity/camera.c
   ${INCLUDE_DIR}/entity/staticobject.h entity/staticobject.c
+  ${INCLUDE_DIR}/entity/instancedobject.h entity/instancedobject.c
 
   # Modules
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c

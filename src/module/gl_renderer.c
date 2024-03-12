@@ -3,6 +3,7 @@
 #include "ldk/module/asset.h"
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
+#include "ldk/entity/instancedobject.h"
 #include "ldk/asset/mesh.h"
 #include "ldk/asset/texture.h"
 #include "ldk/asset/material.h"
@@ -12,6 +13,7 @@
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
+#include <stdbool.h>
 #include <string.h>
 
 extern const char* ldkOpenglTypeName(GLenum type);
@@ -46,8 +48,8 @@ static struct
   GLuint texturePicking;
   GLuint textureDepthPicking;
   LDKHandle materialPickingHandle;
-
   LDKHandle materialHighlightHandle;
+  LDKHandle materialInstancedHandle;
 
   Vec3 higlightColor1;
   Vec3 higlightColor2;
@@ -58,7 +60,8 @@ static struct
 
 typedef enum
 {
-  LDK_RENDER_OBJECT_STATIC_OBJECT
+  LDK_RENDER_OBJECT_STATIC_OBJECT,
+  LDK_RENDER_OBJECT_INSTANCED_OBJECT
 }  LDKRenderObjectType;
 
 typedef struct
@@ -67,6 +70,7 @@ typedef struct
   union
   {
     LDKStaticObject* staticMesh;
+    LDKInstancedObject* instancedMesh;
   };
 
 } LDKRenderObject;
@@ -118,6 +122,9 @@ bool internalPickingFBOCreate(uint32 width, uint32 height)
   // Loads the picking shader
   internal.materialPickingHandle = ldkAssetGet(LDKMaterial, "assets/editor/picking.material")->asset.handle;
   internal.materialHighlightHandle = ldkAssetGet(LDKMaterial, "assets/editor/highlight.material")->asset.handle;
+
+  // Loads the intanced rendering shader
+  internal.materialInstancedHandle = ldkAssetGet(LDKMaterial, "assets/instanced.material")->asset.handle;
 
   internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
   internal.higlightColor2 = ldkConfigGetVec3(internal.config, "editor.highlight-color2");
@@ -429,7 +436,6 @@ bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value)
   glUniform1i(param->gl.location, value);
   return true;
 }
-
 
 bool ldkMaterialParamSetUInt(LDKMaterial* material, const char* name, uint32 value)
 {
@@ -780,35 +786,45 @@ struct LDKRenderBuffer_t
     bool    hasInstancedAttributes;
 };
 
-LDKRenderBuffer* ldkRenderBufferCreate(int numVBOs)
+struct LDKInstanceBuffer_t
 {
-    // We allocate one chunck of memory for everything we need and split this chunk as we need.
-    const size_t idListSize  = sizeof(GLuint) * numVBOs;
-    const size_t sizeListSize = sizeof(size_t) * numVBOs;
-    const size_t hintListSize = sizeof(bool) * numVBOs;
-    const size_t totalSize = sizeof(LDKRenderBuffer) + idListSize + sizeListSize + hintListSize;
+  GLuint  vbo;
+  size_t  size;
+  bool    isStream;
+};
 
-    char* memory = (char*) ldkOsMemoryAlloc(totalSize);
-    memset(memory, 0, totalSize);
+LDKRenderBuffer* ldkRenderBufferCreate(uint32 numVBOs)
+{
+  if (numVBOs == 0)
+    return NULL;
 
-    LDKRenderBuffer* rb = (LDKRenderBuffer*) memory;
-    rb->numVBOs = numVBOs;
-    memory += sizeof(LDKRenderBuffer);
+  // We allocate one chunck of memory for everything we need and split this chunk as we need.
+  const size_t idListSize  = sizeof(GLuint) * numVBOs;
+  const size_t sizeListSize = sizeof(size_t) * numVBOs;
+  const size_t hintListSize = sizeof(bool) * numVBOs;
+  const size_t totalSize = sizeof(LDKRenderBuffer) + idListSize + sizeListSize + hintListSize;
 
-    rb->vbo           = (GLuint*) (memory + sizeof(LDKRenderBuffer));
-    rb->vboSize       = (size_t*) (memory + sizeof(LDKRenderBuffer) + idListSize);
-    rb->vboIsStream   = (bool*  ) (memory + sizeof(LDKRenderBuffer) + idListSize + sizeListSize);
+  char* memory = (char*) ldkOsMemoryAlloc(totalSize);
+  memset(memory, 0, totalSize);
 
-    // Generate and bind VAO
-    glGenVertexArrays(1, &rb->vao);
-    glBindVertexArray(rb->vao);
+  LDKRenderBuffer* rb = (LDKRenderBuffer*) memory;
+  rb->numVBOs = numVBOs;
+  memory += sizeof(LDKRenderBuffer);
 
-    rb->vbo = (GLuint*) memory;
-    rb->vboSize = (size_t*) (memory + idListSize);
-    rb->vboIsStream = (bool*) (memory + idListSize + sizeListSize);
-    glGenBuffers(numVBOs, rb->vbo);
+  rb->vbo           = (GLuint*) (memory + sizeof(LDKRenderBuffer));
+  rb->vboSize       = (size_t*) (memory + sizeof(LDKRenderBuffer) + idListSize);
+  rb->vboIsStream   = (bool*  ) (memory + sizeof(LDKRenderBuffer) + idListSize + sizeListSize);
 
-    return rb;
+  // Generate and bind VAO
+  glGenVertexArrays(1, &rb->vao);
+  glBindVertexArray(rb->vao);
+
+  rb->vbo = (GLuint*) memory;
+  rb->vboSize = (size_t*) (memory + idListSize);
+  rb->vboIsStream = (bool*) (memory + idListSize + sizeListSize);
+  glGenBuffers(numVBOs, rb->vbo);
+
+  return rb;
 }
 
 void ldkRenderBufferDestroy(LDKRenderBuffer* rb)
@@ -832,35 +848,35 @@ void ldkRenderBufferBind(const LDKRenderBuffer* rb)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ibo);
 }
 
-static void internalVertexBufferSetAttributeGLType(GLenum glType, const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+
+static void internalVertexBufferAttributeSetGLType(GLenum glType, LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
   LDK_ASSERT(count > 0 && count <= 4);
   LDK_ASSERT(semantic >= 0 && semantic <= LDK_VERTEX_ATTRIBUTE_MAX);
-  GLboolean normalize = (flag & LDK_VERTEX_ATTRIB_NORMALIZE);
+  GLboolean normalize = (flag & LDK_VERTEX_ATTRIB_NORMALIZE) > 0 ? 1 : 0;
   uint32 divisor = (flag & LDK_VERTEX_ATTRIB_INSTANCE) > 0 ? 1 : 0;
+  rb->hasInstancedAttributes = divisor > 0;
   GLuint location = semantic;
-  glBindVertexArray(rb->vao);
   glBindBuffer(GL_ARRAY_BUFFER, rb->vbo[index]);
   glVertexAttribPointer(location, count, glType, normalize, stride, offset);
   glEnableVertexAttribArray(location);
   glVertexAttribDivisor(location, divisor);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ldkVertexBufferSetAttributeMat4(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetMat4(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  LDK_ASSERT(count > 0 && count <= 4);
   LDK_ASSERT(semantic >= 0 && semantic <= LDK_VERTEX_ATTRIBUTE_MAX);
-  GLboolean normalize = (flag & LDK_VERTEX_ATTRIB_NORMALIZE);
+  GLboolean normalize = (flag & LDK_VERTEX_ATTRIB_NORMALIZE) > 0 ? 1 : 0;
   uint32 divisor = (flag & LDK_VERTEX_ATTRIB_INSTANCE) > 0 ? 1 : 0;
+  rb->hasInstancedAttributes = divisor > 0;
+
   GLuint location = semantic;
-  glBindVertexArray(rb->vao);
   glBindBuffer(GL_ARRAY_BUFFER, rb->vbo[index]);
 
   glVertexAttribPointer(location + 0, 4, GL_FLOAT, normalize, stride, (const GLvoid *)((const char *)offset + 0 * sizeof(float) * 4));
   glVertexAttribPointer(location + 1, 4, GL_FLOAT, normalize, stride, (const GLvoid *)((const char *)offset + 1 * sizeof(float) * 4));
   glVertexAttribPointer(location + 2, 4, GL_FLOAT, normalize, stride, (const GLvoid *)((const char *)offset + 2 * sizeof(float) * 4));
-  glVertexAttribPointer(location + 3, 4, GL_FLOAT, normalize, stride, (const GLvoid *)((const char *)offset + 4 * sizeof(float) * 4));
+  glVertexAttribPointer(location + 3, 4, GL_FLOAT, normalize, stride, (const GLvoid *)((const char *)offset + 3 * sizeof(float) * 4));
 
   glEnableVertexAttribArray(location + 0);
   glEnableVertexAttribArray(location + 1);
@@ -871,51 +887,49 @@ void ldkVertexBufferSetAttributeMat4(const LDKRenderBuffer* rb, uint32 index, LD
   glVertexAttribDivisor(location + 1, divisor);
   glVertexAttribDivisor(location + 2, divisor);
   glVertexAttribDivisor(location + 3, divisor);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ldkVertexBufferSetAttributeFloat(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetFloat(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_FLOAT, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_FLOAT, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeInt(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetInt(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_INT, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_INT, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeUInt(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetUInt(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_UNSIGNED_INT, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_UNSIGNED_INT, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeByte(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetByte(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_BYTE, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_BYTE, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeUByte(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetUByte(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_UNSIGNED_BYTE, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_UNSIGNED_BYTE, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeDouble(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetDouble(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_DOUBLE, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_DOUBLE, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeShort(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetShort(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_SHORT, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_SHORT, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetAttributeUShort(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
+void ldkRenderBufferAttributeSetUShort(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag)
 {
-  internalVertexBufferSetAttributeGLType(GL_UNSIGNED_SHORT, rb, index, semantic, count, stride, offset, flag);
+  internalVertexBufferAttributeSetGLType(GL_UNSIGNED_SHORT, rb, index, semantic, count, stride, offset, flag);
 }
 
-void ldkVertexBufferSetData(const LDKRenderBuffer* rb, int index, size_t size, const void *data, bool stream)
+void ldkRenderBufferSetVertexData(const LDKRenderBuffer* rb, int index, size_t size, const void *data, bool stream)
 {
   glBindBuffer(GL_ARRAY_BUFFER, rb->vbo[index]);
 
@@ -935,7 +949,7 @@ void ldkVertexBufferSetData(const LDKRenderBuffer* rb, int index, size_t size, c
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ldkVertexBufferSetSubData(const LDKRenderBuffer* rb, int32 index, int32 offset, size_t size, const void *data)
+void ldkRenderBufferSetVertexSubData(const LDKRenderBuffer* rb, int32 index, int32 offset, size_t size, const void *data)
 {
   glBindBuffer(GL_ARRAY_BUFFER, rb->vbo[index]);
 
@@ -956,7 +970,7 @@ void ldkVertexBufferSetSubData(const LDKRenderBuffer* rb, int32 index, int32 off
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ldkIndexBufferSetData(LDKRenderBuffer* rb, size_t size, const void *data, bool stream)
+void ldkRenderBufferSetIndexData(LDKRenderBuffer* rb, size_t size, const void *data, bool stream)
 {
   if (rb->ibo == 0)
   {
@@ -980,7 +994,7 @@ void ldkIndexBufferSetData(LDKRenderBuffer* rb, size_t size, const void *data, b
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void ldkIndexBufferSetSubData(LDKRenderBuffer* rb, int32 offset, size_t size, const void *data)
+void ldkRenderBufferSetIndexSubData(LDKRenderBuffer* rb, int32 offset, size_t size, const void *data)
 {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, rb->ibo);
 
@@ -999,6 +1013,118 @@ void ldkIndexBufferSetSubData(LDKRenderBuffer* rb, int32 offset, size_t size, co
   }
 
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+
+
+//
+// Instance Buffer
+//
+
+LDKInstanceBuffer* ldkInstanceBufferCreate(void)
+{
+  LDKInstanceBuffer* ib = (LDKInstanceBuffer*) ldkOsMemoryAlloc(sizeof(LDKInstanceBuffer));
+  glGenBuffers(1, &ib->vbo);
+  ib->size = 0;
+  ib->isStream = false;
+  return ib;
+}
+
+void ldkInstanceBufferDestroy(LDKInstanceBuffer* ib)
+{
+  glDeleteBuffers(1, &ib->vbo);
+  ldkOsMemoryFree(ib);
+}
+
+void ldkInstanceBufferBind(LDKInstanceBuffer* ib)
+{
+  if (!ib->vbo)
+    return;
+
+  glBindBuffer(GL_ARRAY_BUFFER, ib->vbo);
+
+  const int32 stride = (int32) (16 * sizeof(float));
+  GLuint location = LDK_VERTEX_ATTRIBUTE_MATRIX0;
+  const char* addr = 0;
+
+  glVertexAttribPointer(location + 0, 4, GL_FLOAT, false, stride, (const GLvoid *)(addr + 0 * sizeof(float) * 4));
+  glVertexAttribPointer(location + 1, 4, GL_FLOAT, false, stride, (const GLvoid *)(addr + 1 * sizeof(float) * 4));
+  glVertexAttribPointer(location + 2, 4, GL_FLOAT, false, stride, (const GLvoid *)(addr + 2 * sizeof(float) * 4));
+  glVertexAttribPointer(location + 3, 4, GL_FLOAT, false, stride, (const GLvoid *)(addr + 3 * sizeof(float) * 4));
+
+  glEnableVertexAttribArray(location + 0);
+  glEnableVertexAttribArray(location + 1);
+  glEnableVertexAttribArray(location + 2);
+  glEnableVertexAttribArray(location + 3);
+
+  glVertexAttribDivisor(location + 0, 1);
+  glVertexAttribDivisor(location + 1, 1);
+  glVertexAttribDivisor(location + 2, 1);
+  glVertexAttribDivisor(location + 3, 1);
+}
+
+void ldkInstanceBufferUnbind(LDKInstanceBuffer* ib)
+{
+  if (!ib->vbo)
+    return;
+
+  GLuint location = LDK_VERTEX_ATTRIBUTE_MATRIX0;
+  glDisableVertexAttribArray(location + 0);
+  glDisableVertexAttribArray(location + 1);
+  glDisableVertexAttribArray(location + 2);
+  glDisableVertexAttribArray(location + 3);
+
+  glVertexAttribDivisor(location + 0, 0);
+  glVertexAttribDivisor(location + 1, 0);
+  glVertexAttribDivisor(location + 2, 0);
+  glVertexAttribDivisor(location + 3, 0);
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void ldkInstanceBufferSetData(LDKInstanceBuffer* ib, size_t size, const void *data, bool stream)
+{
+  if (ib->vbo == 0)
+  {
+    glGenBuffers(1, &ib->vbo);
+    ib->size = 0;
+    ib->isStream = stream;
+  }
+
+  glBindBuffer(GL_ARRAY_BUFFER, ib->vbo);
+
+  if (size > ib->size)
+  {
+    glBufferData(GL_ARRAY_BUFFER, size, data, stream ? GL_STREAM_DRAW : GL_STATIC_DRAW);
+    ib->size = size;
+  }
+  else
+  {
+    glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+  }
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void ldkInstanceBufferSetSubData(LDKInstanceBuffer* ib, int32 offset, size_t size, const void *data)
+{
+  glBindBuffer(GL_ARRAY_BUFFER, ib->vbo);
+
+  // Check if the buffer needs to be recreated with a larger size
+  size_t dataSize = ib->size;
+  if (size + offset > dataSize)
+  {
+    bool isForStreaming = ib->isStream;
+    glBufferData(GL_ARRAY_BUFFER, size + offset, NULL, isForStreaming ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, size + offset, data);
+    ib->size = size + offset;
+  }
+  else
+  {
+    glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
+  }
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 
@@ -1021,6 +1147,13 @@ void ldkRendererAddStaticObject(LDKStaticObject* entity)
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
   ro->type = LDK_RENDER_OBJECT_STATIC_OBJECT;
   ro->staticMesh = entity;
+}
+
+void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
+{
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
+  ro->type = LDK_RENDER_OBJECT_INSTANCED_OBJECT;
+  ro->instancedMesh = entity;
 }
 
 void internalRenderMesh(LDKStaticObject* entity)
@@ -1060,6 +1193,46 @@ void internalRenderMesh(LDKStaticObject* entity)
   ldkRenderBufferBind(NULL);
 }
 
+void internalRenderMeshInstanced(LDKInstancedObject* entity)
+{
+  LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
+
+  if(!mesh)
+    return;
+
+  ldkRenderBufferBind(mesh->vBuffer);
+  ldkInstanceBufferBind(entity->instanceBuffer);
+
+  for(uint32 i = 0; i < mesh->numSurfaces; i++)
+  {
+    LDKSurface* surface = &mesh->surfaces[i];
+    LDKMaterial* material = NULL;
+
+    // if rendering with picking material, we set the surface index
+    if (internal.fixedMaterial) 
+    {
+      if (internal.fixedMaterial->asset.handle == internal.materialPickingHandle)
+        ldkMaterialParamSetUInt(internal.fixedMaterial, "surfaceIndex", i);
+
+      material = internal.fixedMaterial;
+    }
+    else
+    {
+      LDKHandle hMaterial = mesh->materials[surface->materialIndex];
+      material = ldkAssetLookup(LDKMaterial, hMaterial);
+      ldkMaterialBind(material);
+    }
+
+    uint32 numInstances = ldkInstancedObjectCount(entity);
+    glDrawElementsInstanced(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)), numInstances);
+  }
+
+  ldkInstanceBufferUnbind(entity->instanceBuffer);
+  ldkRenderBufferBind(NULL);
+
+
+}
+
 void ldkRendererRender(float deltaTime)
 {
   internal.elapsedTime += deltaTime;
@@ -1077,8 +1250,20 @@ void ldkRendererRender(float deltaTime)
 
   for(uint32 i = 0; i < count; i++)
   {
-    LDK_ASSERT(ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT);
-    internalRenderMesh(ro->staticMesh);
+    switch (ro->type)
+    {
+      case LDK_RENDER_OBJECT_STATIC_OBJECT:
+        internalRenderMesh(ro->staticMesh);
+        break;
+
+      case LDK_RENDER_OBJECT_INSTANCED_OBJECT:
+        internalRenderMeshInstanced(ro->instancedMesh);
+        break;
+
+      default:
+        LDK_ASSERT_BREAK();
+        break;
+    }
     ro++;
   }
 
@@ -1098,7 +1283,8 @@ void ldkRendererRender(float deltaTime)
   for(uint32 i = 0; i < count; i++)
   {
     ldkMaterialParamSetUInt(internal.fixedMaterial, "objectIndex", i + 1);
-    internalRenderMesh(ro->staticMesh);
+    if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
+      internalRenderMesh(ro->staticMesh);
     ro++;
   }
 
@@ -1144,23 +1330,23 @@ void ldkRendererRender(float deltaTime)
     LDKStaticObject* staticObject = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
     if (staticObject)
     {
-      // Turn on wireframe mode
+      // Turn on wireframe mode and highlight the selected entity
       internal.fixedMaterial = ldkAssetLookup(LDKMaterial, internal.materialHighlightHandle);
-
       ldkMaterialBind(internal.fixedMaterial);
       ldkMaterialParamSetFloat(internal.fixedMaterial, "deltaTime", internal.elapsedTime);
       ldkMaterialParamSetVec3(internal.fixedMaterial, "color1", internal.higlightColor1);
       ldkMaterialParamSetVec3(internal.fixedMaterial, "color2", internal.higlightColor2);
+
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       glLineWidth(3.0);
+      glDisable(GL_DEPTH_TEST);
 
-      // Highlight the selected entity
       internalRenderMesh(staticObject);
 
-      // Turn off wireframe mode
-      internal.fixedMaterial = NULL;
+      glEnable(GL_DEPTH_TEST);
       glLineWidth(1.0);
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      internal.fixedMaterial = NULL;
     }
     else
     {

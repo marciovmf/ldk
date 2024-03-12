@@ -9,7 +9,7 @@ LDKCamera* ldkCameraEntityCreate(LDKCamera* entity)
 {
   entity->fovRadian = (float) degToRadian(40.0f);
   entity->nearPlane = 0.1f;
-  entity->farPlane  = 100.0f;
+  entity->farPlane  = 1000.0f;
   entity->position  = vec3(0.0f, 0.0f, 10.0f);
   entity->target    = vec3Zero();
 

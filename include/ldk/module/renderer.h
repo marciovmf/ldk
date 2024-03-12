@@ -13,6 +13,7 @@
 #include "../common.h"
 #include "../entity/camera.h"
 #include "../entity/staticobject.h"
+#include "../entity/instancedobject.h"
 #include "../asset/shader.h"
 #include "../asset/config.h"
 #include "../asset/material.h"
@@ -38,6 +39,7 @@ extern "C" {
   LDK_API bool ldkGeometryShaderCreate(const char* source, LDKShader* shader);
   LDK_API void ldkShaderDestroy(LDKShader* shader);
   LDK_API bool ldkShaderProgramBind(LDKShader* shaderAsset); // Passing in NULL will unbind current Shader program
+
 
   //
   // Material
@@ -66,6 +68,9 @@ extern "C" {
 
   //
   // RenderBuffer
+  //
+  // A RenderBuffer is a collection of GPU buffers and vertex attributes.
+  // It will also create an implicit Index buffer if any index data is added.
   //
 
   typedef enum
@@ -116,23 +121,40 @@ extern "C" {
     LDK_VERTEX_ATTRIBUTE_MAX        = 15  // The higher attribute location guaranteed to work with openGL
   } LDKVertexAttributeSemantic;
 
-  LDK_API LDKRenderBuffer* ldkRenderBufferCreate(int numVBOs);
+  LDK_API LDKRenderBuffer* ldkRenderBufferCreate(uint32 numVBOs);
   LDK_API void ldkRenderBufferDestroy(LDKRenderBuffer* rb);
   LDK_API void ldkRenderBufferBind(const LDKRenderBuffer* rb); // passing null unbinds the current buffer
-  LDK_API void ldkVertexBufferSetAttributeMat4(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeFloat(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeInt(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeUInt(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeByte(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeUByte(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeDouble(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeShort(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetAttributeUShort(const LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
-  LDK_API void ldkVertexBufferSetData(const LDKRenderBuffer* rb, int32 index, size_t size, const void *data, bool stream);
-  LDK_API void ldkVertexBufferSetSubData(const LDKRenderBuffer* rb, int32 index, int32 offset, size_t size, const void *data);
-  LDK_API void ldkIndexBufferSetData(LDKRenderBuffer* rb, size_t size, const void *data, bool stream);
-  LDK_API void ldkIndexBufferSetSubData(LDKRenderBuffer* rb, int32 offset, size_t size, const void *data);
 
+  LDK_API void ldkRenderBufferAttributeSetMat4(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetFloat(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetInt(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetUInt(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetByte(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetUByte(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetDouble(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetShort(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferAttributeSetUShort(LDKRenderBuffer* rb, uint32 index, LDKVertexAttributeSemantic semantic, uint32 count, int32 stride, const void *offset, LDKVertexAttributeFlag flag);
+  LDK_API void ldkRenderBufferSetVertexData(const LDKRenderBuffer* rb, int32 index, size_t size, const void *data, bool stream);
+  LDK_API void ldkRenderBufferSetVertexSubData(const LDKRenderBuffer* rb, int32 index, int32 offset, size_t size, const void *data);
+  LDK_API void ldkRenderBufferSetIndexData(LDKRenderBuffer* rb, size_t size, const void *data, bool stream);
+  LDK_API void ldkRenderBufferSetIndexSubData(LDKRenderBuffer* rb, int32 offset, size_t size, const void *data);
+
+
+  //
+  // Instance Buffer
+  //
+  // An instance buffer is a gpu buffer bound to LDK_VERTEX_ATTRIBUTE_MATRIX0
+  // meant to store world transformations (Mat4) per instance.
+  // It can be used in conjunction with a RenderBuffer to render multiple
+  // instances of Mesh in a single draw call
+  //
+
+  LDK_API LDKInstanceBuffer* ldkInstanceBufferCreate(void);
+  LDK_API void ldkInstanceBufferDestroy(LDKInstanceBuffer* ib);
+  LDK_API void ldkInstanceBufferBind(LDKInstanceBuffer* ib);
+  LDK_API void ldkInstanceBufferUnbind(LDKInstanceBuffer* ib);
+  LDK_API void ldkInstanceBufferSetData(LDKInstanceBuffer* ib, size_t size, const void *data, bool stream);
+  LDK_API void ldkInstanceBufferSetSubData(LDKInstanceBuffer* ib, int32 offset, size_t size, const void *data);
 
   //
   // Rendering
@@ -143,6 +165,7 @@ extern "C" {
   LDK_API void ldkRendererClearColor(LDKRGB color);
 
   LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
+  LDK_API void ldkRendererAddInstancedObject(LDKInstancedObject* entity);
   LDK_API void ldkRendererRender(float deltaTime);
 
 

@@ -7,6 +7,7 @@
 #include "ldk/module/asset.h"
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
+#include "ldk/entity/instancedobject.h"
 #include "ldk/asset/image.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
@@ -112,8 +113,9 @@ bool ldkEngineInitialize(void)
 
   // Register EntityManager
   stepSuccess &= ldkEntityManagerInit();
-  stepSuccess &= ldkEntityTypeRegister(LDKCamera,       ldkCameraEntityCreate,        ldkCameraEntityDestroy,       2);
-  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate,  ldkStaticObjectEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy, 2);
+  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy, 8);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 

@@ -3,6 +3,7 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/module/entity.h"
 #include "ldk/entity/staticobject.h"
+#include "ldk/entity/instancedobject.h"
 #include "ldk/common.h"
 #include "ldk/asset/config.h"
 #include "ldk/maths.h"
@@ -79,6 +80,10 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     for (uint32 i = 0; i < numObjects; i++)
       ldkRendererAddStaticObject(&allStaticObjects[i]);
 
+    LDKInstancedObject* allInstancedObjects = ldkEntityGetAll(LDKInstancedObject, &numObjects);
+    for (uint32 i = 0; i < numObjects; i++)
+      ldkRendererAddInstancedObject(&allInstancedObjects[i]);
+
     ldkRendererRender(state->deltaTime);
   }
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
@@ -106,6 +111,7 @@ int main(void)
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   camera->position = vec3(-19.0f, 7.0f, -1.0f);
 
+#if 1
   for(uint32 i = 0; i < 10; i++)
   {
     LDKStaticObject* obj = ldkEntityCreate(LDKStaticObject);
@@ -114,13 +120,32 @@ int main(void)
 
     float f = 3.0f + (0.5f * i);
     obj->scale = vec3(f, f, f);
-    obj->position.z = -25.0f + (i * 5);
     obj->position.z = -25.0f + i * f;
+    obj->position.y = 5.0f;
+  }
+#endif
+
+
+  LDKInstancedObject* io = ldkEntityCreate(LDKInstancedObject);
+  LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/cube.mesh");
+  io->mesh = cube->asset.handle;
+
+  for(uint32 i = 0; i < 200; i++)
+  {
+    for(uint32 j = 0; j < 200; j++)
+    {
+      ldkInstancedObjectAddInstance(io,
+          vec3(-300 + i * 3.0f, 0, -300 + j * 3.0f),
+          vec3(1.0f, 1.0f, 1.0f),
+          quatAngleAxis(rand() * 1.0f, vec3(1.0, 1.0, 1.0)));
+    }
   }
 
-   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
-   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
-   state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
+  ldkInstancedObjectUpdate(io);
+
+  LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
+  state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
+  state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
 
   // We should never keep pointers to entities. Intead, we keep their Handle
   state.hCamera = camera->entity.handle;

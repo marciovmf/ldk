@@ -337,14 +337,16 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
     ldkOsMemoryFree(mesh);
   }
 
-
-  const int32 stride = (int32) (8 * sizeof(float));
   mesh->vBuffer = ldkRenderBufferCreate(1);
-  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_POSITION, 3, stride, 0, 0);
-  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_NORMAL, 3, stride, (const void*) (3 * sizeof(float)), 0);
-  ldkVertexBufferSetAttributeFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_TEXCOORD0, 2, stride, (const void* )(6 * sizeof(float)), 0);
-  ldkVertexBufferSetData(mesh->vBuffer, 0, vertexBufferSize, mesh->vertices, false);
-  ldkIndexBufferSetData(mesh->vBuffer, indexBufferSize, mesh->indices, false);
+  const int32 stride = (int32) (8 * sizeof(float));
+  ldkRenderBufferBind(mesh->vBuffer);
+
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_POSITION, 3, stride, 0, 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_NORMAL, 3, stride, (const void*) (3 * sizeof(float)), 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_TEXCOORD0, 2, stride, (const void* )(6 * sizeof(float)), 0);
+  ldkRenderBufferSetVertexData(mesh->vBuffer, 0, vertexBufferSize, mesh->vertices, false);
+
+  ldkRenderBufferSetIndexData(mesh->vBuffer, indexBufferSize, mesh->indices, false);
   ldkRenderBufferBind(NULL);
 
   return true;

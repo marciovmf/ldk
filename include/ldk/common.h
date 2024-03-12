@@ -143,6 +143,7 @@ extern "C" {
   typedef uintptr_t LDKHandle;
   typedef void*     LDKWindow;
   typedef struct LDKRenderBuffer_t LDKRenderBuffer;
+  typedef struct LDKInstanceBuffer_t LDKInstanceBuffer;
 
 
   // SmallStr
