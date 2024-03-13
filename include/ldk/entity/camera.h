@@ -16,11 +16,20 @@
 extern "C" {
 #endif
 
+  typedef enum
+  {
+    LDK_CAMERA_PERSPECTIVE = 0,
+    LDK_CAMERA_ORTHOGRAPHIC = 1
+  } LDKCameraType;
+
+
   typedef struct
   {
     LDK_DECLARE_ENTITY;
+    LDKCameraType type;
     Vec3 position;
     Vec3 target;
+    float orthoSize;
     float fovRadian; 
     float nearPlane;
     float farPlane;

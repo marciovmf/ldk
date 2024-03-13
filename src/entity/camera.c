@@ -12,6 +12,7 @@ LDKCamera* ldkCameraEntityCreate(LDKCamera* entity)
   entity->farPlane  = 1000.0f;
   entity->position  = vec3(0.0f, 0.0f, 10.0f);
   entity->target    = vec3Zero();
+  entity->type = LDK_CAMERA_PERSPECTIVE;
 
   return entity;
 }
@@ -32,7 +33,21 @@ Mat4 ldkCameraViewMatrix(LDKCamera* camera)
 
 Mat4 ldkCameraProjectMatrix(LDKCamera* camera)
 {
-  return mat4Perspective(camera->fovRadian, camera->nearPlane, camera->farPlane, ldkGraphicsViewportRatio());
+  if (camera->type == LDK_CAMERA_ORTHOGRAPHIC)
+  {
+    LDKSize vpSize = ldkGraphicsViewportSizeGet();
+    float hSize = (camera->orthoSize * vpSize.width) / vpSize.height;
+
+    float left = -hSize;
+    float right = hSize;
+    float top = camera->orthoSize;
+    float bottom = -camera->orthoSize;
+    return mat4Orthographic(left, right, bottom, top, camera->nearPlane, camera->farPlane);
+  }
+  else
+  {
+    return mat4Perspective(camera->fovRadian, camera->nearPlane, camera->farPlane, ldkGraphicsViewportRatio());
+  }
 }
 
 Mat4 ldkCameraViewProjectMatrix(LDKCamera* camera)
