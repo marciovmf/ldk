@@ -63,7 +63,6 @@ bool onWindowEvent(const LDKEvent* event, void* state)
 bool onFrameEvent(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
-
   LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
 
   if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
@@ -126,11 +125,10 @@ int main(void)
 #endif
 
 
+#if 1
   LDKInstancedObject* io = ldkEntityCreate(LDKInstancedObject);
   LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/cube.mesh");
   io->mesh = cube->asset.handle;
-
-#if 1
   for(uint32 i = 0; i < 200; i++)
   {
     for(uint32 j = 0; j < 200; j++)
@@ -141,9 +139,9 @@ int main(void)
           quatAngleAxis(rand() * 1.0f, vec3(1.0, 1.0, 1.0)));
     }
   }
+  ldkInstancedObjectUpdate(io);
 #endif
 
-  ldkInstancedObjectUpdate(io);
 
   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
