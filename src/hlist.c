@@ -83,7 +83,7 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
   else
   {
     // Add a new slot and a new element
-    slotPtr = (SlotInfo*) ldkArenaAllocate(&hlist->slots, sizeof(SlotInfo));
+    slotPtr = (SlotInfo*) ldkArenaAllocate(&hlist->slots, SlotInfo);
     slotPtr->version = 0;
     ldkArenaAllocate(&hlist->elements, hlist->elementSize);
   }

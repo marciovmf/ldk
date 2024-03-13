@@ -130,16 +130,18 @@ int main(void)
   LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/cube.mesh");
   io->mesh = cube->asset.handle;
 
+#if 1
   for(uint32 i = 0; i < 200; i++)
   {
     for(uint32 j = 0; j < 200; j++)
     {
       ldkInstancedObjectAddInstance(io,
           vec3(-300 + i * 3.0f, 0, -300 + j * 3.0f),
-          vec3(1.0f, 1.0f, 1.0f),
+          vec3One(),
           quatAngleAxis(rand() * 1.0f, vec3(1.0, 1.0, 1.0)));
     }
   }
+#endif
 
   ldkInstancedObjectUpdate(io);
 

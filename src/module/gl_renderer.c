@@ -1144,14 +1144,14 @@ void ldkRendererCameraSet(LDKCamera* camera)
 
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
 {
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, LDKRenderObject);
   ro->type = LDK_RENDER_OBJECT_STATIC_OBJECT;
   ro->staticMesh = entity;
 }
 
 void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
 {
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, sizeof(LDKRenderObject));
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, LDKRenderObject);
   ro->type = LDK_RENDER_OBJECT_INSTANCED_OBJECT;
   ro->instancedMesh = entity;
 }
