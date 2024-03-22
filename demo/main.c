@@ -1,12 +1,4 @@
-#include "ldk/ldk.h"
-#include "ldk/module/asset.h"
-#include "ldk/asset/mesh.h"
-#include "ldk/module/entity.h"
-#include "ldk/entity/staticobject.h"
-#include "ldk/entity/instancedobject.h"
-#include "ldk/common.h"
-#include "ldk/asset/config.h"
-#include "ldk/maths.h"
+#include <ldk.h>
 #include <math.h>
 #include <stdlib.h>
 
