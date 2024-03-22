@@ -27,9 +27,10 @@ typedef struct
 
 typedef enum
 {
-  LDK_RENDER_STATIC_OBJECTS,
-  LDK_RENDER_PHASE_PICKING,
-} RenderPhase;
+  SHADER_MODE_DEFAULT = 0,
+  SHADER_MODE_PICKING = 1,
+  SHADER_MODE_HIGHLIGHT = 2,
+} LDKShaderMode;
 
 #define LDK_GL_ERROR_LOG_SIZE 1024
 static struct 
@@ -40,15 +41,17 @@ static struct
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArena bucketROStaticMesh;
   LDKCamera* camera;
-  LDKMaterial* fixedMaterial;
+  LDKShaderMode shaderMode;
   float elapsedTime;
 
   // Picking
   GLuint fboPicking;
   GLuint texturePicking;
   GLuint textureDepthPicking;
-  LDKHandle materialPickingHandle;
-  LDKHandle materialHighlightHandle;
+  LDKHandle hShaderPicking;
+  LDKHandle hShaderHighlight;
+  LDKShader* shaderPicking;
+  LDKShader* shaderHighlight;
   LDKHandle materialInstancedHandle;
 
   Vec3 higlightColor1;
@@ -120,8 +123,8 @@ bool internalPickingFBOCreate(uint32 width, uint32 height)
   }
 
   // Loads the picking shader
-  internal.materialPickingHandle = ldkAssetGet(LDKMaterial, "assets/editor/picking.material")->asset.handle;
-  internal.materialHighlightHandle = ldkAssetGet(LDKMaterial, "assets/editor/highlight.material")->asset.handle;
+  internal.hShaderPicking   = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
+  internal.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
 
   // Loads the intanced rendering shader
   internal.materialInstancedHandle = ldkAssetGet(LDKMaterial, "assets/instanced.material")->asset.handle;
@@ -308,17 +311,6 @@ void ldkShaderDestroy(LDKShader* shader)
   shader->gl.id = 0;
 }
 
-static LDKMaterialParam* internalMaterialParamGet(LDKMaterial* material, const char* name, GLenum type)
-{
-  for (uint32 i = 0; i < material->numParam; i++)
-  {
-    if (material->param[i].gl.type == type && strncmp(name, (const char*) &material->param[i].name, material->param[i].name.length) == 0)
-      return &material->param[i];
-  }
-  ldkLogError("Material '%s' references unknown param '%s %s'", material->asset.path, ldkOpenglTypeName(type), name);
-  return NULL;
-}
-
 bool ldkFragmentShaderCreate(const char* source, LDKShader* shaderAsset)
 {
   shaderAsset->gl.id = internalShaderSourceCompile(GL_FRAGMENT_SHADER, source);
@@ -355,6 +347,116 @@ bool ldkShaderProgramBind(LDKShader* shaderAsset)
   return true;
 }
 
+#ifdef LDK_DEBUG
+#define internalSetShaderUniformError(path, type, name) ldkLogWarning("Failed to set param '%s %s' shader '%s'. Param not found", type, name, path)
+#else
+#define internalSetShaderUniformError(path, type, name)
+#endif
+
+bool ldkShaderParamSetInt(LDKShader* shader, const char* name, int32 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "int", name);
+    return false;
+  }
+
+  glUniform1i(location, value);
+  return true;
+}
+
+bool ldkShaderParamSetUint(LDKShader* shader, const char* name, uint32 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "unsigned int", name);
+    return false;
+  }
+  
+  glUniform1ui(location, value);
+  return true;
+}
+
+bool ldkShaderParamSetFloat(LDKShader* shader, const char* name, float value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "float", name);
+    return false;
+  }
+  
+  glUniform1f(location, value);
+  return true;
+}
+
+bool ldkShaderParamSetVec2(LDKShader* shader, const char* name, Vec2 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "vec2", name);
+    return false;
+  }
+  
+  glUniform2f(location, value.x, value.y);
+  return true;
+}
+
+bool ldkShaderParamSetVec3(LDKShader* shader, const char* name, Vec3 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "vec3", name);
+    return false;
+  }
+  
+  glUniform3f(location, value.x, value.y, value.z);
+  return true;
+}
+
+bool ldkShaderParamSetVec4(LDKShader* shader, const char* name, Vec4 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "vec4", name);
+    return false;
+  }
+
+  glUniform4f(location, value.x, value.y, value.z, value.w);
+  return true;
+}
+
+bool ldkShaderParamSetMat4(LDKShader* shader, const char* name, Mat4 value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "mat4", name);
+    return false;
+  }
+
+  glUniformMatrix4fv(location,  1, GL_TRUE, (float*)&value);
+  return true;
+}
+
+bool ldkShaderParamSetTexture(LDKShader* shader, const char* name, LDKTexture* value)
+{
+  GLuint location = glGetUniformLocation(shader->gl.id, name);
+  if (location < 0)
+  {
+    internalSetShaderUniformError(shader->asset.path, "texture", name);
+    return false;
+  }
+
+  glBindTexture(GL_TEXTURE_2D, value->gl.id);
+  return true;
+}
+
 
 //
 // Material
@@ -367,17 +469,17 @@ bool ldkMaterialCreate(LDKShader* program, LDKMaterial* out)
 
   int32 numUniforms = 0;
   glGetProgramiv(program->gl.id, GL_ACTIVE_UNIFORMS, &numUniforms);
-  if (numUniforms > LDK_MATERIAL_MAX_PARAMS)
+  if (numUniforms > LDK_SHADER_MAX_PARAMS)
   {
-    ldkLogError("Shader %s declares too many uniforms (%d). MAximum is %d.", program->asset.path, numUniforms, LDK_MATERIAL_MAX_PARAMS);
+    ldkLogError("Shader %s declares too many uniforms (%d). MAximum is %d.", program->asset.path, numUniforms, LDK_SHADER_MAX_PARAMS);
     return false;
   }
 
   int32 maxUniformNameLength = 0;
   glGetProgramiv(program->gl.id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxUniformNameLength);
-  if (numUniforms > LDK_MATERIAL_MAX_PARAMS)
+  if (numUniforms > LDK_SHADER_MAX_PARAMS)
   {
-    ldkLogError("Shader %s declares at least one uniform names longer than (%d)", program->asset.path, LDK_SMALL_STRING_MAX_LENGTH);
+    ldkLogError("Shader %s declares at least one uniform name longer than (%d)", program->asset.path, LDK_SMALL_STRING_MAX_LENGTH);
     return LDK_HANDLE_INVALID;
   }
 
@@ -385,36 +487,56 @@ bool ldkMaterialCreate(LDKShader* program, LDKMaterial* out)
   out->numParam    = numUniforms;
   out->program     = program->asset.handle;
   out->numTextures = 0;
-  memset(&out->param, 0, (sizeof(LDKMaterialParam) * LDK_MATERIAL_MAX_PARAMS));
+  memset(&out->param, 0, (sizeof(LDKMaterialParam) * LDK_SHADER_MAX_PARAMS));
   memset(&out->textures, 0, (sizeof(LDKHandle) * LDK_MATERIAL_MAX_TEXTURES));
 
+  GLuint uniformType;
+  GLsizei uniformSize;
+
+  // Fill up the list of material properties from the shader 
   for (int i = 0; i < numUniforms; i ++)
   {
     LDKMaterialParam* param = &out->param[i];
+
     glGetActiveUniform(program->gl.id, i,
         LDK_SMALL_STRING_MAX_LENGTH,
         (GLsizei*) &param->name.length,
-        &param->gl.size,
-        &param->gl.type,
-        (char*) &out->param[i].name.str);
+        &uniformSize,
+        &uniformType,
+        (char*) &out->param[i].name);
 
-    if ( param->gl.type != GL_INT
-        && param->gl.type != GL_UNSIGNED_INT
-        && param->gl.type != GL_FLOAT
-        && param->gl.type != GL_FLOAT_VEC2
-        && param->gl.type != GL_FLOAT_VEC3
-        && param->gl.type != GL_FLOAT_VEC4
-        && param->gl.type != GL_FLOAT_MAT4
-        && param->gl.type != GL_SAMPLER_2D
-       )
+    switch(uniformType)
     {
-      ldkLogWarning("Material '%s' references param with unsupported type '%s %s'",
-          out->asset.path,
-          ldkOpenglTypeName(param->gl.type),
-          (const char*) &out->param[i].name);
-      continue;
+      case GL_INT:
+        param->type = LDK_MATERIAL_PARAM_TYPE_INT;
+        break;
+      case GL_UNSIGNED_INT:
+        param->type = LDK_MATERIAL_PARAM_TYPE_UINT;
+        break;
+      case GL_FLOAT:
+        param->type = LDK_MATERIAL_PARAM_TYPE_FLOAT;
+        break;
+      case GL_FLOAT_VEC2:
+        param->type = LDK_MATERIAL_PARAM_TYPE_VEC2;
+        break;
+      case GL_FLOAT_VEC3:
+        param->type = LDK_MATERIAL_PARAM_TYPE_VEC3;
+        break;
+      case GL_FLOAT_VEC4:
+        param->type = LDK_MATERIAL_PARAM_TYPE_VEC4;
+        break;
+      case GL_FLOAT_MAT4:
+        param->type = LDK_MATERIAL_PARAM_TYPE_MAT4;
+        break;
+      case GL_SAMPLER_2D:
+        param->type = LDK_MATERIAL_PARAM_TYPE_TEXTURE;
+        break;
+      default:
+        ldkLogWarning("Material '%s' references param with unsupported type '%s %s'",
+            out->asset.path, ldkOpenglTypeName(uniformType), (const char*) &param->name);
+        break;
+
     }
-    out->param[i].gl.location = glGetUniformLocation(program->gl.id, (const char*) &out->param[i].name);
   }
 
   return true;
@@ -425,15 +547,26 @@ void ldkMaterialDestroy(LDKMaterial* material)
   ldkAssetDispose(material);
 }
 
+LDKMaterialParam* internalMaterialParamGet(LDKMaterial* material, const char* name, LDKMaterialParamType type)
+{
+  for (uint32 i = 0; i < material->numParam; i++)
+  {
+    LDKMaterialParam* param = &material->param[i];
+    if (strncmp(param->name.str, name, param->name.length) == 0 && param->type == type)
+    {
+      return param;
+    }
+  }
+  return NULL;
+}
+
 bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value)
 {
   if (!material) return false;
-
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_INT);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_INT);
   if (!param) return false;
 
   param->intValue = value;
-  glUniform1i(param->gl.location, value);
   return true;
 }
 
@@ -441,11 +574,10 @@ bool ldkMaterialParamSetUInt(LDKMaterial* material, const char* name, uint32 val
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_UNSIGNED_INT);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_UINT);
   if (!param) return false;
 
   param->uintValue = value;
-  glUniform1ui(param->gl.location, value);
   return true;
 }
 
@@ -453,11 +585,10 @@ bool ldkMaterialParamSetFloat(LDKMaterial* material, const char* name, float val
 {
   if (!material) return false;
 
-  LDKMaterialParam* param =  internalMaterialParamGet(material, name, GL_FLOAT);
+  LDKMaterialParam* param =  internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_FLOAT);
   if (!param) return false;
 
   param->floatValue = value;
-  glUniform1f(param->gl.location, value);
   return true;
 }
 
@@ -465,11 +596,10 @@ bool ldkMaterialParamSetVec2(LDKMaterial* material, const char* name, Vec2 value
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC2);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_VEC2);
   if (!param) return false;
 
   param->vec2Value = value;
-  glUniform2f(param->gl.location, value.x, value.y);
   return true;
 }
 
@@ -477,11 +607,10 @@ bool ldkMaterialParamSetVec3(LDKMaterial* material, const char* name, Vec3 value
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC3);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_VEC3);
   if (!param) return false;
 
   param->vec3Value = value;
-  glUniform3f(param->gl.location, value.x, value.y, value.z);
   return true;
 }
 
@@ -489,11 +618,10 @@ bool ldkMaterialParamSetVec4(LDKMaterial* material, const char* name, Vec4 value
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_VEC4);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_VEC3);
   if (!param) return false;
 
   param->vec4Value = value;
-  glUniform4f(param->gl.location, value.x, value.y, value.z, value.w);
   return true;
 }
 
@@ -501,11 +629,10 @@ bool ldkMaterialParamSetMat4(LDKMaterial* material, const char* name, Mat4 value
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_FLOAT_MAT4);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_MAT4);
   if (!param) return false;
 
   param->mat4Value = value;
-  glUniformMatrix4fv(param->gl.location, 1, GL_TRUE, (float*)&value);
   return true;
 }
 
@@ -513,7 +640,7 @@ bool ldkMaterialParamSetTexture(LDKMaterial* material, const char* name, LDKText
 {
   if (!material) return false;
 
-  LDKMaterialParam* param = internalMaterialParamGet(material, name, GL_SAMPLER_2D);
+  LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_TEXTURE);
   if (!param) return false;
 
   if (material->numTextures >= LDK_MATERIAL_MAX_TEXTURES)
@@ -549,37 +676,41 @@ bool ldkMaterialBind(LDKMaterial* material)
   for (uint32 i = 0; i < material->numParam; i++)
   {
     LDKMaterialParam* param = &material->param[i];
-    switch(param->gl.type)
+    switch(param->type)
     {
-      case GL_INT:
-        ldkMaterialParamSetInt(material, param->name.str, param->intValue);
+      case LDK_MATERIAL_PARAM_TYPE_INT:
+        ldkShaderParamSetInt(shader, param->name.str, param->intValue);
         break;
 
-      case GL_UNSIGNED_INT:
-        ldkMaterialParamSetUInt(material, param->name.str, param->intValue);
+      case LDK_MATERIAL_PARAM_TYPE_UINT:
+        ldkShaderParamSetUint(shader, param->name.str, param->uintValue);
         break;
 
-      case GL_FLOAT:
-        ldkMaterialParamSetFloat(material, param->name.str, param->floatValue);
+      case LDK_MATERIAL_PARAM_TYPE_FLOAT:
+        ldkShaderParamSetFloat(shader, param->name.str, param->floatValue);
         break;
 
-      case GL_FLOAT_VEC2:
-        ldkMaterialParamSetVec2(material, param->name.str, param->vec2Value);
+      case LDK_MATERIAL_PARAM_TYPE_VEC2:
+        ldkShaderParamSetVec2(shader, param->name.str, param->vec2Value);
         break;
 
-      case GL_FLOAT_VEC3:
-        ldkMaterialParamSetVec3(material, param->name.str, param->vec3Value);
+      case LDK_MATERIAL_PARAM_TYPE_VEC3:
+        ldkShaderParamSetVec3(shader, param->name.str, param->vec3Value);
         break;
 
-      case GL_FLOAT_VEC4:
-        ldkMaterialParamSetVec4(material, param->name.str, param->vec4Value);
+      case LDK_MATERIAL_PARAM_TYPE_VEC4:
+        ldkShaderParamSetVec4(shader, param->name.str, param->vec4Value);
         break;
 
-      case GL_SAMPLER_2D:
+      case LDK_MATERIAL_PARAM_TYPE_MAT4:
+        ldkShaderParamSetMat4(shader, param->name.str, param->mat4Value);
+        break;
+
+      case LDK_MATERIAL_PARAM_TYPE_TEXTURE:
         glActiveTexture(GL_TEXTURE0 + param->textureIndexValue);
         LDKHandle hTexture = material->textures[param->textureIndexValue];
         LDKTexture* texture = ldkAssetLookup(LDKTexture, hTexture);
-        glBindTexture(GL_TEXTURE_2D, texture->gl.id);
+        ldkShaderParamSetTexture(shader, param->name.str, texture);
         break;
     }
   }
@@ -774,16 +905,16 @@ void ldkTextureDestroy(LDKTexture* texture)
 
 struct LDKRenderBuffer_t
 {
-    GLuint  vao;
-    GLuint* vbo;
-    size_t* vboSize;
-    bool*   vboIsStream;
-    GLuint  ibo;
-    size_t  iboSize;
-    bool    iboIsStream;
-    uint32  numIndices;
-    uint32  numVBOs;
-    bool    hasInstancedAttributes;
+  GLuint  vao;
+  GLuint* vbo;
+  size_t* vboSize;
+  bool*   vboIsStream;
+  GLuint  ibo;
+  size_t  iboSize;
+  bool    iboIsStream;
+  uint32  numIndices;
+  uint32  numVBOs;
+  bool    hasInstancedAttributes;
 };
 
 struct LDKInstanceBuffer_t
@@ -1172,21 +1303,29 @@ void internalRenderMesh(LDKStaticObject* entity)
     LDKMaterial* material = NULL;
 
     // if rendering with picking material, we set the surface index
-    if (internal.fixedMaterial) 
+    if (internal.shaderMode == SHADER_MODE_PICKING)
     {
-      if (internal.fixedMaterial->asset.handle == internal.materialPickingHandle)
-        ldkMaterialParamSetUInt(internal.fixedMaterial, "surfaceIndex", i);
-
-      material = internal.fixedMaterial;
+      ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+      ldkShaderParamSetMat4(internal.shaderPicking, "mModel", world);
     }
-    else
+    else if (internal.shaderMode == SHADER_MODE_HIGHLIGHT)
+    {
+      ldkShaderProgramBind(internal.shaderHighlight);
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
+      ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+      ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+      ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+    }
+    else if (internal.shaderMode == SHADER_MODE_DEFAULT)
     {
       LDKHandle hMaterial = mesh->materials[surface->materialIndex];
       material = ldkAssetLookup(LDKMaterial, hMaterial);
       ldkMaterialBind(material);
+      ldkMaterialParamSetMat4(material, "mModel", world);
     }
 
-    ldkMaterialParamSetMat4(material, "mModel", world);
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
 
@@ -1209,14 +1348,24 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity)
     LDKMaterial* material = NULL;
 
     // if rendering with picking material, we set the surface index
-    if (internal.fixedMaterial) 
+    if (internal.shaderMode == SHADER_MODE_PICKING) 
     {
-      if (internal.fixedMaterial->asset.handle == internal.materialPickingHandle)
-        ldkMaterialParamSetUInt(internal.fixedMaterial, "surfaceIndex", i);
-
-      material = internal.fixedMaterial;
+      ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+      Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
+      ldkShaderParamSetMat4(internal.shaderPicking, "mModel", *world);
     }
-    else
+    else if (internal.shaderMode == SHADER_MODE_HIGHLIGHT)
+    {
+      Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
+      ldkShaderProgramBind(internal.shaderHighlight);
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", *world);
+      ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+      ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+      ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+    }
+    else if (internal.shaderMode == SHADER_MODE_DEFAULT)
     {
       LDKHandle hMaterial = mesh->materials[surface->materialIndex];
       material = ldkAssetLookup(LDKMaterial, hMaterial);
@@ -1229,8 +1378,6 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity)
 
   ldkInstanceBufferUnbind(entity->instanceBuffer);
   ldkRenderBufferBind(NULL);
-
-
 }
 
 void ldkRendererRender(float deltaTime)
@@ -1239,7 +1386,11 @@ void ldkRendererRender(float deltaTime)
 
   uint32 count = (uint32) ldkArenaUsedGet(&internal.bucketROStaticMesh) / sizeof(LDKRenderObject);
   LDKRenderObject* ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
-  internal.fixedMaterial = NULL;
+  internal.shaderMode = SHADER_MODE_DEFAULT;
+
+  // Lookup fixed shaders
+  internal.shaderPicking  = ldkAssetLookup(LDKShader, internal.hShaderPicking);
+  internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
 
   glEnable(GL_BLEND);
   glEnable(GL_CULL_FACE);
@@ -1270,26 +1421,33 @@ void ldkRendererRender(float deltaTime)
 #if 1
 
   //
-  // Picking
+  // Render the Picking buffer
   //
+
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
-  internal.fixedMaterial = ldkAssetLookup(LDKMaterial, internal.materialPickingHandle);
-  ldkMaterialBind(internal.fixedMaterial);
+
+  internal.shaderMode = SHADER_MODE_PICKING;
+  ldkShaderProgramBind(internal.shaderPicking);
+  ldkShaderParamSetMat4(internal.shaderPicking, "mView", ldkCameraViewMatrix(internal.camera));
+  ldkShaderParamSetMat4(internal.shaderPicking, "mProj", ldkCameraProjectMatrix(internal.camera));
 
   glClearColor(0, 0, 0, 0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+
   for(uint32 i = 0; i < count; i++)
   {
-    ldkMaterialParamSetUInt(internal.fixedMaterial, "objectIndex", i + 1);
+    ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", i + 1);
     if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       internalRenderMesh(ro->staticMesh);
+    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
+      internalRenderMeshInstanced(ro->instancedMesh);
     ro++;
   }
 
   //
-  // Selection highlight
+  // Picking
   //
 
   ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
@@ -1315,38 +1473,46 @@ void ldkRendererRender(float deltaTime)
     if (objectIndex > 0)
     {
       internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
+      ldkLogInfo("Selected entity = %d", internal.selectedEntity);
     }
     else
     {
       internal.selectedEntity = LDK_HANDLE_INVALID; 
     }
   }
-
-  // Unbind the picking framebuffer
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+
+  //
+  // Picking Highlight
+  //
 
   if (internal.selectedEntity != LDK_HANDLE_INVALID)
   {
-    LDKStaticObject* staticObject = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
-    if (staticObject)
+    LDKInstancedObject* io = NULL;
+    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
+    if (!so)
+    {
+      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
+    }
+
+    if (so || io)
     {
       // Turn on wireframe mode and highlight the selected entity
-      internal.fixedMaterial = ldkAssetLookup(LDKMaterial, internal.materialHighlightHandle);
-      ldkMaterialBind(internal.fixedMaterial);
-      ldkMaterialParamSetFloat(internal.fixedMaterial, "deltaTime", internal.elapsedTime);
-      ldkMaterialParamSetVec3(internal.fixedMaterial, "color1", internal.higlightColor1);
-      ldkMaterialParamSetVec3(internal.fixedMaterial, "color2", internal.higlightColor2);
-
+      internal.shaderMode = SHADER_MODE_HIGHLIGHT;
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       glLineWidth(3.0);
       glDisable(GL_DEPTH_TEST);
 
-      internalRenderMesh(staticObject);
+      if (so)
+        internalRenderMesh(so);
+      else
+        internalRenderMeshInstanced(io);
 
       glEnable(GL_DEPTH_TEST);
       glLineWidth(1.0);
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      internal.fixedMaterial = NULL;
+      internal.shaderMode = SHADER_MODE_DEFAULT;
     }
     else
     {

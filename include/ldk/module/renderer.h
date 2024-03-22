@@ -40,6 +40,14 @@ extern "C" {
   LDK_API void ldkShaderDestroy(LDKShader* shader);
   LDK_API bool ldkShaderProgramBind(LDKShader* shaderAsset); // Passing in NULL will unbind current Shader program
 
+  LDK_API bool ldkShaderParamSetInt(LDKShader* shader, const char* name, int32 value);
+  LDK_API bool ldkShaderParamSetUint(LDKShader* shader, const char* name, uint32 value);
+  LDK_API bool ldkShaderParamSetFloat(LDKShader* shader, const char* name, float value);
+  LDK_API bool ldkShaderParamSetVec2(LDKShader* shader, const char* name, Vec2 value);
+  LDK_API bool ldkShaderParamSetVec3(LDKShader* shader, const char* name, Vec3 value);
+  LDK_API bool ldkShaderParamSetVec4(LDKShader* shader, const char* name, Vec4 value);
+  LDK_API bool ldkShaderParamSetMat4(LDKShader* shader, const char* name, Mat4 value);
+  LDK_API bool ldkShaderParamSetTexture(LDKShader* shader, const char* name, LDKTexture* value);
 
   //
   // Material
@@ -47,7 +55,8 @@ extern "C" {
 
   LDK_API bool ldkMaterialCreate(LDKShader* handle, LDKMaterial* out);
   LDK_API void ldkMaterialDestroy(LDKMaterial* material);
-  LDK_API bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int value);
+  LDK_API bool ldkMaterialParamSetInt(LDKMaterial* material, const char* name, int32 value);
+  LDK_API bool ldkMaterialParamSetUint(LDKMaterial* material, const char* name, uint32 value);
   LDK_API bool ldkMaterialParamSetFloat(LDKMaterial* material, const char* name, float value);
   LDK_API bool ldkMaterialParamSetVec2(LDKMaterial* material, const char* name, Vec2 value);
   LDK_API bool ldkMaterialParamSetVec3(LDKMaterial* material, const char* name, Vec3 value);
