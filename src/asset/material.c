@@ -1,9 +1,9 @@
 #include "ldk/asset/material.h"
 #include "ldk/asset/texture.h"
 #include "ldk/asset/image.h"
-#include "ldk/common.h"
 #include "ldk/module/asset.h"
 #include "ldk/module/renderer.h"
+#include "ldk/common.h"
 #include "ldk/os.h"
 #include <stdlib.h>
 #include <string.h>
