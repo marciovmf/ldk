@@ -18,23 +18,25 @@
 extern "C" {
 #endif
 
-#ifndef LDK_MATERIAL_MAX_PARAMS
-#define LDK_MATERIAL_MAX_PARAMS 8
-#endif
+#define LDK_MATERIAL_MAX_TEXTURES 8
 
-#define LDK_MATERIAL_MAX_TEXTURES LDK_MATERIAL_MAX_PARAMS
+  typedef enum
+  {
+    LDK_MATERIAL_PARAM_TYPE_INT     = 0,
+    LDK_MATERIAL_PARAM_TYPE_UINT    = 1,
+    LDK_MATERIAL_PARAM_TYPE_FLOAT   = 2,
+    LDK_MATERIAL_PARAM_TYPE_VEC2    = 3,
+    LDK_MATERIAL_PARAM_TYPE_VEC3    = 4,
+    LDK_MATERIAL_PARAM_TYPE_VEC4    = 5,
+    LDK_MATERIAL_PARAM_TYPE_MAT4    = 6,
+    LDK_MATERIAL_PARAM_TYPE_TEXTURE = 7,
+  }LDKMaterialParamType;
 
   typedef struct
   {
-    uint32 type;
-    int32 size;
-    uint32 location;
-  } LDKGLMaterialParamInfo;
-
-  typedef struct
-  {
-    LDKGLMaterialParamInfo gl;
     LDKSmallStr name;
+    LDKMaterialParamType type;
+
     union
     {
       uint32    textureIndexValue;
@@ -53,8 +55,8 @@ extern "C" {
     LDK_DECLARE_ASSET;
     const char* name;
     LDKHandle program;
-    LDKMaterialParam param[LDK_MATERIAL_MAX_PARAMS];
-    LDKHandle textures[LDK_MATERIAL_MAX_TEXTURES];
+    LDKMaterialParam param[LDK_SHADER_MAX_PARAMS];
+    LDKHandle textures[LDK_SHADER_MAX_PARAMS];
     uint32 numParam;
     uint32 numTextures;
   } LDKMaterial;

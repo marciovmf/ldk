@@ -28,7 +28,7 @@ void ldkArenaDestroy(LDKArena* arena)
   arena->data = NULL;
 }
 
-byte* ldkArenaAllocate(LDKArena* arena, size_t size)
+byte* ldkArenaAllocateSize(LDKArena* arena, size_t size)
 {
   LDK_ASSERT(arena->initialized);
   if (arena->used + size >= arena->bufferSize)
@@ -51,7 +51,7 @@ byte* ldkArenaAllocate(LDKArena* arena, size_t size)
   return memPtr;
 }
 
-void ldkArenaFree(LDKArena* arena, size_t size)
+void ldkArenaFreeSize(LDKArena* arena, size_t size)
 {
   LDK_ASSERT(arena->initialized);
   LDK_ASSERT(size <= arena->used);

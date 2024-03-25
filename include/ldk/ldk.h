@@ -14,6 +14,7 @@
 #include <ldk/os.h>
 #include <ldk/gl.h>
 #include <ldk/hlist.h>
+#include <ldk/arena.h>
 #include <ldk/maths.h>
 #include <ldk/engine.h>
 #include <ldk/eventqueue.h>
@@ -35,6 +36,7 @@
 /* Entities */
 #include <ldk/entity/camera.h>
 #include <ldk/entity/staticobject.h>
+#include <ldk/entity/instancedobject.h>
 
 
 #endif //LDK_H

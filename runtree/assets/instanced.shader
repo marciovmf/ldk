@@ -30,12 +30,12 @@
 LDK_VERTEX_ATTRIBUTE_POSITION   vec3 vPosition;
 LDK_VERTEX_ATTRIBUTE_NORMAL     vec3 vNormal;
 LDK_VERTEX_ATTRIBUTE_TEXCOORD0  vec2 vTexcoord;
+LDK_VERTEX_ATTRIBUTE_MATRIX0    mat4 mModel;
 
 out vec2 fragTexCoord;
 
 uniform mat4 mView;
 uniform mat4 mProj;
-uniform mat4 mModel;
 
 void main()
 {
@@ -56,7 +56,8 @@ out vec4 fragColor;
 
 void main()
 {
-  fragColor = texture(colorMap, fragTexCoord / 5);
+  float c = gl_PrimitiveID * 0.1f;
+  fragColor = texture(colorMap, fragTexCoord * 4);
 }
 #endif
 

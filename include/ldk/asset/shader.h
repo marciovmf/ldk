@@ -16,6 +16,11 @@
 extern "C" {
 #endif
 
+
+#ifndef LDK_SHADER_MAX_PARAMS
+#define LDK_SHADER_MAX_PARAMS 8  
+#endif
+
   typedef struct 
   {
     uint32 id;
