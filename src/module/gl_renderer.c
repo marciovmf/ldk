@@ -52,7 +52,6 @@ static struct
   LDKHandle hShaderHighlight;
   LDKShader* shaderPicking;
   LDKShader* shaderHighlight;
-  LDKHandle materialInstancedHandle;
 
   Vec3 higlightColor1;
   Vec3 higlightColor2;
@@ -126,9 +125,6 @@ bool internalPickingFBOCreate(uint32 width, uint32 height)
   internal.hShaderPicking   = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
   internal.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
 
-  // Loads the intanced rendering shader
-  internal.materialInstancedHandle = ldkAssetGet(LDKMaterial, "assets/instanced.material")->asset.handle;
-
   internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
   internal.higlightColor2 = ldkConfigGetVec3(internal.config, "editor.highlight-color2");
 
@@ -157,7 +153,7 @@ bool ldkRendererInitialize(LDKConfig* config)
   LDK_ASSERT(internal.initialized == false);
   internal.initialized = true;
   bool success = true;
-  internal.clearColor = (LDKRGB){0, 100, 120};
+  internal.clearColor = (LDKRGB){40, 40, 40};
   internal.config = config;
   success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
 
@@ -1320,7 +1316,8 @@ void internalRenderMesh(LDKStaticObject* entity)
     }
     else if (internal.shaderMode == SHADER_MODE_DEFAULT)
     {
-      LDKHandle hMaterial = mesh->materials[surface->materialIndex];
+      LDKHandle* materials = entity->materials ? entity->materials : mesh->materials;
+      LDKHandle hMaterial = materials[surface->materialIndex];
       material = ldkAssetLookup(LDKMaterial, hMaterial);
       ldkMaterialBind(material);
       ldkMaterialParamSetMat4(material, "mModel", world);
@@ -1441,8 +1438,8 @@ void ldkRendererRender(float deltaTime)
     ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", i + 1);
     if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       internalRenderMesh(ro->staticMesh);
-    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
-      internalRenderMeshInstanced(ro->instancedMesh);
+//    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
+//      internalRenderMeshInstanced(ro->instancedMesh);
     ro++;
   }
 
