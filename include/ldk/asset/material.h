@@ -63,6 +63,8 @@ extern "C" {
 
   LDK_API bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetMaterialUnloadFunc(LDKAsset asset);
+  LDK_API LDKMaterial* ldkMaterialClone(LDKHandle hMaterial);
+
 
 #ifdef __cplusplus
 }

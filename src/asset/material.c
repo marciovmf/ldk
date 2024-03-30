@@ -251,3 +251,24 @@ void ldkAssetMaterialUnloadFunc(LDKAsset handle)
 {
   ldkMaterialDestroy(handle);
 }
+
+LDKMaterial* ldkMaterialClone(LDKHandle hMaterial)
+{
+  LDKMaterial* newMaterial = ldkAssetNew(LDKMaterial);
+  LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
+
+  if (material == NULL)
+  {
+    ldkAssetDispose(newMaterial);
+    return NULL;
+  }
+
+  newMaterial->program = material->program;
+  newMaterial->numParam = material->numParam;
+  newMaterial->numTextures = material->numTextures;
+  // copy textures and materials
+  memcpy(&newMaterial->textures, material->textures, LDK_MATERIAL_MAX_TEXTURES * sizeof(LDKHandle));
+  memcpy(&newMaterial->param, material->param, LDK_SHADER_MAX_PARAMS * sizeof(LDKMaterialParam));
+
+  return newMaterial;
+}
