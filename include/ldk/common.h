@@ -145,7 +145,6 @@ extern "C" {
   typedef struct LDKRenderBuffer_t LDKRenderBuffer;
   typedef struct LDKInstanceBuffer_t LDKInstanceBuffer;
 
-
   // SmallStr
   typedef struct
   {
@@ -167,6 +166,10 @@ extern "C" {
     int32 height;
   } LDKSize;
 
+  LDK_API LDKSize ldkSize(int32 width, int32 height);
+  LDK_API LDKSize ldkSizeZero();
+  LDK_API LDKSize ldkSizeOne();
+
   // LDKRect
   typedef struct 
   {
@@ -175,6 +178,8 @@ extern "C" {
     int32 w;
     int32 h;
   } LDKRect;
+
+  LDK_API LDKRect ldkRect(int32 x, int32 y, int32 width, int32 height);
 
   // LDKRectf
   typedef struct 
@@ -185,12 +190,17 @@ extern "C" {
     float h;
   } LDKRectf;
 
+
+  LDK_API LDKRectf ldkRectf(float x, float y, float width, float height);
+
   // LDKPoint
   typedef struct
   {
     int32 x;
     int32 y;
   } LDKPoint;
+
+  LDK_API LDKPoint ldkPoint(int32 x, int32 y);
 
   // LDKPointf
   typedef struct
@@ -199,22 +209,28 @@ extern "C" {
     float y;
   } LDKPointf;
 
+  LDK_API LDKPointf ldkPointf(float x, float y);
+
   // LDKRGB
   typedef struct
   {
-    int32 r;
-    int32 g;
-    int32 b;
+    int8 r;
+    int8 g;
+    int8 b;
   } LDKRGB;
+
+  LDK_API LDKRGB ldkRRB(int8 r, int8 g, int8 b);
 
   // LDKRGBA
   typedef struct
   {
-    int32 r;
-    int32 g;
-    int32 b;
-    int32 a;
+    int8 r;
+    int8 g;
+    int8 b;
+    int8 a;
   } LDKRGBA;
+
+  LDK_API LDKRGBA ldkRRBA(int8 r, int8 g, int8 b, int8 a);
 
   //
   // Logging
