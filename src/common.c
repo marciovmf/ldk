@@ -5,6 +5,61 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+
+LDKSize ldkSize(int32 width, int32 height)
+{
+  LDKSize size = {.width = width, .height = height}; 
+  return size;
+}
+
+LDKSize ldkSizeZero()
+{
+  LDKSize size = {0};
+  return size;
+}
+
+LDKSize ldkSizeOne()
+{
+  LDKSize size = {.width = 1, .height = 1}; 
+  return size;
+}
+
+LDKRect ldkRect(int32 x, int32 y, int32 width, int32 height)
+{
+  LDKRect rect = {.x = x, .y = y, .w = width, .h = height};
+  return rect;
+}
+
+LDKRectf ldkRectf(float x, float y, float width, float height)
+{
+  LDKRectf rectf = {.x = x, .y = y, .w = width, .h = height};
+  return rectf;
+}
+
+LDKPoint ldkPoint(int32 x, int32 y)
+{
+  LDKPoint point = {.x = x, .y = y};
+  return point;
+}
+
+LDKPointf ldkPointf(float x, float y)
+{
+  LDKPointf point = {.x = x, .y = y};
+  return point;
+}
+
+LDKRGB ldkRRB(int8 r, int8 g, int8 b)
+{
+  LDKRGB rgb = {.r = r, .g = g, .b = b};
+  return rgb;
+}
+
+LDKRGBA ldkRRBA(int8 r, int8 g, int8 b, int8 a)
+{
+  LDKRGBA rgba = {.r = r, .g = g, .b = b, .a = a};
+  return rgba;
+}
+
 //
 // Logging
 //
