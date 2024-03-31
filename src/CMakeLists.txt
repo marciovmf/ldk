@@ -8,7 +8,6 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk.h
   ${INCLUDE_DIR}/os.h
   ${INCLUDE_DIR}/gl.h gl.c
-  ${INCLUDE_DIR}/hashmap.h hashmap.c
   ${INCLUDE_DIR}/maths.h maths.c
   ${INCLUDE_DIR}/arena.h arena.c
   ${INCLUDE_DIR}/hlist.h hlist.c
@@ -16,6 +15,9 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/common.h common.c
   ${INCLUDE_DIR}/eventqueue.h eventqueue.c
 
+  # Data structures
+  ${INCLUDE_DIR}/hashmap.h hashmap.c
+  ${INCLUDE_DIR}/array.h array.c
   # Entities
   ${INCLUDE_DIR}/entity/camera.h entity/camera.c
   ${INCLUDE_DIR}/entity/staticobject.h entity/staticobject.c
