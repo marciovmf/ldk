@@ -37,7 +37,6 @@ typedef struct
   LDKArray* instanceWorldMatrixList;
   LDKHandle mesh;
   LDKInstanceBuffer* instanceBuffer;
-  uint32 instanceCount;
 } LDKInstancedObject;
 
 LDK_API LDKInstancedObject* ldkInstancedObjectEntityCreate(LDKInstancedObject* entity);

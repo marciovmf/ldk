@@ -57,8 +57,7 @@ void ldkInstancedObjectUpdate(LDKInstancedObject* io)
 
 uint32 ldkInstancedObjectCount(const LDKInstancedObject* io)
 {
-  size_t count = ldkArrayCount(io->instanceList);
-  return (uint32) count;
+  return ldkArrayCount(io->instanceList);
 }
 
 LDKObjectInstance* ldkInstancedObjectGetAll(const LDKInstancedObject* io, uint32* outCount)
