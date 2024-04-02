@@ -9,6 +9,7 @@
 #define LDK_ENTITY_H
 
 #include "../common.h"
+#include "../hlist.h"
 
 #ifndef LDK_ENTITY_MANAGER_MAX_HANDLERS
 #define LDK_ENTITY_MANAGER_MAX_HANDLERS 32
@@ -39,7 +40,7 @@ extern "C" {
 
 #define ldkEntityLookup(type, handle) ((type*) ldkEntityManagerEntityLookup(typeid(type), handle))
 
-#define ldkEntityGetAll(type, count) ((type*) ldkEntityManagerEntitiesGet(typeid(type), count))
+#define ldkEntityManagerGetIterator(type) ldkEntityManagerGetIteratorForType(typeid(type))
 
 
   typedef void* LDKEntity;
@@ -55,6 +56,7 @@ extern "C" {
   LDK_API LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count);
   LDK_API const LDKTypeId* ldkEntityManagerTypes(uint32* count);
   LDK_API bool ldkEntityDestroy(LDKHandle handle);
+  LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
 
 #ifdef __cplusplus
 }

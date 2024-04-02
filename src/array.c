@@ -94,14 +94,15 @@ void ldkArrayDeleteRange(LDKArray* arr, size_t start, size_t end)
 {
   if (start >= arr->size || end >= arr->size || start > end)
   {
-    ldkLogError("Invalid range %d - %d on array of", start, end);
+    ldkLogError("Invalid range %d - %d on array of size %d", start, end, arr->size);
     return;
   }
 
   size_t deleteCount = end - start + 1;
-  memmove((char*)arr->array + (start * arr->elementSize),
-      (char*)arr->array + ((end + 1) * arr->elementSize),
-      (arr->size - end - 1) * arr->elementSize);
+  memmove(
+      (char*)arr->array + (start * arr->elementSize),       // Destination
+      (char*)arr->array + ((end + 1) * arr->elementSize),   // Source
+      (arr->size - end - 1) * arr->elementSize);            // Size
   arr->size -= deleteCount;
 }
 
@@ -124,3 +125,4 @@ void* ldkArrayGetData(LDKArray* arr)
 {
   return arr->array;
 }
+

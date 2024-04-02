@@ -1,27 +1,24 @@
 #include "ldk/hlist.h"
 #include <memory.h>
 
-
 /* Internals */
 
 // A SlotInfo holds the index of the actual element in a LDKHandleList
-typedef struct
-{
-  union
-  {
-    uint32 elementIndex;        // Index of the element this slot points to
-    uint32 nextFreeSlotIndex;   // Index to the next free slot.
-  };
 
+struct LDKSlotInfo_t
+{
+  void* elementAddress;
+  uint32 nextFreeSlotIndex;   // if this slot is free, this points to the index of the next free slot
+  uint32 index;               // the index of this slot
   int32 version;
-} SlotInfo;
+};
 
 // A struct that holds the same information as a LDKHandle.
 typedef struct
 {
-  uint32      slotIndex;
-  uint16      version;
-  LDKHandleType  type; //16bit
+  uint32        slotIndex;
+  uint16        version;
+  LDKHandleType type; //16bit
 } LDKHandleInfo;
 
 inline static LDKHandle handle_encode(LDKHandleInfo* hInternal)
@@ -40,15 +37,13 @@ inline static void handle_decode(LDKHandleInfo* hInfo, LDKHandle handle)
 
 bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
 {
-  hlist->elementType       = type; // We just store the type to validate handles
-  hlist->elementSize       = elementSize;
-  hlist->elementCount      = 0;
-  hlist->freeSlotListCount = 0;
-  hlist->freeSlotListStart = 0;
-  bool success = true;
-  success &= ldkArenaCreate(&hlist->elements, count * elementSize);
-  success &= ldkArenaCreate(&hlist->slots, count * sizeof(SlotInfo));
-  success &= ldkArenaCreate(&hlist->revSlots, count * sizeof(uint32));
+  hlist->elementType        = type;
+  hlist->elementSize        = elementSize;
+  hlist->slots              = ldkArrayCreate(sizeof(LDKSlotInfo), count);
+  hlist->freeSlotCount      = 0;
+  hlist->firstFreeSlotIndex = 0;
+
+  bool success  = ldkArenaCreate(&hlist->elements, count * elementSize);
   return success;
 }
 
@@ -57,51 +52,39 @@ int ldkHListCount(const LDKHList* hlist)
   return hlist->elementCount;
 }
 
-byte* ldkHListArrayGet(const LDKHList* hlist)
-{
-  return ldkArenaDataGet(&hlist->elements);
-}
-
 LDKHandle ldkHListReserve(LDKHList* hlist)
 {
-  // A slot is identified by its index. It's contet points to an element.
-  // A revSlot (reverseSlot) is identitied by its index. It's conent points to a slot.
-  // Reverse slots are becessary to allow us to find the the slot from an
-  // arbitrary data index.
+  LDKSlotInfo* slotInfo = NULL;
+  LDKHandleInfo handleInfo;
 
-  SlotInfo* slotPtr;
-  hlist->elementCount++;
-
-  if(hlist->freeSlotListCount)
+  // try to reuse a slot
+  if (hlist->freeSlotCount > 0)
   {
-    // Reuse a slot.
-    hlist->freeSlotListCount--;
-    slotPtr = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + hlist->freeSlotListStart; 
-    hlist->freeSlotListStart = slotPtr->nextFreeSlotIndex;
+    slotInfo = ldkArrayGet(hlist->slots, hlist->firstFreeSlotIndex);
+    hlist->firstFreeSlotIndex = slotInfo->nextFreeSlotIndex;
+    hlist->freeSlotCount--;
+
+    handleInfo.version = slotInfo->version;
+    handleInfo.slotIndex = slotInfo->index;
+    handleInfo.type = hlist->elementType;
   }
   else
   {
-    // Add a new slot and a new element
-    slotPtr = (SlotInfo*) ldkArenaAllocate(&hlist->slots, SlotInfo);
-    slotPtr->version = 0;
-    ldkArenaAllocate(&hlist->elements, hlist->elementSize);
+    LDKSlotInfo newSlot;
+    newSlot.version = 0;
+    newSlot.nextFreeSlotIndex = 0;
+    newSlot.elementAddress = ldkArenaAllocateSize(&hlist->elements, hlist->elementSize);
+    newSlot.index = ldkArrayCount(hlist->slots);
+    ldkArrayAdd(hlist->slots, &newSlot); 
+
+    handleInfo.version = 0;
+    handleInfo.slotIndex = newSlot.index;
+    handleInfo.type = hlist->elementType;
   }
 
-  slotPtr->elementIndex = hlist->elementCount - 1;
-
-  // Create a handle to the element
-  LDKHandleInfo hInfo;
-  hInfo.type = hlist->elementType;
-
-  // Get the index of current slot based on it's address.
-  hInfo.slotIndex = ((int32)((byte*) (slotPtr) - (byte*) ldkArenaDataGet(&hlist->slots)) / sizeof(SlotInfo));
-  hInfo.version = slotPtr->version;
-
-  // The reverse slot list keeps, at the same index as the data, the index of the slot pointing to the data.
-  uint32* revSlot = ((uint32*) ldkArenaDataGet(&hlist->revSlots)) + slotPtr->elementIndex;
-  *revSlot = hInfo.slotIndex;
-
-  return handle_encode(&hInfo);
+  //TODO: implement ldkHListReserve()
+  hlist->elementCount++;
+  return handle_encode(&handleInfo);
 }
 
 byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
@@ -110,8 +93,8 @@ byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
   handle_decode(&hInfo, handle);
 
   // Index out of bounds ?
-  const uint32 maxSlots = (uint32) (ldkArenaSizeGet(&hlist->slots) / sizeof(SlotInfo));
-  if (hInfo.slotIndex >= maxSlots)
+  const uint32 slotCount = ldkArrayCount(hlist->slots);
+  if (hInfo.slotIndex >= slotCount)
     return NULL;
 
   // Wrong handle type ?
@@ -119,63 +102,35 @@ byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
     return NULL;
 
   // Wrong handle version ?
-  SlotInfo* slotInfo = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + hInfo.slotIndex;
+  LDKSlotInfo* slotInfo = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + hInfo.slotIndex;
   if (hInfo.version != slotInfo->version)
     return NULL;
 
-  byte* element = ((byte*) ldkArenaDataGet(&hlist->elements)) + (hlist->elementSize * slotInfo->elementIndex);
+  byte* element = (byte*) slotInfo->elementAddress;
   return element;
 }
 
 bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
 {
-  // We never leave holes on the element list!
-  // When deleting any element (other than the last one) we actually
-  // move the last element to the place of the one being deleted
-  // and fix the slot so it points to the correct element index.
-  // The slot version will be incremented so any existing handle to it will
-  // now become invalid.
-
   LDKHandleInfo hInfo;
   handle_decode(&hInfo, handle);
 
+  const uint32 slotCount = ldkArrayCount(hlist->slots);
+
   // Index out of bounds ?
-  const uint32 maxSlots = (uint32) (ldkArenaSizeGet(&hlist->slots) / sizeof(SlotInfo));
-  if (hInfo.slotIndex >= maxSlots || hInfo.slotIndex < 0)
+  if (hInfo.slotIndex > slotCount)
     return false;
 
   // Wrong handle type ?
   if (hInfo.type != hlist->elementType)
     return false;
 
-  SlotInfo* allSlots = (SlotInfo*) ldkArenaDataGet(&hlist->slots);
-  uint32* allRevSlots = (uint32*) ldkArenaDataGet(&hlist->revSlots);
-  uint32 indexOfSlotOfLast = *(allRevSlots + (hlist->elementCount - 1));
-  SlotInfo* slotOfLast = allSlots + indexOfSlotOfLast;
-  SlotInfo* slotOfRemoved = allSlots + hInfo.slotIndex;
+  LDKSlotInfo* slotInfo = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + hInfo.slotIndex;
+  slotInfo->version++;
+  slotInfo->nextFreeSlotIndex = hlist->firstFreeSlotIndex;
 
-  // Prevent deleting from an outdated handle
-  if (slotOfRemoved->version != hInfo.version)
-    return false;
-
-  ++slotOfRemoved->version;
-
-  if (slotOfRemoved != slotOfLast)
-  {
-    char* dataPtr = (char*) ldkArenaDataGet(&hlist->elements);
-    const size_t elementSize = hlist->elementSize;
-
-    // Move the last element to the space left by the one being removed
-    void* elementLast    = dataPtr + (slotOfLast->elementIndex * elementSize);
-    void* elementRemoved = dataPtr + (slotOfRemoved->elementIndex * elementSize);
-    memcpy(elementRemoved, elementLast, elementSize);
-    slotOfLast->elementIndex = slotOfRemoved->elementIndex;
-    allRevSlots[slotOfRemoved->elementIndex] = indexOfSlotOfLast;
-  }
-
-  slotOfRemoved->nextFreeSlotIndex = hlist->freeSlotListStart;
-  hlist->freeSlotListStart = hInfo.slotIndex; 
-  hlist->freeSlotListCount++;
+  hlist->firstFreeSlotIndex = hInfo.slotIndex;
+  hlist->freeSlotCount++;
   hlist->elementCount--;
   return true;
 }
@@ -185,24 +140,19 @@ void ldkHListReset(LDKHList* hlist)
   // invalidate ALL slots
   for (uint32 i = 0; i < hlist->elementCount; i++)
   {
-    SlotInfo* slot = ((SlotInfo*) ldkArenaDataGet(&hlist->slots)) + i;
+    LDKSlotInfo* slot = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + i;
     slot->version++;
   }
 
-  ldkArenaReset(&hlist->slots);
+  ldkArrayClear(hlist->slots);
   ldkArenaReset(&hlist->elements);
   hlist->elementCount = 0;
-  hlist->freeSlotListCount = 0;
-  hlist->freeSlotListStart = -1;
 }
 
 bool ldkHListDestroy(LDKHList* hlist)
 {
-  ldkArenaDestroy(&hlist->slots);
+  ldkArrayDestroy(hlist->slots);
   ldkArenaDestroy(&hlist->elements);
-  hlist->elementCount = 0;
-  hlist->freeSlotListCount = 0;
-  hlist->freeSlotListStart = -1;
   return true;
 }
 
@@ -212,3 +162,46 @@ LDKTypeId ldkHandleType(LDKHandle handle)
   handle_decode(&hInfo, handle);
   return hInfo.type;
 }
+
+LDKHListIterator ldkHListIteratorCreate(LDKHList* array)
+{
+  LDKHListIterator it;
+  it.hlist = array;
+  it.index = -1;
+  return it;
+}
+
+bool ldkHListIteratorHasNext(LDKHListIterator* it)
+{
+  bool hasNext = (it->hlist->elementCount >= it->index + 1);
+  return hasNext;
+}
+
+bool ldkHListIteratorNext(LDKHListIterator* it)
+{
+  it->index++;
+  if (it->hlist->elementCount <= it->index)
+    return false;
+
+  LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, it->index);
+  it->ptr = slotInfo->elementAddress;
+  return true;
+}
+
+void* ldkHListIteratorFirst(LDKHListIterator* it)
+{
+  if (it->hlist->elementCount == 0)
+    return NULL;
+
+  return ldkArrayGet(it->hlist->slots, 0);
+}
+
+void* ldkHListIteratorLast(LDKHListIterator* it)
+{
+  uint32 elementCount = it->hlist->elementCount;
+  if (elementCount == 0)
+    return NULL;
+
+  return ldkArrayGet(it->hlist->slots, elementCount - 1);
+}
+

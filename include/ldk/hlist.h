@@ -3,80 +3,53 @@
  * hlist.h
  * 
  * Provides an expanding list of elements that are associated with a handle.
- * Elements are always sequentialy placed in memory.
+ *
  */
 
 #ifndef LDK_HANDLE_LIST_H
 #define LDK_HANDLE_LIST_H
 
 #include "common.h"
+#include "array.h"
 #include "arena.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+  typedef struct LDKSlotInfo_t LDKSlotInfo;
+
   typedef struct
   {
-    LDKArena      slots;        // a list of slot information. It maps a slot index to an element index.
-    LDKArena      revSlots;     // a list of indexes to the slots list. It maps an element index to a slot index.
+    LDKArray*     slots;        // An array of slot information. It maps slots to the actual element address
     LDKArena      elements;     // a list of actual elements stored.
+    uint32        elementCount; // how many valid elements are stored
     size_t        elementSize;
-    uint32        elementCount;
-    uint32        freeSlotListCount;
-    uint32        freeSlotListStart;
+    uint32        firstFreeSlotIndex;
+    uint32        freeSlotCount;
     LDKHandleType elementType;
   } LDKHList;
 
-  /*
-   * Initializes a LDKHList.
-   * elementSize: is the size of the type of element stored in this LDKHList
-   * count: How many elements this LDKHList can store before without resizing the arenas.
-   */
+  typedef struct
+  {
+    LDKHList* hlist;
+    void* ptr;        // pointer to the actual data
+    size_t index;
+  } LDKHListIterator;
+
   LDK_API bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count);
-
-  /*
-   * Atempts to remove a element from the list.
-   * Returs the true if the handle is valid and deletion succeeded or false if handle is invalid
-   */
-  LDK_API bool ldkHListRemove(LDKHList* hlist, LDKHandle handle);
-
-  /*
-   * Reserves memory from the internal arena for a new element and returns a handle to it.
-   */
   LDK_API LDKHandle ldkHListReserve(LDKHList* hlist);
-
-  /*
-   * Returns the number of elements in the LDKHList
-   */
+  LDK_API bool ldkHListRemove(LDKHList* hlist, LDKHandle handle);
   LDK_API int ldkHListCount(const LDKHList* hlist);
-
-  /*
-   * Returns the a pointer to the list of elements. 
-   * All elements are sequentialy placed in the list.
-   * The order of the elements is undefined.
-   */
-  LDK_API byte* ldkHListArrayGet(const LDKHList* hlist);
-
-  /*
-   * Returns the address of the element associated to the Handle
-   */
   LDK_API byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle);
-
-  /*
-   * Resets the hlist counters and internal arenas.
-   * Any existing handle obtained from this LDKHList will become invalid.
-   */
   LDK_API void ldkHListReset(LDKHList* hlist);
-
-  /*
-   * Frees all memory allocated for the list.
-   * Any existing handle obtained from this LDKHList will become invalid.
-   */
   LDK_API bool ldkHListDestroy(LDKHList* hlist);
-
-
   LDK_API LDKTypeId ldkHandleType(LDKHandle handle);
+  LDK_API LDKHListIterator ldkHListIteratorCreate(LDKHList* array);
+  LDK_API bool  ldkHListIteratorHasNext(LDKHListIterator* it);
+  LDK_API bool  ldkHListIteratorNext(LDKHListIterator* it);
+  LDK_API void* ldkHListIteratorFirst(LDKHListIterator* it);
+  LDK_API void* ldkHListIteratorLast(LDKHListIterator* it);
 
 #ifdef __cplusplus
 }

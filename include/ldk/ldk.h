@@ -15,6 +15,7 @@
 #include <ldk/gl.h>
 #include <ldk/hlist.h>
 #include <ldk/arena.h>
+#include <ldk/array.h>
 #include <ldk/maths.h>
 #include <ldk/engine.h>
 #include <ldk/eventqueue.h>

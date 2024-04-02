@@ -39,7 +39,7 @@ static struct
   LDKConfig* config;
   LDKRGB clearColor;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
-  LDKArena bucketROStaticMesh;
+  LDKArray* bucketROStaticMesh;
   LDKCamera* camera;
   LDKShaderMode shaderMode;
   float elapsedTime;
@@ -155,7 +155,8 @@ bool ldkRendererInitialize(LDKConfig* config)
   bool success = true;
   internal.clearColor = (LDKRGB){40, 40, 40};
   internal.config = config;
-  success &= ldkArenaCreate(&internal.bucketROStaticMesh, 64 * sizeof(LDKRenderObject));
+  internal.bucketROStaticMesh = ldkArrayCreate(sizeof(LDKRenderObject), 64);
+  success &= internal.bucketROStaticMesh != NULL;
 
   //
   // Picking Framebuffer setup
@@ -178,7 +179,7 @@ void ldkRendererTerminate(void)
     return;
 
   internal.initialized = false;
-  ldkArenaDestroy(&internal.bucketROStaticMesh);
+  ldkArrayDestroy(internal.bucketROStaticMesh);
 }
 
 
@@ -1271,16 +1272,18 @@ void ldkRendererCameraSet(LDKCamera* camera)
 
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
 {
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, LDKRenderObject);
-  ro->type = LDK_RENDER_OBJECT_STATIC_OBJECT;
-  ro->staticMesh = entity;
+  LDKRenderObject ro;
+  ro.type = LDK_RENDER_OBJECT_STATIC_OBJECT;
+  ro.staticMesh = entity;
+  ldkArrayAdd(internal.bucketROStaticMesh, &ro);
 }
 
 void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
 {
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaAllocate(&internal.bucketROStaticMesh, LDKRenderObject);
-  ro->type = LDK_RENDER_OBJECT_INSTANCED_OBJECT;
-  ro->instancedMesh = entity;
+  LDKRenderObject ro;
+  ro.type = LDK_RENDER_OBJECT_INSTANCED_OBJECT;
+  ro.instancedMesh = entity;
+  ldkArrayAdd(internal.bucketROStaticMesh, &ro);
 }
 
 void internalRenderMesh(LDKStaticObject* entity)
@@ -1381,8 +1384,8 @@ void ldkRendererRender(float deltaTime)
 {
   internal.elapsedTime += deltaTime;
 
-  uint32 count = (uint32) ldkArenaUsedGet(&internal.bucketROStaticMesh) / sizeof(LDKRenderObject);
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  uint32 count = ldkArrayCount(internal.bucketROStaticMesh);
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
   internal.shaderMode = SHADER_MODE_DEFAULT;
 
   // Lookup fixed shaders
@@ -1431,7 +1434,7 @@ void ldkRendererRender(float deltaTime)
   glClearColor(0, 0, 0, 0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
 
   for(uint32 i = 0; i < count; i++)
   {
@@ -1447,7 +1450,7 @@ void ldkRendererRender(float deltaTime)
   // Picking
   //
 
-  ro = (LDKRenderObject*) ldkArenaDataGet(&internal.bucketROStaticMesh);
+  ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
   LDKMouseState mouseState;
 
   ldkOsMouseStateGet(&mouseState);
@@ -1519,8 +1522,7 @@ void ldkRendererRender(float deltaTime)
 
 #endif
 
-  ldkArenaReset(&internal.bucketROStaticMesh);
-
+  ldkArrayClear(internal.bucketROStaticMesh);
   ldkMaterialBind(0);
   ldkRenderBufferBind(NULL);
 }

@@ -100,16 +100,17 @@ LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle)
   return ldkHListLookup(&handler->entities, handle);
 }
 
-LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count)
+LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
 {
+  LDKHListIterator it;
+  it.index = -1;
+  it.hlist = NULL;
+
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
-  if(!handler)
-    return NULL;
+  if(handler == NULL)
+    return it;
 
-  if (count)
-    *count = ldkHListCount(&handler->entities);
-
-  return ldkHListArrayGet(&handler->entities);
+  return ldkHListIteratorCreate(&handler->entities);
 }
 
 const LDKTypeId* ldkEntityManagerTypes(uint32* count)

@@ -1,4 +1,5 @@
 /**
+ *
  * array.h
  *
  * An array is a contiguous memory block that may be resized to accomodate more
@@ -16,8 +17,8 @@
 extern "C" {
 #endif
 
-
   typedef struct LDKArray_t LDKArray;
+
 
   LDK_API LDKArray* ldkArrayCreate(size_t elementSize, size_t capacity);
   LDK_API void ldkArrayAdd(LDKArray* arr, void* data);
@@ -28,7 +29,7 @@ extern "C" {
   LDK_API void ldkArrayDeleteRange(LDKArray* arr, size_t start, size_t end);
   LDK_API void ldkArrayClear(LDKArray* arr);
   LDK_API void ldkArrayDeleteAt(LDKArray* arr, size_t index);
-  LDK_API void ldkArrayDestroy(LDKArray* arr);
+  LDK_API void ldkArrayDestroy(LDKArray* arr);  
 
 #ifdef __cplusplus
 }

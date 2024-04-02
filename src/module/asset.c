@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <vadefs.h>
+#include <stdlib.h>
 
 typedef struct
 {
