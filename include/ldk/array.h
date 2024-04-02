@@ -26,6 +26,7 @@ extern "C" {
   LDK_API void* ldkArrayGet(LDKArray* arr, size_t index);
   LDK_API void* ldkArrayGetData(LDKArray* arr);
   LDK_API uint32 ldkArrayCount(LDKArray* arr);
+  LDK_API uint32 ldkArrayCapacity(LDKArray* arr);
   LDK_API void ldkArrayDeleteRange(LDKArray* arr, size_t start, size_t end);
   LDK_API void ldkArrayClear(LDKArray* arr);
   LDK_API void ldkArrayDeleteAt(LDKArray* arr, size_t index);

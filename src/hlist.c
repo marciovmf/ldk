@@ -71,7 +71,20 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
   else
   {
     LDKSlotInfo newSlot;
-    newSlot.version = 0;
+    uint32 version = 0;
+
+    uint32 slotCount = ldkArrayCount(hlist->slots);
+
+    // If this hlist was reset, we might have more slots than items. In that
+    // case, we want to keep the existing slot version.
+    // We never override anything from an existing slot, except the version,
+    if (hlist->elementCount < slotCount)
+    {
+      LDKSlotInfo* si = ldkArrayGet(hlist->slots, hlist->elementCount);
+      version = si->version;
+    }
+
+    newSlot.version = version;
     newSlot.nextFreeSlotIndex = 0;
     newSlot.elementAddress = ldkArenaAllocateSize(&hlist->elements, hlist->elementSize);
     newSlot.index = ldkArrayCount(hlist->slots);
@@ -102,7 +115,7 @@ byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
     return NULL;
 
   // Wrong handle version ?
-  LDKSlotInfo* slotInfo = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + hInfo.slotIndex;
+  LDKSlotInfo* slotInfo = ldkArrayGet(hlist->slots, hInfo.slotIndex);
   if (hInfo.version != slotInfo->version)
     return NULL;
 
@@ -125,7 +138,7 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
   if (hInfo.type != hlist->elementType)
     return false;
 
-  LDKSlotInfo* slotInfo = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + hInfo.slotIndex;
+  LDKSlotInfo* slotInfo = ldkArrayGet(hlist->slots, hInfo.slotIndex);
   slotInfo->version++;
   slotInfo->nextFreeSlotIndex = hlist->firstFreeSlotIndex;
 
@@ -137,16 +150,17 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
 
 void ldkHListReset(LDKHList* hlist)
 {
-  // invalidate ALL slots
   for (uint32 i = 0; i < hlist->elementCount; i++)
   {
     LDKSlotInfo* slot = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + i;
     slot->version++;
   }
 
+  hlist->elementCount = 0;
+  hlist->freeSlotCount = 0;
+  hlist->firstFreeSlotIndex = 0;
   ldkArrayClear(hlist->slots);
   ldkArenaReset(&hlist->elements);
-  hlist->elementCount = 0;
 }
 
 bool ldkHListDestroy(LDKHList* hlist)
@@ -173,19 +187,42 @@ LDKHListIterator ldkHListIteratorCreate(LDKHList* array)
 
 bool ldkHListIteratorHasNext(LDKHListIterator* it)
 {
-  bool hasNext = (it->hlist->elementCount >= it->index + 1);
-  return hasNext;
+  size_t index = it->index + 1;
+  while(1)
+  {
+    it->index++;
+    if (it->hlist->elementCount <= index)
+      return false;
+
+    LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, index);
+
+    if (slotInfo->nextFreeSlotIndex > 0)
+      continue;
+    
+    return true;
+  }
+
+  return false;
 }
 
 bool ldkHListIteratorNext(LDKHListIterator* it)
 {
-  it->index++;
-  if (it->hlist->elementCount <= it->index)
-    return false;
+  while(1)
+  {
+    it->index++;
+    if (it->hlist->elementCount <= it->index)
+      return false;
 
-  LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, it->index);
-  it->ptr = slotInfo->elementAddress;
-  return true;
+    LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, it->index);
+
+    if (slotInfo->nextFreeSlotIndex > 0)
+      continue;
+    
+    it->ptr = slotInfo->elementAddress;
+    return true;
+  }
+
+  return false;
 }
 
 void* ldkHListIteratorFirst(LDKHListIterator* it)

@@ -749,7 +749,13 @@ bool ldkOsPathIsDirectoryu(char* path)
 
 void* ldkOsMemoryAlloc(size_t size)
 {
-  return malloc(size);
+  void* mem = malloc(size);
+  if(mem == NULL)
+  {
+    ldkLogError("Memmory allocation failed");
+    ldkOsStackTracePrint();
+  }
+  return mem;
 }
 
 void ldkOsMemoryFree(void* memory)
@@ -759,7 +765,14 @@ void ldkOsMemoryFree(void* memory)
 
 void* ldkOsMemoryResize(void* memory, size_t size)
 {
-  return realloc(memory, size);
+  void* mem = realloc(memory, size);
+  if(mem == NULL)
+  {
+    ldkLogError("Memmory allocation failed");
+    ldkOsStackTracePrint();
+  }
+
+  return mem;
 }
 
 
