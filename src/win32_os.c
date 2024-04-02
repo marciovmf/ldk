@@ -496,7 +496,6 @@ void ldkOsStackTracePrint(void)
   symbolInfo->MaxNameLen = 255;
   symbolInfo->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-  int stackEntry = 0;
   for (USHORT i = 0; i < frames; i++)
   {
     SymFromAddr(GetCurrentProcess(), (DWORD64)(stackTrace[i]), 0, symbolInfo);
@@ -507,6 +506,9 @@ void ldkOsStackTracePrint(void)
     SymGetLineFromAddr64(GetCurrentProcess(), (DWORD64)(stackTrace[i]), &displacement, &lineInfo);
 
 #ifdef LDK_COMPILER_MSVC
+    if (ldkStringEndsWith(symbolInfo->Name, "internalOnSignal") || ldkStringEndsWith(symbolInfo->Name, "seh_filter_exe"))
+      continue;
+
     if (lineInfo.FileName && (ldkStringEndsWith(lineInfo.FileName, "vcstartup\\src\\startup\\exe_common.inl")
           || ldkStringEndsWith(lineInfo.FileName, "src\\vctools\\crt\\vcstartup\\src\\startup\\exe_main.cpp")
           || ldkStringEndsWith(lineInfo.FileName, "vctools\\crt\\vcstartup\\src\\rtc\\error.cpp")
@@ -518,7 +520,7 @@ void ldkOsStackTracePrint(void)
 #endif
     // Print the stack trace information
 
-    ldkLogPrintRaw("\t%d : %s at %s : %d\n", stackEntry++, symbolInfo->Name, (lineInfo.FileName ? lineInfo.FileName : "N/A"), lineInfo.LineNumber);
+    ldkLogPrintRaw("\tat %s(%s:%d)\n", symbolInfo->Name, (lineInfo.FileName ? lineInfo.FileName : "N/A"), lineInfo.LineNumber);
   }
 
   free(symbolInfo);
