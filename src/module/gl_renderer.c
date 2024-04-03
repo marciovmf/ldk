@@ -1473,7 +1473,7 @@ void ldkRendererRender(float deltaTime)
     if (objectIndex > 0)
     {
       internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
-      ldkLogInfo("Selected entity = %d", internal.selectedEntity);
+      ldkLogInfo("Selected entity = %llx", internal.selectedEntity);
     }
     else
     {

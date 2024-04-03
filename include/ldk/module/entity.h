@@ -22,6 +22,7 @@ extern "C" {
 
   typedef struct
   {
+    LDKSmallStr name;
     LDKTypeId typeId;     // The type of the entity
     uint32 flags;         // Space for user defined flags
     LDKHandle handle;     // The unique entity handle for this entity.

@@ -83,7 +83,7 @@ void* ldkArrayGet(LDKArray* arr, size_t index)
   if (index >= arr->size)
   {
     ldkLogError("Index out of bounds");
-    return NULL;;
+    return NULL;
   }
 
   return (char*)arr->array + (index * arr->elementSize);

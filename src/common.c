@@ -258,7 +258,7 @@ size_t ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...)
 {
   va_list argList;
   va_start(argList, fmt);
-  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LENGTH, fmt, argList);
+  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LENGTH-1, fmt, argList);
   va_end(argList);
 
   bool success = smallString->length > 0 && smallString->length < LDK_SMALL_STRING_MAX_LENGTH;

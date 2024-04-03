@@ -33,8 +33,9 @@ extern "C" {
   typedef struct
   {
     LDKHList* hlist;
-    void* ptr;        // pointer to the actual data
+    void* ptr;          // pointer to the actual data
     size_t index;
+    uint32 count;       // count how many elements were found so far
   } LDKHListIterator;
 
   LDK_API bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count);

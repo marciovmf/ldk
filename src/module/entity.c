@@ -76,18 +76,22 @@ bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc cr
 
 LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
 {
+  static int32 entityCount = 0;
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if (!handler)
     return NULL;
 
   LDKHandle handle = ldkHListReserve(&handler->entities);
   LDKEntityInfo* entity = (LDKEntityInfo*) ldkHListLookup(&handler->entities, handle);
+  ldkSmallStringFormat(&entity->name, "%s_%x_%x",
+      typename(handler->typeId), handler->entities.elementCount - 1, entityCount);
   handler->createFunc(entity);
   entity->handle = handle;
   entity->flags = 0;
   entity->typeId = typeId;
 
   internal.numEntities++;
+  entityCount++;
   return entity;
 }
 
