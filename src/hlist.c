@@ -7,7 +7,7 @@
 
 struct LDKSlotInfo_t
 {
-  bool used;                  // true if the slot is being used
+  bool active;                // true if the slot is being used
   void* elementAddress;       // pointer to the actual element
   uint32 nextFreeSlotIndex;   // if this slot is free, this points to the index of the next free slot
   uint32 index;               // the index of this slot
@@ -61,7 +61,7 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
   if (hlist->freeSlotCount > 0)
   {
     LDKSlotInfo* slotInfo = ldkArrayGet(hlist->slots, hlist->firstFreeSlotIndex);
-    LDK_ASSERT(slotInfo->used == false);
+    LDK_ASSERT(slotInfo->active == false);
 
     hlist->firstFreeSlotIndex = slotInfo->nextFreeSlotIndex;
     hlist->freeSlotCount--;
@@ -83,12 +83,12 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
     if (hlist->elementCount < slotCount)
     {
       LDKSlotInfo* si = ldkArrayGet(hlist->slots, hlist->elementCount);
-      LDK_ASSERT(si->used == false);
+      LDK_ASSERT(si->active == false);
       version = si->version;
     }
 
+    newSlot.active = true;
     newSlot.version = version;
-    newSlot.used = true;
     newSlot.nextFreeSlotIndex = 0;
     newSlot.elementAddress = ldkArenaAllocateSize(&hlist->elements, hlist->elementSize);
     newSlot.index = ldkArrayCount(hlist->slots);
@@ -142,7 +142,7 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
     return false;
 
   LDKSlotInfo* slotInfo = ldkArrayGet(hlist->slots, hInfo.slotIndex);
-  slotInfo->used = false;
+  slotInfo->active = false;
   slotInfo->version++;
   slotInfo->nextFreeSlotIndex = hlist->firstFreeSlotIndex;
 
@@ -154,10 +154,14 @@ bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
 
 void ldkHListReset(LDKHList* hlist)
 {
-  for (uint32 i = 0; i < hlist->elementCount; i++)
+  // By incrementing the version number of all stlots, we invalidate all
+  // previously provided handles, thereby preventing access to outdated data
+  uint32 slotCount = ldkArrayCount(hlist->slots); 
+  for (uint32 i = 0; i < slotCount; i++)
   {
     LDKSlotInfo* slot = ((LDKSlotInfo*) ldkArrayGetData(hlist->slots)) + i;
     slot->version++;
+    slot->active = false;
   }
 
   hlist->elementCount = 0;
@@ -201,7 +205,7 @@ bool ldkHListIteratorHasNext(LDKHListIterator* it)
 
     LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, index);
 
-    if (slotInfo->used == false)
+    if (slotInfo->active == false)
       continue;
 
     return true;
@@ -220,7 +224,7 @@ bool ldkHListIteratorNext(LDKHListIterator* it)
 
     LDKSlotInfo* slotInfo = ldkArrayGet(it->hlist->slots, it->index);
 
-    if (slotInfo->used == false)
+    if (slotInfo->active == false)
       continue;
 
     it->ptr = slotInfo->elementAddress;
