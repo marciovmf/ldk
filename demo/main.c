@@ -3,15 +3,64 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#define SOKOBAN_MAX_BOX_COUNT 5
+#define sokobanBoxId(c) ((uint32)((c) - 'A'))
+#define sokobanInBound(i, w, h) ((i) >= 0 && (i) <= w * h)
+#define sokobanPieceIndex(sokoban, x, y) ((y) * sokoban->size.width + (x))
+
+typedef enum
+{
+  SOKOBAN_PIECE_PLAYER    = '@',
+  SOKOBAN_PIECE_WALL      = '#',
+  SOKOBAN_PIECE_FLOOR     = '.',
+  SOKOBAN_PIECE_EMTPTY    = '-',
+  // boxes
+  SOKOBAN_PIECE_BOXA      = 'A',
+  SOKOBAN_PIECE_BOXB      = 'B',
+  SOKOBAN_PIECE_BOXC      = 'C',
+  SOKOBAN_PIECE_BOXD      = 'D',
+  SOKOBAN_PIECE_BOXE      = 'E',
+  // Slots
+  SOKOBAN_PIECE_SLOTA     = 'a',
+  SOKOBAN_PIECE_SLOTB     = 'b',
+  SOKOBAN_PIECE_SLOTC     = 'c',
+  SOKOBAN_PIECE_SLOTD     = 'd',
+  SOKOBAN_PIECE_SLOTE     = 'e',
+
+} SokobanEnum;
+
+typedef struct 
+{
+  bool changed;
+  Vec3 animationStart;
+  Vec3 animationTarget;
+  char pieceId;
+  LDKPoint coord;
+  LDKStaticObject* staticObject;
+} SokobanBox;
+
+typedef struct
+{
+  bool changed;
+  LDKPoint coord;
+  Vec3 animationStart;
+  Vec3 animationTarget;
+  LDKStaticObject* staticObject;
+} SokobanPlayer;
+
 typedef struct
 {
   LDKSize size;
   char* board;
-  LDKHandle player;
   float movementTime;
   Vec3 cameraPos;
   Vec3 cameraTarget;
-  LDKPoint playerCoord;
+  SokobanBox box[SOKOBAN_MAX_BOX_COUNT];
+  SokobanPlayer player;
+  float animationSpeed;
+  float animationTime;
+  bool animating;
+  uint32 boxCount;
 } Sokoban;
 
 typedef struct
@@ -24,12 +73,7 @@ typedef struct
   float cameraLookSpeed;
   float cameraMoveSpeed;
   bool flyCamera;
-  bool animating;
-  Vec3 animationStart;
-  Vec3 animationTarget;
-  float animationTime;
   Sokoban sokoban;
-  float animationSpeed;
 } GameState;
 
 typedef enum 
@@ -42,62 +86,144 @@ typedef enum
 
 bool sokobanMove(SOKOBANDirection direction, Sokoban* sokoban)
 {
-  int32 x = sokoban->playerCoord.x;
-  int32 y = sokoban->playerCoord.y;
+  int32 playerX = sokoban->player.coord.x;
+  int32 playerY = sokoban->player.coord.y;
 
-  if (x < 0 || x >= sokoban->size.height)
+  sokoban->animating = false;
+  sokoban->player.changed = false;
+  for(uint32 i = 0; i < sokoban->boxCount; i++)
+    sokoban->box[i].changed = false;
+
+  int32 xOffset = 0;
+  int32 yOffset = 0;
+
+  if (playerX < 0 || playerX >= sokoban->size.width)
     return false;
 
-  if (y < 0 || y >= sokoban->size.width)
+  if (playerY < 0 || playerY >= sokoban->size.height)
     return false;
-
-  int32 dstIndex = 0;
-  int32 srcIndex = x * sokoban->size.width + y;
 
   if (direction == SOKOBAN_UP)
   {
-    x -= 1; 
+    yOffset = -1;
   }
   else if (direction == SOKOBAN_DOWN)
   {
-    x += 1;
+    yOffset = 1;
   }
   else if (direction == SOKOBAN_LEFT)
   {
-    y -= 1;
+    xOffset = -1;
   }
   else if (direction == SOKOBAN_RIGHT)
   {
-    y += 1;
+    xOffset = 1;
   }
 
-  dstIndex = (x * sokoban->size.width) + y;
+  int32 playerSrcIndex = sokobanPieceIndex(sokoban, playerX, playerY);
+  int32 playerDstIndex = sokobanPieceIndex(sokoban, (playerX + xOffset), (playerY + yOffset));
+  char playerDstPiece = sokoban->board[playerDstIndex];
 
-  bool valid = 
-    (dstIndex >= 0 &&
-     dstIndex < sokoban->size.width * sokoban->size.height &&
-     sokoban->board[dstIndex] == '.');
+  // Is the player moving out of the bounds ?
+  if (!sokobanInBound(playerDstIndex, sokoban->size.width, sokoban->size.height))
+    return false;
 
-  if (valid)
+  // is the player moving to an empty space ?
+  if (playerDstPiece == '.')
   {
-    char pieceAtSrc = sokoban->board[srcIndex];
-    char pieceAtDst = sokoban->board[dstIndex];
-    sokoban->board[srcIndex] = pieceAtDst;
-    sokoban->board[dstIndex] = pieceAtSrc;
-
-    sokoban->playerCoord.x = x;
-    sokoban->playerCoord.y = y;
+    sokoban->board[playerSrcIndex]   = '.';
+    sokoban->board[playerDstIndex]  = '@';
+    sokoban->player.coord.x += xOffset;
+    sokoban->player.coord.y += yOffset;
+    sokoban->player.changed = true;
+    return true;
   }
 
-  return valid;
+  // is the player moving to a target ?
+  //if (playerDstPiece == '.')
+  //{
+  //}
+
+  // Is the player pushing a box ?
+  if (playerDstPiece == 'A' || playerDstPiece == 'B' || playerDstPiece == 'C' || playerDstPiece == 'D' || playerDstPiece == 'E')
+  {
+    int32 boxDstIndex = sokobanPieceIndex(sokoban, playerX + (2 * xOffset), playerY + (2 * yOffset));
+
+    // is the player trying to push a box out of bounds 
+    if (!sokobanInBound(boxDstIndex, sokoban->size.width, sokoban->size.height))
+      return false;
+
+    // bump box ahead
+    char pieceAtBoxDst = sokoban->board[boxDstIndex];
+
+    // moving towards a slot ?
+    if (pieceAtBoxDst == 'a' && pieceAtBoxDst == 'b' && pieceAtBoxDst == 'c' && pieceAtBoxDst == 'd')
+    {
+      // Not implemented yet
+      return false;
+    }
+    else
+    {
+      // is the player trying to push a box to an occupied space ?
+      if (pieceAtBoxDst != '.' )
+        return false;
+
+      sokoban->board[playerSrcIndex] = '.';
+      sokoban->board[playerDstIndex] = '@';
+      sokoban->board[boxDstIndex] = playerDstPiece;
+    }
+
+    int32 boxId = sokobanBoxId(playerDstPiece);
+    LDK_ASSERT(boxId >= 0 && boxId <= (int32) sokoban->boxCount);
+    SokobanBox* box = &sokoban->box[boxId];
+    box->coord.x += xOffset;
+    box->coord.y += yOffset;
+    box->changed = true;
+
+    sokoban->player.coord.x += xOffset;
+    sokoban->player.coord.y += yOffset;
+    sokoban->player.changed = true;
+
+    return true;
+  }
+
+  return false;
 } 
+
+#ifdef LDK_DEBUG
+void sokobanPrintBoard(Sokoban* sokoban)
+{
+  printf("\n");
+  char* p = sokoban->board;
+  for (int i = 0; i < sokoban->size.height; i++)
+  {
+    printf("%.*s\n", sokoban->size.width, p);
+    p += sokoban->size.width;
+  }
+}
+#else
+#define void sokobanPrintBoard(sokoban)
+#endif
 
 bool onKeyboardEvent(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
   {
+    if (state->sokoban.animating)
+      return false;
+
 #ifdef LDK_DEBUG
+
+    // Update game camera position
+    if (event->keyboardEvent.keyCode == LDK_KEYCODE_SPACE)
+    {
+      LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
+      state->sokoban.cameraPos = camera->position;
+      state->sokoban.cameraTarget = camera->target;
+      ldkLogInfo("Game Camera updated .");
+    }
+
     // Toggle fly camera
     if (event->keyboardEvent.keyCode == LDK_KEYCODE_F3)
     {
@@ -112,35 +238,45 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
 #endif
 
     // Move player
-    if (!state->flyCamera && !state->animating)
+    if (!state->flyCamera && !state->sokoban.animating)
     {
+      int32 xOffset = 0;
+      int32 zOffset = 0;
+
+      LDKStaticObject* entity =  state->sokoban.player.staticObject;
       if (event->keyboardEvent.keyCode == LDK_KEYCODE_W && sokobanMove(SOKOBAN_UP, &state->sokoban))
       {
-        LDKStaticObject* entity = ldkEntityLookup(LDKStaticObject, state->sokoban.player);
-        state->animationStart = entity->position;
-        state->animationTarget = vec3(entity->position.x, entity->position.y, entity->position.z - 1);
-        state->animating = true;
+        zOffset = -1;
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_S && sokobanMove(SOKOBAN_DOWN, &state->sokoban))
       {
-        LDKStaticObject* entity = ldkEntityLookup(LDKStaticObject, state->sokoban.player);
-        state->animationStart = entity->position;
-        state->animationTarget = vec3(entity->position.x, entity->position.y, entity->position.z + 1);
-        state->animating = true;
+        zOffset = 1;
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_A && sokobanMove(SOKOBAN_LEFT, &state->sokoban))
       {
-        LDKStaticObject* entity = ldkEntityLookup(LDKStaticObject, state->sokoban.player);
-        state->animationStart = entity->position;
-        state->animationTarget = vec3(entity->position.x - 1, entity->position.y, entity->position.z);
-        state->animating = true;
+        xOffset = -1;
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_D && sokobanMove(SOKOBAN_RIGHT, &state->sokoban))
       {
-        LDKStaticObject* entity = ldkEntityLookup(LDKStaticObject, state->sokoban.player);
-        state->animationStart = entity->position;
-        state->animationTarget = vec3(entity->position.x + 1, entity->position.y, entity->position.z);
-        state->animating = true;
+        xOffset = 1;
+      }
+
+      if (xOffset != 0 || zOffset != 0)
+      {
+        sokobanPrintBoard(&state->sokoban);
+        state->sokoban.animating = true;
+        state->sokoban.player.animationStart = entity->position;
+        state->sokoban.player.animationTarget = vec3(entity->position.x + xOffset, entity->position.y, entity->position.z + zOffset);
+
+        for(uint32 i = 0; i < state->sokoban.boxCount; i++)
+        {
+          if (!state->sokoban.box[i].changed)
+            continue;
+
+          LDKStaticObject* entity =  state->sokoban.box[i].staticObject;
+          state->sokoban.box[i].animationStart = entity->position;
+          state->sokoban.box[i].animationTarget = vec3(entity->position.x + xOffset, entity->position.y, entity->position.z + zOffset);
+        }
       }
     }
   }
@@ -201,19 +337,37 @@ bool onFrameEvent(const LDKEvent* event, void* data)
     }
 #endif
 
-    if (state->animating)
+    // Animate player
+    if (state->sokoban.animating)
     {
-      LDKStaticObject* player = ldkEntityLookup(LDKStaticObject, state->sokoban.player);
-      player->position = vec3Lerp(state->animationStart, state->animationTarget, state->animationTime);
-      state->animationTime += state->deltaTime * state->animationSpeed;
+      state->sokoban.player.staticObject->position = vec3Lerp(
+          state->sokoban.player.animationStart,
+          state->sokoban.player.animationTarget,
+          state->sokoban.animationTime);
 
-      if (state->animationTime >= 1.0f)
+      // Animate box
+      for (uint32 i = 0; i < state->sokoban.boxCount; i++)
       {
-        state->animating = false;
-        state->animationTime = 0.0f;
+        if (!state->sokoban.box[i].changed)
+          continue;
+
+        state->sokoban.box[i].staticObject->position = vec3Lerp(
+            state->sokoban.box[i].animationStart,
+            state->sokoban.box[i].animationTarget,
+            state->sokoban.animationTime);
       }
+
+      if (state->sokoban.animationTime >= 1.0f)
+      {
+        state->sokoban.animating = false;
+        state->sokoban.animationTime = 0.0f;
+      }
+
+      state->sokoban.animationTime += state->deltaTime * state->sokoban.animationSpeed;
+      state->sokoban.animationTime = clamp(state->sokoban.animationTime, 0.0f, 1.0f);
     }
 
+    // Pass entities to the renderer
     LDKHListIterator it = ldkEntityManagerGetIterator(LDKStaticObject);
     while(ldkHListIteratorNext(&it))
     {
@@ -226,20 +380,20 @@ bool onFrameEvent(const LDKEvent* event, void* data)
       ldkRendererAddInstancedObject(it.ptr);
     }
 
-
     ldkRendererRender(state->deltaTime);
   }
   else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
   {
     state->ticksEnd = ldkOsTimeTicksGet();
+    //ldkLogInfo("Camera Position %f, %f, %f; Target %f, %f, %f",
+    //    camera->position.x, camera->position.y, camera->position.z,
+    //    camera->target.x, camera->target.y, camera->target.z);
   }
   return true;
 }
 
-
 int main(void)
 {
-
   // Initialize stuff
   GameState state = {0};
   ldkEngineInitialize();
@@ -257,7 +411,7 @@ int main(void)
   camera->position = vec3Zero();
   camera->target = vec3(0.0f, 0.0f, -1.0f);
 
-#if 1
+#if 0
   for(uint32 i = 0; i < 10; i++)
   {
     LDKStaticObject* obj = ldkEntityCreate(LDKStaticObject);
@@ -284,19 +438,29 @@ int main(void)
 #define SOKOBAN 1
 #if SOKOBAN
 
-  state.sokoban.cameraPos = vec3(2.229180f, 11.014329f, 8.020866f);
-  state.sokoban.cameraTarget = vec3(2.333776f, 10.095286f, 7.640840f);
+  state.sokoban.cameraPos = vec3(4.666242f, 7.928266f, 5.953767f);
+  state.sokoban.cameraTarget = vec3(4.649732f, 6.982578f, 5.629108f);
   state.sokoban.size.width = 10;
   state.sokoban.size.height = 7;
-  state.sokoban.playerCoord = ldkPoint(1, 6);
+  state.sokoban.boxCount = 0;
   state.sokoban.board =
+#if 0
     "---####---"
     "###...@##-"
     "#.......#-"
-    "#........#"
+    "#..A#B...#"
     "#.......#-"
-    "#.......#-"
+    "#..#....#-"
     "#########-";
+#else
+    "----------"
+    "---...@---"
+    "-.......--"
+    "-..A#B...-"
+    "-.......--"
+    "-..#....--"
+    "----------";
+#endif
 
   camera->position = state.sokoban.cameraPos;
   camera->target = state.sokoban.cameraTarget;
@@ -304,7 +468,6 @@ int main(void)
   //
   // Board
   //
-  Vec3 initialPlayerPos = {0};
   LDKInstancedObject* io = ldkEntityCreate(LDKInstancedObject);
   LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/cube.mesh");
 
@@ -318,18 +481,28 @@ int main(void)
       float x = (float) j;
       float z = (float) i;
 
-      if (piece == '@')
+      if (piece == SOKOBAN_PIECE_PLAYER)
       {
-        initialPlayerPos.x = x;
-        initialPlayerPos.z = z;
-        piece = '.'; //lets put a floor under the player position
+        state.sokoban.player.coord.x = (uint32) x;
+        state.sokoban.player.coord.y = (uint32) z;
+        piece = SOKOBAN_PIECE_FLOOR;      //lets put a floor under the player position
+      }
+      else if (piece == SOKOBAN_PIECE_BOXA || piece == SOKOBAN_PIECE_BOXB ||
+          piece == SOKOBAN_PIECE_BOXC || piece == SOKOBAN_PIECE_BOXD || piece == SOKOBAN_PIECE_BOXD)
+      {
+        uint32 index = sokobanBoxId(piece);
+        state.sokoban.box[index].coord = ldkPoint((uint32)x, (uint32)z);
+        state.sokoban.box[index].pieceId = piece;
+        state.sokoban.boxCount++;
+        piece = SOKOBAN_PIECE_FLOOR;      //lets put a floor under the box position
       }
 
-      if (piece == '#' || piece == '.')
+      // -- 
+      if (piece == SOKOBAN_PIECE_WALL || piece == SOKOBAN_PIECE_FLOOR)
       {
         float x = (float) j;
         float z = (float) i;
-        float y = piece == '.' ? -1.0f : 0.0f;
+        float y = piece == SOKOBAN_PIECE_FLOOR ? -1.0f : 0.0f;
         ldkInstancedObjectAddInstance(io, vec3(x, y, z), vec3One(), quatId());
       }
     }
@@ -347,14 +520,32 @@ int main(void)
   ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
 
   playerObj->materials[0] = material->asset.handle;
-  playerObj->position = initialPlayerPos;
-  playerObj->scale    = vec3(.8f, 1.0f, .7f);
+  playerObj->position = vec3((float) state.sokoban.player.coord.x, 0.0f, (float) state.sokoban.player.coord.y);
+  playerObj->scale    = vec3(.7f, 1.0f, .7f);
 
-  state.sokoban.player = playerObj->entity.handle;
+  state.sokoban.player.staticObject = playerObj;
+
+
+  // Boxes
+  for (uint32 i = 0; i < state.sokoban.boxCount; i++)
+  {
+    LDKStaticObject* box = ldkEntityCreate(LDKStaticObject);
+    ldkStaticObjectSetMesh(box, cube->asset.handle);
+    LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
+    ldkMaterialParamSetVec3(material, "color", vec3(1.0f, 1.0f, 1.0f));
+    ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
+
+    box->materials[0] = material->asset.handle;
+    box->position = vec3((float) state.sokoban.box[i].coord.x, 0.0f, (float) state.sokoban.box[i].coord.y);
+    box->scale    = vec3One();
+
+    state.sokoban.box[i].staticObject = box;
+  }
+
 #endif
 
   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
-  state.animationSpeed  = ldkConfigGetFloat(cfg, "sokoban.animation.speed");
+  state.sokoban.animationSpeed  = ldkConfigGetFloat(cfg, "sokoban.animation.speed");
   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
   state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
 
