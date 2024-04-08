@@ -80,6 +80,12 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
 bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
 {
   LDKMaterial* material = (LDKMaterial*) asset;
+  material->enableCullFront   = false;
+  material->enableCullBack    = true;
+  material->enableBlend       = true;
+  material->enableDepthTest   = true;
+  material->enableDepthWrite  = true;
+
   LDKShader* program;
   bool success = true;
 
@@ -181,6 +187,45 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
           char* a = strtok_r(rhs,   SPACE_OR_TAB, &varNameAndTypeContext);
           ldkLogWarning("NOT IMPLEMENTED YET! texture3d variable %s = %s", varName, a);
         }
+        else if (strncmp("bool", varType, strlen(varType)) == 0)
+        {
+          bool val = false;
+          char* a = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
+          if (strncmp(a, "true", 4) == 0 )
+            val = true;
+          else if (strncmp(a, "false", 5) == 0 )
+            val = false;
+          else
+          {
+            ldkLogError("Error parsing material file '%s' at line %d: invalid boolean value'%s' ", path, lineNumber, rhs);
+          }
+
+          if (strncmp("$enable-depth-test", rhs, 64) == 0)
+          {
+            material->enableDepthTest = val;
+          }
+          else if (strncmp("$enable-depth-write", rhs, 64) == 0)
+          {
+            material->enableDepthWrite = val;
+          }
+          else if (strncmp("$enable-back-face-cull", rhs, 64) == 0)
+          {
+            material->enableCullBack = val;
+          }
+          else if (strncmp("$enable-frong-face-cull", rhs, 64) == 0)
+          {
+            material->enableCullFront = val;
+          }
+          else if (strncmp("$enable-blend", rhs, 64) == 0)
+          {
+            material->enableCullFront = val;
+          }
+          else
+          {
+            ldkLogError("Error parsing material file '%s' at line %d: Unknown state variable '%s' ", path, lineNumber, rhs);
+          }
+
+        }
         else if (strncmp("int", varType, strlen(varType)) == 0)
         {
           int val = 0;
@@ -266,6 +311,11 @@ LDKMaterial* ldkMaterialClone(LDKHandle hMaterial)
   newMaterial->program = material->program;
   newMaterial->numParam = material->numParam;
   newMaterial->numTextures = material->numTextures;
+  newMaterial->enableBlend = material->enableBlend;
+  newMaterial->enableDepthTest = material->enableDepthTest;
+  newMaterial->enableDepthWrite = material->enableDepthWrite;
+  newMaterial->enableCullBack = material->enableCullBack;
+  newMaterial->enableCullFront = material->enableCullFront;
   // copy textures and materials
   memcpy(&newMaterial->textures, material->textures, LDK_MATERIAL_MAX_TEXTURES * sizeof(LDKHandle));
   memcpy(&newMaterial->param, material->param, LDK_SHADER_MAX_PARAMS * sizeof(LDKMaterialParam));

@@ -734,6 +734,47 @@ bool ldkMaterialBind(LDKMaterial* material)
     glUniformMatrix4fv(uniformViewProj, 1, GL_TRUE, (float*) &projViewMatrix);
   }
 
+  glDepthMask(material->enableDepthWrite);
+ 
+  if(material->enableDepthTest)
+  {
+    glEnable(GL_DEPTH_TEST);
+  }
+  else
+  {
+    glDisable(GL_DEPTH_TEST);
+  }
+
+  if (material->enableCullBack && !material->enableCullFront)
+  {
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+  }
+  else if (!material->enableCullBack && material->enableCullFront)
+  {
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+  }
+  else if (material->enableCullBack && material->enableCullFront)
+  {
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT_AND_BACK);
+  }
+  else if (material->enableCullBack && material->enableCullFront)
+  {
+    glDisable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+  }
+
+  if (material->enableBlend)
+  {
+    glEnable(GL_BLEND);
+  }
+  else
+  {
+    glDisable(GL_BLEND);
+  }
+
   return true;
 }
 

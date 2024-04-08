@@ -59,6 +59,12 @@ extern "C" {
     LDKHandle textures[LDK_SHADER_MAX_PARAMS];
     uint32 numParam;
     uint32 numTextures;
+    bool enableDepthTest;
+    bool enableDepthWrite;
+    bool enableBlend;
+    bool enableCullBack;
+    bool enableCullFront;
+    
   } LDKMaterial;
 
   LDK_API bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset);
