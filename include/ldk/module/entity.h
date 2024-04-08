@@ -22,6 +22,7 @@ extern "C" {
 
   typedef struct
   {
+    bool active;
     LDKSmallStr name;
     LDKTypeId typeId;     // The type of the entity
     uint32 flags;         // Space for user defined flags

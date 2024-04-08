@@ -341,7 +341,7 @@ extern "C" {
   typedef enum
   {
     /* Event Types */
-    LDK_EVENT_NONE                  = 0,
+    LDK_EVENT_TYPE_NONE             = 0,
     LDK_EVENT_TYPE_GAME             = 1,
     LDK_EVENT_TYPE_WINDOW           = 1 << 1,
     LDK_EVENT_TYPE_TEXT             = 1 << 2,
@@ -350,7 +350,8 @@ extern "C" {
     LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
     LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
     LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
-    LDK_EVENT_TYPE_FRAME            = 1 << 8,
+    LDK_EVENT_TYPE_FRAME_BEFORE     = 1 << 8,
+    LDK_EVENT_TYPE_FRAME_AFTER      = 1 << 9,
     LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
     /* Keyboard Event types */
@@ -369,10 +370,6 @@ extern "C" {
     LDK_MOUSE_EVENT_BUTTON_UP       = 9,
     LDK_MOUSE_EVENT_WHEEL_FORWARD   = 10,
     LDK_MOUSE_EVENT_WHEEL_BACKWARD  = 11,
-
-    /* Frame event types */
-    LDK_FRAME_EVENT_BEFORE_RENDER   = 12,
-    LDK_FRAME_EVENT_AFTER_RENDER    = 13,
 
     /* Window event types */
     LDK_WINDOW_EVENT_RESIZED        = 14,
@@ -429,8 +426,8 @@ extern "C" {
   // LDKFrameEvent
   typedef struct
   {
-    LDKEventType type;
     uint64 ticks;
+    float deltaTime;
   } LDKFrameEvent;
 
   // LDKEvent

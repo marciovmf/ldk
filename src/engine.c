@@ -1,6 +1,7 @@
 #include "ldk/os.h"
 #include "ldk/engine.h"
 #include "ldk/eventqueue.h"
+#include "ldk/module/editor.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/entity.h"
@@ -19,6 +20,7 @@
 
 static struct
 {
+  bool editorMode;
   bool running;
   int32 exitCode;
 } internal = {0};
@@ -129,6 +131,11 @@ bool ldkEngineInitialize(void)
   success &= stepSuccess;
   logModuleInit("Renderer", stepSuccess);
 
+  // Startup editor
+  stepSuccess = ldkEditorInitialize();
+  success &= stepSuccess;
+  logModuleInit("Editor", stepSuccess);
+
   success &= stepSuccess;
   logModuleInit("LDK", success);
 
@@ -141,6 +148,8 @@ bool ldkEngineInitialize(void)
 
 void ldkEngineTerminate(void)
 {
+  logModuleTerminate("Editor");
+  ldkEditorTerminate();
   logModuleTerminate("Renderer");
   ldkRendererTerminate();
   logModuleTerminate("Graphics");
@@ -158,6 +167,9 @@ LDK_API int32 ldkEngineRun(void)
 {
   internal.running = true;
 
+  uint64 tickStart = ldkOsTimeTicksGet();
+  uint64 tickEnd = tickStart;
+
   while (internal.running)
   {
     LDKEvent event;
@@ -166,19 +178,49 @@ LDK_API int32 ldkEngineRun(void)
       ldkEventPush(&event);
     }
 
-    event.type = LDK_EVENT_TYPE_FRAME;
-    event.frameEvent.type = LDK_FRAME_EVENT_BEFORE_RENDER;
-    event.frameEvent.ticks = ldkOsTimeTicksGet();
+    LDKKeyboardState kbdState;
+    ldkOsKeyboardStateGet(&kbdState);
+
+    double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(tickStart, tickEnd);
+    float deltaTime = (float) delta / 1000;
+    tickStart = ldkOsTimeTicksGet();
+
+    if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
+    {
+      internal.editorMode = !internal.editorMode;
+      ldkEditorEnable(internal.editorMode);
+    }
+
+
+    event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
+    event.frameEvent.ticks = tickStart;
+    event.frameEvent.deltaTime = deltaTime;
     ldkEventPush(&event);
     ldkEventQueueBroadcast();
 
+    ldkRendererRender(deltaTime);
     ldkGraphicsSwapBuffers();
+    tickEnd = ldkOsTimeTicksGet();
 
-    event.type = LDK_EVENT_TYPE_FRAME;
-    event.frameEvent.type = LDK_FRAME_EVENT_AFTER_RENDER;
-    event.frameEvent.ticks = ldkOsTimeTicksGet();
+    event.type = LDK_EVENT_TYPE_FRAME_AFTER;
+    event.frameEvent.ticks = tickEnd;
+    event.frameEvent.deltaTime = deltaTime;
     ldkEventPush(&event);
     ldkEventQueueBroadcast();
+
+    // Pass entities to the renderer
+    LDKHListIterator it = ldkEntityManagerGetIterator(LDKStaticObject);
+    while(ldkHListIteratorNext(&it))
+    {
+      ldkRendererAddStaticObject(it.ptr);
+    }
+
+    it = ldkEntityManagerGetIterator(LDKInstancedObject);
+    while(ldkHListIteratorNext(&it))
+    {
+      ldkRendererAddInstancedObject(it.ptr);
+    }
+
   }
   // unload all assets
 

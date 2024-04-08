@@ -1059,7 +1059,7 @@ bool ldkOsEventsPoll(LDKEvent* event)
   {
     internal.eventsCount = 0;
     internal.eventsPollIndex = 0;
-    event->type = LDK_EVENT_NONE;
+    event->type = LDK_EVENT_TYPE_NONE;
     return false;
   }
 }

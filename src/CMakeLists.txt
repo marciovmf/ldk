@@ -28,6 +28,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/asset.h module/asset.c
   ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
   ${INCLUDE_DIR}/module/entity.h module/entity.c
+  ${INCLUDE_DIR}/module/editor.h module/editor.c
 
   # assets
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
@@ -36,6 +37,8 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/asset/mesh.h asset/mesh.c
   ${INCLUDE_DIR}/asset/texture.h asset/texture.c
   ${INCLUDE_DIR}/asset/config.h asset/config.c
+
+  
   )
 
 if(WIN32)

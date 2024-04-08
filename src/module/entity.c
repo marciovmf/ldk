@@ -89,6 +89,7 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   entity->handle = handle;
   entity->flags = 0;
   entity->typeId = typeId;
+  entity->active = true;
 
   internal.numEntities++;
   entityCount++;
@@ -133,5 +134,6 @@ bool ldkEntityDestroy(LDKHandle handle)
 
   return ldkHListRemove(&handler->entities, handle);
 }
+
 
 //TODO(marcio): Cerate means to unregister an EntityHandler (remember to fix handledTypes)

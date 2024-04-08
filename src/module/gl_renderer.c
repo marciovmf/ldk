@@ -1313,6 +1313,8 @@ void ldkRendererCameraSet(LDKCamera* camera)
 
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
 {
+  if (entity->entity.active == false)
+    return;
   LDKRenderObject ro;
   ro.type = LDK_RENDER_OBJECT_STATIC_OBJECT;
   ro.staticMesh = entity;

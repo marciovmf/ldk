@@ -77,7 +77,7 @@ LDKEventType ldkEventHandlerMaskGet(LDKEventHandler handler)
       return internal.mask[i];
     }
   }
-  return LDK_EVENT_NONE;
+  return LDK_EVENT_TYPE_NONE;
 }
 
 void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask)

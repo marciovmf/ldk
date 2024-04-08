@@ -67,12 +67,8 @@ typedef struct
 {
   LDKMaterial material;
   LDKHandle hCamera;
-  uint64 ticksStart;
-  uint64 ticksEnd;
-  float deltaTime;
   float cameraLookSpeed;
   float cameraMoveSpeed;
-  bool flyCamera;
   Sokoban sokoban;
 } GameState;
 
@@ -213,32 +209,8 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     if (state->sokoban.animating)
       return false;
 
-#ifdef LDK_DEBUG
-
-    // Update game camera position
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_SPACE)
-    {
-      LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
-      state->sokoban.cameraPos = camera->position;
-      state->sokoban.cameraTarget = camera->target;
-      ldkLogInfo("Game Camera updated .");
-    }
-
-    // Toggle fly camera
-    if (event->keyboardEvent.keyCode == LDK_KEYCODE_F3)
-    {
-      LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
-      state->flyCamera = !state->flyCamera;
-      if (!state->flyCamera)
-      {
-        camera->position = state->sokoban.cameraPos;
-        camera->target = state->sokoban.cameraTarget;
-      }
-    }
-#endif
-
     // Move player
-    if (!state->flyCamera && !state->sokoban.animating)
+    if (!state->sokoban.animating)
     {
       int32 xOffset = 0;
       int32 zOffset = 0;
@@ -292,13 +264,6 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
     }
   }
 
-  // Stop on ESC
-  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN
-      && event->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
-  {
-    ldkEngineStop(0);
-  }
-
   return true;
 }
 
@@ -319,76 +284,47 @@ bool onWindowEvent(const LDKEvent* event, void* state)
   return true;
 }
 
-bool onFrameEvent(const LDKEvent* event, void* data)
+bool onUpdate(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
   LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
 
-  if (event->frameEvent.type == LDK_FRAME_EVENT_BEFORE_RENDER)
+  // Animate player
+  if (state->sokoban.animating)
   {
-    double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(state->ticksStart, state->ticksEnd);
-    state->deltaTime = (float) delta / 1000;
-    state->ticksStart = ldkOsTimeTicksGet();
+    state->sokoban.player.staticObject->position = vec3Lerp(
+        state->sokoban.player.animationStart,
+        state->sokoban.player.animationTarget,
+        state->sokoban.animationTime);
 
-#ifdef LDK_DEBUG
-    if (state->flyCamera)
+    // Animate box
+    for (uint32 i = 0; i < state->sokoban.boxCount; i++)
     {
-      ldkCameraUpdateFreeCamera(camera, state->deltaTime, state->cameraLookSpeed, state->cameraMoveSpeed);
-    }
-#endif
+      if (!state->sokoban.box[i].changed)
+        continue;
 
-    // Animate player
-    if (state->sokoban.animating)
-    {
-      state->sokoban.player.staticObject->position = vec3Lerp(
-          state->sokoban.player.animationStart,
-          state->sokoban.player.animationTarget,
+      state->sokoban.box[i].staticObject->position = vec3Lerp(
+          state->sokoban.box[i].animationStart,
+          state->sokoban.box[i].animationTarget,
           state->sokoban.animationTime);
-
-      // Animate box
-      for (uint32 i = 0; i < state->sokoban.boxCount; i++)
-      {
-        if (!state->sokoban.box[i].changed)
-          continue;
-
-        state->sokoban.box[i].staticObject->position = vec3Lerp(
-            state->sokoban.box[i].animationStart,
-            state->sokoban.box[i].animationTarget,
-            state->sokoban.animationTime);
-      }
-
-      if (state->sokoban.animationTime >= 1.0f)
-      {
-        state->sokoban.animating = false;
-        state->sokoban.animationTime = 0.0f;
-      }
-
-      state->sokoban.animationTime += state->deltaTime * state->sokoban.animationSpeed;
-      state->sokoban.animationTime = clamp(state->sokoban.animationTime, 0.0f, 1.0f);
     }
 
-    // Pass entities to the renderer
-    LDKHListIterator it = ldkEntityManagerGetIterator(LDKStaticObject);
-    while(ldkHListIteratorNext(&it))
+    if (state->sokoban.animationTime >= 1.0f)
     {
-      ldkRendererAddStaticObject(it.ptr);
+      state->sokoban.animating = false;
+      state->sokoban.animationTime = 0.0f;
     }
 
-    it = ldkEntityManagerGetIterator(LDKInstancedObject);
-    while(ldkHListIteratorNext(&it))
-    {
-      ldkRendererAddInstancedObject(it.ptr);
-    }
+    state->sokoban.animationTime += event->frameEvent.deltaTime * state->sokoban.animationSpeed;
+    state->sokoban.animationTime = clamp(state->sokoban.animationTime, 0.0f, 1.0f);
+  }
 
-    ldkRendererRender(state->deltaTime);
-  }
-  else if (event->frameEvent.type == LDK_FRAME_EVENT_AFTER_RENDER)
-  {
-    state->ticksEnd = ldkOsTimeTicksGet();
-    //ldkLogInfo("Camera Position %f, %f, %f; Target %f, %f, %f",
-    //    camera->position.x, camera->position.y, camera->position.z,
-    //    camera->target.x, camera->target.y, camera->target.z);
-  }
+  //ldkLogInfo("Camera Position %f, %f, %f; Target %f, %f, %f",
+  //    camera->position.x, camera->position.y, camera->position.z,
+  //    camera->target.x, camera->target.y, camera->target.z);
+
+  ldkRendererCameraSet(camera);
+
   return true;
 }
 
@@ -401,7 +337,7 @@ int main(void)
   // Bind events
   ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, (void*) &state);
   ldkEventHandlerAdd(onWindowEvent,   LDK_EVENT_TYPE_WINDOW, 0);
-  ldkEventHandlerAdd(onFrameEvent,    LDK_EVENT_TYPE_FRAME, (void*) &state);
+  ldkEventHandlerAdd(onUpdate,    LDK_EVENT_TYPE_FRAME_BEFORE, (void*) &state);
 
   //
   // Create some entities
@@ -453,7 +389,7 @@ int main(void)
     "#..#....#-"
     "#########-";
 #else
-    "----------"
+  "----------"
     "---...@---"
     "-.......--"
     "-..A#B...-"
@@ -516,7 +452,7 @@ int main(void)
   LDKStaticObject* playerObj = ldkEntityCreate(LDKStaticObject);
   ldkStaticObjectSetMesh(playerObj, cube->asset.handle);
   LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
-  ldkMaterialParamSetVec3(material, "color", vec3(1.0f, 0.0f, 0.0f));
+  ldkMaterialParamSetVec3(material, "color", vec3(.6f, .6f, .6f));
   ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
 
   playerObj->materials[0] = material->asset.handle;
