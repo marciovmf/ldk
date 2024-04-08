@@ -51,12 +51,15 @@ void main()
 #ifdef LDK_COMPILE_FRAGMENT_SHADER
 
 uniform sampler2D colorMap;
+uniform vec3 color;
+uniform float colorIntensity;
+
 in vec2 fragTexCoord;
 out vec4 fragColor;
 
 void main()
 {
-  fragColor = texture(colorMap, fragTexCoord / 5);
+  fragColor = mix(texture(colorMap, fragTexCoord / 5), vec4(color, 1.0), colorIntensity);
 }
 #endif
 
