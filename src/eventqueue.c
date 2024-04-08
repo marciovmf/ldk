@@ -24,7 +24,7 @@ void ldkEventPush(LDKEvent* event)
   memcpy((void*) &internal.events[index], event, sizeof(LDKEvent));
 }
 
-void ldkEventCleanup(void)
+void ldkEventQueueCleanup(void)
 {
   internal.numEvents = 0;
 }
