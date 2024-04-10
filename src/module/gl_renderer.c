@@ -15,6 +15,8 @@
 #include "ldk/gl.h"
 #include <stdbool.h>
 #include <string.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
 extern const char* ldkOpenglTypeName(GLenum type);
 
@@ -1308,6 +1310,13 @@ void ldkRendererClearColor(LDKRGB color)
 
 void ldkRendererCameraSet(LDKCamera* camera)
 {
+  if (camera->entity.active == FALSE)
+  {
+    ldkLogError("Using disabled camera for rendering!");
+    internal.camera = NULL;
+    return;
+  }
+
   internal.camera = camera;
 }
 
@@ -1423,6 +1432,262 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity)
   ldkRenderBufferBind(NULL);
 }
 
+void drawLineThick(float x1, float y1, float z1, float x2, float y2, float z2, float thickness)
+{
+    GLfloat dx = x2 - x1;
+    GLfloat dy = y2 - y1;
+
+    // Calculate the normalized perpendicular vector components
+    GLfloat nx = dy;
+    GLfloat ny = -dx;
+    GLfloat length = (float) sqrt(nx * nx + ny * ny);
+    nx /= length;
+    ny /= length;
+
+    // Calculate half thickness offsets
+    GLfloat halfThickness = thickness / 2.0f;
+    GLfloat offset_x = halfThickness * nx;
+    GLfloat offset_y = halfThickness * ny;
+
+    // Define the vertices
+    GLfloat vertices[] = {
+        // Top-left corner
+        x1 - offset_x, y1 - offset_y, z1,
+        // Top-right corner
+        x2 - offset_x, y2 - offset_y, z2,
+        // Bottom-right corner
+        x2 + offset_x, y2 + offset_y, z2,
+        // Bottom-left corner
+        x1 + offset_x, y1 + offset_y, z1
+    };
+
+    // Generate and bind VAO and VBO
+    GLuint VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    
+    // Set vertex attribute pointers
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    // Unbind VBO and VAO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    
+    // Use shader program and draw
+    //glUseProgram(shaderProgram);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+    glBindVertexArray(0);
+}
+
+void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color)
+{
+    GLfloat vertices[] = {
+        x1, y1, z1,
+        x2, y2, z2
+    };
+
+    GLfloat colors[] = {
+        color.r, color.g, color.b,
+        color.r, color.g, color.b
+    };
+
+    // Generate and bind VAO and VBO
+    GLuint VAO, VBO, colorVBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &colorVBO);
+
+    glBindVertexArray(VAO);
+
+    // Bind and set vertex data
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    // Bind and set color data
+    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(1);
+
+    // Unbind VAO
+    glBindVertexArray(0);
+
+    // Use shader program and draw
+    glBindVertexArray(VAO);
+    glLineWidth(thickness);
+    glDrawArrays(GL_LINES, 0, 2);
+    glBindVertexArray(0);
+
+    // Clean up
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &colorVBO);
+    glDeleteVertexArrays(1, &VAO);
+}
+
+void drawCircle(float x, float y, float z, float radius, float thickness, float angle)
+{
+  int numSegments = 60; // Number of line segments to approximate the circle
+  float theta = fabs(angle) / numSegments; // Angle between each segment
+  float start_angle = (angle >= 0) ? 0 : (2 * M_PI - fabs(angle));
+  float halfThickness = thickness / 2.0f;
+
+  // Calculate the number of vertices needed
+  int numVertices = ceil(fabs(angle) / theta) * 2;
+
+  // If angle is less than 360 degrees, we need to add 2 extra vertices to close the circle
+  if (fabs(angle) < 2 * M_PI)
+    numVertices += 2;
+
+  // Generate and bind VAO and VBO
+  GLuint VBO, VAO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+  // Calculate vertices for the main segments
+  GLfloat vertices[ 255 * 3]; // 3 components (x, y, z) per vertex
+  for (int i = 0; i < numVertices / 2; i++) {
+    float currentAngle = start_angle + i * theta;
+    // Inner vertex of the current segment
+    vertices[i * 6] = x + (radius - halfThickness) * cos(currentAngle);
+    vertices[i * 6 + 1] = y + (radius - halfThickness) * sin(currentAngle);
+    vertices[i * 6 + 2] = z;
+
+    // Outer vertex of the current segment
+    vertices[i * 6 + 3] = x + (radius + halfThickness) * cos(currentAngle);
+    vertices[i * 6 + 4] = y + (radius + halfThickness) * sin(currentAngle);
+    vertices[i * 6 + 5] = z;
+  }
+
+  // If angle is less than 360 degrees, add vertices to close the circle
+  if (fabs(angle) > 2 * M_PI) {
+    float last_angle = start_angle + fabs(angle);
+
+    // Inner vertex of the last segment
+    vertices[numVertices * 3 - 6] = x + (radius - halfThickness) * cos(last_angle);
+    vertices[numVertices * 3 - 5] = y + (radius - halfThickness) * sin(last_angle);
+    vertices[numVertices * 3 - 4] = z;
+
+    // Outer vertex of the last segment
+    vertices[numVertices * 3 - 3] = x + (radius + halfThickness) * cos(last_angle);
+    vertices[numVertices * 3 - 2] = y + (radius + halfThickness) * sin(last_angle);
+    vertices[numVertices * 3 - 1] = z;
+  }
+
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  // Set vertex attribute pointers
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(0);
+
+  // Unbind VBO and VAO
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+
+  // Use shader program and draw
+  glBindVertexArray(VAO);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
+  glBindVertexArray(0);
+}
+
+void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color)
+{
+    // Define vertices of the frustum edges
+    GLfloat vertices[] = {
+        // Near plane
+        -nearWidth / 2, -nearHeight / 2, -nearDist,
+        nearWidth / 2, -nearHeight / 2, -nearDist,
+        nearWidth / 2, -nearHeight / 2, -nearDist,
+        nearWidth / 2, nearHeight / 2, -nearDist,
+        nearWidth / 2, nearHeight / 2, -nearDist,
+        -nearWidth / 2, nearHeight / 2, -nearDist,
+        -nearWidth / 2, nearHeight / 2, -nearDist,
+        -nearWidth / 2, -nearHeight / 2, -nearDist,
+
+        // Far plane
+        -farWidth / 2, -farHeight / 2, -farDist,
+        farWidth / 2, -farHeight / 2, -farDist,
+        farWidth / 2, -farHeight / 2, -farDist,
+        farWidth / 2, farHeight / 2, -farDist,
+        farWidth / 2, farHeight / 2, -farDist,
+        -farWidth / 2, farHeight / 2, -farDist,
+        -farWidth / 2, farHeight / 2, -farDist,
+        -farWidth / 2, -farHeight / 2, -farDist,
+
+        // Connecting lines between near and far planes
+        -nearWidth / 2, -nearHeight / 2, -nearDist,
+        -farWidth / 2, -farHeight / 2, -farDist,
+        nearWidth / 2, -nearHeight / 2, -nearDist,
+        farWidth / 2, -farHeight / 2, -farDist,
+        nearWidth / 2, nearHeight / 2, -nearDist,
+        farWidth / 2, farHeight / 2, -farDist,
+        -nearWidth / 2, nearHeight / 2, -nearDist,
+        -farWidth / 2, farHeight / 2, -farDist,
+
+        // Triangle to indicate up direction (front face)
+        -farWidth / 4, farHeight / 2, -farDist,
+        farWidth / 4, farHeight / 2, -farDist,
+        0.0f, 3 * farHeight / 4, -farDist,
+
+        // Triangle to indicate up direction (back face)
+        farWidth / 4, farHeight / 2, -farDist,
+        -farWidth / 4, farHeight / 2, -farDist,
+        0.0f, 3 * farHeight / 4, -farDist
+    };
+
+    // Define colors (for each vertex)
+    GLfloat colors[sizeof(vertices) / sizeof(GLfloat)]; // Same size as vertices array
+
+    for (int i = 0; i < sizeof(colors) / sizeof(GLfloat); i += 3) {
+        colors[i] = color.r;
+        colors[i + 1] = color.g;
+        colors[i + 2] = color.b;
+    }
+
+    // Generate and bind VAO and VBOs
+    GLuint VAO, VBO, colorVBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &colorVBO);
+
+    glBindVertexArray(VAO);
+
+    // Bind and set vertex data
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE0);
+
+    // Bind and set color data
+    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
+    glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE1);
+
+    // Unbind VAO
+    glBindVertexArray(0);
+
+    // Use shader program and draw
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_LINES, 0, sizeof(vertices) / (3 * sizeof(GLfloat)));
+    glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 6, 3); // Draw the front face of the triangle
+    glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 3, 3); // Draw the back face of the triangle
+    glBindVertexArray(0);
+
+    // Clean up
+    glDeleteBuffers(1, &VBO);
+    glDeleteBuffers(1, &colorVBO);
+    glDeleteVertexArrays(1, &VAO);
+}
+
 void ldkRendererRender(float deltaTime)
 {
   internal.elapsedTime += deltaTime;
@@ -1435,12 +1700,18 @@ void ldkRendererRender(float deltaTime)
   internal.shaderPicking  = ldkAssetLookup(LDKShader, internal.hShaderPicking);
   internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
 
+  glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  
   glEnable(GL_BLEND);
   glEnable(GL_CULL_FACE);
   glEnable(GL_DEPTH_TEST); 
   glDepthFunc(GL_LEQUAL);
-  glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  if (internal.camera == NULL)
+    return;
+
+
 
   for(uint32 i = 0; i < count; i++)
   {
@@ -1460,8 +1731,6 @@ void ldkRendererRender(float deltaTime)
     }
     ro++;
   }
-
-#if 1
 
   //
   // Render the Picking buffer
@@ -1484,8 +1753,8 @@ void ldkRendererRender(float deltaTime)
     ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", i + 1);
     if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       internalRenderMesh(ro->staticMesh);
-//    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
-//      internalRenderMeshInstanced(ro->instancedMesh);
+    //    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
+    //      internalRenderMeshInstanced(ro->instancedMesh);
     ro++;
   }
 
@@ -1563,7 +1832,44 @@ void ldkRendererRender(float deltaTime)
     }
   }
 
-#endif
+  internal.shaderMode = SHADER_MODE_DEFAULT;
+
+  //ldkShaderProgramBind(internal.shaderHighlight);
+  ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default.material"));
+  //ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default_vertex_color.material"));
+
+  Mat4 identity = mat4Id();
+  ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", identity);
+  //ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+  //ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+  //ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+  //ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+  //ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+  drawLine(0.0f, 0.0f, 2.0f, 10.0f, 10.0f, -2.0f, 0.2f, ldkRGB(255, 0, 0));
+  drawCircle(0.0f, 0.0f, 0.0f,
+      2.0f,   // radius,
+      0.2f, // thinkness
+      degToRadian(360.0));
+
+
+  drawCircle(10.0f, 0.0f, -5.0f,
+      3.0f,   // radius,
+      2.8f, // thinkness
+      degToRadian(360.0));
+
+
+  LDKHListIterator it = ldkEntityManagerGetIterator(LDKCamera);
+
+  while (ldkHListIteratorNext(&it))
+  {
+    LDKCamera* e = (LDKCamera*) it.ptr;
+    if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
+      continue;
+
+    Mat4 world = mat4World(e->position, vec3One(), quatFromEuler(ldkCameraDirectionNormalized(e)));
+    ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
+    drawFrustum(0.4f, 0.2f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(1.0f, 0.0f, 1.0f));
+  }
 
   ldkArrayClear(internal.bucketROStaticMesh);
   ldkMaterialBind(0);

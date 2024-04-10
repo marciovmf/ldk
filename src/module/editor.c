@@ -58,8 +58,6 @@ void ldkEditorEnable(bool enabled)
   }
 }
 
-
-
 bool ldkEditorInitialize(void)
 {
   ldkEventHandlerAdd(onUpdate, LDK_EVENT_TYPE_NONE, NULL); 
@@ -69,29 +67,10 @@ bool ldkEditorInitialize(void)
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   ldkSmallString(&camera->entity.name, "Editor Camera");
-  camera->position = vec3Zero();
-  camera->target = vec3(0.0f, 0.0f, -1.0f);
+  camera->position = vec3(0.0f, 5.0f, 10.0f);
+  camera->target = vec3Zero();
+  camera->entity.flags = LDK_ENTITY_FLAG_INTERNAL;
   internalEditor.editorCamera = camera;
-
-  //
-  // Default materials
-  //
-  LDKMaterial* defaultMaterial = ldkAssetGet(LDKMaterial, "assets/default.material");
-  LDKMaterial* materialRed = ldkMaterialClone(defaultMaterial->asset.handle);
-  materialRed->enableDepthTest = false;
-  ldkMaterialParamSetVec3(materialRed, "color", vec3(1.0f, 0.0f, 0.0f));
-  ldkMaterialParamSetFloat(materialRed, "colorIntensity", 1.0f);
-
-  LDKMaterial* materialGreen = ldkMaterialClone(defaultMaterial->asset.handle);
-  materialGreen->enableDepthTest = false;
-  ldkMaterialParamSetVec3(materialGreen, "color", vec3(0.0f, 1.0f, 0.0f));
-  ldkMaterialParamSetFloat(materialGreen, "colorIntensity", 1.0f);
-
-  LDKMaterial* materialBlue = ldkMaterialClone(defaultMaterial->asset.handle);
-  materialBlue->enableDepthTest = false;
-  ldkMaterialParamSetVec3(materialBlue, "color", vec3(0.0f, 0.0f, 1.0f));
-  ldkMaterialParamSetFloat(materialBlue, "colorIntensity", 1.0f);
-
 
   return true;
 }

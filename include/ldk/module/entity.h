@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+  enum
+  {
+    LDK_ENTITY_FLAG_INTERNAL =  1 << 31
+  };
+
   typedef struct
   {
     bool active;

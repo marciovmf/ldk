@@ -219,7 +219,7 @@ extern "C" {
     int8 b;
   } LDKRGB;
 
-  LDK_API LDKRGB ldkRRB(int8 r, int8 g, int8 b);
+  LDK_API LDKRGB ldkRGB(uint8 r, uint8 g, uint8 b);
 
   // LDKRGBA
   typedef struct
@@ -230,7 +230,8 @@ extern "C" {
     int8 a;
   } LDKRGBA;
 
-  LDK_API LDKRGBA ldkRRBA(int8 r, int8 g, int8 b, int8 a);
+  LDK_API LDKRGBA ldkRRGA(uint8 r, uint8 g, uint8 b, uint8 a);
+
 
   //
   // Logging

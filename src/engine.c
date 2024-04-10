@@ -191,7 +191,6 @@ LDK_API int32 ldkEngineRun(void)
       ldkEditorEnable(internal.editorMode);
     }
 
-
     event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
     event.frameEvent.ticks = tickStart;
     event.frameEvent.deltaTime = deltaTime;

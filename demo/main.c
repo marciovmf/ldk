@@ -474,7 +474,6 @@ int main(void)
     box->materials[0] = material->asset.handle;
     box->position = vec3((float) state.sokoban.box[i].coord.x, 0.0f, (float) state.sokoban.box[i].coord.y);
     box->scale    = vec3One();
-
     state.sokoban.box[i].staticObject = box;
   }
 

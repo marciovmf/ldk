@@ -48,13 +48,13 @@ LDKPointf ldkPointf(float x, float y)
   return point;
 }
 
-LDKRGB ldkRRB(int8 r, int8 g, int8 b)
+LDKRGB ldkRGB(uint8 r, uint8 g, uint8 b)
 {
   LDKRGB rgb = {.r = r, .g = g, .b = b};
   return rgb;
 }
 
-LDKRGBA ldkRRBA(int8 r, int8 g, int8 b, int8 a)
+LDKRGBA ldkRGBA(uint8 r, uint8 g, uint8 b, uint8 a)
 {
   LDKRGBA rgba = {.r = r, .g = g, .b = b, .a = a};
   return rgba;
