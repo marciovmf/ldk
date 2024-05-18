@@ -20,7 +20,6 @@
 
 static struct
 {
-  bool editorMode;
   bool running;
   int32 exitCode;
 } internal = {0};
@@ -187,8 +186,7 @@ LDK_API int32 ldkEngineRun(void)
 
     if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
     {
-      internal.editorMode = !internal.editorMode;
-      ldkEditorEnable(internal.editorMode);
+      ldkEditorEnable(! ldkEditorIsEnabled());
     }
 
     event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
@@ -225,6 +223,11 @@ LDK_API int32 ldkEngineRun(void)
 
   ldkEngineTerminate();
   return internal.exitCode;
+}
+
+bool ldkEngineIsEditorRunning(void)
+{
+  return ldkEditorIsEnabled();
 }
 
 void ldkEngineStop(int32 exitCode)

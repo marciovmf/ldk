@@ -2,10 +2,7 @@
 #include "ldk/eventqueue.h"
 #include "ldk/module/editor.h"
 #include "ldk/module/renderer.h"
-#include "ldk/entity/staticobject.h"
 #include "ldk/entity/camera.h"
-#include "ldk/asset/material.h"
-#include "ldk/asset/mesh.h"
 #include "ldk/common.h"
 #include "ldk/engine.h"
 #include <math.h>
@@ -56,6 +53,11 @@ void ldkEditorEnable(bool enabled)
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_NONE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_NONE);
   }
+}
+
+bool ldkEditorIsEnabled(void)
+{
+  return internalEditor.enabled;
 }
 
 bool ldkEditorInitialize(void)

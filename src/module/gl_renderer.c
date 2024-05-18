@@ -1,6 +1,7 @@
 #include "ldk/module/renderer.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/asset.h"
+#include "ldk/engine.h"
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
 #include "ldk/entity/instancedobject.h"
@@ -27,13 +28,6 @@ typedef struct
   float triangleIndex;
 } LDKPickingPixelInfo;
 
-typedef enum
-{
-  SHADER_MODE_DEFAULT = 0,
-  SHADER_MODE_PICKING = 1,
-  SHADER_MODE_HIGHLIGHT = 2,
-} LDKShaderMode;
-
 #define LDK_GL_ERROR_LOG_SIZE 1024
 static struct 
 {
@@ -41,9 +35,8 @@ static struct
   LDKConfig* config;
   LDKRGB clearColor;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
-  LDKArray* bucketROStaticMesh;
+  LDKArray* renderObjectArray;
   LDKCamera* camera;
-  LDKShaderMode shaderMode;
   float elapsedTime;
 
   // Picking
@@ -157,8 +150,8 @@ bool ldkRendererInitialize(LDKConfig* config)
   bool success = true;
   internal.clearColor = (LDKRGB){40, 40, 40};
   internal.config = config;
-  internal.bucketROStaticMesh = ldkArrayCreate(sizeof(LDKRenderObject), 64);
-  success &= internal.bucketROStaticMesh != NULL;
+  internal.renderObjectArray = ldkArrayCreate(sizeof(LDKRenderObject), 64);
+  success &= internal.renderObjectArray != NULL;
 
   //
   // Picking Framebuffer setup
@@ -181,7 +174,7 @@ void ldkRendererTerminate(void)
     return;
 
   internal.initialized = false;
-  ldkArrayDestroy(internal.bucketROStaticMesh);
+  ldkArrayDestroy(internal.renderObjectArray);
 }
 
 
@@ -373,7 +366,7 @@ bool ldkShaderParamSetUint(LDKShader* shader, const char* name, uint32 value)
     internalSetShaderUniformError(shader->asset.path, "unsigned int", name);
     return false;
   }
-  
+
   glUniform1ui(location, value);
   return true;
 }
@@ -386,7 +379,7 @@ bool ldkShaderParamSetFloat(LDKShader* shader, const char* name, float value)
     internalSetShaderUniformError(shader->asset.path, "float", name);
     return false;
   }
-  
+
   glUniform1f(location, value);
   return true;
 }
@@ -399,7 +392,7 @@ bool ldkShaderParamSetVec2(LDKShader* shader, const char* name, Vec2 value)
     internalSetShaderUniformError(shader->asset.path, "vec2", name);
     return false;
   }
-  
+
   glUniform2f(location, value.x, value.y);
   return true;
 }
@@ -412,7 +405,7 @@ bool ldkShaderParamSetVec3(LDKShader* shader, const char* name, Vec3 value)
     internalSetShaderUniformError(shader->asset.path, "vec3", name);
     return false;
   }
-  
+
   glUniform3f(location, value.x, value.y, value.z);
   return true;
 }
@@ -737,7 +730,7 @@ bool ldkMaterialBind(LDKMaterial* material)
   }
 
   glDepthMask(material->enableDepthWrite);
- 
+
   if(material->enableDepthTest)
   {
     glEnable(GL_DEPTH_TEST);
@@ -1327,7 +1320,7 @@ void ldkRendererAddStaticObject(LDKStaticObject* entity)
   LDKRenderObject ro;
   ro.type = LDK_RENDER_OBJECT_STATIC_OBJECT;
   ro.staticMesh = entity;
-  ldkArrayAdd(internal.bucketROStaticMesh, &ro);
+  ldkArrayAdd(internal.renderObjectArray, &ro);
 }
 
 void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
@@ -1335,7 +1328,147 @@ void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
   LDKRenderObject ro;
   ro.type = LDK_RENDER_OBJECT_INSTANCED_OBJECT;
   ro.instancedMesh = entity;
-  ldkArrayAdd(internal.bucketROStaticMesh, &ro);
+  ldkArrayAdd(internal.renderObjectArray, &ro);
+}
+
+void internalRenderMeshHighlight(LDKStaticObject* entity)
+{
+}
+
+void internalRenderForPicking(LDKStaticObject* entity, uint32 objectIndex)
+{
+  LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
+  if(!mesh)
+    return;
+
+  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
+  Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
+  ldkShaderParamSetMat4(internal.shaderPicking, "mModel", world);
+  ldkRenderBufferBind(mesh->vBuffer);
+  for(uint32 i = 0; i < mesh->numSurfaces; i++)
+  {
+    LDKSurface* surface = &mesh->surfaces[i];
+    ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+    glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
+  }
+
+  ldkRenderBufferBind(NULL);
+}
+
+void internalRenderHighlight(LDKStaticObject* entity)
+{
+  LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
+  if(!mesh)
+    return;
+
+  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  glLineWidth(3.0);
+  glDisable(GL_DEPTH_TEST);
+
+
+  Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
+
+  ldkRenderBufferBind(mesh->vBuffer);
+  ldkShaderProgramBind(internal.shaderHighlight);
+  ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
+  ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+  ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+  ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+  ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+  ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+
+  for(uint32 i = 0; i < mesh->numSurfaces; i++)
+  {
+    LDKSurface* surface = &mesh->surfaces[i];
+    glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
+  }
+
+  glEnable(GL_DEPTH_TEST);
+  glLineWidth(1.0);
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  ldkRenderBufferBind(NULL);
+}
+
+void internalRenderPickingBuffer(LDKArray* renderObjects)
+{
+  // Render Objects in the picking framebuffer
+  uint32 count = ldkArrayCount(internal.renderObjectArray);
+  if (count == 0)
+    return;
+
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
+  glClearColor(0, 0, 0, 0);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  ldkShaderProgramBind(internal.shaderPicking);
+  ldkShaderParamSetMat4(internal.shaderPicking, "mView", ldkCameraViewMatrix(internal.camera));
+  ldkShaderParamSetMat4(internal.shaderPicking, "mProj", ldkCameraProjectMatrix(internal.camera));
+
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(internal.renderObjectArray);
+  for(uint32 i = 0; i < count; i++)
+  {
+    if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
+      internalRenderForPicking(ro->staticMesh, i + 1);
+    ro++;
+  }
+
+  // Read from the pick framebuffer
+  LDKMouseState mouseState;
+  ldkOsMouseStateGet(&mouseState);
+  if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+    int x = mouseState.cursor.x;
+    int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
+    LDKPickingPixelInfo pixelInfo;
+
+    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelInfo);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    uint32 objectIndex = (uint32) pixelInfo.objectIndex;
+
+    if (objectIndex > 0)
+    {
+      ro = (LDKRenderObject*) ldkArrayGetData(internal.renderObjectArray);
+      internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
+      ldkLogInfo("Selected entity = %llx", internal.selectedEntity);
+    }
+    else
+    {
+      internal.selectedEntity = LDK_HANDLE_INVALID; 
+    }
+  }
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+
+  //
+  // Highlight picked entity
+  //
+
+  if (internal.selectedEntity != LDK_HANDLE_INVALID)
+  {
+    LDKInstancedObject* io = NULL;
+    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
+    if (!so)
+    {
+      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
+    }
+
+    if (so || io)
+    {
+      if (so)
+        internalRenderHighlight(so);
+      //else
+      //  internalRenderMeshInstanced(io);
+    }
+    else
+    {
+      internal.selectedEntity = LDK_HANDLE_INVALID;
+    }
+  }
 }
 
 void internalRenderMesh(LDKStaticObject* entity)
@@ -1353,30 +1486,11 @@ void internalRenderMesh(LDKStaticObject* entity)
     Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
     LDKMaterial* material = NULL;
 
-    // if rendering with picking material, we set the surface index
-    if (internal.shaderMode == SHADER_MODE_PICKING)
-    {
-      ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
-      ldkShaderParamSetMat4(internal.shaderPicking, "mModel", world);
-    }
-    else if (internal.shaderMode == SHADER_MODE_HIGHLIGHT)
-    {
-      ldkShaderProgramBind(internal.shaderHighlight);
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
-      ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
-      ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
-      ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
-    }
-    else if (internal.shaderMode == SHADER_MODE_DEFAULT)
-    {
-      LDKHandle* materials = entity->materials ? entity->materials : mesh->materials;
-      LDKHandle hMaterial = materials[surface->materialIndex];
-      material = ldkAssetLookup(LDKMaterial, hMaterial);
-      ldkMaterialBind(material);
-      ldkMaterialParamSetMat4(material, "mModel", world);
-    }
+    LDKHandle* materials = entity->materials ? entity->materials : mesh->materials;
+    LDKHandle hMaterial = materials[surface->materialIndex];
+    material = ldkAssetLookup(LDKMaterial, hMaterial);
+    ldkMaterialBind(material);
+    ldkMaterialParamSetMat4(material, "mModel", world);
 
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
@@ -1400,24 +1514,24 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity)
     LDKMaterial* material = NULL;
 
     // if rendering with picking material, we set the surface index
-    if (internal.shaderMode == SHADER_MODE_PICKING) 
-    {
-      ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
-      Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
-      ldkShaderParamSetMat4(internal.shaderPicking, "mModel", *world);
-    }
-    else if (internal.shaderMode == SHADER_MODE_HIGHLIGHT)
-    {
-      Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
-      ldkShaderProgramBind(internal.shaderHighlight);
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", *world);
-      ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
-      ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
-      ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
-      ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
-    }
-    else if (internal.shaderMode == SHADER_MODE_DEFAULT)
+    //if (internal.shaderMode == SHADER_MODE_PICKING) 
+    //{
+    //  ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+    //  Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
+    //  ldkShaderParamSetMat4(internal.shaderPicking, "mModel", *world);
+    //}
+    //else if (internal.shaderMode == SHADER_MODE_HIGHLIGHT)
+    //{
+    //  Mat4* world = ((Mat4*) &entity->instanceWorldMatrixList) + i;
+    //  ldkShaderProgramBind(internal.shaderHighlight);
+    //  ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", *world);
+    //  ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+    //  ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+    //  ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+    //  ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+    //  ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+    //}
+    //else if (internal.shaderMode == SHADER_MODE_DEFAULT)
     {
       LDKHandle hMaterial = mesh->materials[surface->materialIndex];
       material = ldkAssetLookup(LDKMaterial, hMaterial);
@@ -1434,112 +1548,112 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity)
 
 void drawLineThick(float x1, float y1, float z1, float x2, float y2, float z2, float thickness)
 {
-    GLfloat dx = x2 - x1;
-    GLfloat dy = y2 - y1;
+  GLfloat dx = x2 - x1;
+  GLfloat dy = y2 - y1;
 
-    // Calculate the normalized perpendicular vector components
-    GLfloat nx = dy;
-    GLfloat ny = -dx;
-    GLfloat length = (float) sqrt(nx * nx + ny * ny);
-    nx /= length;
-    ny /= length;
+  // Calculate the normalized perpendicular vector components
+  GLfloat nx = dy;
+  GLfloat ny = -dx;
+  GLfloat length = (float) sqrt(nx * nx + ny * ny);
+  nx /= length;
+  ny /= length;
 
-    // Calculate half thickness offsets
-    GLfloat halfThickness = thickness / 2.0f;
-    GLfloat offset_x = halfThickness * nx;
-    GLfloat offset_y = halfThickness * ny;
+  // Calculate half thickness offsets
+  GLfloat halfThickness = thickness / 2.0f;
+  GLfloat offset_x = halfThickness * nx;
+  GLfloat offset_y = halfThickness * ny;
 
-    // Define the vertices
-    GLfloat vertices[] = {
-        // Top-left corner
-        x1 - offset_x, y1 - offset_y, z1,
-        // Top-right corner
-        x2 - offset_x, y2 - offset_y, z2,
-        // Bottom-right corner
-        x2 + offset_x, y2 + offset_y, z2,
-        // Bottom-left corner
-        x1 + offset_x, y1 + offset_y, z1
-    };
+  // Define the vertices
+  GLfloat vertices[] = {
+    // Top-left corner
+    x1 - offset_x, y1 - offset_y, z1,
+    // Top-right corner
+    x2 - offset_x, y2 - offset_y, z2,
+    // Bottom-right corner
+    x2 + offset_x, y2 + offset_y, z2,
+    // Bottom-left corner
+    x1 + offset_x, y1 + offset_y, z1
+  };
 
-    // Generate and bind VAO and VBO
-    GLuint VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    
-    // Set vertex attribute pointers
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(0);
+  // Generate and bind VAO and VBO
+  GLuint VBO, VAO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // Unbind VBO and VAO
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    
-    // Use shader program and draw
-    //glUseProgram(shaderProgram);
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-    glBindVertexArray(0);
+  // Set vertex attribute pointers
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(0);
+
+  // Unbind VBO and VAO
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+
+  // Use shader program and draw
+  //glUseProgram(shaderProgram);
+  glBindVertexArray(VAO);
+  glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+  glBindVertexArray(0);
 }
 
 void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color)
 {
-    GLfloat vertices[] = {
-        x1, y1, z1,
-        x2, y2, z2
-    };
+  GLfloat vertices[] = {
+    x1, y1, z1,
+    x2, y2, z2
+  };
 
-    GLfloat colors[] = {
-        color.r, color.g, color.b,
-        color.r, color.g, color.b
-    };
+  GLfloat colors[] = {
+    color.r, color.g, color.b,
+    color.r, color.g, color.b
+  };
 
-    // Generate and bind VAO and VBO
-    GLuint VAO, VBO, colorVBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &colorVBO);
+  // Generate and bind VAO and VBO
+  GLuint VAO, VBO, colorVBO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glGenBuffers(1, &colorVBO);
 
-    glBindVertexArray(VAO);
+  glBindVertexArray(VAO);
 
-    // Bind and set vertex data
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(0);
+  // Bind and set vertex data
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(0);
 
-    // Bind and set color data
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(1);
+  // Bind and set color data
+  glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(1);
 
-    // Unbind VAO
-    glBindVertexArray(0);
+  // Unbind VAO
+  glBindVertexArray(0);
 
-    // Use shader program and draw
-    glBindVertexArray(VAO);
-    glLineWidth(thickness);
-    glDrawArrays(GL_LINES, 0, 2);
-    glBindVertexArray(0);
+  // Use shader program and draw
+  glBindVertexArray(VAO);
+  glLineWidth(thickness);
+  glDrawArrays(GL_LINES, 0, 2);
+  glBindVertexArray(0);
 
-    // Clean up
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &colorVBO);
-    glDeleteVertexArrays(1, &VAO);
+  // Clean up
+  glDeleteBuffers(1, &VBO);
+  glDeleteBuffers(1, &colorVBO);
+  glDeleteVertexArrays(1, &VAO);
 }
 
 void drawCircle(float x, float y, float z, float radius, float thickness, float angle)
 {
   int numSegments = 60; // Number of line segments to approximate the circle
-  float theta = fabs(angle) / numSegments; // Angle between each segment
-  float start_angle = (angle >= 0) ? 0 : (2 * M_PI - fabs(angle));
+  float theta = (float) (fabs(angle) / numSegments); // Angle between each segment
+  float start_angle = (angle >= 0) ? 0.0f : (float) (2 * M_PI - fabs(angle));
   float halfThickness = thickness / 2.0f;
 
   // Calculate the number of vertices needed
-  int numVertices = ceil(fabs(angle) / theta) * 2;
+  uint32 numVertices = (uint32) (ceil(fabs(angle) / theta) * 2);
 
   // If angle is less than 360 degrees, we need to add 2 extra vertices to close the circle
   if (fabs(angle) < 2 * M_PI)
@@ -1554,31 +1668,31 @@ void drawCircle(float x, float y, float z, float radius, float thickness, float 
 
   // Calculate vertices for the main segments
   GLfloat vertices[ 255 * 3]; // 3 components (x, y, z) per vertex
-  for (int i = 0; i < numVertices / 2; i++) {
+  for (uint32 i = 0; i < numVertices / 2; i++) {
     float currentAngle = start_angle + i * theta;
     // Inner vertex of the current segment
-    vertices[i * 6] = x + (radius - halfThickness) * cos(currentAngle);
-    vertices[i * 6 + 1] = y + (radius - halfThickness) * sin(currentAngle);
+    vertices[i * 6] = (float) (x + (radius - halfThickness) * cos(currentAngle));
+    vertices[i * 6 + 1] =  (float) ((y + (radius - halfThickness) * sin(currentAngle)));
     vertices[i * 6 + 2] = z;
 
     // Outer vertex of the current segment
-    vertices[i * 6 + 3] = x + (radius + halfThickness) * cos(currentAngle);
-    vertices[i * 6 + 4] = y + (radius + halfThickness) * sin(currentAngle);
+    vertices[i * 6 + 3] = (float) (x + (radius + halfThickness) * cos(currentAngle));
+    vertices[i * 6 + 4] = (float) (y + (radius + halfThickness) * sin(currentAngle));
     vertices[i * 6 + 5] = z;
   }
 
   // If angle is less than 360 degrees, add vertices to close the circle
   if (fabs(angle) > 2 * M_PI) {
-    float last_angle = start_angle + fabs(angle);
+    float last_angle = (float) (start_angle + fabs(angle));
 
     // Inner vertex of the last segment
-    vertices[numVertices * 3 - 6] = x + (radius - halfThickness) * cos(last_angle);
-    vertices[numVertices * 3 - 5] = y + (radius - halfThickness) * sin(last_angle);
+    vertices[numVertices * 3 - 6] = (float) (x + (radius - halfThickness) * cos(last_angle));
+    vertices[numVertices * 3 - 5] = (float) (y + (radius - halfThickness) * sin(last_angle));
     vertices[numVertices * 3 - 4] = z;
 
     // Outer vertex of the last segment
-    vertices[numVertices * 3 - 3] = x + (radius + halfThickness) * cos(last_angle);
-    vertices[numVertices * 3 - 2] = y + (radius + halfThickness) * sin(last_angle);
+    vertices[numVertices * 3 - 3] = (float) (x + (radius + halfThickness) * cos(last_angle));
+    vertices[numVertices * 3 - 2] = (float) (y + (radius + halfThickness) * sin(last_angle));
     vertices[numVertices * 3 - 1] = z;
   }
 
@@ -1600,101 +1714,99 @@ void drawCircle(float x, float y, float z, float radius, float thickness, float 
 
 void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color)
 {
-    // Define vertices of the frustum edges
-    GLfloat vertices[] = {
-        // Near plane
-        -nearWidth / 2, -nearHeight / 2, -nearDist,
-        nearWidth / 2, -nearHeight / 2, -nearDist,
-        nearWidth / 2, -nearHeight / 2, -nearDist,
-        nearWidth / 2, nearHeight / 2, -nearDist,
-        nearWidth / 2, nearHeight / 2, -nearDist,
-        -nearWidth / 2, nearHeight / 2, -nearDist,
-        -nearWidth / 2, nearHeight / 2, -nearDist,
-        -nearWidth / 2, -nearHeight / 2, -nearDist,
+  // Define vertices of the frustum edges
+  GLfloat vertices[] = {
+    // Near plane
+    -nearWidth / 2, -nearHeight / 2, -nearDist,
+    nearWidth / 2, -nearHeight / 2, -nearDist,
+    nearWidth / 2, -nearHeight / 2, -nearDist,
+    nearWidth / 2, nearHeight / 2, -nearDist,
+    nearWidth / 2, nearHeight / 2, -nearDist,
+    -nearWidth / 2, nearHeight / 2, -nearDist,
+    -nearWidth / 2, nearHeight / 2, -nearDist,
+    -nearWidth / 2, -nearHeight / 2, -nearDist,
 
-        // Far plane
-        -farWidth / 2, -farHeight / 2, -farDist,
-        farWidth / 2, -farHeight / 2, -farDist,
-        farWidth / 2, -farHeight / 2, -farDist,
-        farWidth / 2, farHeight / 2, -farDist,
-        farWidth / 2, farHeight / 2, -farDist,
-        -farWidth / 2, farHeight / 2, -farDist,
-        -farWidth / 2, farHeight / 2, -farDist,
-        -farWidth / 2, -farHeight / 2, -farDist,
+    // Far plane
+    -farWidth / 2, -farHeight / 2, -farDist,
+    farWidth / 2, -farHeight / 2, -farDist,
+    farWidth / 2, -farHeight / 2, -farDist,
+    farWidth / 2, farHeight / 2, -farDist,
+    farWidth / 2, farHeight / 2, -farDist,
+    -farWidth / 2, farHeight / 2, -farDist,
+    -farWidth / 2, farHeight / 2, -farDist,
+    -farWidth / 2, -farHeight / 2, -farDist,
 
-        // Connecting lines between near and far planes
-        -nearWidth / 2, -nearHeight / 2, -nearDist,
-        -farWidth / 2, -farHeight / 2, -farDist,
-        nearWidth / 2, -nearHeight / 2, -nearDist,
-        farWidth / 2, -farHeight / 2, -farDist,
-        nearWidth / 2, nearHeight / 2, -nearDist,
-        farWidth / 2, farHeight / 2, -farDist,
-        -nearWidth / 2, nearHeight / 2, -nearDist,
-        -farWidth / 2, farHeight / 2, -farDist,
+    // Connecting lines between near and far planes
+    -nearWidth / 2, -nearHeight / 2, -nearDist,
+    -farWidth / 2, -farHeight / 2, -farDist,
+    nearWidth / 2, -nearHeight / 2, -nearDist,
+    farWidth / 2, -farHeight / 2, -farDist,
+    nearWidth / 2, nearHeight / 2, -nearDist,
+    farWidth / 2, farHeight / 2, -farDist,
+    -nearWidth / 2, nearHeight / 2, -nearDist,
+    -farWidth / 2, farHeight / 2, -farDist,
 
-        // Triangle to indicate up direction (front face)
-        -farWidth / 4, farHeight / 2, -farDist,
-        farWidth / 4, farHeight / 2, -farDist,
-        0.0f, 3 * farHeight / 4, -farDist,
+    // Triangle to indicate up direction (front face)
+    -farWidth / 4, farHeight / 2, -farDist,
+    farWidth / 4, farHeight / 2, -farDist,
+    0.0f, 3 * farHeight / 4, -farDist,
 
-        // Triangle to indicate up direction (back face)
-        farWidth / 4, farHeight / 2, -farDist,
-        -farWidth / 4, farHeight / 2, -farDist,
-        0.0f, 3 * farHeight / 4, -farDist
-    };
+    // Triangle to indicate up direction (back face)
+    farWidth / 4, farHeight / 2, -farDist,
+    -farWidth / 4, farHeight / 2, -farDist,
+    0.0f, 3 * farHeight / 4, -farDist
+  };
 
-    // Define colors (for each vertex)
-    GLfloat colors[sizeof(vertices) / sizeof(GLfloat)]; // Same size as vertices array
+  // Define colors (for each vertex)
+  GLfloat colors[sizeof(vertices) / sizeof(GLfloat)]; // Same size as vertices array
 
-    for (int i = 0; i < sizeof(colors) / sizeof(GLfloat); i += 3) {
-        colors[i] = color.r;
-        colors[i + 1] = color.g;
-        colors[i + 2] = color.b;
-    }
+  for (int i = 0; i < sizeof(colors) / sizeof(GLfloat); i += 3) {
+    colors[i] = color.r;
+    colors[i + 1] = color.g;
+    colors[i + 2] = color.b;
+  }
 
-    // Generate and bind VAO and VBOs
-    GLuint VAO, VBO, colorVBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &colorVBO);
+  // Generate and bind VAO and VBOs
+  GLuint VAO, VBO, colorVBO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  glGenBuffers(1, &colorVBO);
 
-    glBindVertexArray(VAO);
+  glBindVertexArray(VAO);
 
-    // Bind and set vertex data
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE0);
+  // Bind and set vertex data
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE0);
 
-    // Bind and set color data
-    glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
-    glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-    glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE1);
+  // Bind and set color data
+  glBindBuffer(GL_ARRAY_BUFFER, colorVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(colors), colors, GL_STATIC_DRAW);
+  glVertexAttribPointer(LDK_VERTEX_ATTRIBUTE1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+  glEnableVertexAttribArray(LDK_VERTEX_ATTRIBUTE1);
 
-    // Unbind VAO
-    glBindVertexArray(0);
+  // Unbind VAO
+  glBindVertexArray(0);
 
-    // Use shader program and draw
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_LINES, 0, sizeof(vertices) / (3 * sizeof(GLfloat)));
-    glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 6, 3); // Draw the front face of the triangle
-    glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 3, 3); // Draw the back face of the triangle
-    glBindVertexArray(0);
+  // Use shader program and draw
+  glBindVertexArray(VAO);
+  glDrawArrays(GL_LINES, 0, sizeof(vertices) / (3 * sizeof(GLfloat)));
+  glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 6, 3); // Draw the front face of the triangle
+  glDrawArrays(GL_TRIANGLES, sizeof(vertices) / (3 * sizeof(GLfloat)) - 3, 3); // Draw the back face of the triangle
+  glBindVertexArray(0);
 
-    // Clean up
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &colorVBO);
-    glDeleteVertexArrays(1, &VAO);
+  // Clean up
+  glDeleteBuffers(1, &VBO);
+  glDeleteBuffers(1, &colorVBO);
+  glDeleteVertexArrays(1, &VAO);
 }
 
 void ldkRendererRender(float deltaTime)
 {
   internal.elapsedTime += deltaTime;
-
-  uint32 count = ldkArrayCount(internal.bucketROStaticMesh);
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
-  internal.shaderMode = SHADER_MODE_DEFAULT;
+  uint32 count = ldkArrayCount(internal.renderObjectArray);
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(internal.renderObjectArray);
 
   // Lookup fixed shaders
   internal.shaderPicking  = ldkAssetLookup(LDKShader, internal.hShaderPicking);
@@ -1702,17 +1814,15 @@ void ldkRendererRender(float deltaTime)
 
   glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  
+
   glEnable(GL_BLEND);
   glEnable(GL_CULL_FACE);
   glEnable(GL_DEPTH_TEST); 
-  glDepthFunc(GL_LEQUAL);
 
   if (internal.camera == NULL)
     return;
 
-
-
+  // Render Geometry
   for(uint32 i = 0; i < count; i++)
   {
     switch (ro->type)
@@ -1732,146 +1842,51 @@ void ldkRendererRender(float deltaTime)
     ro++;
   }
 
-  //
-  // Render the Picking buffer
-  //
-
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
-
-  internal.shaderMode = SHADER_MODE_PICKING;
-  ldkShaderProgramBind(internal.shaderPicking);
-  ldkShaderParamSetMat4(internal.shaderPicking, "mView", ldkCameraViewMatrix(internal.camera));
-  ldkShaderParamSetMat4(internal.shaderPicking, "mProj", ldkCameraProjectMatrix(internal.camera));
-
-  glClearColor(0, 0, 0, 0);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
-
-  for(uint32 i = 0; i < count; i++)
+  if (ldkEngineIsEditorRunning())
   {
-    ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", i + 1);
-    if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
-      internalRenderMesh(ro->staticMesh);
-    //    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
-    //      internalRenderMeshInstanced(ro->instancedMesh);
-    ro++;
-  }
+    // Picking and selection
+    internalRenderPickingBuffer(internal.renderObjectArray);
 
-  //
-  // Picking
-  //
+    // TESTING STUFF!!!!
+    //ldkShaderProgramBind(internal.shaderHighlight);
+    ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default.material"));
+    //ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default_vertex_color.material"));
 
-  ro = (LDKRenderObject*) ldkArrayGetData(internal.bucketROStaticMesh);
-  LDKMouseState mouseState;
+    Mat4 identity = mat4Id();
+    ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", identity);
+    //ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+    //ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
+    //ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
+    //ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
+    //ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+    drawLine(0.0f, 0.0f, 2.0f, 10.0f, 10.0f, -2.0f, 0.2f, ldkRGB(255, 0, 0));
+    drawCircle(0.0f, 0.0f, 0.0f,
+        2.0f,   // radius,
+        0.2f, // thinkness
+        (float) degToRadian(360.0));
 
-  ldkOsMouseStateGet(&mouseState);
-  if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
-  {
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
 
-    int x = mouseState.cursor.x;
-    int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
+    drawCircle(10.0f, 0.0f, -5.0f,
+        3.0f,   // radius,
+        2.8f, // thinkness
+        (float) degToRadian(360.0));
 
-    LDKPickingPixelInfo pixelInfo;
 
-    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelInfo);
-    glReadBuffer(GL_NONE);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    LDKHListIterator it = ldkEntityManagerGetIterator(LDKCamera);
 
-    uint32 objectIndex = (uint32) pixelInfo.objectIndex;
-
-    if (objectIndex > 0)
+    while (ldkHListIteratorNext(&it))
     {
-      internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
-      ldkLogInfo("Selected entity = %llx", internal.selectedEntity);
-    }
-    else
-    {
-      internal.selectedEntity = LDK_HANDLE_INVALID; 
-    }
-  }
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+      LDKCamera* e = (LDKCamera*) it.ptr;
+      if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
+        continue;
 
-
-  //
-  // Picking Highlight
-  //
-
-  if (internal.selectedEntity != LDK_HANDLE_INVALID)
-  {
-    LDKInstancedObject* io = NULL;
-    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
-    if (!so)
-    {
-      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
-    }
-
-    if (so || io)
-    {
-      // Turn on wireframe mode and highlight the selected entity
-      internal.shaderMode = SHADER_MODE_HIGHLIGHT;
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glLineWidth(3.0);
-      glDisable(GL_DEPTH_TEST);
-
-      if (so)
-        internalRenderMesh(so);
-      else
-        internalRenderMeshInstanced(io);
-
-      glEnable(GL_DEPTH_TEST);
-      glLineWidth(1.0);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      internal.shaderMode = SHADER_MODE_DEFAULT;
-    }
-    else
-    {
-      internal.selectedEntity = LDK_HANDLE_INVALID;
+      Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
+      ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
+      drawFrustum(0.4f, 0.2f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 0, 0));
     }
   }
 
-  internal.shaderMode = SHADER_MODE_DEFAULT;
-
-  //ldkShaderProgramBind(internal.shaderHighlight);
-  ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default.material"));
-  //ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default_vertex_color.material"));
-
-  Mat4 identity = mat4Id();
-  ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", identity);
-  //ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
-  //ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
-  //ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
-  //ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
-  //ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
-  drawLine(0.0f, 0.0f, 2.0f, 10.0f, 10.0f, -2.0f, 0.2f, ldkRGB(255, 0, 0));
-  drawCircle(0.0f, 0.0f, 0.0f,
-      2.0f,   // radius,
-      0.2f, // thinkness
-      degToRadian(360.0));
-
-
-  drawCircle(10.0f, 0.0f, -5.0f,
-      3.0f,   // radius,
-      2.8f, // thinkness
-      degToRadian(360.0));
-
-
-  LDKHListIterator it = ldkEntityManagerGetIterator(LDKCamera);
-
-  while (ldkHListIteratorNext(&it))
-  {
-    LDKCamera* e = (LDKCamera*) it.ptr;
-    if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
-      continue;
-
-    Mat4 world = mat4World(e->position, vec3One(), quatFromEuler(ldkCameraDirectionNormalized(e)));
-    ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
-    drawFrustum(0.4f, 0.2f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(1.0f, 0.0f, 1.0f));
-  }
-
-  ldkArrayClear(internal.bucketROStaticMesh);
+  ldkArrayClear(internal.renderObjectArray);
   ldkMaterialBind(0);
   ldkRenderBufferBind(NULL);
 }

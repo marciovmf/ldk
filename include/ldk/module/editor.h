@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
   LDK_API void ldkEditorEnable(bool enabled);
+  LDK_API bool ldkEditorIsEnabled(void);
   LDK_API bool ldkEditorInitialize(void);
   LDK_API void ldkEditorTerminate(void);
   LDK_API void ldkEditorUpdate(float deltaTime);

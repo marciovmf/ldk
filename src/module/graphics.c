@@ -16,7 +16,7 @@ bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
   //TODO(marcio): Where should we get these parameters from ?
   internal.api = api;
   const int32 colorBits = 24;
-  const int32 depthBits = 8;
+  const int32 depthBits = 24;
 
   switch(api)
   {
