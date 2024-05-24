@@ -473,6 +473,11 @@ Vec3 vec3Smoothstep(Vec3 v1, Vec3 v2, float amount)
   return vec3Lerp( v1, v2, scaledAmount );
 }
 
+Vec3 rgbToVec3(LDKRGB color)
+{
+  return vec3(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f);
+}
+
 
 //
 // Vec4
@@ -723,6 +728,18 @@ Vec4 vec4Smoothstep(Vec4 v1, Vec4 v2, float amount)
 {
   float scaledAmount = amount*amount*(3 - 2*amount);
   return vec4Lerp( v1, v2, scaledAmount );
+}
+
+
+Vec4 rgbaToVec4(LDKRGBA color)
+{
+  return vec4(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f);
+}
+
+
+Vec4 rgbToVec4(LDKRGB color)
+{
+  return vec4(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, 1.0f);
 }
 
 

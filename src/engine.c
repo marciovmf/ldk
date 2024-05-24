@@ -104,7 +104,7 @@ bool ldkEngineInitialize(void)
   stepSuccess &= ldkAssetHandlerRegister(LDKConfig,   ldkAssetConfigLoadFunc,   ldkAssetConfigUnloadFunc,   2,  "cfg");
   LDKConfig* config = ldkAssetGet(LDKConfig, "ldk.cfg");
 
-  stepSuccess &= ldkAssetHandlerRegister(LDKImage,    ldkAssetImageLoadFunc,    ldkAssetImageUnloadFunc,    16, "png", "bmp", "tga", "hdr");
+  stepSuccess &= ldkAssetHandlerRegister(LDKImage,    ldkAssetImageLoadFunc,    ldkAssetImageUnloadFunc,    16, "png", "bmp", "tga", "hdr", "jpg");
   stepSuccess &= ldkAssetHandlerRegister(LDKTexture,  ldkAssetTextureLoadFunc,  ldkAssetTextureUnloadFunc,  16, "texture");
   stepSuccess &= ldkAssetHandlerRegister(LDKShader,   ldkAssetShaderLoadFunc,   ldkAssetShaderUnloadFunc,   16, "shader");
   stepSuccess &= ldkAssetHandlerRegister(LDKMaterial, ldkAssetMaterialLoadFunc, ldkAssetMaterialUnloadFunc, 16, "material");

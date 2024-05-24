@@ -449,17 +449,16 @@ int main(void)
   //
   // Player
   //
-  LDKStaticObject* playerObj = ldkEntityCreate(LDKStaticObject);
-  ldkStaticObjectSetMesh(playerObj, cube->asset.handle);
-  LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
-  ldkMaterialParamSetVec3(material, "color", vec3(.6f, .6f, .6f));
-  ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
+  // LDKStaticObject* playerObj = ldkEntityCreate(LDKStaticObject);
+  // ldkStaticObjectSetMesh(playerObj, cube->asset.handle);
+  // LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
+  // ldkMaterialParamSetVec3(material, "color", vec3(.6f, .6f, .6f));
+  // ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
 
-  playerObj->materials[0] = material->asset.handle;
-  playerObj->position = vec3((float) state.sokoban.player.coord.x, 0.0f, (float) state.sokoban.player.coord.y);
-  playerObj->scale    = vec3(.7f, 1.0f, .7f);
-
-  state.sokoban.player.staticObject = playerObj;
+  // playerObj->materials[0] = material->asset.handle;
+  // playerObj->position = vec3((float) state.sokoban.player.coord.x, 0.0f, (float) state.sokoban.player.coord.y);
+  // playerObj->scale    = vec3(.7f, 1.0f, .7f);
+  //state.sokoban.player.staticObject = playerObj;
 
 
   // Boxes
@@ -469,13 +468,23 @@ int main(void)
     ldkStaticObjectSetMesh(box, cube->asset.handle);
     LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
     ldkMaterialParamSetVec3(material, "color", vec3(1.0f, 1.0f, 1.0f));
-    ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
+    ldkMaterialParamSetFloat(material, "colorIntensity", 0.0f);
 
     box->materials[0] = material->asset.handle;
     box->position = vec3((float) state.sokoban.box[i].coord.x, 0.0f, (float) state.sokoban.box[i].coord.y);
     box->scale    = vec3One();
     state.sokoban.box[i].staticObject = box;
   }
+
+
+  // Cyborg
+  LDKStaticObject* cyborg = ldkEntityCreate(LDKStaticObject);
+  ldkSmallString(&cyborg->entity.name, "Cyborg");
+  ldkStaticObjectSetMesh(cyborg, ldkAssetGet(LDKMesh, "assets/cyborg/cyborg.mesh")->asset.handle);
+  cyborg->position = vec3((float) state.sokoban.player.coord.x, -0.4f, (float) state.sokoban.player.coord.y);
+  cyborg->scale = vec3(0.5f, 0.5f, 0.5f);
+  state.sokoban.player.staticObject = cyborg;
+
 
 #endif
 

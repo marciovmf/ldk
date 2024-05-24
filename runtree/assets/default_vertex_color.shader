@@ -27,10 +27,7 @@
 
 #ifdef LDK_COMPILE_VETEX_SHADER
 
-LDK_VERTEX_ATTRIBUTE_POSITION   vec3 vPosition;
-LDK_VERTEX_ATTRIBUTE_NORMAL     vec3 vColor; // NORMAL is defined at position 1
-
-out vec3 color;
+LDK_VERTEX_ATTRIBUTE0 vec3 vPosition;
 
 uniform mat4 mView;
 uniform mat4 mProj;
@@ -39,7 +36,6 @@ uniform mat4 mModel;
 void main()
 {
   gl_Position = mProj * mView * mModel * vec4(vPosition, 1.0);
-  color = vColor;
 }
 #endif
 
@@ -49,8 +45,8 @@ void main()
 //
 #ifdef LDK_COMPILE_FRAGMENT_SHADER
 
-in vec3 color;
 out vec4 fragColor;
+uniform in vec3 color;
 
 void main()
 {

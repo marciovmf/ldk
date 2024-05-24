@@ -16,10 +16,17 @@
 #include "ldk/gl.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 
 extern const char* ldkOpenglTypeName(GLenum type);
+
+typedef struct
+{
+  Vec3 position;
+  Vec3 color;
+} LDKLight;
 
 typedef struct 
 {
@@ -36,8 +43,20 @@ static struct
   LDKRGB clearColor;
   char errorBuffer[LDK_GL_ERROR_LOG_SIZE];
   LDKArray* renderObjectArray;
+  LDKArray* lights;
+
   LDKCamera* camera;
   float elapsedTime;
+
+
+  // Deferred rendering
+  GLuint gBuffer;
+  LDKShader* shaderGeometryPass;
+  LDKShader* shaderLightPass;
+  LDKShader* shaderLightBox;
+  unsigned int gPosition, gNormal, gAlbedoSpec; //gbuffer-textures
+  unsigned int rboDepth; // Depth render buffer
+
 
   // Picking
   GLuint fboPicking;
@@ -71,6 +90,119 @@ typedef struct
   };
 
 } LDKRenderObject;
+
+
+//
+// Util
+//
+
+// -----------------------------------------
+// renderQuadNDC() renders a 1x1 XY quad in NDC
+// -----------------------------------------
+static unsigned int quadVAO = 0;
+static unsigned int quadVBO;
+void renderQuadNDC()
+{
+  if (quadVAO == 0)
+  {
+    float quadVertices[] =
+    {
+      // positions        // texture Coords
+      -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+      -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+      1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+      1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+    };
+    // setup plane VAO
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+  }
+  glBindVertexArray(quadVAO);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+// renderCube() renders a 1x1 3D cube in NDC.
+// -------------------------------------------------
+unsigned int cubeVAO = 0;
+unsigned int cubeVBO = 0;
+void renderCube()
+{
+  // initialize (if necessary)
+  if (cubeVAO == 0)
+  {
+    float vertices[] = {
+      // back face
+      -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+      1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+      1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
+      1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+      -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+      -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
+                                                            // front face
+      -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+      1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
+      1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+      1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+      -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
+      -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+                                                            // left face
+      -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+      -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+      -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+      -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+      -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+      -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+                                                            // right face
+      1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+      1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+      1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+      1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+      1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+      1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+                                                           // bottom face
+      -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+      1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+      1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+      1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+      -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+      -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+                                                            // top face
+      -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+      1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+      1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+      1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+      -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+      -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
+    };
+    glGenVertexArrays(1, &cubeVAO);
+    glGenBuffers(1, &cubeVBO);
+    // fill buffer
+    glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    // link vertex attributes
+    glBindVertexArray(cubeVAO);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+  }
+  // render Cube
+  glBindVertexArray(cubeVAO);
+  glDrawArrays(GL_TRIANGLES, 0, 36);
+  glBindVertexArray(0);
+}
 
 
 //
@@ -143,6 +275,68 @@ void internalPickingFBODEstroy()
   internal.textureDepthPicking = 0;
 }
 
+void internalGBufferDestroy()
+{
+  glDeleteFramebuffers(1, &internal.gBuffer);
+  glDeleteTextures(1, &internal.gPosition);
+  glDeleteTextures(1, &internal.gNormal);
+  glDeleteTextures(1, &internal.gAlbedoSpec);
+  glDeleteRenderbuffers(1, &internal.rboDepth);
+}
+
+void internalGBufferCreate(uint32 width, uint32 height)
+{
+  if (internal.shaderGeometryPass == NULL)
+    internal.shaderGeometryPass = ldkAssetGet(LDKShader, "assets/geometry-pass.shader");
+
+  if (internal.shaderLightPass == NULL)
+    internal.shaderLightPass = ldkAssetGet(LDKShader, "assets/light-pass.shader");
+
+  if (internal.shaderLightBox == NULL)
+    internal.shaderLightBox = ldkAssetGet(LDKShader, "assets/editor/lightbox.shader");
+
+
+  glGenFramebuffers(1, &internal.gBuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, internal.gBuffer);
+  // position color buffer
+  glGenTextures(1, &internal.gPosition);
+  glBindTexture(GL_TEXTURE_2D, internal.gPosition);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal.gPosition, 0);
+  // normal color buffer
+  glGenTextures(1, &internal.gNormal);
+  glBindTexture(GL_TEXTURE_2D, internal.gNormal);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, internal.gNormal, 0);
+  // color + specular color buffer
+  glGenTextures(1, &internal.gAlbedoSpec);
+  glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, internal.gAlbedoSpec, 0);
+
+  // tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
+  unsigned int attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+  glDrawBuffers(3, attachments);
+
+  // create and attach depth buffer (renderbuffer)
+  glGenRenderbuffers(1, &internal.rboDepth);
+  glBindRenderbuffer(GL_RENDERBUFFER, internal.rboDepth);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal.rboDepth);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  // finally check if framebuffer is complete
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    ldkLogError("Error creating g-buffer framebuffer");
+}
+
+
 bool ldkRendererInitialize(LDKConfig* config)
 {
   LDK_ASSERT(internal.initialized == false);
@@ -151,13 +345,49 @@ bool ldkRendererInitialize(LDKConfig* config)
   internal.clearColor = (LDKRGB){40, 40, 40};
   internal.config = config;
   internal.renderObjectArray = ldkArrayCreate(sizeof(LDKRenderObject), 64);
+  internal.lights = ldkArrayCreate(sizeof(LDKLight), 32);
   success &= internal.renderObjectArray != NULL;
+
+
 
   //
   // Picking Framebuffer setup
   //
   LDKSize viewport = ldkGraphicsViewportSizeGet();
   internalPickingFBOCreate(viewport.width, viewport.height);
+  internalGBufferCreate(viewport.width, viewport.height);
+  internal.shaderPicking = ldkAssetLookup(LDKShader, internal.hShaderPicking);
+  internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
+
+
+  //
+  // Add some test lights
+  //
+  const unsigned int NR_LIGHTS = 32;
+  srand(13);
+  for (unsigned int i = 0; i < NR_LIGHTS; i++)
+  {
+    // calculate slightly random offsets
+    float xPos = (float) (((rand() % 100) / 100.0) * 7.0) - 2.0f;// - 12.0);
+    float yPos = (float) (((rand() % 100) / 100.0) * 4.0) - 2.0f;// - 14.0);
+    float zPos = (float) (((rand() % 100) / 100.0) * 7.0) - 2.0f;// - 13.0);
+
+    // also calculate random color
+    //float rColor = (float) (((rand() % 100) / 200.0f) + 0.5); // between 0.5 and 1.0
+    //float gColor = (float) (((rand() % 100) / 200.0f) + 0.5); // between 0.5 and 1.0
+    //float bColor = (float) (((rand() % 100) / 200.0f) + 0.5); // between 0.5 and 1.0
+    float rColor = xPos;
+    float gColor = yPos;
+    float bColor = zPos;
+
+    LDKLight light;
+    light.position = vec3(xPos, yPos, zPos);
+    light.color = vec3(rColor, gColor, bColor);
+    ldkArrayAdd(internal.lights, &light);
+  }
+
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
   return success;
 }
 
@@ -166,6 +396,9 @@ void ldkRendererResize(uint32 width, uint32 height)
   glViewport(0, 0, width, height);
   internalPickingFBODEstroy();
   internalPickingFBOCreate(width, height);
+
+  internalGBufferDestroy();
+  internalGBufferCreate(width, height);
 }
 
 void ldkRendererTerminate(void)
@@ -175,6 +408,8 @@ void ldkRendererTerminate(void)
 
   internal.initialized = false;
   ldkArrayDestroy(internal.renderObjectArray);
+  internalPickingFBODEstroy();
+  internalGBufferDestroy();
 }
 
 
@@ -441,7 +676,7 @@ bool ldkShaderParamSetTexture(LDKShader* shader, const char* name, LDKTexture* v
   GLuint location = glGetUniformLocation(shader->gl.id, name);
   if (location < 0)
   {
-    internalSetShaderUniformError(shader->asset.path, "texture", name);
+    internalSetShaderUniformError(shader->asset.path, "sampler2D", name);
     return false;
   }
 
@@ -729,47 +964,48 @@ bool ldkMaterialBind(LDKMaterial* material)
     glUniformMatrix4fv(uniformViewProj, 1, GL_TRUE, (float*) &projViewMatrix);
   }
 
-  glDepthMask(material->enableDepthWrite);
+  /*
+     glDepthMask(material->enableDepthWrite);
 
-  if(material->enableDepthTest)
-  {
-    glEnable(GL_DEPTH_TEST);
-  }
-  else
-  {
-    glDisable(GL_DEPTH_TEST);
-  }
+     if(material->enableDepthTest)
+     {
+     glEnable(GL_DEPTH_TEST);
+     }
+     else
+     {
+     glDisable(GL_DEPTH_TEST);
+     }
 
-  if (material->enableCullBack && !material->enableCullFront)
-  {
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-  }
-  else if (!material->enableCullBack && material->enableCullFront)
-  {
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-  }
-  else if (material->enableCullBack && material->enableCullFront)
-  {
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT_AND_BACK);
-  }
-  else if (material->enableCullBack && material->enableCullFront)
-  {
-    glDisable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-  }
+     if (material->enableCullBack && !material->enableCullFront)
+     {
+     glEnable(GL_CULL_FACE);
+     glCullFace(GL_BACK);
+     }
+     else if (!material->enableCullBack && material->enableCullFront)
+     {
+     glEnable(GL_CULL_FACE);
+     glCullFace(GL_FRONT);
+     }
+     else if (material->enableCullBack && material->enableCullFront)
+     {
+     glEnable(GL_CULL_FACE);
+     glCullFace(GL_FRONT_AND_BACK);
+     }
+     else if (material->enableCullBack && material->enableCullFront)
+     {
+     glDisable(GL_CULL_FACE);
+     glCullFace(GL_BACK);
+     }
 
-  if (material->enableBlend)
-  {
-    glEnable(GL_BLEND);
-  }
-  else
-  {
-    glDisable(GL_BLEND);
-  }
-
+     if (material->enableBlend)
+     {
+     glEnable(GL_BLEND);
+     }
+     else
+     {
+     glDisable(GL_BLEND);
+     }
+     */
   return true;
 }
 
@@ -1479,6 +1715,7 @@ void internalRenderMesh(LDKStaticObject* entity)
     return;
 
   ldkRenderBufferBind(mesh->vBuffer);
+  //ldkLogInfo("Drawing %s", entity->entity.name);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
@@ -1496,6 +1733,7 @@ void internalRenderMesh(LDKStaticObject* entity)
   }
 
   ldkRenderBufferBind(NULL);
+  ldkMaterialBind(NULL);
 }
 
 void internalRenderMeshInstanced(LDKInstancedObject* entity)
@@ -1802,27 +2040,100 @@ void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHei
   glDeleteVertexArrays(1, &VAO);
 }
 
+void internalLightPas()
+{
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  // 1. lighting pass: calculate lighting 
+  // -----------------------------------------------------------------------------------------------------------------------
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  ldkShaderProgramBind(internal.shaderLightPass);
+
+
+  glActiveTexture(GL_TEXTURE2);
+  glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
+
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, internal.gNormal);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, internal.gPosition);
+
+
+  ldkShaderParamSetFloat(internal.shaderLightPass, "ambientIntensity", 1.0f);
+  ldkShaderParamSetInt(internal.shaderLightPass, "gPosition", 0);
+  ldkShaderParamSetInt(internal.shaderLightPass, "gNormal", 1);
+  ldkShaderParamSetInt(internal.shaderLightPass, "gAlbedoSpec", 2); 
+
+  // send light relevant uniforms
+
+  uint32 count = ldkArrayCount(internal.lights);
+  LDKLight* light = (LDKLight*) ldkArrayGetData(internal.lights);
+  for (uint32 i = 0; i < count; i++)
+  {
+    LDKSmallStr strPosition, strColor, strLinear, strQuadratic, strRadius;
+    ldkSmallStringFormat(&strPosition, "lights[%d].Position", i);  
+    ldkSmallStringFormat(&strColor, "lights[%d].Color", i);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, light[i].position);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColor.str, light[i].color);
+
+    // update attenuation parameters and calculate radius
+    const float CONSTANT = 1.0f; // We don't send it to the shader. We assume it is always 1.0
+    const float linear = 0.7f;
+    const float quadratic = 1.8f;
+
+    ldkSmallStringFormat(&strLinear, "lights[%d].Linear", i);  
+    ldkSmallStringFormat(&strQuadratic, "lights[%d].Quadratic", i);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, linear);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strQuadratic.str, quadratic);
+
+    const float maxBrightness = (float) (fmax(fmax(light[i].color.x, light[i].color.y), light[i].color.z));
+    float radius = (float) (-linear + sqrt(linear * linear - 4 * quadratic * (CONSTANT - (256.0f / 5.0f) * maxBrightness))) / (2.0f * quadratic);
+
+    ldkSmallStringFormat(&strRadius, "lights[%d].Radius", i);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strRadius.str, radius);
+
+    light++;
+  }
+  ldkShaderParamSetVec3(internal.shaderLightPass, "viewPos", internal.camera->position);
+  renderQuadNDC();
+
+  // 2. copy content of geometry's depth buffer to default framebuffer's depth buffer
+  // ----------------------------------------------------------------------------------
+  LDKSize viewport = ldkGraphicsViewportSizeGet();
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.gBuffer);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // write to default framebuffer
+  glBlitFramebuffer(0, 0, viewport.width, viewport.height, 0, 0, viewport.width, viewport.height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+}
+
 void ldkRendererRender(float deltaTime)
 {
+  glEnable(GL_DEPTH_TEST); 
+  glEnable(GL_CULL_FACE);
+
   internal.elapsedTime += deltaTime;
   uint32 count = ldkArrayCount(internal.renderObjectArray);
   LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(internal.renderObjectArray);
 
-  // Lookup fixed shaders
-  internal.shaderPicking  = ldkAssetLookup(LDKShader, internal.hShaderPicking);
-  internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
-
-  glClearColor(internal.clearColor.r / 255.0f, internal.clearColor.g / 255.0f, internal.clearColor.b / 255.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-  glEnable(GL_BLEND);
-  glEnable(GL_CULL_FACE);
-  glEnable(GL_DEPTH_TEST); 
-
   if (internal.camera == NULL)
     return;
 
-  // Render Geometry
+  Mat4 cameraViewMatrix = ldkCameraViewMatrix(internal.camera);
+  Mat4 cameraProjMatrix = ldkCameraProjectMatrix(internal.camera);
+
+
+  // 
+  // Geometry pass
+  // 
+
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, internal.gBuffer);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
   for(uint32 i = 0; i < count; i++)
   {
     switch (ro->type)
@@ -1842,23 +2153,42 @@ void ldkRendererRender(float deltaTime)
     ro++;
   }
 
+  internalLightPas();
+
+
   if (ldkEngineIsEditorRunning())
   {
+    // render lights
+    ldkShaderProgramBind(internal.shaderLightBox);
+    ldkShaderParamSetMat4(internal.shaderLightBox, "projection", cameraProjMatrix);
+    ldkShaderParamSetMat4(internal.shaderLightBox, "view", cameraViewMatrix);
+
+    uint32 count = ldkArrayCount(internal.lights);
+    LDKLight* light = (LDKLight*) ldkArrayGetData(internal.lights);
+    for (unsigned int i = 0; i < count; i++)
+    {
+      Mat4 m = mat4World(light->position, vec3(0.125f, 0.125f, 0.125f), quatId());
+      ldkShaderParamSetMat4(internal.shaderLightBox, "model", m);
+      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", light->color);
+      renderCube();
+      light++;
+    }
+
+
     // Picking and selection
     internalRenderPickingBuffer(internal.renderObjectArray);
-
+#if 1
     // TESTING STUFF!!!!
     //ldkShaderProgramBind(internal.shaderHighlight);
-    ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default.material"));
-    //ldkMaterialBind(ldkAssetGet(LDKMaterial, "assets/default_vertex_color.material"));
 
     Mat4 identity = mat4Id();
-    ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", identity);
-    //ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
-    //ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
-    //ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
-    //ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
-    //ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+    LDKShader* shader = ldkAssetGet(LDKShader, "assets/default_vertex_color.shader");
+    ldkShaderProgramBind(shader);
+    ldkShaderParamSetMat4(shader, "mModel", identity);
+    ldkShaderParamSetMat4(shader, "mView", cameraViewMatrix);
+    ldkShaderParamSetMat4(shader, "mProj", cameraProjMatrix);
+    ldkShaderParamSetVec3(shader, "color", vec3(1.0f, 0.0f, 0.0f));
+
     drawLine(0.0f, 0.0f, 2.0f, 10.0f, 10.0f, -2.0f, 0.2f, ldkRGB(255, 0, 0));
     drawCircle(0.0f, 0.0f, 0.0f,
         2.0f,   // radius,
@@ -1867,7 +2197,7 @@ void ldkRendererRender(float deltaTime)
 
 
     drawCircle(10.0f, 0.0f, -5.0f,
-        3.0f,   // radius,
+        2.0f,   // radius,
         2.8f, // thinkness
         (float) degToRadian(360.0));
 
@@ -1882,8 +2212,9 @@ void ldkRendererRender(float deltaTime)
 
       Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
       ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
-      drawFrustum(0.4f, 0.2f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 0, 0));
+      drawFrustum(0.0f, 0.0f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 0, 0));
     }
+#endif
   }
 
   ldkArrayClear(internal.renderObjectArray);

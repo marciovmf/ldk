@@ -59,7 +59,7 @@ out vec4 fragColor;
 
 void main()
 {
-  fragColor = mix(texture(colorMap, fragTexCoord / 5), vec4(color, 1.0), colorIntensity);
+  fragColor = mix(texture(colorMap, fragTexCoord), vec4(color, 1.0), colorIntensity);
 }
 #endif
 
