@@ -155,14 +155,12 @@ void  ldkGraphicsMultisamplesSet(int32 samples)
   {
     if (samples > 0)
     {
-      ldkLogInfo("MULTISAMPLE ENABLED");
       glEnable(GL_MULTISAMPLE);
-      glSampleCoverage(samples * 1.0f, GL_TRUE);
+      glSampleCoverage((float) samples, GL_TRUE);
       internal.multiSampleLevel = samples;
     }
     else {
       glDisable(GL_MULTISAMPLE);
-      ldkLogInfo("MULTISAMPLE DISABLED");
     }
   }
   else

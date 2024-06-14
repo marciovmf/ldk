@@ -33,7 +33,7 @@ static bool onUpdate(const LDKEvent* evt, void* data)
 {
   float deltaTime = evt->frameEvent.deltaTime;
   ldkCameraUpdateFreeCamera(internalEditor.editorCamera, deltaTime, 30, 10);
-  ldkRendererCameraSet(internalEditor.editorCamera);
+  ldkRendererSetCamera(internalEditor.editorCamera);
   return true;
 }
 

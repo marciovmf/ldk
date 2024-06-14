@@ -38,6 +38,8 @@
 #include <ldk/entity/camera.h>
 #include <ldk/entity/staticobject.h>
 #include <ldk/entity/instancedobject.h>
+#include <ldk/entity/pointlight.h>
+#include <ldk/entity/directionallight.h>
 
 
 #endif //LDK_H

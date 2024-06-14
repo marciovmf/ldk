@@ -8,9 +8,7 @@
 #define LDK_MESH_H
 
 #include "common.h"
-#include "maths.h"
-#include "material.h"
-#include "../module/asset.h"
+#include "ldk/module/rendererbackend.h"
 
 #ifdef __cplusplus
 extern "C" {

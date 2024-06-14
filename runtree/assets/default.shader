@@ -20,7 +20,6 @@
  *
  */
 
-
 //
 // Vertes Shader
 //

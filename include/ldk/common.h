@@ -142,8 +142,6 @@ extern "C" {
   typedef uint64_t  uint64;
   typedef uintptr_t LDKHandle;
   typedef void*     LDKWindow;
-  typedef struct LDKRenderBuffer_t LDKRenderBuffer;
-  typedef struct LDKInstanceBuffer_t LDKInstanceBuffer;
 
   // SmallStr
   typedef struct
@@ -214,9 +212,9 @@ extern "C" {
   // LDKRGB
   typedef struct
   {
-    int8 r;
-    int8 g;
-    int8 b;
+    uint8 r;
+    uint8 g;
+    uint8 b;
   } LDKRGB;
 
   LDK_API LDKRGB ldkRGB(uint8 r, uint8 g, uint8 b);
@@ -224,10 +222,10 @@ extern "C" {
   // LDKRGBA
   typedef struct
   {
-    int8 r;
-    int8 g;
-    int8 b;
-    int8 a;
+    uint8 r;
+    uint8 g;
+    uint8 b;
+    uint8 a;
   } LDKRGBA;
 
   LDK_API LDKRGBA ldkRRGA(uint8 r, uint8 g, uint8 b, uint8 a);

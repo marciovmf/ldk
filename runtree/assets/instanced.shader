@@ -36,6 +36,7 @@ out vec2 fragTexCoord;
 
 uniform mat4 mView;
 uniform mat4 mProj;
+uniform bool instanced;
 
 void main()
 {

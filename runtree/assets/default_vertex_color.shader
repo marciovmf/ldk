@@ -46,7 +46,7 @@ void main()
 #ifdef LDK_COMPILE_FRAGMENT_SHADER
 
 out vec4 fragColor;
-uniform in vec3 color;
+uniform vec3 color;
 
 void main()
 {

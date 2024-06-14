@@ -1,4 +1,4 @@
-shader:                   assets/default.shader
-texture2d colorMap:       assets/default.texture
-vec3  color:              1.0 1.0 1.0
-float colorIntensity:     0.0
+shader:                       assets/geometry-pass.shader
+deferred-render-path:         true
+texture2d texture_diffuse1:   assets/default.texture
+float shininess:              0.2

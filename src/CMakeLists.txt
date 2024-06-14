@@ -18,17 +18,22 @@ list(APPEND SOURCE
   # Data structures
   ${INCLUDE_DIR}/hashmap.h hashmap.c
   ${INCLUDE_DIR}/array.h array.c
+
   # Entities
   ${INCLUDE_DIR}/entity/camera.h entity/camera.c
   ${INCLUDE_DIR}/entity/staticobject.h entity/staticobject.c
   ${INCLUDE_DIR}/entity/instancedobject.h entity/instancedobject.c
+  ${INCLUDE_DIR}/entity/pointlight.h entity/pointlight.c
+  ${INCLUDE_DIR}/entity/directionallight.h entity/directionallight.c
 
   # Modules
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c
   ${INCLUDE_DIR}/module/asset.h module/asset.c
-  ${INCLUDE_DIR}/module/renderer.h module/gl_renderer.c
   ${INCLUDE_DIR}/module/entity.h module/entity.c
   ${INCLUDE_DIR}/module/editor.h module/editor.c
+  ${INCLUDE_DIR}/module/renderer.h
+    module/renderer_gl.c
+    module/rendererbackend_gl.c
 
   # assets
   ${INCLUDE_DIR}/asset/shader.h asset/shader.c
@@ -38,7 +43,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/asset/texture.h asset/texture.c
   ${INCLUDE_DIR}/asset/config.h asset/config.c
 
-  
+
   )
 
 if(WIN32)

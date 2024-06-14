@@ -9,6 +9,8 @@
 #include "ldk/entity/camera.h"
 #include "ldk/entity/staticobject.h"
 #include "ldk/entity/instancedobject.h"
+#include "ldk/entity/pointlight.h"
+#include "ldk/entity/directionallight.h"
 #include "ldk/asset/image.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
@@ -22,6 +24,7 @@ static struct
 {
   bool running;
   int32 exitCode;
+  float timeScale;
 } internal = {0};
 
 static void internalOnSignal(int32 signal)
@@ -69,6 +72,17 @@ void logModuleTerminate(const char* moduleName)
   ldkLogInfo("Terminating %s", moduleName);
 }
 
+
+void ldkEngineSetTimeScale(float scale)
+{
+  internal.timeScale = scale;
+}
+
+float ldkEngineGetTimeScale()
+{
+  return internal.timeScale;
+}
+
 bool ldkEngineInitialize(void)
 {
   signal(SIGABRT, internalOnSignal);
@@ -83,6 +97,8 @@ bool ldkEngineInitialize(void)
 
   bool success = true;
   bool stepSuccess;
+
+  internal.timeScale = 1.0f;
 
   LDKDateTime  dateTime;
   ldkOsSystemDateTimeGet(&dateTime);
@@ -116,6 +132,8 @@ bool ldkEngineInitialize(void)
   stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy, 2);
   stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy, 32);
   stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy, 8);
+  stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy, 32);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 
@@ -182,6 +200,8 @@ LDK_API int32 ldkEngineRun(void)
 
     double delta = (float) ldkOsTimeTicksIntervalGetMilliseconds(tickStart, tickEnd);
     float deltaTime = (float) delta / 1000;
+    deltaTime *= internal.timeScale;
+
     tickStart = ldkOsTimeTicksGet();
 
     if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
@@ -218,6 +238,17 @@ LDK_API int32 ldkEngineRun(void)
       ldkRendererAddInstancedObject(it.ptr);
     }
 
+    it = ldkEntityManagerGetIterator(LDKDirectionalLight);
+    while(ldkHListIteratorNext(&it))
+    {
+      ldkRendererAddDirectionalLight(it.ptr);
+    }
+
+    it = ldkEntityManagerGetIterator(LDKPointLight);
+    while(ldkHListIteratorNext(&it))
+    {
+      ldkRendererAddPointLight(it.ptr);
+    }
   }
   // unload all assets
 

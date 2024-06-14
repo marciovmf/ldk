@@ -1,4 +1,5 @@
 #include "ldk/maths.h"
+#include "common.h"
 #include <stdlib.h>
 #include <float.h>
 #define _USE_MATH_DEFINES
@@ -478,6 +479,14 @@ Vec3 rgbToVec3(LDKRGB color)
   return vec3(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f);
 }
 
+LDKRGB vec3ToRGB(Vec3 v)
+{
+  LDKRGB color = ldkRGB(
+      (uint8)(v.x * 255.0f),
+      (uint8)(v.y * 255.0f),
+      (uint8)(v.z * 255.0f));
+  return color;
+}
 
 //
 // Vec4

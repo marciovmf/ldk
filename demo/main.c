@@ -1,3 +1,10 @@
+#include "asset/config.h"
+#include "common.h"
+#include "entity/directionallight.h"
+#include "entity/pointlight.h"
+#include "maths.h"
+#include "module/entity.h"
+#include "module/renderer.h"
 #include <ldk.h>
 #include <math.h>
 #include <stdbool.h>
@@ -70,6 +77,9 @@ typedef struct
   float cameraLookSpeed;
   float cameraMoveSpeed;
   Sokoban sokoban;
+  LDKDirectionalLight* directionalLight;
+  uint32 numPointLights;
+  LDKPointLight* pointLight[32];
 } GameState;
 
 typedef enum 
@@ -219,18 +229,22 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
       if (event->keyboardEvent.keyCode == LDK_KEYCODE_W && sokobanMove(SOKOBAN_UP, &state->sokoban))
       {
         zOffset = -1;
+        state->sokoban.player.staticObject->rotation = quatRotationY((float) degToRadian(180.0));
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_S && sokobanMove(SOKOBAN_DOWN, &state->sokoban))
       {
         zOffset = 1;
+        state->sokoban.player.staticObject->rotation = quatRotationY((float) degToRadian(0.0));
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_A && sokobanMove(SOKOBAN_LEFT, &state->sokoban))
       {
         xOffset = -1;
+        state->sokoban.player.staticObject->rotation = quatRotationY((float) degToRadian(-90.0));
       }
       else if (event->keyboardEvent.keyCode == LDK_KEYCODE_D && sokobanMove(SOKOBAN_RIGHT, &state->sokoban))
       {
         xOffset = 1;
+        state->sokoban.player.staticObject->rotation = quatRotationY((float) degToRadian(90.0));
       }
 
       if (xOffset != 0 || zOffset != 0)
@@ -250,6 +264,23 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
           state->sokoban.box[i].animationTarget = vec3(entity->position.x + xOffset, entity->position.y, entity->position.z + zOffset);
         }
       }
+    }
+  }
+
+  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
+      && event->keyboardEvent.keyCode == LDK_KEYCODE_L)
+  {
+    bool b = !state->directionalLight->entity.active;
+    state->directionalLight->entity.active = b;
+  }
+
+  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
+      && event->keyboardEvent.keyCode == LDK_KEYCODE_P)
+  {
+    for (uint32 i = 0; i < state->numPointLights; i++)
+    {
+      bool b = !state->pointLight[i]->entity.active;
+      state->pointLight[i]->entity.active = b;
     }
   }
 
@@ -289,6 +320,7 @@ bool onUpdate(const LDKEvent* event, void* data)
   GameState* state = (GameState*) data;
   LDKCamera* camera = ldkEntityLookup(LDKCamera, state->hCamera);
 
+
   // Animate player
   if (state->sokoban.animating)
   {
@@ -319,11 +351,12 @@ bool onUpdate(const LDKEvent* event, void* data)
     state->sokoban.animationTime = clamp(state->sokoban.animationTime, 0.0f, 1.0f);
   }
 
-  //ldkLogInfo("Camera Position %f, %f, %f; Target %f, %f, %f",
-  //    camera->position.x, camera->position.y, camera->position.z,
-  //    camera->target.x, camera->target.y, camera->target.z);
+  ldkRendererSetCamera(camera);
 
-  ldkRendererCameraSet(camera);
+  state->pointLight[0]->position = state->sokoban.box[0].staticObject->position;
+  state->pointLight[1]->position = state->sokoban.box[1].staticObject->position;
+  state->pointLight[0]->position.y += 1.0f;
+  state->pointLight[1]->position.y += 1.0f;
 
   return true;
 }
@@ -374,8 +407,8 @@ int main(void)
 #define SOKOBAN 1
 #if SOKOBAN
 
-  state.sokoban.cameraPos = vec3(4.666242f, 7.928266f, 5.953767f);
-  state.sokoban.cameraTarget = vec3(4.649732f, 6.982578f, 5.629108f);
+  state.sokoban.cameraPos = vec3(4.136592f, 8.118844f, 9.579421f);
+  state.sokoban.cameraTarget = vec3(4.140860f, 7.318166f, 8.980342f);
   state.sokoban.size.width = 10;
   state.sokoban.size.height = 7;
   state.sokoban.boxCount = 0;
@@ -389,13 +422,13 @@ int main(void)
     "#..#....#-"
     "#########-";
 #else
-  "----------"
-    "---...@---"
-    "-.......--"
-    "-..A#B...-"
-    "-.......--"
-    "-..#....--"
-    "----------";
+    ".........."
+    "......@..."
+    ".........."
+    "...A#B...."
+    ".........."
+    ".........."
+    "..........";
 #endif
 
   camera->position = state.sokoban.cameraPos;
@@ -405,7 +438,7 @@ int main(void)
   // Board
   //
   LDKInstancedObject* io = ldkEntityCreate(LDKInstancedObject);
-  LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/cube.mesh");
+  LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/box.mesh");
 
   io->mesh = cube->asset.handle;
 
@@ -439,7 +472,7 @@ int main(void)
         float x = (float) j;
         float z = (float) i;
         float y = piece == SOKOBAN_PIECE_FLOOR ? -1.0f : 0.0f;
-        ldkInstancedObjectAddInstance(io, vec3(x, y, z), vec3One(), quatId());
+        ldkInstancedObjectAddInstance(io, vec3(x, y, z), vec3(0.5f, 0.5f, 0.5f), quatId());
       }
     }
   }
@@ -447,43 +480,80 @@ int main(void)
   ldkInstancedObjectUpdate(io);
 
   //
+  // Room
+  //
+  //LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
+  //ldkSmallString(&room->entity.name, "ROOM");
+  //ldkStaticObjectSetMesh(room, cube->asset.handle);
+  //room->scale = vec3(-10.0,-10.0,-10.0);
+  //room->position = vec3(3.0f, 8.0f, 0.0f);
+  //room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
+
+  //
   // Player
   //
-  // LDKStaticObject* playerObj = ldkEntityCreate(LDKStaticObject);
-  // ldkStaticObjectSetMesh(playerObj, cube->asset.handle);
-  // LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
-  // ldkMaterialParamSetVec3(material, "color", vec3(.6f, .6f, .6f));
-  // ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
 
-  // playerObj->materials[0] = material->asset.handle;
-  // playerObj->position = vec3((float) state.sokoban.player.coord.x, 0.0f, (float) state.sokoban.player.coord.y);
-  // playerObj->scale    = vec3(.7f, 1.0f, .7f);
+  //LDKStaticObject* playerObj = ldkEntityCreate(LDKStaticObject);
+
+  //ldkSmallString(&playerObj->entity.name, "PLAYER");
+  //ldkStaticObjectSetMesh(playerObj, cube->asset.handle);
+  //LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
+  //ldkMaterialParamSetVec3(material, "color", vec3(1.0f, 1.0f, 1.0f));
+  //ldkMaterialParamSetFloat(material, "colorIntensity", 1.0f);
+
+  //playerObj->materials[0] = material->asset.handle;
+  //playerObj->position = vec3((float) state.sokoban.player.coord.x, 0.0f, (float) state.sokoban.player.coord.y);
+  //playerObj->scale    = vec3(.7f, 1.0f, .7f);
   //state.sokoban.player.staticObject = playerObj;
-
 
   // Boxes
   for (uint32 i = 0; i < state.sokoban.boxCount; i++)
   {
     LDKStaticObject* box = ldkEntityCreate(LDKStaticObject);
-    ldkStaticObjectSetMesh(box, cube->asset.handle);
-    LDKMaterial* material = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle);
-    ldkMaterialParamSetVec3(material, "color", vec3(1.0f, 1.0f, 1.0f));
-    ldkMaterialParamSetFloat(material, "colorIntensity", 0.0f);
-
-    box->materials[0] = material->asset.handle;
+    box->mesh = cube->asset.handle;
     box->position = vec3((float) state.sokoban.box[i].coord.x, 0.0f, (float) state.sokoban.box[i].coord.y);
-    box->scale    = vec3One();
+    ldkEntitySetNameFormat(box, "BOX-%d", i);
+    box->scale    = vec3(.5f, .5f, .5f);
     state.sokoban.box[i].staticObject = box;
   }
 
-
   // Cyborg
   LDKStaticObject* cyborg = ldkEntityCreate(LDKStaticObject);
-  ldkSmallString(&cyborg->entity.name, "Cyborg");
-  ldkStaticObjectSetMesh(cyborg, ldkAssetGet(LDKMesh, "assets/cyborg/cyborg.mesh")->asset.handle);
+  ldkEntitySetName(cyborg, "Cyborg1");
+  cyborg->mesh = ldkAssetGet(LDKMesh, "assets/cyborg/cyborg.mesh")->asset.handle;
   cyborg->position = vec3((float) state.sokoban.player.coord.x, -0.4f, (float) state.sokoban.player.coord.y);
   cyborg->scale = vec3(0.5f, 0.5f, 0.5f);
   state.sokoban.player.staticObject = cyborg;
+
+  cyborg = ldkEntityCreate(LDKStaticObject);
+  ldkSmallString(&cyborg->entity.name, "Cyborg2");
+  cyborg->mesh = ldkAssetGet(LDKMesh, "assets/cyborg/cyborg.mesh")->asset.handle;
+  cyborg->position = vec3(4, 0, 10);
+  cyborg->scale = vec3One();
+
+  LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
+  directionalLight->direction = vec3(1.0f, 0.0f, 0.0f); 
+  directionalLight->position = vec3Mul(directionalLight->direction, -10);
+  directionalLight->colorSpecular = vec3(0.0f, 0.4f, 0.0f);
+  directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
+  state.directionalLight = directionalLight;
+
+  //
+  // Lights
+  //
+
+  state.numPointLights = 2;
+
+  state.pointLight[0] = ldkEntityCreate(LDKPointLight);
+  state.pointLight[0]->colorDiffuse = vec3One();
+  state.pointLight[0]->colorSpecular = vec3One();
+  ldkPointLightSetAttenuationPreset(state.pointLight[0], 1.0f);
+
+  state.pointLight[1] = ldkEntityCreate(LDKPointLight);
+  state.pointLight[1]->colorDiffuse = vec3One();
+  state.pointLight[1]->colorSpecular = vec3One();
+  ldkPointLightSetAttenuationPreset(state.pointLight[1], 1.0f);
+
 
 
 #endif
@@ -492,10 +562,10 @@ int main(void)
   state.sokoban.animationSpeed  = ldkConfigGetFloat(cfg, "sokoban.animation.speed");
   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
   state.cameraLookSpeed = ldkConfigGetFloat(cfg, "game.camera-look-speed");
-
-  // We should never keep pointers to entities. Intead, we keep their Handle
+  Vec3 clearColor = ldkConfigGetVec3(cfg, "game.clear-color");
   state.hCamera = camera->entity.handle;
-  ldkRendererCameraSet(camera);
-
+  ldkRendererSetCamera(camera);
+  ldkRendererSetClearColorVec3(clearColor);
+  ldkAmbientLightSetIntensity(ldkConfigGetFloat(cfg, "game.ambient-light-intensity"));
   return ldkEngineRun();
 }

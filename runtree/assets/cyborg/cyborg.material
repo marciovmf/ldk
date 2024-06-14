@@ -1,5 +1,8 @@
-shader:                     assets/geometry-pass.shader
+shader:                       assets/geometry-pass.shader
+deferred-render-path:         true
 
-texture2d texture_diffuse1:  assets/cyborg/diffuse.texture
-texture2d texture_specular1: assets/cyborg/specular.texture
-texture2d texture_normal1:   assets/cyborg/normal.texture
+texture2d texture_diffuse1:   assets/cyborg/diffuse.texture
+texture2d texture_specular1:  assets/cyborg/specular.texture
+#texture2d texture_normal1:   assets/cyborg/normal.texture
+float shininess:              3.0
+

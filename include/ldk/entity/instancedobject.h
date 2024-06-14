@@ -14,6 +14,7 @@
 #define LDK_INSTANCEDMESH_H
 
 #include "../common.h"
+#include "../module/rendererbackend.h"
 #include "../maths.h"
 #include "../array.h"
 #include "../module/entity.h"

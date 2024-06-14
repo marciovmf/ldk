@@ -24,6 +24,9 @@
 extern "C" {
 #endif
 
+  LDK_API void ldkEngineSetTimeScale(float scale);
+  LDK_API float ldkEngineGetTimeScale();
+
   LDK_API bool ldkEngineInitialize(void);
   LDK_API void ldkEngineTerminate(void);
   LDK_API int32 ldkEngineRun(void);

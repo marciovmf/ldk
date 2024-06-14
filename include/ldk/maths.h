@@ -110,6 +110,7 @@ extern "C" {
   LDK_API Vec3 vec3Lerp(Vec3 v1, Vec3 v2, float amount);
   LDK_API Vec3 vec3Smoothstep(Vec3 v1, Vec3 v2, float amount);
   LDK_API Vec3 rgbToVec3(LDKRGB color);
+  LDK_API LDKRGB vec3ToRGB(Vec3 v);
 
   //
   // Vec4

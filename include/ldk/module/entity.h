@@ -49,6 +49,8 @@ extern "C" {
 
 #define ldkEntityManagerGetIterator(type) ldkEntityManagerGetIteratorForType(typeid(type))
 
+#define ldkEntitySetNameFormat(e, fmt, ...) ldkSmallStringFormat(&e->entity.name, fmt, __VA_ARGS__)
+#define ldkEntitySetName(e, n) ldkSmallString(&e->entity.name, n)
 
   typedef void* LDKEntity;
   typedef void (*LDKEntityHandlerCreateFunc) (LDKEntity);

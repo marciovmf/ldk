@@ -7,6 +7,7 @@
 LDK_VERTEX_ATTRIBUTE_POSITION   vec3 aPos;
 LDK_VERTEX_ATTRIBUTE_NORMAL     vec3 aNormal;
 LDK_VERTEX_ATTRIBUTE_TEXCOORD0  vec2 aTexCoords;
+LDK_VERTEX_ATTRIBUTE_MATRIX0    mat4 mModelInstanced;
 
 out vec3 FragPos;
 out vec2 TexCoords;
@@ -15,10 +16,14 @@ out vec3 Normal;
 uniform mat4 mModel;
 uniform mat4 mView;
 uniform mat4 mProj;
+uniform bool instanced;
 
 void main()
 {
-  vec4 worldPos = mModel * vec4(aPos, 1.0);
+
+  mat4 model = instanced ? mModelInstanced : mModel;
+
+  vec4 worldPos = model * vec4(aPos, 1.0);
   FragPos = worldPos.xyz; 
   TexCoords = aTexCoords;
 
@@ -44,13 +49,14 @@ in vec3 Normal;
 
 uniform sampler2D texture_diffuse1;
 uniform sampler2D texture_specular1;
+uniform float shininess;
 
 void main()
 {    
   gPosition = FragPos;
   gNormal = normalize(Normal);
   gAlbedoSpec.rgb = texture(texture_diffuse1, TexCoords).rgb;
-  gAlbedoSpec.a = texture(texture_specular1, TexCoords).r;
+  gAlbedoSpec.a = texture(texture_specular1, TexCoords).r * shininess;
 }
 
 #endif

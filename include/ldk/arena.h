@@ -18,11 +18,6 @@
 extern "C" {
 #endif
 
-  typedef uint32_t uint32;
-  typedef int32_t int32;
-  typedef uint8_t uint8;
-  typedef int8_t int8;
-
   typedef struct
   {
     uint8* data;

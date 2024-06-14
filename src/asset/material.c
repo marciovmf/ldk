@@ -1,6 +1,4 @@
-#include "ldk/asset/material.h"
 #include "ldk/asset/texture.h"
-#include "ldk/asset/image.h"
 #include "ldk/module/asset.h"
 #include "ldk/module/renderer.h"
 #include "ldk/common.h"
@@ -22,6 +20,19 @@ static char* internalSkipWhiteSpace(char* input)
   while(*p == ' ' || *p == '\t' || *p == '\r')
     p++;
   return p;
+}
+
+static bool strToBool(const char* path, uint32 lineNumber, char* input)
+{
+  if (strncmp(input, "true", 4) == 0)
+    return true;
+  else if (strncmp(input, "false", 5) == 0)
+    return false;
+  else
+  {
+    ldkLogError("Error parsing material file '%s' at line %d: invalid boolean value'%s' ", path, lineNumber, input);
+    return false;
+  }
 }
 
 static bool internalParseInt(const char* path, int line, const char* input, int* out)
@@ -80,11 +91,19 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
 bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
 {
   LDKMaterial* material = (LDKMaterial*) asset;
-  material->enableCullFront   = false;
-  material->enableCullBack    = true;
-  material->enableBlend       = true;
-  material->enableDepthTest   = true;
-  material->enableDepthWrite  = true;
+  bool enableCullFront   = false;
+  bool enableCullBack    = false;
+  bool enableBlend       = false;
+  bool enableDepthTest   = false;
+  bool enableDepthWrite  = false;
+  bool deferred          = false;
+  bool overrideEnableCullFront   = false;
+  bool overrideEnableCullBack    = false;
+  bool overrideEnableBlend       = false;
+  bool overrideEnableDepthTest   = false;
+  bool overrideEnableDepthWrite  = false;
+  bool overrideDeferred          = false;
+
 
   LDKShader* program;
   bool success = true;
@@ -117,6 +136,7 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
   char* context;
   char* line = strtok_r((char*) buffer, "\n\r", &context);
   int lineNumber = 0;
+
   while (line)
   {
     lineNumber++;
@@ -125,6 +145,8 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
     if (line[0] != '#')
     {
       char* entryContext;
+      char* varNameAndTypeContext;
+
       char* lhs = strtok_r(line, ":", &entryContext);
       char* rhs = strtok_r(NULL, ":", &entryContext);
 
@@ -137,35 +159,71 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
       lhs = internalSkipWhiteSpace(lhs);
       rhs = internalSkipWhiteSpace(rhs);
 
-      if (strncmp("shader", lhs, strlen(lhs)) == 0)
+      char* varType = strtok_r(lhs,   SPACE_OR_TAB, &varNameAndTypeContext);
+      char* varName = strtok_r(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
+      // is it a directive or a variable declaration ?
+      char* directive = varName == NULL ? varType : NULL;
+
+      if (directive)
       {
-        if (ldkStringEndsWith(rhs, ".shader"))
+        if (strncmp("shader", directive, strlen(directive)) == 0)
         {
-          program = ldkAssetGet(LDKShader, rhs);
-          ldkMaterialCreate(program, material);
-          material->program = program->asset.handle;
-          created = true;
+          if (ldkStringEndsWith(rhs, ".shader"))
+          {
+            program = ldkAssetGet(LDKShader, rhs);
+            ldkMaterialCreate(program, material);
+            material->program = program->asset.handle;
+            created = true;
+          }
+          else
+          {
+            ldkLogError("Error parsing material file '%s' at line %d: shader param '%s' must point to a .shader file", path, lineNumber, lhs);
+          }
+        }
+        else if (strncmp("deferred-render-path", directive, 64) == 0)
+        {
+          deferred = strToBool(path, lineNumber, rhs);
+          overrideDeferred = true;
+        }
+        else if (strncmp("enable-depth-test", directive, 64) == 0)
+        {
+          enableDepthTest = strToBool(path, lineNumber, rhs);
+          overrideEnableDepthTest = true;
+        }
+        else if (strncmp("enable-depth-write", directive, 64) == 0)
+        {
+          enableDepthWrite = strToBool(path, lineNumber, rhs); 
+          overrideEnableDepthWrite = true;
+        }
+        else if (strncmp("enable-back-face-cull", directive, 64) == 0)
+        {
+          enableCullBack = strToBool(path, lineNumber, rhs);
+          overrideEnableCullBack = true;
+        }
+        else if (strncmp("enable-front-face-cull", directive, 64) == 0)
+        {
+          enableCullFront = strToBool(path, lineNumber, rhs);
+          overrideEnableCullFront = true;
+        }
+        else if (strncmp("enable-blend", directive, 64) == 0)
+        {
+          enableBlend = strToBool(path, lineNumber, rhs);
+          overrideEnableBlend = true;
         }
         else
         {
-          ldkLogError("Error parsing material file '%s' at line %d: shader param '%s' must point to a .shader file", path, lineNumber, lhs);
+          ldkLogError("Error parsing material file '%s' at line %d: Unknown $directive '%s' ", path, lineNumber, rhs);
         }
       }
       else
       {
+        //
+        // Variable Declaration 
+        //
+
         if (!created)
         {
-          ldkLogError("Error parsing material file '%s' at line %d: shader param must appear begore any other material parameter", path, lineNumber);
-          break;
-        }
-
-        char* varNameAndTypeContext;
-        char* varType = strtok_r(lhs,   SPACE_OR_TAB, &varNameAndTypeContext);
-        char* varName = strtok_r(NULL,  SPACE_OR_TAB, &varNameAndTypeContext);
-
-        if (varName == NULL || strlen(varName) == 0)
-        {
-          ldkLogError("%s at line %d: Expected variable name.", path, lineNumber);
+          ldkLogError("Error parsing material file '%s' at line %d: shader variable declaration found before 'shader' directive.", path, lineNumber);
           break;
         }
 
@@ -191,40 +249,8 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
         {
           bool val = false;
           char* a = strtok_r(rhs,  SPACE_OR_TAB, &varNameAndTypeContext);
-          if (strncmp(a, "true", 4) == 0 )
-            val = true;
-          else if (strncmp(a, "false", 5) == 0 )
-            val = false;
-          else
-          {
-            ldkLogError("Error parsing material file '%s' at line %d: invalid boolean value'%s' ", path, lineNumber, rhs);
-          }
-
-          if (strncmp("$enable-depth-test", rhs, 64) == 0)
-          {
-            material->enableDepthTest = val;
-          }
-          else if (strncmp("$enable-depth-write", rhs, 64) == 0)
-          {
-            material->enableDepthWrite = val;
-          }
-          else if (strncmp("$enable-back-face-cull", rhs, 64) == 0)
-          {
-            material->enableCullBack = val;
-          }
-          else if (strncmp("$enable-frong-face-cull", rhs, 64) == 0)
-          {
-            material->enableCullFront = val;
-          }
-          else if (strncmp("$enable-blend", rhs, 64) == 0)
-          {
-            material->enableCullFront = val;
-          }
-          else
-          {
-            ldkLogError("Error parsing material file '%s' at line %d: Unknown state variable '%s' ", path, lineNumber, rhs);
-          }
-
+          val = strToBool(path, lineNumber, a);
+          ldkMaterialParamSetBool(material, varName, val);
         }
         else if (strncmp("int", varType, strlen(varType)) == 0)
         {
@@ -289,6 +315,33 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
   }
 
   ldkOsMemoryFree(buffer);
+
+  //
+  // Apply directives
+  //
+  if (created)
+  {
+    if (overrideEnableBlend)
+      material->enableBlend = enableBlend;
+
+    if (overrideEnableCullFront)
+      material->enableCullFront = enableCullFront;
+
+    if (overrideEnableCullBack)
+      material->enableCullBack = enableCullBack;
+
+    if (overrideEnableBlend)
+      material->enableBlend = enableBlend;
+
+    if (overrideEnableDepthWrite)
+      material->enableDepthWrite = enableDepthWrite;
+
+    if (overrideEnableDepthTest)
+      material->enableDepthTest = enableDepthTest;
+
+    if (overrideDeferred)
+      material->deferred = deferred;
+  }
   return success;
 }
 
@@ -316,9 +369,18 @@ LDKMaterial* ldkMaterialClone(LDKHandle hMaterial)
   newMaterial->enableDepthWrite = material->enableDepthWrite;
   newMaterial->enableCullBack = material->enableCullBack;
   newMaterial->enableCullFront = material->enableCullFront;
+  newMaterial->deferred = material->deferred;
   // copy textures and materials
   memcpy(&newMaterial->textures, material->textures, LDK_MATERIAL_MAX_TEXTURES * sizeof(LDKHandle));
   memcpy(&newMaterial->param, material->param, LDK_SHADER_MAX_PARAMS * sizeof(LDKMaterialParam));
 
   return newMaterial;
+}
+
+bool ldkMaterialIsDeferred(LDKHandle hMaterial)
+{
+  LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
+  if (material == NULL)
+    return false;
+  return material->deferred;
 }
