@@ -22,17 +22,11 @@ extern "C" {
     Vec3 position;
     Vec3 colorDiffuse;
     Vec3 colorSpecular;
-    float range;  // If an objects distance is greater than the range, the light has no effect on the object. 
-
-    // Attenuation
-    float linear;
-    float quadratic;
+    LDKLightAttenuation attenuation;
   } LDKPointLight;
 
   LDK_API LDKPointLight* ldkPointLightEntityCreate(LDKPointLight* entity);
   LDK_API void ldkPointLightEntityDestroy(LDKPointLight* entity);
-  LDK_API void ldkPointLightSetAttenuationPreset(LDKPointLight* entity, float range);
-  LDK_API void ldkPointLightSetAttenuation(LDKPointLight* entity, float range, float linear, float quadratic);
 
 
 #ifdef __cplusplus

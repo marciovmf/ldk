@@ -1,5 +1,5 @@
 
-#ifdef LDK_COMPILE_VETEX_SHADER
+#ifdef LDK_COMPILE_VERTEX_SHADER
 
 // ================================
 // Vertex Shader
@@ -31,8 +31,8 @@ uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
 
-struct Light {
-  vec4 position;
+struct PointLight {
+  vec3 position;
   vec3 colorDiffuse;
   vec3 colorSpecular;
   float linear;
@@ -40,55 +40,119 @@ struct Light {
   float range;
 };
 
-const int MAX_LIGHTS = 64;
-uniform int numLights;
-uniform Light lights[MAX_LIGHTS];
+struct DirectionalLight {
+  vec3 direction;
+  vec3 colorDiffuse;
+  vec3 colorSpecular;
+  float linear;
+  float quadratic;
+};
+
+struct SpotLight {
+  vec3 position;
+  vec3 direction;
+  vec3 colorDiffuse;
+  vec3 colorSpecular;
+  float linear;
+  float quadratic;
+  float cutOffInner;
+  float cutOffOuter;
+};
+
+const int MAX_POINT_LIGHTS = 32;
+const int MAX_SPOT_LIGHTS = 32;
+const int MAX_DIRECTIONAL_LIGHTS = 32;
+
+uniform int numPointLights;
+uniform int numSpotLights;
+uniform int numDirectionalLights;
+
+uniform PointLight pointLights[MAX_POINT_LIGHTS];
+uniform DirectionalLight directionalLights[MAX_DIRECTIONAL_LIGHTS];
+uniform SpotLight spotLights[MAX_SPOT_LIGHTS];
+
 uniform vec3 viewPos;
 uniform vec3 clearColor;
 uniform vec3 ambientColor;
 uniform float ambientIntensity;
 
-vec3 calcDirLight(Light light, vec3 normal, vec3 viewDir)
+float calcAttenuation(float linear, float quadratic, float distance)
 {
-  vec3 lightDir = normalize(-light.position.xyz);
-  // diffuse 
-  float diff = max(dot(normal, lightDir), 0.0);
-  // specular
-  vec3 reflectDir = reflect(-lightDir, normal);
-  float spec = pow(max(dot(viewDir, reflectDir), 0.0), 2.0);
-  // combine results
-  //vec3 ambient  = texture(gAlbedoSpec, TexCoords).rgb;
-  vec3 diffuse  = light.colorDiffuse * diff * texture(gAlbedoSpec, TexCoords).rgb;
-  vec3 specular = light.colorSpecular * spec * texture(gAlbedoSpec, TexCoords).a;
-  return (diffuse + specular);
-} 
+  float attenuation = 1.0 / (1.0 + linear * distance + quadratic * (distance * distance));    
+  return attenuation;
+}
 
-vec3 calcPointLight(Light light, vec3 normal, vec3 fragPos, vec3 viewDir)
+
+vec3 calcSpotLight(SpotLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 texAlbedo, float texSpecular)
 {
-  vec3 lightDir = normalize(light.position.xyz - fragPos);
+  const float shininess = 1.5;
+  // diffuse 
+  vec3 lightDir = normalize(light.position - fragPos);
+  float diff = max(dot(normal, lightDir), 0.0);
+  vec3 diffuse  = light.colorDiffuse * diff * texAlbedo;
+  // specular
+  vec3 reflectDir = reflect(-lightDir, normal);  
+  float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+  vec3 specular = light.colorSpecular * spec * texSpecular;
+  // spotlight (soft edges)
+  float theta = dot(lightDir, normalize(-light.direction)); 
+  float epsilon = (light.cutOffInner - light.cutOffOuter);
+  float intensity = clamp((theta - light.cutOffOuter) / epsilon, 0.0, 1.0);
+  diffuse  *= intensity;
+  specular *= intensity;
+  // attenuation
+  float attenuation = calcAttenuation(light.linear, light.quadratic, length(light.position - fragPos));
+  diffuse  *= attenuation;
+  specular *= attenuation;   
+  return diffuse + specular;
+}
+
+
+vec3 calcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 texAlbedo, float texSpecular)
+{
+  const float shininess = 1.5;
+  vec3 lightDir = normalize(light.position - fragPos);
   // diffuse
   float diff = max(dot(normal, lightDir), 0.0);
   // specular
   vec3 reflectDir = reflect(-lightDir, normal);
-  float spec = pow(max(dot(viewDir, reflectDir), 0.0), 1.7);
+  float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
   // attenuation
-  float distance    = length(light.position.xyz - fragPos);
-  float attenuation = 1.0 / (1.0 + light.linear * distance + light.quadratic * (distance * distance));    
-
+  float attenuation = calcAttenuation(light.linear, light.quadratic, length(light.position - fragPos));
   // combine results
-  //vec3 ambient  = light.color * texture(gAlbedoSpec, TexCoords).rgb * ambientIntensity;
-  vec3 diffuse  = light.colorDiffuse * diff * texture(gAlbedoSpec, TexCoords).rgb;
-  vec3 specular = light.colorSpecular * spec * texture(gAlbedoSpec, TexCoords).a;
-  //ambient  *= attenuation;
+  vec3 diffuse  = light.colorDiffuse * diff * texAlbedo;
+  vec3 specular = light.colorSpecular * spec * texSpecular;
   diffuse  *= attenuation;
   specular *= attenuation;
-  return (diffuse + specular);
+  return diffuse + specular;
+}
+
+
+vec3 calcDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir, vec3 texAlbedo, float texSpecular)
+{
+  const float shininess = 2.0;
+  // shouldnt it be normalize(-light.direction) ?
+  vec3 lightDir = normalize(light.direction);
+  // diffuse 
+  float diff = max(dot(normal, lightDir), 0.0);
+  // specular
+  vec3 reflectDir = reflect(-lightDir, normal);
+  float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+  // combine results
+  vec3 diffuse  = light.colorDiffuse * diff * texAlbedo;
+  vec3 specular = light.colorSpecular * spec * texSpecular;
+  return diffuse + specular;
 } 
+
 
 void main()
 {
-  // Set background color if depth is zero
+  // Set background color when depth is zero
   vec3 Normal = texture(gNormal, TexCoords).rgb;
+  vec4 gColor = texture(gAlbedoSpec, TexCoords);
+  vec3 Albedo = gColor.rgb;
+  float Specular = gColor.a;
+
   if (Normal == vec3(0))
   {
     FragColor = vec4(clearColor,1);
@@ -99,25 +163,29 @@ void main()
   vec3 viewDir  = normalize(viewPos - FragPos);
 
   // How much can we see without lights ?
-  vec3 ambientLight = (texture(gAlbedoSpec, TexCoords).rgb + ambientColor * ambientIntensity)  * ambientIntensity;
+  vec3 ambientLight = (texture(gAlbedoSpec, TexCoords).rgb + ambientColor * ambientIntensity) * ambientIntensity;
   vec3 lighting = ambientLight;
 
-  for(int i = 0; i < numLights; ++i)
+  // Directional Lights
+  for(int i = 0; i < numDirectionalLights; ++i)
   {
-    if (lights[i].position.w == 0.00)
-    {
-      // Directional Light
-      lighting += calcDirLight(lights[i], Normal, viewDir);
-    }
-    else
-    {
-      // Point light
-      float distance = length(lights[i].position.xyz - FragPos);
-      if(distance >= lights[i].range)
-        continue;
-      lighting += calcPointLight(lights[i], Normal, FragPos, viewDir);
-    }
+    lighting += calcDirectionalLight(directionalLights[i], Normal, viewDir, Albedo, Specular);
   }
+
+  // Point lights
+  for(int i = 0; i < numPointLights; ++i)
+  {
+    float distance = length(pointLights[i].position - FragPos);
+    if(distance < pointLights[i].range)
+      lighting += calcPointLight(pointLights[i], Normal, FragPos, viewDir, Albedo, Specular);
+  }
+
+  // Spot lights
+  for(int i = 0; i < numSpotLights; ++i)
+  {
+    lighting += calcSpotLight(spotLights[i], Normal, FragPos, viewDir, Albedo, Specular);
+  }
+
   FragColor = vec4(lighting, 1.0);
 }
 

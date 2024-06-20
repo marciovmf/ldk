@@ -489,3 +489,32 @@ void ldkPathNormalize(LDKPath* ldkPath)
   ldkPath->length = resultIndex;
   ldkPath->path[resultIndex] = '\0';
 }
+
+
+//
+// Light attenuation
+//
+
+// Attenuation values from https://wiki.ogre3d.org/tiki-index.php?page=-Point+Light+Attenuation
+static uint32 rangeLimit[] = {7, 13, 20, 32, 50, 65, 100, 160, 200, 325, 600, 3250};
+static float linear[]     = {0.7f,  0.35f,  0.22f,  0.14f,  0.09f,  0.07f,  0.045f,  0.027f,  0.022f,  0.014f,  0.007f,  0.0014f};
+static float quadratic[]  = {1.8f,  0.44f,  0.20f,  0.07f,  0.032f,  0.017f,  0.0075f,  0.0028f,  0.0019f,  0.0007f,  0.0002f,  0.000007f};
+
+void ldkLightAttenuationForDistance(LDKLightAttenuation* attenuation, float distance)
+{
+  if (attenuation == NULL)
+    return;
+
+  uint32 r = LDK_MAX(rangeLimit[0], (uint32) distance);
+  uint32 presetIndex = 0;
+  uint32 numPresets = sizeof(rangeLimit) / sizeof(uint32);
+  for (uint32 i = 0; i < numPresets; i++)
+  {
+    if (r < rangeLimit[i])
+      break;
+    presetIndex = i;
+  }
+
+  attenuation->linear     = linear[presetIndex],
+  attenuation->quadratic  = quadratic[presetIndex];
+}

@@ -254,7 +254,7 @@ extern "C" {
 
 
   //
-  // Mat4
+  // Mat4 (Column major)
   //
 
   typedef struct {

@@ -25,6 +25,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/entity/instancedobject.h entity/instancedobject.c
   ${INCLUDE_DIR}/entity/pointlight.h entity/pointlight.c
   ${INCLUDE_DIR}/entity/directionallight.h entity/directionallight.c
+  ${INCLUDE_DIR}/entity/spotlight.h entity/spotlight.c
 
   # Modules
   ${INCLUDE_DIR}/module/graphics.h module/graphics.c

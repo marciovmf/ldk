@@ -1,4 +1,4 @@
-#ifdef LDK_COMPILE_VETEX_SHADER
+#ifdef LDK_COMPILE_VERTEX_SHADER
 // ================================
 // Vertex Shader
 // ================================
@@ -20,9 +20,7 @@ uniform bool instanced;
 
 void main()
 {
-
   mat4 model = instanced ? mModelInstanced : mModel;
-
   vec4 worldPos = model * vec4(aPos, 1.0);
   FragPos = worldPos.xyz; 
   TexCoords = aTexCoords;

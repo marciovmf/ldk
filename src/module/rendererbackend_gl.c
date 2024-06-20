@@ -46,7 +46,7 @@ static inline GLuint internalShaderSourceCompile(GLuint type, const char* source
   if (type == GL_VERTEX_SHADER)
   {
     typeName = "VERTEX SHADER";
-    macro = "#define LDK_COMPILE_VETEX_SHADER\n";
+    macro = "#define LDK_COMPILE_VERTEX_SHADER\n";
   }
   else if (type == GL_FRAGMENT_SHADER)
   {

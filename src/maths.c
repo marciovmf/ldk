@@ -1,6 +1,5 @@
 #include "ldk/maths.h"
 #include "common.h"
-#include <stdlib.h>
 #include <float.h>
 #define _USE_MATH_DEFINES
 #include <math.h>

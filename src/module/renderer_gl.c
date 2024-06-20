@@ -1,3 +1,6 @@
+#include "array.h"
+#include "entity/directionallight.h"
+#include "entity/spotlight.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/asset.h"
@@ -13,6 +16,7 @@
 #include "ldk/os.h"
 #include "ldk/hlist.h"
 #include "ldk/gl.h"
+#include "maths.h"
 #include "module/entity.h"
 #include <stdbool.h>
 #include <string.h>
@@ -23,19 +27,6 @@
 #ifndef LDK_RENDERER_OPENGL
 #define LDK_RENDERER_OPENGL
 #endif // LDK_RENDERER_OPENGL
-
-
-typedef struct
-{
-  Vec3 colorDiffuse;
-  Vec3 colorSpecular;
-  float linear;
-  float quadratic;
-  union{
-    Vec4 position;
-    Vec4 direction;
-  };
-} LDKLight;
 
 typedef struct 
 {
@@ -52,7 +43,9 @@ static struct
   Vec3 editorClearColor;
   LDKArray* renderObjectArrayDeferred;
   LDKArray* renderObjectArray;
-  LDKArray* lights;
+  LDKArray* pointLights;
+  LDKArray* directionalLights;
+  LDKArray* spotLights;
 
   LDKCamera* camera;
   float elapsedTime;
@@ -103,7 +96,6 @@ typedef struct
   };
 
 } LDKRenderObject;
-
 
 //
 // Renderer Internal
@@ -598,7 +590,7 @@ static void internalGeometryPass(LDKArray* array)
 // -----------------------------------------
 // Light pass
 // -----------------------------------------
-static void internalLightPass(LDKArray* lights)
+static void internalLightPass()
 {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   // lighting pass: calculate lighting 
@@ -614,50 +606,102 @@ static void internalLightPass(LDKArray* lights)
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, internal.gPosition);
 
-  uint32 numLights = ldkArrayCount(lights);
 
   Vec3 clearColor = internalGetClearColor();
-  ldkShaderParamSetInt(internal.shaderLightPass, "numLights", numLights);
-  ldkShaderParamSetFloat(internal.shaderLightPass, "ambientIntensity", ldkAmbientLightGetIntensity());
+  ldkShaderParamSetVec3(internal.shaderLightPass, "viewPos", internal.camera->position);
   ldkShaderParamSetVec3(internal.shaderLightPass, "ambientColor", ldkAmbientLightGetColor());
   ldkShaderParamSetVec3(internal.shaderLightPass, "clearColor", clearColor);
+  ldkShaderParamSetFloat(internal.shaderLightPass, "ambientIntensity", ldkAmbientLightGetIntensity());
   ldkShaderParamSetInt(internal.shaderLightPass, "gPosition", 0);
   ldkShaderParamSetInt(internal.shaderLightPass, "gNormal", 1);
   ldkShaderParamSetInt(internal.shaderLightPass, "gAlbedoSpec", 2); 
 
-  // send light uniforms
-  LDKLight* light = (LDKLight*) ldkArrayGetData(lights);
-  for (uint32 i = 0; i < numLights; i++)
+  // Point light uniforms
+  LDKPointLight* point = (LDKPointLight*) ldkArrayGetData(internal.pointLights);
+  uint32 numPointLights = ldkArrayCount(internal.pointLights);
+  ldkShaderParamSetInt(internal.shaderLightPass, "numPointLights", numPointLights);
+  for (uint32 i = 0; i < numPointLights; i++)
   {
-    LDKSmallStr strPosition, strColorDiffuse, strColorSpecular, strLinear, strQuadratic, strRadius;
-    ldkSmallStringFormat(&strPosition,      "lights[%d].position", i);  
-    ldkSmallStringFormat(&strColorDiffuse,  "lights[%d].colorDiffuse", i);
-    ldkSmallStringFormat(&strColorSpecular, "lights[%d].colorSpecular", i);
-    ldkShaderParamSetVec4(internal.shaderLightPass, strPosition.str, light[i].position);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, light[i].colorDiffuse);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, light[i].colorSpecular);
-
     // update attenuation parameters and calculate radius
-    const float CONSTANT = 1.0f; // We don't send it to the shader. We assume it is always 1.0
-    const float linear = light->linear;
-    const float quadratic = light->quadratic;
+    const float CONSTANT = 1.0f;
+    const char* arrayName = "pointLights";
+    const float linear = point->attenuation.linear;
+    const float quadratic = point->attenuation.quadratic;
+    const float maxBrightness = (float) (fmax(fmax(point->colorDiffuse.x, point->colorDiffuse.y), point->colorDiffuse.z));
+    float radius = (float) (-linear + sqrt(linear * linear- 4 * quadratic * (CONSTANT - (256.0f / 5.0f) * maxBrightness))) / (2.0f * quadratic);
 
-    ldkSmallStringFormat(&strLinear,    "lights[%d].linear", i);  
-    ldkSmallStringFormat(&strQuadratic, "lights[%d].quadratic", i);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, light[i].linear);
+    LDKSmallStr strPosition, strColorDiffuse, strColorSpecular, strLinear, strQuadratic, strRadius;
+    ldkSmallStringFormat(&strPosition,      "%s[%d].position", arrayName, i);  
+    ldkSmallStringFormat(&strColorDiffuse,  "%s[%d].colorDiffuse", arrayName, i);
+    ldkSmallStringFormat(&strColorSpecular, "%s[%d].colorSpecular", arrayName, i);
+    ldkSmallStringFormat(&strLinear,        "%s[%d].linear", arrayName, i);  
+    ldkSmallStringFormat(&strQuadratic,     "%s[%d].quadratic", arrayName, i);
+    ldkSmallStringFormat(&strRadius,        "%s[%d].range", arrayName, i);
+
+    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, point->position);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, point->colorDiffuse);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, point->colorSpecular);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, linear);
     ldkShaderParamSetFloat(internal.shaderLightPass, strQuadratic.str, quadratic);
-
-    const float maxBrightness = (float) (fmax(fmax(light[i].colorDiffuse.x, light[i].colorDiffuse.y), light[i].colorDiffuse.z));
-    float radius = (float) (-linear + sqrt(linear * linear - 4 * quadratic * (CONSTANT - (256.0f / 5.0f) * maxBrightness))) / (2.0f * quadratic);
-    //fabs(sin(internal.elapsedTime ) * 2.0f);
-
-    ldkSmallStringFormat(&strRadius, "lights[%d].range", i);
     ldkShaderParamSetFloat(internal.shaderLightPass, strRadius.str, radius);
-
-    light++;
+    point++;
   }
 
-  ldkShaderParamSetVec3(internal.shaderLightPass, "viewPos", internal.camera->position);
+  // Spot light uniforms
+  LDKSpotLight* spot = (LDKSpotLight*) ldkArrayGetData(internal.spotLights);
+  uint32 numSpotLights = ldkArrayCount(internal.spotLights);
+  ldkShaderParamSetInt(internal.shaderLightPass, "numSpotLights", numSpotLights);
+
+  for (uint32 i = 0; i < numSpotLights; i++)
+  {
+    // update attenuation parameters and calculate radius
+    const float CONSTANT = 1.0f;
+    const char* arrayName = "spotLights";
+    const float linear = spot->attenuation.linear;
+    const float quadratic = spot->attenuation.quadratic;
+    const float maxBrightness = (float) (fmax(fmax(point->colorDiffuse.x, point->colorDiffuse.y), point->colorDiffuse.z));
+    float radius = (float) (-linear + sqrt(linear * linear- 4 * quadratic * (CONSTANT - (256.0f / 5.0f) * maxBrightness))) / (2.0f * quadratic);
+
+    LDKSmallStr strPosition, strDirection, strColorDiffuse, strColorSpecular, strLinear, strQuadratic, strCutoffInner, strCutoffOuter, strRadius;
+    ldkSmallStringFormat(&strPosition,      "%s[%d].position", arrayName, i);
+    ldkSmallStringFormat(&strDirection,      "%s[%d].direction", arrayName, i);
+    ldkSmallStringFormat(&strColorDiffuse,  "%s[%d].colorDiffuse", arrayName, i);
+    ldkSmallStringFormat(&strColorSpecular, "%s[%d].colorSpecular", arrayName, i);
+    ldkSmallStringFormat(&strCutoffInner,   "%s[%d].cutOffInner", arrayName, i);
+    ldkSmallStringFormat(&strCutoffOuter,   "%s[%d].cutOffOuter", arrayName, i);
+    ldkSmallStringFormat(&strLinear,        "%s[%d].linear", arrayName, i);
+    ldkSmallStringFormat(&strQuadratic,     "%s[%d].quadratic", arrayName, i);
+    ldkSmallStringFormat(&strRadius,        "%s[%d].range", arrayName, i);
+
+    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, spot->position);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strDirection.str, spot->direction);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, spot->colorDiffuse);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, spot->colorSpecular);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strCutoffInner.str, spot->cutOffInner);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strCutoffOuter.str, spot->cutOffOuter);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, linear);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strQuadratic.str, quadratic);
+    ldkShaderParamSetFloat(internal.shaderLightPass, strRadius.str, radius);
+    spot++;
+  }
+
+  // directional light uniforms
+  LDKDirectionalLight* directional = (LDKDirectionalLight*) ldkArrayGetData(internal.directionalLights);
+  uint32 numDirectionalLights = ldkArrayCount(internal.directionalLights);
+  ldkShaderParamSetInt(internal.shaderLightPass, "numDirectionalLights", numDirectionalLights);
+  for (uint32 i = 0; i < numDirectionalLights; i++)
+  {
+    const char* arrayName = "directionalLights";
+    LDKSmallStr strPosition, strColorDiffuse, strColorSpecular;
+    ldkSmallStringFormat(&strPosition,      "%s[%d].direction", arrayName, i);  
+    ldkSmallStringFormat(&strColorDiffuse,  "%s[%d].colorDiffuse", arrayName, i);
+    ldkSmallStringFormat(&strColorSpecular, "%s[%d].colorSpecular", arrayName, i);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, directional->position);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, directional->colorDiffuse);
+    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, directional->colorSpecular);
+    directional++;
+  }
+
   InternalRenderXYQuadNDC();
 
   // copy geometry's depth buffer to default framebuffer's depth buffer
@@ -684,7 +728,9 @@ bool ldkRendererInitialize(LDKConfig* config)
   internal.renderObjectArray = ldkArrayCreate(sizeof(LDKRenderObject), 64);
   internal.renderObjectArrayDeferred = ldkArrayCreate(sizeof(LDKRenderObject), 64);
   internal.ambientLightIntensity = 1.0f;
-  internal.lights = ldkArrayCreate(sizeof(LDKLight), 32);
+  internal.pointLights = ldkArrayCreate(sizeof(LDKPointLight), 32);
+  internal.spotLights = ldkArrayCreate(sizeof(LDKSpotLight), 32);
+  internal.directionalLights = ldkArrayCreate(sizeof(LDKDirectionalLight), 8);
   success &= internal.renderObjectArray != NULL;
 
   //
@@ -718,6 +764,9 @@ void ldkRendererTerminate(void)
   internal.initialized = false;
   ldkArrayDestroy(internal.renderObjectArray);
   ldkArrayDestroy(internal.renderObjectArrayDeferred);
+  ldkArrayDestroy(internal.directionalLights);
+  ldkArrayDestroy(internal.spotLights);
+  ldkArrayDestroy(internal.pointLights);
   internalPickingFBODEstroy();
   internalGBufferDestroy();
 }
@@ -753,34 +802,21 @@ void ldkRendererAddPointLight(LDKPointLight* entity)
 {
   if (entity->entity.active == false)
     return;
-
-  LDKLight light;
-  light.position = vec4(
-      entity->position.x,
-      entity->position.y,
-      entity->position.z,
-      1.000f);
-  light.colorDiffuse = entity->colorDiffuse;
-  light.colorSpecular = entity->colorSpecular;
-  light.linear = entity->linear;
-  light.quadratic = entity->quadratic;
-  ldkArrayAdd(internal.lights, &light);
+  ldkArrayAdd(internal.pointLights, entity);
 }
 
 void ldkRendererAddDirectionalLight(LDKDirectionalLight* entity)
 {
   if (entity->entity.active == false)
     return;
+  ldkArrayAdd(internal.directionalLights, entity);
+}
 
-  LDKLight light;
-  light.direction = vec4(
-      entity->position.x,
-      entity->position.y,
-      entity->position.z,
-      0.00000f);
-  light.colorDiffuse = entity->colorDiffuse;
-  light.colorSpecular = entity->colorSpecular;
-  ldkArrayAdd(internal.lights, &light);
+void ldkRendererAddSpotLight(LDKSpotLight* entity)
+{
+  if (entity->entity.active == false)
+    return;
+  ldkArrayAdd(internal.spotLights, entity);
 }
 
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
@@ -1128,7 +1164,7 @@ void ldkRendererRender(float deltaTime)
 
   // Deferred path
   internalGeometryPass(internal.renderObjectArrayDeferred);
-  internalLightPass(internal.lights);
+  internalLightPass();
 
   // Forward path
   internalGeometryPass(internal.renderObjectArray);
@@ -1139,16 +1175,26 @@ void ldkRendererRender(float deltaTime)
     ldkShaderParamSetMat4(internal.shaderLightBox, "projection", cameraProjMatrix);
     ldkShaderParamSetMat4(internal.shaderLightBox, "view", cameraViewMatrix);
 
-    uint32 count = ldkArrayCount(internal.lights);
-    LDKLight* light = (LDKLight*) ldkArrayGetData(internal.lights);
+    uint32 count = ldkArrayCount(internal.pointLights);
+    LDKPointLight* point = (LDKPointLight*) ldkArrayGetData(internal.pointLights);
     for (unsigned int i = 0; i < count; i++)
     {
-      Vec3 p = vec3(light->position.x, light->position.y, light->position.z);
-      Mat4 m = mat4World(p, vec3(0.1f, 0.1f, 0.1f), quatId());
+      Mat4 m = mat4World((*point).position, vec3(0.1f, 0.1f, 0.1f), quatId());
       ldkShaderParamSetMat4(internal.shaderLightBox, "model", m);
-      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", light->colorDiffuse);
+      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", point->colorDiffuse);
       InternalRenderCubeNDC();
-      light++;
+      point++;
+    }
+
+    count = ldkArrayCount(internal.spotLights);
+    LDKSpotLight* spot = (LDKSpotLight*) ldkArrayGetData(internal.spotLights);
+    for (unsigned int i = 0; i < count; i++)
+    {
+      Mat4 m = mat4World((*spot).position, vec3(0.3f, 0.1f, 0.3f), quatId());
+      ldkShaderParamSetMat4(internal.shaderLightBox, "model", m);
+      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", vec3(1.0f, 0.0f, 1.0f));
+      InternalRenderCubeNDC();
+      spot++;
     }
 
     // Picking and selection
@@ -1194,7 +1240,9 @@ void ldkRendererRender(float deltaTime)
 
   ldkArrayClear(internal.renderObjectArray);
   ldkArrayClear(internal.renderObjectArrayDeferred);
-  ldkArrayClear(internal.lights);
+  ldkArrayClear(internal.spotLights);
+  ldkArrayClear(internal.directionalLights);
+  ldkArrayClear(internal.pointLights);
   ldkMaterialBind(0);
   ldkRenderBufferBind(NULL);
 }

@@ -1,8 +1,9 @@
 //
-// Vertes Shader
+// Vertex Shader
 //
 
-#ifdef LDK_COMPILE_VETEX_SHADER
+#ifdef LDK_COMPILE_VERTEX_SHADER
+
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aTexCoords;
@@ -18,10 +19,12 @@ void main()
 #endif
 
 
-#ifdef LDK_COMPILE_FRAGMENT_SHADER
 //
 // Fragment Shader
 //
+
+#ifdef LDK_COMPILE_FRAGMENT_SHADER
+
 layout (location = 0) out vec4 FragColor;
 
 uniform vec3 lightColor;

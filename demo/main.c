@@ -1,14 +1,15 @@
 #include "asset/config.h"
 #include "common.h"
+#include "entity/camera.h"
 #include "entity/directionallight.h"
 #include "entity/pointlight.h"
+#include "entity/spotlight.h"
 #include "maths.h"
 #include "module/entity.h"
 #include "module/renderer.h"
 #include <ldk.h>
 #include <math.h>
 #include <stdbool.h>
-#include <stdlib.h>
 
 #define SOKOBAN_MAX_BOX_COUNT 5
 #define sokobanBoxId(c) ((uint32)((c) - 'A'))
@@ -79,6 +80,7 @@ typedef struct
   Sokoban sokoban;
   LDKDirectionalLight* directionalLight;
   uint32 numPointLights;
+  LDKSpotLight* spotLight;
   LDKPointLight* pointLight[32];
 } GameState;
 
@@ -214,7 +216,8 @@ void sokobanPrintBoard(Sokoban* sokoban)
 bool onKeyboardEvent(const LDKEvent* event, void* data)
 {
   GameState* state = (GameState*) data;
-  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
+  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN
+      || event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_HOLD)
   {
     if (state->sokoban.animating)
       return false;
@@ -266,7 +269,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
       }
     }
   }
-
+#if 1
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_L)
   {
@@ -283,6 +286,7 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
       state->pointLight[i]->entity.active = b;
     }
   }
+#endif
 
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
@@ -353,9 +357,9 @@ bool onUpdate(const LDKEvent* event, void* data)
 
   ldkRendererSetCamera(camera);
 
-  state->pointLight[0]->position = state->sokoban.box[0].staticObject->position;
-  state->pointLight[1]->position = state->sokoban.box[1].staticObject->position;
+  state->pointLight[0]->position = state->sokoban.box[1].staticObject->position;
   state->pointLight[0]->position.y += 1.0f;
+  state->pointLight[1]->position = state->sokoban.box[0].staticObject->position;
   state->pointLight[1]->position.y += 1.0f;
 
   return true;
@@ -422,7 +426,7 @@ int main(void)
     "#..#....#-"
     "#########-";
 #else
-    ".........."
+  ".........."
     "......@..."
     ".........."
     "...A#B...."
@@ -482,12 +486,12 @@ int main(void)
   //
   // Room
   //
-  //LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
-  //ldkSmallString(&room->entity.name, "ROOM");
-  //ldkStaticObjectSetMesh(room, cube->asset.handle);
-  //room->scale = vec3(-10.0,-10.0,-10.0);
-  //room->position = vec3(3.0f, 8.0f, 0.0f);
-  //room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
+  LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
+  ldkSmallString(&room->entity.name, "ROOM");
+  ldkStaticObjectSetMesh(room, cube->asset.handle);
+  room->scale = vec3(-10.0,-10.0,-10.0);
+  room->position = vec3(3.0f, 4.0f, 3.0f);
+  room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
 
   //
   // Player
@@ -531,29 +535,38 @@ int main(void)
   cyborg->position = vec3(4, 0, 10);
   cyborg->scale = vec3One();
 
-  LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
-  directionalLight->direction = vec3(1.0f, 0.0f, 0.0f); 
-  directionalLight->position = vec3Mul(directionalLight->direction, -10);
-  directionalLight->colorSpecular = vec3(0.0f, 0.4f, 0.0f);
-  directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
-  state.directionalLight = directionalLight;
 
   //
   // Lights
   //
 
-  state.numPointLights = 2;
+  // Directional Light
+  LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
+  directionalLight->colorSpecular = vec3(1.0f, 0.0f, 0.0f);
+  directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
+  directionalLight->position = camera->position;
+  directionalLight->direction = ldkCameraDirectionNormalized(camera);
+  state.directionalLight = directionalLight;
 
-  state.pointLight[0] = ldkEntityCreate(LDKPointLight);
-  state.pointLight[0]->colorDiffuse = vec3One();
-  state.pointLight[0]->colorSpecular = vec3One();
-  ldkPointLightSetAttenuationPreset(state.pointLight[0], 1.0f);
 
-  state.pointLight[1] = ldkEntityCreate(LDKPointLight);
-  state.pointLight[1]->colorDiffuse = vec3One();
-  state.pointLight[1]->colorSpecular = vec3One();
-  ldkPointLightSetAttenuationPreset(state.pointLight[1], 1.0f);
+  // Point Light
+  uint32 i = 0;
+  state.pointLight[i] = ldkEntityCreate(LDKPointLight);
+  state.pointLight[i]->colorDiffuse = vec3One();
+  state.pointLight[i]->colorSpecular = vec3One();
+  i++;
 
+  state.pointLight[i] = ldkEntityCreate(LDKPointLight);
+  state.pointLight[i]->colorDiffuse = vec3One();
+  state.pointLight[i]->colorSpecular = vec3One();
+  i++;
+
+  state.numPointLights = i;
+
+  // Spot Light
+  state.spotLight = ldkEntityCreate(LDKSpotLight);
+  state.spotLight->position = camera->position;
+  state.spotLight->direction = ldkCameraDirectionNormalized(camera);
 
 
 #endif

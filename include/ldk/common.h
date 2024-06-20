@@ -334,6 +334,18 @@ extern "C" {
 
 
   //
+  // Light attenuation
+  //
+
+  typedef struct 
+  {
+    float linear;
+    float quadratic;
+  } LDKLightAttenuation;
+
+  LDK_API void ldkLightAttenuationForDistance(LDKLightAttenuation* attenuation, float distance);
+
+  //
   // Events
   //
 
@@ -443,7 +455,6 @@ extern "C" {
       LDKFrameEvent       frameEvent;
     };
   } LDKEvent;
-
 
 #ifdef __cplusplus
 }

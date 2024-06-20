@@ -11,6 +11,7 @@
 #include "../entity/camera.h"
 #include "../entity/pointlight.h"
 #include "../entity/directionallight.h"
+#include "../entity/spotlight.h"
 #include "../entity/staticobject.h"
 #include "../entity/instancedobject.h"
 #include "../asset/config.h"
@@ -32,6 +33,7 @@ LDK_API void ldkRendererAddStaticObject(LDKStaticObject* entity);
 LDK_API void ldkRendererAddInstancedObject(LDKInstancedObject* entity);
 LDK_API void ldkRendererAddPointLight(LDKPointLight* entity);
 LDK_API void ldkRendererAddDirectionalLight(LDKDirectionalLight* entity);
+LDK_API void ldkRendererAddSpotLight(LDKSpotLight* entity);
 LDK_API void ldkRendererRender(float deltaTime);
 
 //

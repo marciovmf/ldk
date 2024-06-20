@@ -40,6 +40,7 @@
 #include <ldk/entity/instancedobject.h>
 #include <ldk/entity/pointlight.h>
 #include <ldk/entity/directionallight.h>
+#include <ldk/entity/spotlight.h>
 
 
 #endif //LDK_H

@@ -2,7 +2,7 @@
  *  A shader file contains source code for VERTEX, FRAGMENT and GEOMETRY stages.
  *  each stage source must be enclosed in #ifdef /#endif directives as follows:
  *
- *  #ifdef LDK_COMPILE_VETEX_SHADER
+ *  #ifdef LDK_COMPILE_VERTEX_SHADER
  *  // your vertex shader source goes here
  *  #endif
  *
@@ -22,10 +22,10 @@
 
 
 //
-// Vertes Shader
+// Vertex Shader
 //
 
-#ifdef LDK_COMPILE_VETEX_SHADER
+#ifdef LDK_COMPILE_VERTEX_SHADER
 
 LDK_VERTEX_ATTRIBUTE0 vec3 vPosition;
 

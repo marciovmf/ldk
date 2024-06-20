@@ -11,6 +11,7 @@
 #include "ldk/entity/instancedobject.h"
 #include "ldk/entity/pointlight.h"
 #include "ldk/entity/directionallight.h"
+#include "ldk/entity/spotlight.h"
 #include "ldk/asset/image.h"
 #include "ldk/asset/shader.h"
 #include "ldk/asset/material.h"
@@ -134,6 +135,7 @@ bool ldkEngineInitialize(void)
   stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy, 8);
   stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy, 32);
   stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKSpotLight, ldkSpotLightEntityCreate, ldkSpotLightEntityDestroy, 32);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 
@@ -225,32 +227,25 @@ LDK_API int32 ldkEngineRun(void)
     ldkEventPush(&event);
     ldkEventQueueBroadcast();
 
+    //
     // Pass entities to the renderer
-    LDKHListIterator it = ldkEntityManagerGetIterator(LDKStaticObject);
-    while(ldkHListIteratorNext(&it))
-    {
-      ldkRendererAddStaticObject(it.ptr);
-    }
+    //
+    LDKHListIterator it;
+    it = ldkEntityManagerGetIterator(LDKStaticObject);
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddStaticObject(it.ptr); }
 
     it = ldkEntityManagerGetIterator(LDKInstancedObject);
-    while(ldkHListIteratorNext(&it))
-    {
-      ldkRendererAddInstancedObject(it.ptr);
-    }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddInstancedObject(it.ptr); }
 
     it = ldkEntityManagerGetIterator(LDKDirectionalLight);
-    while(ldkHListIteratorNext(&it))
-    {
-      ldkRendererAddDirectionalLight(it.ptr);
-    }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddDirectionalLight(it.ptr); }
 
     it = ldkEntityManagerGetIterator(LDKPointLight);
-    while(ldkHListIteratorNext(&it))
-    {
-      ldkRendererAddPointLight(it.ptr);
-    }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddPointLight(it.ptr); }
+
+    it = ldkEntityManagerGetIterator(LDKSpotLight);
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddSpotLight(it.ptr); }
   }
-  // unload all assets
 
   ldkEngineTerminate();
   return internal.exitCode;
