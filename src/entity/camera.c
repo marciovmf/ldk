@@ -12,6 +12,7 @@ LDKCamera* ldkCameraEntityCreate(LDKCamera* entity)
   entity->farPlane  = 1000.0f;
   entity->position  = vec3(0.0f, 0.0f, 10.0f);
   entity->target    = vec3Zero();
+  entity->orthoSize = 3.0f;
   entity->type = LDK_CAMERA_PERSPECTIVE;
 
   return entity;

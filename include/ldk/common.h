@@ -142,9 +142,6 @@ extern "C" {
   typedef uint64_t  uint64;
   typedef uintptr_t LDKHandle;
   typedef void*     LDKWindow;
-  typedef struct LDKRenderBuffer_t LDKRenderBuffer;
-  typedef struct LDKInstanceBuffer_t LDKInstanceBuffer;
-
 
   // SmallStr
   typedef struct
@@ -167,6 +164,10 @@ extern "C" {
     int32 height;
   } LDKSize;
 
+  LDK_API LDKSize ldkSize(int32 width, int32 height);
+  LDK_API LDKSize ldkSizeZero();
+  LDK_API LDKSize ldkSizeOne();
+
   // LDKRect
   typedef struct 
   {
@@ -175,6 +176,8 @@ extern "C" {
     int32 w;
     int32 h;
   } LDKRect;
+
+  LDK_API LDKRect ldkRect(int32 x, int32 y, int32 width, int32 height);
 
   // LDKRectf
   typedef struct 
@@ -185,12 +188,17 @@ extern "C" {
     float h;
   } LDKRectf;
 
+
+  LDK_API LDKRectf ldkRectf(float x, float y, float width, float height);
+
   // LDKPoint
   typedef struct
   {
     int32 x;
     int32 y;
   } LDKPoint;
+
+  LDK_API LDKPoint ldkPoint(int32 x, int32 y);
 
   // LDKPointf
   typedef struct
@@ -199,22 +207,29 @@ extern "C" {
     float y;
   } LDKPointf;
 
+  LDK_API LDKPointf ldkPointf(float x, float y);
+
   // LDKRGB
   typedef struct
   {
-    int32 r;
-    int32 g;
-    int32 b;
+    uint8 r;
+    uint8 g;
+    uint8 b;
   } LDKRGB;
+
+  LDK_API LDKRGB ldkRGB(uint8 r, uint8 g, uint8 b);
 
   // LDKRGBA
   typedef struct
   {
-    int32 r;
-    int32 g;
-    int32 b;
-    int32 a;
+    uint8 r;
+    uint8 g;
+    uint8 b;
+    uint8 a;
   } LDKRGBA;
+
+  LDK_API LDKRGBA ldkRRGA(uint8 r, uint8 g, uint8 b, uint8 a);
+
 
   //
   // Logging
@@ -319,13 +334,25 @@ extern "C" {
 
 
   //
+  // Light attenuation
+  //
+
+  typedef struct 
+  {
+    float linear;
+    float quadratic;
+  } LDKLightAttenuation;
+
+  LDK_API void ldkLightAttenuationForDistance(LDKLightAttenuation* attenuation, float distance);
+
+  //
   // Events
   //
 
   typedef enum
   {
     /* Event Types */
-    LDK_EVENT_NONE                  = 0,
+    LDK_EVENT_TYPE_NONE             = 0,
     LDK_EVENT_TYPE_GAME             = 1,
     LDK_EVENT_TYPE_WINDOW           = 1 << 1,
     LDK_EVENT_TYPE_TEXT             = 1 << 2,
@@ -334,7 +361,8 @@ extern "C" {
     LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
     LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
     LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
-    LDK_EVENT_TYPE_FRAME            = 1 << 8,
+    LDK_EVENT_TYPE_FRAME_BEFORE     = 1 << 8,
+    LDK_EVENT_TYPE_FRAME_AFTER      = 1 << 9,
     LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
     /* Keyboard Event types */
@@ -353,10 +381,6 @@ extern "C" {
     LDK_MOUSE_EVENT_BUTTON_UP       = 9,
     LDK_MOUSE_EVENT_WHEEL_FORWARD   = 10,
     LDK_MOUSE_EVENT_WHEEL_BACKWARD  = 11,
-
-    /* Frame event types */
-    LDK_FRAME_EVENT_BEFORE_RENDER   = 12,
-    LDK_FRAME_EVENT_AFTER_RENDER    = 13,
 
     /* Window event types */
     LDK_WINDOW_EVENT_RESIZED        = 14,
@@ -413,8 +437,8 @@ extern "C" {
   // LDKFrameEvent
   typedef struct
   {
-    LDKEventType type;
     uint64 ticks;
+    float deltaTime;
   } LDKFrameEvent;
 
   // LDKEvent
@@ -431,7 +455,6 @@ extern "C" {
       LDKFrameEvent       frameEvent;
     };
   } LDKEvent;
-
 
 #ifdef __cplusplus
 }

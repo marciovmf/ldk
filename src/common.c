@@ -5,6 +5,61 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+
+LDKSize ldkSize(int32 width, int32 height)
+{
+  LDKSize size = {.width = width, .height = height}; 
+  return size;
+}
+
+LDKSize ldkSizeZero()
+{
+  LDKSize size = {0};
+  return size;
+}
+
+LDKSize ldkSizeOne()
+{
+  LDKSize size = {.width = 1, .height = 1}; 
+  return size;
+}
+
+LDKRect ldkRect(int32 x, int32 y, int32 width, int32 height)
+{
+  LDKRect rect = {.x = x, .y = y, .w = width, .h = height};
+  return rect;
+}
+
+LDKRectf ldkRectf(float x, float y, float width, float height)
+{
+  LDKRectf rectf = {.x = x, .y = y, .w = width, .h = height};
+  return rectf;
+}
+
+LDKPoint ldkPoint(int32 x, int32 y)
+{
+  LDKPoint point = {.x = x, .y = y};
+  return point;
+}
+
+LDKPointf ldkPointf(float x, float y)
+{
+  LDKPointf point = {.x = x, .y = y};
+  return point;
+}
+
+LDKRGB ldkRGB(uint8 r, uint8 g, uint8 b)
+{
+  LDKRGB rgb = {.r = r, .g = g, .b = b};
+  return rgb;
+}
+
+LDKRGBA ldkRGBA(uint8 r, uint8 g, uint8 b, uint8 a)
+{
+  LDKRGBA rgba = {.r = r, .g = g, .b = b, .a = a};
+  return rgba;
+}
+
 //
 // Logging
 //
@@ -203,7 +258,7 @@ size_t ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...)
 {
   va_list argList;
   va_start(argList, fmt);
-  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LENGTH, fmt, argList);
+  smallString->length = vsnprintf((char*) &smallString->str, LDK_SMALL_STRING_MAX_LENGTH-1, fmt, argList);
   va_end(argList);
 
   bool success = smallString->length > 0 && smallString->length < LDK_SMALL_STRING_MAX_LENGTH;
@@ -433,4 +488,33 @@ void ldkPathNormalize(LDKPath* ldkPath)
   // Update the length and null-terminate the result
   ldkPath->length = resultIndex;
   ldkPath->path[resultIndex] = '\0';
+}
+
+
+//
+// Light attenuation
+//
+
+// Attenuation values from https://wiki.ogre3d.org/tiki-index.php?page=-Point+Light+Attenuation
+static uint32 rangeLimit[] = {7, 13, 20, 32, 50, 65, 100, 160, 200, 325, 600, 3250};
+static float linear[]     = {0.7f,  0.35f,  0.22f,  0.14f,  0.09f,  0.07f,  0.045f,  0.027f,  0.022f,  0.014f,  0.007f,  0.0014f};
+static float quadratic[]  = {1.8f,  0.44f,  0.20f,  0.07f,  0.032f,  0.017f,  0.0075f,  0.0028f,  0.0019f,  0.0007f,  0.0002f,  0.000007f};
+
+void ldkLightAttenuationForDistance(LDKLightAttenuation* attenuation, float distance)
+{
+  if (attenuation == NULL)
+    return;
+
+  uint32 r = LDK_MAX(rangeLimit[0], (uint32) distance);
+  uint32 presetIndex = 0;
+  uint32 numPresets = sizeof(rangeLimit) / sizeof(uint32);
+  for (uint32 i = 0; i < numPresets; i++)
+  {
+    if (r < rangeLimit[i])
+      break;
+    presetIndex = i;
+  }
+
+  attenuation->linear     = linear[presetIndex],
+  attenuation->quadratic  = quadratic[presetIndex];
 }

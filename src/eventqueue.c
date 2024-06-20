@@ -24,7 +24,7 @@ void ldkEventPush(LDKEvent* event)
   memcpy((void*) &internal.events[index], event, sizeof(LDKEvent));
 }
 
-void ldkEventCleanup(void)
+void ldkEventQueueCleanup(void)
 {
   internal.numEvents = 0;
 }
@@ -77,7 +77,7 @@ LDKEventType ldkEventHandlerMaskGet(LDKEventHandler handler)
       return internal.mask[i];
     }
   }
-  return LDK_EVENT_NONE;
+  return LDK_EVENT_TYPE_NONE;
 }
 
 void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask)

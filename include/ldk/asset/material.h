@@ -12,7 +12,6 @@
 #include "../maths.h"
 #include "../module/asset.h"
 #include "../asset/shader.h"
-#include "../asset/texture.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +29,7 @@ extern "C" {
     LDK_MATERIAL_PARAM_TYPE_VEC4    = 5,
     LDK_MATERIAL_PARAM_TYPE_MAT4    = 6,
     LDK_MATERIAL_PARAM_TYPE_TEXTURE = 7,
+    LDK_MATERIAL_PARAM_TYPE_BOOL    = 8
   }LDKMaterialParamType;
 
   typedef struct
@@ -40,6 +40,7 @@ extern "C" {
     union
     {
       uint32    textureIndexValue;
+      bool      boolValue;
       int       intValue;
       uint32    uintValue;
       float     floatValue;
@@ -59,10 +60,20 @@ extern "C" {
     LDKHandle textures[LDK_SHADER_MAX_PARAMS];
     uint32 numParam;
     uint32 numTextures;
+    bool enableDepthTest;
+    bool enableDepthWrite;
+    bool enableBlend;
+    bool enableCullBack;
+    bool enableCullFront;
+    bool deferred;
+    
   } LDKMaterial;
 
   LDK_API bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetMaterialUnloadFunc(LDKAsset asset);
+  LDK_API LDKMaterial* ldkMaterialClone(LDKHandle hMaterial);
+  LDK_API bool ldkMaterialIsDeferred(LDKHandle hMaterial);
+
 
 #ifdef __cplusplus
 }

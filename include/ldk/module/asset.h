@@ -35,6 +35,7 @@ extern "C" {
 
   typedef struct
   {
+    bool      isFile;
     LDKPath   path;
     LDKTypeId assetType;
     LDKHandle handle;
@@ -50,6 +51,7 @@ extern "C" {
 #define LDK_DECLARE_ASSET LDKAssetInfo asset
 
 #define ldkAssetGet(type, path) ((type*) ldkAssetGetByType(typeid(type), path))
+#define ldkAssetNew(type) ((type*) ldkAssetNewByType(typeid(type)))
 #define ldkAssetLookup(type, handle) (type*) ldkAssetLookupType(typeid(type), handle)
 
 #define ldkAssetHandlerRegister(type, loadFunc, unloadFunc, capacity,  ...) ldkAssetHandlerRegisterNew(typeid(type), loadFunc, unloadFunc, capacity, __VA_ARGS__, NULL)
@@ -65,6 +67,7 @@ extern "C" {
   LDK_API LDKAsset ldkAssetGetByType(LDKTypeId typeId, const char* path);
   LDK_API void ldkAssetDispose(LDKAsset asset);
   LDK_API LDKAsset ldkAssetLookupType(LDKTypeId type, LDKHandle handle);
+  LDK_API LDKAsset ldkAssetNewByType(LDKTypeId type);
 
 
 #ifdef __cplusplus

@@ -2,17 +2,17 @@
  *
  * arena.h
  * 
- * An arena is a pre-allocated, fixed-size (but expandable) block of memory that
- * can be manually managed and subdivided into smaller blocks as needed.
- * Arenas are used to manage memory efficiently by reducing the overhead of
- * frequent allocation and deallocation of small memory chunks.
+ * An arena is a collection of Chunks. Memory from chunks can be requested and
+ * manually managed in order to reduce the overhead of frequent small
+ * allocations and deallocations.
+ * More chunks are added to the arena as needed.
+ *
  */
 
 #ifndef LDK_ARENA_H
 #define LDK_ARENA_H
 
 #include "common.h"
-#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,24 +20,26 @@ extern "C" {
 
   typedef struct
   {
-    size_t bufferSize;
+    uint8* data;
     size_t used;
-    byte* data;
-    bool initialized;
+    size_t capacity;
+  } LDKChunk;
+
+  typedef struct
+  {
+    LDKChunk* chunks;
+    uint32 numChunks;
+    size_t chunkCapacity;
   } LDKArena;
 
-#define ldkArenaAllocate(arena, type) ldkArenaAllocateSize(arena, sizeof(type))
-#define ldkArenaFree(arena, type) ldkArenaFreeSize(arena, sizeof(type))
 
-  LDK_API bool  ldkArenaCreate(LDKArena* arena, size_t size);
-  LDK_API void  ldkArenaDestroy(LDKArena* arena);
-  LDK_API byte* ldkArenaAllocateSize(LDKArena* arena, size_t size);
-  LDK_API void  ldkArenaFreeSize(LDKArena* arena, size_t size);
-  LDK_API void  ldkArenaReset(LDKArena* arena);
-  LDK_API size_t	ldkArenaSizeGet(const LDKArena* arena);
-  LDK_API size_t	ldkArenaUsedGet(const LDKArena* arena);
-  LDK_API byte* ldkArenaDataGet(const LDKArena* arena);
-  LDK_API void  ldkArenaReset(LDKArena* arena);
+#define ldkArenaAllocate(arena, type) ldkArenaAllocateSize(arena, sizeof(type))
+
+  bool ldkArenaCreate(LDKArena* out, size_t chunkSize);
+  void ldkArenaDestroy(LDKArena* arena);
+  uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size);   // gets memory from chunk
+  void ldkArenaReset(LDKArena* arena);
+
 
 #ifdef __cplusplus
 }

@@ -14,8 +14,9 @@
 #define LDK_INSTANCEDMESH_H
 
 #include "../common.h"
+#include "../module/rendererbackend.h"
 #include "../maths.h"
-#include "../arena.h"
+#include "../array.h"
 #include "../module/entity.h"
 
 #ifdef __cplusplus
@@ -33,8 +34,8 @@ typedef struct
 typedef struct
 {
   LDK_DECLARE_ENTITY;
-  LDKArena instanceList;
-  LDKArena instanceWorldMatrixList;
+  LDKArray* instanceList;
+  LDKArray* instanceWorldMatrixList;
   LDKHandle mesh;
   LDKInstanceBuffer* instanceBuffer;
 } LDKInstancedObject;

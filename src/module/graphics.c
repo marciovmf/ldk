@@ -16,7 +16,7 @@ bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
   //TODO(marcio): Where should we get these parameters from ?
   internal.api = api;
   const int32 colorBits = 24;
-  const int32 depthBits = 8;
+  const int32 depthBits = 24;
 
   switch(api)
   {
@@ -153,9 +153,15 @@ void  ldkGraphicsMultisamplesSet(int32 samples)
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
       || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
   {
-    glEnable(GL_MULTISAMPLE);
-    glSampleCoverage(samples * 1.0f, GL_TRUE);
-    internal.multiSampleLevel = samples;
+    if (samples > 0)
+    {
+      glEnable(GL_MULTISAMPLE);
+      glSampleCoverage((float) samples, GL_TRUE);
+      internal.multiSampleLevel = samples;
+    }
+    else {
+      glDisable(GL_MULTISAMPLE);
+    }
   }
   else
   {

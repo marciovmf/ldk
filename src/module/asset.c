@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <vadefs.h>
+#include <stdlib.h>
 
 typedef struct
 {
@@ -26,7 +27,6 @@ static struct
   LDKHashMap* assetMap;              // Maps asset names to asset handle
   uint32 numHandlers;
 } internal = { 0 };
-
 
 static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtension)
 {
@@ -185,6 +185,7 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   asset->assetType = handler->assetTypeId;
   asset->handle = hAsset;
   asset->handlerId = handler->handlerId;
+  asset->isFile = true;
 
   // Call user code to initialize the asset
   bool success = handler->loadFunc(path, asset);
@@ -195,6 +196,7 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   asset->assetType = handler->assetTypeId;
   asset->handle = hAsset;
   asset->handlerId = handler->handlerId;
+  asset->isFile = true;
 
   char* key = _strdup(path);
   ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
@@ -240,4 +242,48 @@ LDKAsset ldkAssetLookupType(LDKTypeId typeId, LDKHandle handle)
   return NULL;
 }
 
+LDKAsset ldkAssetNewByType(LDKTypeId type)
+{
+  static uint32 counter = 0;
 
+  // Find the handler for this type
+
+  LDKAssetHandler* handler = NULL;
+  for (uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    if (internal.handlers[i].assetTypeId == type) 
+    {
+      handler = &internal.handlers[i];
+      break;
+    }
+  }
+
+  if (handler == NULL)
+  {
+    ldkLogError("There are no handlers for type '%s'", typename(type));
+    return NULL;
+  }
+
+  LDKHandle hAsset = ldkHListReserve(&handler->assets);
+  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
+
+  char path[255];
+  sprintf(path, "%s#%d#%d", typename(type), handler->assets.elementCount, counter++);
+  ldkPath(&asset->path, path);
+
+  LDKHash hash = ldkHashStr(path);
+  uint64 loadTime = ldkOsTimeTicksGet();
+
+  // Set asset information so user code read it if necessary
+  asset->hash = hash;
+  asset->loadTime = loadTime;
+  asset->assetType = handler->assetTypeId;
+  asset->handle = hAsset;
+  asset->handlerId = handler->handlerId;
+  asset->isFile = false;
+
+  char* key = _strdup(path);
+  ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
+
+  return asset;
+}

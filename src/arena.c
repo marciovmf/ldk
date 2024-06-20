@@ -3,82 +3,106 @@
 #include <math.h>
 #include <stdio.h>
 
-bool ldkArenaCreate(LDKArena* arena, size_t size)
+#ifndef ARENA_ALLOCATE
+#define ARENA_ALLOCATE(size) ldkOsMemoryAlloc(size)
+#endif // ARENA_ALLOCATE
+
+
+#ifndef ARENA_FREE
+#define ARENA_FREE(mem) ldkOsMemoryFree(mem)
+#endif // ARENA_FREE
+
+
+#ifndef ARENA_REALLOC
+#define ARENA_REALLOC(mem, size) ldkOsMemoryResize(mem, size)
+#endif // ARENA_REALLOC
+
+//
+// Internal functions
+//
+
+// Adds a new chunk to the arena and updates the arena chunk information
+static LDKChunk* internalLDKArenaAddLDKChunk(LDKArena* arena, size_t size)
 {
-  LDK_ASSERT(arena->initialized == false);
-  LDK_ASSERT(size > 0);
+  uint32 chunkIndex = arena->numChunks++;
+  arena->chunks = (LDKChunk*) ARENA_REALLOC(arena->chunks, sizeof(LDKChunk) * arena->numChunks);
+  arena->chunks[chunkIndex].data = (uint8*) ARENA_ALLOCATE(arena->chunkCapacity);
+  arena->chunks[chunkIndex].capacity = arena->chunkCapacity;
+  arena->chunks[chunkIndex].used = 0;
 
-  if (size <= 0 || !arena)
-    return false;
+  if (arena->chunkCapacity < size)
+    arena->chunkCapacity = size;
 
-  arena->bufferSize = size;
-  arena->used = 0;
-  arena->data = (byte*) ldkOsMemoryAlloc(size);
-  arena->initialized = true;
-  return arena->data != NULL;
+  return &arena->chunks[chunkIndex];
 }
 
-void ldkArenaDestroy(LDKArena* arena)
+static uint8* internalLDKArenaAllocateFromLDKChunk(LDKChunk* chunk, size_t size)
 {
-  LDK_ASSERT(arena->initialized);
+  if (!chunk)
+    return NULL;
 
-  ldkOsMemoryFree(arena->data); 
-  arena->bufferSize = 0;
-  arena->used = 0;
-  arena->data = NULL;
+  size_t freeSpace = chunk->capacity - chunk->used;
+  if (size > freeSpace)
+    return NULL;
+
+  uint8* memory = chunk->data + chunk->used;
+  chunk->used += size;
+  return memory;
 }
 
-byte* ldkArenaAllocateSize(LDKArena* arena, size_t size)
+//
+// Public functions
+//
+
+bool ldkArenaCreate(LDKArena* out, size_t capacity)
 {
-  LDK_ASSERT(arena->initialized);
-  if (arena->used + size >= arena->bufferSize)
+  out->numChunks = 0;
+  out->chunkCapacity = capacity;
+  out->chunks = NULL;
+  return internalLDKArenaAddLDKChunk(out, capacity) != NULL;
+}
+
+void ldkArenaDestroy(LDKArena* out)
+{
+  for (uint32 i = 0; i < out->numChunks; i++)
   {
-    size_t newCapacity = 2 * (arena->bufferSize + size);
-    // get next pow2 larger than current capacity
-    newCapacity = (newCapacity >> 1) | newCapacity;
-    newCapacity = (newCapacity >> 2) | newCapacity;
-    newCapacity = (newCapacity >> 4) | newCapacity;
-    newCapacity = (newCapacity >> 8) | newCapacity;
-    newCapacity = (newCapacity >> 16) | newCapacity;
-    newCapacity = (newCapacity >> 32) | newCapacity;
-    newCapacity++;
-    arena->data = (byte*) ldkOsMemoryResize(arena->data, newCapacity);
-    arena->bufferSize = newCapacity;
+    ARENA_FREE((void*) out->chunks[i].data);
   }
 
-  byte* memPtr = arena->data + arena->used;
-  arena->used += size;
-  return memPtr;
+  ARENA_FREE((void*) out->chunks);
+  out->chunks = NULL;
+  out->numChunks = 0;
 }
 
-void ldkArenaFreeSize(LDKArena* arena, size_t size)
+uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size)
 {
-  LDK_ASSERT(arena->initialized);
-  LDK_ASSERT(size <= arena->used);
-  LDK_ASSERT(size <= arena->bufferSize);
-  arena->used -= size;
+  // Can we find space in any existing chunk ?
+  for (uint32 i = 0; i < arena->numChunks; i++)
+  {
+    LDKChunk* chunk = &arena->chunks[i];
+    size_t freeSpace = chunk->capacity - chunk->used;
+
+    if (freeSpace >= size)
+    {
+      chunk = &arena->chunks[i];
+      return internalLDKArenaAllocateFromLDKChunk(chunk, size);
+    }
+  }
+
+  // We need to allocate a new chunk.
+  // Should the new chunk be larger ?
+  size_t newSize = arena->chunkCapacity;
+  if (size > arena->chunkCapacity)	
+    newSize = arena->chunkCapacity + size;
+
+  LDKChunk* chunk = internalLDKArenaAddLDKChunk(arena, newSize);
+  return internalLDKArenaAllocateFromLDKChunk(chunk, size);
 }
 
 void ldkArenaReset(LDKArena* arena)
 {
-  LDK_ASSERT(arena->initialized);
-  arena->used = 0;
-}
-
-size_t ldkArenaSizeGet(const LDKArena* arena)
-{
-  LDK_ASSERT(arena->initialized);
-  return arena->bufferSize;
-}
-
-size_t ldkArenaUsedGet(const LDKArena* arena)
-{
-  LDK_ASSERT(arena->initialized);
-  return arena->used;
-}
-
-byte* ldkArenaDataGet(const LDKArena* arena)
-{
-  LDK_ASSERT(arena->initialized);
-  return arena->data;
+  for (uint32 i = 0; i < arena->numChunks; i++)
+  {
+    arena->chunks[i].used = 0;
+  }
 }

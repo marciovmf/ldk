@@ -76,18 +76,23 @@ bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc cr
 
 LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
 {
+  static int32 entityCount = 0;
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if (!handler)
     return NULL;
 
   LDKHandle handle = ldkHListReserve(&handler->entities);
   LDKEntityInfo* entity = (LDKEntityInfo*) ldkHListLookup(&handler->entities, handle);
+  ldkSmallStringFormat(&entity->name, "%s_%x_%x",
+      typename(handler->typeId), handler->entities.elementCount - 1, entityCount);
   handler->createFunc(entity);
   entity->handle = handle;
   entity->flags = 0;
   entity->typeId = typeId;
+  entity->active = true;
 
   internal.numEntities++;
+  entityCount++;
   return entity;
 }
 
@@ -100,16 +105,17 @@ LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle)
   return ldkHListLookup(&handler->entities, handle);
 }
 
-LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count)
+LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
 {
+  LDKHListIterator it;
+  it.index = -1;
+  it.hlist = NULL;
+
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
-  if(!handler)
-    return NULL;
+  if(handler == NULL)
+    return it;
 
-  if (count)
-    *count = ldkHListCount(&handler->entities);
-
-  return ldkHListArrayGet(&handler->entities);
+  return ldkHListIteratorCreate(&handler->entities);
 }
 
 const LDKTypeId* ldkEntityManagerTypes(uint32* count)
@@ -128,5 +134,6 @@ bool ldkEntityDestroy(LDKHandle handle)
 
   return ldkHListRemove(&handler->entities, handle);
 }
+
 
 //TODO(marcio): Cerate means to unregister an EntityHandler (remember to fix handledTypes)

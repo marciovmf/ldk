@@ -24,10 +24,14 @@
 extern "C" {
 #endif
 
+  LDK_API void ldkEngineSetTimeScale(float scale);
+  LDK_API float ldkEngineGetTimeScale();
+
   LDK_API bool ldkEngineInitialize(void);
   LDK_API void ldkEngineTerminate(void);
   LDK_API int32 ldkEngineRun(void);
   LDK_API void ldkEngineStop(int32);
+  LDK_API bool ldkEngineIsEditorRunning(void);
 
 #endif //LDK_ENGINE_H
 

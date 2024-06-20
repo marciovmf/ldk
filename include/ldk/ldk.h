@@ -15,6 +15,7 @@
 #include <ldk/gl.h>
 #include <ldk/hlist.h>
 #include <ldk/arena.h>
+#include <ldk/array.h>
 #include <ldk/maths.h>
 #include <ldk/engine.h>
 #include <ldk/eventqueue.h>
@@ -37,6 +38,9 @@
 #include <ldk/entity/camera.h>
 #include <ldk/entity/staticobject.h>
 #include <ldk/entity/instancedobject.h>
+#include <ldk/entity/pointlight.h>
+#include <ldk/entity/directionallight.h>
+#include <ldk/entity/spotlight.h>
 
 
 #endif //LDK_H

@@ -9,6 +9,7 @@
 #define LDK_ENTITY_H
 
 #include "../common.h"
+#include "../hlist.h"
 
 #ifndef LDK_ENTITY_MANAGER_MAX_HANDLERS
 #define LDK_ENTITY_MANAGER_MAX_HANDLERS 32
@@ -19,8 +20,15 @@
 extern "C" {
 #endif
 
+  enum
+  {
+    LDK_ENTITY_FLAG_INTERNAL =  1 << 31
+  };
+
   typedef struct
   {
+    bool active;
+    LDKSmallStr name;
     LDKTypeId typeId;     // The type of the entity
     uint32 flags;         // Space for user defined flags
     LDKHandle handle;     // The unique entity handle for this entity.
@@ -39,8 +47,10 @@ extern "C" {
 
 #define ldkEntityLookup(type, handle) ((type*) ldkEntityManagerEntityLookup(typeid(type), handle))
 
-#define ldkEntityGetAll(type, count) ((type*) ldkEntityManagerEntitiesGet(typeid(type), count))
+#define ldkEntityManagerGetIterator(type) ldkEntityManagerGetIteratorForType(typeid(type))
 
+#define ldkEntitySetNameFormat(e, fmt, ...) ldkSmallStringFormat(&e->entity.name, fmt, __VA_ARGS__)
+#define ldkEntitySetName(e, n) ldkSmallString(&e->entity.name, n)
 
   typedef void* LDKEntity;
   typedef void (*LDKEntityHandlerCreateFunc) (LDKEntity);
@@ -55,6 +65,7 @@ extern "C" {
   LDK_API LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count);
   LDK_API const LDKTypeId* ldkEntityManagerTypes(uint32* count);
   LDK_API bool ldkEntityDestroy(LDKHandle handle);
+  LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
 
 #ifdef __cplusplus
 }

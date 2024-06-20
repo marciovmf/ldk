@@ -62,6 +62,7 @@ static void internalHashTabeResize(LDKHashMap* table)
 {
   size_t newCapacity = table->capacity * 2;
   LDKHashMapEntry* newEntryList = (LDKHashMapEntry*)ldkOsMemoryAlloc(newCapacity * sizeof(LDKHashMapEntry));
+  memset(newEntryList, 0, newCapacity * sizeof(LDKHashMapEntry));
 
   for (size_t i = 0; i < table->capacity; i++)
   {
