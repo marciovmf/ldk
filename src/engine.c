@@ -208,7 +208,7 @@ LDK_API int32 ldkEngineRun(void)
 
     if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
     {
-      ldkEditorEnable(! ldkEditorIsEnabled());
+      ldkEditorEnable(!ldkEditorIsEnabled());
     }
 
     event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
@@ -218,6 +218,9 @@ LDK_API int32 ldkEngineRun(void)
     ldkEventQueueBroadcast();
 
     ldkRendererRender(deltaTime);
+    if (ldkEditorIsEnabled())
+      ldkEditorImmediateDraw(deltaTime);
+
     ldkGraphicsSwapBuffers();
     tickEnd = ldkOsTimeTicksGet();
 
@@ -228,8 +231,9 @@ LDK_API int32 ldkEngineRun(void)
     ldkEventQueueBroadcast();
 
     //
-    // Pass entities to the renderer
+    // Pass known entity types to the renderer
     //
+
     LDKHListIterator it;
     it = ldkEntityManagerGetIterator(LDKStaticObject);
     while(ldkHListIteratorNext(&it)) { ldkRendererAddStaticObject(it.ptr); }
@@ -246,6 +250,7 @@ LDK_API int32 ldkEngineRun(void)
     it = ldkEntityManagerGetIterator(LDKSpotLight);
     while(ldkHListIteratorNext(&it)) { ldkRendererAddSpotLight(it.ptr); }
   }
+
 
   ldkEngineTerminate();
   return internal.exitCode;

@@ -16,6 +16,7 @@ extern "C" {
   LDK_API bool ldkEditorInitialize(void);
   LDK_API void ldkEditorTerminate(void);
   LDK_API void ldkEditorUpdate(float deltaTime);
+  LDK_API void ldkEditorImmediateDraw(float deltaTime);
 
 #ifdef __cplusplus
 }

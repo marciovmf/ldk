@@ -1,5 +1,6 @@
 #include "array.h"
 #include "entity/directionallight.h"
+#include "entity/instancedobject.h"
 #include "entity/spotlight.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/graphics.h"
@@ -24,15 +25,18 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+
+void internalRenderMeshInstanced(LDKInstancedObject* entity);
+
 #ifndef LDK_RENDERER_OPENGL
 #define LDK_RENDERER_OPENGL
 #endif // LDK_RENDERER_OPENGL
 
 typedef struct 
 {
-  float objectIndex;
-  float surfaceIndex;
-  float triangleIndex;
+  uint32 objectIndex;
+  uint32 surfaceIndex;
+  uint32 instanceIndex;
 } LDKPickingPixelInfo;
 
 static struct 
@@ -76,7 +80,7 @@ static struct
   Vec3 higlightColor2;
 
   LDKHandle selectedEntity;
-  uint32 selectedEntityIndex;
+  LDKPickingPixelInfo pickingInfo;
 } internal = { 0 };
 
 typedef enum
@@ -94,7 +98,6 @@ typedef struct
     LDKStaticObject* staticMesh;
     LDKInstancedObject* instancedMesh;
   };
-
 } LDKRenderObject;
 
 //
@@ -213,15 +216,15 @@ static Vec3 internalGetClearColor()
   return internal.clearColor;
 }
 
-static void internalRenderForPicking(LDKStaticObject* entity, uint32 objectIndex)
+static void internalRenderStaticObjectForPicking(LDKStaticObject* entity, uint32 objectIndex)
 {
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
   if(!mesh)
     return;
 
-  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
   Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
   ldkShaderParamSetMat4(internal.shaderPicking, "mModel", world);
+  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
   ldkRenderBufferBind(mesh->vBuffer);
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
@@ -231,6 +234,32 @@ static void internalRenderForPicking(LDKStaticObject* entity, uint32 objectIndex
   }
 
   ldkRenderBufferBind(NULL);
+}
+
+static void internalRenderInstancedObjectForPicking(LDKInstancedObject* entity, uint32 objectIndex)
+{
+  LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
+
+  if(!mesh)
+    return;
+  
+  ldkRenderBufferBind(mesh->vBuffer);
+  ldkInstanceBufferBind(entity->instanceBuffer);
+  ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
+  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
+
+  for(uint32 i = 0; i < mesh->numSurfaces; i++)
+  {
+    LDKSurface* surface = &mesh->surfaces[i];
+    // Test pasing the instance index instead of the surface index
+    ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+    uint32 numInstances = ldkInstancedObjectCount(entity);
+    glDrawElementsInstanced(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)), numInstances);
+  }
+
+  ldkInstanceBufferUnbind(entity->instanceBuffer);
+  ldkRenderBufferBind(NULL);
+  ldkMaterialBind(NULL);
 }
 
 static void internalRenderHighlight(LDKStaticObject* entity)
@@ -243,17 +272,16 @@ static void internalRenderHighlight(LDKStaticObject* entity)
   glLineWidth(3.0);
   glDisable(GL_DEPTH_TEST);
 
-
   Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
 
   ldkRenderBufferBind(mesh->vBuffer);
   ldkShaderProgramBind(internal.shaderHighlight);
   ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
-  ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
   ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
   ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
   ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
   ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
+  ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
@@ -279,15 +307,24 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(renderObjects);
   ldkShaderProgramBind(internal.shaderPicking);
   ldkShaderParamSetMat4(internal.shaderPicking, "mView", ldkCameraViewMatrix(internal.camera));
   ldkShaderParamSetMat4(internal.shaderPicking, "mProj", ldkCameraProjectMatrix(internal.camera));
 
-  LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(renderObjects);
   for(uint32 i = 0; i < count; i++)
   {
     if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
-      internalRenderForPicking(ro->staticMesh, i + 1);
+    {
+      ldkShaderParamSetBool(internal.shaderPicking, "instanced", false);
+      internalRenderStaticObjectForPicking(ro->staticMesh, i + 1);
+    }
+    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
+    {
+      ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
+      internalRenderInstancedObjectForPicking(ro->instancedMesh, i + 1);
+    }
+
     ro++;
   }
 
@@ -301,18 +338,31 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
 
     int x = mouseState.cursor.x;
     int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
-    LDKPickingPixelInfo pixelInfo;
 
-    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelInfo);
+    Vec3 pixelColor;
+    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelColor);
+    internal.pickingInfo.objectIndex = (uint32) pixelColor.x;
+    internal.pickingInfo.surfaceIndex = (uint32) pixelColor.y;
+    internal.pickingInfo.instanceIndex = (uint32) pixelColor.z;
+
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    uint32 objectIndex = (uint32) pixelInfo.objectIndex;
+    uint32 objectIndex = internal.pickingInfo.objectIndex;
 
     if (objectIndex > 0)
     {
       ro = (LDKRenderObject*) ldkArrayGetData(renderObjects);
-      internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
-      ldkLogInfo("Selected entity = %llx", internal.selectedEntity);
+
+      if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
+      {
+        internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
+      }
+      else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
+      {
+        internal.selectedEntity = ro[objectIndex - 1].instancedMesh->entity.handle; 
+      }
+      ldkLogInfo("Selected entity = %llx, surface %llx ; instance = %d",
+          objectIndex, (uint32) internal.pickingInfo.surfaceIndex, (uint32) internal.pickingInfo.instanceIndex);
     }
     else
     {
@@ -328,23 +378,34 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
 
   if (internal.selectedEntity != LDK_HANDLE_INVALID)
   {
-    LDKInstancedObject* io = NULL;
     LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
-    if (!so)
-    {
-      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
-    }
 
-    if (so || io)
+    if (so)
     {
-      if (so)
-        internalRenderHighlight(so);
-      //else internalRenderMeshInstanced(io);
+      internalRenderHighlight(so);
     }
     else
     {
-      internal.selectedEntity = LDK_HANDLE_INVALID;
+      LDKInstancedObject* io = NULL;
+      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
+      if (io)
+      {
+        LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.pickingInfo.instanceIndex);
+
+        //TODO: This is ugly. Get rid of this static entity
+        static LDKStaticObject o;
+        o.mesh = io->mesh;
+        o.scale = instance->scale;
+        o.position = instance->position;
+        o.rotation = instance->rotation;
+        internalRenderHighlight(&o);
+      }
+      else
+      {
+        internal.selectedEntity = LDK_HANDLE_INVALID;
+      }
     }
+
   }
 }
 
@@ -365,9 +426,8 @@ static void internalRenderMesh(LDKStaticObject* entity)
     LDKHandle hMaterial = materials[surface->materialIndex];
     LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
     ldkMaterialParamSetBool(material, "instanced", false);
-
-    ldkMaterialBind(material);
     ldkMaterialParamSetMat4(material, "mModel", world);
+    ldkMaterialBind(material);
 
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
@@ -941,7 +1001,7 @@ void drawLineThick(float x1, float y1, float z1, float x2, float y2, float z2, f
   glBindVertexArray(0);
 }
 
-void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color1, LDKRGB color2)
+void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color)
 {
   GLfloat vertices[] = {
     x1, y1, z1,
@@ -949,8 +1009,8 @@ void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float 
   };
 
   GLfloat colors[] = {
-    color1.r, color1.g, color1.b,
-    color2.r, color2.g, color2.b
+    color.r, color.g, color.b,
+    color.r, color.g, color.b
   };
 
   // Generate and bind VAO and VBO
@@ -1199,7 +1259,8 @@ void ldkRendererRender(float deltaTime)
 
     // Picking and selection
     internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
-#if 1
+
+#if 0
     // TESTING STUFF!!!!
 
     Mat4 identity = mat4Id();
