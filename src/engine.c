@@ -114,7 +114,7 @@ bool ldkEngineInitialize(void)
   success &= stepSuccess;
 
   // Register LDKHandle so any other handle type is larger than 0
-  typeid(LDKHandle);
+  //typeid(LDKHandle);
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
@@ -232,19 +232,19 @@ LDK_API int32 ldkEngineRun(void)
     //
     LDKHListIterator it;
     it = ldkEntityManagerGetIterator(LDKStaticObject);
-    while(ldkHListIteratorNext(&it)) { ldkRendererAddStaticObject(it.ptr); }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddStaticObject(ldkHListIteratorCurrent(&it)); }
 
     it = ldkEntityManagerGetIterator(LDKInstancedObject);
-    while(ldkHListIteratorNext(&it)) { ldkRendererAddInstancedObject(it.ptr); }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddInstancedObject(ldkHListIteratorCurrent(&it)); }
 
     it = ldkEntityManagerGetIterator(LDKDirectionalLight);
-    while(ldkHListIteratorNext(&it)) { ldkRendererAddDirectionalLight(it.ptr); }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddDirectionalLight(ldkHListIteratorCurrent(&it)); }
 
     it = ldkEntityManagerGetIterator(LDKPointLight);
-    while(ldkHListIteratorNext(&it)) { ldkRendererAddPointLight(it.ptr); }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddPointLight(ldkHListIteratorCurrent(&it)); }
 
     it = ldkEntityManagerGetIterator(LDKSpotLight);
-    while(ldkHListIteratorNext(&it)) { ldkRendererAddSpotLight(it.ptr); }
+    while(ldkHListIteratorNext(&it)) { ldkRendererAddSpotLight(ldkHListIteratorCurrent(&it)); }
   }
 
   ldkEngineTerminate();

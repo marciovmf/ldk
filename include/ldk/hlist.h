@@ -17,26 +17,26 @@
 extern "C" {
 #endif
 
-  typedef struct LDKSlotInfo_t LDKSlotInfo;
+  typedef struct LDKSlot_t LDKSlot;
 
   typedef struct
   {
-    LDKArray*     slots;        // An array of slot information. It maps slots to the actual element address
-    LDKArena      elements;     // a list of actual elements stored.
-    uint32        elementCount; // how many valid elements are stored
-    size_t        elementSize;
-    uint32        firstFreeSlotIndex;
-    uint32        freeSlotCount;
-    LDKHandleType elementType;
+    size_t elementSize;
+    uint32 capacity;
+    uint32 count;
+    byte *data;
+    int32 *freeSlots;
+    int32 *dataToSlotMap;
+    int32 freeCount;
+    LDKHandleType type;
+    LDKSlot* slots;
   } LDKHList;
 
-  typedef struct
-  {
-    LDKHList* hlist;
-    void* ptr;          // pointer to the actual data
-    size_t index;
-    uint32 count;       // count how many elements were found so far
-  } LDKHListIterator;
+typedef struct
+{
+  LDKHList *hlist;
+  int32 current;
+} LDKHListIterator;
 
   LDK_API bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count);
   LDK_API LDKHandle ldkHListReserve(LDKHList* hlist);
@@ -51,6 +51,7 @@ extern "C" {
   LDK_API bool  ldkHListIteratorNext(LDKHListIterator* it);
   LDK_API void* ldkHListIteratorFirst(LDKHListIterator* it);
   LDK_API void* ldkHListIteratorLast(LDKHListIterator* it);
+  LDK_API void* ldkHListIteratorCurrent(LDKHListIterator* it);
 
 #ifdef __cplusplus
 }

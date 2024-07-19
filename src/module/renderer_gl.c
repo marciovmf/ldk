@@ -1226,7 +1226,7 @@ void ldkRendererRender(float deltaTime)
     // Camera gizmos
     while (ldkHListIteratorNext(&it))
     {
-      LDKCamera* e = (LDKCamera*) it.ptr;
+      LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
       if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
         continue;
 

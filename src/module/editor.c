@@ -9,7 +9,7 @@
 
 static struct 
 {
-  LDKCamera* editorCamera;
+  LDKHandle editorCamera;
   uint64 ticksStart;
   uint64 ticksEnd;
   float deltaTime;
@@ -31,9 +31,10 @@ static bool onKeyboard(const LDKEvent* evt, void* data)
 
 static bool onUpdate(const LDKEvent* evt, void* data)
 {
+  LDKCamera* camera = ldkEntityLookup(LDKCamera, internalEditor.editorCamera);
   float deltaTime = evt->frameEvent.deltaTime;
-  ldkCameraUpdateFreeCamera(internalEditor.editorCamera, deltaTime, 30, 10);
-  ldkRendererSetCamera(internalEditor.editorCamera);
+  ldkCameraUpdateFreeCamera(camera, deltaTime, 30, 10);
+  ldkRendererSetCamera(camera);
   return true;
 }
 
@@ -72,7 +73,7 @@ bool ldkEditorInitialize(void)
   camera->position = vec3(0.0f, 5.0f, 10.0f);
   camera->target = vec3Zero();
   camera->entity.flags = LDK_ENTITY_FLAG_INTERNAL;
-  internalEditor.editorCamera = camera;
+  internalEditor.editorCamera = camera->entity.handle;
 
   return true;
 }
