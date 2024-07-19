@@ -731,7 +731,7 @@ bool ldkMaterialBind(LDKMaterial* material)
 
       case LDK_MATERIAL_PARAM_TYPE_TEXTURE:
         glActiveTexture(GL_TEXTURE0 + param->textureIndexValue);
-        LDKHandle hTexture = material->textures[param->textureIndexValue];
+        LDKHAsset hTexture = material->textures[param->textureIndexValue];
         LDKTexture* texture = ldkAssetLookup(LDKTexture, hTexture);
         ldkShaderParamSetTexture(shader, param->name.str, texture);
         break;

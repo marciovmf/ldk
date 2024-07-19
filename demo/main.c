@@ -74,7 +74,7 @@ typedef struct
 typedef struct
 {
   LDKMaterial material;
-  LDKHandle hCamera;
+  LDKHEntity hCamera;
   float cameraLookSpeed;
   float cameraMoveSpeed;
   Sokoban sokoban;
@@ -291,8 +291,8 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
   {
-    LDKHandle targetEntity = ldkRendererSelectedEntity();
-    if (targetEntity != LDK_HANDLE_INVALID)
+    LDKHEntity targetEntity = ldkRendererSelectedEntity();
+    if (ldkHandleIsValid(targetEntity))
     {
       ldkLogInfo("Destroying entity %llx", targetEntity);
       ldkEntityDestroy(targetEntity);

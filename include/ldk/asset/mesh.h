@@ -27,7 +27,7 @@ extern "C" {
     LDKRenderBuffer*  vBuffer;
     float*            vertices;
     uint16*           indices;
-    LDKHandle*        materials;
+    LDKHAsset*        materials;
     LDKSurface*       surfaces;
     LDKBoundingBox    boundingBox;
     LDKBoundingSphere boundingSphere;

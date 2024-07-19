@@ -1,7 +1,6 @@
 #include "ldk/common.h"
 #include "ldk/os.h"
 #include "ldk/module/asset.h"
-#include "ldk/arena.h"
 #include "ldk/hashmap.h"
 #include "ldk/hlist.h"
 #include <stdbool.h>
@@ -155,10 +154,10 @@ bool ldkAssetHandlerRegisterNew(LDKTypeId typeId, LDKAssetHandlerLoadFunc loadFu
 LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
 {
   LDKHandle handle = (LDKHandle) ldkHashMapGet(internal.assetMap, (void*) path);
-
   if (handle)
   {
-    return ldkAssetLookupType(id, handle);
+    LDKHAsset assetHandle = ldkHandleCast(LDKHAsset, handle);
+    return ldkAssetLookupType(id, assetHandle);
   }
 
   LDKSubStr extention = ldkPathFileExtentionGetSubstring(path);
@@ -171,8 +170,9 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   }
 
   // Add if not found
-  LDKHandle hAsset = ldkHListReserve(&handler->assets);
-  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
+  //
+  LDKHAsset hAsset = ldkHandleCast(LDKHAsset, ldkHListReserve(&handler->assets));
+  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, toLDKHandle(hAsset));
 
   ldkPath(&asset->path, path);
 
@@ -199,7 +199,7 @@ LDKAsset ldkAssetGetByType(LDKTypeId id, const char* path)
   asset->isFile = true;
 
   char* key = _strdup(path);
-  ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
+  ldkHashMapInsert(internal.assetMap, key, (void*) toLDKHandle(hAsset));
 
   if (!success)
     ldkLogError("Failed to load %s", path);
@@ -226,17 +226,16 @@ void ldkAssetDispose(LDKAsset asset)
   ldkHashMapRemoveWith(internal.assetMap, &assetInfo->path, disposeHashmapKey);
 }
 
-LDKAsset ldkAssetLookupType(LDKTypeId typeId, LDKHandle handle)
+LDKAsset ldkAssetLookupType(LDKTypeId typeId, LDKHAsset handle)
 {
-  LDKTypeId handleType = ldkHandleType(handle);
+  LDKTypeId handleType = ldkHandleType(toLDKHandle(handle));
 
   for (uint32 i = 0; i < internal.numHandlers; i++)
   {
     LDKAssetHandler* handler = &internal.handlers[i];
     if (handler->assetTypeId != handleType)
       continue;
-
-    return ldkHListLookup(&handler->assets, handle);
+    return ldkHListLookup(&handler->assets, toLDKHandle(handle));
   }
 
   return NULL;
@@ -264,8 +263,8 @@ LDKAsset ldkAssetNewByType(LDKTypeId type)
     return NULL;
   }
 
-  LDKHandle hAsset = ldkHListReserve(&handler->assets);
-  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
+  LDKHAsset hAsset = ldkHandleCast(LDKHAsset,ldkHListReserve(&handler->assets));
+  LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, toLDKHandle(hAsset));
 
   char path[255];
   sprintf(path, "%s#%d#%d", typename(type), handler->assets.count, counter++);
@@ -283,7 +282,7 @@ LDKAsset ldkAssetNewByType(LDKTypeId type)
   asset->isFile = false;
 
   char* key = _strdup(path);
-  ldkHashMapInsert(internal.assetMap, key, (void*) hAsset);
+  ldkHashMapInsert(internal.assetMap, key, (void*) toLDKHandle(hAsset));
 
   return asset;
 }

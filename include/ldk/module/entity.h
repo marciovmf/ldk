@@ -29,9 +29,9 @@ extern "C" {
   {
     bool active;
     LDKSmallStr name;
-    LDKTypeId typeId;     // The type of the entity
-    uint32 flags;         // Space for user defined flags
-    LDKHandle handle;     // The unique entity handle for this entity.
+    LDKTypeId typeId;       // The type of the entity
+    uint32 flags;           // Space for user defined flags
+    LDKHEntity handle;      // The unique entity handle for this entity.
   } LDKEntityInfo;
 
   /*
@@ -61,10 +61,10 @@ extern "C" {
   LDK_API void ldkEntityManagerTerminate(void);
   LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity);
   LDK_API LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId);
-  LDK_API LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle);
+  LDK_API LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHEntity handle);
   LDK_API LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count);
   LDK_API const LDKTypeId* ldkEntityManagerTypes(uint32* count);
-  LDK_API bool ldkEntityDestroy(LDKHandle handle);
+  LDK_API bool ldkEntityDestroy(LDKHEntity handle);
   LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
 
 #ifdef __cplusplus

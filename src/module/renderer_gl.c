@@ -24,7 +24,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-
 void internalRenderMeshInstanced(LDKInstancedObject* entity);
 
 #ifndef LDK_RENDERER_OPENGL
@@ -70,15 +69,15 @@ static struct
   GLuint fboPicking;
   GLuint texturePicking;
   GLuint textureDepthPicking;
-  LDKHandle hShaderPicking;
-  LDKHandle hShaderHighlight;
+  LDKHAsset hShaderPicking;
+  LDKHAsset hShaderHighlight;
   LDKShader* shaderPicking;
   LDKShader* shaderHighlight;
 
   Vec3 higlightColor1;
   Vec3 higlightColor2;
 
-  LDKHandle selectedEntity;
+  LDKHEntity selectedEntity;
   LDKPickingPixelInfo pickingInfo;
 } internal = { 0 };
 
@@ -354,16 +353,16 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
 
       if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       {
-        internal.selectedEntity = ro->staticMesh->entity.handle; 
+        internal.selectedEntity = ro->staticMesh->entity.handle;
       }
       else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
       {
-        internal.selectedEntity = ro->instancedMesh->entity.handle; 
+        internal.selectedEntity = ro->instancedMesh->entity.handle;
       }
     }
     else
     {
-      internal.selectedEntity = LDK_HANDLE_INVALID; 
+      internal.selectedEntity = LDK_HENTITY_INVALID;
     }
   }
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -373,7 +372,7 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   // Highlight picked entity
   //
 
-  if (internal.selectedEntity != LDK_HANDLE_INVALID)
+  if (ldkHandleIsValid(internal.selectedEntity))
   {
     LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
     if (so)
@@ -398,7 +397,7 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
       }
       else
       {
-        internal.selectedEntity = LDK_HANDLE_INVALID;
+        internal.selectedEntity = LDK_HENTITY_INVALID;
       }
     }
 
@@ -418,8 +417,8 @@ static void internalRenderMesh(LDKStaticObject* entity)
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
     LDKSurface* surface = &mesh->surfaces[i];
-    LDKHandle* materials = entity->materials ? entity->materials : mesh->materials;
-    LDKHandle hMaterial = materials[surface->materialIndex];
+    LDKHAsset* materials = entity->materials ? entity->materials : mesh->materials;
+    LDKHAsset hMaterial = materials[surface->materialIndex];
     LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
     ldkMaterialParamSetBool(material, "instanced", false);
     ldkMaterialParamSetMat4(material, "mModel", world);
@@ -447,7 +446,7 @@ static void internalRenderMeshInstanced(LDKInstancedObject* entity)
     LDKSurface* surface = &mesh->surfaces[i];
     LDKMaterial* material = NULL;
 
-    LDKHandle hMaterial = mesh->materials[surface->materialIndex];
+    LDKHAsset hMaterial = mesh->materials[surface->materialIndex];
     material = ldkAssetLookup(LDKMaterial, hMaterial);
     ldkMaterialParamSetBool(material, "instanced", true);
     ldkMaterialBind(material);
@@ -501,7 +500,7 @@ static bool internalPickingFBOCreate(uint32 width, uint32 height)
   }
 
   // Loads the picking shader
-  internal.hShaderPicking   = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
+  internal.hShaderPicking = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
   internal.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
 
   internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
@@ -884,7 +883,7 @@ void ldkRendererAddStaticObject(LDKStaticObject* entity)
   if (mesh == NULL)
     return;
 
-  LDKHandle* materials = entity->materials ? entity->materials : mesh->materials;
+  LDKHAsset* materials = entity->materials ? entity->materials : mesh->materials;
   const uint32 numMaterials = mesh->numMaterials;
 
   LDKRenderObject ro;
@@ -919,7 +918,7 @@ void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
   if (mesh == NULL)
     return;
 
-  LDKHandle* materials =  mesh->materials;
+  LDKHAsset* materials =  mesh->materials;
   const uint32 numMaterials = mesh->numMaterials;
 
   LDKRenderObject ro;
@@ -1304,7 +1303,7 @@ void ldkRendererRender(float deltaTime)
   ldkRenderBufferBind(NULL);
 }
 
-LDKHandle ldkRendererSelectedEntity(void)
+LDKHEntity ldkRendererSelectedEntity(void)
 {
-  return internal.selectedEntity;
+   return internal.selectedEntity;
 }

@@ -51,7 +51,7 @@ LDK_API Vec3 ldkAmbientLightGetColor();
 
 // Call this function once per frame when detecting click over the scene.
 // This call is relatively slow.
-LDK_API LDKHandle ldkRendererSelectedEntity(void);
+LDK_API LDKHEntity ldkRendererSelectedEntity(void);
 
 #ifdef __cplusplus
 }

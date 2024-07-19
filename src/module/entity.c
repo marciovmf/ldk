@@ -5,6 +5,9 @@
 #include <ldk/hlist.h>
 #include <stdint.h>
 
+#define castHandle(t, h) (t){.value = h}
+#define toLDKHandle(h) (LDKHandle)(h.value)
+
 typedef struct
 {
   LDKTypeId typeId;
@@ -81,8 +84,9 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   if (!handler)
     return NULL;
 
-  LDKHandle handle = ldkHListReserve(&handler->entities);
-  LDKEntityInfo* entity = (LDKEntityInfo*) ldkHListLookup(&handler->entities, handle);
+  //LDKHEntity handle = (LDKHEntity){ .handle = ldkHListReserve(&handler->entities) };
+  LDKHEntity handle = castHandle(LDKHEntity, ldkHListReserve(&handler->entities));
+  LDKEntityInfo* entity = (LDKEntityInfo*) ldkHListLookup(&handler->entities, toLDKHandle(handle));
   ldkSmallStringFormat(&entity->name, "%s_%x_%x",
       typename(handler->typeId), handler->entities.count - 1, entityCount);
   handler->createFunc(entity);
@@ -96,13 +100,13 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   return entity;
 }
 
-LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle)
+LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHEntity handle)
 {
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if (!handler)
     return NULL;
 
-  return ldkHListLookup(&handler->entities, handle);
+  return ldkHListLookup(&handler->entities,  toLDKHandle(handle));
 }
 
 LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
@@ -125,14 +129,14 @@ const LDKTypeId* ldkEntityManagerTypes(uint32* count)
   return internal.handledTypes;
 }
 
-bool ldkEntityDestroy(LDKHandle handle)
+bool ldkEntityDestroy(LDKHEntity handle)
 {
-  LDKTypeId typeId = ldkHandleType(handle);
+  LDKTypeId typeId = ldkHandleType(toLDKHandle(handle));
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if(!handler)
     return false;
 
-  return ldkHListRemove(&handler->entities, handle);
+  return ldkHListRemove(&handler->entities, toLDKHandle(handle));
 }
 
 

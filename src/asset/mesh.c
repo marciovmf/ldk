@@ -144,7 +144,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   float* vertices = NULL;
   uint16* indices = NULL;
   LDKSurface* surfaces = NULL;
-  LDKHandle* materials = NULL;
+  LDKHAsset* materials = NULL;
   size_t vertexBufferSize = 0;
   size_t indexBufferSize = 0;
 
@@ -217,7 +217,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
       else if (strncmp("material_count", lhs, MAX_LHS_SIZE) == 0)
       {
         internalParseUInt(path, lineNumber, rhs, &mesh->numMaterials);
-        mesh->materials = (LDKHandle*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHandle)));
+        mesh->materials = (LDKHAsset*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHAsset)));
         materials = mesh->materials;
       }
       else if (strncmp("surface_count", lhs, MAX_LHS_SIZE) == 0)

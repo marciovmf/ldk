@@ -22,13 +22,13 @@ extern "C" {
     Vec3 position;
     Vec3 scale;
     Quat rotation;
-    LDKHandle mesh;
-    LDKHandle* materials; // If this is not null, this material list will override the Mesh list
+    LDKHAsset mesh;
+    LDKHAsset* materials; // If this is not null, this material list will override the Mesh list
   } LDKStaticObject;
 
   LDK_API LDKStaticObject* ldkStaticObjectEntityCreate(LDKStaticObject* entity);
   LDK_API void ldkStaticObjectEntityDestroy(LDKStaticObject* entity);
-  LDK_API void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHandle hMesh);
+  LDK_API void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh);
 
 #ifdef __cplusplus
 }

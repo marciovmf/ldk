@@ -36,7 +36,7 @@ typedef struct
   LDK_DECLARE_ENTITY;
   LDKArray* instanceList;
   LDKArray* instanceWorldMatrixList;
-  LDKHandle mesh;
+  LDKHAsset mesh;
   LDKInstanceBuffer* instanceBuffer;
 } LDKInstancedObject;
 

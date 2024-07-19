@@ -1,3 +1,4 @@
+#include "common.h"
 #include <ldk/entity/staticobject.h>
 #include <ldk/asset/mesh.h>
 #include <ldk/maths.h>
@@ -9,7 +10,7 @@ LDKStaticObject* ldkStaticObjectEntityCreate(LDKStaticObject* entity)
   entity->position = vec3Zero();
   entity->scale = vec3One();
   entity->rotation = quatId();
-  entity->mesh = LDK_HANDLE_INVALID;
+  entity->mesh = LDK_HASSET_INVALID;
   entity->materials = NULL;
   return entity;
 }
@@ -22,9 +23,9 @@ void ldkStaticObjectEntityDestroy(LDKStaticObject* entity)
   ldkOsMemoryFree(entity);
 }
 
-void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHandle hMesh)
+void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh)
 {
-  if (hMesh == LDK_HANDLE_INVALID)
+  if (!ldkHandleIsValid(hMesh))
     return;
 
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, hMesh);

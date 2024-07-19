@@ -12,7 +12,7 @@
 
 static struct 
 {
-  LDKHandle editorCamera;
+  LDKHEntity editorCamera;
   uint64 ticksStart;
   uint64 ticksEnd;
   float deltaTime;

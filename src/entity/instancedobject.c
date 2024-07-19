@@ -1,13 +1,13 @@
 #include "ldk/entity/instancedobject.h"
-#include "ldk/module/renderer.h"
+#include "common.h"
 #include "ldk/maths.h"
-#include "ldk/os.h"
 #include "ldk/array.h"
 #include <string.h>
 
+
 LDKInstancedObject* ldkInstancedObjectEntityCreate(LDKInstancedObject* entity)
 {
-  entity->mesh = LDK_HANDLE_INVALID;
+  entity->mesh = LDK_HASSET_INVALID;
   entity->instanceBuffer = ldkInstanceBufferCreate();
   entity->instanceList = ldkArrayCreate(sizeof(LDKObjectInstance), 16);
   entity->instanceWorldMatrixList = ldkArrayCreate(sizeof(Mat4), 16);
@@ -20,7 +20,7 @@ void ldkInstancedObjectEntityDestroy(LDKInstancedObject* entity)
   ldkArrayDestroy(entity->instanceWorldMatrixList);
   entity->instanceList = NULL;
   entity->instanceWorldMatrixList = NULL;
-  entity->mesh = LDK_HANDLE_INVALID;
+  entity->mesh = LDK_HASSET_INVALID;
   ldkInstanceBufferDestroy(entity->instanceBuffer);
 }
 
@@ -48,7 +48,7 @@ void ldkInstancedObjectUpdate(LDKInstancedObject* io)
     allWorldMatrices[i] = mat4Transpose(world);
   }
 
-  if (io->mesh != LDK_HANDLE_INVALID)
+  if (io->mesh.value != LDK_HANDLE_INVALID)
   {
     size_t bufferSize = count * sizeof(Mat4);
     ldkInstanceBufferSetData(io->instanceBuffer, bufferSize, allWorldMatrices, false); 

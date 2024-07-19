@@ -55,9 +55,9 @@ extern "C" {
   {
     LDK_DECLARE_ASSET;
     const char* name;
-    LDKHandle program;
+    LDKHAsset program;
     LDKMaterialParam param[LDK_SHADER_MAX_PARAMS];
-    LDKHandle textures[LDK_SHADER_MAX_PARAMS];
+    LDKHAsset textures[LDK_SHADER_MAX_PARAMS];
     uint32 numParam;
     uint32 numTextures;
     bool enableDepthTest;
@@ -71,8 +71,8 @@ extern "C" {
 
   LDK_API bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetMaterialUnloadFunc(LDKAsset asset);
-  LDK_API LDKMaterial* ldkMaterialClone(LDKHandle hMaterial);
-  LDK_API bool ldkMaterialIsDeferred(LDKHandle hMaterial);
+  LDK_API LDKMaterial* ldkMaterialClone(LDKHAsset hMaterial);
+  LDK_API bool ldkMaterialIsDeferred(LDKHAsset hMaterial);
 
 
 #ifdef __cplusplus

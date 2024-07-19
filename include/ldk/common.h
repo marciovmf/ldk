@@ -85,8 +85,7 @@ extern "C" {
 #define LDK_MEGABYTE(value) (size_t) (KILOBYTE(value) * 1024LL)
 #define LDK_GIGABYTE(value) (size_t) (MEGABYTE(value) * 1024LL)
 
-
-  // Debug macros
+// Debug macros
 
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef LDK_DEBUG
@@ -140,8 +139,25 @@ extern "C" {
   typedef uint32_t  uint32;
   typedef int64_t   int64;
   typedef uint64_t  uint64;
-  typedef uintptr_t LDKHandle;
+  typedef uint64_t  LDKHandle;
   typedef void*     LDKWindow;
+
+  typedef struct
+  {
+    LDKHandle value;
+  } LDKHAsset;
+  #define LDK_HASSET_INVALID ((LDKHAsset) {.value = LDK_HANDLE_INVALID })
+
+  typedef struct
+  {
+    LDKHandle value;
+  } LDKHEntity;
+  #define LDK_HENTITY_INVALID ((LDKHEntity) {.value = LDK_HANDLE_INVALID })
+
+  #define ldkHandleIsValid(h) ((h).value != LDK_HANDLE_INVALID)
+
+  #define ldkHandleCast(t, h) (t){.value = h}
+  #define toLDKHandle(h) (LDKHandle)(h.value)
 
   // SmallStr
   typedef struct
