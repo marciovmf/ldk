@@ -72,8 +72,15 @@ void ldkArenaDestroy(LDKArena* out)
   ARENA_FREE((void*) out->chunks);
   out->chunks = NULL;
   out->numChunks = 0;
+  out->chunkCapacity = 0;
 }
 
+//
+// Allocates size from existing chunks. If no chunk has enough space to fit the
+// allocation, a new chunck with enough space is allocated.
+// An allocation is never split across multiple chunks.
+//
+//
 uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size)
 {
   // Can we find space in any existing chunk ?

@@ -486,12 +486,12 @@ int main(void)
   //
   // Room
   //
-  LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
-  ldkSmallString(&room->entity.name, "ROOM");
-  ldkStaticObjectSetMesh(room, cube->asset.handle);
-  room->scale = vec3(-10.0,-10.0,-10.0);
-  room->position = vec3(3.0f, 4.0f, 3.0f);
-  room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
+  //LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
+  //ldkSmallString(&room->entity.name, "ROOM");
+  //ldkStaticObjectSetMesh(room, cube->asset.handle);
+  //room->scale = vec3(-10.0,-10.0,-10.0);
+  //room->position = vec3(3.0f, 4.0f, 3.0f);
+  //room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
 
   //
   // Player
@@ -554,11 +554,13 @@ int main(void)
   state.pointLight[i] = ldkEntityCreate(LDKPointLight);
   state.pointLight[i]->colorDiffuse = vec3One();
   state.pointLight[i]->colorSpecular = vec3One();
+  ldkLightAttenuationForDistance(&state.pointLight[i]->attenuation, 360.0f);
   i++;
 
   state.pointLight[i] = ldkEntityCreate(LDKPointLight);
   state.pointLight[i]->colorDiffuse = vec3One();
   state.pointLight[i]->colorSpecular = vec3One();
+  ldkLightAttenuationForDistance(&state.pointLight[i]->attenuation, 360.0f);
   i++;
 
   state.numPointLights = i;

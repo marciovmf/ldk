@@ -84,3 +84,50 @@ endif()
 target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
 target_link_libraries(ldk PRIVATE ${LIBS} ${OPENGL_LIBRARY})
 
+option(LDK_BUILD_TESTS "If tests should be built and run" ON)
+if (LDK_BUILD_TESTS)
+
+    function(create_test)
+      set(options "")
+      set(oneValueArgs TARGET)
+      set(multiValueArgs SOURCES LIBRARIES)
+      cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+      if(NOT ARG_TARGET)
+        message(FATAL_ERROR "TARGET parameter is required for create_test function.")
+        return()
+      endif()
+
+      if(NOT ARG_SOURCES)
+        message(FATAL_ERROR "SOURCES parameter is required for create_test function.")
+        return()
+      endif()
+
+      if(NOT ARG_LIBRARIES)
+        set(ARG_LIBRARIES ldk)
+      else()
+        list(APPEND ARG_LIBRARIES ldk)
+      endif()
+
+      add_executable(${ARG_TARGET} ${ARG_SOURCES})
+      target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
+      target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
+
+      add_custom_target(test_${ARG_TARGET} ALL
+        COMMAND $<TARGET_FILE:${ARG_TARGET}>
+        COMMENT "Testing $<TARGET_FILE:${ARG_TARGET}>"
+        DEPENDS ${ARG_TARGET})
+
+
+      #add_custom_command(TARGET ${ARG_TARGET} POST_BUILD 
+      #  COMMAND echo -- Running tests $<TARGET_FILE:${ARG_TARGET}>
+      #  COMMAND $<TARGET_FILE:${ARG_TARGET}>
+      #  )
+    endfunction()
+
+    create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
+    create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
+    create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
+    create_test(TARGET test_typesystem SOURCES tests/ldk_test.h tests/test_typesystem.c)
+
+  endif()

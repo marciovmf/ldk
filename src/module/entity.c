@@ -84,7 +84,7 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   LDKHandle handle = ldkHListReserve(&handler->entities);
   LDKEntityInfo* entity = (LDKEntityInfo*) ldkHListLookup(&handler->entities, handle);
   ldkSmallStringFormat(&entity->name, "%s_%x_%x",
-      typename(handler->typeId), handler->entities.elementCount - 1, entityCount);
+      typename(handler->typeId), handler->entities.count - 1, entityCount);
   handler->createFunc(entity);
   entity->handle = handle;
   entity->flags = 0;
@@ -108,7 +108,7 @@ LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHandle handle)
 LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
 {
   LDKHListIterator it;
-  it.index = -1;
+  it.current = -1;
   it.hlist = NULL;
 
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);

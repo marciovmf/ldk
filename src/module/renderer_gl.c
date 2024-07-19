@@ -15,7 +15,6 @@
 #include "ldk/asset/shader.h"
 #include "ldk/common.h"
 #include "ldk/os.h"
-#include "ldk/hlist.h"
 #include "ldk/gl.h"
 #include "maths.h"
 #include "module/entity.h"
@@ -349,20 +348,18 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
     uint32 objectIndex = internal.pickingInfo.objectIndex;
 
-    if (objectIndex > 0)
+    if (objectIndex > 0 && (objectIndex - 1) < ldkArrayCount(renderObjects))
     {
-      ro = (LDKRenderObject*) ldkArrayGetData(renderObjects);
+      ro = (LDKRenderObject*) ldkArrayGet(renderObjects, objectIndex-1);
 
       if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       {
-        internal.selectedEntity = ro[objectIndex - 1].staticMesh->entity.handle; 
+        internal.selectedEntity = ro->staticMesh->entity.handle; 
       }
       else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
       {
-        internal.selectedEntity = ro[objectIndex - 1].instancedMesh->entity.handle; 
+        internal.selectedEntity = ro->instancedMesh->entity.handle; 
       }
-      ldkLogInfo("Selected entity = %llx, surface %llx ; instance = %d",
-          objectIndex, (uint32) internal.pickingInfo.surfaceIndex, (uint32) internal.pickingInfo.instanceIndex);
     }
     else
     {
@@ -379,7 +376,6 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   if (internal.selectedEntity != LDK_HANDLE_INVALID)
   {
     LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
-
     if (so)
     {
       internalRenderHighlight(so);

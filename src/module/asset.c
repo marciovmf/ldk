@@ -268,7 +268,7 @@ LDKAsset ldkAssetNewByType(LDKTypeId type)
   LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, hAsset);
 
   char path[255];
-  sprintf(path, "%s#%d#%d", typename(type), handler->assets.elementCount, counter++);
+  sprintf(path, "%s#%d#%d", typename(type), handler->assets.count, counter++);
   ldkPath(&asset->path, path);
 
   LDKHash hash = ldkHashStr(path);

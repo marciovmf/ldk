@@ -182,33 +182,28 @@ LDKTypeId ldkTypeId(const char* name, size_t size)
     return LDK_TYPE_ID_UNKNOWN;
   }
 
-  uint32 typeId = ldkTypeCatalog_.count++;
-  strncpy((char*) &ldkTypeCatalog_.type[typeId].name, name, LDK_TYPE_NAME_MAX_LENGTH);
-  ldkTypeCatalog_.type[typeId].size = size;
-  ldkTypeCatalog_.type[typeId].id = typeId;
+  uint32 index = ldkTypeCatalog_.count++;
+  uint32 typeId = index + 1;
+  strncpy((char*) &ldkTypeCatalog_.type[index].name, name, LDK_TYPE_NAME_MAX_LENGTH);
+  ldkTypeCatalog_.type[index].size = size;
+  ldkTypeCatalog_.type[index].id = typeId;
   return typeId;
 }
 
 const char* ldkTypeName(LDKTypeId typeId)
 {
-  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
-  {
-    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
-    if (typeInfo->id == typeId)
-      return typeInfo->name;
-  }
-  return NULL;
+  LDK_ASSERT(typeId > 0);
+  LDK_ASSERT(typeId <= ldkTypeCatalog_.count);
+  LDK_ASSERT(ldkTypeCatalog_.type[typeId - 1].id == typeId);
+  return ldkTypeCatalog_.type[typeId - 1].name;
 }
 
 size_t ldkTypeSize(LDKTypeId typeId)
 {
-  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
-  {
-    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
-    if (typeInfo->id == typeId)
-      return typeInfo->size;
-  }
-  return 0;
+  LDK_ASSERT(typeId > 0);
+  LDK_ASSERT(typeId <= ldkTypeCatalog_.count);
+  LDK_ASSERT(ldkTypeCatalog_.type[typeId - 1].id == typeId);
+  return ldkTypeCatalog_.type[typeId - 1].size;
 }
 
 //

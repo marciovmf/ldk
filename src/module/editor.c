@@ -1,3 +1,4 @@
+#include "hlist.h"
 #include "ldk/os.h"
 #include "ldk/eventqueue.h"
 #include "ldk/module/editor.h"
@@ -6,11 +7,12 @@
 #include "ldk/common.h"
 #include "ldk/engine.h"
 #include "maths.h"
+#include "module/entity.h"
 #include <math.h>
 
 static struct 
 {
-  LDKCamera* editorCamera;
+  LDKHandle editorCamera;
   uint64 ticksStart;
   uint64 ticksEnd;
   float deltaTime;
@@ -39,19 +41,19 @@ static bool onKeyboard(const LDKEvent* evt, void* data)
 
 static bool onUpdate(const LDKEvent* evt, void* data)
 {
+  LDKCamera* camera = ldkEntityLookup(LDKCamera, internalEditor.editorCamera);
   float deltaTime = evt->frameEvent.deltaTime;
-  ldkCameraUpdateFreeCamera(internalEditor.editorCamera, deltaTime, 30, 10);
-  ldkRendererSetCamera(internalEditor.editorCamera);
-
+  ldkCameraUpdateFreeCamera(camera, deltaTime, 30, 10);
+  ldkRendererSetCamera(camera);
   return true;
 }
 
 void  ldkEditorImmediateDraw(float deltaTime)
 {
   Mat4 identity = mat4Id();
-
-  Mat4 cameraViewMatrix = ldkCameraViewMatrix(internalEditor.editorCamera);
-  Mat4 cameraProjMatrix = ldkCameraProjectMatrix(internalEditor.editorCamera);
+  LDKCamera* camera = ldkEntityLookup(LDKCamera, internalEditor.editorCamera);
+  Mat4 cameraViewMatrix = ldkCameraViewMatrix(camera);
+  Mat4 cameraProjMatrix = ldkCameraProjectMatrix(camera);
   LDKShader* shader = ldkAssetGet(LDKShader, "assets/default_vertex_color.shader");
 
   //
@@ -63,10 +65,10 @@ void  ldkEditorImmediateDraw(float deltaTime)
   ldkShaderParamSetMat4(shader, "mView", cameraViewMatrix);
   ldkShaderParamSetMat4(shader, "mProj", cameraProjMatrix);
 
-  const float cameraX = internalEditor.editorCamera->target.x;
-  const float cameraY = internalEditor.editorCamera->target.y;
-  const float cameraZ = internalEditor.editorCamera->target.z;
-  const float lineLength = internalEditor.editorCamera->farPlane * 100;
+  const float cameraX = camera->target.x;
+  const float cameraY = camera->target.y;
+  const float cameraZ = camera->target.z;
+  const float lineLength = camera->farPlane * 100;
   const float thickness = 1.4f;
 
   drawLine(cameraX - lineLength, 0.0f, 0.0f, cameraX + lineLength, 0.0f, 0.0f, thickness, ldkRGB(255, 0, 0));
@@ -80,7 +82,7 @@ void  ldkEditorImmediateDraw(float deltaTime)
   LDKHListIterator it = ldkEntityManagerGetIterator(LDKCamera);
   while (ldkHListIteratorNext(&it))
   {
-    LDKCamera* e = (LDKCamera*) it.ptr;
+    LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
     if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
       continue;
     Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
@@ -123,7 +125,7 @@ bool ldkEditorInitialize(void)
   camera->position = vec3(0.0f, 5.0f, 10.0f);
   camera->target = vec3Zero();
   camera->entity.flags = LDK_ENTITY_FLAG_INTERNAL;
-  internalEditor.editorCamera = camera;
+  internalEditor.editorCamera = camera->entity.handle;
 
   return true;
 }
