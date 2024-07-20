@@ -142,22 +142,28 @@ extern "C" {
   typedef uint64_t  LDKHandle;
   typedef void*     LDKWindow;
 
+  //
+  // Handles
+  //
+
   typedef struct
   {
     LDKHandle value;
   } LDKHAsset;
-  #define LDK_HASSET_INVALID ((LDKHAsset) {.value = LDK_HANDLE_INVALID })
 
   typedef struct
   {
     LDKHandle value;
   } LDKHEntity;
-  #define LDK_HENTITY_INVALID ((LDKHEntity) {.value = LDK_HANDLE_INVALID })
 
+  #define LDK_HASSET_INVALID ((LDKHAsset) {.value = LDK_HANDLE_INVALID })
+  #define LDK_HENTITY_INVALID ((LDKHEntity) {.value = LDK_HANDLE_INVALID })
   #define ldkHandleIsValid(h) ((h).value != LDK_HANDLE_INVALID)
 
-  #define ldkHandleCast(t, h) (t){.value = h}
-  #define toLDKHandle(h) (LDKHandle)(h.value)
+  // Cast an LDKHandle to a specialized handle type
+  #define ldkHandleTo(t, h) (t){.value = h}
+  // Cast a specialized handle type to LDKHandle
+  #define ldkHandleFrom(h) (LDKHandle)(h.value)
 
   // SmallStr
   typedef struct
