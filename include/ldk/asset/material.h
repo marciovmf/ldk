@@ -36,7 +36,7 @@ extern "C" {
   {
     LDKSmallStr name;
     LDKMaterialParamType type;
-
+    bool      textureInitialized; // this is used for textures
     union
     {
       uint32    textureIndexValue;
@@ -57,7 +57,7 @@ extern "C" {
     const char* name;
     LDKHAsset program;
     LDKMaterialParam param[LDK_SHADER_MAX_PARAMS];
-    LDKHAsset textures[LDK_SHADER_MAX_PARAMS];
+    LDKHAsset textures[LDK_MATERIAL_MAX_TEXTURES];
     uint32 numParam;
     uint32 numTextures;
     bool enableDepthTest;
@@ -73,6 +73,7 @@ extern "C" {
   LDK_API void ldkAssetMaterialUnloadFunc(LDKAsset asset);
   LDK_API LDKMaterial* ldkMaterialClone(LDKHAsset hMaterial);
   LDK_API bool ldkMaterialIsDeferred(LDKHAsset hMaterial);
+  LDK_API LDKMaterial* ldkMaterialCreateFromShader(const char* shaderPath);
 
 
 #ifdef __cplusplus

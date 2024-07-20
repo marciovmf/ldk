@@ -1,6 +1,5 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/module/asset.h"
-#include "ldk/module/renderer.h"
 #include "ldk/os.h"
 #include <string.h>
 #include <stdlib.h>
@@ -350,6 +349,58 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   ldkRenderBufferBind(NULL);
 
   return true;
+}
+
+LDKMesh* ldkQuadMeshCreate(LDKHAsset material)
+{
+  LDKMesh* mesh = ldkAssetNew(LDKMesh);
+  memset(&mesh->boundingBox, 0, sizeof(LDKBoundingBox));
+  memset(&mesh->boundingSphere, 0, sizeof(LDKBoundingSphere));
+
+  // Indices
+  uint16 indices[] = { 0, 1, 2, 1, 3, 2 };
+  mesh->numIndices = 6;
+  mesh->indices = (uint16*) ldkOsMemoryAlloc(sizeof(indices));
+  memcpy(mesh->indices, indices, sizeof(indices));
+
+  // Vertices
+  float vertices[] = {
+    // Position          // Normal           // UV
+    -1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f,
+    -1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
+     1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 1.0f,
+     1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 0.0f
+    };
+  mesh->numVertices = 4;
+  mesh->vertices = (float*) ldkOsMemoryAlloc(sizeof(vertices));
+  memcpy(mesh->vertices, vertices, sizeof(vertices));
+
+  // surfaces
+  mesh->numSurfaces = 1;
+  mesh->surfaces = (LDKSurface*) ldkOsMemoryAlloc(sizeof(LDKSurface));
+  mesh->surfaces->count = 6;
+  mesh->surfaces->first = 0;
+  mesh->surfaces->materialIndex = 0;
+
+  // materials
+  mesh->numMaterials = 1;
+  mesh->materials = (LDKHAsset*) ldkOsMemoryAlloc(sizeof(LDKHAsset));
+  *mesh->materials = material;
+
+  // RenderBuffer
+  mesh->vBuffer = ldkRenderBufferCreate(1);
+  const int32 stride = (int32) (8 * sizeof(float));
+  ldkRenderBufferBind(mesh->vBuffer);
+
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_POSITION, 3, stride, 0, 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_NORMAL, 3, stride, (const void*) (3 * sizeof(float)), 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_TEXCOORD0, 2, stride, (const void*)(6 * sizeof(float)), 0);
+  ldkRenderBufferSetVertexData(mesh->vBuffer, 0, sizeof(vertices), mesh->vertices, false);
+
+  ldkRenderBufferSetIndexData(mesh->vBuffer, sizeof(indices), mesh->indices, false);
+  ldkRenderBufferBind(NULL);
+
+  return mesh;
 }
 
 void ldkAssetMeshUnloadFunc(LDKAsset asset)

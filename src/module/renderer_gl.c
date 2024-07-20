@@ -2,6 +2,7 @@
 #include "entity/directionallight.h"
 #include "entity/instancedobject.h"
 #include "entity/spotlight.h"
+#include "gl/glcorearb.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/asset.h"
@@ -1210,9 +1211,6 @@ void ldkRendererRender(float deltaTime)
   if (internal.camera == NULL)
     return;
 
-  Mat4 cameraViewMatrix = ldkCameraViewMatrix(internal.camera);
-  Mat4 cameraProjMatrix = ldkCameraProjectMatrix(internal.camera);
-
   glBindFramebuffer(GL_FRAMEBUFFER, internal.gBuffer);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1226,72 +1224,8 @@ void ldkRendererRender(float deltaTime)
 
   if (ldkEngineIsEditorRunning())
   {
-    ldkShaderProgramBind(internal.shaderLightBox);
-    ldkShaderParamSetMat4(internal.shaderLightBox, "projection", cameraProjMatrix);
-    ldkShaderParamSetMat4(internal.shaderLightBox, "view", cameraViewMatrix);
-
-    uint32 count = ldkArrayCount(internal.pointLights);
-    LDKPointLight* point = (LDKPointLight*) ldkArrayGetData(internal.pointLights);
-    for (unsigned int i = 0; i < count; i++)
-    {
-      Mat4 m = mat4World((*point).position, vec3(0.1f, 0.1f, 0.1f), quatId());
-      ldkShaderParamSetMat4(internal.shaderLightBox, "model", m);
-      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", point->colorDiffuse);
-      InternalRenderCubeNDC();
-      point++;
-    }
-
-    count = ldkArrayCount(internal.spotLights);
-    LDKSpotLight* spot = (LDKSpotLight*) ldkArrayGetData(internal.spotLights);
-    for (unsigned int i = 0; i < count; i++)
-    {
-      Mat4 m = mat4World((*spot).position, vec3(0.3f, 0.1f, 0.3f), quatId());
-      ldkShaderParamSetMat4(internal.shaderLightBox, "model", m);
-      ldkShaderParamSetVec3(internal.shaderLightBox, "lightColor", vec3(1.0f, 0.0f, 1.0f));
-      InternalRenderCubeNDC();
-      spot++;
-    }
-
     // Picking and selection
     internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
-
-#if 0
-    // TESTING STUFF!!!!
-
-    Mat4 identity = mat4Id();
-    LDKShader* shader = ldkAssetGet(LDKShader, "assets/default_vertex_color.shader");
-    ldkShaderProgramBind(shader);
-    ldkShaderParamSetMat4(shader, "mModel", identity);
-    ldkShaderParamSetMat4(shader, "mView", cameraViewMatrix);
-    ldkShaderParamSetMat4(shader, "mProj", cameraProjMatrix);
-    ldkShaderParamSetVec3(shader, "color", vec3(1.0f, 1.0f, 1.0f));
-
-    drawLine(0.0f, 0.0f, 2.0f, 10.0f, 10.0f, -2.0f, 0.2f, ldkRGB(255, 0, 0), ldkRGB(255, 255, 0));
-    drawCircle(0.0f, 0.0f, 0.0f,
-        2.0f, // radius
-        0.2f, // thinkness
-        (float) degToRadian(360.0));
-
-    drawCircle(10.0f, 0.0f, -5.0f,
-        2.0f, // radius
-        2.8f, // thinkness
-        (float) degToRadian(360.0));
-
-    LDKHListIterator it = ldkEntityManagerGetIterator(LDKCamera);
-
-    // Camera gizmos
-    while (ldkHListIteratorNext(&it))
-    {
-      LDKCamera* e = (LDKCamera*) it.ptr;
-      if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
-        continue;
-
-      Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
-      ldkShaderParamSetMat4(shader, "mModel", world);
-      drawFrustum(0.0f, 0.0f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 0, 0));
-    }
-
-#endif
   }
 
   ldkArrayClear(internal.renderObjectArray);

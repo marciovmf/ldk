@@ -1,12 +1,19 @@
 #include "asset/config.h"
+#include "asset/material.h"
+#include "asset/mesh.h"
 #include "common.h"
 #include "entity/camera.h"
 #include "entity/directionallight.h"
 #include "entity/pointlight.h"
 #include "entity/spotlight.h"
+#include "entity/staticobject.h"
+#include "hlist.h"
 #include "maths.h"
+#include "module/asset.h"
 #include "module/entity.h"
 #include "module/renderer.h"
+#include "module/rendererbackend.h"
+#include "os.h"
 #include <ldk.h>
 #include <math.h>
 #include <stdbool.h>
@@ -542,12 +549,11 @@ int main(void)
 
   // Directional Light
   LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
-  directionalLight->colorSpecular = vec3(1.0f, 0.0f, 0.0f);
+  directionalLight->colorSpecular = vec3(0.2f, 0.4f, 0.0f);
   directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
   directionalLight->position = camera->position;
   directionalLight->direction = ldkCameraDirectionNormalized(camera);
   state.directionalLight = directionalLight;
-
 
   // Point Light
   uint32 i = 0;
@@ -558,7 +564,7 @@ int main(void)
   i++;
 
   state.pointLight[i] = ldkEntityCreate(LDKPointLight);
-  state.pointLight[i]->colorDiffuse = vec3One();
+  state.pointLight[i]->colorDiffuse = vec3(.2f, .7f, .7f);
   state.pointLight[i]->colorSpecular = vec3One();
   ldkLightAttenuationForDistance(&state.pointLight[i]->attenuation, 360.0f);
   i++;
@@ -570,7 +576,11 @@ int main(void)
   state.spotLight->position = camera->position;
   state.spotLight->direction = ldkCameraDirectionNormalized(camera);
 
+  LDKMaterial* m = ldkMaterialCreateFromShader("assets/editor/lightbox.shader");
+  ldkQuadMeshCreate(m->asset.handle);
 
+  LDKStaticObject* o = ldkEntityCreate(LDKStaticObject);
+  o->mesh = m->asset.handle;
 #endif
 
   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
@@ -582,5 +592,7 @@ int main(void)
   ldkRendererSetCamera(camera);
   ldkRendererSetClearColorVec3(clearColor);
   ldkAmbientLightSetIntensity(ldkConfigGetFloat(cfg, "game.ambient-light-intensity"));
+
   return ldkEngineRun();
 }
+

@@ -48,6 +48,18 @@ static LDKAssetHandler* internalAssetHandlerGet(const char* fileExtension)
   return NULL;
 }
 
+static LDKAssetHandler* internalAssetHandlerGetByAssetType(LDKTypeId id)
+{
+  //TODO(marcio): Should I use a dictionary here ?
+  for (uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    LDKAssetHandler* handler = &internal.handlers[i];
+    if (handler->assetTypeId == id)
+      return handler;
+  }
+  return NULL;
+}
+
 bool ldkAssetInitialize(void)
 {
   internal.assetMap = ldkHashMapCreate((ldkHashMapHashFunc) ldkHashStr, ldkHashMapStrCompareFunc);
@@ -247,19 +259,10 @@ LDKAsset ldkAssetNewByType(LDKTypeId type)
 
   // Find the handler for this type
 
-  LDKAssetHandler* handler = NULL;
-  for (uint32 i = 0; i < internal.numHandlers; i++)
-  {
-    if (internal.handlers[i].assetTypeId == type) 
-    {
-      handler = &internal.handlers[i];
-      break;
-    }
-  }
-
+  LDKAssetHandler* handler = internalAssetHandlerGetByAssetType(type);
   if (handler == NULL)
   {
-    ldkLogError("There are no handlers for type '%s'", typename(type));
+    ldkLogError("There are no handlers for asset type '%s'", typename(type));
     return NULL;
   }
 
@@ -267,7 +270,7 @@ LDKAsset ldkAssetNewByType(LDKTypeId type)
   LDKAssetInfo* asset = (LDKAssetInfo*) ldkHListLookup(&handler->assets, ldkHandleFrom(hAsset));
 
   char path[255];
-  sprintf(path, "%s#%d#%d", typename(type), handler->assets.count, counter++);
+  sprintf(path, "$/%s#%d#%d", typename(type), handler->assets.count, counter++);
   ldkPath(&asset->path, path);
 
   LDKHash hash = ldkHashStr(path);

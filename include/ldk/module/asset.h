@@ -64,6 +64,7 @@ extern "C" {
   LDK_API void ldkAssetTerminate(void);
   LDK_API bool ldkAssetHandlerIsRegistered(const char* fileExtension);
   LDK_API bool ldkAssetHandlerRegisterNew(LDKTypeId id, LDKAssetHandlerLoadFunc loadFunc, LDKAssetHandlerUnloadFunc unloadFunc, uint32 capacity, const char* ext, ...);
+
   LDK_API LDKAsset ldkAssetGetByType(LDKTypeId typeId, const char* path);
   LDK_API void ldkAssetDispose(LDKAsset asset);
   LDK_API LDKAsset ldkAssetLookupType(LDKTypeId type, LDKHAsset handle);

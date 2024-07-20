@@ -1,3 +1,4 @@
+#include "asset/material.h"
 #include "ldk/asset/texture.h"
 #include "ldk/module/asset.h"
 #include "ldk/module/rendererbackend.h"
@@ -113,7 +114,7 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
   if (buffer == NULL)
   {
     if (ldkStringEndsWith(path, "default.material"))
-      return LDK_HANDLE_INVALID;
+      return false;
 
     // Copy the default material settings over this material so the game does not break
     LDKMaterial* defaultMaterial = ldkAssetGet(LDKMaterial, "assets/default.material");
@@ -383,4 +384,13 @@ bool ldkMaterialIsDeferred(LDKHAsset hMaterial)
   if (material == NULL)
     return false;
   return material->deferred;
+}
+
+LDKMaterial* ldkMaterialCreateFromShader(const char* shaderPath)
+{
+  LDKMaterial* material = ldkAssetNew(LDKMaterial);
+  LDKShader* shader = ldkAssetGet(LDKShader, shaderPath);
+  material->deferred = false;
+  ldkMaterialCreate(shader, material);
+  return material;
 }

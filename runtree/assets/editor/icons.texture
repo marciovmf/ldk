@@ -1,0 +1,6 @@
+
+image:          assets/editor/icons.png
+wrap:           clamp
+filter-min:     linear
+filter-max:     linear
+mipmap:         nearest

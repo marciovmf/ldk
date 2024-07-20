@@ -1,23 +1,38 @@
+#include "asset/material.h"
+#include "entity/staticobject.h"
+#include "array.h"
+#include "asset/mesh.h"
 #include "hlist.h"
 #include "ldk/os.h"
 #include "ldk/eventqueue.h"
 #include "ldk/module/editor.h"
 #include "ldk/module/renderer.h"
 #include "ldk/entity/camera.h"
+#include "ldk/entity/pointlight.h"
+#include "ldk/entity/spotlight.h"
+#include "ldk/entity/directionallight.h"
 #include "ldk/common.h"
+#include "ldk/asset/mesh.h"
+#include "ldk/asset/shader.h"
 #include "ldk/engine.h"
 #include "maths.h"
+#include "module/rendererbackend.h"
+#include "module/asset.h"
 #include "module/entity.h"
 #include <math.h>
 
 static struct 
 {
   LDKHEntity editorCamera;
+  LDKArray* editorEntities;
+  LDKMesh* quadMesh;
   uint64 ticksStart;
   uint64 ticksEnd;
   float deltaTime;
   bool enabled;
-
+  LDKMesh* quad;
+  LDKHAsset editorIconMaterial;
+  LDKHAsset* overridenMaterialArray;
 } internalEditor = {0};
 
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
@@ -91,20 +106,77 @@ void  ldkEditorImmediateDraw(float deltaTime)
   }
 }
 
+static void internalAdd3DIcon(const char* name, Vec3 position, LDKHAsset* materialOverrideList)
+{
+  LDKStaticObject* icon = ldkEntityCreate(LDKStaticObject);
+  icon->mesh = ldkAssetGet(LDKMesh, "assets/box.mesh")->asset.handle;
+  icon->materials = materialOverrideList;
+  //icon->materials[0] = materialOverrideList[0];
+  icon->position = position;
+  icon->scale = vec3(0.2f, 0.2f, 0.2f);
+  ldkSmallStringFormat(&icon->entity.name, "3dIcon-%s", name);
+  ldkArrayAdd(internalEditor.editorEntities, &icon->entity.handle);
+  ldkRendererAddStaticObject(icon); 
+}
+
+
 void ldkEditorEnable(bool enabled)
 {
   internalEditor.enabled = enabled;
   if (internalEditor.enabled)
   {
+
     ldkLogInfo("EDITOR mode");
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_FRAME_BEFORE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_KEYBOARD);
+
+    // =====================================================
+    // Add 3D icons for 'invisible' entities
+    // =====================================================
+    LDKHListIterator it;
+    uint32 iconCount = 0;
+
+    it = ldkEntityManagerGetIterator(LDKDirectionalLight);
+    while(ldkHListIteratorNext(&it)) {
+      LDKDirectionalLight* e = (LDKDirectionalLight*) ldkHListIteratorCurrent(&it);
+      internalAdd3DIcon("directional-light", e->position, internalEditor.overridenMaterialArray);
+    }
+
+    it = ldkEntityManagerGetIterator(LDKPointLight);
+    while(ldkHListIteratorNext(&it)) 
+    {
+      LDKPointLight* e = (LDKPointLight*) ldkHListIteratorCurrent(&it);
+      internalAdd3DIcon("point-light", e->position, internalEditor.overridenMaterialArray);
+      }
+
+    it = ldkEntityManagerGetIterator(LDKSpotLight);
+    while(ldkHListIteratorNext(&it)) {
+      LDKSpotLight* e = (LDKSpotLight*) ldkHListIteratorCurrent(&it);
+      internalAdd3DIcon("spot-light", e->position, internalEditor.overridenMaterialArray);
+    }
+
+    it = ldkEntityManagerGetIterator(LDKCamera);
+    while(ldkHListIteratorNext(&it)) {
+      LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
+      internalAdd3DIcon("spot-light", e->position, internalEditor.overridenMaterialArray);
+    }
   }
   else
   {
     ldkLogInfo("GAME mode");
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_NONE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_NONE);
+
+    // When disabling the editor, whe remove any entity created by the editor
+    LDKHEntity* h = (LDKHEntity*) ldkArrayGetData(internalEditor.editorEntities);
+    uint32 numEntities = ldkArrayCount(internalEditor.editorEntities);
+    for (uint32 i = 0; i < numEntities; i++)
+    {
+      ldkEntityLookup(LDKStaticObject, *h)->materials = NULL;
+      ldkEntityDestroy(*h);
+      h++;
+    }
+    ldkArrayClear(internalEditor.editorEntities);
   }
 }
 
@@ -119,6 +191,7 @@ bool ldkEditorInitialize(void)
   ldkEventHandlerAdd(onKeyboard, LDK_EVENT_TYPE_NONE, NULL);
 
   internalEditor.enabled = false;
+  internalEditor.editorEntities = ldkArrayCreate(sizeof(LDKHandle), 64);
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   ldkSmallString(&camera->entity.name, "Editor Camera");
@@ -126,6 +199,14 @@ bool ldkEditorInitialize(void)
   camera->target = vec3Zero();
   camera->entity.flags = LDK_ENTITY_FLAG_INTERNAL;
   internalEditor.editorCamera = camera->entity.handle;
+
+  // Creates an overriden material list for 3D icons
+  internalEditor.editorIconMaterial = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
+  internalEditor.overridenMaterialArray = ldkOsMemoryAlloc(sizeof(LDKHAsset));
+  internalEditor.overridenMaterialArray[0] = internalEditor.editorIconMaterial;
+
+  LDKMaterial* material = ldkAssetLookup(LDKMaterial, internalEditor.editorIconMaterial);
+  ldkMaterialParamSetTexture(material, "texture_diffuse1", ldkAssetGet(LDKTexture, "assets/editor/icons.texture"));
 
   return true;
 }

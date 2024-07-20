@@ -34,7 +34,6 @@ void main()
 
 uniform uint surfaceIndex;
 uniform uint objectIndex;
-
 out vec3 fragColor;
 flat in int instanceId;
 

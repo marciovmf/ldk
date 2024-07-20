@@ -40,6 +40,7 @@ extern "C" {
 
   LDK_API bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetMeshUnloadFunc(LDKAsset asset);
+  LDK_API LDKMesh* ldkQuadMeshCreate(LDKHAsset material);
 
 #ifdef __cplusplus
 }

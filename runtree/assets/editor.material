@@ -1,0 +1,4 @@
+shader:                       assets/geometry-pass.shader
+deferred-render-path:         true
+texture2d texture_diffuse1:   assets/editor/icons.texture
+float shininess:              0.2
