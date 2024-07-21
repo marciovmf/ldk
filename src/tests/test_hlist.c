@@ -1,6 +1,5 @@
 #include "../include/ldk/common.h"
 #include "../include/ldk/hlist.h"
-#include <signal.h>
 #include <stdint.h>
 #define LDK_TEST_IMPLEMENTATION
 #include "ldk_test.h"

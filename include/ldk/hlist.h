@@ -10,8 +10,6 @@
 #define LDK_HANDLE_LIST_H
 
 #include "common.h"
-#include "array.h"
-#include "arena.h"
 
 #ifdef __cplusplus
 extern "C" {

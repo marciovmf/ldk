@@ -2,7 +2,7 @@
 #include "ldk/module/asset.h"
 #include "ldk/asset/texture.h"
 #include "ldk/asset/image.h"
-#include "ldk/module/renderer.h"
+#include "ldk/module/rendererbackend.h"
 #include "ldk/os.h"
 #include <stdlib.h>
 #include <string.h>

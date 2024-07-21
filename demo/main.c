@@ -7,12 +7,10 @@
 #include "entity/pointlight.h"
 #include "entity/spotlight.h"
 #include "entity/staticobject.h"
-#include "hlist.h"
 #include "maths.h"
 #include "module/asset.h"
 #include "module/entity.h"
 #include "module/renderer.h"
-#include "module/rendererbackend.h"
 #include "os.h"
 #include <ldk.h>
 #include <math.h>
@@ -570,7 +568,6 @@ int main(void)
   i++;
 
   state.numPointLights = i;
-
   // Spot Light
   state.spotLight = ldkEntityCreate(LDKSpotLight);
   state.spotLight->position = camera->position;
