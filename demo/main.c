@@ -15,7 +15,6 @@
 #include <ldk.h>
 #include <math.h>
 #include <stdbool.h>
-
 #define SOKOBAN_MAX_BOX_COUNT 5
 #define sokobanBoxId(c) ((uint32)((c) - 'A'))
 #define sokobanInBound(i, w, h) ((i) >= 0 && (i) <= w * h)
@@ -549,7 +548,7 @@ int main(void)
   LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
   directionalLight->colorSpecular = vec3(0.2f, 0.4f, 0.0f);
   directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
-  directionalLight->position = camera->position;
+  directionalLight->position = vec3(camera->position.x, camera->position.y + 2, camera->position.z);
   directionalLight->direction = ldkCameraDirectionNormalized(camera);
   state.directionalLight = directionalLight;
 
@@ -572,6 +571,9 @@ int main(void)
   state.spotLight = ldkEntityCreate(LDKSpotLight);
   state.spotLight->position = camera->position;
   state.spotLight->direction = ldkCameraDirectionNormalized(camera);
+  state.spotLight->position = vec3(camera->position.x, camera->position.y + 1, camera->position.z);
+  state.spotLight->cutOffInner = (float) cos(degToRadian(12.00));
+  state.spotLight->cutOffOuter = (float) cos(degToRadian(12.90));
 
   LDKMaterial* m = ldkMaterialCreateFromShader("assets/editor/lightbox.shader");
   ldkQuadMeshCreate(m->asset.handle);
@@ -579,7 +581,6 @@ int main(void)
   LDKStaticObject* o = ldkEntityCreate(LDKStaticObject);
   o->mesh = m->asset.handle;
 #endif
-
   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
   state.sokoban.animationSpeed  = ldkConfigGetFloat(cfg, "sokoban.animation.speed");
   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
@@ -589,7 +590,6 @@ int main(void)
   ldkRendererSetCamera(camera);
   ldkRendererSetClearColorVec3(clearColor);
   ldkAmbientLightSetIntensity(ldkConfigGetFloat(cfg, "game.ambient-light-intensity"));
-
   return ldkEngineRun();
 }
 

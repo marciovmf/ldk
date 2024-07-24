@@ -14,7 +14,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
   // OS Detection macros
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -93,6 +92,13 @@ extern "C" {
 #endif
 #endif
 
+// By default editor builds on RELEASE only or ir LDK_EDITOR is defined
+#ifdef LDK_DEBUG
+#ifndef LDK_EDITOR
+#define LDK_EDITOR
+#endif
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -164,6 +170,8 @@ extern "C" {
   #define ldkHandleTo(t, h) (t){.value = h}
   // Cast a specialized handle type to LDKHandle
   #define ldkHandleFrom(h) (LDKHandle)(h.value)
+
+  #define ldkHandleEquals(a, b) ((a).value == (b).value)
 
   // SmallStr
   typedef struct

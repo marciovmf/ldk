@@ -226,7 +226,6 @@ static struct
   uint32 count;
 } ldkTypeCatalog = {0};
 
-
 LDKTypeId ldkTypeId(const char* name, size_t size)
 {
   if (ldkTypeCatalog.count >= LDK_TYPE_SYSTEM_MAX_TYPES)
@@ -256,7 +255,7 @@ LDKTypeId ldkTypeId(const char* name, size_t size)
     {
       strncpy(typeInfo->name, name, LDK_TYPE_NAME_MAX_LENGTH);
       typeInfo->size = size;
-      typeInfo->id = index;
+      typeInfo->id = index + 1;
       ldkTypeCatalog.count++;
       return typeInfo->id;
     }
@@ -274,16 +273,16 @@ const char* ldkTypeName(LDKTypeId typeId)
 {
   LDK_ASSERT(typeId != LDK_TYPE_ID_UNKNOWN);
   LDK_ASSERT(typeId < LDK_TYPE_SYSTEM_MAX_TYPES);
-  LDK_ASSERT(ldkTypeCatalog.type[typeId].id == typeId);
-  return ldkTypeCatalog.type[typeId].name;
+  LDK_ASSERT(ldkTypeCatalog.type[typeId -1].id == typeId);
+  return ldkTypeCatalog.type[typeId -1].name;
 }
 
 size_t ldkTypeSize(LDKTypeId typeId)
 {
   LDK_ASSERT(typeId != LDK_TYPE_ID_UNKNOWN);
   LDK_ASSERT(typeId < LDK_TYPE_SYSTEM_MAX_TYPES);
-  LDK_ASSERT(ldkTypeCatalog.type[typeId].id == typeId);
-  return ldkTypeCatalog.type[typeId].size;
+  LDK_ASSERT(ldkTypeCatalog.type[typeId -1].id == typeId);
+  return ldkTypeCatalog.type[typeId -1].size;
 }
 
 //

@@ -1,4 +1,5 @@
 #include "ldk/hlist.h"
+#include "common.h"
 #include "ldk/os.h"
 #include <memory.h>
 #include <string.h>
@@ -171,9 +172,9 @@ bool ldkHListDestroy(LDKHList* hlist)
   return true;
 }
 
-LDKHandleType ldkHandleType(LDKHandle handle)
+LDKTypeId ldkHandleType(LDKHandle handle)
 {
-  return getHandleType(handle);
+  return (LDKTypeId) getHandleType(handle);
 }
 
 LDKHListIterator ldkHListIteratorCreate(LDKHList* hlist)

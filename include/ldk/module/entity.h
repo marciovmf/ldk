@@ -20,11 +20,6 @@
 extern "C" {
 #endif
 
-  enum
-  {
-    LDK_ENTITY_FLAG_INTERNAL =  1 << 31
-  };
-
   typedef struct
   {
     bool active;
@@ -32,6 +27,9 @@ extern "C" {
     LDKTypeId typeId;       // The type of the entity
     uint32 flags;           // Space for user defined flags
     LDKHEntity handle;      // The unique entity handle for this entity.
+#ifdef LDK_EDITOR
+    LDKHEntity editorPlaceholder; // this is used by the editor if a placeholder is necessary
+#endif                                 
   } LDKEntityInfo;
 
   /*
@@ -56,7 +54,6 @@ extern "C" {
   typedef void (*LDKEntityHandlerCreateFunc) (LDKEntity);
   typedef void (*LDKEntityHandlerDestroyFunc) (LDKEntity);
 
-
   LDK_API bool ldkEntityManagerInit(void);
   LDK_API void ldkEntityManagerTerminate(void);
   LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity);
@@ -66,6 +63,8 @@ extern "C" {
   LDK_API const LDKTypeId* ldkEntityManagerTypes(uint32* count);
   LDK_API bool ldkEntityDestroy(LDKHEntity handle);
   LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
+  LDK_API LDKEntity ldkEntityManagerFind(LDKHEntity handle);
+
 
 #ifdef __cplusplus
 }

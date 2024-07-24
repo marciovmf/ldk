@@ -21,6 +21,18 @@
 #include "module/entity.h"
 #include <math.h>
 
+enum
+{
+  EDITOR_FLAG_ENTITY_PLACEHOLDER = 1, // The entity was used as a placeholder for another entity
+};
+
+
+typedef struct
+{
+  LDKHEntity placeholder;
+  LDKHEntity entity;
+} PlaceholderEntity;
+
 static struct 
 {
   LDKHEntity editorCamera;
@@ -33,6 +45,7 @@ static struct
   LDKMesh* quad;
   LDKHAsset editorIconMaterial;
   LDKHAsset* overridenMaterialArray;
+  LDKHEntity selectedEntity;
 } internalEditor = {0};
 
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
@@ -54,8 +67,36 @@ static bool onKeyboard(const LDKEvent* evt, void* data)
   return true;
 }
 
+// Called every frame if the editor is enable
 static bool onUpdate(const LDKEvent* evt, void* data)
 {
+  LDKHEntity selected = ldkRendererSelectedEntity();
+  if (!ldkHandleEquals(internalEditor.selectedEntity, selected))
+  {
+    LDKEntityInfo* e = ldkEntityManagerFind(selected);
+    if (!ldkHandleIsValid(selected))
+    {
+      ldkLogInfo("Nothing selected");
+    }
+    else if (e && e->typeId == typeid(LDKStaticObject) && e->flags == EDITOR_FLAG_ENTITY_PLACEHOLDER) 
+    {
+      LDKHEntity* h = (LDKHEntity*) ldkArrayGetData(internalEditor.editorEntities);
+      uint32 numEntities = ldkArrayCount(internalEditor.editorEntities);
+      for (uint32 i = 0; i < numEntities; i++)
+      {
+        if(ldkHandleEquals(h[i], selected))
+        {
+          e = ldkEntityManagerFind(e->editorPlaceholder);
+          break;
+        }
+      }
+    }
+    ldkLogInfo("-- Editor: Entity selected %llx %s", 
+        (e ? e->handle : LDK_HENTITY_INVALID),
+        (e ? e->name.str : "Nothing"));
+  }
+  internalEditor.selectedEntity = selected;
+
   LDKCamera* camera = ldkEntityLookup(LDKCamera, internalEditor.editorCamera);
   float deltaTime = evt->frameEvent.deltaTime;
   ldkCameraUpdateFreeCamera(camera, deltaTime, 30, 10);
@@ -98,7 +139,7 @@ void  ldkEditorImmediateDraw(float deltaTime)
   while (ldkHListIteratorNext(&it))
   {
     LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
-    if ((e->entity.flags & LDK_ENTITY_FLAG_INTERNAL) == LDK_ENTITY_FLAG_INTERNAL)
+    if (e->entity.handle.value == internalEditor.editorCamera.value)
       continue;
     Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
     ldkShaderParamSetMat4(shader, "mModel", world);
@@ -106,20 +147,21 @@ void  ldkEditorImmediateDraw(float deltaTime)
   }
 }
 
-static void internalAdd3DIcon(const char* name, Vec3 position, LDKHAsset* materialOverrideList)
+static void internalAddPlaceholderEntity(Vec3 position, LDKHAsset* materialOverrideList, LDKHEntity targetEntity)
 {
   LDKStaticObject* icon = ldkEntityCreate(LDKStaticObject);
   icon->mesh = ldkAssetGet(LDKMesh, "assets/box.mesh")->asset.handle;
   icon->materials = materialOverrideList;
-  //icon->materials[0] = materialOverrideList[0];
   icon->position = position;
   icon->scale = vec3(0.2f, 0.2f, 0.2f);
-  ldkSmallStringFormat(&icon->entity.name, "3dIcon-%s", name);
+  icon->entity.editorPlaceholder = targetEntity;
+  icon->entity.flags = EDITOR_FLAG_ENTITY_PLACEHOLDER;
+  ldkSmallStringFormat(&icon->entity.name, "editor-%llx", targetEntity);
   ldkArrayAdd(internalEditor.editorEntities, &icon->entity.handle);
   ldkRendererAddStaticObject(icon); 
 }
 
-
+// Called right after enabling/disabling the editor
 void ldkEditorEnable(bool enabled)
 {
   internalEditor.enabled = enabled;
@@ -134,31 +176,33 @@ void ldkEditorEnable(bool enabled)
     // Add 3D icons for 'invisible' entities
     // =====================================================
     LDKHListIterator it;
-    uint32 iconCount = 0;
 
     it = ldkEntityManagerGetIterator(LDKDirectionalLight);
     while(ldkHListIteratorNext(&it)) {
       LDKDirectionalLight* e = (LDKDirectionalLight*) ldkHListIteratorCurrent(&it);
-      internalAdd3DIcon("directional-light", e->position, internalEditor.overridenMaterialArray);
+      internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
     }
 
     it = ldkEntityManagerGetIterator(LDKPointLight);
     while(ldkHListIteratorNext(&it)) 
     {
       LDKPointLight* e = (LDKPointLight*) ldkHListIteratorCurrent(&it);
-      internalAdd3DIcon("point-light", e->position, internalEditor.overridenMaterialArray);
-      }
+      internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
+    }
 
     it = ldkEntityManagerGetIterator(LDKSpotLight);
     while(ldkHListIteratorNext(&it)) {
       LDKSpotLight* e = (LDKSpotLight*) ldkHListIteratorCurrent(&it);
-      internalAdd3DIcon("spot-light", e->position, internalEditor.overridenMaterialArray);
+      internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
     }
 
     it = ldkEntityManagerGetIterator(LDKCamera);
     while(ldkHListIteratorNext(&it)) {
       LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
-      internalAdd3DIcon("spot-light", e->position, internalEditor.overridenMaterialArray);
+      // Skip the editor camera
+      if (e->entity.handle.value == internalEditor.editorCamera.value)
+        continue;
+      internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
     }
   }
   else
@@ -177,6 +221,8 @@ void ldkEditorEnable(bool enabled)
       h++;
     }
     ldkArrayClear(internalEditor.editorEntities);
+
+    internalEditor.selectedEntity = LDK_HENTITY_INVALID;
   }
 }
 
@@ -197,7 +243,6 @@ bool ldkEditorInitialize(void)
   ldkSmallString(&camera->entity.name, "Editor Camera");
   camera->position = vec3(0.0f, 5.0f, 10.0f);
   camera->target = vec3Zero();
-  camera->entity.flags = LDK_ENTITY_FLAG_INTERNAL;
   internalEditor.editorCamera = camera->entity.handle;
 
   // Creates an overriden material list for 3D icons

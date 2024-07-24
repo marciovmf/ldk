@@ -1,7 +1,6 @@
 #include "ldk/os.h"
 #include "ldk/engine.h"
 #include "ldk/eventqueue.h"
-#include "ldk/module/editor.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/entity.h"
@@ -18,6 +17,11 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/asset/config.h"
 #include "ldk/asset/texture.h"
+
+#ifdef LDK_EDITOR
+#include "ldk/module/editor.h"
+#endif
+
 #include <string.h>
 #include <signal.h>
 
@@ -150,10 +154,12 @@ bool ldkEngineInitialize(void)
   success &= stepSuccess;
   logModuleInit("Renderer", stepSuccess);
 
+#ifdef LDK_EDITOR
   // Startup editor
   stepSuccess = ldkEditorInitialize();
   success &= stepSuccess;
   logModuleInit("Editor", stepSuccess);
+#endif
 
   success &= stepSuccess;
   logModuleInit("LDK", success);
@@ -167,8 +173,10 @@ bool ldkEngineInitialize(void)
 
 void ldkEngineTerminate(void)
 {
+#ifdef LDK_EDITOR
   logModuleTerminate("Editor");
   ldkEditorTerminate();
+#endif
   logModuleTerminate("Renderer");
   ldkRendererTerminate();
   logModuleTerminate("Graphics");
@@ -206,10 +214,12 @@ LDK_API int32 ldkEngineRun(void)
 
     tickStart = ldkOsTimeTicksGet();
 
+#ifdef LDK_EDITOR
     if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
     {
       ldkEditorEnable(!ldkEditorIsEnabled());
     }
+#endif
 
     event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
     event.frameEvent.ticks = tickStart;
@@ -218,8 +228,10 @@ LDK_API int32 ldkEngineRun(void)
     ldkEventQueueBroadcast();
 
     ldkRendererRender(deltaTime);
+#ifdef LDK_EDITOR
     if (ldkEditorIsEnabled())
       ldkEditorImmediateDraw(deltaTime);
+#endif
 
     ldkGraphicsSwapBuffers();
     tickEnd = ldkOsTimeTicksGet();
@@ -254,10 +266,12 @@ LDK_API int32 ldkEngineRun(void)
   return internal.exitCode;
 }
 
+#ifdef LDK_EDITOR
 bool ldkEngineIsEditorRunning(void)
 {
   return ldkEditorIsEnabled();
 }
+#endif
 
 void ldkEngineStop(int32 exitCode)
 {
