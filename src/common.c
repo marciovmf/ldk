@@ -1,4 +1,5 @@
 #include "ldk/common.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -133,6 +134,72 @@ void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const
 }
 
 //
+// Hash
+//
+
+LDKHash ldkHashDJB2(const char* str)
+{
+  unsigned long hash = 5381;
+  int c;
+  while ((c = *str++))
+  {
+    hash = ((hash << 5) + hash) + c;
+  }
+  return hash;
+}
+
+
+LDKHash ldkHashStr(const char* str)
+{
+  uint32_t hash = 2166136261u; // FNV offset basis
+  while (*str)
+  {
+    hash ^= (uint32_t) *str++;
+    hash *= 16777619u; // FNV prime
+  }
+  return hash;
+}
+
+LDKHash ldkHash(const void* data, size_t size)
+{
+  const char* p = (const char*) data; 
+  uint32_t hash = 2166136261u; // FNV offset basis
+  for (uint32 i = 0; i < size; i++)
+  {
+    hash ^= (uint32_t) p[i];
+    hash *= 16777619u; // FNV prime
+  }
+  return hash;
+}
+
+LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed)
+{
+  const uint32_t prime = 2654435761U;
+  uint32_t hash = seed + prime;
+  const char* data = (const char*)input;
+  size_t remaining = length;
+
+  while (remaining >= 4)
+  {
+    uint32_t value;
+    memcpy(&value, data, sizeof(uint32_t));
+    hash += value * prime;
+    hash = (hash << 13) | (hash >> 19); // Rotate left by 13 bits
+    data += 4;
+    remaining -= 4;
+  }
+
+  while (remaining > 0)
+  {
+    hash += (*data++) * prime;
+    hash = (hash << 13) | (hash >> 19);
+    remaining--;
+  }
+
+  return hash;
+}
+
+//
 // Type System
 //
 
@@ -144,66 +211,79 @@ void ldkLogPrintDetailed(const char* prefix, const char* file, int32 line, const
 #define LDK_TYPE_SYSTEM_MAX_TYPES 64
 #endif
 
+LDKHash ldkHashDJB2(const char* str);
 typedef struct
 {
   char name[LDK_TYPE_NAME_MAX_LENGTH];
   size_t size;
   LDKTypeId id;
-} LDKTypeInfo_;
+  LDKHash hash;
+} LDKTypeInfo;
 
 static struct
 {
-  LDKTypeInfo_ type[LDK_TYPE_SYSTEM_MAX_TYPES];
+  LDKTypeInfo type[LDK_TYPE_SYSTEM_MAX_TYPES];
   uint32 count;
-} ldkTypeCatalog_ = {0};
+} ldkTypeCatalog = {0};
 
 
 LDKTypeId ldkTypeId(const char* name, size_t size)
 {
-  for (uint32 i = 0; i < ldkTypeCatalog_.count; i++)
-  {
-    LDKTypeInfo_* typeInfo = &ldkTypeCatalog_.type[i];
-    if (strncmp((const char*) &typeInfo->name, name, LDK_TYPE_NAME_MAX_LENGTH) == 0)
-    {
-      return typeInfo->id;
-    }
-  }
-
-  if (ldkTypeCatalog_.count >= LDK_TYPE_SYSTEM_MAX_TYPES)
+  if (ldkTypeCatalog.count >= LDK_TYPE_SYSTEM_MAX_TYPES)
   {
     ldkLogError("Could not register type '%s' as the type catalog is full (%d entries)", LDK_TYPE_SYSTEM_MAX_TYPES);
     return LDK_TYPE_ID_UNKNOWN;
   }
 
+#ifdef LDK_DEBUG
   size_t typeNameLen = strlen(name);
   if (typeNameLen >= (LDK_TYPE_NAME_MAX_LENGTH - 1))
   {
     ldkLogError("Could not register type '%s' as the type is too long. Maximum supportd is %d)", (LDK_TYPE_NAME_MAX_LENGTH - 1));
     return LDK_TYPE_ID_UNKNOWN;
   }
+#endif
 
-  uint32 index = ldkTypeCatalog_.count++;
-  uint32 typeId = index + 1;
-  strncpy((char*) &ldkTypeCatalog_.type[index].name, name, LDK_TYPE_NAME_MAX_LENGTH);
-  ldkTypeCatalog_.type[index].size = size;
-  ldkTypeCatalog_.type[index].id = typeId;
-  return typeId;
+  uint32 hashIndex = ldkHashDJB2(name) % LDK_TYPE_SYSTEM_MAX_TYPES;
+
+  for (uint32 i = 0; i < LDK_TYPE_SYSTEM_MAX_TYPES; i++)
+  {
+    uint32 index = (hashIndex + i) % LDK_TYPE_SYSTEM_MAX_TYPES;
+    LDKTypeInfo* typeInfo = &ldkTypeCatalog.type[index];
+
+    //Register if empty
+    if (typeInfo->name[0] == '\0')
+    {
+      strncpy(typeInfo->name, name, LDK_TYPE_NAME_MAX_LENGTH);
+      typeInfo->size = size;
+      typeInfo->id = index;
+      ldkTypeCatalog.count++;
+      return typeInfo->id;
+    }
+    else if (strncmp(typeInfo->name, name, LDK_TYPE_NAME_MAX_LENGTH) == 0)
+    {
+      // Return type id if exists
+      return typeInfo->id;
+    }
+  }
+
+  return LDK_TYPE_ID_UNKNOWN;
 }
 
 const char* ldkTypeName(LDKTypeId typeId)
 {
-  LDK_ASSERT(typeId > 0);
-  LDK_ASSERT(typeId <= ldkTypeCatalog_.count);
-  LDK_ASSERT(ldkTypeCatalog_.type[typeId - 1].id == typeId);
-  return ldkTypeCatalog_.type[typeId - 1].name;
+  LDK_ASSERT(typeId != LDK_TYPE_ID_UNKNOWN);
+  LDK_ASSERT(typeId < LDK_TYPE_SYSTEM_MAX_TYPES);
+  LDK_ASSERT(ldkTypeCatalog.type[typeId].id == typeId);
+  return ldkTypeCatalog.type[typeId].name;
 }
 
 size_t ldkTypeSize(LDKTypeId typeId)
 {
-  LDK_ASSERT(typeId > 0);
-  LDK_ASSERT(typeId <= ldkTypeCatalog_.count);
-  LDK_ASSERT(ldkTypeCatalog_.type[typeId - 1].id == typeId);
-  return ldkTypeCatalog_.type[typeId - 1].size;
+  LDK_ASSERT(typeId != LDK_TYPE_ID_UNKNOWN);
+  LDK_ASSERT(typeId < LDK_TYPE_SYSTEM_MAX_TYPES);
+  LDK_ASSERT(ldkTypeCatalog.type[typeId].id == typeId);
+  return ldkTypeCatalog.type[typeId].size;
 }
 
 //
@@ -270,59 +350,6 @@ size_t ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallStri
   return 0;
 }
 
-//
-// Hash
-//
-
-LDKHash ldkHashStr(const char* str)
-{
-  uint32_t hash = 2166136261u; // FNV offset basis
-  while (*str)
-  {
-    hash ^= (uint32_t) *str++;
-    hash *= 16777619u; // FNV prime
-  }
-  return hash;
-}
-
-LDKHash ldkHash(const void* data, size_t size)
-{
-  const char* p = (const char*) data; 
-  uint32_t hash = 2166136261u; // FNV offset basis
-  for (uint32 i = 0; i < size; i++)
-  {
-    hash ^= (uint32_t) p[i];
-    hash *= 16777619u; // FNV prime
-  }
-  return hash;
-}
-
-LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed)
-{
-  const uint32_t prime = 2654435761U;
-  uint32_t hash = seed + prime;
-  const char* data = (const char*)input;
-  size_t remaining = length;
-
-  while (remaining >= 4)
-  {
-    uint32_t value;
-    memcpy(&value, data, sizeof(uint32_t));
-    hash += value * prime;
-    hash = (hash << 13) | (hash >> 19); // Rotate left by 13 bits
-    data += 4;
-    remaining -= 4;
-  }
-
-  while (remaining > 0)
-  {
-    hash += (*data++) * prime;
-    hash = (hash << 13) | (hash >> 19);
-    remaining--;
-  }
-
-  return hash;
-}
 
 //
 // Path

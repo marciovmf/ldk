@@ -286,6 +286,19 @@ extern "C" {
 #endif
 
   //
+  // Hash
+  //
+
+  typedef uint32 LDKHash;
+
+  LDK_API LDKHash ldkHashDJB2(const char* str);
+  LDK_API LDKHash ldkHashStr(const char*);
+  LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
+  LDK_API LDKHash ldkHash(const void* data, size_t length);
+
+
+
+  //
   // Type system
   //
 
@@ -311,17 +324,6 @@ extern "C" {
   LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
   LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
   LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
-
-  //
-  // Hash
-  //
-
-  typedef uint32 LDKHash;
-
-  LDK_API LDKHash ldkHashStr(const char*);
-  LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
-  LDK_API LDKHash ldkHash(const void* data, size_t length);
-
 
   //
   // Path
