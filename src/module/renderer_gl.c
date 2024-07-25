@@ -1227,6 +1227,9 @@ void ldkRendererRender(float deltaTime)
     // Picking and selection
     internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
   }
+  else {
+    internal.selectedEntity = LDK_HENTITY_INVALID;
+  }
 
   ldkArrayClear(internal.renderObjectArray);
   ldkArrayClear(internal.renderObjectArrayDeferred);
