@@ -183,15 +183,12 @@ void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 
   LDKCamera* o = ldkEntityLookup(LDKCamera, selection->handle);
   LDK_ASSERT(o != NULL);
 
-  //TODO: Correctly apply rotation to target before moving it
-  //
-  
-  // Move target along with new position
-  Vec3 distance = vec3Sub(pos, o->position); // old pos - current pos
-  Vec3 newTarget = vec3Add(o->target, distance);
+  float distance = vec3Length(vec3Sub(o->target, o->position));
+  Vec3 direction = vec3Normalize(quatToEuler(rot));
+  Vec3 t = vec3Add(pos, vec3Mul(direction, distance));
+  o->target = t;
+  vec3Print(o->target);
   o->position = pos;
-  o->target = newTarget;
-
 }
 #endif //LDK_EDITOR
 
