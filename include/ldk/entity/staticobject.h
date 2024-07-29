@@ -30,6 +30,11 @@ extern "C" {
   LDK_API void ldkStaticObjectEntityDestroy(LDKStaticObject* entity);
   LDK_API void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh);
 
+#ifdef LDK_EDITOR
+  LDK_API void ldkStaticObjectEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkStaticObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
+#endif // LDK_EDITOR
+
 #ifdef __cplusplus
 }
 #endif

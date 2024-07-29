@@ -58,7 +58,6 @@ Mat4 ldkCameraViewProjectMatrix(LDKCamera* camera)
   return mat4MulMat4(proj, view);
 }
 
-
 void ldkCameraUpdateFreeCamera(LDKCamera* camera, float deltaTime, float lookSpeed, float moveSpeed)
 {
   Vec3 cam_dir = ldkCameraDirectionNormalized(camera);
@@ -161,5 +160,38 @@ void ldkCameraUpdateFreeCamera(LDKCamera* camera, float deltaTime, float lookSpe
       camera->target = vec3Sub(camera->target, vec3Mul(side_dir, moveSpeed));
     }
   }
+}
+
+#ifdef LDK_EDITOR
+
+void inspectVec3(Vec3 v, Vec3 z)
+{
+  ldkLogInfo("vec3(%4.2f,%4.2f,%4.2f) -> vec3(%4.2f,%4.2f,%4.2f)", v.x, v.y, v.z, z.x, z.y, z.z);
+}
+
+void ldkCameraEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKCamera* o = ldkEntityLookup(LDKCamera, selection->handle);
+  LDK_ASSERT(o != NULL);
+  if (pos)    *pos = o->position;
+  if (scale)  *scale = vec3One();
+  if (rot)    *rot = quatFromEuler(ldkCameraDirectionNormalized(o));
+}
+
+void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 _, Quat rot)
+{
+  LDKCamera* o = ldkEntityLookup(LDKCamera, selection->handle);
+  LDK_ASSERT(o != NULL);
+
+  //TODO: Correctly apply rotation to target before moving it
+  //
+  
+  // Move target along with new position
+  Vec3 distance = vec3Sub(pos, o->position); // old pos - current pos
+  Vec3 newTarget = vec3Add(o->target, distance);
+  o->position = pos;
+  o->target = newTarget;
 
 }
+#endif //LDK_EDITOR
+

@@ -165,7 +165,7 @@ extern "C" {
   typedef Vec4 Quat;
 
   LDK_API Quat quatId(void);
-  LDK_API Quat quatNew(float x, float y, float z, float w);
+  LDK_API Quat quat(float x, float y, float z, float w);
   LDK_API Quat quatFromEuler(Vec3 r);
   LDK_API Quat quatAngleAxis(float angle, Vec3 axis);
   LDK_API Quat quatRotationX(float angle);
@@ -266,7 +266,7 @@ extern "C" {
 
   Mat4 mat4Id(void);
   Mat4 mat4Zero(void);
-  Mat4 mat4New(float xx, float xy, float xz, float xw,
+  Mat4 mat4(float xx, float xy, float xz, float xw,
       float yx, float yy, float yz, float yw,
       float zx, float zy, float zz, float zw,
       float wx, float wy, float wz, float ww);

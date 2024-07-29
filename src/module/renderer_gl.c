@@ -31,13 +31,6 @@ void internalRenderMeshInstanced(LDKInstancedObject* entity);
 #define LDK_RENDERER_OPENGL
 #endif // LDK_RENDERER_OPENGL
 
-typedef struct 
-{
-  uint32 objectIndex;
-  uint32 surfaceIndex;
-  uint32 instanceIndex;
-} LDKPickingPixelInfo;
-
 static struct 
 {
   bool initialized;
@@ -78,8 +71,7 @@ static struct
   Vec3 higlightColor1;
   Vec3 higlightColor2;
 
-  LDKHEntity selectedEntity;
-  LDKPickingPixelInfo pickingInfo;
+  LDKEntitySelectionInfo selectedEntity;
 } internal = { 0 };
 
 typedef enum
@@ -241,7 +233,7 @@ static void internalRenderInstancedObjectForPicking(LDKInstancedObject* entity, 
 
   if(!mesh)
     return;
-  
+
   ldkRenderBufferBind(mesh->vBuffer);
   ldkInstanceBufferBind(entity->instanceBuffer);
   ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
@@ -332,21 +324,19 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   ldkOsMouseStateGet(&mouseState);
   if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
   {
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-
     int x = mouseState.cursor.x;
     int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
 
+    // Decode entity information from pixel data
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
     Vec3 pixelColor;
     glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelColor);
-    internal.pickingInfo.objectIndex = (uint32) pixelColor.x;
-    internal.pickingInfo.surfaceIndex = (uint32) pixelColor.y;
-    internal.pickingInfo.instanceIndex = (uint32) pixelColor.z;
-
+    uint32 objectIndex = (uint32) pixelColor.x;
+    internal.selectedEntity.surfaceIndex  = (uint32) pixelColor.y;
+    internal.selectedEntity.instanceIndex = (uint32) pixelColor.z;
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    uint32 objectIndex = internal.pickingInfo.objectIndex;
 
     if (objectIndex > 0 && (objectIndex - 1) < ldkArrayCount(renderObjects))
     {
@@ -354,16 +344,18 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
 
       if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
       {
-        internal.selectedEntity = ro->staticMesh->entity.handle;
+        internal.selectedEntity.handle = ro->staticMesh->entity.handle;
       }
       else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
       {
-        internal.selectedEntity = ro->instancedMesh->entity.handle;
+        internal.selectedEntity.handle = ro->instancedMesh->entity.handle;
       }
     }
     else
     {
-      internal.selectedEntity = LDK_HENTITY_INVALID;
+      internal.selectedEntity.handle = LDK_HENTITY_INVALID;
+      internal.selectedEntity.instanceIndex = 0;
+      internal.selectedEntity.surfaceIndex = 0;
     }
   }
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -373,9 +365,9 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   // Highlight picked entity
   //
 
-  if (ldkHandleIsValid(internal.selectedEntity))
+  if (ldkHandleIsValid(internal.selectedEntity.handle))
   {
-    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity);
+    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity.handle);
     if (so)
     {
       internalRenderHighlight(so);
@@ -383,10 +375,10 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
     else
     {
       LDKInstancedObject* io = NULL;
-      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity);
+      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity.handle);
       if (io)
       {
-        LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.pickingInfo.instanceIndex);
+        LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.selectedEntity.instanceIndex);
 
         //TODO: This is ugly. Get rid of this static entity
         static LDKStaticObject o;
@@ -398,7 +390,7 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
       }
       else
       {
-        internal.selectedEntity = LDK_HENTITY_INVALID;
+        internal.selectedEntity.handle = LDK_HENTITY_INVALID;
       }
     }
 
@@ -1228,7 +1220,9 @@ void ldkRendererRender(float deltaTime)
     internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
   }
   else {
-    internal.selectedEntity = LDK_HENTITY_INVALID;
+    internal.selectedEntity.handle = LDK_HENTITY_INVALID;
+    internal.selectedEntity.surfaceIndex = 0;
+    internal.selectedEntity.instanceIndex = 0;
   }
 
   ldkArrayClear(internal.renderObjectArray);
@@ -1240,7 +1234,7 @@ void ldkRendererRender(float deltaTime)
   ldkRenderBufferBind(NULL);
 }
 
-LDKHEntity ldkRendererSelectedEntity(void)
+LDKEntitySelectionInfo ldkRendererSelectedEntity(void)
 {
-   return internal.selectedEntity;
+  return internal.selectedEntity;
 }

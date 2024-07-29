@@ -1,8 +1,11 @@
 #ifndef LDK_TEST_H
 #define LDK_TEST_H
 
+#ifdef LDK_TEST_IMPLEMENTATION
 #include <stdio.h>
 #include <signal.h>
+#endif
+#include <math.h>
 
 // Original macros without message and format string support
 #define ASSERT_TRUE(expr) do { \
@@ -16,6 +19,13 @@
 
 #define ASSERT_EQ(actual, expected) do { \
   if ((actual) != (expected)) { \
+    printf("\t%s:%d: Assertion failed: %s == %s\n", __FILE__, __LINE__, #actual, #expected); \
+    return 1; \
+  } \
+} while (0)
+
+#define ASSERT_FLOAT_EQ(actual, expected) do { \
+  if (fabs((actual) - (expected)) > 1e-6) { \
     printf("\t%s:%d: Assertion failed: %s == %s\n", __FILE__, __LINE__, #actual, #expected); \
     return 1; \
   } \
@@ -73,7 +83,7 @@ typedef struct
 
 #define TEST_CASE(name) {#name, name}
 
-#if defined(LDK_TEST_IMPLEMENTATION)
+#ifdef LDK_TEST_IMPLEMENTATION
 
 static void internalOnSignal(int signal)
 {

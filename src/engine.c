@@ -143,6 +143,34 @@ bool ldkEngineInitialize(void)
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 
+#ifdef LDK_EDITOR
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKCamera),
+      ldkCameraEntityOnEditorGetTransform,
+      ldkCameraEntityOnEditorSetTransform);
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKStaticObject),
+      ldkStaticObjectEntityOnEditorGetTransform,
+      ldkStaticObjectEntityOnEditorSetTransform);
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKInstancedObject),
+      ldkInstancedObjectEntityOnEditorGetTransform,
+      ldkInstancedObjectEntityOnEditorSetTransform);
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKPointLight),
+      ldkPointLightEntityOnEditorGetTransform,
+      ldkPointLightEntityOnEditorSetTransform);
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKSpotLight),
+      ldkSpotLightEntityOnEditorGetTransform,
+      ldkSpotLightEntityOnEditorSetTransform);
+
+  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKDirectionalLight),
+      ldkDirectionalLightEntityOnEditorGetTransform,
+      ldkDirectionalLightEntityOnEditorSetTransform);
+
+#endif // LDK_EDITOR
+
   // Startup Graphics
   //TODO(marcio): Get initial display width and height from a config file
   stepSuccess = ldkGraphicsInitialize(config, LDK_GRAPHICS_API_OPENGL_3_3);
@@ -159,7 +187,7 @@ bool ldkEngineInitialize(void)
   stepSuccess = ldkEditorInitialize();
   success &= stepSuccess;
   logModuleInit("Editor", stepSuccess);
-#endif
+#endif // LDK_EDITOR
 
   success &= stepSuccess;
   logModuleInit("LDK", success);

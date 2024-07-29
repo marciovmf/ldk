@@ -22,7 +22,6 @@ extern "C" {
     LDK_CAMERA_ORTHOGRAPHIC = 1
   } LDKCameraType;
 
-
   typedef struct
   {
     LDK_DECLARE_ENTITY;
@@ -35,7 +34,6 @@ extern "C" {
     float farPlane;
   } LDKCamera; 
 
-
   LDK_API LDKCamera* ldkCameraEntityCreate(LDKCamera* entity);
   LDK_API void ldkCameraEntityDestroy(LDKCamera* entity);
   LDK_API Vec3 ldkCameraDirectionNormalized(LDKCamera* camera);
@@ -43,6 +41,11 @@ extern "C" {
   LDK_API Mat4 ldkCameraProjectMatrix(LDKCamera* camera);
   LDK_API Mat4 ldkCameraViewProjectMatrix(LDKCamera* camera);
   LDK_API void ldkCameraUpdateFreeCamera(LDKCamera* camera, float deltaTime, float lookSpeed, float moveSpeed);
+
+#ifdef LDK_EDITOR
+  LDK_API void ldkCameraEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
+#endif // LDK_EDITOR
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,10 @@ extern "C" {
   LDK_API LDKSpotLight* ldkSpotLightEntityCreate(LDKSpotLight* entity);
   LDK_API void ldkSpotLightEntityDestroy(LDKSpotLight* entity);
 
+#ifdef LDK_EDITOR
+  LDK_API void ldkSpotLightEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkSpotLightEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
+#endif // LDK_EDITOR
 
 #ifdef __cplusplus
 }

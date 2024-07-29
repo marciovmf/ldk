@@ -128,6 +128,7 @@ if (LDK_BUILD_TESTS)
     create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
     create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
     create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
+    create_test(TARGET test_mat4 SOURCES tests/ldk_test.h tests/test_mat4.c)
     create_test(TARGET test_typesystem SOURCES tests/ldk_test.h tests/test_typesystem.c)
 
   endif()

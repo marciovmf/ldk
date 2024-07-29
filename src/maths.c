@@ -790,22 +790,19 @@ Vec3 quatImaginaries(Quat q)
 
 Quat quatFromEuler(Vec3 r)
 {
+  float cy = cosf(r.z * 0.5f);
+  float sy = sinf(r.z * 0.5f);
+  float cp = cosf(r.y * 0.5f);
+  float sp = sinf(r.y * 0.5f);
+  float cr = cosf(r.x * 0.5f);
+  float sr = sinf(r.x * 0.5f);
 
-  float fc1 = cosf( r.z / 2.0f );
-  float fc2 = cosf( r.x / 2.0f );
-  float fc3 = cosf( r.y / 2.0f );
-
-  float fs1 = sinf( r.z / 2.0f );
-  float fs2 = sinf( r.x / 2.0f );
-  float fs3 = sinf( r.y / 2.0f );
-
-  return quat(
-      fc1 * fc2 * fs3 - fs1 * fs2 * fc3,
-      fc1 * fs2 * fc3 + fs1 * fc2 * fs3,
-      fs1 * fc2 * fc3 - fc1 * fs2 * fs3,
-      fc1 * fc2 * fc3 + fs1 * fs2 * fs3
-      );
-
+  Quat q;
+  q.w = cr * cp * cy + sr * sp * sy;
+  q.x = sr * cp * cy - cr * sp * sy;
+  q.y = cr * sp * cy + sr * cp * sy;
+  q.z = cr * cp * sy - sr * sp * cy;
+  return q;
 }
 
 Quat quatAngleAxis(float angle, Vec3 axis)
@@ -839,7 +836,6 @@ Quat quatRotationZ(float angle)
 
 void quatToAngleAxis(Quat q, Vec3* axis, float* angle)
 {
-
   *angle = 2.0f * acosf( q.w );
 
   float divisor = sinf( *angle / 2.0f );
@@ -859,22 +855,29 @@ void quatToAngleAxis(Quat q, Vec3* axis, float* angle)
     *axis = vec3Normalize(*axis);
 
   }
-
 }
 
 Vec3 quatToEuler(Quat q)
 {
+  Vec3 euler;
+  // Roll (x-axis rotation)
+  float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
+  float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+  euler.x = atan2f(sinr_cosp, cosr_cosp);
 
-  float sqrx = q.x * q.x;
-  float sqry = q.y * q.y;
-  float sqrz = q.z * q.z;
-  float sqrw = q.w * q.w;
+  // Pitch (y-axis rotation)
+  float sinp = 2.0f * (q.w * q.y - q.z * q.x);
+  if (fabsf(sinp) >= 1.0f)
+    euler.y = copysignf((float)(M_PI / 2.0), sinp); // Use 90 degrees if out of range
+  else
+    euler.y = asinf(sinp);
 
-  return vec3(
-      asinf( -2.0f * ( q.x * q.z - q.y * q.w ) ),
-      atan2f( 2.0f * ( q.y * q.z + q.x * q.w ), (-sqrx - sqry + sqrz + sqrw) ),
-      atan2f( 2.0f * ( q.x * q.y + q.z * q.w ), ( sqrx - sqry - sqrz + sqrw) ));
+  // Yaw (z-axis rotation)
+  float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
+  float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+  euler.z = atan2f(siny_cosp, cosy_cosp);
 
+  return euler;
 }
 
 Quat quatMulQuat(Quat q1, Quat q2)
@@ -930,7 +933,6 @@ float quatLength(Quat q)
 
 Quat quatNormalize(Quat q)
 {
-
   float scale = quatLength(q);
 
   if ( scale > FLT_EPSILON )
@@ -1566,15 +1568,15 @@ Mat4 mat4Id(void)
 float mat4At(Mat4 m, int x, int y)
 {
   float* arr = (float*)(&m);
-  return arr[x + (y*4)];  
+  //return arr[x + (y*4)];   // Column Major
+  return arr[(x*4) + y];     // Row Major
 }
 
 Mat4 mat4Set(Mat4 m, int x, int y, float v)
 {
-
   float* arr = (float*)(&m);
-  arr[x + (y*4)] = v;
-
+  //arr[x + (y*4)] = v; // Column Major
+  arr[(x*4) + y] = v;   // Row Major
   return m;
 }
 
@@ -1741,24 +1743,20 @@ Mat3 mat4ToMat3(Mat4 m)
 Quat mat4ToQuat(Mat4 m)
 {
   float tr = m.xx + m.yy + m.zz;
-
   if (tr > 0.0f)
   {
-
     float s = sqrtf( tr + 1.0f );
-
     float w = s / 2.0f;
     float x = ( mat4At(m, 1, 2) - mat4At(m, 2, 1) ) * (0.5f / s);
     float y = ( mat4At(m, 2, 0) - mat4At(m, 0, 2) ) * (0.5f / s);
     float z = ( mat4At(m, 0, 1) - mat4At(m, 1, 0) ) * (0.5f / s);
     return quat(x, y, z, w);
-
-  } else {
-
+  }
+  else
+  {
     int nxt[3] = {1, 2, 0};
     float q[4];
     int  i, j, k;
-
     i = 0;
     if ( mat4At(m, 1, 1) > mat4At(m, 0, 0) )
     {	i = 1;	}
@@ -1766,7 +1764,6 @@ Quat mat4ToQuat(Mat4 m)
     {	i = 2;	}
     j = nxt[i];
     k = nxt[j];
-
     float s = sqrtf( (mat4At(m, i, i) - (mat4At(m, j, j) + mat4At(m, k, k))) + 1.0f );
 
     q[i] = s * 0.5f;

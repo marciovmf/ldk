@@ -91,3 +91,30 @@ void ldkInstancedObjectDeleteAll(LDKInstancedObject* io)
   ldkArrayClear(io->instanceList);
   ldkArrayClear(io->instanceWorldMatrixList);
 }
+
+#ifdef LDK_EDITOR
+
+     
+void ldkInstancedObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, selection->handle);
+  LDK_ASSERT(io != NULL);
+  LDKObjectInstance* o = ldkInstancedObjectGet(io, selection->instanceIndex);
+  LDK_ASSERT(o != NULL);
+  if (pos)    *pos = o->position;
+  if (scale)  *scale = o->scale;
+  if (rot)    *rot = o->rotation;
+
+}
+
+void ldkInstancedObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, selection->handle);
+  LDK_ASSERT(io != NULL);
+  LDKObjectInstance* o = ldkInstancedObjectGet(io, selection->instanceIndex);
+  o->position = pos;
+  o->scale = scale;
+  o->rotation = rot;
+  ldkInstancedObjectUpdate(io);
+}
+#endif // LDK_EDITOR

@@ -8,8 +8,12 @@
 typedef struct
 {
   LDKTypeId typeId;
-  LDKEntityHandlerCreateFunc createFunc;
-  LDKEntityHandlerDestroyFunc destroyFunc;
+  LDKEntityHandlerCreateFunc    createFunc;
+  LDKEntityHandlerDestroyFunc   destroyFunc;
+#ifdef LDK_EDITOR
+  LDKEntityEditorGetTransformFunc getTransformFunc;
+  LDKEntityEditorSetTransformFunc setTransformFunc;
+#endif
   LDKHList entities;
 } LDKEntityHandler;
 
@@ -67,10 +71,16 @@ bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc cr
 
   const uint32 handlerId = internal.numHandlers++;
   handler = &internal.handlers[handlerId];
-  handler->typeId = typeId;
-  handler->createFunc = createFunc;
-  handler->destroyFunc = destroyFunc;
+  handler->typeId           = typeId;
+  handler->createFunc       = createFunc;
+  handler->destroyFunc      = destroyFunc;
+#ifdef LDK_EDITOR
+  handler->getTransformFunc = NULL;
+  handler->setTransformFunc = NULL;
+#endif
+
   bool success = ldkHListCreate(&handler->entities, typeId, typesize(typeId), initialPoolCapacity);
+
   return success;
 }
 
@@ -143,4 +153,40 @@ LDKEntity ldkEntityManagerFind(LDKHEntity handle)
   return ldkEntityManagerEntityLookup(t, handle);
 }
 
-//TODO(marcio): Cerate means to unregister an EntityHandler (remember to fix handledTypes)
+#ifdef LDK_EDITOR
+
+void ldkEntityHandlerRegisterEditorFunctions(LDKTypeId typeId, LDKEntityEditorGetTransformFunc getFunc, LDKEntityEditorSetTransformFunc setFunc)
+{
+  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDK_ASSERT(handler != NULL);
+  handler->getTransformFunc = getFunc;
+  handler->setTransformFunc = setFunc;
+}
+
+void ldkEntityEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(selection->handle));
+  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDK_ASSERT(handler != NULL);
+  if (handler->getTransformFunc == NULL)
+  {
+    ldkLogWarning("Entity type %s has no LDKEntityEditorGetTransformFunc function registered ", typename(handler->typeId));
+    return;
+  }
+  handler->getTransformFunc(selection, pos, scale, rot);
+}
+
+void ldkEntityEditorSetTransform(LDKEntitySelectionInfo* selection, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(selection->handle));
+  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDK_ASSERT(handler != NULL);
+  if (handler->setTransformFunc == NULL)
+  {
+    ldkLogWarning("Entity type %s has no LDKEntityEditorSetTransformFunc function registered ", typename(handler->typeId));
+    return;
+  }
+  handler->setTransformFunc(selection, pos, scale, rot);
+}
+
+#endif // LDK_EDITOR

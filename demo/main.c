@@ -295,11 +295,11 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
   if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
       && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
   {
-    LDKHEntity targetEntity = ldkRendererSelectedEntity();
-    if (ldkHandleIsValid(targetEntity))
+    LDKEntitySelectionInfo targetEntity = ldkRendererSelectedEntity();
+    if (ldkHandleIsValid(targetEntity.handle))
     {
-      ldkLogInfo("Destroying entity %llx", targetEntity);
-      ldkEntityDestroy(targetEntity);
+      ldkLogInfo("Destroying entity %llx", targetEntity.handle);
+      ldkEntityDestroy(targetEntity.handle);
     }
   }
 
@@ -386,7 +386,7 @@ int main(void)
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   camera->position = vec3Zero();
-  camera->target = vec3(0.0f, 0.0f, -1.0f);
+  camera->target = vec3(0.0f, 0.0f, 0.0f);
 
 #if 0
   for(uint32 i = 0; i < 10; i++)

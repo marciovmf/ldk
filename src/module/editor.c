@@ -45,7 +45,8 @@ static struct
   LDKMesh* quad;
   LDKHAsset editorIconMaterial;
   LDKHAsset* overridenMaterialArray;
-  LDKHEntity selectedEntity;
+  LDKEntitySelectionInfo selectedPlaceholder; // Might point to a placeholder entity
+  LDKEntitySelectionInfo selectedEntity;      // Allways point to the acutal entity
 } internalEditor = {0};
 
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
@@ -54,48 +55,92 @@ extern void drawFrustum(float nearWidth, float nearHeight, float farWidth, float
 
 static bool onKeyboard(const LDKEvent* evt, void* data)
 {
-  if (evt->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
+  if (evt->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_DOWN || evt->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_HOLD)
   {
     if (evt->keyboardEvent.keyCode == LDK_KEYCODE_ESCAPE)
     {
       ldkEngineStop(0);
     }
-    else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_X)
+    if (ldkHandleIsValid(internalEditor.selectedEntity.handle))
     {
+      Vec3 pos;
+      Vec3 scale;
+      Quat rot;
+      bool updated = false;
+
+      if (evt->keyboardEvent.keyCode == LDK_KEYCODE_UP)
+      {
+        updated = true;
+        ldkEntityEditorGetTransform(&internalEditor.selectedEntity, &pos, &scale, &rot);
+        pos.y += 0.3f;
+        ldkEntityEditorSetTransform(&internalEditor.selectedEntity, pos, scale, rot);
+      }
+      else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_DOWN)
+      {
+        updated = true;
+        ldkEntityEditorGetTransform(&internalEditor.selectedEntity, &pos, &scale, &rot);
+        pos.y -= 0.3f;
+        ldkEntityEditorSetTransform(&internalEditor.selectedEntity, pos, scale, rot);
+      }
+      else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_LEFT)
+      {
+        updated = true;
+        ldkEntityEditorGetTransform(&internalEditor.selectedEntity, &pos, &scale, &rot);
+        pos.x -= 0.3f;
+        ldkEntityEditorSetTransform(&internalEditor.selectedEntity, pos, scale, rot);
+      }
+      else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_RIGHT)
+      {
+        updated = true;
+        ldkEntityEditorGetTransform(&internalEditor.selectedEntity, &pos, &scale, &rot);
+        pos.x += 0.3f;
+        ldkEntityEditorSetTransform(&internalEditor.selectedEntity, pos, scale, rot);
+      }
+
+      if (updated && !ldkHandleEquals(internalEditor.selectedPlaceholder.handle, internalEditor.selectedEntity.handle))
+      {
+        ldkEntityEditorGetTransform(&internalEditor.selectedPlaceholder, NULL, &scale, &rot);
+        ldkEntityEditorSetTransform(&internalEditor.selectedPlaceholder, pos, scale, rot);
+      }
     }
   }
   return true;
 }
 
+bool internalEntitySelectionInfoEquals(LDKEntitySelectionInfo* a, LDKEntitySelectionInfo* b)
+{
+  bool equals = ldkHandleEquals(a->handle, b->handle) &&
+    a->instanceIndex == b->instanceIndex &&
+    a->surfaceIndex == b->surfaceIndex;
+  return equals;
+}
+
 // Called every frame if the editor is enable
 static bool onUpdate(const LDKEvent* evt, void* data)
 {
-  LDKHEntity selected = ldkRendererSelectedEntity();
-  if (!ldkHandleEquals(internalEditor.selectedEntity, selected))
+  LDKEntitySelectionInfo selected = ldkRendererSelectedEntity();
+  bool changed = !internalEntitySelectionInfoEquals(&internalEditor.selectedPlaceholder, &selected);
+  if (changed)
   {
-    LDKEntityInfo* e = ldkEntityManagerFind(selected);
-    if (!ldkHandleIsValid(selected))
-    {
-      ldkLogInfo("Nothing selected");
-    }
-    else if (e && e->typeId == typeid(LDKStaticObject) && e->flags == EDITOR_FLAG_ENTITY_PLACEHOLDER) 
+    internalEditor.selectedPlaceholder = selected;
+    internalEditor.selectedEntity = internalEditor.selectedPlaceholder;
+
+    LDKEntityInfo* e = ldkEntityManagerFind(selected.handle);
+    if (e && e->typeId == typeid(LDKStaticObject) && e->flags == EDITOR_FLAG_ENTITY_PLACEHOLDER) 
     {
       LDKHEntity* h = (LDKHEntity*) ldkArrayGetData(internalEditor.editorEntities);
       uint32 numEntities = ldkArrayCount(internalEditor.editorEntities);
       for (uint32 i = 0; i < numEntities; i++)
       {
-        if(ldkHandleEquals(h[i], selected))
+        if(ldkHandleEquals(h[i], selected.handle))
         {
           e = ldkEntityManagerFind(e->editorPlaceholder);
+          internalEditor.selectedEntity.handle = e->handle;
           break;
         }
       }
     }
-    ldkLogInfo("-- Editor: Entity selected %llx %s", 
-        (e ? e->handle : LDK_HENTITY_INVALID),
-        (e ? e->name.str : "Nothing"));
   }
-  internalEditor.selectedEntity = selected;
 
   LDKCamera* camera = ldkEntityLookup(LDKCamera, internalEditor.editorCamera);
   float deltaTime = evt->frameEvent.deltaTime;
@@ -141,7 +186,7 @@ void  ldkEditorImmediateDraw(float deltaTime)
     LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
     if (e->entity.handle.value == internalEditor.editorCamera.value)
       continue;
-    Mat4 world = mat4World(e->position, vec3One(), quatInverse(mat4ToQuat(ldkCameraViewMatrix(e))));
+    Mat4 world = mat4World(e->position, vec3One(), mat4ToQuat(ldkCameraViewMatrix(e)));
     ldkShaderParamSetMat4(shader, "mModel", world);
     drawFrustum(0.0f, 0.0f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 255, 255));
   }
@@ -167,18 +212,17 @@ void ldkEditorEnable(bool enabled)
   internalEditor.enabled = enabled;
   if (internalEditor.enabled)
   {
-
     ldkLogInfo("EDITOR mode");
+
+    // Signup for keyboard and frame events
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_FRAME_BEFORE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_KEYBOARD);
 
-    // =====================================================
     // Add 3D icons for 'invisible' entities
-    // =====================================================
     LDKHListIterator it;
-
     it = ldkEntityManagerGetIterator(LDKDirectionalLight);
-    while(ldkHListIteratorNext(&it)) {
+    while(ldkHListIteratorNext(&it))
+    {
       LDKDirectionalLight* e = (LDKDirectionalLight*) ldkHListIteratorCurrent(&it);
       internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
     }
@@ -191,13 +235,15 @@ void ldkEditorEnable(bool enabled)
     }
 
     it = ldkEntityManagerGetIterator(LDKSpotLight);
-    while(ldkHListIteratorNext(&it)) {
+    while(ldkHListIteratorNext(&it))
+    {
       LDKSpotLight* e = (LDKSpotLight*) ldkHListIteratorCurrent(&it);
       internalAddPlaceholderEntity(e->position, internalEditor.overridenMaterialArray, e->entity.handle);
     }
 
     it = ldkEntityManagerGetIterator(LDKCamera);
-    while(ldkHListIteratorNext(&it)) {
+    while(ldkHListIteratorNext(&it))
+    {
       LDKCamera* e = (LDKCamera*) ldkHListIteratorCurrent(&it);
       // Skip the editor camera
       if (e->entity.handle.value == internalEditor.editorCamera.value)
@@ -208,10 +254,16 @@ void ldkEditorEnable(bool enabled)
   else
   {
     ldkLogInfo("GAME mode");
+    // Stop receiving events
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_NONE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_NONE);
 
-    // When disabling the editor, whe remove any entity created by the editor
+    // Cleanup entity selection
+    internalEditor.selectedEntity.handle = LDK_HENTITY_INVALID;
+    internalEditor.selectedEntity.instanceIndex = 0;
+    internalEditor.selectedEntity.surfaceIndex = 0;
+
+    // Remove any entity created by the editor
     LDKHEntity* h = (LDKHEntity*) ldkArrayGetData(internalEditor.editorEntities);
     uint32 numEntities = ldkArrayCount(internalEditor.editorEntities);
     for (uint32 i = 0; i < numEntities; i++)
@@ -221,8 +273,6 @@ void ldkEditorEnable(bool enabled)
       h++;
     }
     ldkArrayClear(internalEditor.editorEntities);
-
-    internalEditor.selectedEntity = LDK_HENTITY_INVALID;
   }
 }
 

@@ -1,4 +1,5 @@
 #include "common.h"
+#include "module/entity.h"
 #include <ldk/entity/staticobject.h>
 #include <ldk/asset/mesh.h>
 #include <ldk/maths.h>
@@ -50,3 +51,25 @@ void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh)
 
   entity->mesh = hMesh;
 }
+
+#ifdef LDK_EDITOR
+
+void ldkStaticObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKStaticObject* o = ldkEntityLookup(LDKStaticObject, selection->handle);
+  LDK_ASSERT(o != NULL);
+  if (pos)    *pos = o->position;
+  if (scale)  *scale = o->scale;
+  if (rot)    *rot = o->rotation;
+}
+
+void ldkStaticObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKStaticObject* o = ldkEntityLookup(LDKStaticObject, selection->handle);
+  LDK_ASSERT(o != NULL);
+  o->position = pos;
+  o->scale = scale;
+  o->rotation = rot;
+}
+
+#endif // LDK_EDITOR

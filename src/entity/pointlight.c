@@ -16,3 +16,21 @@ LDKPointLight* ldkPointLightEntityCreate(LDKPointLight* entity)
 void ldkPointLightEntityDestroy(LDKPointLight* entity)
 {
 }
+
+#ifdef LDK_EDITOR
+
+void ldkPointLightEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKPointLight* o = ldkEntityLookup(LDKPointLight, selection->handle);
+  LDK_ASSERT(o != NULL);
+  if(pos) *pos = o->position;
+}
+
+void ldkPointLightEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKPointLight* o = ldkEntityLookup(LDKPointLight, selection->handle);
+  LDK_ASSERT(o != NULL);
+  o->position = pos;
+}
+
+#endif // LDK_EDITOR
