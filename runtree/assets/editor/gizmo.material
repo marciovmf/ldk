@@ -1,0 +1,14 @@
+# Lines starting with '#' are comments
+# Material file must start with shader entry
+# shader: <path to a .shader file>
+# Then parameters. (type name: values)
+# Examples:
+#   vec3 myVec3Var:       .0 .0 .0
+#   vec4 myVec4Var:       41.0 42.0 44.7 0.3
+#   float myFloatVar:     .42
+#   texture2d diffuse:    textures/checkers.texture
+shader:                       assets/editor/gizmo.shader
+texture2d diffuse:            assets/editor/gizmo.texture
+float shininess:              0.2
+deferred-render-path:         false
+enable-depth-test:            false
