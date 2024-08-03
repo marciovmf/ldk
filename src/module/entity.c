@@ -101,6 +101,7 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   entity->active = true;
 #ifdef LDK_EDITOR
   entity->editorPlaceholder = LDK_HENTITY_INVALID;
+  entity->isEditorGizmo = false;
 #endif
 
   internal.numEntities++;

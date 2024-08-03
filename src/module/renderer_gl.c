@@ -96,11 +96,13 @@ typedef struct
 //
 static void InternalRenderXYQuadNDC()
 {
+  static bool once = true;
   static unsigned int quadVAO = 0;
   static unsigned int quadVBO;
 
-  if (quadVAO == 0)
+  if (once)
   {
+    once = false;
     float quadVertices[] =
     {
       // positions        // texture Coords
@@ -120,6 +122,7 @@ static void InternalRenderXYQuadNDC()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
   }
+
   glBindVertexArray(quadVAO);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -255,9 +258,13 @@ static void internalRenderInstancedObjectForPicking(LDKInstancedObject* entity, 
 
 static void internalRenderHighlight(LDKStaticObject* entity)
 {
+  if (entity->entity.isEditorGizmo)
+    return;
+
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
   if(!mesh)
     return;
+
 
   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glLineWidth(3.0);
@@ -368,6 +375,7 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
   if (ldkHandleIsValid(internal.selectedEntity.handle))
   {
     LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity.handle);
+
     if (so)
     {
       internalRenderHighlight(so);
@@ -481,7 +489,6 @@ static bool internalPickingFBOCreate(uint32 width, uint32 height)
 
   // Disable reading to avoid problems with older GPUs
   glReadBuffer(GL_NONE);
-
   glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
   // Verify that the FBO is correct
@@ -519,7 +526,7 @@ static void internalPickingFBODEstroy()
   internal.textureDepthPicking = 0;
 }
 
-static void internalGBufferDestroy()
+static void internalGBufferFBODestroy()
 {
   glDeleteFramebuffers(1, &internal.gBuffer);
   glDeleteTextures(1, &internal.gPosition);
@@ -528,7 +535,7 @@ static void internalGBufferDestroy()
   glDeleteRenderbuffers(1, &internal.rboDepth);
 }
 
-static void internalGBufferCreate(uint32 width, uint32 height)
+static void internalGBufferFBOCreate(uint32 width, uint32 height)
 {
   if (internal.shaderGeometryPass == NULL)
     internal.shaderGeometryPass = ldkAssetGet(LDKShader, "assets/geometry-pass.shader");
@@ -632,6 +639,8 @@ static void internalGeometryPass(LDKArray* array)
     }
     ro++;
   }
+
+  glEnable(GL_DEPTH_TEST); // because it might be disabled by a material
 }
 
 
@@ -641,19 +650,12 @@ static void internalGeometryPass(LDKArray* array)
 static void internalLightPass()
 {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  // lighting pass: calculate lighting 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  ldkShaderProgramBind(internal.shaderLightPass);
+  ldkShaderProgramBind(internal.shaderLightPass); // Uses GBuffer
 
-  glActiveTexture(GL_TEXTURE2);
-  glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
-
-  glActiveTexture(GL_TEXTURE1);
-  glBindTexture(GL_TEXTURE_2D, internal.gNormal);
-
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, internal.gPosition);
-
+  glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal.gPosition);
+  glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal.gNormal);
+  glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
 
   Vec3 clearColor = internalGetClearColor();
   ldkShaderParamSetVec3(internal.shaderLightPass, "viewPos", internal.camera->position);
@@ -712,7 +714,7 @@ static void internalLightPass()
 
     LDKSmallStr strPosition, strDirection, strColorDiffuse, strColorSpecular, strLinear, strQuadratic, strCutoffInner, strCutoffOuter, strRadius;
     ldkSmallStringFormat(&strPosition,      "%s[%d].position", arrayName, i);
-    ldkSmallStringFormat(&strDirection,      "%s[%d].direction", arrayName, i);
+    ldkSmallStringFormat(&strDirection,     "%s[%d].direction", arrayName, i);
     ldkSmallStringFormat(&strColorDiffuse,  "%s[%d].colorDiffuse", arrayName, i);
     ldkSmallStringFormat(&strColorSpecular, "%s[%d].colorSpecular", arrayName, i);
     ldkSmallStringFormat(&strCutoffInner,   "%s[%d].cutOffInner", arrayName, i);
@@ -757,7 +759,11 @@ static void internalLightPass()
   glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.gBuffer);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // write to default framebuffer
   glBlitFramebuffer(0, 0, viewport.width, viewport.height, 0, 0, viewport.width, viewport.height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+  glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, 0);
+  glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, 0);
+  glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 
@@ -786,7 +792,7 @@ bool ldkRendererInitialize(LDKConfig* config)
   //
   LDKSize viewport = ldkGraphicsViewportSizeGet();
   internalPickingFBOCreate(viewport.width, viewport.height);
-  internalGBufferCreate(viewport.width, viewport.height);
+  internalGBufferFBOCreate(viewport.width, viewport.height);
   internal.shaderPicking = ldkAssetLookup(LDKShader, internal.hShaderPicking);
   internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
 
@@ -800,8 +806,8 @@ void ldkRendererResize(uint32 width, uint32 height)
   internalPickingFBODEstroy();
   internalPickingFBOCreate(width, height);
 
-  internalGBufferDestroy();
-  internalGBufferCreate(width, height);
+  internalGBufferFBODestroy();
+  internalGBufferFBOCreate(width, height);
 }
 
 void ldkRendererTerminate(void)
@@ -816,7 +822,7 @@ void ldkRendererTerminate(void)
   ldkArrayDestroy(internal.spotLights);
   ldkArrayDestroy(internal.pointLights);
   internalPickingFBODEstroy();
-  internalGBufferDestroy();
+  internalGBufferFBODestroy();
 }
 
 void ldkRendererSetClearColor(LDKRGB color)
@@ -1212,12 +1218,14 @@ void ldkRendererRender(float deltaTime)
   internalLightPass();
 
   // Forward path
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
   internalGeometryPass(internal.renderObjectArray);
 
   if (ldkEngineIsEditorRunning())
   {
     // Picking and selection
     internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
+    internalRenderPickingBuffer(internal.renderObjectArray);
   }
   else {
     internal.selectedEntity.handle = LDK_HENTITY_INVALID;

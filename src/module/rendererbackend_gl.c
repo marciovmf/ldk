@@ -765,6 +765,15 @@ bool ldkMaterialBind(LDKMaterial* material)
     glUniformMatrix4fv(uniformViewProj, 1, GL_TRUE, (float*) &projViewMatrix);
   }
 
+  if(material->enableDepthTest)
+  {
+    glEnable(GL_DEPTH_TEST);
+  }
+  else
+  {
+    glDisable(GL_DEPTH_TEST);
+  }
+
   /*
      glDepthMask(material->enableDepthWrite);
 

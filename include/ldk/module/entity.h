@@ -24,11 +24,12 @@ extern "C" {
   {
     bool active;
     LDKSmallStr name;
-    LDKTypeId typeId;       // The type of the entity
-    uint32 flags;           // Space for user defined flags
-    LDKHEntity handle;      // The unique entity handle for this entity.
+    LDKTypeId   typeId;     // The type of the entity
+    LDKHEntity  handle;     // The unique entity handle for this entity.
+    uint32      flags;      // Space for user defined flags
 #ifdef LDK_EDITOR
-    LDKHEntity editorPlaceholder; // this is used by the editor if a placeholder is necessary
+    uint32      isEditorGizmo;     // Renderer won't highlight gizmo objects
+    LDKHEntity  editorPlaceholder; // this is used by the editor if a placeholder is necessary
 #endif                                 
   } LDKEntityInfo;
 

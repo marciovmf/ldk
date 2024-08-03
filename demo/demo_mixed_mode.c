@@ -1,7 +1,4 @@
 #include "ldk/ldk.h"
-#include "ldk/module/asset.h"
-#include "ldk/asset/mesh.h"
-#include "ldk/maths.h"
 #include "ldk/common.h"
 
 // Mixed approach
