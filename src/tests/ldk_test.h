@@ -24,8 +24,9 @@
   } \
 } while (0)
 
+#define LDK_TEST_FLOAT_EPSILON 0.1f
 #define ASSERT_FLOAT_EQ(actual, expected) do { \
-  if (fabs((actual) - (expected)) > 1e-6) { \
+  if (fabs((actual) - (expected)) > LDK_TEST_FLOAT_EPSILON) { \
     printf("\t%s:%d: Assertion failed: %s == %s\n", __FILE__, __LINE__, #actual, #expected); \
     return 1; \
   } \

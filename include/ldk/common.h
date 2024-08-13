@@ -311,7 +311,6 @@ extern "C" {
   //
 
   typedef uint16 LDKTypeId;
-  typedef LDKTypeId LDKHandleType;
 
 #define typeid(type) ldkTypeId(LDK_STRINGFY(type), sizeof(type))
 #define typename(id) ldkTypeName(id)
@@ -320,6 +319,16 @@ extern "C" {
   LDK_API LDKTypeId   ldkTypeId(const char* name, size_t size);
   LDK_API const char* ldkTypeName(LDKTypeId typeId);
   LDK_API size_t      ldkTypeSize(LDKTypeId typeId);
+
+  //
+  // Handles
+  //
+  
+  typedef LDKTypeId LDKHandleType;
+  LDK_API LDKTypeId ldkHandleType(LDKHandle handle);
+  LDK_API uint32 ldkHandleVersion(LDKHandle handle);
+  LDK_API uint32 ldkHandleIndex(LDKHandle handle);
+  LDK_API LDKHandle ldkMakeHandle(LDKTypeId type, int index, int version);
 
   //
   // String

@@ -236,21 +236,21 @@ extern "C" {
     float zx; float zy; float zz;
   } Mat3;
 
-  Mat3 mat3Id(void);
-  Mat3 mat3Zero(void);
-  Mat3 mat3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
-  Mat3 mat3MulMat3(Mat3 m1, Mat3 mat2);
-  Vec3 mat3MulVec3(Mat3 m, Vec3 v);
-  Mat3 mat3Transpose(Mat3 m);
-  float mat3Det(Mat3 m);
-  Mat3 mat3Inverse(Mat3 m);
-  void mat3ToArray(Mat3 m, float* out);
-  void mat3Print(Mat3 m);
-  Mat3 mat3Scale(Vec3 s);
-  Mat3 mat3RotationX(float a);
-  Mat3 mat3RotationY(float a);
-  Mat3 mat3RotationZ(float a);
-  Mat3 mat3RotationAngleAxis(float angle, Vec3 axis);
+  LDK_API Mat3 mat3Id(void);
+  LDK_API Mat3 mat3Zero(void);
+  LDK_API Mat3 mat3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
+  LDK_API Mat3 mat3MulMat3(Mat3 m1, Mat3 mat2);
+  LDK_API Vec3 mat3MulVec3(Mat3 m, Vec3 v);
+  LDK_API Mat3 mat3Transpose(Mat3 m);
+  LDK_API float mat3Det(Mat3 m);
+  LDK_API Mat3 mat3Inverse(Mat3 m);
+  LDK_API void mat3ToArray(Mat3 m, float* out);
+  LDK_API void mat3Print(Mat3 m);
+  LDK_API Mat3 mat3Scale(Vec3 s);
+  LDK_API Mat3 mat3RotationX(float a);
+  LDK_API Mat3 mat3RotationY(float a);
+  LDK_API Mat3 mat3RotationZ(float a);
+  LDK_API Mat3 mat3RotationAngleAxis(float angle, Vec3 axis);
 
 
   //
@@ -264,43 +264,42 @@ extern "C" {
     float wx; float wy; float wz; float ww;
   } Mat4;
 
-  Mat4 mat4Id(void);
-  Mat4 mat4Zero(void);
-  Mat4 mat4(float xx, float xy, float xz, float xw,
-      float yx, float yy, float yz, float yw,
-      float zx, float zy, float zz, float zw,
-      float wx, float wy, float wz, float ww);
-  float mat4At(Mat4 m, int i, int j);
-  Mat4 mat4Set(Mat4 m, int x, int y, float v);
-  Mat4 mat4Transpose(Mat4 m);
-  Mat4 mat4MulMat4(Mat4 m1, Mat4 mat2);
-  Vec4 mat4MulVec4(Mat4 m, Vec4 v);
-  Vec3 mat4MulVec3(Mat4 m, Vec3 v);
-  float mat4Det(Mat4 m);
-  Mat4 mat4Inverse(Mat4 m);
-  Mat4 mat3ToMat4(Mat3 m);
-  Mat3 mat4ToMat3(Mat4 m);
-  Quat mat4ToQuat(Mat4 m);
-  QuatDual mat4ToQuatDual(Mat4 m);
-  void mat4ToArray(Mat4 m, float* out);
-  void mat4ToArrayTrans(Mat4 m, float* out);
-  void mat4Print(Mat4 m);
-  Mat4 mat4Translation(Vec3 v);
-  Mat4 mat4Scale(Vec3 v);
-  Mat4 mat4RotationX(float a);
-  Mat4 mat4RotationY(float a);
-  Mat4 mat4RotationZ(float a);
-  Mat4 mat4RotationAxisAngle(Vec3 axis, float angle);
-  Mat4 mat4RotationEuler(float x, float y, float z);
-  Mat4 mat4RotationQuat(Quat q);
-  Mat4 mat4RotationQuatDual(QuatDual q);
-  Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up);
-  Mat4 mat4Perspective(float fov, float nearClip, float farClip, float ratio);
-  Mat4 mat4Orthographic(float left, float right, float bottom, float top, float near, float far);
-  Mat4 mat4World(Vec3 position, Vec3 scale, Quat rotation);
-  Mat4 mat4Lerp(Mat4 m1, Mat4 mat2, float amount);
-  Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
-
+  LDK_API Mat4 mat4Id(void);
+  LDK_API Mat4 mat4Zero(void);
+  LDK_API Mat4 mat4(float xx, float xy, float xz, float xw,
+  LDK_API     float yx, float yy, float yz, float yw,
+  LDK_API     float zx, float zy, float zz, float zw,
+  LDK_API     float wx, float wy, float wz, float ww);
+  LDK_API float mat4At(Mat4 m, int col, int row);
+  LDK_API Mat4 mat4Set(Mat4 m, int col, int row, float v);
+  LDK_API Mat4 mat4Transpose(Mat4 m);
+  LDK_API Mat4 mat4MulMat4(Mat4 m1, Mat4 mat2);
+  LDK_API Vec4 mat4MulVec4(Mat4 m, Vec4 v);
+  LDK_API Vec3 mat4MulVec3(Mat4 m, Vec3 v);
+  LDK_API float mat4Det(Mat4 m);
+  LDK_API Mat4 mat4Inverse(Mat4 m);
+  LDK_API Mat4 mat3ToMat4(Mat3 m);
+  LDK_API Mat3 mat4ToMat3(Mat4 m);
+  LDK_API Quat mat4ToQuat(Mat4 m);
+  LDK_API QuatDual mat4ToQuatDual(Mat4 m);
+  LDK_API void mat4ToArray(Mat4 m, float* out);
+  LDK_API void mat4ToArrayTrans(Mat4 m, float* out);
+  LDK_API void mat4Print(Mat4 m);
+  LDK_API Mat4 mat4Translation(Vec3 v);
+  LDK_API Mat4 mat4Scale(Vec3 v);
+  LDK_API Mat4 mat4RotationX(float a);
+  LDK_API Mat4 mat4RotationY(float a);
+  LDK_API Mat4 mat4RotationZ(float a);
+  LDK_API Mat4 mat4RotationAxisAngle(Vec3 axis, float angle);
+  LDK_API Mat4 mat4RotationEuler(float x, float y, float z);
+  LDK_API Mat4 mat4RotationQuat(Quat q);
+  LDK_API Mat4 mat4RotationQuatDual(QuatDual q);
+  LDK_API Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up);
+  LDK_API Mat4 mat4Perspective(float fov, float nearClip, float farClip, float ratio);
+  LDK_API Mat4 mat4Orthographic(float left, float right, float bottom, float top, float near, float far);
+  LDK_API Mat4 mat4World(Vec3 position, Vec3 scale, Quat rotation);
+  LDK_API Mat4 mat4Lerp(Mat4 m1, Mat4 mat2, float amount);
+  LDK_API Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
 
   //
   // Bounds
@@ -319,6 +318,7 @@ extern "C" {
     Vec3 center;
     float radius;
   }LDKBoundingSphere;
+
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,6 @@
+#include "entity/camera.h"
+#include "entity/staticobject.h"
+#include "maths.h"
 #include <ldk/common.h>
 #include <ldk/arena.h>
 #include <ldk/hashmap.h>
@@ -184,10 +187,49 @@ void ldkEntityEditorSetTransform(LDKEntitySelectionInfo* selection, Vec3 pos, Ve
   LDK_ASSERT(handler != NULL);
   if (handler->setTransformFunc == NULL)
   {
-    ldkLogWarning("Entity type %s has no LDKEntityEditorSetTransformFunc function registered ", typename(handler->typeId));
+    ldkLogWarning("Entity type %s has no LDKEntityEditorSetTransformFunc function registered", typename(handler->typeId));
     return;
   }
   handler->setTransformFunc(selection, pos, scale, rot);
+}
+
+void ldkEntityManagerPrintAll()
+{
+  for (uint32 i = 0; i < internal.numHandlers; i++)
+  {
+    LDKEntityHandler* handler = &internal.handlers[i];
+    LDKHListIterator it = ldkHListIteratorCreate(&handler->entities);
+    while(ldkHListIteratorNext(&it))
+    {
+      LDKEntityInfo* e = (LDKEntityInfo*) ldkHListIteratorCurrent(&it);
+
+      if (handler->typeId == typeid(LDKCamera))
+      {
+        LDKCamera* o = (LDKCamera*) e;
+
+        ldkLogInfo("Entity handle: 0x%llX, type: 0x%X, typename: %s,  name: \"%s\", active: %d, position: %f %f %f, target: %f %f %f, near: %f, far: %f, fov: %f, orthoSize: %f, type: %d",
+            e->handle, e->typeId, typename(e->typeId), e->name.str, e->active, 
+            o->position.x, o->position.y, o->position.z,
+            o->target.x, o->target.y, o->target.z, 
+            o->nearPlane, o->farPlane,
+            o->fovRadian,
+            o->orthoSize, o->type);
+
+      }
+      else if (handler->typeId == typeid(LDKStaticObject))
+      {
+        LDKStaticObject* o = (LDKStaticObject*) e;
+        ldkLogInfo("Entity handle: 0x%llX, type: 0x%X, typename: %s, name: \"%s\", active: %d, position: %f %f %f, scale: %f %f %f, rotation: %f %f %f, mesh: \"%llX\"",
+            e->handle, e->typeId, typename(e->typeId), e->name.str, e->active, 
+            o->position.x, o->position.y, o->position.z,
+            o->scale.x, o->scale.y, o->scale.z,
+            o->rotation.x, o->rotation.y, o->rotation.z,
+            o->mesh);
+      }
+      else
+        ldkLogInfo("Entity handle: 0x%llX, type: 0x%X, typename: %s, name: \"%s\", active: %d", e->handle, e->typeId, typename(e->typeId), e->name.str, e->active);
+    }
+  }
 }
 
 #endif // LDK_EDITOR

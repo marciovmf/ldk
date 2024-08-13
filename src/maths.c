@@ -1565,18 +1565,16 @@ Mat4 mat4Id(void)
   return mat;
 }
 
-float mat4At(Mat4 m, int x, int y)
+float mat4At(Mat4 m, int col, int row)
 {
   float* arr = (float*)(&m);
-  //return arr[x + (y*4)];   // Column Major
-  return arr[(x*4) + y];     // Row Major
+  return arr[col + (row * 4)];
 }
 
-Mat4 mat4Set(Mat4 m, int x, int y, float v)
+Mat4 mat4Set(Mat4 m, int col, int row, float v)
 {
   float* arr = (float*)(&m);
-  //arr[x + (y*4)] = v; // Column Major
-  arr[(x*4) + y] = v;   // Row Major
+  arr[col + (row * 4)] = v;
   return m;
 }
 
@@ -1798,6 +1796,9 @@ float mat4Det(Mat4 m)
 Mat4 mat4Inverse(Mat4 m)
 {
   float det = mat4Det(m);
+  if (det == 0.0f)
+    return mat4Id();
+
   float fac = 1.0f / det;
 
   Mat4 ret;

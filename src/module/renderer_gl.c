@@ -294,12 +294,21 @@ static void internalRenderHighlight(LDKStaticObject* entity)
   ldkRenderBufferBind(NULL);
 }
 
-static void internalRenderPickingBuffer(LDKArray* renderObjects)
+//
+// Render to the picking bufer and read the entity associated with x,y coords.
+// If any entity info is found, returns true and the selection pointer, is
+// updated with the selection information.
+// If nothing was selected, returns fals and the selection pointer remains
+// unchanged.
+//
+static bool internalRenderPickingBuffer(LDKArray* renderObjects, LDKEntitySelectionInfo* selection, int32 x, int32 y)
 {
   // Render Objects in the picking framebuffer
   uint32 count = ldkArrayCount(renderObjects);
   if (count == 0)
-    return;
+  {
+    return false;
+  }
 
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
   glClearColor(0, 0, 0, 1);
@@ -322,87 +331,48 @@ static void internalRenderPickingBuffer(LDKArray* renderObjects)
       ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
       internalRenderInstancedObjectForPicking(ro->instancedMesh, i + 1);
     }
-
     ro++;
   }
 
   // Read from the pick framebuffer
-  LDKMouseState mouseState;
-  ldkOsMouseStateGet(&mouseState);
-  if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
+  bool changed = false;
+  Vec3 pixelColor;
+
+  // Decode entity information from pixel data
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
+  glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelColor);
+  uint32 objectIndex = (uint32) pixelColor.x;
+  uint32 surfaceIndex = (uint32) pixelColor.y;
+  uint32 instanceIndex = (uint32) pixelColor.z;
+  glReadBuffer(GL_NONE);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+  if (objectIndex > 0 && (objectIndex - 1) < ldkArrayCount(renderObjects))
   {
-    int x = mouseState.cursor.x;
-    int y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
-
-    // Decode entity information from pixel data
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-    Vec3 pixelColor;
-    glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelColor);
-    uint32 objectIndex = (uint32) pixelColor.x;
-    internal.selectedEntity.surfaceIndex  = (uint32) pixelColor.y;
-    internal.selectedEntity.instanceIndex = (uint32) pixelColor.z;
-    glReadBuffer(GL_NONE);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-
-    if (objectIndex > 0 && (objectIndex - 1) < ldkArrayCount(renderObjects))
+    ro = (LDKRenderObject*) ldkArrayGet(renderObjects, objectIndex-1);
+    if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
     {
-      ro = (LDKRenderObject*) ldkArrayGet(renderObjects, objectIndex-1);
-
-      if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
-      {
-        internal.selectedEntity.handle = ro->staticMesh->entity.handle;
-      }
-      else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
-      {
-        internal.selectedEntity.handle = ro->instancedMesh->entity.handle;
-      }
+      selection->handle = ro->staticMesh->entity.handle;
+      selection->surfaceIndex = surfaceIndex;
+      selection->instanceIndex = instanceIndex;
+      changed = true;
     }
-    else
+    else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
     {
-      internal.selectedEntity.handle = LDK_HENTITY_INVALID;
-      internal.selectedEntity.instanceIndex = 0;
-      internal.selectedEntity.surfaceIndex = 0;
+      selection->handle = ro->instancedMesh->entity.handle;
+      selection->surfaceIndex = surfaceIndex;
+      selection->instanceIndex = instanceIndex;
+      changed = true;
     }
+  }
+  else
+  {
+    changed = false;
   }
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
-
-  //
-  // Highlight picked entity
-  //
-
-  if (ldkHandleIsValid(internal.selectedEntity.handle))
-  {
-    LDKStaticObject* so = ldkEntityLookup(LDKStaticObject, internal.selectedEntity.handle);
-
-    if (so)
-    {
-      internalRenderHighlight(so);
-    }
-    else
-    {
-      LDKInstancedObject* io = NULL;
-      io = ldkEntityLookup(LDKInstancedObject, internal.selectedEntity.handle);
-      if (io)
-      {
-        LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.selectedEntity.instanceIndex);
-
-        //TODO: This is ugly. Get rid of this static entity
-        static LDKStaticObject o;
-        o.mesh = io->mesh;
-        o.scale = instance->scale;
-        o.position = instance->position;
-        o.rotation = instance->rotation;
-        internalRenderHighlight(&o);
-      }
-      else
-      {
-        internal.selectedEntity.handle = LDK_HENTITY_INVALID;
-      }
-    }
-
-  }
+  return changed;
 }
 
 static void internalRenderMesh(LDKStaticObject* entity)
@@ -1223,14 +1193,49 @@ void ldkRendererRender(float deltaTime)
 
   if (ldkEngineIsEditorRunning())
   {
-    // Picking and selection
-    internalRenderPickingBuffer(internal.renderObjectArrayDeferred);
-    internalRenderPickingBuffer(internal.renderObjectArray);
-  }
-  else {
-    internal.selectedEntity.handle = LDK_HENTITY_INVALID;
-    internal.selectedEntity.surfaceIndex = 0;
-    internal.selectedEntity.instanceIndex = 0;
+    LDKMouseState mouseState;
+    ldkOsMouseStateGet(&mouseState);
+    if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
+    {
+      // Picking and selection
+      int32 x = mouseState.cursor.x;
+      int32 y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
+
+      LDKEntitySelectionInfo selection = {0};
+      internalRenderPickingBuffer(internal.renderObjectArrayDeferred, &selection, x, y);
+      internalRenderPickingBuffer(internal.renderObjectArray, &selection, x, y);
+      internal.selectedEntity = selection;
+    }
+
+    if (ldkHandleIsValid(internal.selectedEntity.handle))
+    {
+      LDKEntity* entity = ldkEntityManagerFind(internal.selectedEntity.handle);
+      LDKHandleType t = ldkHandleType(internal.selectedEntity.handle.value);
+      if (entity)
+      {
+        if (t == typeid(LDKStaticObject) && entity)
+        {
+          internalRenderHighlight((LDKStaticObject*) entity);
+        }
+        else if (t == typeid(LDKInstancedObject))
+        {
+          LDKInstancedObject* io = (LDKInstancedObject*) entity;
+          LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.selectedEntity.instanceIndex);
+
+          //TODO: This is ugly. Get rid of this static entity
+          static LDKStaticObject o;
+          o.mesh = io->mesh;
+          o.scale = instance->scale;
+          o.position = instance->position;
+          o.rotation = instance->rotation;
+          internalRenderHighlight(&o);
+        }
+        else
+        {
+          LDK_NOT_IMPLEMENTED();
+        }
+      }
+    }
   }
 
   ldkArrayClear(internal.renderObjectArray);
