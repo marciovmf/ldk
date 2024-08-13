@@ -92,7 +92,7 @@ extern "C" {
 
 #endif
 
-  LDK_API 
+  LDK_API void ldkEntityManagerPrintAll();
 
 #ifdef __cplusplus
 }

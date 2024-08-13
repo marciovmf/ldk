@@ -286,6 +286,30 @@ size_t ldkTypeSize(LDKTypeId typeId)
 }
 
 //
+// Handles
+//
+
+LDKHandleType ldkHandleType(LDKHandle handle)
+{
+  return (uint16)(handle & 0xFFFF);
+}
+
+uint32 ldkHandleIndex(LDKHandle handle)
+{
+  return (uint32_t)((handle >> 16) & 0xFFFFFFFF);
+}
+
+uint32 ldkHandleVersion(LDKHandle handle)
+{
+  return (uint32) ((handle >> 48) & 0xFFFF);
+}
+
+LDKHandle ldkMakeHandle(LDKTypeId type, int index, int version)
+{
+  return ((uint64_t) version << 48) | ((uint64_t) index << 16) | type;
+}
+
+//
 // String
 //
 

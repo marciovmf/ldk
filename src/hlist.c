@@ -12,29 +12,6 @@ struct LDKSlot_t
   int32 dataIndex;
 };
 
-static uint32 getHandleIndex(LDKHandle handle)
-{
-  return (uint32_t)((handle >> 16) & 0xFFFFFFFF);
-  //return handle & HANDLE_INDEX_MASK;
-}
-
-static uint32 getHandleVersion(LDKHandle handle)
-{
-  //return (handle & HANDLE_VERSION_MASK) >> HANDLE_VERSION_SHIFT;
-  return (uint32) ((handle >> 48) & 0xFFFF);
-}
-
-static uint32 getHandleType(LDKHandle handle)
-{
-  return (uint16)(handle & 0xFFFF);
-}
-
-static LDKHandle makeHandle(LDKTypeId type, int index, int version)
-{
-  //return (version << HANDLE_VERSION_SHIFT) | (index & HANDLE_INDEX_MASK);
-  return ((uint64_t) version << 48) | ((uint64_t) index << 16) | type;
-}
-
 bool ldkHListCreate(LDKHList* hlist, LDKHandleType type, size_t elementSize, int count)
 {
   if (!hlist || elementSize == 0 || count <= 0) return false;
@@ -87,15 +64,15 @@ LDKHandle ldkHListReserve(LDKHList* hlist)
   hlist->slots[slotIndex].dataIndex   = hlist->count; // Append to the end of the data list
   hlist->dataToSlotMap[hlist->count]  = slotIndex;    // map the address of this data slot
   hlist->count++;
-  return makeHandle(hlist->type, slotIndex, hlist->slots[slotIndex].version);
+  return ldkMakeHandle(hlist->type, slotIndex, hlist->slots[slotIndex].version);
 }
 
 bool ldkHListRemove(LDKHList* hlist, LDKHandle handle)
 {
   if (!hlist || hlist->count == 0) return false;
 
-  uint32 index = getHandleIndex(handle);
-  uint32 version = getHandleVersion(handle);
+  uint32 index = ldkHandleIndex(handle);
+  uint32 version = ldkHandleVersion(handle);
 
   if (index >= hlist->capacity || !hlist->slots || hlist->slots[index].version != version)
     return false;
@@ -132,9 +109,9 @@ byte* ldkHListLookup(LDKHList* hlist, LDKHandle handle)
 {
   if (!hlist || hlist->count == 0) return NULL;
 
-  uint32 index = getHandleIndex(handle);
-  uint32 version = getHandleVersion(handle);
-  uint32 type = getHandleType(handle);
+  uint32 index = ldkHandleIndex(handle);
+  uint32 version = ldkHandleVersion(handle);
+  uint32 type = ldkHandleType(handle);
 
   if (type != hlist->type || index >= hlist->capacity || !hlist->slots || hlist->slots[index].version != version) return NULL;
 
@@ -172,11 +149,6 @@ bool ldkHListDestroy(LDKHList* hlist)
   return true;
 }
 
-LDKTypeId ldkHandleType(LDKHandle handle)
-{
-  return (LDKTypeId) getHandleType(handle);
-}
-
 LDKHListIterator ldkHListIteratorCreate(LDKHList* hlist)
 {
   LDKHListIterator it = { hlist, -1 };
@@ -204,7 +176,7 @@ void* ldkHListIteratorFirst(LDKHListIterator* it)
   if (!it || !it->hlist || it->hlist->count == 0)
     return NULL;
   it->current = 0;
-  return ldkHListLookup(it->hlist, makeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
+  return ldkHListLookup(it->hlist, ldkMakeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
 }
 
 void* ldkHListIteratorLast(LDKHListIterator* it)
@@ -212,12 +184,12 @@ void* ldkHListIteratorLast(LDKHListIterator* it)
   if (!it || !it->hlist || it->hlist->count == 0)
     return NULL;
   it->current = it->hlist->count - 1;
-  return ldkHListLookup(it->hlist, makeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
+  return ldkHListLookup(it->hlist, ldkMakeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
 }
 
 void* ldkHListIteratorCurrent(LDKHListIterator* it)
 {
   if (!it || !it->hlist || it->current < 0 || it->current >= (int32) it->hlist->count)
     return NULL;
-  return ldkHListLookup(it->hlist, makeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
+  return ldkHListLookup(it->hlist, ldkMakeHandle(it->hlist->type, it->current, it->hlist->slots[it->current].version));
 }
