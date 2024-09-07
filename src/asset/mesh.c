@@ -3,6 +3,7 @@
 #include "ldk/os.h"
 #include <string.h>
 #include <stdlib.h>
+#include <cerrno>
 
 #ifdef LDK_OS_WINDOWS
 #define strtok_r strtok_s
@@ -64,6 +65,7 @@ static bool internalParseUInt(const char* path, int line, const char* input, uin
 static bool internalParseFloat(const char* path, int line, const char* input, float* out)
 {
   int dotCount = 0;
+  int eCount = 0; // expoent
   int len = 0;
   bool error = false;
 
@@ -73,12 +75,17 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
     input++;
   }
 
+  const char* expactSignAt = NULL;
   while(*input)
   {
     len++;
     if (*input == '.') { dotCount++; }
+    else if (*input == 'e') { eCount++; expactSignAt = input+1;}
 
-    if (dotCount > 1 || (*input != '.' && (*input < '0' || *input > '9' )))
+    if (dotCount > 1      // more than one dot
+        || eCount > 1     // more than one 'e'
+        || ((*input == '-' || *input == '+') && expactSignAt != input) // sign out of place ?
+        || (*input != '-' && *input != '+' && *input != 'e' && *input != '.' && (*input < '0' || *input > '9')) ) // unexpected character ?
     {
       error = true;
       break;
@@ -86,18 +93,21 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
     input++;
   }
 
-  // Floats can not end with a dot or contain just a dot
+  // Floats can not end with or be only ". - + e"
   input -=len;
-  error |= (len == 0 || input[len-1] == '.');
-  error |= (len == 1 && input[0] == '.');
+  error |= (len == 0 || input[len-1] == '.' || input[len-1] == '-' || input[len-1] == '+' || input[len-1] == 'e');
+  error |= (len == 1 && (input[0] == '.' || input[0] == '-' || input[0] == '+' || input[0] == 'e'));
 
   if (error)
   {
+    LDK_ASSERT_BREAK();
     ldkLogError("%s at line %d: Error parsing float value", path, line);
     return false;
   }
 
-  *out = (float) atof(input);
+  char* endptr;
+  *out = strtof(input, &endptr);
+  LDK_ASSERT(*endptr == '\0' && errno != ERANGE);
   return true;
 }
 
@@ -368,9 +378,9 @@ LDKMesh* ldkQuadMeshCreate(LDKHAsset material)
     // Position          // Normal           // UV
     -1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f,
     -1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
-     1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 1.0f,
-     1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 0.0f
-    };
+    1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 1.0f,
+    1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 0.0f
+  };
   mesh->numVertices = 4;
   mesh->vertices = (float*) ldkOsMemoryAlloc(sizeof(vertices));
   memcpy(mesh->vertices, vertices, sizeof(vertices));
