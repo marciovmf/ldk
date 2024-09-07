@@ -18,24 +18,25 @@ enum
 typedef enum
 {
   // Tools
-  EDITOR_TOOL_CAMERA  = 0,
-  EDITOR_TOOL_MOVE    = 1,
-  EDITOR_TOOL_SCALE   = 2,
-  EDITOR_TOOL_ROTATE  = 3,
+  EDITOR_TOOL_MOVE    = 0,
+  EDITOR_TOOL_SCALE   = 1,
+  EDITOR_TOOL_ROTATE  = 2,
   EDITOR_TOOL_COUNT
 } EditorToolType;
 
 typedef enum
 {
   EDITOR_TOOL_MODE_NONE     = -1,
-  EDITOR_TOOL_MOVE_PLANE_XZ = 0,
-  EDITOR_TOOL_MOVE_PLANE_ZY = 1,
-  EDITOR_TOOL_MOVE_PLANE_XY = 2,
-  EDITOR_TOOL_MOVE_AXIS_Y   = 3,
-  EDITOR_TOOL_MOVE_AXIS_X   = 4,
-  EDITOR_TOOL_MOVE_AXIS_Z   = 5,
-  EDITOR_TOOL_MOVE_CENTER   = 6,
-
+  EDITOR_TOOL_AXIS_Y        = 0,
+  EDITOR_TOOL_AXIS_X        = 1,
+  EDITOR_TOOL_AXIS_Z        = 2,
+  EDITOR_TOOL_CENTER        = 3,
+  EDITOR_TOOL_PLANE_XZ      = 3,
+  EDITOR_TOOL_PLANE_XZ_BACK = 4,
+  EDITOR_TOOL_PLANE_ZY      = 5,
+  EDITOR_TOOL_PLANE_ZY_BACK = 6,
+  EDITOR_TOOL_PLANE_XY      = 7,
+  EDITOR_TOOL_PLANE_XY_BACK = 8,
 } EditorToolMode;
 
 typedef struct
@@ -50,10 +51,13 @@ typedef struct
   bool isHot;           // is this gizmo being interacted with
   bool showGizmo;       // When the current tool gizmo should be drawn
   bool selectionIsGizmo;// When the current selected entity is a gizmo
-  Vec3 originalMovePosition;
+  Vec3 originalPosition;
+  Vec3 originalScale;
+  Quat originalRotation;
 
   // A ray displayed when
   Vec3 cursorOffset;    // where the cursor is, relative to the target. For example along one of the axis of a move gizmo.
+  Vec3 originalCursorPosition; // where the cursor is, relative to the target. For example along one of the axis of a move gizmo.
   LDKRGB moveRayColor;
 } EditorTool;
 
@@ -106,27 +110,46 @@ static bool onKeyboard(const LDKEvent* evt, void* data)
       ldkEngineStop(0);
     }
 
-    // Change tool on TAB
-    if (evt->keyboardEvent.keyCode == LDK_KEYCODE_TAB)
+    if (internalEditor.tool.isHot == false)
     {
-      // disable current tool gizmo
-      LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
-      if (gizmo != NULL)
-        gizmo->entity.active = false;
-
-      if (internalEditor.tool.type == EDITOR_TOOL_CAMERA)
+      if (evt->keyboardEvent.keyCode == LDK_KEYCODE_T)
       {
+        // Disable current gizmo entity
+        LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+        if (gizmo != NULL) gizmo->entity.active = false;
+
+        // enable next gizmo entity
         ldkLogInfo("MOVE TOOL");
         internalEditor.tool.type = EDITOR_TOOL_MOVE;
         gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
         gizmo->entity.active = true;
       }
-      else
+      else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_E)
       {
-        ldkLogInfo("CAMERA TOOL");
-        internalEditor.tool.type = EDITOR_TOOL_CAMERA;
+        // Disable current gizmo entity
+        LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+        if (gizmo != NULL) gizmo->entity.active = false;
+
+        // enable next gizmo entity
+        ldkLogInfo("SCALE TOOL");
+        internalEditor.tool.type = EDITOR_TOOL_SCALE;
+        gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+        gizmo->entity.active = true;
+      }
+      else if (evt->keyboardEvent.keyCode == LDK_KEYCODE_R)
+      {
+        // Disable current gizmo entity
+        LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+        if (gizmo != NULL) gizmo->entity.active = false;
+
+        // enable next gizmo entity
+        ldkLogInfo("ROTATE TOOL");
+        internalEditor.tool.type = EDITOR_TOOL_ROTATE;
+        gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+        gizmo->entity.active = true;
       }
     }
+
   }
   return true;
 }
@@ -149,6 +172,248 @@ Vec3 screenToWorldPos(LDKCamera* camera, int32 x, int32 y, Vec3 referencePositio
   float distanceToMousePos = vec3Length(entityVector) / cosf(angle);
   Vec3 worldPos = vec3Add(vec3Mul(mouseVector, distanceToMousePos), camera->position);
   return worldPos;
+}
+
+static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
+{
+  LDKPoint cursor = ldkOsMouseCursor(mouseState);
+  LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
+  bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
+
+  if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    tool->originalPosition = tool->position;
+    tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
+    tool->isHot = true;
+    return true;
+  }
+  else if (ldkOsMouseButtonUp(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    tool->isHot = false;
+    tool->originalPosition = vec3Zero();
+    return true;
+  }
+  else if (cursorMoved && tool->isHot)
+  {
+    Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    switch(tool->mode)
+    {
+      case EDITOR_TOOL_AXIS_X:
+        tool->position.x = worldPos.x - tool->cursorOffset.x;
+        tool->moveRayColor = ldkRGB(255, 0, 0);
+        break;
+      case EDITOR_TOOL_AXIS_Y:
+        tool->position.y = worldPos.y - tool->cursorOffset.y;
+        tool->moveRayColor = ldkRGB(0, 255, 0);
+        break;
+      case EDITOR_TOOL_AXIS_Z:
+        tool->position.z = worldPos.z - tool->cursorOffset.z;
+        tool->moveRayColor = ldkRGB(0, 0, 255);
+        break;
+      case EDITOR_TOOL_PLANE_XY:
+      case EDITOR_TOOL_PLANE_XY_BACK:
+        tool->position.x = worldPos.x - tool->cursorOffset.x;
+        tool->position.y = worldPos.y - tool->cursorOffset.y;
+        tool->moveRayColor = ldkRGB(0, 255, 255);
+        break;
+      case EDITOR_TOOL_PLANE_XZ:
+      case EDITOR_TOOL_PLANE_XZ_BACK:
+        tool->position.x = worldPos.x - tool->cursorOffset.x;
+        tool->position.z = worldPos.z - tool->cursorOffset.z;
+        tool->moveRayColor = ldkRGB(0, 255, 255);
+        break;
+      case EDITOR_TOOL_PLANE_ZY:
+      case EDITOR_TOOL_PLANE_ZY_BACK:
+        tool->position.z = worldPos.z - tool->cursorOffset.z;
+        tool->position.y = worldPos.y - tool->cursorOffset.y;
+        tool->moveRayColor = ldkRGB(0, 255, 255);
+        break;
+      default:
+        break;
+    }
+
+    LDKEntityInfo* target = ldkEntityManagerFind(internalEditor.previousEntity.handle);
+    LDK_ASSERT(target != NULL);
+
+    if (ldkHandleIsValid(target->editorPlaceholder))
+    {
+      // Update placeholder position ONLY
+      Vec3 pos, scale;
+      Quat rotation;
+      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, scale, rotation);
+
+      // Update the actual target transform
+      LDKEntitySelectionInfo selection = {0};
+      selection.handle = target->editorPlaceholder;
+
+      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&selection, tool->position, scale, rotation);
+    }
+    else
+    {
+      // Update the target transform
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+    }
+  }
+  return true;
+}
+
+static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
+{
+  LDKPoint cursor = ldkOsMouseCursor(mouseState);
+  LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
+  bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
+
+  if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    tool->originalCursorPosition = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    tool->originalScale = tool->scale;
+    tool->isHot = true;
+    return true;
+  }
+  else if (ldkOsMouseButtonUp(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    tool->isHot = false;
+    return true;
+  }
+  else if (cursorMoved && tool->isHot)
+  {
+    Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+
+    switch(tool->mode)
+    {
+      case EDITOR_TOOL_AXIS_X:
+        tool->scale.x = tool->originalScale.x * (worldPos.x / tool->originalCursorPosition.x);
+        break;
+
+      case EDITOR_TOOL_AXIS_Y:
+        tool->scale.y = tool->originalScale.y * (worldPos.y / tool->originalCursorPosition.y);
+        break;
+
+      case EDITOR_TOOL_AXIS_Z:
+        tool->scale.z = tool->originalScale.z * (worldPos.z / tool->originalCursorPosition.z);
+        break;
+
+      case EDITOR_TOOL_CENTER:
+        float amount = worldPos.x + worldPos.y / tool->originalCursorPosition.x;
+        tool->scale.x = tool->originalScale.x * amount;
+        tool->scale.y = tool->originalScale.y * amount;
+        tool->scale.z = tool->originalScale.z * amount;
+        break;
+
+      default:
+        break;
+    }
+
+    LDKEntityInfo* target = ldkEntityManagerFind(internalEditor.previousEntity.handle);
+    LDK_ASSERT(target != NULL);
+
+    if (ldkHandleIsValid(target->editorPlaceholder))
+    {
+      ldkLogInfo("SCALING PLACEHOLDER!");
+      // Update placeholder position ONLY
+      Vec3 pos, scale;
+      Quat rotation;
+      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, pos, tool->scale, rotation);
+
+      // Update the actual target transform
+      LDKEntitySelectionInfo selection = {0};
+      selection.handle = target->editorPlaceholder;
+
+      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&selection, pos, tool->scale, rotation);
+    }
+    else
+    {
+      // Update the target transform
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+    }
+  }
+  return true;
+}
+
+static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
+{
+  LDKPoint cursor = ldkOsMouseCursor(mouseState);
+  LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
+  bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
+
+  if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    tool->originalPosition = tool->position;
+    tool->originalRotation = tool->rotation;
+    tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
+    tool->originalCursorPosition = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    tool->isHot = true;
+    return true;
+  }
+  else if (ldkOsMouseButtonUp(mouseState, LDK_MOUSE_BUTTON_LEFT))
+  {
+    tool->isHot = false;
+    return true;
+  }
+  else if (cursorMoved && tool->isHot)
+  {
+    Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    Quat q;
+    Vec3 d = vec3Sub(worldPos, tool->originalCursorPosition);
+    float f = vec3Length(d) * 2.0f;
+    switch(tool->mode)
+    {
+      case EDITOR_TOOL_AXIS_X:
+        ldkLogInfo("x axis angle = %f", f);
+        q = quatRotationX(f);
+        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        break;
+
+      case EDITOR_TOOL_AXIS_Y:
+        q = quatRotationY(f);
+        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        break;
+
+      case EDITOR_TOOL_AXIS_Z:
+        q = quatRotationZ(f);
+        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        break;
+
+      case EDITOR_TOOL_CENTER:
+        break;
+
+      default:
+        break;
+    }
+
+    LDKEntityInfo* target = ldkEntityManagerFind(internalEditor.previousEntity.handle);
+    LDK_ASSERT(target != NULL);
+
+    if (ldkHandleIsValid(target->editorPlaceholder))
+    {
+      ldkLogInfo("SCALING PLACEHOLDER!");
+      // Update placeholder position ONLY
+      Vec3 pos, scale;
+      Quat rotation;
+      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, pos, scale, tool->rotation);
+
+      // Update the actual target transform
+      LDKEntitySelectionInfo selection = {0};
+      selection.handle = target->editorPlaceholder;
+
+      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
+      ldkEntityEditorSetTransform(&selection, pos, scale, tool->rotation);
+    }
+    else
+    {
+      // Update the target transform
+      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+    }
+  }
+  return true;
 }
 
 static bool postUpdate(const LDKEvent* evt, void* data)
@@ -178,14 +443,16 @@ static bool postUpdate(const LDKEvent* evt, void* data)
         {
           // It is a gizmo entity. For a gizmo to be visible it must be clicked
           // AFTER a regular entity (or another gizmo). So previousEntity is guaranteed to be valid.
+          bool selectionWasGizmo = tool->selectionIsGizmo;
           tool->selectionIsGizmo = true;
           ldkEntityEditorGetTransform(&selectedEntity, &tool->position, &tool->scale, &tool->rotation);
           tool->mode = selectedEntity.surfaceIndex;
+          ldkLogInfo("Surface index = %d", tool->mode);
           // selectedEntity and previousEntity should never point both to a
           // gizmo, otherwise we won't know which entity is being targeted by
           // the gizmo tool.
           internalEditor.selectedEntity = selectedEntity;
-          if (selectedEntity.handle.value != previousEntity.handle.value)
+          if (selectedEntity.handle.value != previousEntity.handle.value && selectionWasGizmo == false)
           {
             internalEditor.previousEntity = previousEntity;
           }
@@ -203,13 +470,14 @@ static bool postUpdate(const LDKEvent* evt, void* data)
         tool->selectionIsGizmo = false;
         tool->showGizmo = false;
       }
-
-      // Move the gizmo to the selected entity position
-      LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[EDITOR_TOOL_MOVE]);
-      if (gizmo) gizmo->position = tool->position;
-
-      //ldkLogInfo("SELECTION CHANGED: PREVIOUS = %llx, CURRENT = %llx", internalEditor.previousEntity.handle, internalEditor.selectedEntity.handle);
     }
+  }
+
+  // Move the gizmo to the selected entity position
+  LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+  if (gizmo)
+  {
+    gizmo->position = tool->position;
   }
 
   if (ldkHandleIsValid(internalEditor.selectedEntity.handle) == false
@@ -222,95 +490,16 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   // Remember, The selectedEntity is always a gizmo and the previousEntity is the actual entity
   if (tool->type == EDITOR_TOOL_MOVE)
   {
-    LDKPoint cursorRel = ldkOsMouseCursorRelative(&mouseState);
-    LDKPoint cursor = ldkOsMouseCursor(&mouseState);
-    bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
-
-    if (ldkOsMouseButtonDown(&mouseState, LDK_MOUSE_BUTTON_LEFT))
-    {
-      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
-      tool->originalMovePosition = tool->position;
-      tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
-      tool->isHot = true;
-      return true;
-    }
-    else if (ldkOsMouseButtonUp(&mouseState, LDK_MOUSE_BUTTON_LEFT))
-    {
-      tool->isHot = false;
-      tool->originalMovePosition = vec3Zero();
-      return true;
-    }
-    else if (cursorMoved && tool->isHot)
-    {
-      Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
-      switch(tool->mode)
-      {
-        case EDITOR_TOOL_MOVE_AXIS_X:
-          tool->position.x = worldPos.x - tool->cursorOffset.x;
-          tool->moveRayColor = ldkRGB(255, 0, 0);
-          break;
-        case EDITOR_TOOL_MOVE_AXIS_Y:
-          tool->position.y = worldPos.y - tool->cursorOffset.y;
-          tool->moveRayColor = ldkRGB(0, 0, 255);
-          break;
-        case EDITOR_TOOL_MOVE_AXIS_Z:
-          tool->position.z = worldPos.z - tool->cursorOffset.z;
-          tool->moveRayColor = ldkRGB(0, 255, 0);
-          break;
-        case EDITOR_TOOL_MOVE_PLANE_XY:
-          tool->position.x = worldPos.x - tool->cursorOffset.x;
-          tool->position.y = worldPos.y - tool->cursorOffset.y;
-          tool->moveRayColor = ldkRGB(0, 255, 255);
-          break;
-        case EDITOR_TOOL_MOVE_PLANE_XZ:
-          tool->position.x = worldPos.x - tool->cursorOffset.x;
-          tool->position.z = worldPos.z - tool->cursorOffset.z;
-          tool->moveRayColor = ldkRGB(0, 255, 255);
-          break;
-        case EDITOR_TOOL_MOVE_PLANE_ZY:
-          tool->position.z = worldPos.z - tool->cursorOffset.z;
-          tool->position.y = worldPos.y - tool->cursorOffset.y;
-          tool->moveRayColor = ldkRGB(0, 255, 255);
-          break;
-        case EDITOR_TOOL_MOVE_CENTER:
-          tool->position = worldPos;
-          tool->moveRayColor = ldkRGB(0, 255, 255);
-          break;
-        default:
-          break;
-      }
-
-      // Update gizmo position
-      LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[EDITOR_TOOL_MOVE]);
-      gizmo->position = tool->position;
-
-      LDKEntityInfo* target = ldkEntityManagerFind(internalEditor.previousEntity.handle);
-      LDK_ASSERT(target != NULL);
-
-      if (ldkHandleIsValid(target->editorPlaceholder))
-      {
-        // Update placeholder position ONLY
-        Vec3 pos, scale;
-        Quat rotation;
-        ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
-        ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, scale, rotation);
-
-        // Update the actual target transform
-        LDKEntitySelectionInfo selection = {0};
-        selection.handle = target->editorPlaceholder;
-
-        ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
-        ldkEntityEditorSetTransform(&selection, tool->position, scale, rotation);
-      }
-      else
-      {
-        // Update the target transform
-        ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
-      }
-    }
+    moveToolUpdate(camera, &mouseState, tool);
   }
-  //if (internalEditor.tool == EDITOR_TOOL_SCALE) { internalEditor.toolScale = vec3Zero(); }
-  //if (internalEditor.tool == EDITOR_TOOL_ROTATE) { internalEditor.toolRotation = vec3Zero(); }
+  else if (tool->type == EDITOR_TOOL_SCALE)
+  {
+    scaleToolUpdate(camera, &mouseState, tool);
+  }
+  else if (tool->type == EDITOR_TOOL_ROTATE)
+  {
+    rotateToolUpdate(camera, &mouseState, tool);
+  }
   return true;
 }
 
@@ -370,13 +559,13 @@ void  ldkEditorImmediateDraw(float deltaTime)
   const float thickness = 1.4f;
 
   drawLine(cameraX - lineLength, 0.0f, 0.0f, cameraX + lineLength, 0.0f, 0.0f, thickness, ldkRGB(255, 0, 0));
-  drawLine(0.0f, cameraY - lineLength, 0.0f, 0.0f, cameraY + lineLength, 0.0f, thickness, ldkRGB(0, 0, 255));
-  drawLine(0.0f, 0.0f, cameraZ - lineLength, 0.0f, 0.0f, cameraZ + lineLength, thickness, ldkRGB(0, 255, 0));
+  drawLine(0.0f, cameraY - lineLength, 0.0f, 0.0f, cameraY + lineLength, 0.0f, thickness, ldkRGB(0, 255, 0));
+  drawLine(0.0f, 0.0f, cameraZ - lineLength, 0.0f, 0.0f, cameraZ + lineLength, thickness, ldkRGB(0, 0, 255));
 
   // While moving with the MOVE tool, draw a ray from the initial position to the current position.
   if (internalEditor.tool.isHot && internalEditor.tool.type == EDITOR_TOOL_MOVE)
   {
-    Vec3 start = internalEditor.tool.originalMovePosition;
+    Vec3 start = internalEditor.tool.originalPosition;
     Vec3 end = internalEditor.tool.position;
     drawLine(start.x, start.y, start.z, end.x,
         end.y, end.z, thickness * 3.0f, internalEditor.tool.moveRayColor);
@@ -412,6 +601,7 @@ static void internalAddPlaceholderEntity(Vec3 position, LDKHAsset* materialOverr
   ldkRendererAddStaticObject(icon); 
 }
 
+
 // Called right after enabling/disabling the editor
 void ldkEditorEnable(bool enabled)
 {
@@ -430,16 +620,38 @@ void ldkEditorEnable(bool enabled)
     internalEditor.selectedEntity.instanceIndex = 0;
     internalEditor.selectedEntity.surfaceIndex = 0;
 
-    // Add Move Tool Gizmo
-    LDKStaticObject *moveGizmo = ldkEntityCreate(LDKStaticObject);
-    moveGizmo->mesh = ldkAssetGet(LDKMesh, "assets/editor/gizmo-move.mesh")->asset.handle;
+    // Add Move tool gizmo
+    LDKStaticObject *gizmo = ldkEntityCreate(LDKStaticObject);
+    gizmo->mesh = ldkAssetGet(LDKMesh, "assets/editor/gizmo-move.mesh")->asset.handle;
     float s = 0.08f;
-    moveGizmo->scale = vec3(s, s, s);
-    moveGizmo->entity.active = false;
-    moveGizmo->entity.isEditorGizmo = true;
-    internalEditor.tool.gizmo[EDITOR_TOOL_MOVE] = moveGizmo->entity.handle;
-    ldkArrayAdd(internalEditor.editorEntities, &moveGizmo->entity.handle);
-    ldkRendererAddStaticObject(moveGizmo); 
+    gizmo->scale = vec3(s, s, s);
+    gizmo->entity.active = false;
+    gizmo->entity.isEditorGizmo = true;
+    internalEditor.tool.gizmo[EDITOR_TOOL_MOVE] = gizmo->entity.handle;
+    ldkArrayAdd(internalEditor.editorEntities, &gizmo->entity.handle);
+    ldkRendererAddStaticObject(gizmo); 
+
+    // Add Scale tool gizmo
+    gizmo = ldkEntityCreate(LDKStaticObject);
+    gizmo->mesh = ldkAssetGet(LDKMesh, "assets/editor/gizmo-scale.mesh")->asset.handle;
+    s = 0.08f;
+    gizmo->scale = vec3(s, s, s);
+    gizmo->entity.active = false;
+    gizmo->entity.isEditorGizmo = true;
+    internalEditor.tool.gizmo[EDITOR_TOOL_SCALE] = gizmo->entity.handle;
+    ldkArrayAdd(internalEditor.editorEntities, &gizmo->entity.handle);
+    ldkRendererAddStaticObject(gizmo); 
+
+    // Add Rotation tool gizmo
+    gizmo = ldkEntityCreate(LDKStaticObject);
+    gizmo->mesh = ldkAssetGet(LDKMesh, "assets/editor/gizmo-rotate.mesh")->asset.handle;
+    s = 0.08f;
+    gizmo->scale = vec3(s, s, s);
+    gizmo->entity.active = false;
+    gizmo->entity.isEditorGizmo = true;
+    internalEditor.tool.gizmo[EDITOR_TOOL_ROTATE] = gizmo->entity.handle;
+    ldkArrayAdd(internalEditor.editorEntities, &gizmo->entity.handle);
+    ldkRendererAddStaticObject(gizmo); 
 
     // Add 3D icons for 'invisible' entities
     LDKHListIterator it;
@@ -507,7 +719,7 @@ bool ldkEditorInitialize(void)
   ldkEventHandlerAdd(postUpdate, LDK_EVENT_TYPE_NONE, NULL);
 
   internalEditor.enabled = false;
-  internalEditor.tool.type = EDITOR_TOOL_CAMERA;
+  internalEditor.tool.type = EDITOR_TOOL_MOVE;
   internalEditor.editorEntities = ldkArrayCreate(sizeof(LDKHandle), 64);
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
