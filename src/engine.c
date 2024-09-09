@@ -30,6 +30,7 @@ static struct
   bool running;
   int32 exitCode;
   float timeScale;
+  bool editorStartsEnabled;
 } internal = {0};
 
 static void internalOnSignal(int32 signal)
@@ -184,6 +185,7 @@ bool ldkEngineInitialize(void)
 
 #ifdef LDK_EDITOR
   // Startup editor
+  internal.editorStartsEnabled = ldkConfigGetInt(config, "editor-enabled-on-start");
   stepSuccess = ldkEditorInitialize();
   success &= stepSuccess;
   logModuleInit("Editor", stepSuccess);
@@ -243,7 +245,13 @@ LDK_API int32 ldkEngineRun(void)
     tickStart = ldkOsTimeTicksGet();
 
 #ifdef LDK_EDITOR
-    if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
+
+    if (internal.editorStartsEnabled)
+    {
+      ldkEditorEnable(true);
+      internal.editorStartsEnabled = false;
+    }
+    else if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
     {
       ldkEditorEnable(!ldkEditorIsEnabled());
     }
