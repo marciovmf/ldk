@@ -51,6 +51,7 @@ typedef struct
   bool isHot;           // is this gizmo being interacted with
   bool showGizmo;       // When the current tool gizmo should be drawn
   bool selectionIsGizmo;// When the current selected entity is a gizmo
+  bool localSpace;
   Vec3 originalPosition;
   Vec3 originalScale;
   Quat originalRotation;
@@ -112,6 +113,12 @@ static bool onKeyboard(const LDKEvent* evt, void* data)
 
     if (internalEditor.tool.isHot == false)
     {
+      if (evt->keyboardEvent.keyCode == LDK_KEYCODE_G)
+      {
+        internalEditor.tool.localSpace = !internalEditor.tool.localSpace;
+        ldkLogInfo("%s space", (const char*) (internalEditor.tool.localSpace ? "Local" : "Global"));
+      }
+      else
       if (evt->keyboardEvent.keyCode == LDK_KEYCODE_T)
       {
         // Disable current gizmo entity
@@ -197,38 +204,66 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
   else if (cursorMoved && tool->isHot)
   {
     Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    worldPos = vec3Sub(worldPos, tool->cursorOffset);
     switch(tool->mode)
     {
       case EDITOR_TOOL_AXIS_X:
-        tool->position.x = worldPos.x - tool->cursorOffset.x;
-        tool->moveRayColor = ldkRGB(255, 0, 0);
-        break;
+        {
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
+          tool->position = vec3Add(tool->originalPosition, increment);
+          tool->moveRayColor = ldkRGB(255, 0, 0);
+          break;
+        }
       case EDITOR_TOOL_AXIS_Y:
-        tool->position.y = worldPos.y - tool->cursorOffset.y;
-        tool->moveRayColor = ldkRGB(0, 255, 0);
-        break;
+        {
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
+          tool->position = vec3Add(tool->originalPosition, increment);
+          tool->moveRayColor = ldkRGB(0, 255, 0);
+          break;
+        }
       case EDITOR_TOOL_AXIS_Z:
-        tool->position.z = worldPos.z - tool->cursorOffset.z;
-        tool->moveRayColor = ldkRGB(0, 0, 255);
-        break;
+        {
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
+          tool->position = vec3Add(tool->originalPosition, increment);
+          tool->moveRayColor = ldkRGB(0, 0, 255);
+          break;
+        }
       case EDITOR_TOOL_PLANE_XY:
       case EDITOR_TOOL_PLANE_XY_BACK:
-        tool->position.x = worldPos.x - tool->cursorOffset.x;
-        tool->position.y = worldPos.y - tool->cursorOffset.y;
-        tool->moveRayColor = ldkRGB(0, 255, 255);
-        break;
+        {
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
+          tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
+          tool->moveRayColor = ldkRGB(0, 255, 255);
+          break;
+        }
       case EDITOR_TOOL_PLANE_XZ:
       case EDITOR_TOOL_PLANE_XZ_BACK:
-        tool->position.x = worldPos.x - tool->cursorOffset.x;
-        tool->position.z = worldPos.z - tool->cursorOffset.z;
-        tool->moveRayColor = ldkRGB(0, 255, 255);
-        break;
+        {
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
+          tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
+          tool->moveRayColor = ldkRGB(0, 255, 255);
+          break;
+        }
       case EDITOR_TOOL_PLANE_ZY:
       case EDITOR_TOOL_PLANE_ZY_BACK:
-        tool->position.z = worldPos.z - tool->cursorOffset.z;
-        tool->position.y = worldPos.y - tool->cursorOffset.y;
-        tool->moveRayColor = ldkRGB(0, 255, 255);
-        break;
+        {
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
+          tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
+          tool->moveRayColor = ldkRGB(0, 255, 255);
+          break;
+        }
       default:
         break;
     }
@@ -270,6 +305,7 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
   {
     ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
     tool->originalCursorPosition = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    //tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
     tool->originalScale = tool->scale;
     tool->isHot = true;
     return true;
@@ -338,6 +374,8 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
 
 static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
 {
+  //TODO: Should I use screen space coords ?
+  //TODO: Current implementation is on Local space. Implement for Global space.
   LDKPoint cursor = ldkOsMouseCursor(mouseState);
   LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
   bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
@@ -366,7 +404,6 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
     switch(tool->mode)
     {
       case EDITOR_TOOL_AXIS_X:
-        ldkLogInfo("x axis angle = %f", f);
         q = quatRotationX(f);
         tool->rotation = quatMulQuat(tool->originalRotation, q);
         break;
@@ -422,6 +459,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   EditorTool* tool = &internalEditor.tool;
   LDKMouseState mouseState;
   ldkOsMouseStateGet(&mouseState);
+  bool changed = false;
 
   //
   // Handle entity selection change
@@ -431,7 +469,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
     LDKEntitySelectionInfo previousEntity = internalEditor.selectedEntity;
     LDKEntitySelectionInfo selectedEntity = ldkRendererSelectedEntity();
 
-    bool changed = !internalEntitySelectionInfoEquals(&selectedEntity, &previousEntity);
+    changed = !internalEntitySelectionInfoEquals(&selectedEntity, &previousEntity);
     if (changed)
     {
       if (ldkHandleIsValid(selectedEntity.handle) && tool->isHot == false)
@@ -446,8 +484,8 @@ static bool postUpdate(const LDKEvent* evt, void* data)
           bool selectionWasGizmo = tool->selectionIsGizmo;
           tool->selectionIsGizmo = true;
           ldkEntityEditorGetTransform(&selectedEntity, &tool->position, &tool->scale, &tool->rotation);
+          tool->originalRotation = tool->rotation;
           tool->mode = selectedEntity.surfaceIndex;
-          ldkLogInfo("Surface index = %d", tool->mode);
           // selectedEntity and previousEntity should never point both to a
           // gizmo, otherwise we won't know which entity is being targeted by
           // the gizmo tool.
@@ -478,6 +516,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   if (gizmo)
   {
     gizmo->position = tool->position;
+    gizmo->rotation = tool->localSpace ? tool->rotation : quatId();
   }
 
   if (ldkHandleIsValid(internalEditor.selectedEntity.handle) == false
@@ -490,6 +529,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   // Remember, The selectedEntity is always a gizmo and the previousEntity is the actual entity
   if (tool->type == EDITOR_TOOL_MOVE)
   {
+    //TODO: Local space move
     moveToolUpdate(camera, &mouseState, tool);
   }
   else if (tool->type == EDITOR_TOOL_SCALE)

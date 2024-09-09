@@ -1103,6 +1103,33 @@ Quat quatInterpolate(Quat* qs, float* ws, int count)
 
 }
 
+Vec3 quatGetRight(Quat q)
+{
+  Vec3 right;
+  right.x = 1 - 2 * (q.y * q.y + q.z * q.z);
+  right.y = 2 * (q.x * q.y + q.w * q.z);
+  right.z = 2 * (q.x * q.z - q.w * q.y);
+  return right;
+}
+
+Vec3 quatGetForward(Quat q)
+{
+  Vec3 forward;
+  forward.x = 2 * (q.x * q.z + q.w * q.y);
+  forward.y = 2 * (q.y * q.z - q.w * q.x);
+  forward.z = 1 - 2 * (q.x * q.x + q.y * q.y);
+  return forward;
+}
+
+Vec3 quatGetUp(Quat q)
+{
+  Vec3 up;
+  up.x = 2 * (q.x * q.y - q.w * q.z);
+  up.y = 1 - 2 * (q.x * q.x + q.z * q.z);
+  up.z = 2 * (q.y * q.z + q.w * q.x);
+  return up;
+}
+
 QuatDual quatDual(Quat real, Quat dual)
 {
   QuatDual qd;

@@ -192,6 +192,10 @@ extern "C" {
   LDK_API Quat quatConstrainY(Quat q);
   LDK_API float quatDistance(Quat q0, Quat q1);
   LDK_API Quat quatInterpolate(Quat* qs, float* ws, int count);
+  LDK_API Vec3 quatGetRight(Quat q);
+  LDK_API Vec3 quatGetForward(Quat q);
+  LDK_API Vec3 quatGetUp(Quat q);
+
 
   typedef struct {
     Quat real;

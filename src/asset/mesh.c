@@ -3,7 +3,7 @@
 #include "ldk/os.h"
 #include <string.h>
 #include <stdlib.h>
-#include <cerrno>
+#include <errno.h>
 
 #ifdef LDK_OS_WINDOWS
 #define strtok_r strtok_s
