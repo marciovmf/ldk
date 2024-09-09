@@ -209,7 +209,7 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
     {
       case EDITOR_TOOL_AXIS_X:
         {
-          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3Right();
           Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
           tool->position = vec3Add(tool->originalPosition, increment);
           tool->moveRayColor = ldkRGB(255, 0, 0);
@@ -217,7 +217,7 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
         }
       case EDITOR_TOOL_AXIS_Y:
         {
-          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3Up();
           Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
           tool->position = vec3Add(tool->originalPosition, increment);
           tool->moveRayColor = ldkRGB(0, 255, 0);
@@ -225,7 +225,7 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
         }
       case EDITOR_TOOL_AXIS_Z:
         {
-          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 direction = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3Forward();
           Vec3 increment = vec3Mul(direction, vec3Dot(vec3Sub(worldPos, tool->originalPosition), direction));
           tool->position = vec3Add(tool->originalPosition, increment);
           tool->moveRayColor = ldkRGB(0, 0, 255);
@@ -234,9 +234,9 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
       case EDITOR_TOOL_PLANE_XY:
       case EDITOR_TOOL_PLANE_XY_BACK:
         {
-          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3Right();
           Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
-          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3Up();
           Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
           tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
           tool->moveRayColor = ldkRGB(0, 255, 255);
@@ -245,9 +245,9 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
       case EDITOR_TOOL_PLANE_XZ:
       case EDITOR_TOOL_PLANE_XZ_BACK:
         {
-          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3(1.0f, 0.0f, 0.0f);
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetRight(tool->rotation)) : vec3Right();
           Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
-          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3Forward();
           Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
           tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
           tool->moveRayColor = ldkRGB(0, 255, 255);
@@ -256,9 +256,9 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
       case EDITOR_TOOL_PLANE_ZY:
       case EDITOR_TOOL_PLANE_ZY_BACK:
         {
-          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3(0.0f, 0.0f, 1.0f);
+          Vec3 dx = tool->localSpace ? vec3Normalize(quatGetForward(tool->rotation)) : vec3Forward();
           Vec3 ix = vec3Mul(dx, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dx));
-          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3(0.0f, 1.0f, 0.0f);
+          Vec3 dy = tool->localSpace ? vec3Normalize(quatGetUp(tool->rotation)) : vec3Up();
           Vec3 iy = vec3Mul(dy, vec3Dot(vec3Sub(worldPos, tool->originalPosition), dy));
           tool->position = vec3Add(vec3Add(tool->originalPosition, ix), iy);
           tool->moveRayColor = ldkRGB(0, 255, 255);

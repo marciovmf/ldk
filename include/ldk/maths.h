@@ -83,6 +83,8 @@ extern "C" {
   LDK_API Vec3 vec3Zero(void);
   LDK_API Vec3 vec3One(void);
   LDK_API Vec3 vec3Up(void);
+  LDK_API Vec3 vec3Right(void);
+  LDK_API Vec3 vec3Forward(void);
   LDK_API Vec3 vec3Add(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Sub(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Mul(Vec3 v, float fac);
