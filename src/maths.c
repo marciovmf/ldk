@@ -273,6 +273,16 @@ Vec3 vec3Up(void)
   return vec3(0, 1, 0);
 }
 
+Vec3 vec3Right(void)
+{
+  return vec3(1, 0, 0);
+}
+
+Vec3 vec3Forward(void)
+{
+  return vec3(0, 0, 1);
+}
+
 Vec3 vec3Add(Vec3 v1, Vec3 v2)
 {
   Vec3 v;
