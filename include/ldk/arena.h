@@ -35,10 +35,10 @@ extern "C" {
 
 #define ldkArenaAllocate(arena, type) ldkArenaAllocateSize(arena, sizeof(type))
 
-  bool ldkArenaCreate(LDKArena* out, size_t chunkSize);
-  void ldkArenaDestroy(LDKArena* arena);
-  uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size);   // gets memory from chunk
-  void ldkArenaReset(LDKArena* arena);
+LDK_API  bool ldkArenaCreate(LDKArena* out, size_t chunkSize);
+LDK_API  void ldkArenaDestroy(LDKArena* arena);
+LDK_API  uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size);   // gets memory from chunk
+LDK_API  void ldkArenaReset(LDKArena* arena);
 
 
 #ifdef __cplusplus

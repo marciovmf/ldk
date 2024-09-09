@@ -273,9 +273,9 @@ extern "C" {
   LDK_API Mat4 mat4Id(void);
   LDK_API Mat4 mat4Zero(void);
   LDK_API Mat4 mat4(float xx, float xy, float xz, float xw,
-  LDK_API     float yx, float yy, float yz, float yw,
-  LDK_API     float zx, float zy, float zz, float zw,
-  LDK_API     float wx, float wy, float wz, float ww);
+      float yx, float yy, float yz, float yw,
+      float zx, float zy, float zz, float zw,
+      float wx, float wy, float wz, float ww);
   LDK_API float mat4At(Mat4 m, int col, int row);
   LDK_API Mat4 mat4Set(Mat4 m, int col, int row, float v);
   LDK_API Mat4 mat4Transpose(Mat4 m);
