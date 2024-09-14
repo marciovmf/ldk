@@ -1,4 +1,5 @@
 #include "ldk/common.h"
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,6 +7,9 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+#ifndef _CRT_SECURE_NO_WARNINGS
+#error "wtf?"
+#endif
 
 LDKSize ldkSize(int32 width, int32 height)
 {

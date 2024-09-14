@@ -6,6 +6,8 @@
 #include <ldk.h>
 #include <math.h>
 
+#ifdef LDK_EDITOR
+
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
 
 extern void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color);
@@ -461,6 +463,14 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   ldkOsMouseStateGet(&mouseState);
   bool changed = false;
 
+  // Move the gizmo to the selected entity position
+  LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
+  if (gizmo)
+  {
+    gizmo->position = tool->position;
+    gizmo->rotation = tool->localSpace ? tool->rotation : quatId();
+  }
+
   //
   // Handle entity selection change
   //
@@ -511,14 +521,6 @@ static bool postUpdate(const LDKEvent* evt, void* data)
     }
   }
 
-  // Move the gizmo to the selected entity position
-  LDKStaticObject* gizmo = ldkEntityLookup(LDKStaticObject, internalEditor.tool.gizmo[internalEditor.tool.type]);
-  if (gizmo)
-  {
-    gizmo->position = tool->position;
-    gizmo->rotation = tool->localSpace ? tool->rotation : quatId();
-  }
-
   if (ldkHandleIsValid(internalEditor.selectedEntity.handle) == false
       || ldkHandleIsValid(internalEditor.previousEntity.handle) == false
       || tool->selectionIsGizmo == false)
@@ -529,7 +531,6 @@ static bool postUpdate(const LDKEvent* evt, void* data)
   // Remember, The selectedEntity is always a gizmo and the previousEntity is the actual entity
   if (tool->type == EDITOR_TOOL_MOVE)
   {
-    //TODO: Local space move
     moveToolUpdate(camera, &mouseState, tool);
   }
   else if (tool->type == EDITOR_TOOL_SCALE)
@@ -787,3 +788,4 @@ void ldkEditorTerminate(void)
   internalEditor.enabled = false;
 }
 
+#endif// LDK_EDITOR
