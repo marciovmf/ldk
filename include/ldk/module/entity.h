@@ -70,14 +70,15 @@ extern "C" {
   LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
   LDK_API LDKEntity ldkEntityManagerFind(LDKHEntity handle);
 
-#ifdef LDK_EDITOR
-
   typedef struct
   {
     LDKHEntity handle;
     uint32 surfaceIndex;
     uint32 instanceIndex;
   } LDKEntitySelectionInfo;
+
+#ifdef LDK_EDITOR
+
 
   typedef void (*LDKEntityEditorGetTransformFunc) (LDKEntitySelectionInfo*, Vec3*, Vec3*, Quat*);
   typedef void (*LDKEntityEditorSetTransformFunc) (LDKEntitySelectionInfo*, Vec3, Vec3, Quat);

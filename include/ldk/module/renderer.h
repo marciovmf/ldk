@@ -45,13 +45,16 @@ LDK_API float ldkAmbientLightGetIntensity();
 LDK_API void ldkAmbientLightSetColor(Vec3 color);
 LDK_API Vec3 ldkAmbientLightGetColor();
 
+
+
 //
 // Editor
 //
-
+#ifdef LDK_EDITOR
 // Call this function once per frame when detecting click over the scene.
 // This call is relatively slow.
 LDK_API LDKEntitySelectionInfo ldkRendererSelectedEntity(void);
+#endif // LDK_EDITOR
 
 #ifdef __cplusplus
 }

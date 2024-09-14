@@ -1,7 +1,6 @@
 #include "ldk/os.h"
 #include "ldk/asset/config.h"
 #include "ldk/hashmap.h"
-#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -47,7 +46,7 @@ bool ldkAssetConfigLoadFunc(const char* path, LDKAsset asset)
   }
 
   // nullterminate the file buffer
-  config->buffer[fileSize] = 0;
+  config->buffer[fileSize-1] = 0;
 
   config->map = ldkHashMapCreate((ldkHashMapHashFunc) ldkHashStr, keyCompareFunc);
   char* context;

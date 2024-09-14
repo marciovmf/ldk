@@ -34,10 +34,10 @@ extern "C" {
   typedef struct
   {
     LDK_DECLARE_ENTITY;
-    LDKArray* instanceList;
-    LDKArray* instanceWorldMatrixList;
-    LDKHAsset mesh;
+    LDKArray* instanceArray;
+    LDKArray* instanceWorldMatrixArray;
     LDKInstanceBuffer* instanceBuffer;
+    LDKHAsset mesh;
   } LDKInstancedObject;
 
   LDK_API LDKInstancedObject* ldkInstancedObjectEntityCreate(LDKInstancedObject* entity);

@@ -9,17 +9,17 @@ LDKInstancedObject* ldkInstancedObjectEntityCreate(LDKInstancedObject* entity)
 {
   entity->mesh = LDK_HASSET_INVALID;
   entity->instanceBuffer = ldkInstanceBufferCreate();
-  entity->instanceList = ldkArrayCreate(sizeof(LDKObjectInstance), 16);
-  entity->instanceWorldMatrixList = ldkArrayCreate(sizeof(Mat4), 16);
+  entity->instanceArray = ldkArrayCreate(sizeof(LDKObjectInstance), 16);
+  entity->instanceWorldMatrixArray = ldkArrayCreate(sizeof(Mat4), 16);
   return entity;
 }
 
 void ldkInstancedObjectEntityDestroy(LDKInstancedObject* entity)
 {
-  ldkArrayDestroy(entity->instanceList);
-  ldkArrayDestroy(entity->instanceWorldMatrixList);
-  entity->instanceList = NULL;
-  entity->instanceWorldMatrixList = NULL;
+  ldkArrayDestroy(entity->instanceArray);
+  ldkArrayDestroy(entity->instanceWorldMatrixArray);
+  entity->instanceArray = NULL;
+  entity->instanceWorldMatrixArray = NULL;
   entity->mesh = LDK_HASSET_INVALID;
   ldkInstanceBufferDestroy(entity->instanceBuffer);
 }
@@ -31,15 +31,15 @@ void ldkInstancedObjectAddInstance(LDKInstancedObject* entity, Vec3 position, Ve
   instance.scale    = scale;
   instance.rotation = rotation;
 
-  ldkArrayAdd(entity->instanceWorldMatrixList, NULL); // just reserve space
-  ldkArrayAdd(entity->instanceList, &instance);
+  ldkArrayAdd(entity->instanceArray, &instance);
+  ldkArrayAdd(entity->instanceWorldMatrixArray, NULL); // just reserve space
 }
 
 void ldkInstancedObjectUpdate(LDKInstancedObject* io)
 {
   uint32 count = ldkInstancedObjectCount(io);
-  LDKObjectInstance* allInstances = ldkArrayGetData(io->instanceList);
-  Mat4* allWorldMatrices = ldkArrayGetData(io->instanceWorldMatrixList);
+  LDKObjectInstance* allInstances = ldkArrayGetData(io->instanceArray);
+  Mat4* allWorldMatrices = ldkArrayGetData(io->instanceWorldMatrixArray);
 
   for (uint32 i = 0; i < count; i++)
   {
@@ -57,14 +57,14 @@ void ldkInstancedObjectUpdate(LDKInstancedObject* io)
 
 uint32 ldkInstancedObjectCount(const LDKInstancedObject* io)
 {
-  return ldkArrayCount(io->instanceList);
+  return ldkArrayCount(io->instanceArray);
 }
 
 LDKObjectInstance* ldkInstancedObjectGetAll(const LDKInstancedObject* io, uint32* outCount)
 {
   if (outCount)
     *outCount = ldkInstancedObjectCount(io);
-  return ldkArrayGetData(io->instanceList);
+  return ldkArrayGetData(io->instanceArray);
 }
 
 LDKObjectInstance* ldkInstancedObjectGet(const LDKInstancedObject* io, uint32 index)
@@ -73,27 +73,26 @@ LDKObjectInstance* ldkInstancedObjectGet(const LDKInstancedObject* io, uint32 in
   if (index >= count)
     return NULL;
 
-  return ldkArrayGet(io->instanceList, index);
+  return ldkArrayGet(io->instanceArray, index);
 }
 
 void ldkInstancedObjectDeleteInterval(LDKInstancedObject* io, uint32 index, uint32 count)
 {
-  ldkArrayDeleteRange(io->instanceList, index, index + count);
+  ldkArrayDeleteRange(io->instanceArray, index, index + count);
 }
 
 void ldkInstancedObjectDelete(LDKInstancedObject* io, uint32 index)
 {
-  ldkArrayDeleteAt(io->instanceList, index);
+  ldkArrayDeleteAt(io->instanceArray, index);
 }
 
 void ldkInstancedObjectDeleteAll(LDKInstancedObject* io)
 {
-  ldkArrayClear(io->instanceList);
-  ldkArrayClear(io->instanceWorldMatrixList);
+  ldkArrayClear(io->instanceArray);
+  ldkArrayClear(io->instanceWorldMatrixArray);
 }
 
 #ifdef LDK_EDITOR
-
      
 void ldkInstancedObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
 {

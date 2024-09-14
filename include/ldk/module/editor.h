@@ -1,4 +1,6 @@
-/** editor.h
+/**
+ * editor.h
+ * 
  * 
  */
 

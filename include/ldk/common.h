@@ -10,6 +10,7 @@
 
 #ifndef LDK_COMMON_H
 #define LDK_COMMON_H
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,7 +19,7 @@ extern "C" {
 
 #if defined(_WIN32) || defined(_WIN64)
 #define LDK_OS_WINDOWS
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS 1
 #elif defined(__linux__)
 #define LDK_OS_LINUX
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -52,7 +53,7 @@ extern "C" {
 #endif
 
 
-  // Assertion macros
+ // Assertion macros
 
 #define LDK_STATEMENT(S) do { S; }while(0)
 #define LDK_ASSERT_BREAK() (*(volatile int*)0 = 0)
@@ -66,7 +67,6 @@ extern "C" {
 #define LDK_NOT_IMPLEMENTED() LDK_STATEMENT( \
     ldkLogError("Not implemented"); \
     LDK_ASSERT(false))
-
 
   // Helper macros
 
@@ -92,15 +92,15 @@ extern "C" {
 #endif
 #endif
 
-// By default editor builds on RELEASE only or ir LDK_EDITOR is defined
-#ifdef LDK_DEBUG
-#ifndef LDK_EDITOR
-#define LDK_EDITOR
-#endif
-#endif
+//// By default editor builds on RELEASE only or ir LDK_EDITOR is defined
+//#ifdef LDK_DEBUG
+//#ifndef LDK_EDITOR
+//#define LDK_EDITOR
+//#endif
+//#endif
+
 
 #include <stdint.h>
-#include <stdio.h>
 #include <stddef.h>
 
 #ifndef __cplusplus

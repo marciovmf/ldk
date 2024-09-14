@@ -70,8 +70,8 @@ static struct
 
   Vec3 higlightColor1;
   Vec3 higlightColor2;
-
   LDKEntitySelectionInfo selectedEntity;
+
 } internal = { 0 };
 
 typedef enum
@@ -204,8 +204,10 @@ static void InternalRenderCubeNDC()
 
 static Vec3 internalGetClearColor()
 {
+#ifdef LDK_EDITOR
   if (ldkEngineIsEditorRunning())
     return internal.editorClearColor;
+#endif
 
   return internal.clearColor;
 }
@@ -258,8 +260,10 @@ static void internalRenderInstancedObjectForPicking(LDKInstancedObject* entity, 
 
 static void internalRenderHighlight(LDKStaticObject* entity)
 {
+#ifdef LDK_EDITOR
   if (entity->entity.isEditorGizmo)
     return;
+#endif
 
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
   if(!mesh)
@@ -1191,6 +1195,7 @@ void ldkRendererRender(float deltaTime)
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   internalGeometryPass(internal.renderObjectArray);
 
+#ifdef LDK_EDITOR
   if (ldkEngineIsEditorRunning())
   {
     LDKMouseState mouseState;
@@ -1220,7 +1225,7 @@ void ldkRendererRender(float deltaTime)
         else if (t == typeid(LDKInstancedObject))
         {
           LDKInstancedObject* io = (LDKInstancedObject*) entity;
-          LDKObjectInstance* instance = ldkArrayGet(io->instanceList, internal.selectedEntity.instanceIndex);
+          LDKObjectInstance* instance = ldkArrayGet(io->instanceArray, internal.selectedEntity.instanceIndex);
 
           //TODO: This is ugly. Get rid of this static entity
           static LDKStaticObject o;
@@ -1237,6 +1242,7 @@ void ldkRendererRender(float deltaTime)
       }
     }
   }
+#endif
 
   ldkArrayClear(internal.renderObjectArray);
   ldkArrayClear(internal.renderObjectArrayDeferred);
