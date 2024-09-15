@@ -9,7 +9,7 @@
       "name": "default",
       "hidden": true,
       "generator": "Ninja", 
-      "binaryDir": "${sourceDir}/build",
+      "binaryDir": "${sourceDir}/.build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
       }
@@ -21,9 +21,10 @@
       "generator": "Ninja", 
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "OPTION_ADDRESS_SANITIZER": "OFF",
         "OPTION_LDKSHAREDLIB": "OFF",
         "OPTION_BUILD_EDITOR": "OFF",
-        "LDK_BUILD_TESTS": "ON"
+        "OPTION_BUILD_TESTS": "ON"
       }
     },
     {
@@ -33,9 +34,10 @@
       "generator": "Ninja", 
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OPTION_ADDRESS_SANITIZER": "ON",
         "OPTION_LDKSHAREDLIB": "ON",
         "OPTION_BUILD_EDITOR": "ON",
-        "LDK_BUILD_TESTS": "ON"
+        "OPTION_BUILD_TESTS": "ON"
       }
     },
     {
@@ -45,9 +47,10 @@
       "generator": "Ninja", 
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "OPTION_ADDRESS_SANITIZER": "OFF",
         "OPTION_LDKSHAREDLIB": "OFF",
         "OPTION_BUILD_EDITOR": "OFF",
-        "LDK_BUILD_TESTS": "ON"
+        "OPTION_BUILD_TESTS": "ON"
       }
     },
     {
@@ -57,54 +60,11 @@
       "generator": "Ninja", 
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OPTION_LDKSHAREDLIB": "OFF",
-        "OPTION_BUILD_EDITOR": "OFF",
-        "LDK_BUILD_TESTS": "ON"
+        "OPTION_ADDRESS_SANITIZER": "ON",
+        "OPTION_LDKSHAREDLIB": "ON",
+        "OPTION_BUILD_EDITOR": "ON",
+        "OPTION_BUILD_TESTS": "ON"
       }
-    }
-  ],
-  "buildPresets": [
-    {
-      "name": "default",
-      "configurePreset": "default"
-    },
-    {
-      "name": "release",
-      "configurePreset": "release"
-    },
-    {
-      "name": "debug",
-      "configurePreset": "debug"
-    },
-    {
-      "name": "relwithdebinfo",
-      "configurePreset": "relwithdebinfo"
-    },
-    {
-      "name": "minsizerel",
-      "configurePreset": "minsizerel"
-    }
-  ],
-  "testPresets": [
-    {
-      "name": "default",
-      "configurePreset": "default"
-    },
-    {
-      "name": "release",
-      "configurePreset": "release"
-    },
-    {
-      "name": "debug",
-      "configurePreset": "debug"
-    },
-    {
-      "name": "relwithdebinfo",
-      "configurePreset": "relwithdebinfo"
-    },
-    {
-      "name": "minsizerel",
-      "configurePreset": "minsizerel"
     }
   ]
 }

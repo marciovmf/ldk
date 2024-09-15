@@ -1,4 +1,5 @@
 #include "ldk/entity/camera.h"
+#include "common.h"
 #include "ldk/module/graphics.h"
 #include "ldk/maths.h"
 #include "ldk/os.h"
@@ -189,25 +190,18 @@ Vec3 ldkCameraScreenCoordToWorldRay(LDKCamera* camera, uint32 x, uint32 y)
   return vec3Normalize(vec3(worldPoint.x, worldPoint.y, worldPoint.z));
 }
 
-#ifdef LDK_EDITOR
-
-void inspectVec3(Vec3 v, Vec3 z)
+void ldkCameraEntityGetTransform (LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
 {
-  ldkLogInfo("vec3(%4.2f,%4.2f,%4.2f) -> vec3(%4.2f,%4.2f,%4.2f)", v.x, v.y, v.z, z.x, z.y, z.z);
-}
-
-void ldkCameraEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
-{
-  LDKCamera* o = ldkEntityLookup(LDKCamera, selection->handle);
+  LDKCamera* o = ldkEntityLookup(LDKCamera, handle);
   LDK_ASSERT(o != NULL);
   if (pos)    *pos = o->position;
   if (scale)  *scale = vec3One();
   if (rot)    *rot = quatFromEuler(ldkCameraDirectionNormalized(o));
 }
 
-void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 _, Quat rot)
+void ldkCameraEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 _, Quat rot)
 {
-  LDKCamera* o = ldkEntityLookup(LDKCamera, selection->handle);
+  LDKCamera* o = ldkEntityLookup(LDKCamera, handle);
   LDK_ASSERT(o != NULL);
 
   float distance = vec3Length(vec3Sub(o->target, o->position));
@@ -217,5 +211,4 @@ void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 
   vec3Print(o->target);
   o->position = pos;
 }
-#endif //LDK_EDITOR
 

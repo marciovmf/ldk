@@ -29,11 +29,8 @@ extern "C" {
   LDK_API LDKStaticObject* ldkStaticObjectEntityCreate(LDKStaticObject* entity);
   LDK_API void ldkStaticObjectEntityDestroy(LDKStaticObject* entity);
   LDK_API void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh);
-
-#ifdef LDK_EDITOR
-  LDK_API void ldkStaticObjectEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
-  LDK_API void ldkStaticObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
-#endif // LDK_EDITOR
+  LDK_API void ldkStaticObjectEntityGetTransform (LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkStaticObjectEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot);
 
 #ifdef __cplusplus
 }

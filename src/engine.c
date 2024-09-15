@@ -109,17 +109,16 @@ bool ldkEngineInitialize(void)
   LDKDateTime  dateTime;
   ldkOsSystemDateTimeGet(&dateTime);
   char strDateTime[64];
-  snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK Engine Startup ----",
+  snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK v%d.%d.%d %s ----",
       dateTime.year, dateTime.month, dateTime.day,
-      dateTime.hour, dateTime.minute, dateTime.Second);
+      dateTime.hour, dateTime.minute, dateTime.Second,
+      LDK_VERSION_MAJOR, LDK_VERSION_PATCH, LDK_VERSION_MINOR, LDK_BUILD_TYPE
+      );
 
   // Startup Log
   stepSuccess = ldkLogInitialize("ldk.log", strDateTime);
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
-
-  // Register LDKHandle so any other handle type is larger than 0
-  //typeid(LDKHandle);
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
@@ -135,45 +134,23 @@ bool ldkEngineInitialize(void)
 
   // Register EntityManager
   stepSuccess &= ldkEntityManagerInit();
-  stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy, 2);
-  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy, 8);
-  stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKSpotLight, ldkSpotLightEntityCreate, ldkSpotLightEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy,
+      ldkCameraEntityGetTransform, ldkCameraEntitySetTransform, 2);
+  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy,
+      ldkStaticObjectEntityGetTransform, ldkStaticObjectEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy,
+      ldkInstancedObjectEntityGetTransform, ldkInstancedObjectEntitySetTransform, 8);
+  stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy,
+      ldkPointLightEntityGetTransform, ldkPointLightEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy,
+      ldkDirectionalLightEntityGetTransform, ldkDirectionalLightEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKSpotLight, ldkSpotLightEntityCreate, ldkSpotLightEntityDestroy,
+      ldkSpotLightEntityGetTransform, ldkSpotLightEntitySetTransform, 32);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 
-#ifdef LDK_EDITOR
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKCamera),
-      ldkCameraEntityOnEditorGetTransform,
-      ldkCameraEntityOnEditorSetTransform);
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKStaticObject),
-      ldkStaticObjectEntityOnEditorGetTransform,
-      ldkStaticObjectEntityOnEditorSetTransform);
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKInstancedObject),
-      ldkInstancedObjectEntityOnEditorGetTransform,
-      ldkInstancedObjectEntityOnEditorSetTransform);
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKPointLight),
-      ldkPointLightEntityOnEditorGetTransform,
-      ldkPointLightEntityOnEditorSetTransform);
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKSpotLight),
-      ldkSpotLightEntityOnEditorGetTransform,
-      ldkSpotLightEntityOnEditorSetTransform);
-
-  ldkEntityHandlerRegisterEditorFunctions(typeid(LDKDirectionalLight),
-      ldkDirectionalLightEntityOnEditorGetTransform,
-      ldkDirectionalLightEntityOnEditorSetTransform);
-
-#endif // LDK_EDITOR
 
   // Startup Graphics
-  //TODO(marcio): Get initial display width and height from a config file
   stepSuccess = ldkGraphicsInitialize(config, LDK_GRAPHICS_API_OPENGL_3_3);
   success &= stepSuccess;
   logModuleInit("Graphics", stepSuccess);

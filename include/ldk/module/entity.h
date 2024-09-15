@@ -9,8 +9,8 @@
 #define LDK_ENTITY_H
 
 #include "../common.h"
-#include "../maths.h"
 #include "../hlist.h"
+#include "../maths.h"
 
 #ifndef LDK_ENTITY_MANAGER_MAX_HANDLERS
 #define LDK_ENTITY_MANAGER_MAX_HANDLERS 32
@@ -39,7 +39,7 @@ extern "C" {
    */
 #define LDK_DECLARE_ENTITY LDKEntityInfo entity
 
-#define ldkEntityTypeRegister(type, createFunc, destroyFunc, capacity) ldkEntityHandlerRegisterNew(typeid(type), (LDKEntityHandlerCreateFunc) createFunc,  (LDKEntityHandlerDestroyFunc)  destroyFunc, capacity)
+#define ldkEntityTypeRegister(type, createFunc, destroyFunc, getTransformFunc, setTransformFunc, capacity) ldkEntityHandlerRegisterNew(typeid(type), (LDKEntityHandlerCreateFunc) createFunc,  (LDKEntityHandlerDestroyFunc)  destroyFunc, getTransformFunc, setTransformFunc, capacity)
 
 #define ldkEntityCreate(e) ((e*) ldkEntityManagerEntityCreate(typeid(e)))
 
@@ -54,14 +54,12 @@ extern "C" {
   typedef void* LDKEntity;
   typedef void (*LDKEntityHandlerCreateFunc) (LDKEntity);
   typedef void (*LDKEntityHandlerDestroyFunc) (LDKEntity);
+  typedef void (*LDKEntityGetTransformFunc) (LDKHEntity, uint32, Vec3*, Vec3*, Quat*);
+  typedef void (*LDKEntitySetTransformFunc) (LDKHEntity, uint32, Vec3, Vec3, Quat);
 
   LDK_API bool ldkEntityManagerInit(void);
   LDK_API void ldkEntityManagerTerminate(void);
-  LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity);
-
-
-  LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity);
-
+  LDK_API bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, LDKEntityGetTransformFunc getFunc, LDKEntitySetTransformFunc setFunc, uint32 initialPoolCapacity);
   LDK_API LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId);
   LDK_API LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHEntity handle);
   LDK_API LDKEntity ldkEntityManagerEntitiesGet(LDKTypeId typeId, uint32* count);
@@ -70,6 +68,8 @@ extern "C" {
   LDK_API LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId);
   LDK_API LDKEntity ldkEntityManagerFind(LDKHEntity handle);
 
+#ifdef LDK_EDITOR
+
   typedef struct
   {
     LDKHEntity handle;
@@ -77,18 +77,12 @@ extern "C" {
     uint32 instanceIndex;
   } LDKEntitySelectionInfo;
 
-#ifdef LDK_EDITOR
-
-
-  typedef void (*LDKEntityEditorGetTransformFunc) (LDKEntitySelectionInfo*, Vec3*, Vec3*, Quat*);
-  typedef void (*LDKEntityEditorSetTransformFunc) (LDKEntitySelectionInfo*, Vec3, Vec3, Quat);
-
-  LDK_API void ldkEntityHandlerRegisterEditorFunctions(LDKTypeId typeId, 
-      LDKEntityEditorGetTransformFunc getFunc, LDKEntityEditorSetTransformFunc setFunc);
+  LDK_API void ldkEntityHandlerRegisterFunctions(LDKTypeId typeId,
+      LDKEntityGetTransformFunc getFunc, LDKEntitySetTransformFunc setFunc);
 
 #ifdef LDK_EDITOR
-  LDK_API void ldkEntityEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
-  LDK_API void ldkEntityEditorSetTransform(LDKEntitySelectionInfo* selection, Vec3 pos, Vec3 scale, Quat rot);
+  LDK_API void ldkEntityGetTransform(LDKHEntity handle, uint32 instance, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkEntitySetTransform(LDKHEntity handle, uint32 instance, Vec3 pos, Vec3 scale, Quat rot);
 #endif // LDK_EDITOR
 
 #endif

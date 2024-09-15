@@ -10,7 +10,6 @@
 
 #ifndef LDK_COMMON_H
 #define LDK_COMMON_H
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +18,7 @@ extern "C" {
 
 #if defined(_WIN32) || defined(_WIN64)
 #define LDK_OS_WINDOWS
-#define _CRT_SECURE_NO_WARNINGS 1
+#define _CRT_SECURE_NO_WARNINGS
 #elif defined(__linux__)
 #define LDK_OS_LINUX
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -52,8 +51,17 @@ extern "C" {
 #define CRT_SECURE_NO_WARNINGS_
 #endif
 
+#ifndef LDK_BUILD_TYPE
+#define LDK_BUILD_TYPE ""
+#endif  // LDK_BUILD_TYPE
 
- // Assertion macros
+#define LDK_VERSION_MAJOR 0
+#define LDK_VERSION_PATCH 0
+#define LDK_VERSION_MINOR 1
+
+#include <stdio.h>
+
+  // Assertion macros
 
 #define LDK_STATEMENT(S) do { S; }while(0)
 #define LDK_ASSERT_BREAK() (*(volatile int*)0 = 0)
@@ -67,6 +75,7 @@ extern "C" {
 #define LDK_NOT_IMPLEMENTED() LDK_STATEMENT( \
     ldkLogError("Not implemented"); \
     LDK_ASSERT(false))
+
 
   // Helper macros
 
@@ -92,14 +101,6 @@ extern "C" {
 #endif
 #endif
 
-//// By default editor builds on RELEASE only or ir LDK_EDITOR is defined
-//#ifdef LDK_DEBUG
-//#ifndef LDK_EDITOR
-//#define LDK_EDITOR
-//#endif
-//#endif
-
-
 #include <stdint.h>
 #include <stddef.h>
 
@@ -108,15 +109,15 @@ extern "C" {
 #endif  
 
 #ifdef LDK_AS_SHARED_LIB
-#ifdef LDK_COMPILER_MSVC
-#ifdef LDK_EXPORT_API
-#define LDK_API __declspec(dllexport) 
+  #ifdef LDK_COMPILER_MSVC
+    #ifdef LDK_EXPORT_API
+      #define LDK_API __declspec(dllexport) 
+    #else
+      #define LDK_API __declspec(dllimport) 
+    #endif
+  #endif
 #else
-#define LDK_API __declspec(dllimport) 
-#endif
-#endif
-#else
-#define LDK_API
+  #define LDK_API
 #endif
 
 
@@ -500,5 +501,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif //LDK_COMMON_H

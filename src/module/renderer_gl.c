@@ -59,6 +59,7 @@ static struct
   unsigned int rboDepth; // Depth render buffer
 
 
+#ifdef LDK_EDITOR
   // Picking
   GLuint fboPicking;
   GLuint texturePicking;
@@ -67,10 +68,11 @@ static struct
   LDKHAsset hShaderHighlight;
   LDKShader* shaderPicking;
   LDKShader* shaderHighlight;
+  LDKEntitySelectionInfo selectedEntity;
+#endif
 
   Vec3 higlightColor1;
   Vec3 higlightColor2;
-  LDKEntitySelectionInfo selectedEntity;
 
 } internal = { 0 };
 
@@ -208,10 +210,9 @@ static Vec3 internalGetClearColor()
   if (ldkEngineIsEditorRunning())
     return internal.editorClearColor;
 #endif
-
   return internal.clearColor;
 }
-
+#ifdef LDK_EDITOR
 static void internalRenderStaticObjectForPicking(LDKStaticObject* entity, uint32 objectIndex)
 {
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
@@ -264,7 +265,6 @@ static void internalRenderHighlight(LDKStaticObject* entity)
   if (entity->entity.isEditorGizmo)
     return;
 #endif
-
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
   if(!mesh)
     return;
@@ -379,6 +379,13 @@ static bool internalRenderPickingBuffer(LDKArray* renderObjects, LDKEntitySelect
   return changed;
 }
 
+LDKEntitySelectionInfo ldkRendererSelectedEntity(void)
+{
+  return internal.selectedEntity;
+}
+
+#endif // LDK_EDITOR
+
 static void internalRenderMesh(LDKStaticObject* entity)
 {
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, entity->mesh);
@@ -435,6 +442,7 @@ static void internalRenderMeshInstanced(LDKInstancedObject* entity)
   ldkMaterialBind(NULL);
 }
 
+#ifdef LDK_EDITOR
 static bool internalPickingFBOCreate(uint32 width, uint32 height)
 {
   if (internal.fboPicking != 0)
@@ -473,13 +481,14 @@ static bool internalPickingFBOCreate(uint32 width, uint32 height)
     success = false;
   }
 
+#ifdef LDK_EDITOR
   // Loads the picking shader
   internal.hShaderPicking = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
   internal.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
 
   internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
   internal.higlightColor2 = ldkConfigGetVec3(internal.config, "editor.highlight-color2");
-
+#endif
   // Restore the default framebuffer
   glBindTexture(GL_TEXTURE_2D, 0);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -499,6 +508,7 @@ static void internalPickingFBODEstroy()
   internal.texturePicking = 0;
   internal.textureDepthPicking = 0;
 }
+#endif
 
 static void internalGBufferFBODestroy()
 {
@@ -761,6 +771,7 @@ bool ldkRendererInitialize(LDKConfig* config)
   internal.directionalLights = ldkArrayCreate(sizeof(LDKDirectionalLight), 8);
   success &= internal.renderObjectArray != NULL;
 
+#ifdef LDK_EDITOR
   //
   // Picking Framebuffer setup
   //
@@ -769,7 +780,7 @@ bool ldkRendererInitialize(LDKConfig* config)
   internalGBufferFBOCreate(viewport.width, viewport.height);
   internal.shaderPicking = ldkAssetLookup(LDKShader, internal.hShaderPicking);
   internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
-
+#endif
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   return success;
 }
@@ -777,8 +788,10 @@ bool ldkRendererInitialize(LDKConfig* config)
 void ldkRendererResize(uint32 width, uint32 height)
 {
   glViewport(0, 0, width, height);
+#ifdef LDK_EDITOR
   internalPickingFBODEstroy();
   internalPickingFBOCreate(width, height);
+#endif
 
   internalGBufferFBODestroy();
   internalGBufferFBOCreate(width, height);
@@ -795,8 +808,10 @@ void ldkRendererTerminate(void)
   ldkArrayDestroy(internal.directionalLights);
   ldkArrayDestroy(internal.spotLights);
   ldkArrayDestroy(internal.pointLights);
+#ifdef LDK_EDITOR
   internalPickingFBODEstroy();
   internalGBufferFBODestroy();
+#endif
 }
 
 void ldkRendererSetClearColor(LDKRGB color)
@@ -1242,7 +1257,7 @@ void ldkRendererRender(float deltaTime)
       }
     }
   }
-#endif
+#endif // LDK_EDITOR
 
   ldkArrayClear(internal.renderObjectArray);
   ldkArrayClear(internal.renderObjectArrayDeferred);
@@ -1251,9 +1266,4 @@ void ldkRendererRender(float deltaTime)
   ldkArrayClear(internal.pointLights);
   ldkMaterialBind(0);
   ldkRenderBufferBind(NULL);
-}
-
-LDKEntitySelectionInfo ldkRendererSelectedEntity(void)
-{
-  return internal.selectedEntity;
 }

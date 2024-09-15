@@ -41,13 +41,9 @@ extern "C" {
   LDK_API Mat4 ldkCameraProjectMatrix(LDKCamera* camera);
   LDK_API Mat4 ldkCameraViewProjectMatrix(LDKCamera* camera);
   LDK_API void ldkCameraUpdateFreeCamera(LDKCamera* camera, float deltaTime, float lookSpeed, float moveSpeed);
-
   LDK_API Vec3 ldkCameraScreenCoordToWorldRay(LDKCamera* camera, uint32 x, uint32 y);
-
-#ifdef LDK_EDITOR
-  LDK_API void ldkCameraEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
-  LDK_API void ldkCameraEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
-#endif // LDK_EDITOR
+  LDK_API void ldkCameraEntityGetTransform (LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkCameraEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot);
 
 #ifdef __cplusplus
 }

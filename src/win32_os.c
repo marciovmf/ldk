@@ -479,7 +479,6 @@ void ldkOsTerminate(void)
 void ldkOsStackTracePrint(void)
 {
 #ifdef LDK_DEBUG
-
   static bool once = false;
   if(!once)
   {
