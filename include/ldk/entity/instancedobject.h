@@ -50,11 +50,8 @@ extern "C" {
   LDK_API LDKObjectInstance* ldkInstancedObjectGet(const LDKInstancedObject* io, uint32 index);
   LDK_API void ldkInstancedObjectDeleteInterval(LDKInstancedObject* io, uint32 index, uint32 count);
   LDK_API void ldkInstancedObjectDelete(LDKInstancedObject* io, uint32 index);
-
-#ifdef LDK_EDITOR
-  LDK_API void ldkInstancedObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
-  LDK_API void ldkInstancedObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
-#endif // LDK_EDITOR
+  LDK_API void ldkInstancedObjectEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkInstancedObjectEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot);
 
 #ifdef __cplusplus
 }

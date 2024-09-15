@@ -1,3 +1,4 @@
+#include "common.h"
 #include <ldk/entity/pointlight.h>
 #include <ldk/entity/spotlight.h>
 #include <ldk/maths.h>
@@ -21,23 +22,19 @@ void ldkSpotLightEntityDestroy(LDKSpotLight* entity)
 {
 }
 
-#ifdef LDK_EDITOR
-
-void ldkSpotLightEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+void ldkSpotLightEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
 {
-  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, selection->handle);
+  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, handle);
   LDK_ASSERT(o != NULL);
   if(pos) *pos = o->position;
   if(scale) *scale = vec3One();
   if(rot) *rot = quatFromEuler(o->direction);
 }
 
-void ldkSpotLightEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot)
+void ldkSpotLightEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot)
 {
-  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, selection->handle);
+  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, handle);
   LDK_ASSERT(o != NULL);
   o->position = pos;
   o->direction = quatToEuler(rot);
 }
-
-#endif // LDK_EDITOR

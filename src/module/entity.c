@@ -10,14 +10,12 @@
 
 typedef struct
 {
-  LDKTypeId typeId;
+  LDKTypeId                     typeId;
   LDKEntityHandlerCreateFunc    createFunc;
   LDKEntityHandlerDestroyFunc   destroyFunc;
-#ifdef LDK_EDITOR
-  LDKEntityEditorGetTransformFunc getTransformFunc;
-  LDKEntityEditorSetTransformFunc setTransformFunc;
-#endif
-  LDKHList entities;
+  LDKEntityGetTransformFunc     getTransformFunc;
+  LDKEntitySetTransformFunc     setTransformFunc;
+  LDKHList                      entities;
 } LDKEntityHandler;
 
 static struct
@@ -56,7 +54,7 @@ static LDKEntityHandler* internalEntityHandlerGet(LDKTypeId typeId)
   return NULL;
 }
 
-bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, uint32 initialPoolCapacity)
+bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, LDKEntityGetTransformFunc getFunc, LDKEntitySetTransformFunc setFunc, uint32 initialPoolCapacity)
 {
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if (handler)
@@ -77,13 +75,9 @@ bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc cr
   handler->typeId           = typeId;
   handler->createFunc       = createFunc;
   handler->destroyFunc      = destroyFunc;
-#ifdef LDK_EDITOR
-  handler->getTransformFunc = NULL;
-  handler->setTransformFunc = NULL;
-#endif
-
+  handler->getTransformFunc = getFunc;
+  handler->setTransformFunc = setFunc;
   bool success = ldkHListCreate(&handler->entities, typeId, typesize(typeId), initialPoolCapacity);
-
   return success;
 }
 
@@ -116,7 +110,10 @@ LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHEntity handle)
 {
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   if (!handler)
+  {
+    ldkLogWarning("No entity found for handle (%s) %llx", typename(typeId), handle);
     return NULL;
+  }
 
   return ldkHListLookup(&handler->entities,  ldkHandleFrom(handle));
 }
@@ -157,19 +154,9 @@ LDKEntity ldkEntityManagerFind(LDKHEntity handle)
   return ldkEntityManagerEntityLookup(t, handle);
 }
 
-#ifdef LDK_EDITOR
-
-void ldkEntityHandlerRegisterEditorFunctions(LDKTypeId typeId, LDKEntityEditorGetTransformFunc getFunc, LDKEntityEditorSetTransformFunc setFunc)
+void ldkEntityGetTransform(LDKHEntity handle, uint32 instance, Vec3* pos, Vec3* scale, Quat* rot)
 {
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
-  LDK_ASSERT(handler != NULL);
-  handler->getTransformFunc = getFunc;
-  handler->setTransformFunc = setFunc;
-}
-
-void ldkEntityEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
-{
-  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(selection->handle));
+  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(handle));
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   LDK_ASSERT(handler != NULL);
   if (handler->getTransformFunc == NULL)
@@ -177,12 +164,12 @@ void ldkEntityEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, V
     ldkLogWarning("Entity type %s has no LDKEntityEditorGetTransformFunc function registered ", typename(handler->typeId));
     return;
   }
-  handler->getTransformFunc(selection, pos, scale, rot);
+  handler->getTransformFunc(handle, instance, pos, scale, rot);
 }
 
-void ldkEntityEditorSetTransform(LDKEntitySelectionInfo* selection, Vec3 pos, Vec3 scale, Quat rot)
+void ldkEntitySetTransform(LDKHEntity handle, uint32 instance, Vec3 pos, Vec3 scale, Quat rot)
 {
-  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(selection->handle));
+  LDKTypeId typeId = ldkHandleType(ldkHandleFrom(handle));
   LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
   LDK_ASSERT(handler != NULL);
   if (handler->setTransformFunc == NULL)
@@ -190,9 +177,10 @@ void ldkEntityEditorSetTransform(LDKEntitySelectionInfo* selection, Vec3 pos, Ve
     ldkLogWarning("Entity type %s has no LDKEntityEditorSetTransformFunc function registered", typename(handler->typeId));
     return;
   }
-  handler->setTransformFunc(selection, pos, scale, rot);
+  handler->setTransformFunc(handle, instance, pos, scale, rot);
 }
 
+#ifdef LDK_DEBUG
 void ldkEntityManagerPrintAll()
 {
   for (uint32 i = 0; i < internal.numHandlers; i++)
@@ -232,4 +220,4 @@ void ldkEntityManagerPrintAll()
   }
 }
 
-#endif // LDK_EDITOR
+#endif // LDK_DEBUG

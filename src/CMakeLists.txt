@@ -1,11 +1,25 @@
 cmake_minimum_required(VERSION 3.9)
+project("ldk-core")
 find_package(OpenGL REQUIRED)
-set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include/ldk")
 
 # --- GLOBAL DEFINES/OPTIONS----------------------
 option(OPTION_LDKSHAREDLIB "When to build engine as a shared library" OFF)
 option(OPTION_BUILD_EDITOR "When to build the editor" OFF)
+option(OPTION_BUILD_TESTS "When to built and run tests" OFF)
 
+add_custom_target(print_options ALL
+  COMMAND ${CMAKE_COMMAND} -E echo ""
+  COMMAND ${CMAKE_COMMAND} -E echo "CONFIG                    $<CONFIG>"
+  COMMAND ${CMAKE_COMMAND} -E echo "OUTPUT_DIR                ${RUNTREE_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_ADDRESS_SANITIZER  ${OPTION_ADDRESS_SANITIZER}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_LDKSHAREDLIB       ${OPTION_LDKSHAREDLIB}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_BUILD_EDITOR       ${OPTION_BUILD_EDITOR}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_BUILD_TESTS        ${OPTION_BUILD_TESTS}"
+  COMMAND ${CMAKE_COMMAND} -E echo ""
+  )
+
+# --- SOURCES ------------------------------------
+set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include/ldk")
 list(APPEND SOURCE
   # Core
   ${INCLUDE_DIR}/ldk.h
@@ -49,120 +63,116 @@ list(APPEND SOURCE
 
 if (OPTION_BUILD_EDITOR)
   list(APPEND SOURCE ${INCLUDE_DIR}/module/editor.h module/editor.c)
-endif()
+  endif()
 
-if(WIN32)
-  # Windows specific sources
-  list(APPEND SOURCE win32_os.c)
-  set(LIBS dbghelp.lib)
+  if(WIN32)
+    # Windows specific sources and libs
+    list(APPEND SOURCE win32_os.c)
+    set(LIBS dbghelp.lib)
 
-  # Release
-  list(APPEND Release_LIBS ${LIBS})
-  list(APPEND Release_DEFINITIONS _CRT_SECURE_NO_WARNINGS)
-  list(APPEND Release_COMPILE_OPTIONS /O2)
+    # Release
+    list(APPEND Release_LIBS ${LIBS})
+    list(APPEND Release_DEFINITIONS)
+    list(APPEND Release_COMPILE_OPTIONS /O2)
 
-  # RelWithDebInfo
-  list(APPEND RelWithDebInfo_LIBS ${LIBS})
-  list(APPEND RelWithDebInfo_DEFINITIONS ${Release_DEFINITIONS})
-  list(APPEND RelWithDebInfo_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
+    # RelWithDebInfo
+    list(APPEND RelWithDebInfo_LIBS ${LIBS})
+    list(APPEND RelWithDebInfo_DEFINITIONS ${Release_DEFINITIONS} LDK_DEBUG)
+    list(APPEND RelWithDebInfo_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
 
-  # MinSizeRel
-  list(APPEND MinSizeRel_LIBS ${LIBS})
-  list(APPEND MinSizeRel_DEFINITIONS ${Relese_DEFINITIONS})
-  list(APPEND MinSizeRel_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
+    # MinSizeRel
+    list(APPEND MinSizeRel_LIBS ${LIBS})
+    list(APPEND MinSizeRel_DEFINITIONS ${Relese_DEFINITIONS} LDK_DEBUG)
+    list(APPEND MinSizeRel_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
 
-  # Debug
-  list(APPEND Debug_LIBS ${LIBS})
-  list(APPEND Debug_DEFINITIONS LDK_DEBUG LDK_EDITOR _CRT_SECURE_NO_WARNINGS)
-  list(APPEND Debug_COMPILE_OPTIONS /Zi /DEBUG)
-else()
+    # Debug
+    list(APPEND Debug_LIBS ${LIBS})
+    list(APPEND Debug_DEFINITIONS LDK_DEBUG LDK_EDITOR LDK_DEBUG)
+    list(APPEND Debug_COMPILE_OPTIONS /Zi /DEBUG)
+  else()
+    message(FATAL_ERROR "UNSUPPORTED PLATFORM")
+  endif()
 
-  message(FATAL_ERROR "UNSUPPORTED PLATFORM")
+  if (OPTION_LDKSHAREDLIB)
+    set(LIBTYPE "SHARED")
+  else()
+    set(LIBTYPE "STATIC")
+  endif()
 
-endif()
+  add_library(ldk ${LIBTYPE} ${SOURCE})
 
-if (OPTION_LDKSHAREDLIB)
-  add_library(ldk SHARED ${SOURCE})
-  target_compile_definitions(ldk PRIVATE LDK_EXPORT_API LDK_AS_SHARED_LIB)
-  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-else()
-  add_library(ldk STATIC ${SOURCE})
-endif()
+  target_compile_definitions(ldk PRIVATE
+    $<$<CONFIG:Release>:${Release_DEFINITIONS}>
+    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
+    $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
+    $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
+    $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
+    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_EXPORT_API>
+    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_AS_SHARED_LIB>
+    LDK_BUILD_TYPE="$<CONFIG>"
+    )
 
-#----------------------------------------------
-# Multi-configuration generator (e.g., Visual Studio, XCode)
-#----------------------------------------------
-target_compile_definitions(ldk PRIVATE
-  $<$<CONFIG:Release>:${Release_DEFINITIONS}>
-  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
-  $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
-  $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
-  $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
-  )
+  target_compile_options(ldk PRIVATE
+    $<$<CONFIG:Release>:${Release_COMPILE_OPTIONS}>
+    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_COMPILE_OPTIONS}>
+    $<$<CONFIG:MinSizeRel>:${MinSizeRel_COMPILE_OPTIONS}>
+    $<$<CONFIG:Debug>:${Debug_COMPILE_OPTIONS}>
+    )
 
-# Set compile options based on the configuration
-target_compile_options(ldk PRIVATE
-  $<$<CONFIG:Release>:${Release_COMPILE_OPTIONS}>
-  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_COMPILE_OPTIONS}>
-  $<$<CONFIG:MinSizeRel>:${MinSizeRel_COMPILE_OPTIONS}>
-  $<$<CONFIG:Debug>:${Debug_COMPILE_OPTIONS}>
-  )
+  target_link_libraries(ldk PRIVATE
+    $<$<CONFIG:Release>:${Release_LIBS}>
+    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_LIBS}>
+    $<$<CONFIG:MinSizeRel>:${MinSizeRel_LIBS}>
+    $<$<CONFIG:Debug>:${Debug_LIBS}>
+    )
 
-# Link libraries based on the configuration
-target_link_libraries(ldk PRIVATE
-  $<$<CONFIG:Release>:${Release_LIBS}>
-  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_LIBS}>
-  $<$<CONFIG:MinSizeRel>:${MinSizeRel_LIBS}>
-  $<$<CONFIG:Debug>:${Debug_LIBS}>
-  )
+  target_link_libraries(ldk PUBLIC ${OPENGL_LIBRARY})
+  target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
+  add_dependencies(ldk print_options)
 
-target_link_libraries(ldk PUBLIC ${OPENGL_LIBRARY})
+  #----------------------------------------------
+  # Tests
+  #----------------------------------------------
 
-target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
+  if (OPTION_BUILD_TESTS)
+    function(create_test)
+      set(options "")
+      set(oneValueArgs TARGET)
+      set(multiValueArgs SOURCES LIBRARIES)
+      cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-#----------------------------------------------
-# Tests
-#----------------------------------------------
+      if(NOT ARG_TARGET)
+        message(FATAL_ERROR "TARGET parameter is required for create_test function.")
+        return()
+      endif()
 
-option(LDK_BUILD_TESTS "If tests should be built and run" ON)
-if (LDK_BUILD_TESTS)
-  function(create_test)
-    set(options "")
-    set(oneValueArgs TARGET)
-    set(multiValueArgs SOURCES LIBRARIES)
-    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+      if(NOT ARG_SOURCES)
+        message(FATAL_ERROR "SOURCES parameter is required for create_test function.")
+        return()
+      endif()
 
-    if(NOT ARG_TARGET)
-      message(FATAL_ERROR "TARGET parameter is required for create_test function.")
-      return()
-    endif()
+      if(NOT ARG_LIBRARIES)
+        set(ARG_LIBRARIES ldk)
+      else()
+        list(APPEND ARG_LIBRARIES ldk)
+      endif()
 
-    if(NOT ARG_SOURCES)
-      message(FATAL_ERROR "SOURCES parameter is required for create_test function.")
-      return()
-    endif()
+      add_executable(${ARG_TARGET} ${ARG_SOURCES})
+      set_target_properties(${ARG_TARGET} PROPERTIES OUTPUT_NAME ${ARG_TARGET}${OUTPUT_NAME_SUFFIX})
+      target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
+      target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
+      add_dependencies(${ARG_TARGET} ldk)
 
-    if(NOT ARG_LIBRARIES)
-      set(ARG_LIBRARIES ldk)
-    else()
-      list(APPEND ARG_LIBRARIES ldk)
-    endif()
+      add_custom_target(test_${ARG_TARGET} ALL
+        COMMAND $<TARGET_FILE:${ARG_TARGET}>
+        COMMENT "Testing $<TARGET_FILE:${ARG_TARGET}>"
+        DEPENDS ${ARG_TARGET} ldk)
+    endfunction()
 
-    add_executable(${ARG_TARGET} ${ARG_SOURCES})
-    target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
-    target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
+    create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
+    create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
+    create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
+    create_test(TARGET test_mat4 SOURCES tests/ldk_test.h tests/test_mat4.c)
+    create_test(TARGET test_typesystem SOURCES tests/ldk_test.h tests/test_typesystem.c)
 
-    add_custom_target(test_${ARG_TARGET} ALL
-      COMMAND $<TARGET_FILE:${ARG_TARGET}>
-      COMMENT "Testing $<TARGET_FILE:${ARG_TARGET}>"
-      DEPENDS ${ARG_TARGET})
-  endfunction()
-
-  create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
-  create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
-  create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
-  create_test(TARGET test_mat4 SOURCES tests/ldk_test.h tests/test_mat4.c)
-  create_test(TARGET test_typesystem SOURCES tests/ldk_test.h tests/test_typesystem.c)
-
-endif()
+  endif()

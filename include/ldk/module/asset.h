@@ -32,7 +32,6 @@
 extern "C" {
 #endif
 
-
   typedef struct
   {
     bool      isFile;
@@ -69,7 +68,6 @@ extern "C" {
   LDK_API void ldkAssetDispose(LDKAsset asset);
   LDK_API LDKAsset ldkAssetLookupType(LDKTypeId type, LDKHAsset handle);
   LDK_API LDKAsset ldkAssetNewByType(LDKTypeId type);
-
 
 #ifdef __cplusplus
 }

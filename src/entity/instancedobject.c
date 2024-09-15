@@ -9,8 +9,11 @@ LDKInstancedObject* ldkInstancedObjectEntityCreate(LDKInstancedObject* entity)
 {
   entity->mesh = LDK_HASSET_INVALID;
   entity->instanceBuffer = ldkInstanceBufferCreate();
+  LDK_ASSERT(entity->instanceBuffer != NULL);
   entity->instanceArray = ldkArrayCreate(sizeof(LDKObjectInstance), 16);
+  LDK_ASSERT(entity->instanceArray != NULL);
   entity->instanceWorldMatrixArray = ldkArrayCreate(sizeof(Mat4), 16);
+  LDK_ASSERT(entity->instanceWorldMatrixArray != NULL);
   return entity;
 }
 
@@ -26,17 +29,27 @@ void ldkInstancedObjectEntityDestroy(LDKInstancedObject* entity)
 
 void ldkInstancedObjectAddInstance(LDKInstancedObject* entity, Vec3 position, Vec3 scale, Quat rotation)
 {
+  LDK_ASSERT(entity != NULL);
+  LDK_ASSERT(entity->instanceWorldMatrixArray != NULL);
+  LDK_ASSERT(entity->instanceBuffer != NULL);
+  LDK_ASSERT(entity->instanceArray != NULL);
+
   LDKObjectInstance instance;
   instance.position = position;
   instance.scale    = scale;
   instance.rotation = rotation;
 
-  ldkArrayAdd(entity->instanceArray, &instance);
   ldkArrayAdd(entity->instanceWorldMatrixArray, NULL); // just reserve space
+  ldkArrayAdd(entity->instanceArray, &instance);
 }
 
 void ldkInstancedObjectUpdate(LDKInstancedObject* io)
 {
+  LDK_ASSERT(io != NULL);
+  LDK_ASSERT(io->instanceWorldMatrixArray != NULL);
+  LDK_ASSERT(io->instanceBuffer != NULL);
+  LDK_ASSERT(io->instanceArray != NULL);
+
   uint32 count = ldkInstancedObjectCount(io);
   LDKObjectInstance* allInstances = ldkArrayGetData(io->instanceArray);
   Mat4* allWorldMatrices = ldkArrayGetData(io->instanceWorldMatrixArray);
@@ -92,13 +105,11 @@ void ldkInstancedObjectDeleteAll(LDKInstancedObject* io)
   ldkArrayClear(io->instanceWorldMatrixArray);
 }
 
-#ifdef LDK_EDITOR
-     
-void ldkInstancedObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot)
+void ldkInstancedObjectEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
 {
-  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, selection->handle);
+  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, handle);
   LDK_ASSERT(io != NULL);
-  LDKObjectInstance* o = ldkInstancedObjectGet(io, selection->instanceIndex);
+  LDKObjectInstance* o = ldkInstancedObjectGet(io, instanceId);
   LDK_ASSERT(o != NULL);
   if (pos)    *pos = o->position;
   if (scale)  *scale = o->scale;
@@ -106,14 +117,14 @@ void ldkInstancedObjectEntityOnEditorGetTransform(LDKEntitySelectionInfo* select
 
 }
 
-void ldkInstancedObjectEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot)
+void ldkInstancedObjectEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot)
 {
-  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, selection->handle);
+  LDKInstancedObject* io = ldkEntityLookup(LDKInstancedObject, handle);
   LDK_ASSERT(io != NULL);
-  LDKObjectInstance* o = ldkInstancedObjectGet(io, selection->instanceIndex);
+  LDKObjectInstance* o = ldkInstancedObjectGet(io, instanceId);
   o->position = pos;
   o->scale = scale;
   o->rotation = rot;
   ldkInstancedObjectUpdate(io);
 }
-#endif // LDK_EDITOR
+

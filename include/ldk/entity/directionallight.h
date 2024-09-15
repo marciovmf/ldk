@@ -27,11 +27,8 @@ extern "C" {
 
   LDK_API LDKDirectionalLight* ldkDirectionalLightEntityCreate(LDKDirectionalLight* entity);
   LDK_API void ldkDirectionalLightEntityDestroy(LDKDirectionalLight* entity);
-
-#ifdef LDK_EDITOR
-  LDK_API void ldkDirectionalLightEntityOnEditorGetTransform (LDKEntitySelectionInfo* selection, Vec3* pos, Vec3* scale, Quat* rot);
-  LDK_API void ldkDirectionalLightEntityOnEditorSetTransform(LDKEntitySelectionInfo*selection, Vec3 pos, Vec3 scale, Quat rot);
-#endif // LDK_EDITOR
+  LDK_API void ldkDirectionalLightEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkDirectionalLightEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot);
 
 #ifdef __cplusplus
 }

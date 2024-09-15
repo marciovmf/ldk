@@ -191,7 +191,7 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
 
   if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
   {
-    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &tool->position, &tool->scale, &tool->rotation);
     tool->originalPosition = tool->position;
     tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
     tool->isHot = true;
@@ -278,20 +278,20 @@ static bool moveToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorT
       // Update placeholder position ONLY
       Vec3 pos, scale;
       Quat rotation;
-      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, scale, rotation);
+      ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, tool->position, scale, rotation);
 
       // Update the actual target transform
       LDKEntitySelectionInfo selection = {0};
       selection.handle = target->editorPlaceholder;
 
-      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&selection, tool->position, scale, rotation);
+      ldkEntityGetTransform(selection.handle, selection.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(selection.handle, selection.instanceIndex, tool->position, scale, rotation);
     }
     else
     {
       // Update the target transform
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, tool->position, tool->scale, tool->rotation);
     }
   }
   return true;
@@ -305,7 +305,7 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
 
   if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
   {
-    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &tool->position, &tool->scale, &tool->rotation);
     tool->originalCursorPosition = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
     //tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
     tool->originalScale = tool->scale;
@@ -355,20 +355,20 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
       // Update placeholder position ONLY
       Vec3 pos, scale;
       Quat rotation;
-      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, pos, tool->scale, rotation);
+      ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, pos, tool->scale, rotation);
 
       // Update the actual target transform
       LDKEntitySelectionInfo selection = {0};
       selection.handle = target->editorPlaceholder;
 
-      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&selection, pos, tool->scale, rotation);
+      ldkEntityGetTransform(selection.handle, selection.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(selection.handle, selection.instanceIndex, pos, tool->scale, rotation);
     }
     else
     {
       // Update the target transform
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, tool->position, tool->scale, tool->rotation);
     }
   }
   return true;
@@ -384,7 +384,7 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
 
   if (ldkOsMouseButtonDown(mouseState, LDK_MOUSE_BUTTON_LEFT))
   {
-    ldkEntityEditorGetTransform(&internalEditor.previousEntity, &tool->position, &tool->scale, &tool->rotation);
+    ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &tool->position, &tool->scale, &tool->rotation);
     tool->originalPosition = tool->position;
     tool->originalRotation = tool->rotation;
     tool->cursorOffset = vec3Sub(screenToWorldPos(camera, cursor.x, cursor.y, tool->position), tool->position);
@@ -436,20 +436,20 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
       // Update placeholder position ONLY
       Vec3 pos, scale;
       Quat rotation;
-      ldkEntityEditorGetTransform(&internalEditor.previousEntity, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, pos, scale, tool->rotation);
+      ldkEntityGetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, pos, scale, tool->rotation);
 
       // Update the actual target transform
       LDKEntitySelectionInfo selection = {0};
       selection.handle = target->editorPlaceholder;
 
-      ldkEntityEditorGetTransform(&selection, &pos, &scale, &rotation);
-      ldkEntityEditorSetTransform(&selection, pos, scale, tool->rotation);
+      ldkEntityGetTransform(selection.handle, selection.instanceIndex, &pos, &scale, &rotation);
+      ldkEntitySetTransform(selection.handle, selection.instanceIndex, pos, scale, tool->rotation);
     }
     else
     {
       // Update the target transform
-      ldkEntityEditorSetTransform(&internalEditor.previousEntity, tool->position, tool->scale, tool->rotation);
+      ldkEntitySetTransform(internalEditor.previousEntity.handle, internalEditor.previousEntity.instanceIndex, tool->position, tool->scale, tool->rotation);
     }
   }
   return true;
@@ -493,7 +493,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
           // AFTER a regular entity (or another gizmo). So previousEntity is guaranteed to be valid.
           bool selectionWasGizmo = tool->selectionIsGizmo;
           tool->selectionIsGizmo = true;
-          ldkEntityEditorGetTransform(&selectedEntity, &tool->position, &tool->scale, &tool->rotation);
+          ldkEntityGetTransform(selectedEntity.handle, selectedEntity.instanceIndex, &tool->position, &tool->scale, &tool->rotation);
           tool->originalRotation = tool->rotation;
           tool->mode = selectedEntity.surfaceIndex;
           // selectedEntity and previousEntity should never point both to a
@@ -508,7 +508,7 @@ static bool postUpdate(const LDKEvent* evt, void* data)
         else
         {
           tool->selectionIsGizmo = false;
-          ldkEntityEditorGetTransform(&selectedEntity, &tool->position, &tool->scale, &tool->rotation);
+          ldkEntityGetTransform(selectedEntity.handle, selectedEntity.instanceIndex, &tool->position, &tool->scale, &tool->rotation);
           internalEditor.previousEntity = previousEntity;
           internalEditor.selectedEntity = selectedEntity;
         }
@@ -649,8 +649,6 @@ void ldkEditorEnable(bool enabled)
   internalEditor.enabled = enabled;
   if (internalEditor.enabled)
   {
-    ldkLogInfo("Editor mode"); 
-
     // Signup for keyboard and frame events
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_FRAME_BEFORE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_KEYBOARD);
@@ -729,7 +727,6 @@ void ldkEditorEnable(bool enabled)
   else
   {
     gizmoReset();
-    ldkLogInfo("Game mode"); 
     // Stop receiving events
     ldkEventHandlerMaskSet(onUpdate, LDK_EVENT_TYPE_NONE);
     ldkEventHandlerMaskSet(onKeyboard, LDK_EVENT_TYPE_NONE);
