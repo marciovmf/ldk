@@ -8,6 +8,8 @@
 
 #ifdef LDK_EDITOR
 
+extern void drawCircle(float x, float y, float z, float radius, float thickness, float angle);
+
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
 
 extern void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color);
@@ -375,7 +377,6 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
 
 static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
 {
-  //TODO: Should I use screen space coords ?
   //TODO: Current implementation is on Local space. Implement for Global space.
   LDKPoint cursor = ldkOsMouseCursor(mouseState);
   LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
@@ -398,25 +399,33 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
   }
   else if (cursorMoved && tool->isHot)
   {
-    Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
-    Quat q;
-    Vec3 d = vec3Sub(worldPos, tool->originalCursorPosition);
-    float f = vec3Length(d) * 2.0f;
+    const Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
+    const Vec3 v1 = vec3Sub(internalEditor.tool.originalCursorPosition, internalEditor.tool.originalPosition);
+    const Vec3 v2 = vec3Sub(worldPos, internalEditor.tool.originalPosition);
+    const float magnitudeV1 = vec3Length(v1);
+    const float magnitudeV2 = vec3Length(v2);
+    const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
+    const Vec3 cross = vec3Cross(v1,v2);
+    float angle =  acosf(fmaxf(-1.0f, fminf(1.0f, (cosTheta))));
     switch(tool->mode)
     {
       case EDITOR_TOOL_AXIS_X:
-        q = quatRotationX(f);
-        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        if (vec3Dot(cross, quatGetRight(internalEditor.tool.originalRotation)) < 0.0f)
+          angle = -angle;
+        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationX(angle));
         break;
 
       case EDITOR_TOOL_AXIS_Y:
-        q = quatRotationY(f);
-        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        //if (vec3Dot(cross, vec3Up()) < 0.0f)
+        if (vec3Dot(cross, quatGetUp(internalEditor.tool.originalRotation)) < 0.0f)
+          angle = -angle;
+        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationY(angle));
         break;
 
       case EDITOR_TOOL_AXIS_Z:
-        q = quatRotationZ(f);
-        tool->rotation = quatMulQuat(tool->originalRotation, q);
+        if (vec3Dot(cross, quatGetForward(tool->originalRotation)) < 0.0f)
+          angle = -angle;
+        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationZ(angle));
         break;
 
       case EDITOR_TOOL_CENTER:
@@ -625,6 +634,13 @@ void  ldkEditorImmediateDraw(float deltaTime)
     ldkShaderParamSetMat4(shader, "mModel", world);
     drawFrustum(0.0f, 0.0f, 1.5f, 1.0f, 0.0f, 1.5f, ldkRGB(255, 255, 255));
   }
+
+
+  drawCircle(
+      internalEditor.tool.position.x,
+      internalEditor.tool.position.y,
+      internalEditor.tool.position.z,
+      1.0f, 2.0f, 360.0f);
 }
 
 static void internalAddPlaceholderEntity(Vec3 position, LDKHAsset* materialOverrideList, LDKHEntity targetEntity)
