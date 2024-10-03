@@ -1207,6 +1207,48 @@ Vec3 quatDualMulVec3Rot(QuatDual q, Vec3 v)
   return vec3Add(v, vec3Mul(real, 2.0));
 }
 
+#ifndef LDK_QUAT_FORWARD_VECTOR
+  // Default forward vector (can be [1, 0, 0] or [0, 0, -1] depending on convention)
+#define LDK_QUAT_FORWARD_VECTOR {-1.0f, 0.0f, 0.0f}
+#endif  // LDK_QUAT_FORWARD_VECTOR
+
+Quat quatFromDirection(Vec3 direction)
+{
+  Quat q = quatId();
+  // Reference forward vector (default direction)
+  Vec3 forward = LDK_QUAT_FORWARD_VECTOR;
+
+  // Normalize the input direction vector
+  direction = vec3Normalize(direction);
+
+  // Compute the angle between the forward vector and the direction vector
+  float dot_product = vec3Dot(forward, direction);
+  float angle = acosf(dot_product);  // Angle in radians
+
+  // Compute the axis of rotation (cross product of forward and direction)
+  Vec3 axis = vec3Cross(forward, direction);
+
+  // Normalize the axis of rotation
+  axis = vec3Normalize(axis);
+
+  // Compute the quaternion from the axis-angle representation
+  float half_angle = angle / 2.0f;
+  float sin_half_angle = sinf(half_angle);
+
+  q.w = cosf(half_angle);
+  q.x = axis.x * sin_half_angle;
+  q.y = axis.y * sin_half_angle;
+  q.z = axis.z * sin_half_angle;
+
+  return q;
+}
+
+Vec3 quatToDirection(Quat quat)
+{
+  Vec3 forward = LDK_QUAT_FORWARD_VECTOR;
+  Vec3 direction = quatMulVec3(quat, forward);
+  return direction;
+}
 
 //
 // Mat2

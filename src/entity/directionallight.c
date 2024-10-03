@@ -25,7 +25,8 @@ void ldkDirectionalLightEntityGetTransform (LDKHEntity handle, uint32 instanceId
   LDK_ASSERT(o != NULL);
   if(pos) *pos = o->position;
   if(scale) *scale = vec3One();
-  if(rot) *rot = quatFromEuler(o->direction);
+  if(rot) *rot = quatFromDirection(o->direction);
+
 }
 
 void ldkDirectionalLightEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 _, Quat rot)
@@ -33,6 +34,6 @@ void ldkDirectionalLightEntitySetTransform(LDKHEntity handle, uint32 instanceId,
   LDKDirectionalLight* o = ldkEntityLookup(LDKDirectionalLight, handle);
   LDK_ASSERT(o != NULL);
   o->position = pos;
-  o->direction = quatToEuler(rot);
+  o->direction = quatToDirection(rot);
 }
 
