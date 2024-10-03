@@ -197,6 +197,8 @@ extern "C" {
   LDK_API Vec3 quatGetRight(Quat q);
   LDK_API Vec3 quatGetForward(Quat q);
   LDK_API Vec3 quatGetUp(Quat q);
+  LDK_API Quat quatFromDirection(Vec3 direction);
+  LDK_API Vec3 quatToDirection(Quat quat);
 
 
   typedef struct {

@@ -351,7 +351,6 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
 
     if (ldkHandleIsValid(target->editorPlaceholder))
     {
-      ldkLogInfo("SCALING PLACEHOLDER!");
       // Update placeholder position ONLY
       Vec3 pos, scale;
       Quat rotation;

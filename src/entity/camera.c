@@ -196,7 +196,7 @@ void ldkCameraEntityGetTransform (LDKHEntity handle, uint32 instanceId, Vec3* po
   LDK_ASSERT(o != NULL);
   if (pos)    *pos = o->position;
   if (scale)  *scale = vec3One();
-  if (rot)    *rot = quatFromEuler(ldkCameraDirectionNormalized(o));
+  if (rot)    *rot = quatFromDirection(ldkCameraDirectionNormalized(o));
 }
 
 void ldkCameraEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 _, Quat rot)
@@ -204,8 +204,8 @@ void ldkCameraEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos,
   LDKCamera* o = ldkEntityLookup(LDKCamera, handle);
   LDK_ASSERT(o != NULL);
 
-  float distance = vec3Length(vec3Sub(o->target, o->position));
-  Vec3 direction = vec3Normalize(quatToEuler(rot));
+  float distance = vec3Dist(o->target, o->position);
+  Vec3 direction = quatToDirection(rot);
   Vec3 t = vec3Add(pos, vec3Mul(direction, distance));
   o->target = t;
   vec3Print(o->target);
