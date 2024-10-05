@@ -377,7 +377,6 @@ static bool scaleToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Editor
 
 static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, EditorTool* tool)
 {
-  //TODO: Current implementation is on Local space. Implement for Global space.
   LDKPoint cursor = ldkOsMouseCursor(mouseState);
   LDKPoint cursorRel = ldkOsMouseCursorRelative(mouseState);
   bool cursorMoved = (cursorRel.x != 0 || cursorRel.y != 0);
@@ -418,14 +417,12 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
       case EDITOR_TOOL_AXIS_X:
         if (internalEditor.tool.localSpace)
         {
-          if (vec3Dot(cross, quatGetRight(internalEditor.tool.originalRotation)) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, quatGetRight(tool->originalRotation)) < 0.0f ? -angle : angle;
           tool->rotation = quatMulQuat(tool->originalRotation, quatRotationX(angle));
         }
         else
         {
-          if (vec3Dot(cross, vec3Right()) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, vec3Right()) < 0.0f ? -angle : angle;
           tool->rotation = quatMulQuat(quatRotationX(angle), tool->originalRotation);
         }
         break;
@@ -433,14 +430,12 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
       case EDITOR_TOOL_AXIS_Y:
         if (internalEditor.tool.localSpace)
         {
-          if (vec3Dot(cross, quatGetUp(internalEditor.tool.originalRotation)) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, quatGetUp(tool->originalRotation)) < 0.0f ? -angle : angle;
           tool->rotation = quatMulQuat(tool->originalRotation, quatRotationY(angle));
         }
         else
         {
-          if (vec3Dot(cross, vec3Up()) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, vec3Up()) < 0.0f ? -angle : angle;
           tool->rotation = quatMulQuat(quatRotationY(angle), tool->originalRotation);
         }
         break;
@@ -448,14 +443,12 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
       case EDITOR_TOOL_AXIS_Z:
         if (internalEditor.tool.localSpace)
         {
-          if (vec3Dot(cross, quatGetForward(tool->originalRotation)) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, quatGetForward(tool->originalRotation)) ? -angle : angle;
           tool->rotation = quatMulQuat(tool->originalRotation, quatRotationZ(angle));
         }
         else
         {
-          if (vec3Dot(cross, vec3Forward()) < 0.0f)
-            angle = -angle;
+          angle = vec3Dot(cross, vec3Forward()) < 0.0f ? -angle : angle;
           tool->rotation = quatMulQuat(quatRotationZ(angle), tool->originalRotation);
         }
         break;
@@ -687,7 +680,6 @@ static void internalAddPlaceholderEntity(Vec3 position, LDKHAsset* materialOverr
   ldkArrayAdd(internalEditor.editorEntities, &icon->entity.handle);
   ldkRendererAddStaticObject(icon); 
 }
-
 
 // Called right after enabling/disabling the editor
 void ldkEditorEnable(bool enabled)
