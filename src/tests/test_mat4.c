@@ -14,7 +14,6 @@
   }\
 } while(0)
 
-
 int test_mat4Id()
 {
   Mat4 id = mat4Id();
