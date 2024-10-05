@@ -23,9 +23,32 @@ extern "C" {
   LDK_API bool  between(float x, float bottom, float top);
   LDK_API float lerp(float p1, float p2, float amount);
   LDK_API float smoothstep(float p1, float p2, float amount);
-
   LDK_API double degToRadian(double deg);
   LDK_API double radianToDeg(double radian);
+
+  LDK_API int32 floatsAreEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsZeroEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsNegativeEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsPositiveEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsGreaterThanEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsLessThanEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsLessThanOrEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon);
+
+#ifndef LDK_EPSILON
+#define LDK_EPSILON 1e-6f
+#endif
+
+#define floatsAreEqual(a, b) floatsAreEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatIsZero(a) floatIsZeroEpsilon((a), LDK_EPSILON)
+#define floatIsNegative(a) floatIsNegativeEpsilon((a), LDK_EPSILON)
+#define floatIsPositive(a) floatIsPositiveEpsilon((a), LDK_EPSILON)
+#define floatIsGreaterThan(a, b) floatIsGreaterThanEpsilon((a), (b), LDK_EPSILON)
+#define floatIsLessThan(a, b) floatIsLessThanEpsilon((a), (b), LDK_EPSILON)
+#define floatIsGreaterThanOrEqual(a, b) floatIsGreaterThanOrEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatIsLessThanOrEqual(a, b) floatIsLessThanOrEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatsAreAlmostEqualRelative(a, b) floatsAreAlmostEqualRelativeEpsilon((a), (b), LDK_EPSILON)
 
   //
   // Vec2

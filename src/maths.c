@@ -42,6 +42,55 @@ double radianToDeg(double radian)
   return radian * (180.0 / M_PI);
 }
 
+int32 floatsAreEqualEpsilon(float a, float b, float epsilon)
+{
+  return fabs(a - b) < epsilon;
+}
+
+int32 floatIsZeroEpsilon(float a, float epsilon)
+{
+  return (a > -epsilon && a < epsilon);
+}
+
+int32 floatIsNegativeEpsilon(float a, float epsilon)
+{
+  return a < -epsilon;
+}
+
+int32 floatIsPositiveEpsilon(float a, float epsilon)
+{
+  return !floatIsNegativeEpsilon(a, epsilon);
+}
+
+int32 floatIsGreaterThanEpsilon(float a, float b, float epsilon)
+{
+  return (a - b) > epsilon;
+}
+
+int32 floatIsLessThanEpsilon(float a, float b, float epsilon)
+{
+  return (b - a) > epsilon;
+}
+
+int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon)
+{
+  return !floatIsLessThanEpsilon(a, b, epsilon);
+}
+
+int32 floatIssLessThanOrEqual(float a, float b, float epsilon)
+{
+  return !floatIsGreaterThanEpsilon(a, b, epsilon);
+}
+
+int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon)
+{
+  if (floatsAreEqualEpsilon(a, b, relativeEpsilon))
+    return 1;
+  // Use relative difference
+  double maxAbs = fmax(fabs(a), fabs(b));
+  return fabs(a - b) <= relativeEpsilon * maxAbs;
+}
+
 //
 // Vec2
 //

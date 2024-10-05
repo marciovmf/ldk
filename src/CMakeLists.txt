@@ -169,6 +169,7 @@ if (OPTION_BUILD_EDITOR)
         DEPENDS ${ARG_TARGET} ldk)
     endfunction()
 
+    create_test(TARGET test_maths SOURCES tests/ldk_test.h tests/test_maths.c)
     create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
     create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
     create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
