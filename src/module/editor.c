@@ -399,33 +399,65 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
   }
   else if (cursorMoved && tool->isHot)
   {
+    // Find the angle between initial cursor position and current cursor position relative to the current rotation axis
     const Vec3 worldPos = screenToWorldPos(camera, cursor.x, cursor.y, tool->position);
     const Vec3 v1 = vec3Sub(internalEditor.tool.originalCursorPosition, internalEditor.tool.originalPosition);
     const Vec3 v2 = vec3Sub(worldPos, internalEditor.tool.originalPosition);
     const float magnitudeV1 = vec3Length(v1);
     const float magnitudeV2 = vec3Length(v2);
+    const Vec3 cross = vec3Cross(v1, v2);
+
+    if(floatIsZero(magnitudeV1) || floatIsZero(magnitudeV2))
+      return true;
+
     const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
-    const Vec3 cross = vec3Cross(v1,v2);
-    float angle =  acosf(fmaxf(-1.0f, fminf(1.0f, (cosTheta))));
-    switch(tool->mode)
+    float angle = acosf(fmaxf(-1.0f, fminf(1.0f, cosTheta)));
+
+    switch (tool->mode)
     {
       case EDITOR_TOOL_AXIS_X:
-        if (vec3Dot(cross, quatGetRight(internalEditor.tool.originalRotation)) < 0.0f)
-          angle = -angle;
-        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationX(angle));
+        if (internalEditor.tool.localSpace)
+        {
+          if (vec3Dot(cross, quatGetRight(internalEditor.tool.originalRotation)) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(tool->originalRotation, quatRotationX(angle));
+        }
+        else
+        {
+          if (vec3Dot(cross, vec3Right()) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(quatRotationX(angle), tool->originalRotation);
+        }
         break;
 
       case EDITOR_TOOL_AXIS_Y:
-        //if (vec3Dot(cross, vec3Up()) < 0.0f)
-        if (vec3Dot(cross, quatGetUp(internalEditor.tool.originalRotation)) < 0.0f)
-          angle = -angle;
-        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationY(angle));
+        if (internalEditor.tool.localSpace)
+        {
+          if (vec3Dot(cross, quatGetUp(internalEditor.tool.originalRotation)) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(tool->originalRotation, quatRotationY(angle));
+        }
+        else
+        {
+          if (vec3Dot(cross, vec3Up()) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(quatRotationY(angle), tool->originalRotation);
+        }
         break;
 
       case EDITOR_TOOL_AXIS_Z:
-        if (vec3Dot(cross, quatGetForward(tool->originalRotation)) < 0.0f)
-          angle = -angle;
-        tool->rotation = quatMulQuat(tool->originalRotation, quatRotationZ(angle));
+        if (internalEditor.tool.localSpace)
+        {
+          if (vec3Dot(cross, quatGetForward(tool->originalRotation)) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(tool->originalRotation, quatRotationZ(angle));
+        }
+        else
+        {
+          if (vec3Dot(cross, vec3Forward()) < 0.0f)
+            angle = -angle;
+          tool->rotation = quatMulQuat(quatRotationZ(angle), tool->originalRotation);
+        }
         break;
 
       case EDITOR_TOOL_CENTER:
@@ -440,7 +472,6 @@ static bool rotateToolUpdate(LDKCamera* camera, LDKMouseState* mouseState, Edito
 
     if (ldkHandleIsValid(target->editorPlaceholder))
     {
-      ldkLogInfo("SCALING PLACEHOLDER!");
       // Update placeholder position ONLY
       Vec3 pos, scale;
       Quat rotation;
