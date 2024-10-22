@@ -61,6 +61,8 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/asset/config.h asset/config.c
   )
 
+  # Use this list when building games
+
 if (OPTION_BUILD_EDITOR)
   list(APPEND SOURCE ${INCLUDE_DIR}/module/editor.h module/editor.c)
   endif()
@@ -102,13 +104,13 @@ if (OPTION_BUILD_EDITOR)
   add_library(ldk ${LIBTYPE} ${SOURCE})
 
   target_compile_definitions(ldk PRIVATE
+    LDK_ENGINE
     $<$<CONFIG:Release>:${Release_DEFINITIONS}>
     $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
     $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
     $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
     $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
-    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_EXPORT_API>
-    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_AS_SHARED_LIB>
+    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>
     LDK_BUILD_TYPE="$<CONFIG>"
     )
 

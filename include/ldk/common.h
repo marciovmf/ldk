@@ -4,16 +4,18 @@
  * Common macros, functions and types used across the whole engine.
  *
  * Important defines:
- * LDK_EXPORT_API     :should be set when building the engine; not set when building games
- * LDK_AS_SHARED_LIB  :should be set when building LDK as a dll.
+ * LDK_ENGINE       :should be set when building the engine
+ * LDK_SHAREDLIB    :should be set when building LDK as a dll.
  */
 
 #ifndef LDK_COMMON_H
 #define LDK_COMMON_H
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
   // OS Detection macros
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -108,9 +110,14 @@ extern "C" {
 #include <stdbool.h>
 #endif  
 
-#ifdef LDK_AS_SHARED_LIB
+#ifndef LDK_ENGINE
+#define LDK_GAME
+#endif
+
+// @build-tweak
+#ifdef LDK_SHAREDLIB
   #ifdef LDK_COMPILER_MSVC
-    #ifdef LDK_EXPORT_API
+    #ifdef LDK_ENGINE
       #define LDK_API __declspec(dllexport) 
     #else
       #define LDK_API __declspec(dllimport) 

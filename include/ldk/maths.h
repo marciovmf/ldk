@@ -35,7 +35,7 @@ extern "C" {
   LDK_API int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon);
   LDK_API int32 floatIsLessThanOrEqualEpsilon(float a, float b, float epsilon);
   LDK_API int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon);
-  LDK_API bool  floatIsMultipleEpsilon(double a, double b, float epsilon);
+  LDK_API bool  floatIsMultipleEpsilon(float a, float b, float epsilon);
 
 
 
@@ -372,11 +372,9 @@ extern "C" {
 
   typedef struct
   {
-    float minX;
-    float minY;
-    float maxX;
-    float maxY;
-  }LDKBoundingBox;
+    Vec3 min;
+    Vec3 max;
+  }LDKAABB;
 
   typedef struct
   {
