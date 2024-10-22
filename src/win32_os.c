@@ -135,7 +135,7 @@ static struct
   {
     LDKWin32OpenGLAPI gl;
   };
-} win32GraphicsAPIInfo = {0};
+} s_graphicsAPIInfo = {0};
 
 static struct 
 {
@@ -424,17 +424,17 @@ inline static bool s_OpenglInit(Win32GraphicsAPI api, int32 glVersionMajor, int3
   };
 
   // Initialize the global rendering api info with OpenGL api details
-  win32GraphicsAPIInfo.api = api;
-  win32GraphicsAPIInfo.gl.sharedContext = 0;
-  win32GraphicsAPIInfo.gl.versionMajor = glVersionMajor;
-  win32GraphicsAPIInfo.gl.versionMinor = glVersionMinor;
-  win32GraphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
-  win32GraphicsAPIInfo.gl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
-  win32GraphicsAPIInfo.gl.wglSwapIntervalEXT         = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-  win32GraphicsAPIInfo.gl.wglGetSwapIntervalEXT      = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
+  s_graphicsAPIInfo.api = api;
+  s_graphicsAPIInfo.gl.sharedContext = 0;
+  s_graphicsAPIInfo.gl.versionMajor = glVersionMajor;
+  s_graphicsAPIInfo.gl.versionMinor = glVersionMinor;
+  s_graphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
+  s_graphicsAPIInfo.gl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
+  s_graphicsAPIInfo.gl.wglSwapIntervalEXT         = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
+  s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT      = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
 
-  memcpy(win32GraphicsAPIInfo.gl.pixelFormatAttribs, pixelFormatAttribList, sizeof(pixelFormatAttribList));
-  memcpy(win32GraphicsAPIInfo.gl.contextAttribs, contextAttribs, sizeof(contextAttribs));
+  memcpy(s_graphicsAPIInfo.gl.pixelFormatAttribs, pixelFormatAttribList, sizeof(pixelFormatAttribList));
+  memcpy(s_graphicsAPIInfo.gl.contextAttribs, contextAttribs, sizeof(contextAttribs));
 
 
   // Get function pointers
@@ -827,13 +827,13 @@ void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime)
 
 void LDK_API ldkOsGraphicsContextDestroy(LDKGCtx context)
 {
-  LDK_ASSERT(context == &win32GraphicsAPIInfo);
+  LDK_ASSERT(context == &s_graphicsAPIInfo);
 
-  bool isOpenGL = s_GraphicsApiIsOpengl(win32GraphicsAPIInfo.api);
+  bool isOpenGL = s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api);
   if (isOpenGL)
   {
-    wglDeleteContext(win32GraphicsAPIInfo.gl.rc);
-    win32GraphicsAPIInfo.api = WIN32_GRAPHICS_API_NONE;
+    wglDeleteContext(s_graphicsAPIInfo.gl.rc);
+    s_graphicsAPIInfo.api = WIN32_GRAPHICS_API_NONE;
   }
 }
 
@@ -933,17 +933,17 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
   window->isFullscreen = false;
   window->closeFlag = false;
 
-  bool isOpenGL = s_GraphicsApiIsOpengl(win32GraphicsAPIInfo .api);
+  bool isOpenGL = s_GraphicsApiIsOpengl(s_graphicsAPIInfo .api);
   if(isOpenGL)
   {
     int pixelFormat;
     int numPixelFormats = 0;
     PIXELFORMATDESCRIPTOR pfd;
 
-    const int* pixelFormatAttribList  = (const int*) win32GraphicsAPIInfo .gl.pixelFormatAttribs;
-    const int* contextAttribList      = (const int*) win32GraphicsAPIInfo.gl.contextAttribs;
+    const int* pixelFormatAttribList  = (const int*) s_graphicsAPIInfo .gl.pixelFormatAttribs;
+    const int* contextAttribList      = (const int*) s_graphicsAPIInfo.gl.contextAttribs;
 
-    win32GraphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
+    s_graphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
         pixelFormatAttribList,
         NULL,
         1,
@@ -962,14 +962,14 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
       return NULL;
     }
 
-    HGLRC sharedContext = win32GraphicsAPIInfo.gl.sharedContext;
-    HGLRC rc = win32GraphicsAPIInfo.gl.wglCreateContextAttribsARB(window->dc, sharedContext, contextAttribList);
+    HGLRC sharedContext = s_graphicsAPIInfo.gl.sharedContext;
+    HGLRC rc = s_graphicsAPIInfo.gl.wglCreateContextAttribsARB(window->dc, sharedContext, contextAttribList);
 
     // The first context created will be used as a shared context for the rest
     // of the program execution
     if (! sharedContext)
     {
-      win32GraphicsAPIInfo.gl.sharedContext = rc;
+      s_graphicsAPIInfo.gl.sharedContext = rc;
     }
 
     if (! rc)
@@ -978,7 +978,7 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
       return NULL;
     }
 
-    win32GraphicsAPIInfo.gl.rc = rc;
+    s_graphicsAPIInfo.gl.rc = rc;
     if (! wglMakeCurrent(window->dc, rc))
     {
       ldkLogError("Unable to set OpenGL context current", 0);
@@ -1464,39 +1464,39 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 LDKGCtx ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
   s_OpenglInit(WIN32_GRAPHICS_API_OPENGL, versionMajor, versionMinor, colorBits, depthBits);
-  return &win32GraphicsAPIInfo;
+  return &s_graphicsAPIInfo;
 }
 
 LDKGCtx ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
   s_OpenglInit(WIN32_GRAPHICS_API_OPENGLES, versionMajor, versionMinor, colorBits, depthBits);
-  return &win32GraphicsAPIInfo;
+  return &s_graphicsAPIInfo;
 }
 
 void ldkOsGraphicsContextCurrent(LDKWindow window, LDKGCtx context)
 {
   HDC dc = ((LDKWin32Window*)window)->dc;
-  LDK_ASSERT(context == &win32GraphicsAPIInfo);
-  if (s_GraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
-    wglMakeCurrent(dc, win32GraphicsAPIInfo.gl.rc);
+  LDK_ASSERT(context == &s_graphicsAPIInfo);
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
+    wglMakeCurrent(dc, s_graphicsAPIInfo.gl.rc);
 }
 
 bool ldkOsGraphicsVSyncSet(bool vsync)
 {
-  if (s_GraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
   {
-    if (win32GraphicsAPIInfo.gl.wglSwapIntervalEXT)
-      return win32GraphicsAPIInfo.gl.wglSwapIntervalEXT(vsync);
+    if (s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
+      return s_graphicsAPIInfo.gl.wglSwapIntervalEXT(vsync);
   }
   return false;
 }
 
 int32 ldkOsGraphicsVSyncGet(void)
 {
-  if (s_GraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
   {
-    if (win32GraphicsAPIInfo.gl.wglSwapIntervalEXT)
-      return win32GraphicsAPIInfo.gl.wglGetSwapIntervalEXT();
+    if (s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
+      return s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT();
   }
   return false;
 }

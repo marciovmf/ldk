@@ -35,10 +35,12 @@ extern "C" {
   LDK_API int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon);
   LDK_API int32 floatIsLessThanOrEqualEpsilon(float a, float b, float epsilon);
   LDK_API int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon);
+  LDK_API bool  floatIsMultipleEpsilon(double a, double b, float epsilon);
+
 
 
 #ifndef LDK_EPSILON
-#define LDK_EPSILON 1e-6f
+#define LDK_EPSILON 1e-9f
 #endif //LDK_EPSILON
 
 #define floatsAreEqual(a, b) floatsAreEqualEpsilon((a), (b), LDK_EPSILON)
@@ -50,6 +52,8 @@ extern "C" {
 #define floatIsGreaterThanOrEqual(a, b) floatIsGreaterThanOrEqualEpsilon((a), (b), LDK_EPSILON)
 #define floatIsLessThanOrEqual(a, b) floatIsLessThanOrEqualEpsilon((a), (b), LDK_EPSILON)
 #define floatsAreAlmostEqualRelative(a, b) floatsAreAlmostEqualRelativeEpsilon((a), (b), LDK_EPSILON)
+#define floatIsMultipleOf(a, b) floatIsMultipleEpsilon(a, b, LDK_EPSILON)
+
 
   //
   // Vec2
@@ -137,6 +141,35 @@ extern "C" {
   LDK_API Vec3 vec3Smoothstep(Vec3 v1, Vec3 v2, float amount);
   LDK_API Vec3 rgbToVec3(LDKRGB color);
   LDK_API LDKRGB vec3ToRGB(Vec3 v);
+
+  /**
+   * Calculates the unsigned angle between two 3D vectors, v1 and v2.
+   *
+   * @param v1 The first 3D vector.
+   * @param v2 The second 3D vector.
+   *
+   * @return The angle in radians between the vectors v1 and v2, with a range of [0, π].
+   *         The angle is calculated using the dot product, and it is always a positive,
+   *         unsigned value. If either v1 or v2 has zero magnitude, the function returns 0.
+   */
+  LDK_API float vec3AngleBetween(Vec3 v1, Vec3 v2);
+
+  /**
+   * Calculates the signed angle between two 3D vectors, v1 and v2.
+   *
+   * @param v1 The first 3D vector.
+   * @param v2 The second 3D vector.
+   * @param normalDirection A 3D vector representing the reference normal direction.
+   *        This vector is used to determine the sign of the angle. The sign is positive
+   *        if the cross product of v1 and v2 points in the same direction as normalDirection,
+   *        and negative if it points in the opposite direction.
+   *
+   * @return The signed angle in radians between the vectors v1 and v2.
+   *         The angle will be positive or negative depending on the orientation of
+   *         the vectors relative to normalDirection.
+   *         If either v1 or v2 has zero magnitude, the function returns 0.
+   */
+  LDK_API float vec3SignedAngleBetween(Vec3 v1, Vec3 v2, Vec3 normalDirection);
 
   //
   // Vec4

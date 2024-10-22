@@ -1031,71 +1031,98 @@ void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float 
   glDeleteVertexArrays(1, &VAO);
 }
 
-void drawCircle(float x, float y, float z, float radius, float thickness, float angle)
+void drawCircle(float x, float y, float z, float radius, float thickness, float angle, LDKRGB innerColor, LDKRGB outerColor)
 {
-  int numSegments = 60; // Number of line segments to approximate the circle
-  float theta = (float) (fabs(angle) / numSegments); // Angle between each segment
-  float start_angle = (angle >= 0) ? 0.0f : (float) (2 * M_PI - fabs(angle));
-  float halfThickness = thickness / 2.0f;
+    int numSegments = 60; // Number of line segments to approximate the circle
+    float theta = fabsf(angle) / numSegments; // Angle between each segment
+    float start_angle = (angle >= 0) ? 0.0f : (float)(2 * M_PI - fabs(angle));
+    float halfThickness = thickness / 2.0f;
 
-  // Calculate the number of vertices needed
-  uint32 numVertices = (uint32) (ceil(fabs(angle) / theta) * 2);
+    // Calculate the number of vertices needed
+    uint32_t numVertices = (uint32_t)(ceil(fabs(angle) / theta) * 2);
 
-  // If angle is less than 360 degrees, we need to add 2 extra vertices to close the circle
-  if (fabs(angle) < 2 * M_PI)
-    numVertices += 2;
+    // If angle is less than 360 degrees, we need to add 2 extra vertices to close the circle
+    if (fabs(angle) < 2 * M_PI)
+        numVertices += 2;
 
-  // Generate and bind VAO and VBO
-  GLuint VBO, VAO;
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    // Generate and bind VAO and VBO
+    GLuint VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-  // Calculate vertices for the main segments
-  GLfloat vertices[ 255 * 3]; // 3 components (x, y, z) per vertex
-  for (uint32 i = 0; i < numVertices / 2; i++) {
-    float currentAngle = start_angle + i * theta;
-    // Inner vertex of the current segment
-    vertices[i * 6] = (float) (x + (radius - halfThickness) * cos(currentAngle));
-    vertices[i * 6 + 1] =  (float) ((y + (radius - halfThickness) * sin(currentAngle)));
-    vertices[i * 6 + 2] = z;
+    // Each vertex needs position (3 components) and color (3 components)
+    GLfloat vertices[255 * 6]; // 6 components (x, y, z, r, g, b) per vertex
 
-    // Outer vertex of the current segment
-    vertices[i * 6 + 3] = (float) (x + (radius + halfThickness) * cos(currentAngle));
-    vertices[i * 6 + 4] = (float) (y + (radius + halfThickness) * sin(currentAngle));
-    vertices[i * 6 + 5] = z;
-  }
+    for (uint32_t i = 0; i < numVertices / 2; i++) {
+        float currentAngle = start_angle + i * theta;
 
-  // If angle is less than 360 degrees, add vertices to close the circle
-  if (fabs(angle) > 2 * M_PI) {
-    float last_angle = (float) (start_angle + fabs(angle));
+        // Inner vertex (position + color)
+        vertices[i * 12] = x + (radius - halfThickness) * cosf(currentAngle);
+        vertices[i * 12 + 1] = y + (radius - halfThickness) * sinf(currentAngle);
+        vertices[i * 12 + 2] = z;
 
-    // Inner vertex of the last segment
-    vertices[numVertices * 3 - 6] = (float) (x + (radius - halfThickness) * cos(last_angle));
-    vertices[numVertices * 3 - 5] = (float) (y + (radius - halfThickness) * sin(last_angle));
-    vertices[numVertices * 3 - 4] = z;
+        // Inner vertex color (innerColor)
+        vertices[i * 12 + 3] = innerColor.r;
+        vertices[i * 12 + 4] = innerColor.g;
+        vertices[i * 12 + 5] = innerColor.b;
 
-    // Outer vertex of the last segment
-    vertices[numVertices * 3 - 3] = (float) (x + (radius + halfThickness) * cos(last_angle));
-    vertices[numVertices * 3 - 2] = (float) (y + (radius + halfThickness) * sin(last_angle));
-    vertices[numVertices * 3 - 1] = z;
-  }
+        // Outer vertex (position + color)
+        vertices[i * 12 + 6] = x + (radius + halfThickness) * cosf(currentAngle);
+        vertices[i * 12 + 7] = y + (radius + halfThickness) * sinf(currentAngle);
+        vertices[i * 12 + 8] = z;
 
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        // Outer vertex color (outerColor)
+        vertices[i * 12 + 9] = outerColor.r;
+        vertices[i * 12 + 10] = outerColor.g;
+        vertices[i * 12 + 11] = outerColor.b;
+    }
 
-  // Set vertex attribute pointers
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
-  glEnableVertexAttribArray(0);
+    // If angle is less than 360 degrees, add vertices to close the circle
+    if (fabs(angle) > 2 * M_PI) {
+        float last_angle = start_angle + fabsf(angle);
 
-  // Unbind VBO and VAO
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+        // Inner vertex of the last segment
+        vertices[numVertices * 6 - 12] = x + (radius - halfThickness) * cosf(last_angle);
+        vertices[numVertices * 6 - 11] = y + (radius - halfThickness) * sinf(last_angle);
+        vertices[numVertices * 6 - 10] = z;
+        vertices[numVertices * 6 - 9] = innerColor.r;
+        vertices[numVertices * 6 - 8] = innerColor.g;
+        vertices[numVertices * 6 - 7] = innerColor.b;
 
-  // Use shader program and draw
-  glBindVertexArray(VAO);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
-  glBindVertexArray(0);
+        // Outer vertex of the last segment
+        vertices[numVertices * 6 - 6] = x + (radius + halfThickness) * cosf(last_angle);
+        vertices[numVertices * 6 - 5] = y + (radius + halfThickness) * sinf(last_angle);
+        vertices[numVertices * 6 - 4] = z;
+        vertices[numVertices * 6 - 3] = outerColor.r;
+        vertices[numVertices * 6 - 2] = outerColor.g;
+        vertices[numVertices * 6 - 1] = outerColor.b;
+    }
+
+    // Load vertex data into buffer
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Set vertex attribute pointers for position (3 components)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    // Set vertex attribute pointers for color (3 components)
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+
+    // Unbind VBO and VAO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    // Use shader program and draw
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, numVertices);
+    glBindVertexArray(0);
+
+    // Cleanup
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
 }
 
 void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color)

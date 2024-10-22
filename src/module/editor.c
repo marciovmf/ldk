@@ -8,10 +8,8 @@
 
 #ifdef LDK_EDITOR
 
-extern void drawCircle(float x, float y, float z, float radius, float thickness, float angle);
-
+extern void drawCircle(float x, float y, float z, float radius, float thickness, float angle, LDKRGB innerColor, LDKRGB outerColor);
 extern void drawLine(float x1, float y1, float z1, float x2, float y2, float z2, float thickness, LDKRGB color);
-
 extern void drawFrustum(float nearWidth, float nearHeight, float farWidth, float farHeight, float nearDist, float farDist, LDKRGB color);
 
 enum
@@ -678,7 +676,11 @@ void  ldkEditorImmediateDraw(float deltaTime)
       s_editor.tool.position.x,
       s_editor.tool.position.y,
       s_editor.tool.position.z,
-      1.0f, 2.0f, 360.0f);
+      1.0f, 2.0f, 360.0f,
+      LDK_RGB_RED,
+      LDK_RGB_WHITE
+      );
+
 }
 
 // Called right after enabling/disabling the editor

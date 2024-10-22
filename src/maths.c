@@ -1,6 +1,5 @@
 #include "ldk/maths.h"
 #include "common.h"
-#include <float.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -89,6 +88,15 @@ int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilo
   // Use relative difference
   double maxAbs = fmax(fabs(a), fabs(b));
   return fabs(a - b) <= relativeEpsilon * maxAbs;
+}
+
+bool floatIsMultipleEpsilon(double a, double b, float epsilon)
+{
+  if (floatIsZeroEpsilon(b, LDK_EPSILON))
+    return false;
+
+  double result = a / b;
+  return (fabs(result - round(result)) < epsilon);
 }
 
 //
@@ -546,6 +554,32 @@ LDKRGB vec3ToRGB(Vec3 v)
   return color;
 }
 
+float Vec3AngleBetween(Vec3 v1, Vec3 v2)
+{
+  const float magnitudeV1 = vec3Length(v1);
+  const float magnitudeV2 = vec3Length(v2);
+
+  if(floatIsZero(magnitudeV1) || floatIsZero(magnitudeV2))
+    return 0;
+  const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
+    float angle = acosf(fmaxf(-1.0f, fminf(1.0f, cosTheta)));
+    return angle;
+}
+
+float Vec3SignedAngleBetween(Vec3 v1, Vec3 v2, Vec3 normalDirectin)
+{
+  const float magnitudeV1 = vec3Length(v1);
+  const float magnitudeV2 = vec3Length(v2);
+
+  if(floatIsZero(magnitudeV1) || floatIsZero(magnitudeV2))
+    return 0;
+
+  const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
+  float angle = acosf(fmaxf(-1.0f, fminf(1.0f, cosTheta)));
+  float signedAngle = vec3Dot(vec3Cross(v1, v2), normalDirectin) < 0.0f ? -angle : angle;
+  return signedAngle;
+}
+
 //
 // Vec4
 //
@@ -899,7 +933,7 @@ void quatToAngleAxis(Quat q, Vec3* axis, float* angle)
 
   float divisor = sinf( *angle / 2.0f );
 
-  if( fabs( divisor ) < FLT_EPSILON )
+  if( fabs( divisor ) < LDK_EPSILON )
   {
 
     axis->x = 0.0f;
@@ -969,7 +1003,7 @@ Quat quatInverse(Quat q)
   float	scale = quatLength(q);
   Quat result = quatUnitInverse(q);
 
-  if ( scale > FLT_EPSILON )
+  if ( scale > LDK_EPSILON )
   {    
     result.x /= scale;
     result.y /= scale;
@@ -994,7 +1028,7 @@ Quat quatNormalize(Quat q)
 {
   float scale = quatLength(q);
 
-  if ( scale > FLT_EPSILON )
+  if ( scale > LDK_EPSILON )
   {
     return quat(
         q.x / scale,
@@ -1061,7 +1095,7 @@ Quat quatExp(Vec3 w)
 {
 
   float theta = (float) sqrt(vec3Dot(w, w));
-  float len = theta < FLT_EPSILON ? 1 : (float) (sin(theta) / theta);
+  float len = theta < LDK_EPSILON ? 1 : (float) (sin(theta) / theta);
   Vec3 v = vec3Mul(w, len);
 
   return quat(v.x, v.y, v.z, (float) cos(theta));
@@ -1071,7 +1105,7 @@ Vec3 quatLog(Quat q)
 {
   float len = vec3Length(quatImaginaries(q));
   float angle = (float) atan2(len, q.w);
-  len = len > FLT_EPSILON ? angle / len : 1;
+  len = len > LDK_EPSILON ? angle / len : 1;
   return vec3Mul(quatImaginaries(q), len);
 }
 
