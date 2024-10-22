@@ -24,7 +24,7 @@ static struct
   LDKTypeId handledTypes[LDK_ENTITY_MANAGER_MAX_HANDLERS];
   uint32 numHandlers;
   uint32 numEntities;
-} internal = { 0 };
+} s_entityMgr = { 0 };
 
 bool ldkEntityManagerInit(void)
 {
@@ -33,20 +33,20 @@ bool ldkEntityManagerInit(void)
 
 void ldkEntityManagerTerminate(void)
 {
-  for (uint32 i = 0; i < internal.numHandlers; i++)
+  for (uint32 i = 0; i < s_entityMgr.numHandlers; i++)
   {
-    LDKEntityHandler* handler = &internal.handlers[i];
+    LDKEntityHandler* handler = &s_entityMgr.handlers[i];
     ldkHListDestroy(&handler->entities);
   }
 
-  internal.numHandlers = 0;
+  s_entityMgr.numHandlers = 0;
 }
 
-static LDKEntityHandler* internalEntityHandlerGet(LDKTypeId typeId)
+static LDKEntityHandler* s_entityHandlerGet(LDKTypeId typeId)
 {
-  for (uint32 i = 0; i < internal.numHandlers; i++)
+  for (uint32 i = 0; i < s_entityMgr.numHandlers; i++)
   {
-    LDKEntityHandler* handler = &internal.handlers[i];
+    LDKEntityHandler* handler = &s_entityMgr.handlers[i];
     if (handler->typeId == typeId)
       return handler;
   }
@@ -56,22 +56,22 @@ static LDKEntityHandler* internalEntityHandlerGet(LDKTypeId typeId)
 
 bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc createFunc, LDKEntityHandlerDestroyFunc destroyFunc, LDKEntityGetTransformFunc getFunc, LDKEntitySetTransformFunc setFunc, uint32 initialPoolCapacity)
 {
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   if (handler)
   {
     ldkLogError("An entity handler for type '%s' was already registered", ldkTypeName(handler->typeId));
     return false;
   }
 
-  if (internal.numHandlers >= (LDK_ENTITY_MANAGER_MAX_HANDLERS - 1))
+  if (s_entityMgr.numHandlers >= (LDK_ENTITY_MANAGER_MAX_HANDLERS - 1))
   {
     ldkLogError("Unable to register handler for type '%s'. The maximum number of handlers (%d) was reached.",
         ldkTypeName(handler->typeId), LDK_ENTITY_MANAGER_MAX_HANDLERS);
     return false;
   }
 
-  const uint32 handlerId = internal.numHandlers++;
-  handler = &internal.handlers[handlerId];
+  const uint32 handlerId = s_entityMgr.numHandlers++;
+  handler = &s_entityMgr.handlers[handlerId];
   handler->typeId           = typeId;
   handler->createFunc       = createFunc;
   handler->destroyFunc      = destroyFunc;
@@ -84,7 +84,7 @@ bool ldkEntityHandlerRegisterNew(LDKTypeId typeId, LDKEntityHandlerCreateFunc cr
 LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
 {
   static int32 entityCount = 0;
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   if (!handler)
     return NULL;
   LDKHEntity handle = ldkHandleTo(LDKHEntity, ldkHListReserve(&handler->entities));
@@ -101,14 +101,14 @@ LDKEntity ldkEntityManagerEntityCreate(LDKTypeId typeId)
   entity->isEditorGizmo = false;
 #endif
 
-  internal.numEntities++;
+  s_entityMgr.numEntities++;
   entityCount++;
   return entity;
 }
 
 LDKEntity ldkEntityManagerEntityLookup(LDKTypeId typeId, LDKHEntity handle)
 {
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   if (!handler)
   {
     ldkLogWarning("No entity found for handle (%s) %llx", typename(typeId), handle);
@@ -124,7 +124,7 @@ LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
   it.current = -1;
   it.hlist = NULL;
 
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   if(handler == NULL)
     return it;
 
@@ -134,14 +134,14 @@ LDKHListIterator ldkEntityManagerGetIteratorForType(LDKTypeId typeId)
 const LDKTypeId* ldkEntityManagerTypes(uint32* count)
 {
   if (count)
-    *count = internal.numHandlers;
-  return internal.handledTypes;
+    *count = s_entityMgr.numHandlers;
+  return s_entityMgr.handledTypes;
 }
 
 bool ldkEntityDestroy(LDKHEntity handle)
 {
   LDKTypeId typeId = ldkHandleType(ldkHandleFrom(handle));
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   if(!handler)
     return false;
 
@@ -157,7 +157,7 @@ LDKEntity ldkEntityManagerFind(LDKHEntity handle)
 void ldkEntityGetTransform(LDKHEntity handle, uint32 instance, Vec3* pos, Vec3* scale, Quat* rot)
 {
   LDKTypeId typeId = ldkHandleType(ldkHandleFrom(handle));
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   LDK_ASSERT(handler != NULL);
   if (handler->getTransformFunc == NULL)
   {
@@ -170,7 +170,7 @@ void ldkEntityGetTransform(LDKHEntity handle, uint32 instance, Vec3* pos, Vec3* 
 void ldkEntitySetTransform(LDKHEntity handle, uint32 instance, Vec3 pos, Vec3 scale, Quat rot)
 {
   LDKTypeId typeId = ldkHandleType(ldkHandleFrom(handle));
-  LDKEntityHandler* handler = internalEntityHandlerGet(typeId);
+  LDKEntityHandler* handler = s_entityHandlerGet(typeId);
   LDK_ASSERT(handler != NULL);
   if (handler->setTransformFunc == NULL)
   {
@@ -183,9 +183,9 @@ void ldkEntitySetTransform(LDKHEntity handle, uint32 instance, Vec3 pos, Vec3 sc
 #ifdef LDK_DEBUG
 void ldkEntityManagerPrintAll()
 {
-  for (uint32 i = 0; i < internal.numHandlers; i++)
+  for (uint32 i = 0; i < s_entityMgr.numHandlers; i++)
   {
-    LDKEntityHandler* handler = &internal.handlers[i];
+    LDKEntityHandler* handler = &s_entityMgr.handlers[i];
     LDKHListIterator it = ldkHListIteratorCreate(&handler->entities);
     while(ldkHListIteratorNext(&it))
     {
