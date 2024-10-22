@@ -74,7 +74,7 @@ static struct
   Vec3 higlightColor1;
   Vec3 higlightColor2;
 
-} internal = { 0 };
+} s_renderer = { 0 };
 
 typedef enum
 {
@@ -208,9 +208,9 @@ static Vec3 internalGetClearColor()
 {
 #ifdef LDK_EDITOR
   if (ldkEngineIsEditorRunning())
-    return internal.editorClearColor;
+    return s_renderer.editorClearColor;
 #endif
-  return internal.clearColor;
+  return s_renderer.clearColor;
 }
 #ifdef LDK_EDITOR
 static void internalRenderStaticObjectForPicking(LDKStaticObject* entity, uint32 objectIndex)
@@ -220,13 +220,13 @@ static void internalRenderStaticObjectForPicking(LDKStaticObject* entity, uint32
     return;
 
   Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
-  ldkShaderParamSetMat4(internal.shaderPicking, "mModel", world);
-  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
+  ldkShaderParamSetMat4(s_renderer.shaderPicking, "mModel", world);
+  ldkShaderParamSetUint(s_renderer.shaderPicking, "objectIndex", objectIndex);
   ldkRenderBufferBind(mesh->vBuffer);
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
     LDKSurface* surface = &mesh->surfaces[i];
-    ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+    ldkShaderParamSetUint(s_renderer.shaderPicking, "surfaceIndex", i);
     glDrawElements(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)));
   }
 
@@ -242,14 +242,14 @@ static void internalRenderInstancedObjectForPicking(LDKInstancedObject* entity, 
 
   ldkRenderBufferBind(mesh->vBuffer);
   ldkInstanceBufferBind(entity->instanceBuffer);
-  ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
-  ldkShaderParamSetUint(internal.shaderPicking, "objectIndex", objectIndex);
+  ldkShaderParamSetBool(s_renderer.shaderPicking, "instanced", true);
+  ldkShaderParamSetUint(s_renderer.shaderPicking, "objectIndex", objectIndex);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
     LDKSurface* surface = &mesh->surfaces[i];
     // Test pasing the instance index instead of the surface index
-    ldkShaderParamSetUint(internal.shaderPicking, "surfaceIndex", i);
+    ldkShaderParamSetUint(s_renderer.shaderPicking, "surfaceIndex", i);
     uint32 numInstances = ldkInstancedObjectCount(entity);
     glDrawElementsInstanced(GL_TRIANGLES, surface->count, GL_UNSIGNED_SHORT, (void*) (surface->first * sizeof(uint16)), numInstances);
   }
@@ -277,13 +277,13 @@ static void internalRenderHighlight(LDKStaticObject* entity)
   Mat4 world = mat4World(entity->position, entity->scale, entity->rotation);
 
   ldkRenderBufferBind(mesh->vBuffer);
-  ldkShaderProgramBind(internal.shaderHighlight);
-  ldkShaderParamSetMat4(internal.shaderHighlight, "mModel", world);
-  ldkShaderParamSetVec3(internal.shaderHighlight, "color1", internal.higlightColor1);
-  ldkShaderParamSetVec3(internal.shaderHighlight, "color2", internal.higlightColor2);
-  ldkShaderParamSetMat4(internal.shaderHighlight, "mView", ldkCameraViewMatrix(internal.camera));
-  ldkShaderParamSetMat4(internal.shaderHighlight, "mProj", ldkCameraProjectMatrix(internal.camera));
-  ldkShaderParamSetFloat(internal.shaderHighlight, "deltaTime", internal.elapsedTime);
+  ldkShaderProgramBind(s_renderer.shaderHighlight);
+  ldkShaderParamSetMat4(s_renderer.shaderHighlight, "mModel", world);
+  ldkShaderParamSetVec3(s_renderer.shaderHighlight, "color1", s_renderer.higlightColor1);
+  ldkShaderParamSetVec3(s_renderer.shaderHighlight, "color2", s_renderer.higlightColor2);
+  ldkShaderParamSetMat4(s_renderer.shaderHighlight, "mView", ldkCameraViewMatrix(s_renderer.camera));
+  ldkShaderParamSetMat4(s_renderer.shaderHighlight, "mProj", ldkCameraProjectMatrix(s_renderer.camera));
+  ldkShaderParamSetFloat(s_renderer.shaderHighlight, "deltaTime", s_renderer.elapsedTime);
 
   for(uint32 i = 0; i < mesh->numSurfaces; i++)
   {
@@ -314,25 +314,25 @@ static bool internalRenderPickingBuffer(LDKArray* renderObjects, LDKEntitySelect
     return false;
   }
 
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, internal.fboPicking);
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_renderer.fboPicking);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   LDKRenderObject* ro = (LDKRenderObject*) ldkArrayGetData(renderObjects);
-  ldkShaderProgramBind(internal.shaderPicking);
-  ldkShaderParamSetMat4(internal.shaderPicking, "mView", ldkCameraViewMatrix(internal.camera));
-  ldkShaderParamSetMat4(internal.shaderPicking, "mProj", ldkCameraProjectMatrix(internal.camera));
+  ldkShaderProgramBind(s_renderer.shaderPicking);
+  ldkShaderParamSetMat4(s_renderer.shaderPicking, "mView", ldkCameraViewMatrix(s_renderer.camera));
+  ldkShaderParamSetMat4(s_renderer.shaderPicking, "mProj", ldkCameraProjectMatrix(s_renderer.camera));
 
   for(uint32 i = 0; i < count; i++)
   {
     if (ro->type == LDK_RENDER_OBJECT_STATIC_OBJECT)
     {
-      ldkShaderParamSetBool(internal.shaderPicking, "instanced", false);
+      ldkShaderParamSetBool(s_renderer.shaderPicking, "instanced", false);
       internalRenderStaticObjectForPicking(ro->staticMesh, i + 1);
     }
     else if (ro->type == LDK_RENDER_OBJECT_INSTANCED_OBJECT)
     {
-      ldkShaderParamSetBool(internal.shaderPicking, "instanced", true);
+      ldkShaderParamSetBool(s_renderer.shaderPicking, "instanced", true);
       internalRenderInstancedObjectForPicking(ro->instancedMesh, i + 1);
     }
     ro++;
@@ -343,7 +343,7 @@ static bool internalRenderPickingBuffer(LDKArray* renderObjects, LDKEntitySelect
   Vec3 pixelColor;
 
   // Decode entity information from pixel data
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.fboPicking);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, s_renderer.fboPicking);
   glReadBuffer(GL_COLOR_ATTACHMENT0);
   glReadPixels(x, y, 1, 1, GL_RGB, GL_FLOAT, &pixelColor);
   uint32 objectIndex = (uint32) pixelColor.x;
@@ -381,7 +381,7 @@ static bool internalRenderPickingBuffer(LDKArray* renderObjects, LDKEntitySelect
 
 LDKEntitySelectionInfo ldkRendererSelectedEntity(void)
 {
-  return internal.selectedEntity;
+  return s_renderer.selectedEntity;
 }
 
 #endif // LDK_EDITOR
@@ -445,29 +445,29 @@ static void internalRenderMeshInstanced(LDKInstancedObject* entity)
 #ifdef LDK_EDITOR
 static bool internalPickingFBOCreate(uint32 width, uint32 height)
 {
-  if (internal.fboPicking != 0)
+  if (s_renderer.fboPicking != 0)
     return false;
 
   bool success = false;
   // Create the FBO
-  glGenFramebuffers(1, &internal.fboPicking);
-  glBindFramebuffer(GL_FRAMEBUFFER, internal.fboPicking);
+  glGenFramebuffers(1, &s_renderer.fboPicking);
+  glBindFramebuffer(GL_FRAMEBUFFER, s_renderer.fboPicking);
 
   // Create the texture object for the primitive information buffer
-  glGenTextures(1, &internal.texturePicking);
-  glBindTexture(GL_TEXTURE_2D, internal.texturePicking);
+  glGenTextures(1, &s_renderer.texturePicking);
+  glBindTexture(GL_TEXTURE_2D, s_renderer.texturePicking);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height,
       0, GL_RGB, GL_FLOAT, NULL);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-      internal.texturePicking, 0);
+      s_renderer.texturePicking, 0);
 
   // Create the texture object for the depth buffer
-  glGenTextures(1, &internal.textureDepthPicking);
-  glBindTexture(GL_TEXTURE_2D, internal.textureDepthPicking);
+  glGenTextures(1, &s_renderer.textureDepthPicking);
+  glBindTexture(GL_TEXTURE_2D, s_renderer.textureDepthPicking);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height,
       0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-      internal.textureDepthPicking, 0);
+      s_renderer.textureDepthPicking, 0);
 
   // Disable reading to avoid problems with older GPUs
   glReadBuffer(GL_NONE);
@@ -483,11 +483,11 @@ static bool internalPickingFBOCreate(uint32 width, uint32 height)
 
 #ifdef LDK_EDITOR
   // Loads the picking shader
-  internal.hShaderPicking = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
-  internal.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
+  s_renderer.hShaderPicking = ldkAssetGet(LDKShader, "assets/editor/picking.shader")->asset.handle;
+  s_renderer.hShaderHighlight = ldkAssetGet(LDKShader, "assets/editor/highlight.shader")->asset.handle;
 
-  internal.higlightColor1 = ldkConfigGetVec3(internal.config, "editor.highlight-color1");
-  internal.higlightColor2 = ldkConfigGetVec3(internal.config, "editor.highlight-color2");
+  s_renderer.higlightColor1 = ldkConfigGetVec3(s_renderer.config, "editor.highlight-color1");
+  s_renderer.higlightColor2 = ldkConfigGetVec3(s_renderer.config, "editor.highlight-color2");
 #endif
   // Restore the default framebuffer
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -498,72 +498,72 @@ static bool internalPickingFBOCreate(uint32 width, uint32 height)
 static void internalPickingFBODEstroy()
 {
   // the display can be resized befor we get initialized...
-  if (!internal.initialized)
+  if (!s_renderer.initialized)
     return;
 
-  glDeleteTextures(1, &internal.texturePicking);
-  glDeleteTextures(1, &internal.textureDepthPicking);
-  glDeleteFramebuffers(1, &internal.fboPicking);
-  internal.fboPicking = 0;
-  internal.texturePicking = 0;
-  internal.textureDepthPicking = 0;
+  glDeleteTextures(1, &s_renderer.texturePicking);
+  glDeleteTextures(1, &s_renderer.textureDepthPicking);
+  glDeleteFramebuffers(1, &s_renderer.fboPicking);
+  s_renderer.fboPicking = 0;
+  s_renderer.texturePicking = 0;
+  s_renderer.textureDepthPicking = 0;
 }
 #endif
 
 static void internalGBufferFBODestroy()
 {
-  glDeleteFramebuffers(1, &internal.gBuffer);
-  glDeleteTextures(1, &internal.gPosition);
-  glDeleteTextures(1, &internal.gNormal);
-  glDeleteTextures(1, &internal.gAlbedoSpec);
-  glDeleteRenderbuffers(1, &internal.rboDepth);
+  glDeleteFramebuffers(1, &s_renderer.gBuffer);
+  glDeleteTextures(1, &s_renderer.gPosition);
+  glDeleteTextures(1, &s_renderer.gNormal);
+  glDeleteTextures(1, &s_renderer.gAlbedoSpec);
+  glDeleteRenderbuffers(1, &s_renderer.rboDepth);
 }
 
 static void internalGBufferFBOCreate(uint32 width, uint32 height)
 {
-  if (internal.shaderGeometryPass == NULL)
-    internal.shaderGeometryPass = ldkAssetGet(LDKShader, "assets/geometry-pass.shader");
+  if (s_renderer.shaderGeometryPass == NULL)
+    s_renderer.shaderGeometryPass = ldkAssetGet(LDKShader, "assets/geometry-pass.shader");
 
-  if (internal.shaderLightPass == NULL)
-    internal.shaderLightPass = ldkAssetGet(LDKShader, "assets/light-pass.shader");
+  if (s_renderer.shaderLightPass == NULL)
+    s_renderer.shaderLightPass = ldkAssetGet(LDKShader, "assets/light-pass.shader");
 
-  if (internal.shaderLightBox == NULL)
-    internal.shaderLightBox = ldkAssetGet(LDKShader, "assets/editor/lightbox.shader");
+  if (s_renderer.shaderLightBox == NULL)
+    s_renderer.shaderLightBox = ldkAssetGet(LDKShader, "assets/editor/lightbox.shader");
 
 
-  glGenFramebuffers(1, &internal.gBuffer);
-  glBindFramebuffer(GL_FRAMEBUFFER, internal.gBuffer);
+  glGenFramebuffers(1, &s_renderer.gBuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, s_renderer.gBuffer);
   // position color buffer
-  glGenTextures(1, &internal.gPosition);
-  glBindTexture(GL_TEXTURE_2D, internal.gPosition);
+  glGenTextures(1, &s_renderer.gPosition);
+  glBindTexture(GL_TEXTURE_2D, s_renderer.gPosition);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, internal.gPosition, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_renderer.gPosition, 0);
   // normal color buffer
-  glGenTextures(1, &internal.gNormal);
-  glBindTexture(GL_TEXTURE_2D, internal.gNormal);
+  glGenTextures(1, &s_renderer.gNormal);
+  glBindTexture(GL_TEXTURE_2D, s_renderer.gNormal);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, internal.gNormal, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, s_renderer.gNormal, 0);
   // color + specular color buffer
-  glGenTextures(1, &internal.gAlbedoSpec);
-  glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
+  glGenTextures(1, &s_renderer.gAlbedoSpec);
+  glBindTexture(GL_TEXTURE_2D, s_renderer.gAlbedoSpec);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, internal.gAlbedoSpec, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, s_renderer.gAlbedoSpec, 0);
 
   // tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
   unsigned int attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
   glDrawBuffers(3, attachments);
 
   // create and attach depth buffer (renderbuffer)
-  glGenRenderbuffers(1, &internal.rboDepth);
-  glBindRenderbuffer(GL_RENDERBUFFER, internal.rboDepth);
+  glGenRenderbuffers(1, &s_renderer.rboDepth);
+  glBindRenderbuffer(GL_RENDERBUFFER, s_renderer.rboDepth);
   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, internal.rboDepth);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, s_renderer.rboDepth);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
   // finally check if framebuffer is complete
@@ -578,22 +578,22 @@ static void internalGBufferFBOCreate(uint32 width, uint32 height)
 
 void ldkAmbientLightSetIntensity(float intensity)
 {
-  internal.ambientLightIntensity = intensity;
+  s_renderer.ambientLightIntensity = intensity;
 }
 
 float ldkAmbientLightGetIntensity()
 {
-  return internal.ambientLightIntensity;
+  return s_renderer.ambientLightIntensity;
 }
 
 void ldkAmbientLightSetColor(Vec3 color)
 {
-  internal.ambientLightColor = color;
+  s_renderer.ambientLightColor = color;
 }
 
 Vec3 ldkAmbientLightGetColor()
 {
-  return internal.ambientLightColor;
+  return s_renderer.ambientLightColor;
 }
 
 
@@ -635,25 +635,25 @@ static void internalLightPass()
 {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  ldkShaderProgramBind(internal.shaderLightPass); // Uses GBuffer
+  ldkShaderProgramBind(s_renderer.shaderLightPass); // Uses GBuffer
 
-  glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, internal.gPosition);
-  glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, internal.gNormal);
-  glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, internal.gAlbedoSpec);
+  glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, s_renderer.gPosition);
+  glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, s_renderer.gNormal);
+  glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, s_renderer.gAlbedoSpec);
 
   Vec3 clearColor = internalGetClearColor();
-  ldkShaderParamSetVec3(internal.shaderLightPass, "viewPos", internal.camera->position);
-  ldkShaderParamSetVec3(internal.shaderLightPass, "ambientColor", ldkAmbientLightGetColor());
-  ldkShaderParamSetVec3(internal.shaderLightPass, "clearColor", clearColor);
-  ldkShaderParamSetFloat(internal.shaderLightPass, "ambientIntensity", ldkAmbientLightGetIntensity());
-  ldkShaderParamSetInt(internal.shaderLightPass, "gPosition", 0);
-  ldkShaderParamSetInt(internal.shaderLightPass, "gNormal", 1);
-  ldkShaderParamSetInt(internal.shaderLightPass, "gAlbedoSpec", 2); 
+  ldkShaderParamSetVec3(s_renderer.shaderLightPass, "viewPos", s_renderer.camera->position);
+  ldkShaderParamSetVec3(s_renderer.shaderLightPass, "ambientColor", ldkAmbientLightGetColor());
+  ldkShaderParamSetVec3(s_renderer.shaderLightPass, "clearColor", clearColor);
+  ldkShaderParamSetFloat(s_renderer.shaderLightPass, "ambientIntensity", ldkAmbientLightGetIntensity());
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "gPosition", 0);
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "gNormal", 1);
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "gAlbedoSpec", 2); 
 
   // Point light uniforms
-  LDKPointLight* point = (LDKPointLight*) ldkArrayGetData(internal.pointLights);
-  uint32 numPointLights = ldkArrayCount(internal.pointLights);
-  ldkShaderParamSetInt(internal.shaderLightPass, "numPointLights", numPointLights);
+  LDKPointLight* point = (LDKPointLight*) ldkArrayGetData(s_renderer.pointLights);
+  uint32 numPointLights = ldkArrayCount(s_renderer.pointLights);
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "numPointLights", numPointLights);
   for (uint32 i = 0; i < numPointLights; i++)
   {
     // update attenuation parameters and calculate radius
@@ -672,19 +672,19 @@ static void internalLightPass()
     ldkSmallStringFormat(&strQuadratic,     "%s[%d].quadratic", arrayName, i);
     ldkSmallStringFormat(&strRadius,        "%s[%d].range", arrayName, i);
 
-    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, point->position);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, point->colorDiffuse);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, point->colorSpecular);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, linear);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strQuadratic.str, quadratic);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strRadius.str, radius);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strPosition.str, point->position);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorDiffuse.str, point->colorDiffuse);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorSpecular.str, point->colorSpecular);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strLinear.str, linear);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strQuadratic.str, quadratic);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strRadius.str, radius);
     point++;
   }
 
   // Spot light uniforms
-  LDKSpotLight* spot = (LDKSpotLight*) ldkArrayGetData(internal.spotLights);
-  uint32 numSpotLights = ldkArrayCount(internal.spotLights);
-  ldkShaderParamSetInt(internal.shaderLightPass, "numSpotLights", numSpotLights);
+  LDKSpotLight* spot = (LDKSpotLight*) ldkArrayGetData(s_renderer.spotLights);
+  uint32 numSpotLights = ldkArrayCount(s_renderer.spotLights);
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "numSpotLights", numSpotLights);
 
   for (uint32 i = 0; i < numSpotLights; i++)
   {
@@ -707,22 +707,22 @@ static void internalLightPass()
     ldkSmallStringFormat(&strQuadratic,     "%s[%d].quadratic", arrayName, i);
     ldkSmallStringFormat(&strRadius,        "%s[%d].range", arrayName, i);
 
-    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, spot->position);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strDirection.str, spot->direction);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, spot->colorDiffuse);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, spot->colorSpecular);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strCutoffInner.str, spot->cutOffInner);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strCutoffOuter.str, spot->cutOffOuter);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strLinear.str, linear);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strQuadratic.str, quadratic);
-    ldkShaderParamSetFloat(internal.shaderLightPass, strRadius.str, radius);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strPosition.str, spot->position);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strDirection.str, spot->direction);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorDiffuse.str, spot->colorDiffuse);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorSpecular.str, spot->colorSpecular);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strCutoffInner.str, spot->cutOffInner);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strCutoffOuter.str, spot->cutOffOuter);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strLinear.str, linear);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strQuadratic.str, quadratic);
+    ldkShaderParamSetFloat(s_renderer.shaderLightPass, strRadius.str, radius);
     spot++;
   }
 
   // directional light uniforms
-  LDKDirectionalLight* directional = (LDKDirectionalLight*) ldkArrayGetData(internal.directionalLights);
-  uint32 numDirectionalLights = ldkArrayCount(internal.directionalLights);
-  ldkShaderParamSetInt(internal.shaderLightPass, "numDirectionalLights", numDirectionalLights);
+  LDKDirectionalLight* directional = (LDKDirectionalLight*) ldkArrayGetData(s_renderer.directionalLights);
+  uint32 numDirectionalLights = ldkArrayCount(s_renderer.directionalLights);
+  ldkShaderParamSetInt(s_renderer.shaderLightPass, "numDirectionalLights", numDirectionalLights);
   for (uint32 i = 0; i < numDirectionalLights; i++)
   {
     const char* arrayName = "directionalLights";
@@ -730,9 +730,9 @@ static void internalLightPass()
     ldkSmallStringFormat(&strPosition,      "%s[%d].direction", arrayName, i);  
     ldkSmallStringFormat(&strColorDiffuse,  "%s[%d].colorDiffuse", arrayName, i);
     ldkSmallStringFormat(&strColorSpecular, "%s[%d].colorSpecular", arrayName, i);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strPosition.str, directional->position);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorDiffuse.str, directional->colorDiffuse);
-    ldkShaderParamSetVec3(internal.shaderLightPass, strColorSpecular.str, directional->colorSpecular);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strPosition.str, directional->position);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorDiffuse.str, directional->colorDiffuse);
+    ldkShaderParamSetVec3(s_renderer.shaderLightPass, strColorSpecular.str, directional->colorSpecular);
     directional++;
   }
 
@@ -740,7 +740,7 @@ static void internalLightPass()
 
   // copy geometry's depth buffer to default framebuffer's depth buffer
   LDKSize viewport = ldkGraphicsViewportSizeGet();
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, internal.gBuffer);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, s_renderer.gBuffer);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // write to default framebuffer
   glBlitFramebuffer(0, 0, viewport.width, viewport.height, 0, 0, viewport.width, viewport.height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
   glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
@@ -757,19 +757,19 @@ static void internalLightPass()
 
 bool ldkRendererInitialize(LDKConfig* config)
 {
-  LDK_ASSERT(internal.initialized == false);
-  internal.initialized = true;
+  LDK_ASSERT(s_renderer.initialized == false);
+  s_renderer.initialized = true;
   bool success = true;
-  internal.clearColor =  vec3(0.0f, 0.0f, 0.0f);
-  internal.editorClearColor = ldkConfigGetVec3(config, "editor.clear-color");
-  internal.config = config;
-  internal.renderObjectArray = ldkArrayCreate(sizeof(LDKRenderObject), 64);
-  internal.renderObjectArrayDeferred = ldkArrayCreate(sizeof(LDKRenderObject), 64);
-  internal.ambientLightIntensity = 1.0f;
-  internal.pointLights = ldkArrayCreate(sizeof(LDKPointLight), 32);
-  internal.spotLights = ldkArrayCreate(sizeof(LDKSpotLight), 32);
-  internal.directionalLights = ldkArrayCreate(sizeof(LDKDirectionalLight), 8);
-  success &= internal.renderObjectArray != NULL;
+  s_renderer.clearColor =  vec3(0.0f, 0.0f, 0.0f);
+  s_renderer.editorClearColor = ldkConfigGetVec3(config, "editor.clear-color");
+  s_renderer.config = config;
+  s_renderer.renderObjectArray = ldkArrayCreate(sizeof(LDKRenderObject), 64);
+  s_renderer.renderObjectArrayDeferred = ldkArrayCreate(sizeof(LDKRenderObject), 64);
+  s_renderer.ambientLightIntensity = 1.0f;
+  s_renderer.pointLights = ldkArrayCreate(sizeof(LDKPointLight), 32);
+  s_renderer.spotLights = ldkArrayCreate(sizeof(LDKSpotLight), 32);
+  s_renderer.directionalLights = ldkArrayCreate(sizeof(LDKDirectionalLight), 8);
+  success &= s_renderer.renderObjectArray != NULL;
 
 #ifdef LDK_EDITOR
   //
@@ -778,8 +778,8 @@ bool ldkRendererInitialize(LDKConfig* config)
   LDKSize viewport = ldkGraphicsViewportSizeGet();
   internalPickingFBOCreate(viewport.width, viewport.height);
   internalGBufferFBOCreate(viewport.width, viewport.height);
-  internal.shaderPicking = ldkAssetLookup(LDKShader, internal.hShaderPicking);
-  internal.shaderHighlight = ldkAssetLookup(LDKShader, internal.hShaderHighlight);
+  s_renderer.shaderPicking = ldkAssetLookup(LDKShader, s_renderer.hShaderPicking);
+  s_renderer.shaderHighlight = ldkAssetLookup(LDKShader, s_renderer.hShaderHighlight);
 #endif
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   return success;
@@ -799,15 +799,15 @@ void ldkRendererResize(uint32 width, uint32 height)
 
 void ldkRendererTerminate(void)
 {
-  if (!internal.initialized)
+  if (!s_renderer.initialized)
     return;
 
-  internal.initialized = false;
-  ldkArrayDestroy(internal.renderObjectArray);
-  ldkArrayDestroy(internal.renderObjectArrayDeferred);
-  ldkArrayDestroy(internal.directionalLights);
-  ldkArrayDestroy(internal.spotLights);
-  ldkArrayDestroy(internal.pointLights);
+  s_renderer.initialized = false;
+  ldkArrayDestroy(s_renderer.renderObjectArray);
+  ldkArrayDestroy(s_renderer.renderObjectArrayDeferred);
+  ldkArrayDestroy(s_renderer.directionalLights);
+  ldkArrayDestroy(s_renderer.spotLights);
+  ldkArrayDestroy(s_renderer.pointLights);
 #ifdef LDK_EDITOR
   internalPickingFBODEstroy();
   internalGBufferFBODestroy();
@@ -816,12 +816,12 @@ void ldkRendererTerminate(void)
 
 void ldkRendererSetClearColor(LDKRGB color)
 {
-  internal.clearColor = vec3( color.r * 255.0f, color.g * 255.0f, color.b * 255.0f);
+  s_renderer.clearColor = vec3( color.r * 255.0f, color.g * 255.0f, color.b * 255.0f);
 }
 
 void ldkRendererSetClearColorVec3(Vec3 color)
 {
-  internal.clearColor = color;
+  s_renderer.clearColor = color;
 }
 
 void ldkRendererSetCamera(LDKCamera* camera)
@@ -829,37 +829,37 @@ void ldkRendererSetCamera(LDKCamera* camera)
   if (camera->entity.active == FALSE)
   {
     ldkLogError("Using disabled camera for rendering!");
-    internal.camera = NULL;
+    s_renderer.camera = NULL;
     return;
   }
 
-  internal.camera = camera;
+  s_renderer.camera = camera;
 }
 
 LDKCamera* ldkRendererGetCamera()
 {
-  return internal.camera;
+  return s_renderer.camera;
 }
 
 void ldkRendererAddPointLight(LDKPointLight* entity)
 {
   if (entity->entity.active == false)
     return;
-  ldkArrayAdd(internal.pointLights, entity);
+  ldkArrayAdd(s_renderer.pointLights, entity);
 }
 
 void ldkRendererAddDirectionalLight(LDKDirectionalLight* entity)
 {
   if (entity->entity.active == false)
     return;
-  ldkArrayAdd(internal.directionalLights, entity);
+  ldkArrayAdd(s_renderer.directionalLights, entity);
 }
 
 void ldkRendererAddSpotLight(LDKSpotLight* entity)
 {
   if (entity->entity.active == false)
     return;
-  ldkArrayAdd(internal.spotLights, entity);
+  ldkArrayAdd(s_renderer.spotLights, entity);
 }
 
 void ldkRendererAddStaticObject(LDKStaticObject* entity)
@@ -886,12 +886,12 @@ void ldkRendererAddStaticObject(LDKStaticObject* entity)
 
     if (material->deferred)
     {
-      ldkArrayAdd(internal.renderObjectArrayDeferred, &ro);
+      ldkArrayAdd(s_renderer.renderObjectArrayDeferred, &ro);
       break;
     }
     else
     {
-      ldkArrayAdd(internal.renderObjectArray, &ro);
+      ldkArrayAdd(s_renderer.renderObjectArray, &ro);
       break;
     }
   }
@@ -921,12 +921,12 @@ void ldkRendererAddInstancedObject(LDKInstancedObject* entity)
 
     if (material->deferred)
     {
-      ldkArrayAdd(internal.renderObjectArrayDeferred, &ro);
+      ldkArrayAdd(s_renderer.renderObjectArrayDeferred, &ro);
       break;
     }
     else
     {
-      ldkArrayAdd(internal.renderObjectArray, &ro);
+      ldkArrayAdd(s_renderer.renderObjectArray, &ro);
       break;
     }
   }
@@ -1193,22 +1193,22 @@ void ldkRendererRender(float deltaTime)
   glEnable(GL_DEPTH_TEST); 
   glEnable(GL_CULL_FACE);
 
-  internal.elapsedTime += deltaTime;
+  s_renderer.elapsedTime += deltaTime;
 
-  if (internal.camera == NULL)
+  if (s_renderer.camera == NULL)
     return;
 
-  glBindFramebuffer(GL_FRAMEBUFFER, internal.gBuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, s_renderer.gBuffer);
   glClearColor(0, 0, 0, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Deferred path
-  internalGeometryPass(internal.renderObjectArrayDeferred);
+  internalGeometryPass(s_renderer.renderObjectArrayDeferred);
   internalLightPass();
 
   // Forward path
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  internalGeometryPass(internal.renderObjectArray);
+  internalGeometryPass(s_renderer.renderObjectArray);
 
 #ifdef LDK_EDITOR
   if (ldkEngineIsEditorRunning())
@@ -1222,15 +1222,15 @@ void ldkRendererRender(float deltaTime)
       int32 y = ldkGraphicsViewportSizeGet().height - mouseState.cursor.y;
 
       LDKEntitySelectionInfo selection = {0};
-      internalRenderPickingBuffer(internal.renderObjectArrayDeferred, &selection, x, y);
-      internalRenderPickingBuffer(internal.renderObjectArray, &selection, x, y);
-      internal.selectedEntity = selection;
+      internalRenderPickingBuffer(s_renderer.renderObjectArrayDeferred, &selection, x, y);
+      internalRenderPickingBuffer(s_renderer.renderObjectArray, &selection, x, y);
+      s_renderer.selectedEntity = selection;
     }
 
-    if (ldkHandleIsValid(internal.selectedEntity.handle))
+    if (ldkHandleIsValid(s_renderer.selectedEntity.handle))
     {
-      LDKEntity* entity = ldkEntityManagerFind(internal.selectedEntity.handle);
-      LDKHandleType t = ldkHandleType(internal.selectedEntity.handle.value);
+      LDKEntity* entity = ldkEntityManagerFind(s_renderer.selectedEntity.handle);
+      LDKHandleType t = ldkHandleType(s_renderer.selectedEntity.handle.value);
       if (entity)
       {
         if (t == typeid(LDKStaticObject) && entity)
@@ -1240,7 +1240,7 @@ void ldkRendererRender(float deltaTime)
         else if (t == typeid(LDKInstancedObject))
         {
           LDKInstancedObject* io = (LDKInstancedObject*) entity;
-          LDKObjectInstance* instance = ldkArrayGet(io->instanceArray, internal.selectedEntity.instanceIndex);
+          LDKObjectInstance* instance = ldkArrayGet(io->instanceArray, s_renderer.selectedEntity.instanceIndex);
 
           //TODO: This is ugly. Get rid of this static entity
           static LDKStaticObject o;
@@ -1259,11 +1259,11 @@ void ldkRendererRender(float deltaTime)
   }
 #endif // LDK_EDITOR
 
-  ldkArrayClear(internal.renderObjectArray);
-  ldkArrayClear(internal.renderObjectArrayDeferred);
-  ldkArrayClear(internal.spotLights);
-  ldkArrayClear(internal.directionalLights);
-  ldkArrayClear(internal.pointLights);
+  ldkArrayClear(s_renderer.renderObjectArray);
+  ldkArrayClear(s_renderer.renderObjectArrayDeferred);
+  ldkArrayClear(s_renderer.spotLights);
+  ldkArrayClear(s_renderer.directionalLights);
+  ldkArrayClear(s_renderer.pointLights);
   ldkMaterialBind(0);
   ldkRenderBufferBind(NULL);
 }

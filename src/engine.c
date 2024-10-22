@@ -33,7 +33,7 @@ static struct
   bool editorStartsEnabled;
 } internal = {0};
 
-static void internalOnSignal(int32 signal)
+static void s_onSignal(int32 signal)
 {
   const char* signalName = "Unknown signal";
   switch(signal)
@@ -52,7 +52,7 @@ static void internalOnSignal(int32 signal)
   ldkEngineTerminate();
 }
 
-static bool internalEventHandler(const LDKEvent* event, void* data)
+static bool s_eventHandler(const LDKEvent* event, void* data)
 {
   if (!internal.running)
     return false;
@@ -78,7 +78,6 @@ void logModuleTerminate(const char* moduleName)
   ldkLogInfo("Terminating %s", moduleName);
 }
 
-
 void ldkEngineSetTimeScale(float scale)
 {
   internal.timeScale = scale;
@@ -91,12 +90,12 @@ float ldkEngineGetTimeScale()
 
 bool ldkEngineInitialize(void)
 {
-  signal(SIGABRT, internalOnSignal);
-  signal(SIGFPE,  internalOnSignal);
-  signal(SIGILL,  internalOnSignal);
-  signal(SIGINT,  internalOnSignal);
-  signal(SIGSEGV, internalOnSignal);
-  signal(SIGTERM, internalOnSignal);
+  signal(SIGABRT, s_onSignal);
+  signal(SIGFPE,  s_onSignal);
+  signal(SIGILL,  s_onSignal);
+  signal(SIGINT,  s_onSignal);
+  signal(SIGSEGV, s_onSignal);
+  signal(SIGTERM, s_onSignal);
 
   ldkOsInitialize();
   ldkOsCwdSetFromExecutablePath();
@@ -111,7 +110,7 @@ bool ldkEngineInitialize(void)
   char strDateTime[64];
   snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK v%d.%d.%d %s ----",
       dateTime.year, dateTime.month, dateTime.day,
-      dateTime.hour, dateTime.minute, dateTime.Second,
+      dateTime.hour, dateTime.minute, dateTime.second,
       LDK_VERSION_MAJOR, LDK_VERSION_PATCH, LDK_VERSION_MINOR, LDK_BUILD_TYPE
       );
 
@@ -173,7 +172,7 @@ bool ldkEngineInitialize(void)
 
   lkdGraphicsInfoPrint();
 
-  ldkEventHandlerAdd(internalEventHandler, LDK_EVENT_TYPE_WINDOW, NULL);
+  ldkEventHandlerAdd(s_eventHandler, LDK_EVENT_TYPE_WINDOW, NULL);
 
   return success;
 }
