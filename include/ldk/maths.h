@@ -36,9 +36,10 @@ extern "C" {
   LDK_API int32 floatIsLessThanOrEqualEpsilon(float a, float b, float epsilon);
   LDK_API int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon);
 
+
 #ifndef LDK_EPSILON
 #define LDK_EPSILON 1e-6f
-#endif
+#endif //LDK_EPSILON
 
 #define floatsAreEqual(a, b) floatsAreEqualEpsilon((a), (b), LDK_EPSILON)
 #define floatIsZero(a) floatIsZeroEpsilon((a), LDK_EPSILON)

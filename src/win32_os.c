@@ -1,7 +1,6 @@
 #include "ldk/os.h"
-#include "ldk/gl.h"
-#include "ldk/maths.h"
 #include "ldk/common.h"
+#include "ldk/gl.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
