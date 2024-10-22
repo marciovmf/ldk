@@ -608,6 +608,20 @@ static bool s_onUpdate(const LDKEvent* evt, void* data)
   return true;
 }
 
+static void s_addPlaceholderEntity(Vec3 position, LDKHAsset* materialOverrideList, LDKHEntity targetEntity)
+{
+  LDKStaticObject* icon = ldkEntityCreate(LDKStaticObject);
+  icon->mesh = ldkAssetGet(LDKMesh, "assets/box.mesh")->asset.handle;
+  icon->materials = materialOverrideList;
+  icon->position = position;
+  icon->scale = vec3(0.2f, 0.2f, 0.2f);
+  icon->entity.editorPlaceholder = targetEntity;
+  icon->entity.flags = EDITOR_FLAG_ENTITY_PLACEHOLDER;
+  ldkSmallStringFormat(&icon->entity.name, "editor-%llx", targetEntity);
+  ldkArrayAdd(s_editor.editorEntities, &icon->entity.handle);
+  ldkRendererAddStaticObject(icon); 
+}
+
 void  ldkEditorImmediateDraw(float deltaTime)
 {
   Mat4 identity = mat4Id();
@@ -665,20 +679,6 @@ void  ldkEditorImmediateDraw(float deltaTime)
       s_editor.tool.position.y,
       s_editor.tool.position.z,
       1.0f, 2.0f, 360.0f);
-}
-
-static void s_addPlaceholderEntity(Vec3 position, LDKHAsset* materialOverrideList, LDKHEntity targetEntity)
-{
-  LDKStaticObject* icon = ldkEntityCreate(LDKStaticObject);
-  icon->mesh = ldkAssetGet(LDKMesh, "assets/box.mesh")->asset.handle;
-  icon->materials = materialOverrideList;
-  icon->position = position;
-  icon->scale = vec3(0.2f, 0.2f, 0.2f);
-  icon->entity.editorPlaceholder = targetEntity;
-  icon->entity.flags = EDITOR_FLAG_ENTITY_PLACEHOLDER;
-  ldkSmallStringFormat(&icon->entity.name, "editor-%llx", targetEntity);
-  ldkArrayAdd(s_editor.editorEntities, &icon->entity.handle);
-  ldkRendererAddStaticObject(icon); 
 }
 
 // Called right after enabling/disabling the editor
