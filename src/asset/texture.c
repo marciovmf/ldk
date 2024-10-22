@@ -12,7 +12,7 @@
 #endif
 
 //TODO(marcio): Move this function to common
-static char* internalSkipWhiteSpace(char* input)
+static char* s_skipWhiteSpace(char* input)
 {
   if (input == NULL)
     return input;
@@ -47,7 +47,7 @@ bool ldkAssetTextureLoadFunc(const char* path, LDKAsset asset)
   while (line)
   {
     lineNumber++;
-    line = internalSkipWhiteSpace(line);
+    line = s_skipWhiteSpace(line);
 
     if (line[0] != '#')
     {
@@ -61,8 +61,8 @@ bool ldkAssetTextureLoadFunc(const char* path, LDKAsset asset)
         break;
       }
 
-      lhs = internalSkipWhiteSpace(lhs);
-      rhs = internalSkipWhiteSpace(rhs);
+      lhs = s_skipWhiteSpace(lhs);
+      rhs = s_skipWhiteSpace(rhs);
       size_t rhsLen = strlen(rhs);
 
       if (strncmp("image", lhs, strlen(lhs)) == 0)

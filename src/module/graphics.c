@@ -9,33 +9,42 @@ static struct
   LDKGCtx context;
   LDKGraphicsAPI  api;
   int32 multiSampleLevel;
-} internal;
+} s_graphics;
+
+// @build-tweak
+#ifndef LDK_GRAPHICS_COLOR_BITS
+#define LDK_GRAPHICS_COLOR_BITS 24
+#endif  // LDK_GRAPHICS_COLOR_BITS
+
+// @build-tweak
+#ifndef LDK_GRAPHICS_DEPTH_BITS
+#define LDK_GRAPHICS_DEPTH_BITS 24
+#endif  // LDK_GRAPHICS_DEPTH_BITS
 
 bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
 {
-  //TODO(marcio): Where should we get these parameters from ?
-  internal.api = api;
-  const int32 colorBits = 24;
-  const int32 depthBits = 24;
+  s_graphics.api = api;
+  const int32 colorBits = LDK_GRAPHICS_COLOR_BITS;
+  const int32 depthBits = LDK_GRAPHICS_DEPTH_BITS;
 
   switch(api)
   {
     case LDK_GRAPHICS_API_NONE:
       break;
     case LDK_GRAPHICS_API_OPENGL_ES_2_0:
-      internal.context = ldkOsGraphicsContextOpenglesCreate(2, 0, colorBits, depthBits);
+      s_graphics.context = ldkOsGraphicsContextOpenglesCreate(2, 0, colorBits, depthBits);
       break;
     case LDK_GRAPHICS_API_OPENGL_ES_3_0:
-      internal.context = ldkOsGraphicsContextOpenglesCreate(2, 0, colorBits, depthBits);
+      s_graphics.context = ldkOsGraphicsContextOpenglesCreate(2, 0, colorBits, depthBits);
       break;
     case LDK_GRAPHICS_API_OPENGL_3_0:
-      internal.context = ldkOsGraphicsContextOpenglCreate(3, 0, colorBits, depthBits);
+      s_graphics.context = ldkOsGraphicsContextOpenglCreate(3, 0, colorBits, depthBits);
       break;
     case LDK_GRAPHICS_API_OPENGL_3_3:
-      internal.context = ldkOsGraphicsContextOpenglCreate(3, 3, colorBits, depthBits);
+      s_graphics.context = ldkOsGraphicsContextOpenglCreate(3, 3, colorBits, depthBits);
       break;
     case LDK_GRAPHICS_API_OPENGL_4_0:
-      internal.context = ldkOsGraphicsContextOpenglCreate(4, 0, colorBits, depthBits);
+      s_graphics.context = ldkOsGraphicsContextOpenglCreate(4, 0, colorBits, depthBits);
       break;
   }
 
@@ -46,9 +55,9 @@ bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
   if (displaySize.x == 0 || displaySize.y == 0)
     displaySize = vec2(800, 600);
 
-  internal.mainWindow = ldkOsWindowCreate(displayTitle, (int32) displaySize.x, (int32) displaySize.y);
-  ldkOsGraphicsContextCurrent(internal.mainWindow, internal.context);
-  bool success = internal.context != NULL;
+  s_graphics.mainWindow = ldkOsWindowCreate(displayTitle, (int32) displaySize.x, (int32) displaySize.y);
+  ldkOsGraphicsContextCurrent(s_graphics.mainWindow, s_graphics.context);
+  bool success = s_graphics.context != NULL;
 
   int32 vSync = ldkConfigGetInt(config, "graphics.vsync");
   int32 multiSampleLevel = ldkConfigGetInt(config, "graphics.multisamples");
@@ -64,53 +73,53 @@ bool ldkGraphicsInitialize(LDKConfig* config, LDKGraphicsAPI api)
 
 LDKGraphicsAPI ldkGraphicsApiName(void)
 {
-  return internal.api;
+  return s_graphics.api;
 }
 
 void ldkGraphicsTerminate(void)
 {
-  ldkOsWindowDestroy(internal.mainWindow);
-  ldkOsGraphicsContextDestroy(internal.context);
+  ldkOsWindowDestroy(s_graphics.mainWindow);
+  ldkOsGraphicsContextDestroy(s_graphics.context);
 }
 
 void ldkGraphicsFullscreenSet(bool fullscreen)
 {
-  ldkOsWindowFullscreenSet(internal.mainWindow, fullscreen);
+  ldkOsWindowFullscreenSet(s_graphics.mainWindow, fullscreen);
 }
 
 bool ldkGraphicsFullscreenGet(void)
 {
-  return ldkOsWindowFullscreenGet(internal.mainWindow);
+  return ldkOsWindowFullscreenGet(s_graphics.mainWindow);
 }
 
 void ldkGraphicsViewportTitleSet(const char* title)
 {
-  ldkOsWindowTitleSet(internal.mainWindow, title);
+  ldkOsWindowTitleSet(s_graphics.mainWindow, title);
 }
 
 size_t ldkGraphicsViewportTitleGet(LDKSmallStr* outTitle)
 {
-  return ldkOsWindowTitleGet(internal.mainWindow, outTitle);
+  return ldkOsWindowTitleGet(s_graphics.mainWindow, outTitle);
 }
 
 bool ldkGraphicsViewportIconSet(const char* iconPath)
 {
-  return ldkOsWindowIconSet(internal.mainWindow, iconPath);
+  return ldkOsWindowIconSet(s_graphics.mainWindow, iconPath);
 }
 
 void ldkGraphicsViewportPositionSet(int x, int y)
 {
-  ldkOsWindowPositionSet(internal.mainWindow, x, y);
+  ldkOsWindowPositionSet(s_graphics.mainWindow, x, y);
 }
 
 void ldkGraphicsViewportSizeSet(int w, int h)
 {
-  ldkOsWindowClientAreaSizeSet(internal.mainWindow, w, h);
+  ldkOsWindowClientAreaSizeSet(s_graphics.mainWindow, w, h);
 }
 
 LDKSize ldkGraphicsViewportSizeGet(void)
 {
-  LDKSize size = ldkOsWindowClientAreaSizeGet(internal.mainWindow);
+  LDKSize size = ldkOsWindowClientAreaSizeGet(s_graphics.mainWindow);
   return size;
 }
 
@@ -125,12 +134,12 @@ float ldkGraphicsViewportRatio(void)
 
 LDKGCtx ldkGraphicsContextGet(void)
 {
-  return internal.context;
+  return s_graphics.context;
 }
 
 void ldkGraphicsSwapBuffers(void)
 {
-  ldkOsWindowBuffersSwap(internal.mainWindow);
+  ldkOsWindowBuffersSwap(s_graphics.mainWindow);
 }
 
 void ldkGraphicsVsyncSet(bool vsync)
@@ -146,18 +155,18 @@ int32 ldkGraphicsVsyncGet(void)
 
 void  ldkGraphicsMultisamplesSet(int32 samples)
 {
-  if (internal.api == LDK_GRAPHICS_API_OPENGL_3_3
-      || internal.api == LDK_GRAPHICS_API_OPENGL_3_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_3_3
-      || internal.api == LDK_GRAPHICS_API_OPENGL_4_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
+  if (s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_4_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
   {
     if (samples > 0)
     {
       glEnable(GL_MULTISAMPLE);
       glSampleCoverage((float) samples, GL_TRUE);
-      internal.multiSampleLevel = samples;
+      s_graphics.multiSampleLevel = samples;
     }
     else {
       glDisable(GL_MULTISAMPLE);
@@ -171,17 +180,17 @@ void  ldkGraphicsMultisamplesSet(int32 samples)
 
 int32 ldkGraphicsMultisamplesGet(void)
 {
-  return internal.multiSampleLevel;
+  return s_graphics.multiSampleLevel;
 }
 
 void lkdGraphicsInfoPrint(void)
 {
-  if (internal.api == LDK_GRAPHICS_API_OPENGL_3_3
-      || internal.api == LDK_GRAPHICS_API_OPENGL_3_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_3_3
-      || internal.api == LDK_GRAPHICS_API_OPENGL_4_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
-      || internal.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
+  if (s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_3_3
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_4_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_ES_2_0
+      || s_graphics.api == LDK_GRAPHICS_API_OPENGL_ES_3_0)
   {
     ldkLogInfo("OpenGL Renderer: Vendor: %s Renderer: %s Version: %s Shading Language Version: %s",
         glGetString(GL_VENDOR), glGetString(GL_RENDERER), glGetString(GL_VERSION), glGetString(GL_SHADING_LANGUAGE_VERSION));
