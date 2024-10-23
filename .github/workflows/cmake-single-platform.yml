@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Checkout code
         env:
-          CC: ${{ matrix.compiler }}
+          CC: cl.exe
         uses: actions/checkout@v3
 
       # Setup MSBuild environment (sets up MSBuild, Visual Studio, and related tools)
