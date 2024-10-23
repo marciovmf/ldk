@@ -1,5 +1,4 @@
-name: CMake Multi-Preset Build 
-
+name: CMake Multi-Preset Build
 
 on:
   push:
@@ -34,7 +33,6 @@ jobs:
       shell: cmd
       run: |
         "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
-        echo %CD%
         cmake --preset ${{ matrix.preset }}
 
     # Build the project using the configured preset
