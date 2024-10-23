@@ -9,36 +9,37 @@ on:
     branches:
       - main
       - development
-  workflow_dispatch: 
+  workflow_dispatch:
 
-jobs:  
+jobs:
   build:
     runs-on: windows-latest
 
     strategy:
       matrix:
-        preset: [release, relwithdebinfo]
+        preset: [Release, RelWithDebInfo]  # Uppercase to match CMake convention
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # Install CMake and Ninja on Windows (if Ninja is used as the generator)
-    - name: Install dependencies
-      run: |
-        choco install ninja
+      # Setup MSBuild environment (this automatically configures MSBuild and VS tools)
+      - name: Setup MSBuild
+        uses: actions/setup-msbuild@v1
 
-    # Configure the project using CMakePresets.json
-    - name: Configure with CMake Preset
-      shell: cmd
-      run: |
-        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
-        cmake --preset ${{ matrix.preset }}
+      # Optionally install CMake if it's not pre-installed
+      - name: Install CMake
+        uses: lukka/get-cmake@v3  # Ensure CMake is installed
 
-    # Build the project using the configured preset
-    - name: Build using CMake Preset
-      shell: cmd
-      run: |
-        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
-        cmake --build --preset ${{ matrix.preset }}
-      
+      # Install Ninja (only if you are using Ninja as the generator in CMakePresets.json)
+      - name: Install Ninja
+        run: |
+          choco install ninja
+
+      # Configure the project using CMakePresets.json
+      - name: Configure with CMake Preset
+        run: cmake --preset ${{ matrix.preset }}
+
+      # Build the project using the configured preset
+      - name: Build using CMake Preset
+        run: cmake --build --preset ${{ matrix.preset }}
