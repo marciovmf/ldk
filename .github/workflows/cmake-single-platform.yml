@@ -1,14 +1,16 @@
-name: CMake Multi-Preset Build
+name: Build
 
 on:
   push:
     branches:
       - main
       - development
+      - feature/**
   pull_request:
     branches:
       - main
       - development
+      - feature/**
   workflow_dispatch:
 
 jobs:
