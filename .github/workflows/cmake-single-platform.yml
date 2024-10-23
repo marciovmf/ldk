@@ -30,8 +30,7 @@ jobs:
             msbuild-architecture: x64
       
       - name: Install Ninja (Optional, if you're using Ninja as the generator)
-        run: |
-          choco install ninja
+        run: choco install ninja
 
       # Configure the project using CMakePresets.json
       - name: Configure with CMake Preset
