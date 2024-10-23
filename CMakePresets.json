@@ -12,10 +12,6 @@
       "binaryDir": "${sourceDir}/.build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
-      },
-      "toolset": {
-        "name": "host=x64",
-        "version": "v143"
       }
     },
     {
