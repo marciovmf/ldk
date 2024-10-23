@@ -17,22 +17,22 @@ jobs:
 
     strategy:
       matrix:
-        preset: [Release, RelWithDebInfo]  # Uppercase to match CMake convention
+        preset: [Release, RelWithDebInfo]  # Ensure consistency with CMake preset names
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup MSBuild environment (this automatically configures MSBuild and VS tools)
+      # Setup MSBuild environment (sets up MSBuild, Visual Studio, and related tools)
       - name: Setup MSBuild
-        uses: actions/setup-msbuild@v1
+        uses: microsoft/setup-msbuild@v1  # Correct the action name and repo
 
-      # Optionally install CMake if it's not pre-installed
+      # Install dependencies (CMake and Ninja, if needed)
       - name: Install CMake
-        uses: lukka/get-cmake@v3  # Ensure CMake is installed
-
-      # Install Ninja (only if you are using Ninja as the generator in CMakePresets.json)
-      - name: Install Ninja
+        run: |
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+      
+      - name: Install Ninja (Optional, if you're using Ninja as the generator)
         run: |
           choco install ninja
 
