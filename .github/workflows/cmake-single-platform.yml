@@ -32,7 +32,7 @@ jobs:
     # Configure the project using CMakePresets.json
     - name: Configure with CMake Preset
       run: |
-        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+        C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat -arch=x64 -host_arch=x64
         cmake --preset ${{ matrix.preset }}
 
     # Build the project using the configured preset
