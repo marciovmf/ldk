@@ -1,5 +1,17 @@
-[![Build status](https://ci.appveyor.com/api/projects/status/qe4scoybey8y9gxl?svg=true)](https://ci.appveyor.com/project/marciovmf/ldk)
-[![Build status](https://ci.appveyor.com/api/projects/status/qe4scoybey8y9gxl/branch/main?svg=true)](https://ci.appveyor.com/project/marciovmf/ldk/branch/main)
+Main [![main](https://github.com/marciovmf/ldk/actions/workflows/cmake-single-platform.yml/badge.svg)](https://github.com/marciovmf/ldk/actions/workflows/cmake-single-platform.yml) | Development [![development](https://github.com/marciovmf/ldk/actions/workflows/cmake-single-platform.yml/badge.svg?branch=development)](https://github.com/marciovmf/ldk/actions/workflows/cmake-single-platform.yml)
 
-# ldk
-A lean and mean game engine for study and personal projects.
+# LDK Engine
+
+The LDK, or **Ludum Dev Kit**, is being developed from scratch in C, to provide complete control over functionality and appearance, enabling customization for a wide range of game projects without relying on external dependencies. 
+
+This development process offers valuable learning experiences in game design and coding, enhancing technical skills and problem-solving abilities. 
+
+Ultimately, the aim is design a fast and versatile framework suitable for my own games.
+
+## Should I use it ?
+
+Yes, but no. I am developing it for my own games however if it fits your needs feel free to to use it.
+
+## Get in touch
+[[discord]](https://discord.gg/bA2bBPChFn)
+[[twitter]](https://x.com/marciovmf)
