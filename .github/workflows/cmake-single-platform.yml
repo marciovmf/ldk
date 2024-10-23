@@ -29,7 +29,12 @@ jobs:
         choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
         choco install ninja --no-progress  # Ninja is optional based on your generator
 
-    # Configure the project using CMakePresets.json and Visual Studio 2019
+    - name: Setup MSVC 2019 environment
+      shell: cmd
+      run: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+
+    # Configure the project using CMakePresets.json
     - name: Configure with CMake Preset
       run: cmake --preset ${{ matrix.preset }}
 
