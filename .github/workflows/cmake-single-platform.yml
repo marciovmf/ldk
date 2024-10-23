@@ -35,7 +35,7 @@ jobs:
 
       # Configure the project using CMakePresets.json
       - name: Configure with CMake Preset
-        run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=cl
+        run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl
 
       # Build the project using the configured preset
       - name: Build using CMake Preset
