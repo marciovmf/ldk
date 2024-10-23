@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - development
+      - feature/**
+  pull_request:
+    branches:
+      - main
+      - development
+      - feature/**
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        preset: [release, relwithdebinfo]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Ninja
+        run: |
+          choco install ninja
+
+      - name: Configure and build with CMake Preset
+        shell: cmd
+        run: |
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64 && ^
+          cmake --preset ${{ matrix.preset }} && ^
+          cmake --build --preset ${{ matrix.preset }}

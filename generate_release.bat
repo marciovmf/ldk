@@ -1,1 +1,1 @@
-@cmake -S. -B.build -GNinja --preset release --fresh
+@cmake --preset release --fresh

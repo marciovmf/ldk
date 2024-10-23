@@ -65,6 +65,30 @@
         "OPTION_BUILD_EDITOR": "ON",
         "OPTION_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "debug_no_asan",
+      "inherits": "debug",
+      "description": "Debug build without AddressSanitizer",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "OPTION_ADDRESS_SANITIZER": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "relwithdebinfo",
+      "configurePreset": "relwithdebinfo"
     }
   ]
+
 }
