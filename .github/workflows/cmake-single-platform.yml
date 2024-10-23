@@ -1,0 +1,39 @@
+name: CMake Multi-Preset Build (Windows with Visual Studio 2019)
+
+on:
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+    branches:
+      - main
+      - development
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        preset: [release, relwithdebinfo]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Install CMake and Ninja on Windows (if Ninja is used as the generator)
+    - name: Install dependencies
+      run: |
+        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
+        choco install ninja --no-progress  # Ninja is optional based on your generator
+
+    # Configure the project using CMakePresets.json and Visual Studio 2019
+    - name: Configure with CMake Preset
+      run: cmake --preset ${{ matrix.preset }}
+
+    # Build the project using the configured preset
+    - name: Build using CMake Preset
+      run: cmake --build --preset ${{ matrix.preset }}
+      
