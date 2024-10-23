@@ -12,6 +12,10 @@
       "binaryDir": "${sourceDir}/.build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
+      },
+      "toolset": {
+        "name": "host=x64",
+        "version": "v143"
       }
     },
     {
@@ -64,6 +68,15 @@
         "OPTION_LDKSHAREDLIB": "ON",
         "OPTION_BUILD_EDITOR": "ON",
         "OPTION_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "debug_no_asan",
+      "inherits": "debug",
+      "description": "Debug build without AddressSanitizer",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "OPTION_ADDRESS_SANITIZER": "OFF"
       }
     }
   ]
