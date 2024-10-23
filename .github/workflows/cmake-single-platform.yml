@@ -27,7 +27,7 @@ jobs:
         run: |
           choco install ninja
 
-      - name: Configure adnd build with CMake Preset
+      - name: Configure and build with CMake Preset
         shell: cmd
         run: |
           "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64 && ^
