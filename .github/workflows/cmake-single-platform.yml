@@ -27,13 +27,12 @@ jobs:
     # Install CMake and Ninja on Windows (if Ninja is used as the generator)
     - name: Install dependencies
       run: |
-        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
         choco install ninja --no-progress  # Ninja is optional based on your generator
 
     # Configure the project using CMakePresets.json
     - name: Configure with CMake Preset
       run: |
-        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
+        "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
         cmake --preset ${{ matrix.preset }}
 
     # Build the project using the configured preset
