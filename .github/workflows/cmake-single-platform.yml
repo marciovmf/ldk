@@ -27,7 +27,7 @@ jobs:
     # Install CMake and Ninja on Windows (if Ninja is used as the generator)
     - name: Install dependencies
       run: |
-        choco install ninja --no-progress  # Ninja is optional based on your generator
+        choco install ninja
 
     # Configure the project using CMakePresets.json
     - name: Configure with CMake Preset
