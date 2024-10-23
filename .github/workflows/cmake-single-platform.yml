@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        preset: [release, relwithdebinfo]
+        preset: [release, debug]
 
     steps:
     - name: Checkout code
