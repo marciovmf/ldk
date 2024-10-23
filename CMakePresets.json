@@ -86,8 +86,8 @@
       "configurePreset": "release"
     },
     {
-      "name": "minsizerel",
-      "configurePreset": "minsizerel"
+      "name": "relwithdebinfo",
+      "configurePreset": "relwithdebinfo"
     }
   ]
 

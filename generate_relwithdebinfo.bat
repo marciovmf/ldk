@@ -1,1 +1,1 @@
-@cmake -S. -B.build -GNinja --preset relwithdebinfo --fresh
+@cmake --preset relwithdebinfo --fresh

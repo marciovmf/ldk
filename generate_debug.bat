@@ -1,1 +1,1 @@
-@cmake -S. -B.build -GNinja --preset debug --fresh
+@cmake --preset debug --fresh
