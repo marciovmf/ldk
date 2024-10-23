@@ -28,10 +28,6 @@ jobs:
         run: |
           choco install ninja
 
-      # Optionally install CMake if it's not pre-installed
-      - name: Install CMake
-        uses: lukka/get-cmake@v3  # Ensure CMake is installed
-
       # Configure the project using CMakePresets.json
       - name: Configure with CMake Preset
         shell: cmd
