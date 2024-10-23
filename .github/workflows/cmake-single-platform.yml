@@ -17,7 +17,7 @@ jobs:
 
     strategy:
       matrix:
-        preset: [Release, RelWithDebInfo]  # Ensure consistency with CMake preset names
+        preset: [release, relwithdebinfo]
 
     steps:
       - name: Checkout code
@@ -25,12 +25,9 @@ jobs:
 
       # Setup MSBuild environment (sets up MSBuild, Visual Studio, and related tools)
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1  # Correct the action name and repo
-
-      # Install dependencies (CMake and Ninja, if needed)
-      - name: Install CMake
-        run: |
-          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+        uses: microsoft/setup-msbuild@v2
+        with:
+            msbuild-architecture: x64
       
       - name: Install Ninja (Optional, if you're using Ninja as the generator)
         run: |
