@@ -17,25 +17,31 @@ jobs:
 
     strategy:
       matrix:
-        preset: [release, relwithdebinfo]
+        preset: [Release, RelWithDebInfo]  # Uppercase to match CMake convention
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup MSBuild environment
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-        with:
-            msbuild-architecture: x64
-      
-      - name: Install Ninja
-        run: choco install ninja
+      # Install dependencies (Ninja, if using Ninja as generator, and CMake)
+      - name: Install dependencies
+        run: |
+          choco install ninja
+
+      # Optionally install CMake if it's not pre-installed
+      - name: Install CMake
+        uses: lukka/get-cmake@v3  # Ensure CMake is installed
 
       # Configure the project using CMakePresets.json
       - name: Configure with CMake Preset
-        run: cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=cl.exe -DCMAKE_C_COMPILER=cl.exe
+        shell: cmd
+        run: |
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
+          cmake --preset ${{ matrix.preset }}
 
       # Build the project using the configured preset
       - name: Build using CMake Preset
-        run: cmake --build --preset ${{ matrix.preset }}
+        shell: cmd
+        run: |
+          "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -startdir=none -arch=x64 -host_arch=x64
+          cmake --build --preset ${{ matrix.preset }}
