@@ -75,5 +75,20 @@
         "OPTION_ADDRESS_SANITIZER": "OFF"
       }
     }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "minsizerel",
+      "configurePreset": "minsizerel"
+    }
   ]
+
 }
