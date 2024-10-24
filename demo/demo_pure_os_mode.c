@@ -1,8 +1,4 @@
 #include "ldk/ldk.h"
-#include "ldk/module/asset.h"
-#include "ldk/asset/mesh.h"
-#include "ldk/maths.h"
-#include "ldk/common.h"
 
 bool pureOsApplication()
 {
@@ -14,7 +10,7 @@ bool pureOsApplication()
 
   LDKWindow window = ldkOsWindowCreate("Window 1", 800, 600);
   ldkOsWindowTitleSet(window, "Hello, Sailor!");
-  ldkOsWindowIconSet(window, "../ldk.ico");
+  ldkOsWindowIconSet(window, "assets/ldk.ico");
 
   ldkGraphicsVsyncSet(true);
 

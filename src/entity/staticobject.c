@@ -1,3 +1,5 @@
+#include "common.h"
+#include "module/entity.h"
 #include <ldk/entity/staticobject.h>
 #include <ldk/asset/mesh.h>
 #include <ldk/maths.h>
@@ -9,7 +11,7 @@ LDKStaticObject* ldkStaticObjectEntityCreate(LDKStaticObject* entity)
   entity->position = vec3Zero();
   entity->scale = vec3One();
   entity->rotation = quatId();
-  entity->mesh = LDK_HANDLE_INVALID;
+  entity->mesh = LDK_HASSET_INVALID;
   entity->materials = NULL;
   return entity;
 }
@@ -22,9 +24,9 @@ void ldkStaticObjectEntityDestroy(LDKStaticObject* entity)
   ldkOsMemoryFree(entity);
 }
 
-void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHandle hMesh)
+void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHAsset hMesh)
 {
-  if (hMesh == LDK_HANDLE_INVALID)
+  if (!ldkHandleIsValid(hMesh))
     return;
 
   LDKMesh* mesh = ldkAssetLookup(LDKMesh, hMesh);
@@ -49,3 +51,22 @@ void ldkStaticObjectSetMesh(LDKStaticObject* entity, LDKHandle hMesh)
 
   entity->mesh = hMesh;
 }
+
+void ldkStaticObjectEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKStaticObject* o = ldkEntityLookup(LDKStaticObject, handle);
+  LDK_ASSERT(o != NULL);
+  if (pos)    *pos = o->position;
+  if (scale)  *scale = o->scale;
+  if (rot)    *rot = o->rotation;
+}
+
+void ldkStaticObjectEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKStaticObject* o = ldkEntityLookup(LDKStaticObject, handle);
+  LDK_ASSERT(o != NULL);
+  o->position = pos;
+  o->scale = scale;
+  o->rotation = rot;
+}
+

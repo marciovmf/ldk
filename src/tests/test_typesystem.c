@@ -9,9 +9,9 @@ int test_typeId()
   LDKTypeId typeIdFloat = typeid(float);
   LDKTypeId typeIdChar = typeid(char);
 
-  ASSERT_TRUE(typeIdInt > 0);
-  ASSERT_TRUE(typeIdFloat > 0);
-  ASSERT_TRUE(typeIdChar > 0);
+  ASSERT_TRUE(typeIdInt != LDK_TYPE_ID_UNKNOWN);
+  ASSERT_TRUE(typeIdFloat != LDK_TYPE_ID_UNKNOWN);
+  ASSERT_TRUE(typeIdChar != LDK_TYPE_ID_UNKNOWN);
   ASSERT_TRUE(typeIdInt != typeIdChar && typeIdChar != typeIdFloat && typeIdInt != typeIdFloat);
 
   // Make sure types are not redefined
@@ -44,16 +44,6 @@ int test_typeSize()
 }
 
 #define LDK_TYPE_SYSTEM_MAX_TYPES 64
-
-static uint32 simpleHash(const char* str)
-{
-  uint32 hash = 0;
-  while (*str)
-  {
-    hash = (hash * 31) + *str++;
-  }
-  return hash % LDK_TYPE_SYSTEM_MAX_TYPES;
-}
 
 int main()
 {

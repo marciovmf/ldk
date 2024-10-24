@@ -1,6 +1,7 @@
+#include "asset/material.h"
 #include "ldk/asset/texture.h"
 #include "ldk/module/asset.h"
-#include "ldk/module/renderer.h"
+#include "ldk/module/rendererbackend.h"
 #include "ldk/common.h"
 #include "ldk/os.h"
 #include <stdlib.h>
@@ -113,7 +114,7 @@ bool ldkAssetMaterialLoadFunc(const char* path, LDKAsset asset)
   if (buffer == NULL)
   {
     if (ldkStringEndsWith(path, "default.material"))
-      return LDK_HANDLE_INVALID;
+      return false;
 
     // Copy the default material settings over this material so the game does not break
     LDKMaterial* defaultMaterial = ldkAssetGet(LDKMaterial, "assets/default.material");
@@ -350,7 +351,7 @@ void ldkAssetMaterialUnloadFunc(LDKAsset handle)
   ldkMaterialDestroy(handle);
 }
 
-LDKMaterial* ldkMaterialClone(LDKHandle hMaterial)
+LDKMaterial* ldkMaterialClone(LDKHAsset hMaterial)
 {
   LDKMaterial* newMaterial = ldkAssetNew(LDKMaterial);
   LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
@@ -371,16 +372,25 @@ LDKMaterial* ldkMaterialClone(LDKHandle hMaterial)
   newMaterial->enableCullFront = material->enableCullFront;
   newMaterial->deferred = material->deferred;
   // copy textures and materials
-  memcpy(&newMaterial->textures, material->textures, LDK_MATERIAL_MAX_TEXTURES * sizeof(LDKHandle));
+  memcpy(&newMaterial->textures, material->textures, LDK_MATERIAL_MAX_TEXTURES * sizeof(LDKHAsset));
   memcpy(&newMaterial->param, material->param, LDK_SHADER_MAX_PARAMS * sizeof(LDKMaterialParam));
 
   return newMaterial;
 }
 
-bool ldkMaterialIsDeferred(LDKHandle hMaterial)
+bool ldkMaterialIsDeferred(LDKHAsset hMaterial)
 {
   LDKMaterial* material = ldkAssetLookup(LDKMaterial, hMaterial);
   if (material == NULL)
     return false;
   return material->deferred;
+}
+
+LDKMaterial* ldkMaterialCreateFromShader(const char* shaderPath)
+{
+  LDKMaterial* material = ldkAssetNew(LDKMaterial);
+  LDKShader* shader = ldkAssetGet(LDKShader, shaderPath);
+  material->deferred = false;
+  ldkMaterialCreate(shader, material);
+  return material;
 }

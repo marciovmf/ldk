@@ -1,16 +1,21 @@
 #include "asset/config.h"
+#include "asset/material.h"
+#include "asset/mesh.h"
 #include "common.h"
 #include "entity/camera.h"
 #include "entity/directionallight.h"
+#include "entity/instancedobject.h"
 #include "entity/pointlight.h"
 #include "entity/spotlight.h"
+#include "entity/staticobject.h"
 #include "maths.h"
+#include "module/asset.h"
 #include "module/entity.h"
 #include "module/renderer.h"
+#include "os.h"
 #include <ldk.h>
 #include <math.h>
 #include <stdbool.h>
-
 #define SOKOBAN_MAX_BOX_COUNT 5
 #define sokobanBoxId(c) ((uint32)((c) - 'A'))
 #define sokobanInBound(i, w, h) ((i) >= 0 && (i) <= w * h)
@@ -74,7 +79,7 @@ typedef struct
 typedef struct
 {
   LDKMaterial material;
-  LDKHandle hCamera;
+  LDKHEntity hCamera;
   float cameraLookSpeed;
   float cameraMoveSpeed;
   Sokoban sokoban;
@@ -210,7 +215,7 @@ void sokobanPrintBoard(Sokoban* sokoban)
   }
 }
 #else
-#define void sokobanPrintBoard(sokoban)
+#define sokobanPrintBoard(sokoban)
 #endif
 
 bool onKeyboardEvent(const LDKEvent* event, void* data)
@@ -288,17 +293,6 @@ bool onKeyboardEvent(const LDKEvent* event, void* data)
   }
 #endif
 
-  if (event->keyboardEvent.type == LDK_KEYBOARD_EVENT_KEY_UP
-      && event->keyboardEvent.keyCode == LDK_KEYCODE_X)
-  {
-    LDKHandle targetEntity = ldkRendererSelectedEntity();
-    if (targetEntity != LDK_HANDLE_INVALID)
-    {
-      ldkLogInfo("Destroying entity %llx", targetEntity);
-      ldkEntityDestroy(targetEntity);
-    }
-  }
-
   return true;
 }
 
@@ -308,13 +302,6 @@ bool onWindowEvent(const LDKEvent* event, void* state)
   {
     ldkLogInfo("Fechando janela!");
     ldkEngineStop(0);
-  }
-  else if (event->windowEvent.type == LDK_WINDOW_EVENT_RESIZED
-      || event->windowEvent.type == LDK_WINDOW_EVENT_MAXIMIZED)
-  {
-    uint32 width = event->windowEvent.width;
-    uint32 height = event->windowEvent.height;
-    glViewport(0, 0, width, height);
   }
   return true;
 }
@@ -382,7 +369,7 @@ int main(void)
 
   LDKCamera* camera = ldkEntityCreate(LDKCamera);
   camera->position = vec3Zero();
-  camera->target = vec3(0.0f, 0.0f, -1.0f);
+  camera->target = vec3(0.0f, 0.0f, 0.0f);
 
 #if 0
   for(uint32 i = 0; i < 10; i++)
@@ -416,7 +403,7 @@ int main(void)
   state.sokoban.size.width = 10;
   state.sokoban.size.height = 7;
   state.sokoban.boxCount = 0;
-  state.sokoban.board =
+  char board[1024] =
 #if 0
     "---####---"
     "###...@##-"
@@ -434,6 +421,7 @@ int main(void)
     ".........."
     "..........";
 #endif
+  state.sokoban.board = board;
 
   camera->position = state.sokoban.cameraPos;
   camera->target = state.sokoban.cameraTarget;
@@ -442,11 +430,12 @@ int main(void)
   // Board
   //
   LDKInstancedObject* io = ldkEntityCreate(LDKInstancedObject);
-  LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/box.mesh");
+  LDKHEntity hio = io->entity.handle;
 
+  LDKMesh* cube = ldkAssetGet(LDKMesh, "assets/box.mesh");
   io->mesh = cube->asset.handle;
 
-  for (int i = state.sokoban.size.height - 1; i >= 0; i--)
+      for (int i = state.sokoban.size.height - 1; i >= 0; i--)
   {
     for (int j = 0 ; j < state.sokoban.size.width; j++)
     {
@@ -476,22 +465,26 @@ int main(void)
         float x = (float) j;
         float z = (float) i;
         float y = piece == SOKOBAN_PIECE_FLOOR ? -1.0f : 0.0f;
+        
+        io = ldkEntityLookup(LDKInstancedObject, hio);
         ldkInstancedObjectAddInstance(io, vec3(x, y, z), vec3(0.5f, 0.5f, 0.5f), quatId());
       }
     }
   }
 
+  io = ldkEntityLookup(LDKInstancedObject, hio);
   ldkInstancedObjectUpdate(io);
+        
 
   //
   // Room
   //
-  LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
-  ldkSmallString(&room->entity.name, "ROOM");
-  ldkStaticObjectSetMesh(room, cube->asset.handle);
-  room->scale = vec3(-10.0,-10.0,-10.0);
-  room->position = vec3(3.0f, 4.0f, 3.0f);
-  room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
+  //LDKStaticObject* room = ldkEntityCreate(LDKStaticObject);
+  //ldkSmallString(&room->entity.name, "ROOM");
+  //ldkStaticObjectSetMesh(room, cube->asset.handle);
+  //room->scale = vec3(-10.0,-10.0,-10.0);
+  //room->position = vec3(3.0f, 4.0f, 3.0f);
+  //room->materials[0] = ldkMaterialClone(ldkAssetGet(LDKMaterial, "assets/default.material")->asset.handle)->asset.handle;
 
   //
   // Player
@@ -542,35 +535,41 @@ int main(void)
 
   // Directional Light
   LDKDirectionalLight* directionalLight = ldkEntityCreate(LDKDirectionalLight);
-  directionalLight->colorSpecular = vec3(1.0f, 0.0f, 0.0f);
+  directionalLight->colorSpecular = vec3(0.2f, 0.4f, 0.0f);
   directionalLight->colorDiffuse = vec3(1.0f, 1.0f, 1.0f);
-  directionalLight->position = camera->position;
+  directionalLight->position = vec3(camera->position.x, camera->position.y + 2, camera->position.z);
   directionalLight->direction = ldkCameraDirectionNormalized(camera);
   state.directionalLight = directionalLight;
-
 
   // Point Light
   uint32 i = 0;
   state.pointLight[i] = ldkEntityCreate(LDKPointLight);
   state.pointLight[i]->colorDiffuse = vec3One();
   state.pointLight[i]->colorSpecular = vec3One();
+  ldkLightAttenuationForDistance(&state.pointLight[i]->attenuation, 360.0f);
   i++;
 
   state.pointLight[i] = ldkEntityCreate(LDKPointLight);
-  state.pointLight[i]->colorDiffuse = vec3One();
+  state.pointLight[i]->colorDiffuse = vec3(.2f, .7f, .7f);
   state.pointLight[i]->colorSpecular = vec3One();
+  ldkLightAttenuationForDistance(&state.pointLight[i]->attenuation, 360.0f);
   i++;
 
   state.numPointLights = i;
-
   // Spot Light
   state.spotLight = ldkEntityCreate(LDKSpotLight);
   state.spotLight->position = camera->position;
   state.spotLight->direction = ldkCameraDirectionNormalized(camera);
+  state.spotLight->position = vec3(camera->position.x, camera->position.y + 1, camera->position.z);
+  state.spotLight->cutOffInner = (float) cos(degToRadian(12.00));
+  state.spotLight->cutOffOuter = (float) cos(degToRadian(12.90));
 
+  LDKMaterial* m = ldkMaterialCreateFromShader("assets/editor/lightbox.shader");
+  ldkQuadMeshCreate(m->asset.handle);
 
+  LDKStaticObject* o = ldkEntityCreate(LDKStaticObject);
+  o->mesh = m->asset.handle;
 #endif
-
   LDKConfig* cfg = ldkAssetGet(LDKConfig, "ldk.cfg");
   state.sokoban.animationSpeed  = ldkConfigGetFloat(cfg, "sokoban.animation.speed");
   state.cameraMoveSpeed = ldkConfigGetFloat(cfg, "game.camera-move-speed");
@@ -582,3 +581,4 @@ int main(void)
   ldkAmbientLightSetIntensity(ldkConfigGetFloat(cfg, "game.ambient-light-intensity"));
   return ldkEngineRun();
 }
+

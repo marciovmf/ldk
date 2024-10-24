@@ -31,7 +31,10 @@ extern "C" {
   LDK_API void ldkEngineTerminate(void);
   LDK_API int32 ldkEngineRun(void);
   LDK_API void ldkEngineStop(int32);
+#ifdef LDK_EDITOR
   LDK_API bool ldkEngineIsEditorRunning(void);
+#endif
+
 
 #endif //LDK_ENGINE_H
 

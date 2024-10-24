@@ -10,71 +10,71 @@ static struct
   void*           data[LDK_EVENT_QUEUE_SIZE];
   uint32          numEvents;
   uint32          numHandlers;
-} internal = { 0 };
+} s_msgQueue = { 0 };
 
 
 void ldkEventPush(LDKEvent* event)
 {
-  uint32 index = internal.numEvents++;
+  uint32 index = s_msgQueue.numEvents++;
   if (index >= LDK_EVENT_QUEUE_SIZE)
   {
     ldkLogError("Failed to push event to the event queue because the maximum number of events (%d) was reached.", LDK_EVENT_QUEUE_SIZE);
     return;
   }
-  memcpy((void*) &internal.events[index], event, sizeof(LDKEvent));
+  memcpy((void*) &s_msgQueue.events[index], event, sizeof(LDKEvent));
 }
 
 void ldkEventQueueCleanup(void)
 {
-  internal.numEvents = 0;
+  s_msgQueue.numEvents = 0;
 }
 
 void ldkEventHandlerAdd(LDKEventHandler handler, LDKEventType mask, void *data)
 {
-  int32 index = internal.numHandlers++;
+  int32 index = s_msgQueue.numHandlers++;
   if (index >= LDK_EVENT_HANDLERS_MAX)
   {
     ldkLogError("Failed to register event handler because the maximum number of handelrs (%d) was reached.", LDK_EVENT_HANDLERS_MAX);
     return;
   }
 
-  internal.callbacks[index] = handler;
-  internal.data[index]      = data;
-  internal.mask[index]      = mask;
+  s_msgQueue.callbacks[index] = handler;
+  s_msgQueue.data[index]      = data;
+  s_msgQueue.mask[index]      = mask;
 }
 
 void ldkEventHandlerRemove(LDKEventHandler handler)
 {
-  const int32 numHandlers = internal.numHandlers;
+  const int32 numHandlers = s_msgQueue.numHandlers;
   const int32 lastHandlerindex = numHandlers - 1;
 
   for (int i = 0; i < numHandlers; i++)
   {
-    if (internal.callbacks[i] == handler)
+    if (s_msgQueue.callbacks[i] == handler)
     {
       if (i != lastHandlerindex)
       {
-        internal.callbacks[i] = internal.callbacks[lastHandlerindex];
-        internal.mask[i] = internal.mask[lastHandlerindex];
-        internal.data[i] = internal.data[lastHandlerindex];
+        s_msgQueue.callbacks[i] = s_msgQueue.callbacks[lastHandlerindex];
+        s_msgQueue.mask[i] = s_msgQueue.mask[lastHandlerindex];
+        s_msgQueue.data[i] = s_msgQueue.data[lastHandlerindex];
 
-        internal.callbacks[lastHandlerindex] = 0;
-        internal.mask[lastHandlerindex] = 0;
-        internal.data[lastHandlerindex] = 0;
+        s_msgQueue.callbacks[lastHandlerindex] = 0;
+        s_msgQueue.mask[lastHandlerindex] = 0;
+        s_msgQueue.data[lastHandlerindex] = 0;
       }
-      internal.numHandlers--;
+      s_msgQueue.numHandlers--;
     }
   }
 }
 
 LDKEventType ldkEventHandlerMaskGet(LDKEventHandler handler)
 {
-  const int32 numHandlers = internal.numHandlers;
+  const int32 numHandlers = s_msgQueue.numHandlers;
   for (int i = 0; i < numHandlers; i++)
   {
-    if (internal.callbacks[i] == handler)
+    if (s_msgQueue.callbacks[i] == handler)
     {
-      return internal.mask[i];
+      return s_msgQueue.mask[i];
     }
   }
   return LDK_EVENT_TYPE_NONE;
@@ -82,12 +82,12 @@ LDKEventType ldkEventHandlerMaskGet(LDKEventHandler handler)
 
 void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask)
 {
-  const int32 numHandlers = internal.numHandlers;
+  const int32 numHandlers = s_msgQueue.numHandlers;
   for (int i = 0; i < numHandlers; i++)
   {
-    if (internal.callbacks[i] == handler)
+    if (s_msgQueue.callbacks[i] == handler)
     {
-      internal.mask[i] = mask;
+      s_msgQueue.mask[i] = mask;
       break;
     }
   }
@@ -95,19 +95,19 @@ void ldkEventHandlerMaskSet(LDKEventHandler handler, LDKEventType mask)
 
 void ldkEventQueueBroadcast(void)
 {
-  if (internal.numHandlers == 0 || internal.numEvents == 0)
+  if (s_msgQueue.numHandlers == 0 || s_msgQueue.numEvents == 0)
     return;
 
-  for (uint32 eventIndex = 0; eventIndex < internal.numEvents; eventIndex++)
+  for (uint32 eventIndex = 0; eventIndex < s_msgQueue.numEvents; eventIndex++)
   {
-    for (uint32 handlerIndex = 0; handlerIndex < internal.numHandlers; handlerIndex++)
+    for (uint32 handlerIndex = 0; handlerIndex < s_msgQueue.numHandlers; handlerIndex++)
     {
-      LDKEventType mask = internal.mask[handlerIndex];
-      if (mask & internal.events[eventIndex].type)
-        if (internal.callbacks[handlerIndex](&internal.events[eventIndex], internal.data[handlerIndex]))
+      LDKEventType mask = s_msgQueue.mask[handlerIndex];
+      if (mask & s_msgQueue.events[eventIndex].type)
+        if (s_msgQueue.callbacks[handlerIndex](&s_msgQueue.events[eventIndex], s_msgQueue.data[handlerIndex]))
           break;
     }
   } 
-  internal.numEvents = 0;
+  s_msgQueue.numEvents = 0;
 }
 

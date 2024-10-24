@@ -1,9 +1,9 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/module/asset.h"
-#include "ldk/module/renderer.h"
 #include "ldk/os.h"
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #ifdef LDK_OS_WINDOWS
 #define strtok_r strtok_s
@@ -11,7 +11,7 @@
 
 
 //TODO(marcio): Move this function to common
-static char* internalSkipWhiteSpace(char* input)
+static char* s_skipWhiteSpace(char* input)
 {
   if (input == NULL)
     return input;
@@ -22,7 +22,7 @@ static char* internalSkipWhiteSpace(char* input)
   return p;
 }
 
-static bool internalParseInt(const char* path, int line, const char* input, int32* out)
+static bool s_parseInt(const char* path, int line, const char* input, int32* out)
 {
   const char* p = input;
   if ((*input == '-' || *input == '+') && *(input + 1) != 0)
@@ -42,7 +42,7 @@ static bool internalParseInt(const char* path, int line, const char* input, int3
   return true;
 }
 
-static bool internalParseUInt(const char* path, int line, const char* input, uint32* out)
+static bool s_parseUInt(const char* path, int line, const char* input, uint32* out)
 {
   const char* p = input;
   if ((*input == '-' || *input == '+') && *(input + 1) != 0)
@@ -62,9 +62,10 @@ static bool internalParseUInt(const char* path, int line, const char* input, uin
   return true;
 }
 
-static bool internalParseFloat(const char* path, int line, const char* input, float* out)
+static bool s_parseFloat(const char* path, int line, const char* input, float* out)
 {
   int dotCount = 0;
+  int eCount = 0; // expoent
   int len = 0;
   bool error = false;
 
@@ -74,12 +75,17 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
     input++;
   }
 
+  const char* expactSignAt = NULL;
   while(*input)
   {
     len++;
     if (*input == '.') { dotCount++; }
+    else if (*input == 'e') { eCount++; expactSignAt = input+1;}
 
-    if (dotCount > 1 || (*input != '.' && (*input < '0' || *input > '9' )))
+    if (dotCount > 1      // more than one dot
+        || eCount > 1     // more than one 'e'
+        || ((*input == '-' || *input == '+') && expactSignAt != input) // sign out of place ?
+        || (*input != '-' && *input != '+' && *input != 'e' && *input != '.' && (*input < '0' || *input > '9')) ) // unexpected character ?
     {
       error = true;
       break;
@@ -87,18 +93,21 @@ static bool internalParseFloat(const char* path, int line, const char* input, fl
     input++;
   }
 
-  // Floats can not end with a dot or contain just a dot
+  // Floats can not end with or be only ". - + e"
   input -=len;
-  error |= (len == 0 || input[len-1] == '.');
-  error |= (len == 1 && input[0] == '.');
+  error |= (len == 0 || input[len-1] == '.' || input[len-1] == '-' || input[len-1] == '+' || input[len-1] == 'e');
+  error |= (len == 1 && (input[0] == '.' || input[0] == '-' || input[0] == '+' || input[0] == 'e'));
 
   if (error)
   {
+    LDK_ASSERT_BREAK();
     ldkLogError("%s at line %d: Error parsing float value", path, line);
     return false;
   }
 
-  *out = (float) atof(input);
+  char* endptr;
+  *out = strtof(input, &endptr);
+  LDK_ASSERT(*endptr == '\0' && errno != ERANGE);
   return true;
 }
 
@@ -144,14 +153,14 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   float* vertices = NULL;
   uint16* indices = NULL;
   LDKSurface* surfaces = NULL;
-  LDKHandle* materials = NULL;
+  LDKHAsset* materials = NULL;
   size_t vertexBufferSize = 0;
   size_t indexBufferSize = 0;
 
   while (line)
   {
     lineNumber++;
-    line = internalSkipWhiteSpace(line);
+    line = s_skipWhiteSpace(line);
     if (line[0] != '#')
     {
       char* context;
@@ -165,8 +174,8 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         break;
       }
 
-      lhs = internalSkipWhiteSpace(lhs);
-      rhs = internalSkipWhiteSpace(rhs);
+      lhs = s_skipWhiteSpace(lhs);
+      rhs = s_skipWhiteSpace(rhs);
 
       if (strncmp("version", lhs, strlen(lhs)) == 0)
       {
@@ -194,7 +203,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
       else if (strncmp("vertex_count", lhs, MAX_LHS_SIZE) == 0)
       {
         LDK_ASSERT(vertexLayout != LDK_VERTEX_LAYOUT_NONE);
-        internalParseUInt(path, lineNumber, rhs, &mesh->numVertices);
+        s_parseUInt(path, lineNumber, rhs, &mesh->numVertices);
         if (vertexLayout == LDK_VERTEX_LAYOUT_PNU)
         {
           vertexBufferSize = mesh->numVertices * (sizeof(Vec3) + sizeof(Vec3) + sizeof(Vec2));
@@ -209,20 +218,20 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
       }
       else if (strncmp("index_count", lhs, MAX_LHS_SIZE) == 0)
       {
-        internalParseUInt(path, lineNumber, rhs, &mesh->numIndices);
+        s_parseUInt(path, lineNumber, rhs, &mesh->numIndices);
         indexBufferSize = mesh->numIndices * (sizeof(uint16));
         mesh->indices = (uint16*) ldkOsMemoryAlloc(indexBufferSize);
         indices = mesh->indices;
       }
       else if (strncmp("material_count", lhs, MAX_LHS_SIZE) == 0)
       {
-        internalParseUInt(path, lineNumber, rhs, &mesh->numMaterials);
-        mesh->materials = (LDKHandle*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHandle)));
+        s_parseUInt(path, lineNumber, rhs, &mesh->numMaterials);
+        mesh->materials = (LDKHAsset*) ldkOsMemoryAlloc(mesh->numMaterials * (sizeof(LDKHAsset)));
         materials = mesh->materials;
       }
       else if (strncmp("surface_count", lhs, MAX_LHS_SIZE) == 0)
       {
-        internalParseUInt(path, lineNumber, rhs, &mesh->numSurfaces);
+        s_parseUInt(path, lineNumber, rhs, &mesh->numSurfaces);
         mesh->surfaces = (LDKSurface*) ldkOsMemoryAlloc(mesh->numSurfaces * (sizeof(LDKSurface)));
         surfaces = mesh->surfaces;
       }
@@ -234,23 +243,23 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         char* x = rhs;//strtok_r(NULL,  SPACE_OR_TAB, &context);
         char* y = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* z = strtok_r(NULL, SPACE_OR_TAB, &context);
-        internalParseFloat(path, lineNumber, x, &pos.x);
-        internalParseFloat(path, lineNumber, y, &pos.y);
-        internalParseFloat(path, lineNumber, z, &pos.z);
+        s_parseFloat(path, lineNumber, x, &pos.x);
+        s_parseFloat(path, lineNumber, y, &pos.y);
+        s_parseFloat(path, lineNumber, z, &pos.z);
 
         Vec3 normal;
         x = strtok_r(NULL, SPACE_OR_TAB, &context);
         y = strtok_r(NULL, SPACE_OR_TAB, &context);
         z = strtok_r(NULL, SPACE_OR_TAB, &context);
-        internalParseFloat(path, lineNumber, x, &normal.x);
-        internalParseFloat(path, lineNumber, y, &normal.y);
-        internalParseFloat(path, lineNumber, z, &normal.z);
+        s_parseFloat(path, lineNumber, x, &normal.x);
+        s_parseFloat(path, lineNumber, y, &normal.y);
+        s_parseFloat(path, lineNumber, z, &normal.z);
 
         Vec2 uv;
         x = strtok_r(NULL,  SPACE_OR_TAB, &context);
         y = strtok_r(NULL, SPACE_OR_TAB, &context);
-        internalParseFloat(path, lineNumber, x, &uv.x);
-        internalParseFloat(path, lineNumber, y, &uv.y);
+        s_parseFloat(path, lineNumber, x, &uv.x);
+        s_parseFloat(path, lineNumber, y, &uv.y);
 
         *vertices++ = pos.x;
         *vertices++ = pos.y;
@@ -267,7 +276,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         while (strIndex)
         {
           uint32 index;
-          internalParseUInt(path, lineNumber, strIndex, &index);
+          s_parseUInt(path, lineNumber, strIndex, &index);
           *indices++ = (uint16) index;
           strIndex = strtok_r(NULL,  SPACE_OR_TAB, &context);
         }
@@ -278,7 +287,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         char* matName = strtok_r(NULL, SPACE_OR_TAB, &context);
 
         uint32 materialId;
-        internalParseUInt(path, lineNumber, matId, &materialId);
+        s_parseUInt(path, lineNumber, matId, &materialId);
         LDK_ASSERT(materialId < mesh->numMaterials);
         LDKMaterial* material = ldkAssetGet(LDKMaterial, matName);
         *materials++ = material->asset.handle;
@@ -293,9 +302,9 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         int32 valueIndexStart;
         int32 valueIndexCount;
 
-        internalParseInt(path, lineNumber, materialId, &valueMaterialId);
-        internalParseInt(path, lineNumber, indexStart, &valueIndexStart);
-        internalParseInt(path, lineNumber, indexCount, &valueIndexCount);
+        s_parseInt(path, lineNumber, materialId, &valueMaterialId);
+        s_parseInt(path, lineNumber, indexStart, &valueIndexStart);
+        s_parseInt(path, lineNumber, indexCount, &valueIndexCount);
 
         surfaces->first = valueIndexStart;
         surfaces->count = valueIndexCount;
@@ -308,10 +317,10 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         char* y = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* z = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* r = strtok_r(NULL, SPACE_OR_TAB, &context);
-        internalParseFloat(path, lineNumber, x, &mesh->boundingSphere.center.x);
-        internalParseFloat(path, lineNumber, y, &mesh->boundingSphere.center.y);
-        internalParseFloat(path, lineNumber, z, &mesh->boundingSphere.center.z);
-        internalParseFloat(path, lineNumber, r, &mesh->boundingSphere.radius);
+        s_parseFloat(path, lineNumber, x, &mesh->boundingSphere.center.x);
+        s_parseFloat(path, lineNumber, y, &mesh->boundingSphere.center.y);
+        s_parseFloat(path, lineNumber, z, &mesh->boundingSphere.center.z);
+        s_parseFloat(path, lineNumber, r, &mesh->boundingSphere.radius);
       }
       else if (strncmp("bounding_box", lhs, strlen(lhs)) == 0)
       {
@@ -319,10 +328,10 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
         char* minY = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxX = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxY = strtok_r(NULL, SPACE_OR_TAB, &context);
-        internalParseFloat(path, lineNumber, minX, &mesh->boundingBox.minX);
-        internalParseFloat(path, lineNumber, minY, &mesh->boundingBox.minY);
-        internalParseFloat(path, lineNumber, maxX, &mesh->boundingBox.maxX);
-        internalParseFloat(path, lineNumber, maxY, &mesh->boundingBox.maxY);
+        s_parseFloat(path, lineNumber, minX, &mesh->boundingBox.minX);
+        s_parseFloat(path, lineNumber, minY, &mesh->boundingBox.minY);
+        s_parseFloat(path, lineNumber, maxX, &mesh->boundingBox.maxX);
+        s_parseFloat(path, lineNumber, maxY, &mesh->boundingBox.maxY);
       }
     }
     line = strtok_r(NULL, LINEBREAK, &lineBreakContext);
@@ -350,6 +359,58 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   ldkRenderBufferBind(NULL);
 
   return true;
+}
+
+LDKMesh* ldkQuadMeshCreate(LDKHAsset material)
+{
+  LDKMesh* mesh = ldkAssetNew(LDKMesh);
+  memset(&mesh->boundingBox, 0, sizeof(LDKBoundingBox));
+  memset(&mesh->boundingSphere, 0, sizeof(LDKBoundingSphere));
+
+  // Indices
+  uint16 indices[] = { 0, 1, 2, 1, 3, 2 };
+  mesh->numIndices = 6;
+  mesh->indices = (uint16*) ldkOsMemoryAlloc(sizeof(indices));
+  memcpy(mesh->indices, indices, sizeof(indices));
+
+  // Vertices
+  float vertices[] = {
+    // Position          // Normal           // UV
+    -1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 1.0f,
+    -1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
+    1.0f,  1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 1.0f,
+    1.0f, -1.0f, 0.0f,   0.0f, 0.0f, 1.0f,   1.0f, 0.0f
+  };
+  mesh->numVertices = 4;
+  mesh->vertices = (float*) ldkOsMemoryAlloc(sizeof(vertices));
+  memcpy(mesh->vertices, vertices, sizeof(vertices));
+
+  // surfaces
+  mesh->numSurfaces = 1;
+  mesh->surfaces = (LDKSurface*) ldkOsMemoryAlloc(sizeof(LDKSurface));
+  mesh->surfaces->count = 6;
+  mesh->surfaces->first = 0;
+  mesh->surfaces->materialIndex = 0;
+
+  // materials
+  mesh->numMaterials = 1;
+  mesh->materials = (LDKHAsset*) ldkOsMemoryAlloc(sizeof(LDKHAsset));
+  *mesh->materials = material;
+
+  // RenderBuffer
+  mesh->vBuffer = ldkRenderBufferCreate(1);
+  const int32 stride = (int32) (8 * sizeof(float));
+  ldkRenderBufferBind(mesh->vBuffer);
+
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_POSITION, 3, stride, 0, 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_NORMAL, 3, stride, (const void*) (3 * sizeof(float)), 0);
+  ldkRenderBufferAttributeSetFloat(mesh->vBuffer, 0, LDK_VERTEX_ATTRIBUTE_TEXCOORD0, 2, stride, (const void*)(6 * sizeof(float)), 0);
+  ldkRenderBufferSetVertexData(mesh->vBuffer, 0, sizeof(vertices), mesh->vertices, false);
+
+  ldkRenderBufferSetIndexData(mesh->vBuffer, sizeof(indices), mesh->indices, false);
+  ldkRenderBufferBind(NULL);
+
+  return mesh;
 }
 
 void ldkAssetMeshUnloadFunc(LDKAsset asset)

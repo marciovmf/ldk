@@ -662,15 +662,19 @@ bool ldkMaterialParamSetTexture(LDKMaterial* material, const char* name, LDKText
   LDKMaterialParam* param = internalMaterialParamGet(material, name, LDK_MATERIAL_PARAM_TYPE_TEXTURE);
   if (!param) return false;
 
-  if (material->numTextures >= LDK_MATERIAL_MAX_TEXTURES)
+  // are we also adding or jus setting ?
+  if (param->textureInitialized == false)
   {
-    ldkLogError("Too many textures assigned to material. Maximum is %d", LDK_MATERIAL_MAX_TEXTURES);
-    return false;
+    if (material->numTextures >= LDK_MATERIAL_MAX_TEXTURES)
+    {
+      ldkLogError("Too many textures assigned to material. Maximum is %d", LDK_MATERIAL_MAX_TEXTURES);
+      return false;
+    }
+    uint32 textureId = material->numTextures++;
+    param->textureIndexValue = textureId; // this is the texture index in the Material texture array
+    param->textureInitialized = true;
   }
-
-  uint32 textureId = material->numTextures++;
-  param->textureIndexValue = textureId; // this is the texture index in the Material texture array
-  material->textures[textureId] = value->asset.handle;
+  material->textures[param->textureIndexValue] = value->asset.handle;
   return true;
 }
 
@@ -731,7 +735,7 @@ bool ldkMaterialBind(LDKMaterial* material)
 
       case LDK_MATERIAL_PARAM_TYPE_TEXTURE:
         glActiveTexture(GL_TEXTURE0 + param->textureIndexValue);
-        LDKHandle hTexture = material->textures[param->textureIndexValue];
+        LDKHAsset hTexture = material->textures[param->textureIndexValue];
         LDKTexture* texture = ldkAssetLookup(LDKTexture, hTexture);
         ldkShaderParamSetTexture(shader, param->name.str, texture);
         break;
@@ -759,6 +763,15 @@ bool ldkMaterialBind(LDKMaterial* material)
   {
     Mat4 projViewMatrix = ldkCameraViewProjectMatrix(camera);
     glUniformMatrix4fv(uniformViewProj, 1, GL_TRUE, (float*) &projViewMatrix);
+  }
+
+  if(material->enableDepthTest)
+  {
+    glEnable(GL_DEPTH_TEST);
+  }
+  else
+  {
+    glDisable(GL_DEPTH_TEST);
   }
 
   /*

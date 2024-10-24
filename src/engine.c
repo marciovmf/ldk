@@ -1,7 +1,6 @@
 #include "ldk/os.h"
 #include "ldk/engine.h"
 #include "ldk/eventqueue.h"
-#include "ldk/module/editor.h"
 #include "ldk/module/graphics.h"
 #include "ldk/module/renderer.h"
 #include "ldk/module/entity.h"
@@ -18,6 +17,11 @@
 #include "ldk/asset/mesh.h"
 #include "ldk/asset/config.h"
 #include "ldk/asset/texture.h"
+
+#ifdef LDK_EDITOR
+#include "ldk/module/editor.h"
+#endif
+
 #include <string.h>
 #include <signal.h>
 
@@ -26,9 +30,10 @@ static struct
   bool running;
   int32 exitCode;
   float timeScale;
+  bool editorStartsEnabled;
 } internal = {0};
 
-static void internalOnSignal(int32 signal)
+static void s_onSignal(int32 signal)
 {
   const char* signalName = "Unknown signal";
   switch(signal)
@@ -47,7 +52,7 @@ static void internalOnSignal(int32 signal)
   ldkEngineTerminate();
 }
 
-static bool internalEventHandler(const LDKEvent* event, void* data)
+static bool s_eventHandler(const LDKEvent* event, void* data)
 {
   if (!internal.running)
     return false;
@@ -73,7 +78,6 @@ void logModuleTerminate(const char* moduleName)
   ldkLogInfo("Terminating %s", moduleName);
 }
 
-
 void ldkEngineSetTimeScale(float scale)
 {
   internal.timeScale = scale;
@@ -86,12 +90,12 @@ float ldkEngineGetTimeScale()
 
 bool ldkEngineInitialize(void)
 {
-  signal(SIGABRT, internalOnSignal);
-  signal(SIGFPE,  internalOnSignal);
-  signal(SIGILL,  internalOnSignal);
-  signal(SIGINT,  internalOnSignal);
-  signal(SIGSEGV, internalOnSignal);
-  signal(SIGTERM, internalOnSignal);
+  signal(SIGABRT, s_onSignal);
+  signal(SIGFPE,  s_onSignal);
+  signal(SIGILL,  s_onSignal);
+  signal(SIGINT,  s_onSignal);
+  signal(SIGSEGV, s_onSignal);
+  signal(SIGTERM, s_onSignal);
 
   ldkOsInitialize();
   ldkOsCwdSetFromExecutablePath();
@@ -104,17 +108,16 @@ bool ldkEngineInitialize(void)
   LDKDateTime  dateTime;
   ldkOsSystemDateTimeGet(&dateTime);
   char strDateTime[64];
-  snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK Engine Startup ----",
+  snprintf(strDateTime, 64, "---- %d.%d.%d %d:%d:%d - LDK v%d.%d.%d %s ----",
       dateTime.year, dateTime.month, dateTime.day,
-      dateTime.hour, dateTime.minute, dateTime.Second);
+      dateTime.hour, dateTime.minute, dateTime.second,
+      LDK_VERSION_MAJOR, LDK_VERSION_PATCH, LDK_VERSION_MINOR, LDK_BUILD_TYPE
+      );
 
   // Startup Log
   stepSuccess = ldkLogInitialize("ldk.log", strDateTime);
   logModuleInit("Log", stepSuccess);
   success &= stepSuccess;
-
-  // Register LDKHandle so any other handle type is larger than 0
-  //typeid(LDKHandle);
 
   // Startup Asset Handlers
   stepSuccess = ldkAssetInitialize();
@@ -130,17 +133,23 @@ bool ldkEngineInitialize(void)
 
   // Register EntityManager
   stepSuccess &= ldkEntityManagerInit();
-  stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy, 2);
-  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy, 8);
-  stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy, 32);
-  stepSuccess &= ldkEntityTypeRegister(LDKSpotLight, ldkSpotLightEntityCreate, ldkSpotLightEntityDestroy, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKCamera, ldkCameraEntityCreate, ldkCameraEntityDestroy,
+      ldkCameraEntityGetTransform, ldkCameraEntitySetTransform, 2);
+  stepSuccess &= ldkEntityTypeRegister(LDKStaticObject, ldkStaticObjectEntityCreate, ldkStaticObjectEntityDestroy,
+      ldkStaticObjectEntityGetTransform, ldkStaticObjectEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKInstancedObject, ldkInstancedObjectEntityCreate, ldkInstancedObjectEntityDestroy,
+      ldkInstancedObjectEntityGetTransform, ldkInstancedObjectEntitySetTransform, 8);
+  stepSuccess &= ldkEntityTypeRegister(LDKPointLight, ldkPointLightEntityCreate, ldkPointLightEntityDestroy,
+      ldkPointLightEntityGetTransform, ldkPointLightEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKDirectionalLight, ldkDirectionalLightEntityCreate, ldkDirectionalLightEntityDestroy,
+      ldkDirectionalLightEntityGetTransform, ldkDirectionalLightEntitySetTransform, 32);
+  stepSuccess &= ldkEntityTypeRegister(LDKSpotLight, ldkSpotLightEntityCreate, ldkSpotLightEntityDestroy,
+      ldkSpotLightEntityGetTransform, ldkSpotLightEntitySetTransform, 32);
   success &= stepSuccess;
   logModuleInit("Entity Manager", stepSuccess);
 
+
   // Startup Graphics
-  //TODO(marcio): Get initial display width and height from a config file
   stepSuccess = ldkGraphicsInitialize(config, LDK_GRAPHICS_API_OPENGL_3_3);
   success &= stepSuccess;
   logModuleInit("Graphics", stepSuccess);
@@ -150,25 +159,30 @@ bool ldkEngineInitialize(void)
   success &= stepSuccess;
   logModuleInit("Renderer", stepSuccess);
 
+#ifdef LDK_EDITOR
   // Startup editor
+  internal.editorStartsEnabled = ldkConfigGetInt(config, "editor-enabled-on-start");
   stepSuccess = ldkEditorInitialize();
   success &= stepSuccess;
   logModuleInit("Editor", stepSuccess);
+#endif // LDK_EDITOR
 
   success &= stepSuccess;
   logModuleInit("LDK", success);
 
   lkdGraphicsInfoPrint();
 
-  ldkEventHandlerAdd(internalEventHandler, LDK_EVENT_TYPE_WINDOW, NULL);
+  ldkEventHandlerAdd(s_eventHandler, LDK_EVENT_TYPE_WINDOW, NULL);
 
   return success;
 }
 
 void ldkEngineTerminate(void)
 {
+#ifdef LDK_EDITOR
   logModuleTerminate("Editor");
   ldkEditorTerminate();
+#endif
   logModuleTerminate("Renderer");
   ldkRendererTerminate();
   logModuleTerminate("Graphics");
@@ -206,10 +220,18 @@ LDK_API int32 ldkEngineRun(void)
 
     tickStart = ldkOsTimeTicksGet();
 
-    if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
+#ifdef LDK_EDITOR
+
+    if (internal.editorStartsEnabled)
     {
-      ldkEditorEnable(! ldkEditorIsEnabled());
+      ldkEditorEnable(true);
+      internal.editorStartsEnabled = false;
     }
+    else if (ldkOsKeyboardKeyDown(&kbdState, LDK_KEYCODE_F3))
+    {
+      ldkEditorEnable(!ldkEditorIsEnabled());
+    }
+#endif
 
     event.type = LDK_EVENT_TYPE_FRAME_BEFORE;
     event.frameEvent.ticks = tickStart;
@@ -218,6 +240,11 @@ LDK_API int32 ldkEngineRun(void)
     ldkEventQueueBroadcast();
 
     ldkRendererRender(deltaTime);
+#ifdef LDK_EDITOR
+    if (ldkEditorIsEnabled())
+      ldkEditorImmediateDraw(deltaTime);
+#endif
+
     ldkGraphicsSwapBuffers();
     tickEnd = ldkOsTimeTicksGet();
 
@@ -251,10 +278,12 @@ LDK_API int32 ldkEngineRun(void)
   return internal.exitCode;
 }
 
+#ifdef LDK_EDITOR
 bool ldkEngineIsEditorRunning(void)
 {
   return ldkEditorIsEnabled();
 }
+#endif
 
 void ldkEngineStop(int32 exitCode)
 {

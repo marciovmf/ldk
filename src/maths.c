@@ -1,6 +1,5 @@
 #include "ldk/maths.h"
 #include "common.h"
-#include <float.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -40,6 +39,64 @@ double degToRadian(double deg)
 double radianToDeg(double radian)
 {
   return radian * (180.0 / M_PI);
+}
+
+int32 floatsAreEqualEpsilon(float a, float b, float epsilon)
+{
+  return fabs(a - b) < epsilon;
+}
+
+int32 floatIsZeroEpsilon(float a, float epsilon)
+{
+  return (a > -epsilon && a < epsilon);
+}
+
+int32 floatIsNegativeEpsilon(float a, float epsilon)
+{
+  return a < -epsilon;
+}
+
+int32 floatIsPositiveEpsilon(float a, float epsilon)
+{
+  return !floatIsNegativeEpsilon(a, epsilon);
+}
+
+int32 floatIsGreaterThanEpsilon(float a, float b, float epsilon)
+{
+  return (a - b) > epsilon;
+}
+
+int32 floatIsLessThanEpsilon(float a, float b, float epsilon)
+{
+  return (b - a) > epsilon;
+}
+
+int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon)
+{
+  return !floatIsLessThanEpsilon(a, b, epsilon);
+}
+
+int32 floatIssLessThanOrEqual(float a, float b, float epsilon)
+{
+  return !floatIsGreaterThanEpsilon(a, b, epsilon);
+}
+
+int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon)
+{
+  if (floatsAreEqualEpsilon(a, b, relativeEpsilon))
+    return 1;
+  // Use relative difference
+  double maxAbs = fmax(fabs(a), fabs(b));
+  return fabs(a - b) <= relativeEpsilon * maxAbs;
+}
+
+bool floatIsMultipleEpsilon(double a, double b, float epsilon)
+{
+  if (floatIsZeroEpsilon(b, LDK_EPSILON))
+    return false;
+
+  double result = a / b;
+  return (fabs(result - round(result)) < epsilon);
 }
 
 //
@@ -273,6 +330,16 @@ Vec3 vec3Up(void)
   return vec3(0, 1, 0);
 }
 
+Vec3 vec3Right(void)
+{
+  return vec3(1, 0, 0);
+}
+
+Vec3 vec3Forward(void)
+{
+  return vec3(0, 0, 1);
+}
+
 Vec3 vec3Add(Vec3 v1, Vec3 v2)
 {
   Vec3 v;
@@ -485,6 +552,32 @@ LDKRGB vec3ToRGB(Vec3 v)
       (uint8)(v.y * 255.0f),
       (uint8)(v.z * 255.0f));
   return color;
+}
+
+float Vec3AngleBetween(Vec3 v1, Vec3 v2)
+{
+  const float magnitudeV1 = vec3Length(v1);
+  const float magnitudeV2 = vec3Length(v2);
+
+  if(floatIsZero(magnitudeV1) || floatIsZero(magnitudeV2))
+    return 0;
+  const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
+    float angle = acosf(fmaxf(-1.0f, fminf(1.0f, cosTheta)));
+    return angle;
+}
+
+float Vec3SignedAngleBetween(Vec3 v1, Vec3 v2, Vec3 normalDirectin)
+{
+  const float magnitudeV1 = vec3Length(v1);
+  const float magnitudeV2 = vec3Length(v2);
+
+  if(floatIsZero(magnitudeV1) || floatIsZero(magnitudeV2))
+    return 0;
+
+  const float cosTheta = vec3Dot(v1, v2) / (magnitudeV1 * magnitudeV2);
+  float angle = acosf(fmaxf(-1.0f, fminf(1.0f, cosTheta)));
+  float signedAngle = vec3Dot(vec3Cross(v1, v2), normalDirectin) < 0.0f ? -angle : angle;
+  return signedAngle;
 }
 
 //
@@ -790,22 +883,19 @@ Vec3 quatImaginaries(Quat q)
 
 Quat quatFromEuler(Vec3 r)
 {
+  float cy = cosf(r.z * 0.5f);
+  float sy = sinf(r.z * 0.5f);
+  float cp = cosf(r.y * 0.5f);
+  float sp = sinf(r.y * 0.5f);
+  float cr = cosf(r.x * 0.5f);
+  float sr = sinf(r.x * 0.5f);
 
-  float fc1 = cosf( r.z / 2.0f );
-  float fc2 = cosf( r.x / 2.0f );
-  float fc3 = cosf( r.y / 2.0f );
-
-  float fs1 = sinf( r.z / 2.0f );
-  float fs2 = sinf( r.x / 2.0f );
-  float fs3 = sinf( r.y / 2.0f );
-
-  return quat(
-      fc1 * fc2 * fs3 - fs1 * fs2 * fc3,
-      fc1 * fs2 * fc3 + fs1 * fc2 * fs3,
-      fs1 * fc2 * fc3 - fc1 * fs2 * fs3,
-      fc1 * fc2 * fc3 + fs1 * fs2 * fs3
-      );
-
+  Quat q;
+  q.w = cr * cp * cy + sr * sp * sy;
+  q.x = sr * cp * cy - cr * sp * sy;
+  q.y = cr * sp * cy + sr * cp * sy;
+  q.z = cr * cp * sy - sr * sp * cy;
+  return q;
 }
 
 Quat quatAngleAxis(float angle, Vec3 axis)
@@ -839,12 +929,11 @@ Quat quatRotationZ(float angle)
 
 void quatToAngleAxis(Quat q, Vec3* axis, float* angle)
 {
-
   *angle = 2.0f * acosf( q.w );
 
   float divisor = sinf( *angle / 2.0f );
 
-  if( fabs( divisor ) < FLT_EPSILON )
+  if( fabs( divisor ) < LDK_EPSILON )
   {
 
     axis->x = 0.0f;
@@ -859,22 +948,29 @@ void quatToAngleAxis(Quat q, Vec3* axis, float* angle)
     *axis = vec3Normalize(*axis);
 
   }
-
 }
 
 Vec3 quatToEuler(Quat q)
 {
+  Vec3 euler;
+  // Roll (x-axis rotation)
+  float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
+  float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+  euler.x = atan2f(sinr_cosp, cosr_cosp);
 
-  float sqrx = q.x * q.x;
-  float sqry = q.y * q.y;
-  float sqrz = q.z * q.z;
-  float sqrw = q.w * q.w;
+  // Pitch (y-axis rotation)
+  float sinp = 2.0f * (q.w * q.y - q.z * q.x);
+  if (fabsf(sinp) >= 1.0f)
+    euler.y = copysignf((float)(M_PI / 2.0), sinp); // Use 90 degrees if out of range
+  else
+    euler.y = asinf(sinp);
 
-  return vec3(
-      asinf( -2.0f * ( q.x * q.z - q.y * q.w ) ),
-      atan2f( 2.0f * ( q.y * q.z + q.x * q.w ), (-sqrx - sqry + sqrz + sqrw) ),
-      atan2f( 2.0f * ( q.x * q.y + q.z * q.w ), ( sqrx - sqry - sqrz + sqrw) ));
+  // Yaw (z-axis rotation)
+  float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
+  float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+  euler.z = atan2f(siny_cosp, cosy_cosp);
 
+  return euler;
 }
 
 Quat quatMulQuat(Quat q1, Quat q2)
@@ -907,7 +1003,7 @@ Quat quatInverse(Quat q)
   float	scale = quatLength(q);
   Quat result = quatUnitInverse(q);
 
-  if ( scale > FLT_EPSILON )
+  if ( scale > LDK_EPSILON )
   {    
     result.x /= scale;
     result.y /= scale;
@@ -930,10 +1026,9 @@ float quatLength(Quat q)
 
 Quat quatNormalize(Quat q)
 {
-
   float scale = quatLength(q);
 
-  if ( scale > FLT_EPSILON )
+  if ( scale > LDK_EPSILON )
   {
     return quat(
         q.x / scale,
@@ -1000,7 +1095,7 @@ Quat quatExp(Vec3 w)
 {
 
   float theta = (float) sqrt(vec3Dot(w, w));
-  float len = theta < FLT_EPSILON ? 1 : (float) (sin(theta) / theta);
+  float len = theta < LDK_EPSILON ? 1 : (float) (sin(theta) / theta);
   Vec3 v = vec3Mul(w, len);
 
   return quat(v.x, v.y, v.z, (float) cos(theta));
@@ -1010,7 +1105,7 @@ Vec3 quatLog(Quat q)
 {
   float len = vec3Length(quatImaginaries(q));
   float angle = (float) atan2(len, q.w);
-  len = len > FLT_EPSILON ? angle / len : 1;
+  len = len > LDK_EPSILON ? angle / len : 1;
   return vec3Mul(quatImaginaries(q), len);
 }
 
@@ -1101,6 +1196,33 @@ Quat quatInterpolate(Quat* qs, float* ws, int count)
 
 }
 
+Vec3 quatGetRight(Quat q)
+{
+  Vec3 right;
+  right.x = 1 - 2 * (q.y * q.y + q.z * q.z);
+  right.y = 2 * (q.x * q.y + q.w * q.z);
+  right.z = 2 * (q.x * q.z - q.w * q.y);
+  return right;
+}
+
+Vec3 quatGetForward(Quat q)
+{
+  Vec3 forward;
+  forward.x = 2 * (q.x * q.z + q.w * q.y);
+  forward.y = 2 * (q.y * q.z - q.w * q.x);
+  forward.z = 1 - 2 * (q.x * q.x + q.y * q.y);
+  return forward;
+}
+
+Vec3 quatGetUp(Quat q)
+{
+  Vec3 up;
+  up.x = 2 * (q.x * q.y - q.w * q.z);
+  up.y = 1 - 2 * (q.x * q.x + q.z * q.z);
+  up.z = 2 * (q.y * q.z + q.w * q.x);
+  return up;
+}
+
 QuatDual quatDual(Quat real, Quat dual)
 {
   QuatDual qd;
@@ -1168,6 +1290,48 @@ Vec3 quatDualMulVec3Rot(QuatDual q, Vec3 v)
   return vec3Add(v, vec3Mul(real, 2.0));
 }
 
+#ifndef LDK_QUAT_FORWARD_VECTOR
+  // Default forward vector (can be [1, 0, 0] or [0, 0, -1] depending on convention)
+#define LDK_QUAT_FORWARD_VECTOR {-1.0f, 0.0f, 0.0f}
+#endif  // LDK_QUAT_FORWARD_VECTOR
+
+Quat quatFromDirection(Vec3 direction)
+{
+  Quat q = quatId();
+  // Reference forward vector (default direction)
+  Vec3 forward = LDK_QUAT_FORWARD_VECTOR;
+
+  // Normalize the input direction vector
+  direction = vec3Normalize(direction);
+
+  // Compute the angle between the forward vector and the direction vector
+  float dot_product = vec3Dot(forward, direction);
+  float angle = acosf(dot_product);  // Angle in radians
+
+  // Compute the axis of rotation (cross product of forward and direction)
+  Vec3 axis = vec3Cross(forward, direction);
+
+  // Normalize the axis of rotation
+  axis = vec3Normalize(axis);
+
+  // Compute the quaternion from the axis-angle representation
+  float half_angle = angle / 2.0f;
+  float sin_half_angle = sinf(half_angle);
+
+  q.w = cosf(half_angle);
+  q.x = axis.x * sin_half_angle;
+  q.y = axis.y * sin_half_angle;
+  q.z = axis.z * sin_half_angle;
+
+  return q;
+}
+
+Vec3 quatToDirection(Quat quat)
+{
+  Vec3 forward = LDK_QUAT_FORWARD_VECTOR;
+  Vec3 direction = quatMulVec3(quat, forward);
+  return direction;
+}
 
 //
 // Mat2
@@ -1563,18 +1727,16 @@ Mat4 mat4Id(void)
   return mat;
 }
 
-float mat4At(Mat4 m, int x, int y)
+float mat4At(Mat4 m, int col, int row)
 {
   float* arr = (float*)(&m);
-  return arr[x + (y*4)];  
+  return arr[col + (row * 4)];
 }
 
-Mat4 mat4Set(Mat4 m, int x, int y, float v)
+Mat4 mat4Set(Mat4 m, int col, int row, float v)
 {
-
   float* arr = (float*)(&m);
-  arr[x + (y*4)] = v;
-
+  arr[col + (row * 4)] = v;
   return m;
 }
 
@@ -1741,24 +1903,20 @@ Mat3 mat4ToMat3(Mat4 m)
 Quat mat4ToQuat(Mat4 m)
 {
   float tr = m.xx + m.yy + m.zz;
-
   if (tr > 0.0f)
   {
-
     float s = sqrtf( tr + 1.0f );
-
     float w = s / 2.0f;
     float x = ( mat4At(m, 1, 2) - mat4At(m, 2, 1) ) * (0.5f / s);
     float y = ( mat4At(m, 2, 0) - mat4At(m, 0, 2) ) * (0.5f / s);
     float z = ( mat4At(m, 0, 1) - mat4At(m, 1, 0) ) * (0.5f / s);
     return quat(x, y, z, w);
-
-  } else {
-
+  }
+  else
+  {
     int nxt[3] = {1, 2, 0};
     float q[4];
     int  i, j, k;
-
     i = 0;
     if ( mat4At(m, 1, 1) > mat4At(m, 0, 0) )
     {	i = 1;	}
@@ -1766,7 +1924,6 @@ Quat mat4ToQuat(Mat4 m)
     {	i = 2;	}
     j = nxt[i];
     k = nxt[j];
-
     float s = sqrtf( (mat4At(m, i, i) - (mat4At(m, j, j) + mat4At(m, k, k))) + 1.0f );
 
     q[i] = s * 0.5f;
@@ -1801,6 +1958,9 @@ float mat4Det(Mat4 m)
 Mat4 mat4Inverse(Mat4 m)
 {
   float det = mat4Det(m);
+  if (det == 0.0f)
+    return mat4Id();
+
   float fac = 1.0f / det;
 
   Mat4 ret;

@@ -22,7 +22,7 @@
 //
 
 // Adds a new chunk to the arena and updates the arena chunk information
-static LDKChunk* internalLDKArenaAddLDKChunk(LDKArena* arena, size_t size)
+static LDKChunk* s_arenaAddLDKChunk(LDKArena* arena, size_t size)
 {
   uint32 chunkIndex = arena->numChunks++;
   arena->chunks = (LDKChunk*) ARENA_REALLOC(arena->chunks, sizeof(LDKChunk) * arena->numChunks);
@@ -36,7 +36,7 @@ static LDKChunk* internalLDKArenaAddLDKChunk(LDKArena* arena, size_t size)
   return &arena->chunks[chunkIndex];
 }
 
-static uint8* internalLDKArenaAllocateFromLDKChunk(LDKChunk* chunk, size_t size)
+static uint8* s_arenaAllocateFromLDKChunk(LDKChunk* chunk, size_t size)
 {
   if (!chunk)
     return NULL;
@@ -59,7 +59,7 @@ bool ldkArenaCreate(LDKArena* out, size_t capacity)
   out->numChunks = 0;
   out->chunkCapacity = capacity;
   out->chunks = NULL;
-  return internalLDKArenaAddLDKChunk(out, capacity) != NULL;
+  return s_arenaAddLDKChunk(out, capacity) != NULL;
 }
 
 void ldkArenaDestroy(LDKArena* out)
@@ -92,7 +92,7 @@ uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size)
     if (freeSpace >= size)
     {
       chunk = &arena->chunks[i];
-      return internalLDKArenaAllocateFromLDKChunk(chunk, size);
+      return s_arenaAllocateFromLDKChunk(chunk, size);
     }
   }
 
@@ -102,8 +102,8 @@ uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size)
   if (size > arena->chunkCapacity)	
     newSize = arena->chunkCapacity + size;
 
-  LDKChunk* chunk = internalLDKArenaAddLDKChunk(arena, newSize);
-  return internalLDKArenaAllocateFromLDKChunk(chunk, size);
+  LDKChunk* chunk = s_arenaAddLDKChunk(arena, newSize);
+  return s_arenaAllocateFromLDKChunk(chunk, size);
 }
 
 void ldkArenaReset(LDKArena* arena)

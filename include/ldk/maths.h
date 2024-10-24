@@ -23,9 +23,37 @@ extern "C" {
   LDK_API bool  between(float x, float bottom, float top);
   LDK_API float lerp(float p1, float p2, float amount);
   LDK_API float smoothstep(float p1, float p2, float amount);
-
   LDK_API double degToRadian(double deg);
   LDK_API double radianToDeg(double radian);
+
+  LDK_API int32 floatsAreEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsZeroEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsNegativeEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsPositiveEpsilon(float a, float epsilon);
+  LDK_API int32 floatIsGreaterThanEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsLessThanEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsGreaterThanOrEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatIsLessThanOrEqualEpsilon(float a, float b, float epsilon);
+  LDK_API int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilon);
+  LDK_API bool  floatIsMultipleEpsilon(double a, double b, float epsilon);
+
+
+
+#ifndef LDK_EPSILON
+#define LDK_EPSILON 1e-9f
+#endif //LDK_EPSILON
+
+#define floatsAreEqual(a, b) floatsAreEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatIsZero(a) floatIsZeroEpsilon((a), LDK_EPSILON)
+#define floatIsNegative(a) floatIsNegativeEpsilon((a), LDK_EPSILON)
+#define floatIsPositive(a) floatIsPositiveEpsilon((a), LDK_EPSILON)
+#define floatIsGreaterThan(a, b) floatIsGreaterThanEpsilon((a), (b), LDK_EPSILON)
+#define floatIsLessThan(a, b) floatIsLessThanEpsilon((a), (b), LDK_EPSILON)
+#define floatIsGreaterThanOrEqual(a, b) floatIsGreaterThanOrEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatIsLessThanOrEqual(a, b) floatIsLessThanOrEqualEpsilon((a), (b), LDK_EPSILON)
+#define floatsAreAlmostEqualRelative(a, b) floatsAreAlmostEqualRelativeEpsilon((a), (b), LDK_EPSILON)
+#define floatIsMultipleOf(a, b) floatIsMultipleEpsilon(a, b, LDK_EPSILON)
+
 
   //
   // Vec2
@@ -83,6 +111,8 @@ extern "C" {
   LDK_API Vec3 vec3Zero(void);
   LDK_API Vec3 vec3One(void);
   LDK_API Vec3 vec3Up(void);
+  LDK_API Vec3 vec3Right(void);
+  LDK_API Vec3 vec3Forward(void);
   LDK_API Vec3 vec3Add(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Sub(Vec3 v1, Vec3 v2);
   LDK_API Vec3 vec3Mul(Vec3 v, float fac);
@@ -111,6 +141,35 @@ extern "C" {
   LDK_API Vec3 vec3Smoothstep(Vec3 v1, Vec3 v2, float amount);
   LDK_API Vec3 rgbToVec3(LDKRGB color);
   LDK_API LDKRGB vec3ToRGB(Vec3 v);
+
+  /**
+   * Calculates the unsigned angle between two 3D vectors, v1 and v2.
+   *
+   * @param v1 The first 3D vector.
+   * @param v2 The second 3D vector.
+   *
+   * @return The angle in radians between the vectors v1 and v2, with a range of [0, π].
+   *         The angle is calculated using the dot product, and it is always a positive,
+   *         unsigned value. If either v1 or v2 has zero magnitude, the function returns 0.
+   */
+  LDK_API float vec3AngleBetween(Vec3 v1, Vec3 v2);
+
+  /**
+   * Calculates the signed angle between two 3D vectors, v1 and v2.
+   *
+   * @param v1 The first 3D vector.
+   * @param v2 The second 3D vector.
+   * @param normalDirection A 3D vector representing the reference normal direction.
+   *        This vector is used to determine the sign of the angle. The sign is positive
+   *        if the cross product of v1 and v2 points in the same direction as normalDirection,
+   *        and negative if it points in the opposite direction.
+   *
+   * @return The signed angle in radians between the vectors v1 and v2.
+   *         The angle will be positive or negative depending on the orientation of
+   *         the vectors relative to normalDirection.
+   *         If either v1 or v2 has zero magnitude, the function returns 0.
+   */
+  LDK_API float vec3SignedAngleBetween(Vec3 v1, Vec3 v2, Vec3 normalDirection);
 
   //
   // Vec4
@@ -165,7 +224,7 @@ extern "C" {
   typedef Vec4 Quat;
 
   LDK_API Quat quatId(void);
-  LDK_API Quat quatNew(float x, float y, float z, float w);
+  LDK_API Quat quat(float x, float y, float z, float w);
   LDK_API Quat quatFromEuler(Vec3 r);
   LDK_API Quat quatAngleAxis(float angle, Vec3 axis);
   LDK_API Quat quatRotationX(float angle);
@@ -192,6 +251,12 @@ extern "C" {
   LDK_API Quat quatConstrainY(Quat q);
   LDK_API float quatDistance(Quat q0, Quat q1);
   LDK_API Quat quatInterpolate(Quat* qs, float* ws, int count);
+  LDK_API Vec3 quatGetRight(Quat q);
+  LDK_API Vec3 quatGetForward(Quat q);
+  LDK_API Vec3 quatGetUp(Quat q);
+  LDK_API Quat quatFromDirection(Vec3 direction);
+  LDK_API Vec3 quatToDirection(Quat quat);
+
 
   typedef struct {
     Quat real;
@@ -236,21 +301,21 @@ extern "C" {
     float zx; float zy; float zz;
   } Mat3;
 
-  Mat3 mat3Id(void);
-  Mat3 mat3Zero(void);
-  Mat3 mat3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
-  Mat3 mat3MulMat3(Mat3 m1, Mat3 mat2);
-  Vec3 mat3MulVec3(Mat3 m, Vec3 v);
-  Mat3 mat3Transpose(Mat3 m);
-  float mat3Det(Mat3 m);
-  Mat3 mat3Inverse(Mat3 m);
-  void mat3ToArray(Mat3 m, float* out);
-  void mat3Print(Mat3 m);
-  Mat3 mat3Scale(Vec3 s);
-  Mat3 mat3RotationX(float a);
-  Mat3 mat3RotationY(float a);
-  Mat3 mat3RotationZ(float a);
-  Mat3 mat3RotationAngleAxis(float angle, Vec3 axis);
+  LDK_API Mat3 mat3Id(void);
+  LDK_API Mat3 mat3Zero(void);
+  LDK_API Mat3 mat3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
+  LDK_API Mat3 mat3MulMat3(Mat3 m1, Mat3 mat2);
+  LDK_API Vec3 mat3MulVec3(Mat3 m, Vec3 v);
+  LDK_API Mat3 mat3Transpose(Mat3 m);
+  LDK_API float mat3Det(Mat3 m);
+  LDK_API Mat3 mat3Inverse(Mat3 m);
+  LDK_API void mat3ToArray(Mat3 m, float* out);
+  LDK_API void mat3Print(Mat3 m);
+  LDK_API Mat3 mat3Scale(Vec3 s);
+  LDK_API Mat3 mat3RotationX(float a);
+  LDK_API Mat3 mat3RotationY(float a);
+  LDK_API Mat3 mat3RotationZ(float a);
+  LDK_API Mat3 mat3RotationAngleAxis(float angle, Vec3 axis);
 
 
   //
@@ -264,43 +329,42 @@ extern "C" {
     float wx; float wy; float wz; float ww;
   } Mat4;
 
-  Mat4 mat4Id(void);
-  Mat4 mat4Zero(void);
-  Mat4 mat4New(float xx, float xy, float xz, float xw,
+  LDK_API Mat4 mat4Id(void);
+  LDK_API Mat4 mat4Zero(void);
+  LDK_API Mat4 mat4(float xx, float xy, float xz, float xw,
       float yx, float yy, float yz, float yw,
       float zx, float zy, float zz, float zw,
       float wx, float wy, float wz, float ww);
-  float mat4At(Mat4 m, int i, int j);
-  Mat4 mat4Set(Mat4 m, int x, int y, float v);
-  Mat4 mat4Transpose(Mat4 m);
-  Mat4 mat4MulMat4(Mat4 m1, Mat4 mat2);
-  Vec4 mat4MulVec4(Mat4 m, Vec4 v);
-  Vec3 mat4MulVec3(Mat4 m, Vec3 v);
-  float mat4Det(Mat4 m);
-  Mat4 mat4Inverse(Mat4 m);
-  Mat4 mat3ToMat4(Mat3 m);
-  Mat3 mat4ToMat3(Mat4 m);
-  Quat mat4ToQuat(Mat4 m);
-  QuatDual mat4ToQuatDual(Mat4 m);
-  void mat4ToArray(Mat4 m, float* out);
-  void mat4ToArrayTrans(Mat4 m, float* out);
-  void mat4Print(Mat4 m);
-  Mat4 mat4Translation(Vec3 v);
-  Mat4 mat4Scale(Vec3 v);
-  Mat4 mat4RotationX(float a);
-  Mat4 mat4RotationY(float a);
-  Mat4 mat4RotationZ(float a);
-  Mat4 mat4RotationAxisAngle(Vec3 axis, float angle);
-  Mat4 mat4RotationEuler(float x, float y, float z);
-  Mat4 mat4RotationQuat(Quat q);
-  Mat4 mat4RotationQuatDual(QuatDual q);
-  Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up);
-  Mat4 mat4Perspective(float fov, float nearClip, float farClip, float ratio);
-  Mat4 mat4Orthographic(float left, float right, float bottom, float top, float near, float far);
-  Mat4 mat4World(Vec3 position, Vec3 scale, Quat rotation);
-  Mat4 mat4Lerp(Mat4 m1, Mat4 mat2, float amount);
-  Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
-
+  LDK_API float mat4At(Mat4 m, int col, int row);
+  LDK_API Mat4 mat4Set(Mat4 m, int col, int row, float v);
+  LDK_API Mat4 mat4Transpose(Mat4 m);
+  LDK_API Mat4 mat4MulMat4(Mat4 m1, Mat4 mat2);
+  LDK_API Vec4 mat4MulVec4(Mat4 m, Vec4 v);
+  LDK_API Vec3 mat4MulVec3(Mat4 m, Vec3 v);
+  LDK_API float mat4Det(Mat4 m);
+  LDK_API Mat4 mat4Inverse(Mat4 m);
+  LDK_API Mat4 mat3ToMat4(Mat3 m);
+  LDK_API Mat3 mat4ToMat3(Mat4 m);
+  LDK_API Quat mat4ToQuat(Mat4 m);
+  LDK_API QuatDual mat4ToQuatDual(Mat4 m);
+  LDK_API void mat4ToArray(Mat4 m, float* out);
+  LDK_API void mat4ToArrayTrans(Mat4 m, float* out);
+  LDK_API void mat4Print(Mat4 m);
+  LDK_API Mat4 mat4Translation(Vec3 v);
+  LDK_API Mat4 mat4Scale(Vec3 v);
+  LDK_API Mat4 mat4RotationX(float a);
+  LDK_API Mat4 mat4RotationY(float a);
+  LDK_API Mat4 mat4RotationZ(float a);
+  LDK_API Mat4 mat4RotationAxisAngle(Vec3 axis, float angle);
+  LDK_API Mat4 mat4RotationEuler(float x, float y, float z);
+  LDK_API Mat4 mat4RotationQuat(Quat q);
+  LDK_API Mat4 mat4RotationQuatDual(QuatDual q);
+  LDK_API Mat4 mat4ViewLookAt(Vec3 position, Vec3 target, Vec3 up);
+  LDK_API Mat4 mat4Perspective(float fov, float nearClip, float farClip, float ratio);
+  LDK_API Mat4 mat4Orthographic(float left, float right, float bottom, float top, float near, float far);
+  LDK_API Mat4 mat4World(Vec3 position, Vec3 scale, Quat rotation);
+  LDK_API Mat4 mat4Lerp(Mat4 m1, Mat4 mat2, float amount);
+  LDK_API Mat4 mat4Smoothstep(Mat4 m1, Mat4 mat2, float amount);
 
   //
   // Bounds
@@ -319,6 +383,7 @@ extern "C" {
     Vec3 center;
     float radius;
   }LDKBoundingSphere;
+
 
 #ifdef __cplusplus
 }

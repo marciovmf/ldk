@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-  /* Filesytem */
+  /* Filesystem */
   typedef void* LDKFile;
 
   typedef enum
@@ -40,7 +40,7 @@ extern "C" {
   LDK_API void ldkOsStackTracePrint(void);
 
   //
-  // Filesytem
+  // Filesystem
   //
   LDK_API byte*   ldkOsFileRead(const char* path);
   LDK_API byte*   ldkOsFileReadOffset(const char* path, size_t* outFileSize, size_t extraSize, size_t offset);
@@ -92,7 +92,7 @@ extern "C" {
     uint16 day;
     uint16 hour;
     uint16 minute;
-    uint16 Second;
+    uint16 second;
     uint16 milliseconds;
   } LDKDateTime;
 

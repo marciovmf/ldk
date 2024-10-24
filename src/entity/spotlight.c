@@ -1,3 +1,4 @@
+#include "common.h"
 #include <ldk/entity/pointlight.h>
 #include <ldk/entity/spotlight.h>
 #include <ldk/maths.h>
@@ -21,3 +22,19 @@ void ldkSpotLightEntityDestroy(LDKSpotLight* entity)
 {
 }
 
+void ldkSpotLightEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, handle);
+  LDK_ASSERT(o != NULL);
+  if(pos) *pos = o->position;
+  if(scale) *scale = vec3One();
+  if(rot) *rot = quatFromDirection(o->direction);
+}
+
+void ldkSpotLightEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKSpotLight* o = ldkEntityLookup(LDKSpotLight, handle);
+  LDK_ASSERT(o != NULL);
+  o->position = pos;
+  o->direction = quatToDirection(rot);
+}

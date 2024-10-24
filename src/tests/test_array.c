@@ -46,12 +46,28 @@ int test_ldkArrayGet() {
 }
 
 int test_ldkArrayGetData() {
-  LDKArray* arr = ldkArrayCreate(sizeof(int), 10);
-  int value = 5;
-  ldkArrayAdd(arr, &value);
+  LDKArray* arr = ldkArrayCreate(sizeof(int), 5);
+  ASSERT_TRUE(ldkArrayCapacity(arr) == 5);
+  int value;
+  value = 10; ldkArrayAdd(arr, &value);
+  value = 20; ldkArrayAdd(arr, &value);
+  value = 30; ldkArrayAdd(arr, &value);
+  value = 40; ldkArrayAdd(arr, &value);
+  value = 50; ldkArrayAdd(arr, &value);
+  // The next add shoud cause the the array to resize
+  value = 60; ldkArrayAdd(arr, &value);
+  ASSERT_TRUE(ldkArrayCapacity(arr) == 10);
+  value = 70; ldkArrayAdd(arr, &value);
+
   int* data = (int*)ldkArrayGetData(arr);
   ASSERT_TRUE(data != NULL);
-  ASSERT_TRUE(data[0] == value);
+  ASSERT_TRUE(data[0] == 10);
+  ASSERT_TRUE(data[1] == 20);
+  ASSERT_TRUE(data[2] == 30);
+  ASSERT_TRUE(data[3] == 40);
+  ASSERT_TRUE(data[4] == 50);
+  ASSERT_TRUE(data[5] == 60);
+  ASSERT_TRUE(data[6] == 70);
   ldkArrayDestroy(arr);
   return 0;
 }

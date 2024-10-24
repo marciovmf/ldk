@@ -1,7 +1,6 @@
 #include "ldk/os.h"
-#include "ldk/gl.h"
-#include "ldk/maths.h"
 #include "ldk/common.h"
+#include "ldk/gl.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -81,13 +80,13 @@ typedef struct _XINPUT_VIBRATION {
 typedef DWORD (*XInputGetStateFunc)(DWORD dwUserIndex, XINPUT_STATE *pState);
 typedef DWORD (*XInputSetStateFunc)(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration);
 
-DWORD internalXInputGetStateDUMMY(DWORD dwUserIndex, XINPUT_STATE *pState)
+DWORD s_xInputGetStateDUMMY(DWORD dwUserIndex, XINPUT_STATE *pState)
 {
   ldkLogError("No XInput ...");
   return ERROR_DEVICE_NOT_CONNECTED;
 }
 
-DWORD internalXInputSetStateDUMMY(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
+DWORD s_xInputSetStateDUMMY(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
 {
   ldkLogError("No XInput ...");
   return ERROR_DEVICE_NOT_CONNECTED;
@@ -136,7 +135,7 @@ static struct
   {
     LDKWin32OpenGLAPI gl;
   };
-} win32GraphicsAPIInfo = {0};
+} s_graphicsAPIInfo = {0};
 
 static struct 
 {
@@ -160,14 +159,14 @@ static struct
   HCURSOR defaultCursor;
   XInputGetStateFunc XInputGetState;
   XInputSetStateFunc XInputSetState;
-} internal;
+} s_oswin32;
 
 
-static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static bool internalXInputInit(void)
+static bool s_xInputInit(void)
 {
-  memset(&internal.joysickState, 0, sizeof(internal.joysickState));
+  memset(&s_oswin32.joysickState, 0, sizeof(s_oswin32.joysickState));
 
   char* xInputDllName = "xinput1_1.dll"; 
   HMODULE hXInput = LoadLibraryA(xInputDllName);
@@ -186,33 +185,33 @@ static bool internalXInputInit(void)
   if (!hXInput)
   {
     ldkLogError("could not initialize xinput. No valid xinput dll found");
-    internal.XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
-    internal.XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+    s_oswin32.XInputGetState = (XInputGetStateFunc) s_xInputGetStateDUMMY;
+    s_oswin32.XInputSetState = (XInputSetStateFunc) s_xInputSetStateDUMMY;
     return false;
   }
 
   //get xinput function pointers
-  internal.XInputGetState = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
-  internal.XInputSetState = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
+  s_oswin32.XInputGetState = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
+  s_oswin32.XInputSetState = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
 
-  if (!internal.XInputGetState)
-    internal.XInputGetState = (XInputGetStateFunc) internalXInputGetStateDUMMY;
+  if (!s_oswin32.XInputGetState)
+    s_oswin32.XInputGetState = (XInputGetStateFunc) s_xInputGetStateDUMMY;
 
-  if (!internal.XInputSetState)
-    internal.XInputSetState = (XInputSetStateFunc) internalXInputSetStateDUMMY;
+  if (!s_oswin32.XInputSetState)
+    s_oswin32.XInputSetState = (XInputSetStateFunc) s_xInputSetStateDUMMY;
   return true;
 }
 
-static inline void internalXInputPollEvents(void)
+static inline void s_XInputPollEvents(void)
 {
   // get gamepad input
   for(int32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
   {
     XINPUT_STATE xinputState = {0};
-    LDKJoystickState* joystickState = &internal.joysickState[gamepadIndex];
+    LDKJoystickState* joystickState = &s_oswin32.joysickState[gamepadIndex];
 
     // ignore unconnected controllers
-    if (internal.XInputGetState(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
+    if (s_oswin32.XInputGetState(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
     {
       joystickState->connected = false;
       continue;
@@ -322,24 +321,24 @@ static inline void internalXInputPollEvents(void)
   }
 }
 
-inline static bool internalGraphicsApiIsOpengl(Win32GraphicsAPI api)
+inline static bool s_GraphicsApiIsOpengl(Win32GraphicsAPI api)
 {
   return (api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
 }
 
-static LDKEvent* internalWin32EventNew(void)
+static LDKEvent* s_Win32EventNew(void)
 {
-  if (internal.eventsCount >= LDK_WIN32_MAX_EVENTS)
+  if (s_oswin32.eventsCount >= LDK_WIN32_MAX_EVENTS)
   {
     ldkLogError("Reached the maximum number of OS events %d.", LDK_WIN32_MAX_EVENTS);
     return NULL;
   }
 
-  LDKEvent* eventPtr = &(internal.events[internal.eventsCount++]);
+  LDKEvent* eventPtr = &(s_oswin32.events[s_oswin32.eventsCount++]);
   return eventPtr;
 }
 
-inline static bool internalOpenglInit(Win32GraphicsAPI api, int32 glVersionMajor, int32 glVersionMinor, int32 colorBits, int32 depthBits)
+inline static bool s_OpenglInit(Win32GraphicsAPI api, int32 glVersionMajor, int32 glVersionMinor, int32 colorBits, int32 depthBits)
 {
   LDKWin32Window* dummyWindow =  ldkOsWindowCreate("", 0,0);
   bool isGLES = api == WIN32_GRAPHICS_API_OPENGLES;
@@ -425,17 +424,17 @@ inline static bool internalOpenglInit(Win32GraphicsAPI api, int32 glVersionMajor
   };
 
   // Initialize the global rendering api info with OpenGL api details
-  win32GraphicsAPIInfo.api = api;
-  win32GraphicsAPIInfo.gl.sharedContext = 0;
-  win32GraphicsAPIInfo.gl.versionMajor = glVersionMajor;
-  win32GraphicsAPIInfo.gl.versionMinor = glVersionMinor;
-  win32GraphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
-  win32GraphicsAPIInfo.gl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
-  win32GraphicsAPIInfo.gl.wglSwapIntervalEXT         = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-  win32GraphicsAPIInfo.gl.wglGetSwapIntervalEXT      = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
+  s_graphicsAPIInfo.api = api;
+  s_graphicsAPIInfo.gl.sharedContext = 0;
+  s_graphicsAPIInfo.gl.versionMajor = glVersionMajor;
+  s_graphicsAPIInfo.gl.versionMinor = glVersionMinor;
+  s_graphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
+  s_graphicsAPIInfo.gl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
+  s_graphicsAPIInfo.gl.wglSwapIntervalEXT         = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
+  s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT      = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
 
-  memcpy(win32GraphicsAPIInfo.gl.pixelFormatAttribs, pixelFormatAttribList, sizeof(pixelFormatAttribList));
-  memcpy(win32GraphicsAPIInfo.gl.contextAttribs, contextAttribs, sizeof(contextAttribs));
+  memcpy(s_graphicsAPIInfo.gl.pixelFormatAttribs, pixelFormatAttribList, sizeof(pixelFormatAttribList));
+  memcpy(s_graphicsAPIInfo.gl.contextAttribs, contextAttribs, sizeof(contextAttribs));
 
 
   // Get function pointers
@@ -447,12 +446,12 @@ inline static bool internalOpenglInit(Win32GraphicsAPI api, int32 glVersionMajor
   return true;
 }
 
-inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
+inline static LDKWindow s_DKWindowFromWin32HWND(HWND hWnd)
 {
-  for (uint32 i =0; i < internal.windowCount; i++)
+  for (uint32 i =0; i < s_oswin32.windowCount; i++)
   {
-    if ( internal.allHWND[i] == hWnd)
-      return internal.allWindows[i];
+    if ( s_oswin32.allHWND[i] == hWnd)
+      return s_oswin32.allWindows[i];
   }
 
   return NULL;
@@ -465,10 +464,10 @@ inline static LDKWindow internaLDKWindowFromWin32HWND(HWND hWnd)
 
 bool ldkOsInitialize(void)
 {
-  //internal = (LDKWin32Internal*) ldkOsMemoryAlloc(sizeof(LDKWin32Internal));
-  //memset(internal, 0, sizeof(LDKWin32Internal));
-  QueryPerformanceFrequency(&internal.frequency);
-  internalXInputInit();
+  //s_ = (LDKWin32s_*) ldkOsMemoryAlloc(sizeof(LDKWin32s_));
+  //memset(s_oswin32, 0, sizeof(LDKWin32s_));
+  QueryPerformanceFrequency(&s_oswin32.frequency);
+  s_xInputInit();
   return true;
 }
 
@@ -479,7 +478,6 @@ void ldkOsTerminate(void)
 void ldkOsStackTracePrint(void)
 {
 #ifdef LDK_DEBUG
-
   static bool once = false;
   if(!once)
   {
@@ -506,7 +504,7 @@ void ldkOsStackTracePrint(void)
     SymGetLineFromAddr64(GetCurrentProcess(), (DWORD64)(stackTrace[i]), &displacement, &lineInfo);
 
 #ifdef LDK_COMPILER_MSVC
-    if (ldkStringEndsWith(symbolInfo->Name, "internalOnSignal") || ldkStringEndsWith(symbolInfo->Name, "seh_filter_exe"))
+    if (ldkStringEndsWith(symbolInfo->Name, "s_OnSignal") || ldkStringEndsWith(symbolInfo->Name, "seh_filter_exe"))
       continue;
 
     if (lineInfo.FileName && (ldkStringEndsWith(lineInfo.FileName, "vcstartup\\src\\startup\\exe_common.inl")
@@ -789,19 +787,19 @@ uint64 ldkOsTimeTicksGet(void)
 
 double ldkOsTimeTicksIntervalGetSeconds(uint64 start, uint64 end)
 {
-  return ((end - start) / (double) internal.frequency.QuadPart);
+  return ((end - start) / (double) s_oswin32.frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetMilliseconds(uint64 start, uint64 end)
 {
   double difference = (end - start) * 1000.0;
-  return (difference / internal.frequency.QuadPart);
+  return (difference / s_oswin32.frequency.QuadPart);
 }
 
 double ldkOsTimeTicksIntervalGetNanoseconds(uint64 start, uint64 end)
 {
   double difference = (end - start) * 1000000000.0;
-  return (difference / internal.frequency.QuadPart);
+  return (difference / s_oswin32.frequency.QuadPart);
 }
 
 //
@@ -818,7 +816,7 @@ void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime)
   outDateTime->day          = win32SysTime.wDay;
   outDateTime->hour         = win32SysTime.wHour;
   outDateTime->minute       = win32SysTime.wMinute;
-  outDateTime->Second       = win32SysTime.wSecond;
+  outDateTime->second       = win32SysTime.wSecond;
   outDateTime->milliseconds = win32SysTime.wMilliseconds;
 }
 
@@ -829,32 +827,32 @@ void ldkOsSystemDateTimeGet(LDKDateTime* outDateTime)
 
 void LDK_API ldkOsGraphicsContextDestroy(LDKGCtx context)
 {
-  LDK_ASSERT(context == &win32GraphicsAPIInfo);
+  LDK_ASSERT(context == &s_graphicsAPIInfo);
 
-  bool isOpenGL = internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api);
+  bool isOpenGL = s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api);
   if (isOpenGL)
   {
-    wglDeleteContext(win32GraphicsAPIInfo.gl.rc);
-    win32GraphicsAPIInfo.api = WIN32_GRAPHICS_API_NONE;
+    wglDeleteContext(s_graphicsAPIInfo.gl.rc);
+    s_graphicsAPIInfo.api = WIN32_GRAPHICS_API_NONE;
   }
 }
 
 void ldkOsWindowDestroy(LDKWindow window)
 {
-  uint32 lastWindowIndex = internal.windowCount - 1;
-  for (uint32 i =0; i < internal.windowCount; i++)
+  uint32 lastWindowIndex = s_oswin32.windowCount - 1;
+  for (uint32 i =0; i < s_oswin32.windowCount; i++)
   {
-    if (internal.allWindows[i] == window)
+    if (s_oswin32.allWindows[i] == window)
     {
       if (i != lastWindowIndex)
       {
-        internal.allWindows[i] = internal.allWindows[lastWindowIndex];
-        internal.allHWND[i] = internal.allHWND[lastWindowIndex];
+        s_oswin32.allWindows[i] = s_oswin32.allWindows[lastWindowIndex];
+        s_oswin32.allHWND[i] = s_oswin32.allHWND[lastWindowIndex];
       }
 
-      internal.allWindows[lastWindowIndex] = NULL;
-      internal.allHWND[lastWindowIndex] = NULL;
-      internal.windowCount--;
+      s_oswin32.allWindows[lastWindowIndex] = NULL;
+      s_oswin32.allHWND[lastWindowIndex] = NULL;
+      s_oswin32.windowCount--;
       break;
     }
   }
@@ -867,7 +865,7 @@ void ldkOsWindowDestroy(LDKWindow window)
 
 LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 height, LDKWindowFlags flags)
 {
-  if (internal.windowCount > LDK_WIN32_MAX_WINDOWS)
+  if (s_oswin32.windowCount > LDK_WIN32_MAX_WINDOWS)
   {
     ldkLogError("Exceeded maximum number of windows %d", LDK_WIN32_MAX_WINDOWS);
     return NULL;
@@ -888,7 +886,7 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
   {
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.style = CS_OWNDC;
-    wc.lpfnWndProc = internalWindowProc;
+    wc.lpfnWndProc = s_windowProc;
     wc.hInstance = hInstance;
     wc.hbrBackground = (HBRUSH) GetStockObject(BLACK_BRUSH);
     wc.lpszClassName = ldkWindowClass;
@@ -935,17 +933,17 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
   window->isFullscreen = false;
   window->closeFlag = false;
 
-  bool isOpenGL = internalGraphicsApiIsOpengl(win32GraphicsAPIInfo .api);
+  bool isOpenGL = s_GraphicsApiIsOpengl(s_graphicsAPIInfo .api);
   if(isOpenGL)
   {
     int pixelFormat;
     int numPixelFormats = 0;
     PIXELFORMATDESCRIPTOR pfd;
 
-    const int* pixelFormatAttribList  = (const int*) win32GraphicsAPIInfo .gl.pixelFormatAttribs;
-    const int* contextAttribList      = (const int*) win32GraphicsAPIInfo.gl.contextAttribs;
+    const int* pixelFormatAttribList  = (const int*) s_graphicsAPIInfo .gl.pixelFormatAttribs;
+    const int* contextAttribList      = (const int*) s_graphicsAPIInfo.gl.contextAttribs;
 
-    win32GraphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
+    s_graphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
         pixelFormatAttribList,
         NULL,
         1,
@@ -964,14 +962,14 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
       return NULL;
     }
 
-    HGLRC sharedContext = win32GraphicsAPIInfo.gl.sharedContext;
-    HGLRC rc = win32GraphicsAPIInfo.gl.wglCreateContextAttribsARB(window->dc, sharedContext, contextAttribList);
+    HGLRC sharedContext = s_graphicsAPIInfo.gl.sharedContext;
+    HGLRC rc = s_graphicsAPIInfo.gl.wglCreateContextAttribsARB(window->dc, sharedContext, contextAttribList);
 
     // The first context created will be used as a shared context for the rest
     // of the program execution
     if (! sharedContext)
     {
-      win32GraphicsAPIInfo.gl.sharedContext = rc;
+      s_graphicsAPIInfo.gl.sharedContext = rc;
     }
 
     if (! rc)
@@ -980,7 +978,7 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
       return NULL;
     }
 
-    win32GraphicsAPIInfo.gl.rc = rc;
+    s_graphicsAPIInfo.gl.rc = rc;
     if (! wglMakeCurrent(window->dc, rc))
     {
       ldkLogError("Unable to set OpenGL context current", 0);
@@ -988,13 +986,13 @@ LDKWindow ldkOsWindowCreateWithFlags(const char* title, int32 width, int32 heigh
     }
   }
 
-  if (internal.defaultCursor == 0)
-    internal.defaultCursor = LoadCursor(NULL, IDC_ARROW);
+  if (s_oswin32.defaultCursor == 0)
+    s_oswin32.defaultCursor = LoadCursor(NULL, IDC_ARROW);
 
-  SetCursor(internal.defaultCursor);
-  uint32 windowIndex = internal.windowCount++;
-  internal.allWindows[windowIndex] = window;
-  internal.allHWND[windowIndex] = window->handle;
+  SetCursor(s_oswin32.defaultCursor);
+  uint32 windowIndex = s_oswin32.windowCount++;
+  s_oswin32.allWindows[windowIndex] = window;
+  s_oswin32.allHWND[windowIndex] = window->handle;
   return window;
 }
 
@@ -1013,24 +1011,24 @@ bool ldkOsEventsPoll(LDKEvent* event)
 {
   MSG msg;
 
-  if (internal.eventsCount == 0)
+  if (s_oswin32.eventsCount == 0)
   {
     // clean up changed bit for keyboard keys
     for(int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
     {
-      internal.keyboardState.key[keyCode] &= ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+      s_oswin32.keyboardState.key[keyCode] &= ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
     }
 
     // clean up changed bit for mouse buttons
     for(int button = 0; button <  LDK_MOUSE_MAX_BUTTONS; button++)
     {
-      internal.mouseState.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+      s_oswin32.mouseState.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
     }
 
     // reset wheel delta
-    internal.mouseState.wheelDelta = 0;
-    internal.mouseState.cursorRelative.x = 0;
-    internal.mouseState.cursorRelative.y = 0;
+    s_oswin32.mouseState.wheelDelta = 0;
+    s_oswin32.mouseState.cursorRelative.x = 0;
+    s_oswin32.mouseState.cursorRelative.y = 0;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
       TranslateMessage(&msg);
@@ -1043,22 +1041,22 @@ bool ldkOsEventsPoll(LDKEvent* event)
   {
     for(int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
     {
-      internal.joysickState[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+      s_oswin32.joysickState[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
     }
   }
 
-  internalXInputPollEvents();
+  s_XInputPollEvents();
 
   // WindowProc might have enqueued some events...
-  if (internal.eventsPollIndex < internal.eventsCount)
+  if (s_oswin32.eventsPollIndex < s_oswin32.eventsCount)
   {
-    memcpy(event, &internal.events[internal.eventsPollIndex++], sizeof(LDKEvent));
+    memcpy(event, &s_oswin32.events[s_oswin32.eventsPollIndex++], sizeof(LDKEvent));
     return true;
   }
   else
   {
-    internal.eventsCount = 0;
-    internal.eventsPollIndex = 0;
+    s_oswin32.eventsCount = 0;
+    s_oswin32.eventsPollIndex = 0;
     event->type = LDK_EVENT_TYPE_NONE;
     return false;
   }
@@ -1238,13 +1236,13 @@ size_t ldkOsExecutablePathFileNameGet(LDKPath* ldkPath)
   return len;
 }
 
-static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   bool isMouseButtonDownEvent = false;
   int32 mouseButtonId = -1;
   LRESULT returnValue = FALSE;
 
-  LDKWin32Window* window = (LDKWin32Window*) internaLDKWindowFromWin32HWND(hwnd);
+  LDKWin32Window* window = (LDKWin32Window*) s_DKWindowFromWin32HWND(hwnd);
 
   switch(uMsg) 
   {
@@ -1255,7 +1253,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         if(result == HTCLIENT && window->cursorChanged)
         {
           window->cursorChanged = false;
-          SetCursor(internal.defaultCursor);
+          SetCursor(s_oswin32.defaultCursor);
         }
         else
           window->cursorChanged = true;
@@ -1266,7 +1264,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case WM_ACTIVATE:
       {
         bool activate = (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE);
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_WINDOW;
         e->windowEvent.type = activate ? LDK_WINDOW_EVENT_ACTIVATE : LDK_WINDOW_EVENT_DEACTIVATE;
         e->window = window;
@@ -1274,7 +1272,7 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
       break;
     case WM_CHAR:
       {
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type                = LDK_EVENT_TYPE_TEXT;
         e->window = window;
         e->textEvent.character = (uint32) wParam;
@@ -1287,15 +1285,15 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         //WM_SIZE is sent a lot of times in a row and would easily overflow our
         //event buffer. We just update the last event if it is a LDK_EVENT_TYPE_WINDOW instead of adding a new event
         LDKEvent* e = NULL;
-        uint32 lastEventIndex = internal.eventsCount - 1;
-        if (internal.eventsCount > 0 && internal.events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
+        uint32 lastEventIndex = s_oswin32.eventsCount - 1;
+        if (s_oswin32.eventsCount > 0 && s_oswin32.events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
         {
-          if(internal.events[lastEventIndex].windowEvent.type == LDK_WINDOW_EVENT_RESIZED)
-            e = &internal.events[lastEventIndex];
+          if(s_oswin32.events[lastEventIndex].windowEvent.type == LDK_WINDOW_EVENT_RESIZED)
+            e = &s_oswin32.events[lastEventIndex];
         }
 
         if (e == NULL)
-          e = internalWin32EventNew();
+          e = s_Win32EventNew();
 
         e->type               = LDK_EVENT_TYPE_WINDOW;
         e->window             = window;
@@ -1313,9 +1311,9 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         int32 wasDown = (lParam & (1 << 30)) !=0;
         int32 state = (((isDown ^ wasDown) << 1) | isDown);
         int16 vkCode = (int16) wParam;
-        internal.keyboardState.key[vkCode] = (uint8) state;
+        s_oswin32.keyboardState.key[vkCode] = (uint8) state;
 
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_KEYBOARD;
         e->window = window;
         e->keyboardEvent.type = (wasDown && !isDown) ?
@@ -1323,47 +1321,47 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
           LDK_KEYBOARD_EVENT_KEY_DOWN : LDK_KEYBOARD_EVENT_KEY_HOLD;
 
         e->keyboardEvent.keyCode      = vkCode;
-        e->keyboardEvent.ctrlIsDown   = internal.keyboardState.key[LDK_KEYCODE_CONTROL];
-        e->keyboardEvent.shiftIsDown  = internal.keyboardState.key[LDK_KEYCODE_SHIFT];
-        e->keyboardEvent.altIsDown    = internal.keyboardState.key[LDK_KEYCODE_ALT];
+        e->keyboardEvent.ctrlIsDown   = s_oswin32.keyboardState.key[LDK_KEYCODE_CONTROL];
+        e->keyboardEvent.shiftIsDown  = s_oswin32.keyboardState.key[LDK_KEYCODE_SHIFT];
+        e->keyboardEvent.altIsDown    = s_oswin32.keyboardState.key[LDK_KEYCODE_ALT];
       }
       break;
 
     case WM_MOUSEWHEEL:
       {
         int32 delta = GET_WHEEL_DELTA_WPARAM(wParam);
-        internal.mouseState.wheelDelta = delta;
+        s_oswin32.mouseState.wheelDelta = delta;
 
         // update cursor position
-        int32 lastX = internal.mouseState.cursor.x;
-        int32 lastY = internal.mouseState.cursor.y;
-        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
-        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
-        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
+        int32 lastX = s_oswin32.mouseState.cursor.x;
+        int32 lastY = s_oswin32.mouseState.cursor.y;
+        s_oswin32.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        s_oswin32.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        s_oswin32.mouseState.cursorRelative.x = s_oswin32.mouseState.cursor.x - lastX;
+        s_oswin32.mouseState.cursorRelative.y = s_oswin32.mouseState.cursor.y - lastY;
 
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_WHEEL;
         e->window = window;
         e->mouseEvent.wheelDelta = delta;
         e->mouseEvent.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
-        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
-        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
+        e->mouseEvent.xRel    = s_oswin32.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = s_oswin32.mouseState.cursorRelative.y;
       }
       break;
 
     case WM_MOUSEMOVE:
       {
-        int32 lastX = internal.mouseState.cursor.x;
-        int32 lastY = internal.mouseState.cursor.y;
-        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
-        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
-        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
+        int32 lastX = s_oswin32.mouseState.cursor.x;
+        int32 lastY = s_oswin32.mouseState.cursor.y;
+        s_oswin32.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        s_oswin32.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        s_oswin32.mouseState.cursorRelative.x = s_oswin32.mouseState.cursor.x - lastX;
+        s_oswin32.mouseState.cursorRelative.y = s_oswin32.mouseState.cursor.y - lastY;
 
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_MOVE;
         e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
         e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
@@ -1371,8 +1369,8 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         e->mouseEvent.type = LDK_MOUSE_EVENT_MOVE;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
-        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
-        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
+        e->mouseEvent.xRel    = s_oswin32.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = s_oswin32.mouseState.cursorRelative.y;
       }
       break;
 
@@ -1397,11 +1395,11 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
         isMouseButtonDownEvent = uMsg == WM_XBUTTONDOWN || uMsg == WM_LBUTTONDOWN || uMsg == WM_MBUTTONDOWN || uMsg == WM_RBUTTONDOWN;
 
-        unsigned char* buttonLeft   = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_LEFT]);
-        unsigned char* buttonRight  = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_RIGHT]);
-        unsigned char* buttonMiddle = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_MIDDLE]);
-        unsigned char* buttonExtra1 = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_0]);
-        unsigned char* buttonExtra2 = (unsigned char*) &(internal.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_1]);
+        unsigned char* buttonLeft   = (unsigned char*) &(s_oswin32.mouseState.button[LDK_MOUSE_BUTTON_LEFT]);
+        unsigned char* buttonRight  = (unsigned char*) &(s_oswin32.mouseState.button[LDK_MOUSE_BUTTON_RIGHT]);
+        unsigned char* buttonMiddle = (unsigned char*) &(s_oswin32.mouseState.button[LDK_MOUSE_BUTTON_MIDDLE]);
+        unsigned char* buttonExtra1 = (unsigned char*) &(s_oswin32.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_0]);
+        unsigned char* buttonExtra2 = (unsigned char*) &(s_oswin32.mouseState.button[LDK_MOUSE_BUTTON_EXTRA_1]);
         unsigned char isDown, wasDown;
 
         isDown        = (unsigned char) ((wParam & MK_LBUTTON) > 0);
@@ -1425,28 +1423,28 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         *buttonExtra2 = (((isDown ^ wasDown) << 1) | isDown);
 
         // update cursor position
-        int32 lastX = internal.mouseState.cursor.x;
-        int32 lastY = internal.mouseState.cursor.y;
-        internal.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        internal.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
-        internal.mouseState.cursorRelative.x = internal.mouseState.cursor.x - lastX;
-        internal.mouseState.cursorRelative.y = internal.mouseState.cursor.y - lastY;
+        int32 lastX = s_oswin32.mouseState.cursor.x;
+        int32 lastY = s_oswin32.mouseState.cursor.y;
+        s_oswin32.mouseState.cursor.x = GET_X_LPARAM(lParam);
+        s_oswin32.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        s_oswin32.mouseState.cursorRelative.x = s_oswin32.mouseState.cursor.x - lastX;
+        s_oswin32.mouseState.cursorRelative.y = s_oswin32.mouseState.cursor.y - lastY;
 
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_MOUSE_BUTTON;
         e->window = window;
         e->mouseEvent.type = isMouseButtonDownEvent ? LDK_MOUSE_EVENT_BUTTON_DOWN : LDK_MOUSE_EVENT_BUTTON_UP;
         e->mouseEvent.mouseButton = mouseButtonId;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam);
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam);
-        e->mouseEvent.xRel    = internal.mouseState.cursorRelative.x;
-        e->mouseEvent.yRel    = internal.mouseState.cursorRelative.y;
+        e->mouseEvent.xRel    = s_oswin32.mouseState.cursorRelative.x;
+        e->mouseEvent.yRel    = s_oswin32.mouseState.cursorRelative.y;
       }
       break;
 
     case WM_CLOSE:
       {
-        LDKEvent* e = internalWin32EventNew();
+        LDKEvent* e = s_Win32EventNew();
         e->type = LDK_EVENT_TYPE_WINDOW;
         e->windowEvent.type = LDK_WINDOW_EVENT_CLOSE;
         e->window = window;
@@ -1465,40 +1463,40 @@ static LRESULT internalWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 LDKGCtx ldkOsGraphicsContextOpenglCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
-  internalOpenglInit(WIN32_GRAPHICS_API_OPENGL, versionMajor, versionMinor, colorBits, depthBits);
-  return &win32GraphicsAPIInfo;
+  s_OpenglInit(WIN32_GRAPHICS_API_OPENGL, versionMajor, versionMinor, colorBits, depthBits);
+  return &s_graphicsAPIInfo;
 }
 
 LDKGCtx ldkOsGraphicsContextOpenglesCreate(int32 versionMajor, int32 versionMinor, int32 colorBits, int32 depthBits)
 {
-  internalOpenglInit(WIN32_GRAPHICS_API_OPENGLES, versionMajor, versionMinor, colorBits, depthBits);
-  return &win32GraphicsAPIInfo;
+  s_OpenglInit(WIN32_GRAPHICS_API_OPENGLES, versionMajor, versionMinor, colorBits, depthBits);
+  return &s_graphicsAPIInfo;
 }
 
 void ldkOsGraphicsContextCurrent(LDKWindow window, LDKGCtx context)
 {
   HDC dc = ((LDKWin32Window*)window)->dc;
-  LDK_ASSERT(context == &win32GraphicsAPIInfo);
-  if (internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
-    wglMakeCurrent(dc, win32GraphicsAPIInfo.gl.rc);
+  LDK_ASSERT(context == &s_graphicsAPIInfo);
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
+    wglMakeCurrent(dc, s_graphicsAPIInfo.gl.rc);
 }
 
 bool ldkOsGraphicsVSyncSet(bool vsync)
 {
-  if (internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
   {
-    if (win32GraphicsAPIInfo.gl.wglSwapIntervalEXT)
-      return win32GraphicsAPIInfo.gl.wglSwapIntervalEXT(vsync);
+    if (s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
+      return s_graphicsAPIInfo.gl.wglSwapIntervalEXT(vsync);
   }
   return false;
 }
 
 int32 ldkOsGraphicsVSyncGet(void)
 {
-  if (internalGraphicsApiIsOpengl(win32GraphicsAPIInfo.api))
+  if (s_GraphicsApiIsOpengl(s_graphicsAPIInfo.api))
   {
-    if (win32GraphicsAPIInfo.gl.wglSwapIntervalEXT)
-      return win32GraphicsAPIInfo.gl.wglGetSwapIntervalEXT();
+    if (s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
+      return s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT();
   }
   return false;
 }
@@ -1509,7 +1507,7 @@ int32 ldkOsGraphicsVSyncGet(void)
 
 void ldkOsMouseStateGet(LDKMouseState* outState)
 {
-  memcpy(outState, &internal.mouseState, sizeof(LDKMouseState));
+  memcpy(outState, &s_oswin32.mouseState, sizeof(LDKMouseState));
 }
 
 bool ldkOsMouseButtonIsPressed(LDKMouseState* state, LDKMouseButton button)
@@ -1549,7 +1547,7 @@ int32 ldkOsMouseWheelDelta(LDKMouseState* state)
 
 void ldkOsKeyboardStateGet(LDKKeyboardState* outState)
 {
-  memcpy(outState, &internal.keyboardState, sizeof(LDKKeyboardState));
+  memcpy(outState, &s_oswin32.keyboardState, sizeof(LDKKeyboardState));
 }
 
 bool ldkOsKeyboardKeyIsPressed(LDKKeyboardState* state, LDKKeycode keycode)
@@ -1575,7 +1573,7 @@ bool ldkOsKeyboardKeyUp(LDKKeyboardState* state, LDKKeycode keycode)
 void ldkOsJoystickGetState(LDKJoystickState* outState, LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  memcpy(outState, &internal.joysickState[id], sizeof(LDKJoystickState));
+  memcpy(outState, &s_oswin32.joysickState[id], sizeof(LDKJoystickState));
 }
 
 bool ldkOsJoystickButtonIsPressed(LDKJoystickState* state, LDKJoystickButton key)
@@ -1607,7 +1605,7 @@ uint32 ldkOsJoystickCount(void)
   uint32 count = 0;
   for (uint32 i = 0; i < LDK_JOYSTICK_MAX; i++)
   {
-    if (internal.joysickState[i].connected)
+    if (s_oswin32.joysickState[i].connected)
       count++;
   }
   return count;
@@ -1615,14 +1613,14 @@ uint32 ldkOsJoystickCount(void)
 
 uint32 ldkOsJoystickIsConnected(LDKJoystickID id)
 {
-  const bool connected = (internal.joysickState[id].connected);
+  const bool connected = (s_oswin32.joysickState[id].connected);
   return connected;
 }
 
 void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  if (!internal.joysickState[id].connected)
+  if (!s_oswin32.joysickState[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
@@ -1630,21 +1628,21 @@ void ldkOsJoystickVibrationLeftSet(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  internal.joysickState[id].vibrationLeft = speed;
+  s_oswin32.joysickState[id].vibrationLeft = speed;
 
   // xinput wants them as short int
   WORD shortIntSpeedLeft = (WORD) (0xFFFF * speed);
-  WORD shortIntSpeedRight = (WORD) (internal.joysickState[id].vibrationRight * 0XFFFF);
+  WORD shortIntSpeedRight = (WORD) (s_oswin32.joysickState[id].vibrationRight * 0XFFFF);
 
   vibration.wLeftMotorSpeed = shortIntSpeedLeft;
   vibration.wRightMotorSpeed = shortIntSpeedRight;
-  internal.XInputSetState(id, &vibration);
+  s_oswin32.XInputSetState(id, &vibration);
 }
 
 void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  if (!internal.joysickState[id].connected)
+  if (!s_oswin32.joysickState[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
@@ -1652,26 +1650,26 @@ void ldkOsJoystickVibrationRightSet(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  internal.joysickState[id].vibrationRight = speed;
+  s_oswin32.joysickState[id].vibrationRight = speed;
 
   // xinput wants them as short int
-  WORD shortIntSpeedLeft = (WORD) (internal.joysickState[id].vibrationLeft * 0XFFFF);
+  WORD shortIntSpeedLeft = (WORD) (s_oswin32.joysickState[id].vibrationLeft * 0XFFFF);
   WORD shortIntSpeedRight = (WORD) (0xFFFF * speed);
 
   vibration.wLeftMotorSpeed = shortIntSpeedLeft;
   vibration.wRightMotorSpeed = shortIntSpeedRight;
-  internal.XInputSetState(id, &vibration);
+  s_oswin32.XInputSetState(id, &vibration);
 }
 
 float ldkOsJoystickVibrationLeftGet(LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return internal.joysickState[id].vibrationLeft;
+  return s_oswin32.joysickState[id].vibrationLeft;
 }
 
 float ldkOsJoystickVibrationRightGet(LDKJoystickID id)
 {
   LDK_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return internal.joysickState[id].vibrationRight;
+  return s_oswin32.joysickState[id].vibrationRight;
 }
 

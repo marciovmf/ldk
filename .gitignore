@@ -4,6 +4,7 @@ build
 bin
 lib
 *.vim
+*.bkp
 .clangd
 *.rdbg
 *.log
@@ -11,3 +12,5 @@ lib
 *.ilk
 *.pdb
 *.dll
+*.pdb
+

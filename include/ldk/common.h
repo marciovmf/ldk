@@ -14,7 +14,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
   // OS Detection macros
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -52,6 +51,15 @@ extern "C" {
 #define CRT_SECURE_NO_WARNINGS_
 #endif
 
+#ifndef LDK_BUILD_TYPE
+#define LDK_BUILD_TYPE ""
+#endif  // LDK_BUILD_TYPE
+
+#define LDK_VERSION_MAJOR 0
+#define LDK_VERSION_PATCH 0
+#define LDK_VERSION_MINOR 1
+
+#include <stdio.h>
 
   // Assertion macros
 
@@ -85,8 +93,7 @@ extern "C" {
 #define LDK_MEGABYTE(value) (size_t) (KILOBYTE(value) * 1024LL)
 #define LDK_GIGABYTE(value) (size_t) (MEGABYTE(value) * 1024LL)
 
-
-  // Debug macros
+// Debug macros
 
 #if defined(DEBUG) || defined(_DEBUG)
 #ifndef LDK_DEBUG
@@ -95,7 +102,6 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <stdio.h>
 #include <stddef.h>
 
 #ifndef __cplusplus
@@ -103,15 +109,15 @@ extern "C" {
 #endif  
 
 #ifdef LDK_AS_SHARED_LIB
-#ifdef LDK_COMPILER_MSVC
-#ifdef LDK_EXPORT_API
-#define LDK_API __declspec(dllexport) 
+  #ifdef LDK_COMPILER_MSVC
+    #ifdef LDK_EXPORT_API
+      #define LDK_API __declspec(dllexport) 
+    #else
+      #define LDK_API __declspec(dllimport) 
+    #endif
+  #endif
 #else
-#define LDK_API __declspec(dllimport) 
-#endif
-#endif
-#else
-#define LDK_API
+  #define LDK_API
 #endif
 
 
@@ -140,8 +146,33 @@ extern "C" {
   typedef uint32_t  uint32;
   typedef int64_t   int64;
   typedef uint64_t  uint64;
-  typedef uintptr_t LDKHandle;
+  typedef uint64_t  LDKHandle;
   typedef void*     LDKWindow;
+
+  //
+  // Handles
+  //
+
+  typedef struct
+  {
+    LDKHandle value;
+  } LDKHAsset;
+
+  typedef struct
+  {
+    LDKHandle value;
+  } LDKHEntity;
+
+  #define LDK_HASSET_INVALID ((LDKHAsset) {.value = LDK_HANDLE_INVALID })
+  #define LDK_HENTITY_INVALID ((LDKHEntity) {.value = LDK_HANDLE_INVALID })
+  #define ldkHandleIsValid(h) ((h).value != LDK_HANDLE_INVALID)
+
+  // Cast an LDKHandle to a specialized handle type
+  #define ldkHandleTo(t, h) (t){.value = h}
+  // Cast a specialized handle type to LDKHandle
+  #define ldkHandleFrom(h) (LDKHandle)(h.value)
+
+  #define ldkHandleEquals(a, b) ((a).value == (b).value)
 
   // SmallStr
   typedef struct
@@ -230,6 +261,90 @@ extern "C" {
 
   LDK_API LDKRGBA ldkRRGA(uint8 r, uint8 g, uint8 b, uint8 a);
 
+#define LDK_RGBA_WHITE       ldkRGBA(255, 255, 255, 255)
+#define LDK_RGBA_BLACK       ldkRGBA(0, 0, 0, 255)
+#define LDK_RGBA_RED         ldkRGBA(255, 0, 0, 255)
+#define LDK_RGBA_GREEN       ldkRGBA(0, 255, 0, 255)
+#define LDK_RGBA_BLUE        ldkRGBA(0, 0, 255, 255)
+#define LDK_RGBA_YELLOW      ldkRGBA(255, 255, 0, 255)
+#define LDK_RGBA_CYAN        ldkRGBA(0, 255, 255, 255)
+#define LDK_RGBA_MAGENTA     ldkRGBA(255, 0, 255, 255)
+#define LDK_RGBA_ORANGE      ldkRGBA(255, 165, 0, 255)
+#define LDK_RGBA_PURPLE      ldkRGBA(128, 0, 128, 255)
+#define LDK_RGBA_GRAY        ldkRGBA(128, 128, 128, 255)
+#define LDK_RGBA_DARKGRAY    ldkRGBA(64, 64, 64, 255)
+#define LDK_RGBA_LIGHTGRAY   ldkRGBA(192, 192, 192, 255)
+#define LDK_RGBA_PINK        ldkRGBA(255, 192, 203, 255)
+#define LDK_RGBA_BROWN       ldkRGBA(165, 42, 42, 255)
+#define LDK_RGBA_GOLD        ldkRGBA(255, 215, 0, 255)
+#define LDK_RGBA_SILVER      ldkRGBA(192, 192, 192, 255)
+#define LDK_RGBA_LIME        ldkRGBA(0, 255, 0, 255)
+#define LDK_RGBA_TURQUOISE   ldkRGBA(64, 224, 208, 255)
+#define LDK_RGBA_TEAL        ldkRGBA(0, 128, 128, 255)
+#define LDK_RGBA_INDIGO      ldkRGBA(75, 0, 130, 255)
+#define LDK_RGBA_VIOLET      ldkRGBA(238, 130, 238, 255)
+#define LDK_RGBA_CORAL       ldkRGBA(255, 127, 80, 255)
+#define LDK_RGBA_CHOCOLATE   ldkRGBA(210, 105, 30, 255)
+#define LDK_RGBA_IVORY       ldkRGBA(255, 255, 240, 255)
+#define LDK_RGBA_BEIGE       ldkRGBA(245, 222, 179, 255)
+#define LDK_RGBA_MINT        ldkRGBA(189, 252, 201, 255)
+#define LDK_RGBA_LAVENDER    ldkRGBA(230, 230, 250, 255)
+#define LDK_RGBA_PEACH       ldkRGBA(255, 229, 180, 255)
+#define LDK_RGBA_SEASHELL    ldkRGBA(255, 228, 196, 255)
+#define LDK_RGBA_SALMON      ldkRGBA(250, 128, 114, 255)
+#define LDK_RGBA_PLUM        ldkRGBA(221, 160, 221, 255)
+#define LDK_RGBA_MAROON      ldkRGBA(128, 0, 0, 255)
+#define LDK_RGBA_OLIVE       ldkRGBA(128, 128, 0, 255)
+#define LDK_RGBA_NAVY        ldkRGBA(0, 0, 128, 255)
+#define LDK_RGBA_FUCHSIA     ldkRGBA(255, 0, 255, 255)
+#define LDK_RGBA_KHAKI       ldkRGBA(240, 230, 140, 255)
+#define LDK_RGBA_SLATEGRAY   ldkRGBA(112, 128, 144, 255)
+#define LDK_RGBA_AQUA        ldkRGBA(0, 255, 255, 255)
+#define LDK_RGBA_LIGHTBLUE   ldkRGBA(173, 216, 230, 255)
+#define LDK_RGBA_DODGERBLUE  ldkRGBA(30, 144, 255, 255)
+
+#define LDK_RGB_WHITE       ldkRGB(255, 255, 255)
+#define LDK_RGB_BLACK       ldkRGB(0, 0, 0)
+#define LDK_RGB_RED         ldkRGB(255, 0, 0)
+#define LDK_RGB_GREEN       ldkRGB(0, 255, 0)
+#define LDK_RGB_BLUE        ldkRGB(0, 0, 255)
+#define LDK_RGB_YELLOW      ldkRGB(255, 255, 0)
+#define LDK_RGB_CYAN        ldkRGB(0, 255, 255)
+#define LDK_RGB_MAGENTA     ldkRGB(255, 0, 255)
+#define LDK_RGB_ORANGE      ldkRGB(255, 165, 0)
+#define LDK_RGB_PURPLE      ldkRGB(128, 0, 128)
+#define LDK_RGB_GRAY        ldkRGB(128, 128, 128)
+#define LDK_RGB_DARKGRAY    ldkRGB(64, 64, 64)
+#define LDK_RGB_LIGHTGRAY   ldkRGB(192, 192, 192)
+#define LDK_RGB_PINK        ldkRGB(255, 192, 203)
+#define LDK_RGB_BROWN       ldkRGB(165, 42, 42)
+#define LDK_RGB_GOLD        ldkRGB(255, 215, 0)
+#define LDK_RGB_SILVER      ldkRGB(192, 192, 192)
+#define LDK_RGB_LIME        ldkRGB(0, 255, 0)
+#define LDK_RGB_TURQUOISE   ldkRGB(64, 224, 208)
+#define LDK_RGB_TEAL        ldkRGB(0, 128, 128)
+#define LDK_RGB_INDIGO      ldkRGB(75, 0, 130)
+#define LDK_RGB_VIOLET      ldkRGB(238, 130, 238)
+#define LDK_RGB_CORAL       ldkRGB(255, 127, 80)
+#define LDK_RGB_CHOCOLATE   ldkRGB(210, 105, 30)
+#define LDK_RGB_IVORY       ldkRGB(255, 255, 240)
+#define LDK_RGB_BEIGE       ldkRGB(245, 222, 179)
+#define LDK_RGB_MINT        ldkRGB(189, 252, 201)
+#define LDK_RGB_LAVENDER    ldkRGB(230, 230, 250)
+#define LDK_RGB_PEACH       ldkRGB(255, 229, 180)
+#define LDK_RGB_SEASHELL    ldkRGB(255, 228, 196)
+#define LDK_RGB_SALMON      ldkRGB(250, 128, 114)
+#define LDK_RGB_PLUM        ldkRGB(221, 160, 221)
+#define LDK_RGB_MAROON      ldkRGB(128, 0, 0)
+#define LDK_RGB_OLIVE       ldkRGB(128, 128, 0)
+#define LDK_RGB_NAVY        ldkRGB(0, 0, 128)
+#define LDK_RGB_FUCHSIA     ldkRGB(255, 0, 255)
+#define LDK_RGB_KHAKI       ldkRGB(240, 230, 140)
+#define LDK_RGB_SLATEGRAY   ldkRGB(112, 128, 144)
+#define LDK_RGB_AQUA        ldkRGB(0, 255, 255)
+#define LDK_RGB_LIGHTBLUE   ldkRGB(173, 216, 230)
+#define LDK_RGB_DODGERBLUE  ldkRGB(30, 144, 255)
+
 
   //
   // Logging
@@ -264,11 +379,23 @@ extern "C" {
 #endif
 
   //
+  // Hash
+  //
+
+  typedef uint32 LDKHash;
+
+  LDK_API LDKHash ldkHashDJB2(const char* str);
+  LDK_API LDKHash ldkHashStr(const char*);
+  LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
+  LDK_API LDKHash ldkHash(const void* data, size_t length);
+
+
+
+  //
   // Type system
   //
 
   typedef uint16 LDKTypeId;
-  typedef LDKTypeId LDKHandleType;
 
 #define typeid(type) ldkTypeId(LDK_STRINGFY(type), sizeof(type))
 #define typename(id) ldkTypeName(id)
@@ -277,6 +404,16 @@ extern "C" {
   LDK_API LDKTypeId   ldkTypeId(const char* name, size_t size);
   LDK_API const char* ldkTypeName(LDKTypeId typeId);
   LDK_API size_t      ldkTypeSize(LDKTypeId typeId);
+
+  //
+  // Handles
+  //
+
+  typedef LDKTypeId LDKHandleType;
+  LDK_API LDKTypeId ldkHandleType(LDKHandle handle);
+  LDK_API uint32 ldkHandleVersion(LDKHandle handle);
+  LDK_API uint32 ldkHandleIndex(LDKHandle handle);
+  LDK_API LDKHandle ldkMakeHandle(LDKTypeId type, int index, int version);
 
   //
   // String
@@ -289,17 +426,6 @@ extern "C" {
   LDK_API void    ldkSmallStringClear(LDKSmallStr* smallString);
   LDK_API size_t  ldkSmallStringFormat(LDKSmallStr* smallString, const char* fmt, ...);
   LDK_API size_t  ldkSubstringToSmallstring(LDKSubStr* substring, LDKSmallStr* outSmallString);
-
-  //
-  // Hash
-  //
-
-  typedef uint32 LDKHash;
-
-  LDK_API LDKHash ldkHashStr(const char*);
-  LDK_API LDKHash ldkHashXX(const void* input, size_t length, uint32_t seed);
-  LDK_API LDKHash ldkHash(const void* data, size_t length);
-
 
   //
   // Path
@@ -459,5 +585,6 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif //LDK_COMMON_H

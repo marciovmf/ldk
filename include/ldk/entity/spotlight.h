@@ -30,7 +30,8 @@ extern "C" {
 
   LDK_API LDKSpotLight* ldkSpotLightEntityCreate(LDKSpotLight* entity);
   LDK_API void ldkSpotLightEntityDestroy(LDKSpotLight* entity);
-
+  LDK_API void ldkSpotLightEntityGetTransform(LDKHEntity handle, uint32 instanceIndex, Vec3* pos, Vec3* scale, Quat* rot);
+  LDK_API void ldkSpotLightEntitySetTransform(LDKHEntity handle, uint32 instanceIndex, Vec3 pos, Vec3 scale, Quat rot);
 
 #ifdef __cplusplus
 }

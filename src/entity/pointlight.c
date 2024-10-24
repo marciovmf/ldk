@@ -16,3 +16,18 @@ LDKPointLight* ldkPointLightEntityCreate(LDKPointLight* entity)
 void ldkPointLightEntityDestroy(LDKPointLight* entity)
 {
 }
+
+void ldkPointLightEntityGetTransform(LDKHEntity handle, uint32 instanceId, Vec3* pos, Vec3* scale, Quat* rot)
+{
+  LDKPointLight* o = ldkEntityLookup(LDKPointLight, handle);
+  LDK_ASSERT(o != NULL);
+  if(pos) *pos = o->position;
+}
+
+void ldkPointLightEntitySetTransform(LDKHEntity handle, uint32 instanceId, Vec3 pos, Vec3 scale, Quat rot)
+{
+  LDKPointLight* o = ldkEntityLookup(LDKPointLight, handle);
+  LDK_ASSERT(o != NULL);
+  o->position = pos;
+}
+

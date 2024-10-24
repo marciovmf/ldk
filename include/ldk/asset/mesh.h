@@ -27,7 +27,7 @@ extern "C" {
     LDKRenderBuffer*  vBuffer;
     float*            vertices;
     uint16*           indices;
-    LDKHandle*        materials;
+    LDKHAsset*        materials;
     LDKSurface*       surfaces;
     LDKBoundingBox    boundingBox;
     LDKBoundingSphere boundingSphere;
@@ -40,6 +40,7 @@ extern "C" {
 
   LDK_API bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset);
   LDK_API void ldkAssetMeshUnloadFunc(LDKAsset asset);
+  LDK_API LDKMesh* ldkQuadMeshCreate(LDKHAsset material);
 
 #ifdef __cplusplus
 }
