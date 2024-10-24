@@ -17,6 +17,19 @@
 #define ARENA_REALLOC(mem, size) ldkOsMemoryResize(mem, size)
 #endif // ARENA_REALLOC
 
+/**
+ * LDKChunk
+ * 
+ * Represents a block of memory that is used by the arena. Each chunk has a fixed
+ * capacity and tracks how much of it has been used.
+ */
+  struct LDKChunk_t
+  {
+    uint8* data;
+    size_t used;
+    size_t capacity;
+  };
+
 //
 // Internal functions
 //
@@ -104,6 +117,28 @@ uint8* ldkArenaAllocateSize(LDKArena* arena, size_t size)
 
   LDKChunk* chunk = s_arenaAddLDKChunk(arena, newSize);
   return s_arenaAllocateFromLDKChunk(chunk, size);
+}
+
+
+size_t ldkArenaGetChunkCpacity(LDKArena* arena, uint32 chunkIndex)
+{
+  if(arena->numChunks <= chunkIndex)
+    return -1;
+  return arena->chunks[chunkIndex].capacity;
+}
+
+size_t ldkArenaGetChunkUsed(LDKArena* arena, uint32 chunkIndex)
+{
+  if(arena->numChunks <= chunkIndex)
+    return -1;
+  return arena->chunks[chunkIndex].used;
+}
+
+uint8* ldkArenaGetChunkDataPtr(LDKArena* arena, uint32 chunkIndex)
+{
+  if(arena->numChunks <= chunkIndex)
+    return NULL;
+  return arena->chunks[chunkIndex].data;
 }
 
 void ldkArenaReset(LDKArena* arena)
