@@ -2,18 +2,8 @@
 |-----|------|-----|-----|
 
 
-# LDK Engine
+LDK (Ludum Dev Kit) is a flexible game engine being developed from scratch in C for my own games.
 
-The LDK, or **Ludum Dev Kit**, is being developed from scratch in C, to provide complete control over functionality and appearance, enabling customization for a wide range of game projects without relying on external dependencies. 
-
-This development process offers valuable learning experiences in game design and coding, enhancing technical skills and problem-solving abilities. 
-
-Ultimately, the aim is design a fast and versatile framework suitable for my own games.
-
-## Should I use it ?
-
-Yes, but no. I am developing it for my own games however if it fits your needs feel free to to use it.
-
-## Get in touch
+Get in touch:
 [[discord]](https://discord.gg/bA2bBPChFn)
 [[twitter]](https://x.com/marciovmf)
