@@ -29,7 +29,7 @@ extern "C" {
     uint16*           indices;
     LDKHAsset*        materials;
     LDKSurface*       surfaces;
-    LDKBoundingBox    boundingBox;
+    LDKAABB           aabb;
     LDKBoundingSphere boundingSphere;
     uint32            numVertices;
     uint32            numIndices;

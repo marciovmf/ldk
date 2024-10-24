@@ -90,7 +90,7 @@ int32 floatsAreAlmostEqualRelativeEpsilon(float a, float b, float relativeEpsilo
   return fabs(a - b) <= relativeEpsilon * maxAbs;
 }
 
-bool floatIsMultipleEpsilon(double a, double b, float epsilon)
+bool floatIsMultipleEpsilon(float a, float b, float epsilon)
 {
   if (floatIsZeroEpsilon(b, LDK_EPSILON))
     return false;

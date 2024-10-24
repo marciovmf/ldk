@@ -145,7 +145,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
   mesh->numIndices = 0;
   mesh->numSurfaces = 0;
   mesh->numMaterials = 0;
-  memset(&mesh->boundingBox, 0, sizeof(LDKBoundingBox));
+  memset(&mesh->aabb, 0, sizeof(LDKAABB));
   memset(&mesh->boundingSphere, 0, sizeof(LDKBoundingSphere));
 
   bool error = false;
@@ -326,12 +326,16 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
       {
         char* minX = rhs;
         char* minY = strtok_r(NULL, SPACE_OR_TAB, &context);
+        char* minZ = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxX = strtok_r(NULL, SPACE_OR_TAB, &context);
         char* maxY = strtok_r(NULL, SPACE_OR_TAB, &context);
-        s_parseFloat(path, lineNumber, minX, &mesh->boundingBox.minX);
-        s_parseFloat(path, lineNumber, minY, &mesh->boundingBox.minY);
-        s_parseFloat(path, lineNumber, maxX, &mesh->boundingBox.maxX);
-        s_parseFloat(path, lineNumber, maxY, &mesh->boundingBox.maxY);
+        char* maxZ = strtok_r(NULL, SPACE_OR_TAB, &context);
+        s_parseFloat(path, lineNumber, minX, &mesh->aabb.min.x);
+        s_parseFloat(path, lineNumber, minY, &mesh->aabb.min.y);
+        s_parseFloat(path, lineNumber, minZ, &mesh->aabb.min.z);
+        s_parseFloat(path, lineNumber, maxX, &mesh->aabb.max.x);
+        s_parseFloat(path, lineNumber, maxY, &mesh->aabb.max.y);
+        s_parseFloat(path, lineNumber, maxZ, &mesh->aabb.max.z);
       }
     }
     line = strtok_r(NULL, LINEBREAK, &lineBreakContext);
@@ -364,7 +368,7 @@ bool ldkAssetMeshLoadFunc(const char* path, LDKAsset asset)
 LDKMesh* ldkQuadMeshCreate(LDKHAsset material)
 {
   LDKMesh* mesh = ldkAssetNew(LDKMesh);
-  memset(&mesh->boundingBox, 0, sizeof(LDKBoundingBox));
+  memset(&mesh->aabb, 0, sizeof(LDKAABB));
   memset(&mesh->boundingSphere, 0, sizeof(LDKBoundingSphere));
 
   // Indices

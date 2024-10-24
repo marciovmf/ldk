@@ -2,7 +2,7 @@
  *
  * ldk.h
  * 
- * This is the main public include for projects using this engine.
+ * This is the main include for projects using the engine.
  *
  */
 
