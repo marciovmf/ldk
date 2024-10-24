@@ -11,12 +11,10 @@ static struct
   int32 multiSampleLevel;
 } s_graphics;
 
-// @build-tweak
 #ifndef LDK_GRAPHICS_COLOR_BITS
 #define LDK_GRAPHICS_COLOR_BITS 24
 #endif  // LDK_GRAPHICS_COLOR_BITS
 
-// @build-tweak
 #ifndef LDK_GRAPHICS_DEPTH_BITS
 #define LDK_GRAPHICS_DEPTH_BITS 24
 #endif  // LDK_GRAPHICS_DEPTH_BITS
