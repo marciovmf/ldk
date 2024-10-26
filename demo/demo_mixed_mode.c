@@ -4,7 +4,7 @@
 // Mixed approach
 int mixedModeApplication()
 {
-  ldkEngineInitialize();
+  ldkEngineInitialize("../../runtree");
   ldkGraphicsViewportTitleSet("LDK");
   ldkGraphicsViewportIconSet("assets/ldk.ico");
 
