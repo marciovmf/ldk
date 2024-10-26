@@ -24,12 +24,3 @@ target_compile_definitions(demo PRIVATE
   $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
   $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>
 )
-
-add_custom_command(
-  TARGET demo POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E remove "${OUTPUT_DIR}/assets/" 
-  COMMAND ${CMAKE_COMMAND} -E remove "${OUTPUT_DIR}/ldk.cfg"
-  COMMAND ${CMAKE_COMMAND} -E create_symlink "${RUNTREE_DIR}/assets/" "${OUTPUT_DIR}/assets/"
-  COMMAND ${CMAKE_COMMAND} -E create_symlink "${RUNTREE_DIR}/ldk.cfg" "${OUTPUT_DIR}/ldk.cfg"
-)
-

@@ -12,9 +12,9 @@ int test_ldkArenaCreate()
     ASSERT_TRUE(result == true);
     ASSERT_TRUE(arena.numChunks == 1);
     ASSERT_TRUE(arena.chunkCapacity == chunkSize);
-    ASSERT_TRUE(arena.chunks[0].capacity == chunkSize);
-    ASSERT_TRUE(arena.chunks[0].used == 0);
-    ASSERT_TRUE(arena.chunks[0].data != NULL);
+    ASSERT_TRUE(ldkArenaGetChunkCpacity(&arena, 0) == chunkSize);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 0);
+    ASSERT_TRUE(ldkArenaGetChunkDataPtr(&arena, 0) != NULL);
     ldkArenaDestroy(&arena);
     return 0;
 }
@@ -37,18 +37,18 @@ int test_ldkArenaAllocateSize()
     
     uint8* mem1 = ldkArenaAllocateSize(&arena, 128);
     ASSERT_TRUE(mem1 != NULL);
-    ASSERT_TRUE(arena.chunks[0].used == 128);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 128);
 
     uint8* mem2 = ldkArenaAllocateSize(&arena, 512);
     ASSERT_TRUE(mem2 != NULL);
-    ASSERT_TRUE(arena.chunks[0].used == 640);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 640);
 
     uint8* mem3 = ldkArenaAllocateSize(&arena, 512);
     ASSERT_TRUE(mem3 != NULL);
 
     ASSERT_TRUE(arena.numChunks == 2);
-    ASSERT_TRUE(arena.chunks[0].used == 640);
-    ASSERT_TRUE(arena.chunks[1].used == 512);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 640);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 1) == 512);
     
     ldkArenaDestroy(&arena);
     return 0;
@@ -64,12 +64,12 @@ int test_ldkArenaReset()
 
     ldkArenaReset(&arena);
     ASSERT_TRUE(arena.numChunks == 1);
-    ASSERT_TRUE(arena.chunks[0].used == 0);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 0);
 
     ldkArenaAllocateSize(&arena, 512);
     ldkArenaAllocateSize(&arena, 512);
     ASSERT_TRUE(arena.numChunks == 1);
-    ASSERT_TRUE(arena.chunks[0].used == 1024);
+    ASSERT_TRUE(ldkArenaGetChunkUsed(&arena, 0) == 1024);
     
     ldkArenaDestroy(&arena);
     return 0;

@@ -24,6 +24,7 @@ list(APPEND SOURCE
   # Core
   ${INCLUDE_DIR}/ldk.h
   ${INCLUDE_DIR}/os.h
+  ${INCLUDE_DIR}/argparse.h argparse.c
   ${INCLUDE_DIR}/gl.h gl.c
   ${INCLUDE_DIR}/maths.h maths.c
   ${INCLUDE_DIR}/arena.h arena.c

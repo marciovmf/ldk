@@ -734,7 +734,7 @@ bool ldkOsPathIsFile(const char* path)
   return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-bool ldkOsPathIsDirectoryu(char* path)
+bool ldkOsPathIsDirectory(char* path)
 {
   DWORD attributes = GetFileAttributes(path);
   return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
