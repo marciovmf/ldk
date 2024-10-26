@@ -24,6 +24,7 @@ list(APPEND SOURCE
   # Core
   ${INCLUDE_DIR}/ldk.h
   ${INCLUDE_DIR}/os.h
+  ${INCLUDE_DIR}/argparse.h argparse.c
   ${INCLUDE_DIR}/gl.h gl.c
   ${INCLUDE_DIR}/maths.h maths.c
   ${INCLUDE_DIR}/arena.h arena.c
@@ -102,13 +103,13 @@ if (OPTION_BUILD_EDITOR)
   add_library(ldk ${LIBTYPE} ${SOURCE})
 
   target_compile_definitions(ldk PRIVATE
+    LDK_ENGINE
     $<$<CONFIG:Release>:${Release_DEFINITIONS}>
     $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
     $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
     $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
     $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
-    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_EXPORT_API>
-    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_AS_SHARED_LIB>
+    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>
     LDK_BUILD_TYPE="$<CONFIG>"
     )
 
