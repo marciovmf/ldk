@@ -5,6 +5,7 @@
 int mixedModeApplication()
 {
   ldkEngineInitialize();
+  ldkEngineInitialize("../../runtree");
   ldkGraphicsViewportTitleSet("LDK");
   ldkGraphicsViewportIconSet("assets/ldk.ico");
   glClearColor(0, 0, 255, 0);

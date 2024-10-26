@@ -1,3 +1,4 @@
+#include "argparse.h"
 #include "asset/config.h"
 #include "asset/material.h"
 #include "asset/mesh.h"
@@ -352,11 +353,27 @@ bool onUpdate(const LDKEvent* event, void* data)
   return true;
 }
 
-int main(void)
+int main(int32 argc, char** argv)
 {
+  // Parse command line arguments 
+  LDKArgParser parser = {0};
+  ldkArgAddArgument(&parser, "--help",    LDK_ARG_TYPE_FLAG,    "Display this help message");
+  ldkArgAddArgument(&parser, "--runtree", LDK_ARG_TYPE_STRING,  "Path to game runtree directory");
+  ldkArgParseArguments(&parser, argc, argv);
+  if (ldkArgGetFlagValue(&parser, "--help"))
+  {
+    ldkArgPrintUsage(&parser);
+    return 0;
+  }
+
+  const char* cmdLineRunTree = ldkArgGetStringValue(&parser, "--runtree");
+  if (cmdLineRunTree == NULL)
+    cmdLineRunTree = "../../runtree/";
+
   // Initialize stuff
   GameState state = {0};
-  ldkEngineInitialize();
+
+  ldkEngineInitialize(cmdLineRunTree);
 
   // Bind events
   ldkEventHandlerAdd(onKeyboardEvent, LDK_EVENT_TYPE_KEYBOARD, (void*) &state);

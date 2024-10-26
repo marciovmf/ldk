@@ -88,8 +88,21 @@ float ldkEngineGetTimeScale()
   return internal.timeScale;
 }
 
-bool ldkEngineInitialize(void)
+bool ldkEngineInitialize(const char* runtreeDir)
 {
+
+  // Passing null here means
+  if (runtreeDir != NULL)
+  {
+    ldkOsCwdSetFromExecutablePath();
+    if (!ldkOsPathIsDirectory(runtreeDir))
+    {
+      fprintf(stderr, "Unable to find runtree directory '%s'\n", runtreeDir);
+      return false;
+    }
+    ldkOsCwdSet(runtreeDir);
+  }
+
   signal(SIGABRT, s_onSignal);
   signal(SIGFPE,  s_onSignal);
   signal(SIGILL,  s_onSignal);
@@ -98,7 +111,6 @@ bool ldkEngineInitialize(void)
   signal(SIGTERM, s_onSignal);
 
   ldkOsInitialize();
-  ldkOsCwdSetFromExecutablePath();
 
   bool success = true;
   bool stepSuccess;
