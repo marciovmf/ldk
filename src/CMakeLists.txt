@@ -30,6 +30,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_color.h 
   ${INCLUDE_DIR}/ldk.h            ldk.c
   ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
+  ${INCLUDE_DIR}/ldk_system.h     ldk_system.c
   ${INCLUDE_DIR}/ldk_common.h     ldk_common.c
   ${INCLUDE_DIR}/ldk_component.h  ldk_component.c
   ${INCLUDE_DIR}/ldk_entity.h     ldk_entity.c

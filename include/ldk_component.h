@@ -53,13 +53,13 @@ extern "C" {
 
   bool ldk_component_remove_entity(
       LDKComponentRegistry* registry,
-      LDKEntitySystem* entity_system,
+      LDKEntityRegistry* entity_system,
       LDKEntity entity,
       u32 component_type);
 
   void ldk_component_registry_remove_all(
       LDKComponentRegistry* registry,
-      LDKEntitySystem* entity_system,
+      LDKEntityRegistry* entity_system,
       LDKEntity entity);
 
 #ifdef __cplusplus

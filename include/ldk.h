@@ -1,9 +1,9 @@
 /**
  * @file   ldk.h
- * @brief  Engine root and global system access
+ * @brief  Engine root and global module access
  *
  * Entry point for the LDK engine. Provides initialization, shutdown,
- * and access to core subsystems.
+ * and access to core submodules.
  */
 
 #ifndef LDK_H
@@ -21,40 +21,40 @@ extern "C" {
   //
 
 #define ldk_log_raw(out, level, fg, bg, components, fmt, ...) \
-  x_log_raw(ldk_system_get(LDK_SYSTEM_LOG), (out), (level), (fg), (bg), (components), fmt, ##__VA_ARGS__)
+  x_log_raw(ldk_module_get(LDK_MODULE_LOG), (out), (level), (fg), (bg), (components), fmt, ##__VA_ARGS__)
 
 #define ldk_log_debug(fmt, ...) \
-  x_log_debug(ldk_system_get(LDK_SYSTEM_LOG), fmt, ##__VA_ARGS__)
+  x_log_debug(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
 #define ldk_log_info(fmt, ...) \
-  x_log_info(ldk_system_get(LDK_SYSTEM_LOG), fmt, ##__VA_ARGS__)
+  x_log_info(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
 #define ldk_log_warning(fmt, ...) \
-  x_log_warning(ldk_system_get(LDK_SYSTEM_LOG), fmt, ##__VA_ARGS__)
+  x_log_warning(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
 #define ldk_log_error(fmt, ...) \
-  x_log_error(ldk_system_get(LDK_SYSTEM_LOG), fmt, ##__VA_ARGS__)
+  x_log_error(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
 #define ldk_log_fatal(fmt, ...) \
-  x_log_fatal(ldk_system_get(LDK_SYSTEM_LOG), fmt, ##__VA_ARGS__)
+  x_log_fatal(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
   typedef struct LDKRoot LDKRoot;
 
-  typedef enum LDKSystemType
+  typedef enum LDKModuleType
   {
-    LDK_SYSTEM_NONE = 0,
-    LDK_SYSTEM_ENTITY,
-    LDK_SYSTEM_COMPONENT,
-    LDK_SYSTEM_EVENT,
-    LDK_SYSTEM_LOG,
-  } LDKSystemType;
+    LDK_MODULE_NONE = 0,
+    LDK_MODULE_ENTITY,
+    LDK_MODULE_COMPONENT,
+    LDK_MODULE_SYSTEM,
+    LDK_MODULE_EVENT,
+    LDK_MODULE_LOG,
+  } LDKModuleType;
 
-  LDK_API bool ldk_engine_initialize(void);
-  LDK_API void ldk_engine_terminate(void);
-
-  LDK_API LDKRoot* ldk_engine(void);
-  LDK_API bool ldk_engine_is_initialized(void);
-  LDK_API void* ldk_system_get(LDKSystemType system_type);
+  LDK_API bool ldk_engine_initialize(void); // initializes the engine
+  LDK_API void ldk_engine_terminate(void);  // finalizes the engine
+  LDK_API LDKRoot* ldk_root_get(void);      // Returns the global engine root
+  LDK_API bool ldk_engine_is_initialized(void); // Checkes if the engine was initialized
+  LDK_API void* ldk_module_get(LDKModuleType module_type);  // Returns the conetxt pointer of a given engine module
 
 #ifdef __cplusplus
 }

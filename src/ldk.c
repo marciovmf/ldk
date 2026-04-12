@@ -5,7 +5,7 @@
 #define X_IMPL_STRING
 #include <stdx/stdx_string.h>
 
-#define X_IMPL_FILESYSTEM
+#define X_IMPL_FILEMODULE
 #include <stdx/stdx_filesystem.h>
 
 #define X_IMPL_HASHTABLE
@@ -21,12 +21,14 @@
 
 #include <ldk_entity.h>
 #include <ldk_component.h>
+#include <ldk_system.h>
 #include <ldk_os.h>
 
 struct LDKRoot
 {
-  LDKEntitySystem       entity_system;
+  LDKEntityRegistry     entity_registry;
   LDKComponentRegistry  component_registry;
+  LDKSystemRegistry     system_registry;
   LDKEventQueue         event_queue;
   XLogger               logger;
 };
@@ -34,7 +36,7 @@ struct LDKRoot
 static LDKRoot g_engine;
 static bool g_engine_initialized = false;
 
-LDKRoot* ldk_engine(void)
+LDKRoot* ldk_root_get(void)
 {
   return &g_engine;
 }
@@ -44,29 +46,42 @@ bool ldk_engine_is_initialized(void)
   return g_engine_initialized;
 }
 
-void* ldk_system_get(LDKSystemType system_type)
+void* ldk_module_get(LDKModuleType module_type)
 {
   X_ASSERT(g_engine_initialized);
-  switch (system_type)
+  switch (module_type)
   {
-    case LDK_SYSTEM_ENTITY:
-      return &g_engine.entity_system;
+    case LDK_MODULE_ENTITY:
+      return &g_engine.entity_registry;
 
-    case LDK_SYSTEM_COMPONENT:
+    case LDK_MODULE_COMPONENT:
       return &g_engine.component_registry;
 
-    case LDK_SYSTEM_EVENT:
+    case LDK_MODULE_SYSTEM:
+      return &g_engine.system_registry;
+
+    case LDK_MODULE_EVENT:
       return &g_engine.event_queue;
 
-    case LDK_SYSTEM_LOG:
+    case LDK_MODULE_LOG:
       return &g_engine.logger;
 
-    case LDK_SYSTEM_NONE:
+    case LDK_MODULE_NONE:
     default:
       break;
   }
 
   return NULL;
+}
+
+void s_terminate_all_modules(LDKRoot* e)
+{
+  ldk_component_registry_terminate(&e->component_registry);
+  ldk_entity_module_terminate(&e->entity_registry);
+  ldk_system_registry_terminate(&e->system_registry);
+  ldk_event_queue_terminate(&e->event_queue);
+  ldk_os_terminate();
+  x_log_close(&e->logger);
 }
 
 bool ldk_engine_initialize(void)
@@ -77,25 +92,39 @@ bool ldk_engine_initialize(void)
   LDKRoot* e = &g_engine;
   memset(e, 0, sizeof(*e));
 
+  x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, "ldk.log");
+  x_log_info(&e->logger,"Initializing LDK");
   ldk_os_initialize();
 
-  x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, "ldk.log");
-
-  if (!ldk_entity_system_initialize(&e->entity_system, 1024, 1))
-    return false;
-
-  if (!ldk_component_registry_initialize(&e->component_registry))
-  {
-    ldk_entity_system_terminate(&e->entity_system);
-    memset(e, 0, sizeof(*e));
-    return false;
-  }
+  bool engine_init_failed = false;
 
   if (!ldk_event_queue_initialize(&e->event_queue))
   {
-    ldk_component_registry_terminate(&e->component_registry);
-    ldk_entity_system_terminate(&e->entity_system);
-    memset(e, 0, sizeof(*e));
+    ldk_log_error("Failed to initialize module: Event Queue.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_entity_module_initialize(&e->entity_registry, 1024, 1))
+  {
+    ldk_log_error("Failed to initialize module: Entity Registry.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_component_registry_initialize(&e->component_registry))
+  {
+    ldk_log_error("Failed to initialize module: Component Registry.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_system_registry_initialize(&e->system_registry))
+  {
+    ldk_log_error("Failed to initialize module: System Registry.");
+    engine_init_failed = true;
+  }
+
+  if (engine_init_failed)
+  {
+    s_terminate_all_modules(e);
     return false;
   }
 
@@ -112,11 +141,7 @@ void ldk_engine_terminate(void)
     return;
   }
 
-  ldk_component_registry_terminate(&e->component_registry);
-  ldk_entity_system_terminate(&e->entity_system);
-  ldk_event_queue_terminate(&e->event_queue);
-  ldk_os_terminate();
-  x_log_close(&e->logger);
+  s_terminate_all_modules(e);
 
   memset(e, 0, sizeof(*e));
   g_engine_initialized = false;

@@ -128,7 +128,7 @@ XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type)
 
 bool ldk_component_remove_entity(
     LDKComponentRegistry* registry,
-    LDKEntitySystem* entity_system,
+    LDKEntityRegistry* entity_system,
     LDKEntity entity,
     u32 component_type)
 {
@@ -194,7 +194,7 @@ bool ldk_component_remove_entity(
 
 void ldk_component_registry_remove_all(
     LDKComponentRegistry* registry,
-    LDKEntitySystem* entity_system,
+    LDKEntityRegistry* entity_system,
     LDKEntity entity)
 {
   LDKEntityInfo* info;
