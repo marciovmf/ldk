@@ -26,8 +26,8 @@ typedef enum
   LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
   LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
   LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
-  LDK_EVENT_TYPE_FRAME_BEFORE     = 1 << 8,
-  LDK_EVENT_TYPE_FRAME_AFTER      = 1 << 9,
+  LDK_EVENT_TYPE_RENDER_BEFORE    = 1 << 8,
+  LDK_EVENT_TYPE_RENDER_AFTER     = 1 << 9,
   LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
   /* Keyboard Event types */

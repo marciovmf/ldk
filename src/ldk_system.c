@@ -104,21 +104,6 @@ static const LDKSystemRegistryInternal* s_system_registry_internal_const(const L
   return (const LDKSystemRegistryInternal*)registry->internal;
 }
 
-static LDKRoot* s_system_registry_root(LDKSystemRegistry* registry)
-{
-  if (!registry)
-  {
-    return NULL;
-  }
-
-  if (registry->root)
-  {
-    return registry->root;
-  }
-
-  return ldk_root_get();
-}
-
 static const LDKRegisteredSystem* s_system_registry_find_by_id_const(const LDKSystemRegistry* registry, u64 id)
 {
   const LDKSystemRegistryInternal* internal;
@@ -173,7 +158,6 @@ static void s_system_registry_clear_bucket_lists(LDKSystemRegistry* registry)
 
 static void s_system_registry_terminate_started_systems(LDKSystemRegistry* registry)
 {
-  LDKRoot* engine;
   u32 count;
   u32 i;
 
@@ -188,7 +172,6 @@ static void s_system_registry_terminate_started_systems(LDKSystemRegistry* regis
     return;
   }
 
-  engine = s_system_registry_root(registry);
   count = x_array_LDKRegisteredSystem_count(internal->systems);
 
   for (i = count; i > 0; --i)
@@ -566,7 +549,6 @@ bool ldk_system_registry_clear(LDKSystemRegistry* registry)
 
 bool ldk_system_registry_start(LDKSystemRegistry* registry)
 {
-  LDKRoot* engine;
   LDKSystemRegistryInternal* internal;
   u32 i;
 
@@ -586,7 +568,6 @@ bool ldk_system_registry_start(LDKSystemRegistry* registry)
     return false;
   }
 
-  engine = s_system_registry_root(registry);
 
   for (i = 0; i < x_array_LDKRegisteredSystem_count(internal->systems); ++i)
   {
@@ -638,7 +619,6 @@ bool ldk_system_registry_stop(LDKSystemRegistry* registry)
 bool ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket bucket, float dt)
 {
   LDKSystemRegistryInternal* internal;
-  LDKRoot* engine;
   XArray_u32* bucket_list;
   u32 i;
 
@@ -658,7 +638,6 @@ bool ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket
     return false;
   }
 
-  engine = s_system_registry_root(registry);
   bucket_list = internal->buckets[bucket];
 
   for (i = 0; i < x_array_u32_count(bucket_list); ++i)

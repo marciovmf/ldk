@@ -42,3 +42,4 @@
 lib
 .build
 bin
+*.log

@@ -28,6 +28,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_event.h 
   ${INCLUDE_DIR}/ldk_geom.h 
   ${INCLUDE_DIR}/ldk_color.h 
+  ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk.h            ldk.c
   ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
   ${INCLUDE_DIR}/ldk_system.h     ldk_system.c
