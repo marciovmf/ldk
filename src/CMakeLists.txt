@@ -137,6 +137,9 @@ list(APPEND SOURCE
       endif()
 
       add_executable(${ARG_TARGET} ${ARG_SOURCES})
+
+      target_compile_definitions(${ARG_TARGET} PRIVATE 
+      $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>)
       set_target_properties(${ARG_TARGET} PROPERTIES OUTPUT_NAME ${ARG_TARGET}${OUTPUT_NAME_SUFFIX})
       target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
       target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
@@ -148,11 +151,8 @@ list(APPEND SOURCE
         DEPENDS ${ARG_TARGET} ldk)
     endfunction()
 
-    #create_test(TARGET test_maths SOURCES tests/ldk_test.h tests/test_maths.c)
-    #create_test(TARGET test_arena SOURCES tests/ldk_test.h tests/test_arena.c)
-    #create_test(TARGET test_array SOURCES tests/ldk_test.h tests/test_array.c)
-    #create_test(TARGET test_hlist SOURCES tests/ldk_test.h tests/test_hlist.c)
-    #create_test(TARGET test_mat4 SOURCES tests/ldk_test.h tests/test_mat4.c)
-    #create_test(TARGET test_typesystem SOURCES tests/ldk_test.h tests/test_typesystem.c)
+    create_test(TARGET test_module_entity SOURCES tests/test_ldk_entity.c)
+    create_test(TARGET test_module_component SOURCES tests/test_ldk_component.c)
+    create_test(TARGET test_module_system SOURCES tests/test_ldk_system.c)
 
   endif()
