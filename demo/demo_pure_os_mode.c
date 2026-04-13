@@ -1,4 +1,17 @@
+#include <ldk_common.h>
 
+#if defined(LDK_GAME)
+#if defined(LDK_SHAREDLIB)
+#define X_IMPL_ARRAY
+#define X_IMPL_STRING
+#define X_IMPL_FILESYSTEM
+#define X_IMPL_LOG
+#define X_IMPL_HASHTABLE
+#define X_IMPL_HPOOL
+#endif // LDK_SHAREDLIB
+#endif // LDK_GAME
+
+#define X_IMPL_FILESYSTEM
 #include <ldk_game.h>
 
 bool pureOsApplication()
