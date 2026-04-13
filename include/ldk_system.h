@@ -40,83 +40,75 @@
 extern "C" {
 #endif
 
-  typedef enum LDKSystemBucket
-  {
-    LDK_SYSTEM_BUCKET_PRE_UPDATE = 0,
-    LDK_SYSTEM_BUCKET_UPDATE,
-    LDK_SYSTEM_BUCKET_POST_UPDATE,
-    LDK_SYSTEM_BUCKET_RENDER,
-    LDK_SYSTEM_BUCKET_COUNT
-  } LDKSystemBucket;
+typedef enum LDKSystemBucket
+{
+  LDK_SYSTEM_BUCKET_PRE_UPDATE = 0,
+  LDK_SYSTEM_BUCKET_UPDATE,
+  LDK_SYSTEM_BUCKET_POST_UPDATE,
+  LDK_SYSTEM_BUCKET_RENDER,
+  LDK_SYSTEM_BUCKET_COUNT
+} LDKSystemBucket;
 
-  typedef enum LDKSystemFlags
-  {
-    LDK_SYSTEM_FLAG_NONE             = 0,
-    LDK_SYSTEM_FLAG_ENABLED          = 1 << 0,
-    LDK_SYSTEM_FLAG_ENGINE_NATIVE    = 1 << 1,
-    LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED  = 1 << 2
-  } LDKSystemFlags;
+typedef enum LDKSystemFlags
+{
+  LDK_SYSTEM_FLAG_NONE             = 0,
+  LDK_SYSTEM_FLAG_ENABLED          = 1 << 0,
+  LDK_SYSTEM_FLAG_ENGINE_NATIVE    = 1 << 1,
+  LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED  = 1 << 2
+} LDKSystemFlags;
 
-  struct LDKRoot;
+struct LDKRoot;
 
-  typedef int  (*LDKSystemInitializeFn)(struct LDKRoot* engine, void** userdata);
-  typedef void (*LDKSystemTerminateFn)(struct LDKRoot* engine, void* userdata);
-  typedef void (*LDKSystemPreUpdateFn)(struct LDKRoot* engine, void* userdata, float dt);
-  typedef void (*LDKSystemUpdateFn)(struct LDKRoot* engine, void* userdata, float dt);
-  typedef void (*LDKSystemPostUpdateFn)(struct LDKRoot* engine, void* userdata, float dt);
-  typedef void (*LDKSystemRenderFn)(struct LDKRoot* engine, void* userdata, float dt);
+typedef int  (*LDKSystemInitializeFn)(void** userdata);
+typedef void (*LDKSystemTerminateFn)(void* userdata);
+typedef void (*LDKSystemPreUpdateFn)(void* userdata, float dt);
+typedef void (*LDKSystemUpdateFn)(void* userdata, float dt);
+typedef void (*LDKSystemPostUpdateFn)(void* userdata, float dt);
+typedef void (*LDKSystemRenderFn)(void* userdata, float dt);
 
-  typedef struct LDKSystemCallbacks
-  {
-    LDKSystemInitializeFn initialize;
-    LDKSystemTerminateFn terminate;
+typedef struct LDKSystemCallbacks
+{
+  LDKSystemInitializeFn initialize;
+  LDKSystemTerminateFn terminate;
 
-    LDKSystemPreUpdateFn pre_update;
-    LDKSystemUpdateFn update;
-    LDKSystemPostUpdateFn post_update;
-    LDKSystemRenderFn render;
-  } LDKSystemCallbacks;
+  LDKSystemPreUpdateFn pre_update;
+  LDKSystemUpdateFn update;
+  LDKSystemPostUpdateFn post_update;
+  LDKSystemRenderFn render;
+} LDKSystemCallbacks;
 
-  typedef struct LDKSystemDesc
-  {
-    u64 id;
-    const char* name;
-    u32 flags;
+typedef struct LDKSystemDesc
+{
+  u64 id;
+  const char* name;
+  u32 flags;
 
-    i32 pre_update_order;
-    i32 update_order;
-    i32 post_update_order;
-    i32 render_order;
+  i32 pre_update_order;
+  i32 update_order;
+  i32 post_update_order;
+  i32 render_order;
 
-    LDKSystemCallbacks callbacks;
-  } LDKSystemDesc;
+  LDKSystemCallbacks callbacks;
+} LDKSystemDesc;
 
-  typedef struct LDKSystemRegistry
-  {
-    void* internal;
-    u8 is_initialized;
-    u8 is_started;
-  } LDKSystemRegistry;
+typedef struct LDKSystemRegistry
+{
+  void* internal;
+  struct LDKRoot* root;
+  u8 is_initialized;
+  u8 is_started;
+} LDKSystemRegistry;
 
-  LDK_API int ldk_system_registry_initialize(LDKSystemRegistry* registry);
-
-  LDK_API void ldk_system_registry_terminate(LDKSystemRegistry* registry);
-
-  LDK_API int ldk_system_registry_register(LDKSystemRegistry* registry, const LDKSystemDesc* desc);
-
-  LDK_API int ldk_system_registry_unregister(LDKSystemRegistry* registry, u64 id);
-
-  LDK_API bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSystemDesc* out);
-
-  LDK_API int ldk_system_registry_clear(LDKSystemRegistry* registry);
-
-  LDK_API int ldk_system_registry_start(LDKSystemRegistry* registry);
-
-  LDK_API int ldk_system_registry_stop(LDKSystemRegistry* registry);
-
-  LDK_API int ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket bucket, float dt);
-
-  LDK_API int ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id);
+LDK_API bool ldk_system_registry_initialize(LDKSystemRegistry* registry);
+LDK_API void ldk_system_registry_terminate(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_register(LDKSystemRegistry* registry, const LDKSystemDesc* desc);
+LDK_API bool ldk_system_registry_unregister(LDKSystemRegistry* registry, u64 id);
+LDK_API bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSystemDesc* out);
+LDK_API bool ldk_system_registry_clear(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_start(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_stop(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket bucket, float dt);
+LDK_API bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id);
 
 #ifdef __cplusplus
 }

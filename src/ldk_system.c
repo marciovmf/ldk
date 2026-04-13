@@ -14,17 +14,9 @@ typedef struct LDKRegisteredSystem
 {
   LDKSystemDesc desc;
   void* userdata;
-
   u32 registration_index;
   u8 is_initialized;
 } LDKRegisteredSystem;
-
-typedef struct LDKSystemBucketList
-{
-  u32* system_indices;
-  u32 count;
-  u32 capacity;
-} LDKSystemBucketList;
 
 X_ARRAY_TYPE(LDKRegisteredSystem);
 X_ARRAY_TYPE(u32);
@@ -43,11 +35,11 @@ static int s_system_desc_has_any_callback(const LDKSystemDesc* desc)
   }
 
   return desc->callbacks.initialize != NULL ||
-    desc->callbacks.terminate != NULL ||
-    desc->callbacks.pre_update != NULL ||
-    desc->callbacks.update != NULL ||
-    desc->callbacks.post_update != NULL ||
-    desc->callbacks.render != NULL;
+         desc->callbacks.terminate != NULL ||
+         desc->callbacks.pre_update != NULL ||
+         desc->callbacks.update != NULL ||
+         desc->callbacks.post_update != NULL ||
+         desc->callbacks.render != NULL;
 }
 
 static int s_system_desc_has_bucket_callback(const LDKSystemDesc* desc, LDKSystemBucket bucket)
@@ -110,6 +102,21 @@ static inline LDKSystemRegistryInternal* s_system_registry_internal(LDKSystemReg
 static const LDKSystemRegistryInternal* s_system_registry_internal_const(const LDKSystemRegistry* registry)
 {
   return (const LDKSystemRegistryInternal*)registry->internal;
+}
+
+static LDKRoot* s_system_registry_root(LDKSystemRegistry* registry)
+{
+  if (!registry)
+  {
+    return NULL;
+  }
+
+  if (registry->root)
+  {
+    return registry->root;
+  }
+
+  return ldk_root_get();
 }
 
 static const LDKRegisteredSystem* s_system_registry_find_by_id_const(const LDKSystemRegistry* registry, u64 id)
@@ -181,7 +188,7 @@ static void s_system_registry_terminate_started_systems(LDKSystemRegistry* regis
     return;
   }
 
-  engine = ldk_root_get();
+  engine = s_system_registry_root(registry);
   count = x_array_LDKRegisteredSystem_count(internal->systems);
 
   for (i = count; i > 0; --i)
@@ -197,7 +204,7 @@ static void s_system_registry_terminate_started_systems(LDKSystemRegistry* regis
 
     if (system->desc.callbacks.terminate)
     {
-      system->desc.callbacks.terminate(engine, system->userdata);
+      system->desc.callbacks.terminate(system->userdata);
     }
 
     system->userdata = NULL;
@@ -225,7 +232,6 @@ static void s_system_registry_sort_bucket(LDKSystemRegistry* registry, LDKSystem
 
   bucket_list = internal->buckets[bucket];
 
-  // Just a dirty bubble-sort-ish sort here. Should be fine because nubmer of elements is very likely to be tiny.
   for (i = 0; i < x_array_u32_count(bucket_list); ++i)
   {
     for (j = i + 1; j < x_array_u32_count(bucket_list); ++j)
@@ -243,16 +249,14 @@ static void s_system_registry_sort_bucket(LDKSystemRegistry* registry, LDKSystem
         should_swap = 1;
       }
       else if (right_order == left_order &&
-          right_system->registration_index < left_system->registration_index)
+               right_system->registration_index < left_system->registration_index)
       {
         should_swap = 1;
       }
 
       if (should_swap)
       {
-        u32 tmp;
-
-        tmp = *left_index_ptr;
+        u32 tmp = *left_index_ptr;
         *left_index_ptr = *right_index_ptr;
         *right_index_ptr = tmp;
       }
@@ -260,7 +264,7 @@ static void s_system_registry_sort_bucket(LDKSystemRegistry* registry, LDKSystem
   }
 }
 
-static int s_system_registry_build_bucket_lists(LDKSystemRegistry* registry)
+static bool s_system_registry_build_bucket_lists(LDKSystemRegistry* registry)
 {
   LDKSystemRegistryInternal* internal;
   u32 system_index;
@@ -268,13 +272,13 @@ static int s_system_registry_build_bucket_lists(LDKSystemRegistry* registry)
 
   if (!registry)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal)
   {
-    return 1;
+    return false;
   }
 
   s_system_registry_clear_bucket_lists(registry);
@@ -287,18 +291,12 @@ static int s_system_registry_build_bucket_lists(LDKSystemRegistry* registry)
 
     for (bucket_index = 0; bucket_index < LDK_SYSTEM_BUCKET_COUNT; ++bucket_index)
     {
-      XArrayError result;
-
       if (!s_system_desc_has_bucket_callback(&system->desc, (LDKSystemBucket)bucket_index))
       {
         continue;
       }
 
-      result = x_array_u32_push(internal->buckets[bucket_index], system_index);
-      if (result != XARRAY_OK)
-      {
-        return 1;
-      }
+      x_array_u32_push(internal->buckets[bucket_index], system_index);
     }
   }
 
@@ -307,7 +305,7 @@ static int s_system_registry_build_bucket_lists(LDKSystemRegistry* registry)
     s_system_registry_sort_bucket(registry, (LDKSystemBucket)bucket_index);
   }
 
-  return 0;
+  return true;
 }
 
 static void s_system_registry_rebuild_registration_indices(LDKSystemRegistry* registry)
@@ -335,14 +333,14 @@ static void s_system_registry_rebuild_registration_indices(LDKSystemRegistry* re
   }
 }
 
-int ldk_system_registry_initialize(LDKSystemRegistry* registry)
+bool ldk_system_registry_initialize(LDKSystemRegistry* registry)
 {
   LDKSystemRegistryInternal* internal;
   u32 i;
 
   if (!registry)
   {
-    return 1;
+    return false;
   }
 
   memset(registry, 0, sizeof(*registry));
@@ -350,7 +348,7 @@ int ldk_system_registry_initialize(LDKSystemRegistry* registry)
   internal = (LDKSystemRegistryInternal*)LDK_ALLOC(sizeof(*internal));
   if (!internal)
   {
-    return 1;
+    return false;
   }
 
   memset(internal, 0, sizeof(*internal));
@@ -359,7 +357,7 @@ int ldk_system_registry_initialize(LDKSystemRegistry* registry)
   if (!internal->systems)
   {
     LDK_FREE(internal);
-    return 1;
+    return false;
   }
 
   for (i = 0; i < LDK_SYSTEM_BUCKET_COUNT; ++i)
@@ -376,15 +374,16 @@ int ldk_system_registry_initialize(LDKSystemRegistry* registry)
 
       x_array_LDKRegisteredSystem_destroy(internal->systems);
       LDK_FREE(internal);
-      return 1;
+      return false;
     }
   }
 
   registry->internal = internal;
+  registry->root = NULL;
   registry->is_initialized = 1;
   registry->is_started = 0;
 
-  return 0;
+  return true;
 }
 
 void ldk_system_registry_terminate(LDKSystemRegistry* registry)
@@ -424,43 +423,40 @@ void ldk_system_registry_terminate(LDKSystemRegistry* registry)
   memset(registry, 0, sizeof(*registry));
 }
 
-int ldk_system_registry_register(
-    LDKSystemRegistry* registry,
-    const LDKSystemDesc* desc)
+bool ldk_system_registry_register(LDKSystemRegistry* registry, const LDKSystemDesc* desc)
 {
   LDKSystemRegistryInternal* internal;
   LDKRegisteredSystem system;
-  XArrayError result;
 
   if (!registry || !desc)
   {
-    return 1;
+    return false;
   }
 
   if (!registry->is_initialized || registry->is_started)
   {
-    return 1;
+    return false;
   }
 
   if (desc->id == 0)
   {
-    return 1;
+    return false;
   }
 
   if (!s_system_desc_has_any_callback(desc))
   {
-    return 1;
+    return false;
   }
 
   if (s_system_registry_find_by_id_const(registry, desc->id) != NULL)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal || !internal->systems)
   {
-    return 1;
+    return false;
   }
 
   memset(&system, 0, sizeof(system));
@@ -469,36 +465,29 @@ int ldk_system_registry_register(
   system.registration_index = x_array_LDKRegisteredSystem_count(internal->systems);
   system.is_initialized = 0;
 
-  result = x_array_LDKRegisteredSystem_push(internal->systems, system);
-  if (result != XARRAY_OK)
-  {
-    return 1;
-  }
-
-  return 0;
+  x_array_LDKRegisteredSystem_push(internal->systems, system);
+  return true;
 }
 
-int ldk_system_registry_unregister(
-    LDKSystemRegistry* registry,
-    u64 id)
+bool ldk_system_registry_unregister(LDKSystemRegistry* registry, u64 id)
 {
   LDKSystemRegistryInternal* internal;
   u32 i;
 
   if (!registry)
   {
-    return 1;
+    return false;
   }
 
   if (!registry->is_initialized || registry->is_started)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal || !internal->systems)
   {
-    return 1;
+    return false;
   }
 
   for (i = 0; i < x_array_LDKRegisteredSystem_count(internal->systems); ++i)
@@ -511,11 +500,11 @@ int ldk_system_registry_unregister(
     {
       x_array_LDKRegisteredSystem_delete_at(internal->systems, i);
       s_system_registry_rebuild_registration_indices(registry);
-      return 0;
+      return true;
     }
   }
 
-  return 1;
+  return false;
 }
 
 bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSystemDesc* out)
@@ -523,7 +512,7 @@ bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSyst
   LDKSystemRegistryInternal* internal;
   u32 i;
 
-  if (!registry)
+  if (!registry || !out)
   {
     return false;
   }
@@ -541,7 +530,6 @@ bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSyst
     system = x_array_LDKRegisteredSystem_get(internal->systems, i);
     if (system->desc.id == id)
     {
-      return system;
       memcpy(out, &system->desc, sizeof(LDKSystemDesc));
       return true;
     }
@@ -550,33 +538,33 @@ bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSyst
   return false;
 }
 
-int ldk_system_registry_clear(LDKSystemRegistry* registry)
+bool ldk_system_registry_clear(LDKSystemRegistry* registry)
 {
   LDKSystemRegistryInternal* internal;
 
   if (!registry)
   {
-    return 1;
+    return false;
   }
 
   if (!registry->is_initialized || registry->is_started)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal || !internal->systems)
   {
-    return 1;
+    return false;
   }
 
   x_array_LDKRegisteredSystem_clear(internal->systems);
   s_system_registry_clear_bucket_lists(registry);
 
-  return 0;
+  return true;
 }
 
-int ldk_system_registry_start(LDKSystemRegistry* registry)
+bool ldk_system_registry_start(LDKSystemRegistry* registry)
 {
   LDKRoot* engine;
   LDKSystemRegistryInternal* internal;
@@ -584,21 +572,21 @@ int ldk_system_registry_start(LDKSystemRegistry* registry)
 
   if (!registry || !registry->is_initialized || registry->is_started)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal)
   {
-    return 1;
+    return false;
   }
 
-  if (s_system_registry_build_bucket_lists(registry))
+  if (!s_system_registry_build_bucket_lists(registry))
   {
-    return 1;
+    return false;
   }
 
-  engine = ldk_root_get();
+  engine = s_system_registry_root(registry);
 
   for (i = 0; i < x_array_LDKRegisteredSystem_count(internal->systems); ++i)
   {
@@ -613,44 +601,41 @@ int ldk_system_registry_start(LDKSystemRegistry* registry)
       continue;
     }
 
-    result = system->desc.callbacks.initialize(engine, &system->userdata);
+    result = system->desc.callbacks.initialize(&system->userdata);
     if (result != 0)
     {
       s_system_registry_terminate_started_systems(registry);
       s_system_registry_clear_bucket_lists(registry);
-      return 1;
+      return false;
     }
 
     system->is_initialized = 1;
   }
 
   registry->is_started = 1;
-  return 0;
+  return true;
 }
 
-int ldk_system_registry_stop(LDKSystemRegistry* registry)
+bool ldk_system_registry_stop(LDKSystemRegistry* registry)
 {
   if (!registry || !registry->is_initialized)
   {
-    return 1;
+    return false;
   }
 
   if (!registry->is_started)
   {
-    return 0;
+    return true;
   }
 
   s_system_registry_terminate_started_systems(registry);
   s_system_registry_clear_bucket_lists(registry);
 
   registry->is_started = 0;
-  return 0;
+  return true;
 }
 
-int ldk_system_registry_run_bucket(
-    LDKSystemRegistry* registry,
-    LDKSystemBucket bucket,
-    float dt)
+bool ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket bucket, float dt)
 {
   LDKSystemRegistryInternal* internal;
   LDKRoot* engine;
@@ -659,21 +644,21 @@ int ldk_system_registry_run_bucket(
 
   if (!registry || !registry->is_initialized || !registry->is_started)
   {
-    return 1;
+    return false;
   }
 
   if (bucket >= LDK_SYSTEM_BUCKET_COUNT)
   {
-    return 1;
+    return false;
   }
 
   internal = s_system_registry_internal(registry);
   if (!internal)
   {
-    return 1;
+    return false;
   }
 
-  engine = ldk_root_get();
+  engine = s_system_registry_root(registry);
   bucket_list = internal->buckets[bucket];
 
   for (i = 0; i < x_array_u32_count(bucket_list); ++i)
@@ -694,42 +679,40 @@ int ldk_system_registry_run_bucket(
       case LDK_SYSTEM_BUCKET_PRE_UPDATE:
         if (system->desc.callbacks.pre_update)
         {
-          system->desc.callbacks.pre_update(engine, system->userdata, dt);
+          system->desc.callbacks.pre_update(system->userdata, dt);
         }
         break;
 
       case LDK_SYSTEM_BUCKET_UPDATE:
         if (system->desc.callbacks.update)
         {
-          system->desc.callbacks.update(engine, system->userdata, dt);
+          system->desc.callbacks.update(system->userdata, dt);
         }
         break;
 
       case LDK_SYSTEM_BUCKET_POST_UPDATE:
         if (system->desc.callbacks.post_update)
         {
-          system->desc.callbacks.post_update(engine, system->userdata, dt);
+          system->desc.callbacks.post_update(system->userdata, dt);
         }
         break;
 
       case LDK_SYSTEM_BUCKET_RENDER:
         if (system->desc.callbacks.render)
         {
-          system->desc.callbacks.render(engine, system->userdata, dt);
+          system->desc.callbacks.render(system->userdata, dt);
         }
         break;
 
       default:
-        return 1;
+        return false;
     }
   }
 
-  return 0;
+  return true;
 }
 
-int ldk_system_registry_has(
-    const LDKSystemRegistry* registry,
-    u64 id)
+bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id)
 {
   return s_system_registry_find_by_id_const(registry, id) != NULL;
 }
