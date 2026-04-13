@@ -67,80 +67,80 @@ extern "C" {
     XHPool pool;
   } LDKEntityRegistry;
 
-  bool ldk_entity_module_initialize(LDKEntityRegistry* system, u32 page_capacity, u32 initial_pages);
+  LDK_API bool ldk_entity_module_initialize(LDKEntityRegistry* system, u32 page_capacity, u32 initial_pages);
 
-  void ldk_entity_module_terminate(LDKEntityRegistry* system);
+  LDK_API void ldk_entity_module_terminate(LDKEntityRegistry* system);
 
-  void ldk_entity_module_clear(LDKEntityRegistry* system);
+  LDK_API void ldk_entity_module_clear(LDKEntityRegistry* system);
 
-  LDKEntity ldk_entity_create(LDKEntityRegistry* system);
+  LDK_API LDKEntity ldk_entity_create(LDKEntityRegistry* system);
 
-  void ldk_entity_destroy(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API void ldk_entity_destroy(LDKEntityRegistry* system, LDKEntity entity);
 
-  bool ldk_entity_is_alive(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API bool ldk_entity_is_alive(LDKEntityRegistry* system, LDKEntity entity);
 
-  LDKEntityInfo* ldk_entity_get_info(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API LDKEntityInfo* ldk_entity_get_info(LDKEntityRegistry* system, LDKEntity entity);
 
-  const LDKEntityInfo* ldk_entity_get_info_const(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API const LDKEntityInfo* ldk_entity_get_info_const(LDKEntityRegistry* system, LDKEntity entity);
 
-  u32 ldk_entity_alive_count(LDKEntityRegistry* system);
+  LDK_API u32 ldk_entity_alive_count(LDKEntityRegistry* system);
 
-  void ldk_entity_set_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_set_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  u16 ldk_entity_get_flags(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API u16 ldk_entity_get_flags(LDKEntityRegistry* system, LDKEntity entity);
 
-  void ldk_entity_add_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_add_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  void ldk_entity_remove_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_remove_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  bool ldk_entity_has_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API bool ldk_entity_has_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  void ldk_entity_set_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_set_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  u16 ldk_entity_get_internal_flags(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API u16 ldk_entity_get_internal_flags(LDKEntityRegistry* system, LDKEntity entity);
 
-  void ldk_entity_add_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_add_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  void ldk_entity_remove_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API void ldk_entity_remove_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  bool ldk_entity_has_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+  LDK_API bool ldk_entity_has_internal_flags(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
-  bool ldk_entity_set_name(LDKEntityRegistry* system, LDKEntity entity, const char* name);
+  LDK_API bool ldk_entity_set_name(LDKEntityRegistry* system, LDKEntity entity, const char* name);
 
-  const char* ldk_entity_get_name(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API const char* ldk_entity_get_name(LDKEntityRegistry* system, LDKEntity entity);
 
-  u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
+  LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
 
-  bool ldk_entity_find_component(
+  LDK_API bool ldk_entity_find_component(
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type,
       u32* out_slot,
       u32* out_component_index);
 
-  bool ldk_entity_has_component(
+  LDK_API bool ldk_entity_has_component(
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type);
 
-  bool ldk_entity_add_component_ref(
+  LDK_API bool ldk_entity_add_component_ref(
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type,
       u32 component_index);
 
-  bool ldk_entity_update_component_ref(
+  LDK_API bool ldk_entity_update_component_ref(
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type,
       u32 component_index);
 
-  bool ldk_entity_remove_component_ref(
+  LDK_API bool ldk_entity_remove_component_ref(
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type);
 
-  void ldk_entity_foreach(
+  LDK_API void ldk_entity_foreach(
       LDKEntityRegistry* system,
       LDKEntityIterFn fn,
       void* user);
