@@ -38,26 +38,26 @@ extern "C" {
       XHashtable_u32_registered_component* table;
     } LDKComponentRegistry;
 
-  bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
-  void ldk_component_registry_terminate(LDKComponentRegistry* registry);
+  LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
+  LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
 
-  bool ldk_component_register(
+  LDK_API bool ldk_component_register(
       LDKComponentRegistry* registry,
       const char* name,
       u32 type,
       u32 entry_size,
       u32 initial_capacity);
 
-  bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
-  XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type);
+  LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
+  LDK_API XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type);
 
-  bool ldk_component_remove_entity(
+  LDK_API bool ldk_component_remove_entity(
       LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system,
       LDKEntity entity,
       u32 component_type);
 
-  void ldk_component_registry_remove_all(
+  LDK_API void ldk_component_registry_remove_all(
       LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system,
       LDKEntity entity);
