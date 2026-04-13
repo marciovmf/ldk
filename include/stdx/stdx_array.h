@@ -88,6 +88,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef X_ARRAY_API
+#define X_ARRAY_API
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -115,7 +119,7 @@ extern "C" {
    * @param capacity Initial number of elements the array can hold.
    * @return Pointer to the newly created array, or NULL on failure.
    */
-  XArray* x_array_create(size_t elementSize, size_t capacity);
+  X_ARRAY_API XArray* x_array_create(size_t elementSize, size_t capacity);
 
   /**
    * @brief Get a pointer to the element at the given index.
@@ -123,14 +127,14 @@ extern "C" {
    * @param index Zero-based index of the element.
    * @return Pointer to the element at the given index.
    */
-  void* x_array_get(XArray* arr, unsigned int index);
+  X_ARRAY_API void* x_array_get(XArray* arr, unsigned int index);
 
   /**
    * @brief Get a pointer to the underlying data buffer.
    * @param arr Pointer to the array.
    * @return Pointer to the internal contiguous data storage.
    */
-  void* x_array_data(XArray* arr);
+  X_ARRAY_API void* x_array_data(XArray* arr);
 
   /**
    * @brief Append an element to the end of the array.
@@ -138,7 +142,7 @@ extern "C" {
    * @param data Pointer to the element data to copy into the array.
    * @return Error code indicating success or failure.
    */
-  XArrayError x_array_add(XArray* arr, void* data);
+  X_ARRAY_API XArrayError x_array_add(XArray* arr, void* data);
 
   /**
    * @brief Insert an element at the specified index.
@@ -147,7 +151,7 @@ extern "C" {
    * @param index Index at which the element will be inserted.
    * @return Error code indicating success or failure.
    */
-  XArrayError x_array_insert(XArray* arr, void* data, unsigned int index);
+  X_ARRAY_API XArrayError x_array_insert(XArray* arr, void* data, unsigned int index);
 
   /**
    * @brief Delete a range of elements from the array.
@@ -156,14 +160,14 @@ extern "C" {
    * @param end Index of the last element to delete (inclusive).
    * @return Error code indicating success or failure.
    */
-  XArrayError x_array_delete_range(XArray* arr, unsigned int start, unsigned int end);
+  X_ARRAY_API XArrayError x_array_delete_range(XArray* arr, unsigned int start, unsigned int end);
 
   /**
    * @brief Remove all elements from the array without freeing its storage.
    * @param arr Pointer to the array.
    * @return Nothing.
    */
-  void x_array_clear(XArray* arr);
+  X_ARRAY_API void x_array_clear(XArray* arr);
 
   /**
    * @brief Delete the element at the specified index.
@@ -171,28 +175,28 @@ extern "C" {
    * @param index Index of the element to remove.
    * @return Nothing.
    */
-  void x_array_delete_at(XArray* arr, unsigned int index);
+  X_ARRAY_API void x_array_delete_at(XArray* arr, unsigned int index);
 
   /**
    * @brief Destroy the array and free all associated memory.
    * @param arr Pointer to the array.
    * @return Nothing.
    */
-  void x_array_destroy(XArray* arr);
+  X_ARRAY_API void x_array_destroy(XArray* arr);
 
   /**
    * @brief Get the number of elements currently stored in the array.
    * @param arr Pointer to the array.
    * @return Number of elements in the array.
    */
-  uint32_t x_array_count(XArray* arr);
+  X_ARRAY_API uint32_t x_array_count(XArray* arr);
 
   /**
    * @brief Get the current capacity of the array.
    * @param arr Pointer to the array.
    * @return Maximum number of elements the array can hold without resizing.
    */
-  uint32_t x_array_capacity(XArray* arr);
+  X_ARRAY_API uint32_t x_array_capacity(XArray* arr);
 
   /**
    * @brief Push an element onto the end of the array.
@@ -200,28 +204,28 @@ extern "C" {
    * @param value Pointer to the element data to copy into the array.
    * @return Nothing.
    */
-  void x_array_push(XArray* array, void* value);
+  X_ARRAY_API void x_array_push(XArray* array, void* value);
 
   /**
    * @brief Remove the last element from the array.
    * @param array Pointer to the array.
    * @return Nothing.
    */
-  void x_array_pop(XArray* array);
+  X_ARRAY_API void x_array_pop(XArray* array);
 
   /**
    * @brief Get a pointer to the last element in the array.
    * @param array Pointer to the array.
    * @return Pointer to the last element.
    */
-  void* x_array_back(XArray* array);
+  X_ARRAY_API void* x_array_back(XArray* array);
 
   /**
    * @brief Check whether the array is empty.
    * @param array Pointer to the array.
    * @return True if the array contains no elements, false otherwise.
    */
-  bool x_array_is_empty(XArray* array);
+  X_ARRAY_API bool x_array_is_empty(XArray* array);
 
 
   /* Declare a typed array alias and typed inline wrappers. */
