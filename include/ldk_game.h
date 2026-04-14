@@ -27,13 +27,11 @@
 typedef struct LDKGame
 {
   void* user_data;
-
   bool (*initialize)(struct LDKGame* game);
   bool (*start)(struct LDKGame* game);
   void (*update)(struct LDKGame* game, float delta_time);
   void (*stop)(struct LDKGame* game);
   void (*terminate)(struct LDKGame* game);
-
 } LDKGame;
 
 #endif //LDK_GAME_H

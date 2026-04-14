@@ -34,7 +34,9 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_system.h     ldk_system.c
   ${INCLUDE_DIR}/ldk_common.h     ldk_common.c
   ${INCLUDE_DIR}/ldk_component.h  ldk_component.c
+  ${INCLUDE_DIR}/ldk_component_transform.h ldk_component_transform.c
   ${INCLUDE_DIR}/ldk_entity.h     ldk_entity.c
+  ${INCLUDE_DIR}/ldk_system_scenegraph.h ldk_system_scenegraph.c
   ${INCLUDE_DIR}/ldk_eventqueue.h ldk_eventqueue.c
   ${INCLUDE_DIR}/ldk_gl.h         ldk_gl.c
   )
@@ -155,5 +157,6 @@ list(APPEND SOURCE
     create_test(TARGET test_module_entity SOURCES tests/test_ldk_entity.c)
     create_test(TARGET test_module_component SOURCES tests/test_ldk_component.c)
     create_test(TARGET test_module_system SOURCES tests/test_ldk_system.c)
+    create_test(TARGET test_module_transform SOURCES tests/test_ldk_transform.c)
 
   endif()

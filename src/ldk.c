@@ -23,11 +23,15 @@
 #define X_IMPL_INI
 #include <stdx/stdx_ini.h>
 
+#define X_IMPL_MATH
+#include <stdx/stdx_math.h>
+
 #include <ldk.h>
 
 #include <ldk_entity.h>
 #include <ldk_component.h>
 #include <ldk_system.h>
+#include <ldk_system_scenegraph.h>
 #include <ldk_os.h>
 #include <ldk_game.h>
 
@@ -97,6 +101,8 @@ static void s_terminate_all_modules(LDKRoot* e)
   ldk_entity_module_terminate(&e->entity_registry);
   ldk_event_queue_terminate(&e->event_queue);
   ldk_os_terminate();
+
+  ldk_log_info("LDK Terminated\n");
   x_log_close(&e->logger);
 }
 
@@ -179,13 +185,13 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   if (!x_ini_load_file(config_ini_path, &ini, &ini_error))
   {
     x_log_error(
-      &g_engine.logger,
-      "Failed to load ini '%s' at %d:%d: %s",
-      config_ini_path,
-      ini_error.line,
-      ini_error.column,
-      ini_error.message ? ini_error.message : "Unknown error"
-    );
+        &g_engine.logger,
+        "Failed to load ini '%s' at %d:%d: %s",
+        config_ini_path,
+        ini_error.line,
+        ini_error.column,
+        ini_error.message ? ini_error.message : "Unknown error"
+        );
     return false;
   }
 
@@ -314,7 +320,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   }
 
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
-  x_log_info(&e->logger, "Initializing LDK");
+  x_log_info(&e->logger, "Initializing LDK\n");
 
   // this is temporary. We need something to see for now
   ldk_os_initialize();
@@ -351,23 +357,24 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-  g_engine_initialized = true;
+  if (!ldk_system_registry_register(&e->system_registry, ldk_scenegraph_system_desc()))
+  {
+    ldk_log_error("Failed to register engine system: SceneGraph.");
+    ldk_engine_terminate();
+    return false;
+  }
+
+  if (!ldk_system_registry_start(&e->system_registry))
+  {
+    ldk_log_error("Failed to start system registry.");
+    ldk_engine_terminate();
+    return false;
+  }
+
   e->running = true;
   e->playing = false;
   e->previous_ticks = 0;
-
-  if (e->game.initialize != NULL)
-  {
-    if (!e->game.initialize(&e->game))
-    {
-      ldk_log_error("Failed to initialize game module.");
-      ldk_engine_terminate();
-      return false;
-    }
-
-    e->game_initialized = true;
-  }
-
+  g_engine_initialized = true;
   return true;
 }
 
@@ -386,6 +393,17 @@ bool ldk_engine_play_start(void)
   if (e->playing)
   {
     return true;
+  }
+
+  if (!e->game_initialized && e->game.initialize != NULL)
+  {
+    if (!e->game.initialize(&e->game))
+    {
+      ldk_log_error("Failed to initialize game module.");
+      return false;
+    }
+
+    e->game_initialized = true;
   }
 
   if (!e->game.start(&e->game))
@@ -434,6 +452,11 @@ void ldk_engine_frame(void)
 
   X_ASSERT(g_engine_initialized);
 
+  if (!e->running)
+  {
+    return;
+  }
+
   if (g_signal_requested_stop)
   {
     g_signal_requested_stop = 0;
@@ -465,12 +488,31 @@ void ldk_engine_frame(void)
    */
 #endif
 
+  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
+  {
+    ldk_log_error("Failed to run system bucket: PRE_UPDATE.");
+    ldk_engine_stop(1);
+    return;
+  }
+
   if (e->playing && e->game.update != NULL)
   {
     e->game.update(&e->game, delta_time);
   }
 
-  /* update systems here */
+  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_UPDATE, delta_time))
+  {
+    ldk_log_error("Failed to run system bucket: UPDATE.");
+    ldk_engine_stop(1);
+    return;
+  }
+
+  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time))
+  {
+    ldk_log_error("Failed to run system bucket: POST_UPDATE.");
+    ldk_engine_stop(1);
+    return;
+  }
 
   event.type = LDK_EVENT_TYPE_RENDER_BEFORE;
   event.frameEvent.ticks = current_ticks;
@@ -507,6 +549,11 @@ void ldk_engine_terminate(void)
   }
 
   ldk_engine_play_stop();
+
+  if (e->system_registry.is_started)
+  {
+    ldk_system_registry_stop(&e->system_registry);
+  }
 
   if (e->game_initialized && e->game.terminate != NULL)
   {
@@ -551,11 +598,15 @@ i32 ldk_engine_run(void)
   while (e->running)
   {
     ldk_engine_frame();
+
     if (ldk_os_window_should_close(e->window))
+    {
       e->running = false;
+    }
   }
 
   ldk_engine_play_stop();
 
   return e->exit_code;
 }
+
