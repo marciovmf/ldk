@@ -6,10 +6,6 @@
 
 #include <string.h>
 
-static LDKEntity* s_ldk_component_entry_entity(void* entry)
-{
-  return (LDKEntity*)entry;
-}
 
 bool ldk_component_registry_initialize(LDKComponentRegistry* registry)
 {
@@ -46,6 +42,11 @@ void ldk_component_registry_terminate(LDKComponentRegistry* registry)
       {
         x_array_destroy(comp->store);
       }
+
+      if (comp->owners)
+      {
+        x_array_destroy(comp->owners);
+      }
     }
   }
 
@@ -61,6 +62,7 @@ bool ldk_component_register(
     u32 initial_capacity)
 {
   LDKRegisteredComponent entry;
+  XArray* owners;
   XArray* store;
 
   if (!registry || !registry->table)
@@ -84,15 +86,25 @@ bool ldk_component_register(
     return false;
   }
 
+  owners = x_array_create(sizeof(LDKEntity), initial_capacity);
+  if (!owners)
+  {
+    x_array_destroy(store);
+    x_array_destroy(owners);
+    return false;
+  }
+
   entry.desc.name = name;
   entry.desc.type = type;
   entry.desc.entry_size = entry_size;
   entry.desc.initial_capacity = initial_capacity;
   entry.store = store;
+  entry.owners = owners;
 
   if (!x_hashtable_u32_registered_component_set(registry->table, type, entry))
   {
     x_array_destroy(store);
+    x_array_destroy(owners);
     return false;
   }
 
@@ -126,6 +138,24 @@ XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type)
   return entry.store;
 }
 
+
+XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type)
+{
+  LDKRegisteredComponent entry;
+
+  if (!registry || !registry->table)
+  {
+    return NULL;
+  }
+
+  if (!x_hashtable_u32_registered_component_get(registry->table, type, &entry))
+  {
+    return NULL;
+  }
+
+  return entry.owners;
+}
+
 bool ldk_component_remove_entity(
     LDKComponentRegistry* registry,
     LDKEntityRegistry* entity_system,
@@ -133,7 +163,9 @@ bool ldk_component_remove_entity(
     u32 component_type)
 {
   LDKRegisteredComponent registered_component;
+  XArray* owners;
   XArray* store;
+  void* owner_ptr;
   void* slot_ptr;
   void* last_ptr;
   u32 component_index;
@@ -158,9 +190,15 @@ bool ldk_component_remove_entity(
     return false;
   }
 
+  owners = registered_component.owners;
   store = registered_component.store;
 
-  if (!store)
+  if (!store || !owners)
+  {
+    return false;
+  }
+
+  if (x_array_count(store) != x_array_count(owners))
   {
     return false;
   }
@@ -173,20 +211,23 @@ bool ldk_component_remove_entity(
   last_index = x_array_count(store) - 1;
   slot_ptr = x_array_get(store, component_index);
   last_ptr = x_array_get(store, last_index);
+  owner_ptr = x_array_get(owners, last_index);
 
-  if (!slot_ptr || !last_ptr)
+  if (!slot_ptr || !last_ptr || !owner_ptr)
   {
     return false;
   }
 
   if (component_index != last_index)
   {
-    moved_entity = *s_ldk_component_entry_entity(last_ptr);
+    moved_entity = *(LDKEntity*)owner_ptr;
     memcpy(slot_ptr, last_ptr, registered_component.desc.entry_size);
+    memcpy(x_array_get(owners, component_index), owner_ptr, sizeof(LDKEntity));
     ldk_entity_update_component_ref(entity_system, moved_entity, component_type, component_index);
   }
 
   x_array_pop(store);
+  x_array_pop(owners);
   ldk_entity_remove_component_ref(entity_system, entity, component_type);
 
   return true;

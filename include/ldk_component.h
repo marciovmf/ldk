@@ -29,6 +29,7 @@ extern "C" {
   {
     LDKComponentDesc desc;
     XArray* store;
+    XArray* owners;
   } LDKRegisteredComponent;
 
   X_HASHTABLE_TYPE_NAMED(u32, LDKRegisteredComponent, u32_registered_component)
@@ -50,6 +51,7 @@ extern "C" {
 
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type);
+  LDK_API XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type);
 
   LDK_API bool ldk_component_remove_entity(
       LDKComponentRegistry* registry,

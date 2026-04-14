@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
   typedef XHandle LDKEntity;
+  struct LDKComponentRegistry;
 
   typedef enum LDKEntityInternalFlags
   {
@@ -43,13 +44,22 @@ extern "C" {
   {
     u32 component_type[LDK_ENTITY_MAX_COMPONENTS];
     u32 component_index[LDK_ENTITY_MAX_COMPONENTS];
-    u8 component_count;
+    u16 component_count;
+    u16 version;
   } LDKComponentDirectory;
 
   /**
    * Metadata information of an Entity.
    * This is the actual entity data 
    */
+
+  typedef struct LDKComponentRef
+  {
+    LDKEntity entity;
+    u16 version;
+    u16 slot_index;
+  } LDKComponentRef;
+
   typedef struct LDKEntityInfo
   {
     LDKComponentDirectory components;
@@ -123,6 +133,13 @@ extern "C" {
       LDKEntity entity,
       u32 component_type);
 
+  LDK_API bool ldk_entity_get_component_ref(
+      LDKEntityRegistry* system,
+      LDKEntity entity,
+      u32 component_type,
+      LDKComponentRef* out_ref);
+
+
   LDK_API bool ldk_entity_add_component_ref(
       LDKEntityRegistry* system,
       LDKEntity entity,
@@ -139,6 +156,20 @@ extern "C" {
       LDKEntityRegistry* system,
       LDKEntity entity,
       u32 component_type);
+
+  LDK_API bool ldk_component_ref_is_valid(
+      LDKEntityRegistry* system,
+      LDKComponentRef ref);
+
+  LDK_API void* ldk_component_ref_get(
+      LDKEntityRegistry* entity_system,
+      struct LDKComponentRegistry* component_registry,
+      LDKComponentRef ref);
+
+  LDK_API const void* ldk_component_ref_get_const(
+      LDKEntityRegistry* entity_system,
+      struct LDKComponentRegistry* component_registry,
+      LDKComponentRef ref);
 
   LDK_API void ldk_entity_foreach(
       LDKEntityRegistry* system,

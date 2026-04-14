@@ -1,5 +1,7 @@
 #include <ldk_entity.h>
+#include <ldk_component.h>
 #include <stdx/stdx_hpool.h>
+#include <stdx/stdx_array.h>
 #include <string.h>
 
 
@@ -357,6 +359,32 @@ bool ldk_entity_has_component(
   return ldk_entity_find_component(module, entity, component_type, NULL, NULL);
 }
 
+bool ldk_entity_get_component_ref(
+    LDKEntityRegistry* module,
+    LDKEntity entity,
+    u32 component_type,
+    LDKComponentRef* out_ref)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  u32 slot = 0;
+
+  if (!info || !out_ref)
+  {
+    return false;
+  }
+
+  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  {
+    return false;
+  }
+
+  out_ref->entity = entity;
+  out_ref->version = info->components.version;
+  out_ref->slot_index = (u16)slot;
+
+  return true;
+}
+
 bool ldk_entity_add_component_ref(
     LDKEntityRegistry* module,
     LDKEntity entity,
@@ -385,7 +413,8 @@ bool ldk_entity_add_component_ref(
 
   info->components.component_type[count] = component_type;
   info->components.component_index[count] = component_index;
-  info->components.component_count = (u8)(count + 1);
+  info->components.component_count = (u16)(count + 1);
+  info->components.version += 1;
 
   return true;
 }
@@ -448,9 +477,75 @@ bool ldk_entity_remove_component_ref(
 
   info->components.component_type[last] = 0;
   info->components.component_index[last] = 0;
-  info->components.component_count = (u8)(count - 1);
+  info->components.component_count = (u16)(count - 1);
+  info->components.version += 1;
 
   return true;
+}
+
+
+bool ldk_component_ref_is_valid(
+    LDKEntityRegistry* entity_system,
+    LDKComponentRef ref)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(entity_system, ref.entity);
+
+  if (!info)
+  {
+    return false;
+  }
+
+  if (ref.version != info->components.version)
+  {
+    return false;
+  }
+
+  return ref.slot_index < info->components.component_count;
+}
+
+void* ldk_component_ref_get(
+    LDKEntityRegistry* entity_system,
+    struct LDKComponentRegistry* component_registry,
+    LDKComponentRef ref)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(entity_system, ref.entity);
+  XArray* store = NULL;
+  u32 component_index = 0;
+  u32 component_type = 0;
+
+  if (!info || !component_registry)
+  {
+    return NULL;
+  }
+
+  if (ref.version != info->components.version)
+  {
+    return NULL;
+  }
+
+  if (ref.slot_index >= info->components.component_count)
+  {
+    return NULL;
+  }
+
+  component_type = info->components.component_type[ref.slot_index];
+  component_index = info->components.component_index[ref.slot_index];
+  store = ldk_component_get_store((LDKComponentRegistry*)component_registry, component_type);
+
+  if (!store || component_index >= x_array_count(store))
+  {
+    return NULL;
+  }
+
+  return x_array_get(store, component_index);
+}
+
+const void* ldk_component_ref_get_const(
+    LDKEntityRegistry* entity_system,
+    struct LDKComponentRegistry* component_registry,
+    LDKComponentRef ref)
+{
+  return ldk_component_ref_get(entity_system, component_registry, ref);
 }
 
 void ldk_entity_foreach(
