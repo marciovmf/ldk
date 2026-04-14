@@ -43,3 +43,4 @@ lib
 .build
 bin
 *.log
+project.lua
