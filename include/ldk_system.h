@@ -40,6 +40,16 @@
 extern "C" {
 #endif
 
+/**
+ * IDs of builtin systems
+ */
+typedef enum LDKBuiltinSystemId
+{
+  LDK_SYSTEM_ID_SCENEGRAPH = 0x1,
+  LDK_SYSTEM_ID_USER = 0x100  // Use this as a base for user defined systems
+} LDKBuiltinSystemId;
+
+
 typedef enum LDKSystemBucket
 {
   LDK_SYSTEM_BUCKET_PRE_UPDATE = 0,

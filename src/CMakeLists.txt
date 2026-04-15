@@ -30,14 +30,17 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_color.h 
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk.h            ldk.c
-  ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
-  ${INCLUDE_DIR}/ldk_system.h     ldk_system.c
   ${INCLUDE_DIR}/ldk_common.h     ldk_common.c
-  ${INCLUDE_DIR}/ldk_component.h  ldk_component.c
-  ${INCLUDE_DIR}/ldk_component_transform.h ldk_component_transform.c
-  ${INCLUDE_DIR}/ldk_entity.h     ldk_entity.c
-  ${INCLUDE_DIR}/ldk_system_scenegraph.h ldk_system_scenegraph.c
-  ${INCLUDE_DIR}/ldk_eventqueue.h ldk_eventqueue.c
+  ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
+  # modules
+  ${INCLUDE_DIR}/ldk_component.h  module/ldk_component.c
+  ${INCLUDE_DIR}/ldk_entity.h     module/ldk_entity.c
+  ${INCLUDE_DIR}/ldk_eventqueue.h module/ldk_eventqueue.c
+  ${INCLUDE_DIR}/ldk_system.h     module/ldk_system.c
+  # systems
+  ${INCLUDE_DIR}/ldk_system_scenegraph.h system/ldk_system_scenegraph.c
+  # components
+  ${INCLUDE_DIR}/ldk_component_transform.h component/ldk_component_transform.c
   ${INCLUDE_DIR}/ldk_gl.h         ldk_gl.c
   )
 

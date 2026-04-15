@@ -8,11 +8,6 @@
 extern "C" {
 #endif
 
-typedef enum LDKBuiltinSystemId
-{
-  LDK_SYSTEM_ID_SCENEGRAPH = 0x1001
-} LDKBuiltinSystemId;
-
 LDK_API bool ldk_scenegraph_update(float dt);
 LDK_API const LDKSystemDesc* ldk_scenegraph_system_desc(void);
 

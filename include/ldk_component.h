@@ -17,6 +17,11 @@
 extern "C" {
 #endif
 
+  /**
+   * A descriptor that identifies a Component.
+   * Components are plain data structures that can be attached to entities.
+   * Component types needs to be registered before they are used.
+   */
   typedef struct LDKComponentDesc
   {
     const char* name;
@@ -32,37 +37,24 @@ extern "C" {
     XArray* owners;
   } LDKRegisteredComponent;
 
-  X_HASHTABLE_TYPE_NAMED(u32, LDKRegisteredComponent, u32_registered_component)
+  X_HASHTABLE_TYPE_NAMED(u32, LDKRegisteredComponent, u32_registered_component);
 
-    typedef struct LDKComponentRegistry
-    {
-      XHashtable_u32_registered_component* table;
-    } LDKComponentRegistry;
+  typedef struct LDKComponentRegistry
+  {
+    XHashtable_u32_registered_component* table;
+  } LDKComponentRegistry;
 
   LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
   LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
-
-  LDK_API bool ldk_component_register(
-      LDKComponentRegistry* registry,
-      const char* name,
-      u32 type,
-      u32 entry_size,
-      u32 initial_capacity);
-
+  LDK_API bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u32 type, u32 entry_size, u32 initial_capacity);
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type);
-
-  LDK_API bool ldk_component_remove_entity(
-      LDKComponentRegistry* registry,
-      LDKEntityRegistry* entity_system,
-      LDKEntity entity,
-      u32 component_type);
-
-  LDK_API void ldk_component_registry_remove_all(
-      LDKComponentRegistry* registry,
-      LDKEntityRegistry* entity_system,
-      LDKEntity entity);
+  LDK_API bool ldk_component_remove_entity(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type);
+  LDK_API void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity);
+  LDK_API void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32* component_index);
+  LDK_API void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 component_index);
+  LDK_API bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* entity_module, u32 component_type, u32 component_index);
 
 #ifdef __cplusplus
 }

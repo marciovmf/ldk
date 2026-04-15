@@ -1,3 +1,11 @@
+/**
+ * @file ldk_component_transform.c
+ * @brief Transform component and transform related API
+ *
+ * Defines the transform component and exposes functions for transform
+ * operations.
+ */
+
 #include <ldk_component_transform.h>
 #include <ldk.h>
 
@@ -309,10 +317,8 @@ bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  XArray* store = NULL;
-  XArray* owners = NULL;
   LDKTransform transform = ldk_transform_make_default();
-  u32 component_index = 0;
+  LDKTransform* new_transform = NULL;
 
   if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
   {
@@ -341,39 +347,24 @@ bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value)
     transform.local_scale = initial_value->local_scale;
   }
 
-  store = ldk_component_get_store(component_registry, LDK_COMPONENT_TYPE_TRANSFORM);
-  owners = ldk_component_get_owners(component_registry, LDK_COMPONENT_TYPE_TRANSFORM);
+  new_transform = (LDKTransform*)ldk_entity_add_component(
+      entity_registry,
+      component_registry,
+      entity,
+      LDK_COMPONENT_TYPE_TRANSFORM);
 
-  if (!store || !owners)
+  if (!new_transform)
   {
     return false;
   }
 
-  component_index = x_array_count(store);
+  *new_transform = transform;
 
-  if (x_array_add(store, &transform) != XARRAY_OK)
-  {
-    return false;
-  }
+  ldk_entity_add_internal_flags(
+      entity_registry,
+      entity,
+      LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
 
-  if (x_array_add(owners, &entity) != XARRAY_OK)
-  {
-    x_array_pop(store);
-    return false;
-  }
-
-  if (!ldk_entity_add_component_ref(
-        entity_registry,
-        entity,
-        LDK_COMPONENT_TYPE_TRANSFORM,
-        component_index))
-  {
-    x_array_pop(owners);
-    x_array_pop(store);
-    return false;
-  }
-
-  ldk_entity_add_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
   return true;
 }
 

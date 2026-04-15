@@ -37,7 +37,6 @@ typedef struct
 
 LDK_API bool ldk_event_queue_initialize(LDKEventQueue* queue);
 LDK_API void ldk_event_queue_terminate(LDKEventQueue* queue);
-
 LDK_API void ldk_event_push(LDKEventQueue* queue, LDKEvent* event);
 LDK_API void ldk_event_handler_add(LDKEventQueue* queue, LDKEventHandler handler, LDKEventType mask, void* optional);
 LDK_API void ldk_event_handler_remove(LDKEventQueue* queue, LDKEventHandler handler);

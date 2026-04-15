@@ -12,6 +12,105 @@ static void s_ldk_entity_ctor(void* user, void* item)
   memset(item, 0, sizeof(LDKEntityInfo));
 }
 
+static bool ldk_entity_add_component_ref(
+    LDKEntityRegistry* module,
+    LDKEntity entity,
+    u32 component_type,
+    u32 component_index)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  u32 count = 0;
+
+  if (!info)
+  {
+    return false;
+  }
+
+  if (ldk_entity_has_component(module, entity, component_type))
+  {
+    return false;
+  }
+
+  count = info->components.component_count;
+
+  if (count >= LDK_ENTITY_MAX_COMPONENTS)
+  {
+    return false;
+  }
+
+  info->components.component_type[count] = component_type;
+  info->components.component_index[count] = component_index;
+  info->components.component_count = (u16)(count + 1);
+  info->components.version += 1;
+
+  return true;
+}
+
+static bool ldk_entity_update_component_ref(
+    LDKEntityRegistry* module,
+    LDKEntity entity,
+    u32 component_type,
+    u32 component_index)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  u32 slot = 0;
+
+  if (!info)
+  {
+    return false;
+  }
+
+  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  {
+    return false;
+  }
+
+  info->components.component_index[slot] = component_index;
+
+  return true;
+}
+
+static bool ldk_entity_remove_component_ref(
+    LDKEntityRegistry* module,
+    LDKEntity entity,
+    u32 component_type)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  u32 slot = 0;
+  u32 count = 0;
+  u32 last = 0;
+
+  if (!info)
+  {
+    return false;
+  }
+
+  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  {
+    return false;
+  }
+
+  count = info->components.component_count;
+  last = count - 1;
+
+  if (slot != last)
+  {
+    info->components.component_type[slot] =
+      info->components.component_type[last];
+
+    info->components.component_index[slot] =
+      info->components.component_index[last];
+  }
+
+  info->components.component_type[last] = 0;
+  info->components.component_index[last] = 0;
+  info->components.component_count = (u16)(count - 1);
+  info->components.version += 1;
+
+  return true;
+}
+
+
 bool ldk_entity_module_initialize(LDKEntityRegistry* module, u32 page_capacity, u32 initial_pages)
 {
   XHPoolConfig pool_config = {0};
@@ -186,6 +285,7 @@ bool ldk_entity_has_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags
   return (info->flags & flags) == flags;
 }
 
+#ifdef LDK_ENGINE
 void ldk_entity_set_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
   LDKEntityInfo* info = ldk_entity_get_info(module, entity);
@@ -197,7 +297,9 @@ void ldk_entity_set_internal_flags(LDKEntityRegistry* module, LDKEntity entity, 
 
   info->internal_flags = flags;
 }
+#endif// LDK_ENGINE
 
+#ifdef LDK_ENGINE
 u16 ldk_entity_get_internal_flags(LDKEntityRegistry* module, LDKEntity entity)
 {
   const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
@@ -209,7 +311,9 @@ u16 ldk_entity_get_internal_flags(LDKEntityRegistry* module, LDKEntity entity)
 
   return info->internal_flags;
 }
+#endif// LDK_ENGINE
 
+#ifdef LDK_ENGINE
 void ldk_entity_add_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
   LDKEntityInfo* info = ldk_entity_get_info(module, entity);
@@ -221,6 +325,7 @@ void ldk_entity_add_internal_flags(LDKEntityRegistry* module, LDKEntity entity, 
 
   info->internal_flags |= flags;
 }
+#endif// LDK_ENGINE
 
 void ldk_entity_remove_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
@@ -385,105 +490,6 @@ bool ldk_entity_get_component_ref(
   return true;
 }
 
-bool ldk_entity_add_component_ref(
-    LDKEntityRegistry* module,
-    LDKEntity entity,
-    u32 component_type,
-    u32 component_index)
-{
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
-  u32 count = 0;
-
-  if (!info)
-  {
-    return false;
-  }
-
-  if (ldk_entity_has_component(module, entity, component_type))
-  {
-    return false;
-  }
-
-  count = info->components.component_count;
-
-  if (count >= LDK_ENTITY_MAX_COMPONENTS)
-  {
-    return false;
-  }
-
-  info->components.component_type[count] = component_type;
-  info->components.component_index[count] = component_index;
-  info->components.component_count = (u16)(count + 1);
-  info->components.version += 1;
-
-  return true;
-}
-
-bool ldk_entity_update_component_ref(
-    LDKEntityRegistry* module,
-    LDKEntity entity,
-    u32 component_type,
-    u32 component_index)
-{
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
-  u32 slot = 0;
-
-  if (!info)
-  {
-    return false;
-  }
-
-  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
-  {
-    return false;
-  }
-
-  info->components.component_index[slot] = component_index;
-
-  return true;
-}
-
-bool ldk_entity_remove_component_ref(
-    LDKEntityRegistry* module,
-    LDKEntity entity,
-    u32 component_type)
-{
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
-  u32 slot = 0;
-  u32 count = 0;
-  u32 last = 0;
-
-  if (!info)
-  {
-    return false;
-  }
-
-  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
-  {
-    return false;
-  }
-
-  count = info->components.component_count;
-  last = count - 1;
-
-  if (slot != last)
-  {
-    info->components.component_type[slot] =
-      info->components.component_type[last];
-
-    info->components.component_index[slot] =
-      info->components.component_index[last];
-  }
-
-  info->components.component_type[last] = 0;
-  info->components.component_index[last] = 0;
-  info->components.component_count = (u16)(count - 1);
-  info->components.version += 1;
-
-  return true;
-}
-
-
 bool ldk_component_ref_is_valid(
     LDKEntityRegistry* entity_system,
     LDKComponentRef ref)
@@ -576,4 +582,215 @@ void ldk_entity_foreach(
       break;
     }
   }
+}
+
+void* ldk_entity_add_component(
+    LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module,
+    LDKEntity entity,
+    u32 component_type)
+{
+  u32 component_index = 0;
+  void* component = NULL;
+
+  if (!entity_module)
+  {
+    return NULL;
+  }
+
+  if (!component_module)
+  {
+    return NULL;
+  }
+
+  component = ldk_component_create(
+      component_module,
+      component_type,
+      &component_index);
+
+  if (!component)
+  {
+    return NULL;
+  }
+
+  if (!ldk_entity_add_component_ref(
+        entity_module,
+        entity,
+        component_type,
+        component_index))
+  {
+    XArray* store = ldk_component_get_store(component_module, component_type);
+    XArray* owners = ldk_component_get_owners(component_module, component_type);
+
+    if (store && owners)
+    {
+      x_array_pop(store);
+      x_array_pop(owners);
+    }
+
+    return NULL;
+  }
+
+  {
+    XArray* owners = ldk_component_get_owners(component_module, component_type);
+    LDKEntity* owner = NULL;
+
+    if (!owners)
+    {
+      ldk_component_destroy(
+          component_module,
+          entity_module,
+          component_type,
+          component_index);
+      return NULL;
+    }
+
+    owner = (LDKEntity*)x_array_get(owners, component_index);
+
+    if (!owner)
+    {
+      ldk_component_destroy(
+          component_module,
+          entity_module,
+          component_type,
+          component_index);
+      return NULL;
+    }
+
+    *owner = entity;
+  }
+
+  return component;
+}
+
+void* ldk_entity_get_component(
+    LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module,
+    LDKEntity entity,
+    u32 component_type)
+{
+  u32 component_index = 0;
+
+  if (!entity_module)
+  {
+    return NULL;
+  }
+
+  if (!component_module)
+  {
+    return NULL;
+  }
+
+  if (!ldk_entity_find_component(
+        entity_module,
+        entity,
+        component_type,
+        NULL,
+        &component_index))
+  {
+    return NULL;
+  }
+
+  return ldk_component_get(
+      component_module,
+      component_type,
+      component_index);
+}
+
+bool ldk_entity_remove_component(
+    LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module,
+    LDKEntity entity,
+    u32 component_type)
+{
+  XArray* owners = NULL;
+  XArray* store = NULL;
+  u32 component_index = 0;
+  u32 last_index = 0;
+  LDKEntity moved_entity = x_handle_null();
+  bool had_move = false;
+
+  if (!entity_module)
+  {
+    return false;
+  }
+
+  if (!component_module)
+  {
+    return false;
+  }
+
+  if (!ldk_entity_find_component(
+        entity_module,
+        entity,
+        component_type,
+        NULL,
+        &component_index))
+  {
+    return false;
+  }
+
+  store = ldk_component_get_store(component_module, component_type);
+  owners = ldk_component_get_owners(component_module, component_type);
+
+  if (!store)
+  {
+    return false;
+  }
+
+  if (!owners)
+  {
+    return false;
+  }
+
+  if (x_array_count(store) != x_array_count(owners))
+  {
+    return false;
+  }
+
+  if (component_index >= (u32)x_array_count(store))
+  {
+    return false;
+  }
+
+  last_index = (u32)x_array_count(store) - 1;
+
+  if (component_index != last_index)
+  {
+    LDKEntity* moved_owner = (LDKEntity*)x_array_get(owners, last_index);
+
+    if (!moved_owner)
+    {
+      return false;
+    }
+
+    moved_entity = *moved_owner;
+    had_move = true;
+  }
+
+  if (!ldk_component_destroy(
+        component_module,
+        entity_module,
+        component_type,
+        component_index))
+  {
+    return false;
+  }
+
+  if (had_move)
+  {
+    if (!ldk_entity_update_component_ref(
+          entity_module,
+          moved_entity,
+          component_type,
+          component_index))
+    {
+      return false;
+    }
+  }
+
+  return ldk_entity_remove_component_ref(
+      entity_module,
+      entity,
+      component_type);
 }
