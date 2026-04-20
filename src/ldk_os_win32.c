@@ -93,6 +93,7 @@ typedef struct
   bool closeFlag;
   bool isFullscreen;
   bool cursorChanged;
+  LDKWindowFlags activationFlags; // if window is created hidden, set this on show
   HWND handle;
   HDC dc;
   LONG_PTR prevStyle;
@@ -715,7 +716,9 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   DWORD showFlag = (flags & LDK_WINDOW_FLAG_NORMAL) ? SW_SHOWNORMAL : 0;
   showFlag |= (flags & LDK_WINDOW_FLAG_MINIMIZED) ? SW_SHOWMINIMIZED : 0;
   showFlag |= (flags & LDK_WINDOW_FLAG_MAXIMIZED) ? SW_SHOWMAXIMIZED : 0;
-  ShowWindow(windowHandle, showFlag);
+
+  if (! (flags & LDK_WINDOW_FLAG_HIDDEN))
+    ShowWindow(windowHandle, showFlag);
 
   LDKWin32Window* window = ldk_os_memory_alloc(sizeof(LDKWin32Window));
   window->handle = windowHandle;
@@ -998,6 +1001,12 @@ bool ldk_os_window_icon_set(LDKWindow window, const char* iconPath)
   SendMessage(windowHandle, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
   SendMessage(windowHandle, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
   return TRUE;
+}
+
+bool ldk_os_window_show(LDKWindow window, bool show)
+{
+  HWND windowHandle = ((LDKWin32Window*)window)->handle;
+  return ShowWindow(windowHandle , show ? SW_RESTORE : SW_HIDE);
 }
 
 static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

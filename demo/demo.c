@@ -48,7 +48,6 @@ bool game_start(LDKGame* game)
 
 bool game_update(LDKGame* game, float delta_time)
 {
-  printf("%f\n", delta_time);
   return true;
 }
 

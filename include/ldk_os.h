@@ -68,10 +68,12 @@ extern "C" {
   //
   typedef enum
   {
+
     LDK_WINDOW_FLAG_NORMAL              = 1 << 1,
     LDK_WINDOW_FLAG_MAXIMIZED           = 1 << 2,
     LDK_WINDOW_FLAG_MINIMIZED           = 1 << 3,
     LDK_WINDOW_FLAG_NORESIZE            = 1 << 4,
+    LDK_WINDOW_FLAG_HIDDEN              = 1 << 5,
   } LDKWindowFlags;
 
   LDK_API bool      ldk_os_events_poll(LDKEvent* event);
@@ -151,6 +153,7 @@ extern "C" {
   X(LDK_KEYCODE_TAB, "TAB", 0x09) \
   X(LDK_KEYCODE_CLEAR, "CLEAR", 0x0C) \
   X(LDK_KEYCODE_RETURN, "RETURN", 0x0D) \
+  X(LDK_KEYCODE_ENTER, "RETURN", 0x0D) \
   X(LDK_KEYCODE_SHIFT, "SHIFT", 0x10) \
   X(LDK_KEYCODE_CONTROL, "CONTROL", 0x11) \
   X(LDK_KEYCODE_ALT, "ALT", 0x12) \
@@ -376,6 +379,16 @@ extern "C" {
 
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
+
+  /**
+   * Show or hide a window.
+   * @param window The LDK window to show or hide.
+   * @param show true to show, false to hide the window.
+   * @return
+   *  If the window was previously visible, the return value is nonzero.
+   *  If the window was previously hidden, the return value is zero.
+   */
+  LDK_API bool ldk_os_window_show(LDKWindow window, bool show);
 
 #ifdef __cplusplus
 }
