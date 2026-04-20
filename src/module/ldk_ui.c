@@ -642,29 +642,6 @@ static void ldk_ui_emit_quad(
   ldk_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
-static bool ldk_ui_item_is_clicked(LDKUIContext* ctx, LDKUIItem* item)
-{
-  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  bool inside = ldk_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y);
-
-  if (!inside)
-  {
-    return false;
-  }
-
-  if (!ldk_os_mouse_button_up((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    return false;
-  }
-
-  if (ctx->active_id != item->id)
-  {
-    return false;
-  }
-
-  return true;
-}
-
 static void ldk_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
 {
   LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
@@ -1167,16 +1144,25 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       continue;
     }
 
-    window->title_bar_rect = window->rect;
-    window->title_bar_rect.h = 24.0f;
+    {
+      float header_height = window->title_bar_rect.h;
 
-    window->content_rect.x = window->rect.x;
-    window->content_rect.y = window->rect.y + 24.0f;
-    window->content_rect.w = window->rect.w;
-    window->content_rect.h = window->rect.h - 24.0f;
+      window->title_bar_rect.x = window->rect.x;
+      window->title_bar_rect.y = window->rect.y;
+      window->title_bar_rect.w = window->rect.w;
 
-    ldk_ui_emit_quad(ctx, window->rect, 0xff2a2a2au, window->rect, 0);
-    ldk_ui_emit_quad(ctx, window->title_bar_rect, window->is_focused ? 0xff4a4a6au : 0xff3a3a3au, window->rect, 0);
+      window->content_rect.x = window->rect.x;
+      window->content_rect.y = window->rect.y + header_height;
+      window->content_rect.w = window->rect.w;
+      window->content_rect.h = window->rect.h - header_height;
+
+      ldk_ui_emit_quad(ctx, window->rect, 0xff2a2a2au, window->rect, 0);
+
+      if (header_height > 0.0f)
+      {
+        ldk_ui_emit_quad(ctx, window->title_bar_rect, window->is_focused ? 0xff4a4a6au : 0xff3a3a3au, window->rect, 0);
+      }
+    }
 
     if (window->is_dragging && ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
@@ -1349,19 +1335,13 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   }
 }
 
-bool ldk_ui_begin_window(
-    LDKUIContext* ctx,
-    char const* title,
-    LDKUIRect rect)
-{
-  return ldk_ui_begin_window_ex(ctx, LDK_DEFAULT_ID(), title, rect);
-}
-
-bool ldk_ui_begin_window_ex(
+static bool ldk_ui_begin_pane_internal(
     LDKUIContext* ctx,
     char const* id,
     char const* title,
-    LDKUIRect rect)
+    LDKUIRect rect,
+    bool toolbar,
+    bool draggable)
 {
   LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
   LDKUIWindow* window = ldk_ui_window_get_or_create(ctx, resolved_id, title, rect);
@@ -1369,6 +1349,7 @@ bool ldk_ui_begin_window_ex(
   LDKPoint cursor;
   bool inside_window;
   bool inside_title_bar;
+  float header_height = toolbar ? 24.0f : 0.0f;
 
   if (window == NULL)
   {
@@ -1383,15 +1364,19 @@ bool ldk_ui_begin_window_ex(
     window->title[sizeof(window->title) - 1] = 0;
   }
 
-  window->title_bar_rect = window->rect;
-  window->title_bar_rect.h = 24.0f;
+  window->title_bar_rect.x = window->rect.x;
+  window->title_bar_rect.y = window->rect.y;
+  window->title_bar_rect.w = window->rect.w;
+  window->title_bar_rect.h = header_height;
+
   window->content_rect.x = window->rect.x;
-  window->content_rect.y = window->rect.y + 24.0f;
+  window->content_rect.y = window->rect.y + header_height;
   window->content_rect.w = window->rect.w;
-  window->content_rect.h = window->rect.h - 24.0f;
+  window->content_rect.h = window->rect.h - header_height;
 
   inside_window = ldk_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y);
-  inside_title_bar = ldk_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
+  inside_title_bar = header_height > 0.0f &&
+    ldk_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
 
   if (ctx->hovered_window == window && inside_window)
   {
@@ -1408,7 +1393,7 @@ bool ldk_ui_begin_window_ex(
     }
   }
 
-  if (ctx->hovered_window == window && inside_title_bar)
+  if (ctx->hovered_window == window && draggable && inside_title_bar)
   {
     if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
@@ -1435,10 +1420,48 @@ bool ldk_ui_begin_window_ex(
   return true;
 }
 
-void ldk_ui_end_window(LDKUIContext* ctx)
+bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
+{
+  return ldk_ui_begin_pane_internal(ctx, LDK_DEFAULT_ID(), NULL, rect, false, false);
+}
+
+bool ldk_ui_begin_pane_ex(
+    LDKUIContext* ctx,
+    char const* id,
+    char const* title,
+    LDKUIRect rect,
+    bool toolbar,
+    bool draggable)
+{
+  return ldk_ui_begin_pane_internal(ctx, id, title, rect, toolbar, draggable);
+}
+
+void ldk_ui_end_pane(LDKUIContext* ctx)
 {
   ctx->current_layout = NULL;
   ctx->current_window = NULL;
+}
+
+bool ldk_ui_begin_window(
+    LDKUIContext* ctx,
+    char const* title,
+    LDKUIRect rect)
+{
+  return ldk_ui_begin_window_ex(ctx, LDK_DEFAULT_ID(), title, rect);
+}
+
+bool ldk_ui_begin_window_ex(
+    LDKUIContext* ctx,
+    char const* id,
+    char const* title,
+    LDKUIRect rect)
+{
+  return ldk_ui_begin_pane_internal(ctx, id, title, rect, true, true);
+}
+
+void ldk_ui_end_window(LDKUIContext* ctx)
+{
+  ldk_ui_end_pane(ctx);
 }
 
 void ldk_ui_label(LDKUIContext* ctx, char const* text)

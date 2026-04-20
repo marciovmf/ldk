@@ -247,6 +247,19 @@ extern "C" {
   void ldk_ui_begin_horizontal(LDKUIContext* ctx);
   void ldk_ui_end_horizontal(LDKUIContext* ctx);
 
+
+  // Pane
+  bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect);
+  bool ldk_ui_begin_pane_ex(
+      LDKUIContext* ctx,
+      char const* id,
+      char const* title,
+      LDKUIRect rect,
+      bool toolbar,
+      bool draggable);
+  void ldk_ui_end_pane(LDKUIContext* ctx);
+
+
   // windows
   bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
   bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect);
@@ -260,6 +273,8 @@ extern "C" {
   bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value);
   bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value);
   bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value);
+
+
 
   // text input
   void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
