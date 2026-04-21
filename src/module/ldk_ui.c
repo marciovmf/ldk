@@ -1,5 +1,5 @@
 #include <ldk_common.h>
-#include "ldk_ui.h"
+#include <ldk_ui.h>
 
 #include <string.h>
 #include <math.h>
@@ -113,6 +113,51 @@ static LDKUIId ldk_ui_make_id(LDKUIContext* ctx, char const* id)
   hash = ldk_ui_hash_cstr(hash, id);
   ctx->last_id = hash;
 
+  return hash;
+}
+
+static u32 ldk_ui_next_implicit_item_count(LDKUIContext* ctx)
+{
+  u32 item_count = 0;
+
+  if (ctx->current_layout != NULL)
+  {
+    item_count = ctx->current_layout->item_count;
+    ctx->current_layout->item_count += 1;
+    return item_count;
+  }
+
+  item_count = ctx->root_item_count;
+  ctx->root_item_count += 1;
+  return item_count;
+}
+
+static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, LDKUIItemType item_type)
+{
+  LDKUIId hash = 2166136261u;
+  LDKUIId parent_id = 0;
+  u32 item_count = ldk_ui_next_implicit_item_count(ctx);
+
+  if (ctx->current_layout != NULL)
+  {
+    parent_id = ctx->current_layout->id;
+  }
+
+  hash = ldk_ui_hash_u32(hash, (u32) item_type);
+  hash = ldk_ui_hash_u32(hash, parent_id);
+  hash = ldk_ui_hash_u32(hash, item_count);
+  ctx->last_id = hash;
+
+  return hash;
+}
+
+static LDKUIId ldk_ui_make_window_id(LDKUIContext* ctx, LDKUIId id)
+{
+  LDKUIId hash = 2166136261u;
+
+  (void)ctx;
+
+  hash = ldk_ui_hash_u32(hash, id);
   return hash;
 }
 
@@ -378,11 +423,7 @@ static void ldk_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
   state->rect = item->rect;
 }
 
-static LDKUILayoutNode* ldk_ui_layout_node_create(
-    LDKUIContext* ctx,
-    LDKUILayoutDirection direction,
-    LDKUILayoutNode* parent,
-    LDKUIWindow* window)
+static LDKUILayoutNode* ldk_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDirection direction, LDKUILayoutNode* parent, LDKUIWindow* window)
 {
   LDKUILayoutNode* node = x_arena_alloc_zero(ctx->frame_arena, sizeof(LDKUILayoutNode));
 
@@ -490,11 +531,7 @@ static LDKUIWindow* ldk_ui_window_find(LDKUIContext* ctx, LDKUIId id)
   return NULL;
 }
 
-static LDKUIWindow* ldk_ui_window_get_or_create(
-    LDKUIContext* ctx,
-    LDKUIId id,
-    char const* title,
-    LDKUIRect rect)
+static LDKUIWindow* ldk_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect)
 {
   LDKUIWindow* window = ldk_ui_window_find(ctx, id);
 
@@ -573,12 +610,7 @@ static void ldk_ui_window_bring_to_front(LDKUIContext* ctx, LDKUIWindow* window)
   ctx->current_window = x_array_ldk_ui_window_back(ctx->windows);
 }
 
-static void ldk_ui_add_draw_cmd(
-    LDKUIContext* ctx,
-    LDKUITextureHandle texture,
-    LDKUIRect clip_rect,
-    u32 index_offset,
-    u32 index_count)
+static void ldk_ui_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect clip_rect, u32 index_offset, u32 index_count)
 {
   LDKUIDrawCmd* back = x_array_ldk_ui_draw_cmd_back(ctx->commands);
 
@@ -607,12 +639,7 @@ static void ldk_ui_add_draw_cmd(
   x_array_ldk_ui_draw_cmd_push(ctx->commands, cmd);
 }
 
-static void ldk_ui_emit_quad(
-    LDKUIContext* ctx,
-    LDKUIRect rect,
-    u32 color,
-    LDKUIRect clip_rect,
-    LDKUITextureHandle texture)
+static void ldk_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
   u32 index_offset = x_array_ldk_ui_u32_count(ctx->indices);
   u32 base_index = x_array_ldk_ui_vertex_count(ctx->vertices);
@@ -1061,18 +1088,14 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   memset(ctx, 0, sizeof(*ctx));
 }
 
-void ldk_ui_begin_frame(
-    LDKUIContext* ctx,
-    LDKMouseState const* mouse,
-    LDKKeyboardState const* keyboard,
-    LDKUIRect viewport
-    )
+void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
 
   ctx->mouse = mouse;
   ctx->keyboard = keyboard;
   ctx->viewport = viewport;
+  ctx->root_item_count = 0;
   ctx->hot_id = 0;
   ctx->hovered_window = NULL;
   ctx->active_window = NULL;
@@ -1271,8 +1294,9 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_id(ctx, LDK_DEFAULT_ID());
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
+  node->id = item->id;
   item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
@@ -1311,8 +1335,9 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_id(ctx, LDK_DEFAULT_ID());
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
+  node->id = item->id;
   item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
@@ -1335,15 +1360,9 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   }
 }
 
-static bool ldk_ui_begin_pane_internal(
-    LDKUIContext* ctx,
-    char const* id,
-    char const* title,
-    LDKUIRect rect,
-    bool toolbar,
-    bool draggable)
+static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
-  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
+  LDKUIId resolved_id = ldk_ui_make_window_id(ctx, *((LDKUIId const*)id));
   LDKUIWindow* window = ldk_ui_window_get_or_create(ctx, resolved_id, title, rect);
   LDKUILayoutNode* root = NULL;
   LDKPoint cursor;
@@ -1413,6 +1432,7 @@ static bool ldk_ui_begin_pane_internal(
     return false;
   }
 
+  root->id = resolved_id;
   window->root_layout = root;
   ctx->current_window = window;
   ctx->current_layout = root;
@@ -1422,18 +1442,16 @@ static bool ldk_ui_begin_pane_internal(
 
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
-  return ldk_ui_begin_pane_internal(ctx, LDK_DEFAULT_ID(), NULL, rect, false, false);
+  LDKUIId id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+
+  return ldk_ui_begin_pane_internal(ctx, (char const*)&id, NULL, rect, false, false);
 }
 
-bool ldk_ui_begin_pane_ex(
-    LDKUIContext* ctx,
-    char const* id,
-    char const* title,
-    LDKUIRect rect,
-    bool toolbar,
-    bool draggable)
+bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
-  return ldk_ui_begin_pane_internal(ctx, id, title, rect, toolbar, draggable);
+  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
+
+  return ldk_ui_begin_pane_internal(ctx, (char const*)&resolved_id, title, rect, toolbar, draggable);
 }
 
 void ldk_ui_end_pane(LDKUIContext* ctx)
@@ -1442,21 +1460,18 @@ void ldk_ui_end_pane(LDKUIContext* ctx)
   ctx->current_window = NULL;
 }
 
-bool ldk_ui_begin_window(
-    LDKUIContext* ctx,
-    char const* title,
-    LDKUIRect rect)
+bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect)
 {
-  return ldk_ui_begin_window_ex(ctx, LDK_DEFAULT_ID(), title, rect);
+  LDKUIId id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+
+  return ldk_ui_begin_pane_internal(ctx, (char const*)&id, title, rect, true, true);
 }
 
-bool ldk_ui_begin_window_ex(
-    LDKUIContext* ctx,
-    char const* id,
-    char const* title,
-    LDKUIRect rect)
+bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect)
 {
-  return ldk_ui_begin_pane_internal(ctx, id, title, rect, true, true);
+  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
+
+  return ldk_ui_begin_pane_internal(ctx, (char const*)&resolved_id, title, rect, true, true);
 }
 
 void ldk_ui_end_window(LDKUIContext* ctx)
@@ -1477,6 +1492,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   size = ldk_ui_measure_label_impl(text);
 
   item->type = LDK_UI_ITEM_LABEL;
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LABEL);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1489,7 +1505,38 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
 
 bool ldk_ui_button(LDKUIContext* ctx, char const* text)
 {
-  return ldk_ui_button_ex(ctx, LDK_DEFAULT_ID(), text);
+  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUISize size;
+
+  if (item == NULL)
+  {
+    return false;
+  }
+
+  size = ldk_ui_measure_button_impl(text);
+
+  item->type = LDK_UI_ITEM_BUTTON;
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_BUTTON);
+  item->text = text;
+  item->preferred_width = size.w;
+  item->preferred_height = size.h;
+  item->min_width = size.w;
+  item->min_height = size.h;
+  item->expand_width = true;
+
+  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+
+  if (ctx->focused_id == item->id &&
+      ctx->focused_window == ctx->current_window &&
+      ldk_ui_keyboard_accept_pressed(ctx))
+  {
+    item->clicked = true;
+  }
+
+  ldk_ui_apply_next_layout(ctx, item);
+  ldk_ui_layout_append_item(ctx->current_layout, item);
+
+  return item->clicked;
 }
 
 bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
@@ -1528,19 +1575,50 @@ bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
   return item->clicked;
 }
 
-bool ldk_ui_toggle_button(
-    LDKUIContext* ctx,
-    char const* text,
-    bool* value)
+bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
 {
-  return ldk_ui_toggle_button_ex(ctx, LDK_DEFAULT_ID(), text, value);
+  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUISize size;
+
+  if (item == NULL)
+  {
+    return false;
+  }
+
+  size = ldk_ui_measure_button_impl(text);
+
+  item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_TOGGLE_BUTTON);
+  item->text = text;
+  item->preferred_width = size.w;
+  item->preferred_height = size.h;
+  item->min_width = size.w;
+  item->min_height = size.h;
+  item->expand_width = true;
+  item->data.toggle_button.value = value;
+
+  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+
+  if (ctx->focused_id == item->id &&
+      ctx->focused_window == ctx->current_window &&
+      ldk_ui_keyboard_accept_pressed(ctx))
+  {
+    item->clicked = true;
+  }
+
+  if (item->clicked && value != NULL)
+  {
+    *value = !*value;
+    item->changed = true;
+  }
+
+  ldk_ui_apply_next_layout(ctx, item);
+  ldk_ui_layout_append_item(ctx->current_layout, item);
+
+  return item->changed;
 }
 
-bool ldk_ui_toggle_button_ex(
-    LDKUIContext* ctx,
-    char const* id,
-    char const* text,
-    bool* value)
+bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value)
 {
   LDKUIItem* item = ldk_ui_item_create(ctx);
   LDKUISize size;
@@ -1583,23 +1661,73 @@ bool ldk_ui_toggle_button_ex(
   return item->changed;
 }
 
-bool ldk_ui_slider_float(
-    LDKUIContext* ctx,
-    char const* text,
-    float* value,
-    float min_value,
-    float max_value)
+bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value)
 {
-  return ldk_ui_slider_float_ex(ctx, LDK_DEFAULT_ID(), text, value, min_value, max_value);
+  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUISize size;
+
+  if (item == NULL)
+  {
+    return false;
+  }
+
+  size = ldk_ui_measure_slider_impl(text);
+
+  item->type = LDK_UI_ITEM_SLIDER_FLOAT;
+  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_SLIDER_FLOAT);
+  item->text = text;
+  item->preferred_width = size.w;
+  item->preferred_height = size.h;
+  item->min_width = 80.0f;
+  item->min_height = size.h;
+  item->expand_width = true;
+  item->data.slider_float.value = value;
+  item->data.slider_float.min_value = min_value;
+  item->data.slider_float.max_value = max_value;
+
+  item->changed = ldk_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
+
+  if (ctx->focused_id == item->id &&
+      ctx->focused_window == ctx->current_window &&
+      value != NULL)
+  {
+    float step = (max_value - min_value) / 100.0f;
+
+    if (step <= 0.0f)
+    {
+      step = 1.0f;
+    }
+
+    if (ldk_ui_keyboard_left_pressed(ctx))
+    {
+      float new_value = ldk_ui_clampf(*value - step, min_value, max_value);
+
+      if (new_value != *value)
+      {
+        *value = new_value;
+        item->changed = true;
+      }
+    }
+
+    if (ldk_ui_keyboard_right_pressed(ctx))
+    {
+      float new_value = ldk_ui_clampf(*value + step, min_value, max_value);
+
+      if (new_value != *value)
+      {
+        *value = new_value;
+        item->changed = true;
+      }
+    }
+  }
+
+  ldk_ui_apply_next_layout(ctx, item);
+  ldk_ui_layout_append_item(ctx->current_layout, item);
+
+  return item->changed;
 }
 
-bool ldk_ui_slider_float_ex(
-    LDKUIContext* ctx,
-    char const* id,
-    char const* text,
-    float* value,
-    float min_value,
-    float max_value)
+bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value)
 {
   LDKUIItem* item = ldk_ui_item_create(ctx);
   LDKUISize size;
@@ -1669,6 +1797,8 @@ void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
 {
   (void)ctx;
   (void)codepoint;
+
+  //TODO: Implement this later
 }
 
 void ldk_ui_set_next_control_max_size(LDKUIContext* ctx, float width, float height)

@@ -13,10 +13,8 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
-
   typedef struct LDKUIItem LDKUIItem;
   typedef struct LDKUILayoutNode LDKUILayoutNode;
   typedef struct LDKUIWindow LDKUIWindow;
@@ -79,15 +77,11 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIItem*, ldk_ui_item_ptr);
   X_ARRAY_TYPE_NAMED(LDKUIWidgetState, ldk_ui_widget_state);
 
-#define LDK_UI_STRINGIFY(x) #x
-#define LDK_UI_STRINGIFY_EXPANDED(x) LDK_UI_STRINGIFY(x)
-#define LDK_DEFAULT_ID() __FILE__ ":" LDK_UI_STRINGIFY_EXPANDED(__LINE__)
-
-    typedef struct LDKUISize
-    {
-      float w;
-      float h;
-    } LDKUISize;
+  typedef struct LDKUISize
+  {
+    float w;
+    float h;
+  } LDKUISize;
 
   typedef struct LDKUIRenderData
   {
@@ -146,8 +140,8 @@ extern "C" {
 
   struct LDKUIItem
   {
-    LDKUIItemType type;
     LDKUIId id;
+    LDKUIItemType type;
     LDKUIRect rect;
     float preferred_width;
     float preferred_height;
@@ -183,6 +177,8 @@ extern "C" {
 
   struct LDKUILayoutNode
   {
+    LDKUIId id;
+    u32 item_count;
     LDKUILayoutDirection direction;
     LDKUIRect rect;
     float spacing;
@@ -198,6 +194,7 @@ extern "C" {
     LDKMouseState const* mouse;
     LDKKeyboardState const* keyboard;
     LDKUIRect viewport;
+    u32 root_item_count;
     LDKUIId hot_id;
     LDKUIId active_id;
     LDKUIId focused_id;
