@@ -255,24 +255,24 @@ void s_draw_editor_ui(LDKUIContext* ui)
     ldk_ui_begin_vertical(ui);
 
     ldk_ui_begin_horizontal(ui);
-    if (ldk_ui_button_ex(ui, "btn0", "Button 1"))
+    if (ldk_ui_button(ui, "Button 1"))
     {
       ldk_log_info("Button 0 clicked\n");
     }
 
-    if (ldk_ui_button_ex(ui, "btn1",  "Button 2"))
+    if (ldk_ui_button(ui, "Button 2"))
     {
       ldk_log_info("Button 1 clicked\n");
     }
 
     ldk_ui_end_horizontal(ui);
 
-    if (ldk_ui_toggle_button_ex(ui, "toggle", "Toggle", &bool_value))
+    if (ldk_ui_toggle_button(ui, "Toggle", &bool_value))
     {
       ldk_log_info("Toggle clicked\n");
     }
 
-    if (ldk_ui_slider_float_ex(ui, "slider", "Slider", &float_value, 0.0f, 1.0f))
+    if (ldk_ui_slider_float(ui, "Slider", &float_value, 0.0f, 1.0f))
     {
       ldk_log_info("Slider value = %f\n", float_value);
     }
@@ -282,12 +282,12 @@ void s_draw_editor_ui(LDKUIContext* ui)
   {
     ldk_ui_begin_vertical(ui);
 
-    if (ldk_ui_button_ex(ui, "btn0_a", "Button 1"))
+    if (ldk_ui_button(ui, "Button 1"))
     {
       ldk_log_info("WINDOW 2: Button 0 clicked\n");
     }
 
-    if (ldk_ui_button_ex(ui, "btn1_a",  "Button 2"))
+    if (ldk_ui_button(ui, "Button 2"))
     {
       ldk_log_info("WINDOW 2: Button 1 clicked\n");
     }
