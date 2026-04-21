@@ -576,8 +576,6 @@ void ldk_engine_frame(void)
   e->previous_ticks = current_ticks;
 
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
-  ldk_log_info("%d,%d\n", window_size.width, window_size.height);
-  glViewport(0, 0, window_size.width, window_size.height);
 
 #ifdef LDK_EDITOR
   LDKMouseState     mouse_state;
@@ -591,6 +589,8 @@ void ldk_engine_frame(void)
    * inspectors and other tools should update here even when play mode is off.
    */
 #endif
+
+  glViewport(0, 0, window_size.width, window_size.height);
 
   if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
   {
