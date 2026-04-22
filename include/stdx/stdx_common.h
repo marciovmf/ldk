@@ -20,7 +20,6 @@ extern "C" {
 
 #include <stdbool.h>
 
-
 #define X_COMMON_VERSION_MAJOR 1
 #define X_COMMON_VERSION_MINOR 0
 #define X_COMMON_VERSION_PATCH 0
@@ -138,27 +137,6 @@ extern "C" {
 #endif
 #endif
 
-
-  // ----------------------------------------------------------------------------
-  // Assertion macros
-  // ----------------------------------------------------------------------------
-
-#define X_STATIC_ASSERT(cond, msg) typedef char static_assert_##msg[(cond) ? 1 : -1]
-
-
-
-#ifdef DEBUG
-#define X_ASSERT(expr) \
-  do { \
-    if (!(expr)) { \
-      fprintf(stderr, "Assertion failed: %s, file %s, line %d\n", #expr, __FILE__, __LINE__); \
-      abort(); \
-    } \
-  } while(0)
-#else
-#define X_ASSERT(expr) ((void)0)
-#endif
-
   // ----------------------------------------------------------------------------
   // Endianness
   // ----------------------------------------------------------------------------
@@ -263,6 +241,26 @@ extern "C" {
 
 #ifndef X_ARRAY_COUNT
 #define X_ARRAY_COUNT(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
+
+  // ----------------------------------------------------------------------------
+  // Assertion macros
+  // ----------------------------------------------------------------------------
+
+#define X_STATIC_ASSERT(cond, msg) typedef char static_assert_##msg[(cond) ? 1 : -1]
+
+#ifdef DEBUG
+#include <stdlib.h>
+#define X_ASSERT(expr) \
+  do { \
+    if (!(expr)) { \
+      fprintf(stderr, "Assertion failed: %s, file %s, line %d\n", #expr, __FILE__, __LINE__); \
+      abort(); \
+    } \
+  } while(0)
+#else
+#define X_ASSERT(expr) ((void)0)
 #endif
 
 #ifdef __cplusplus
