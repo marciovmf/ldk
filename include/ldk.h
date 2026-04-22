@@ -59,16 +59,20 @@ extern "C" {
 
   typedef struct LDKConfig
   {
+    XSmallstr title;
     XFSPath   config_file_path;
     XFSPath   runtree_path;
     XFSPath   icon_path;
     XFSPath   asset_root;
     XFSPath   log_file;
     XFSPath   game_dll;
-    XSmallstr title;
+    XFSPath   editor_font;
+    XSmallstr   editor_theme;
+    i32       editor_font_size;
     i32       width;
     i32       height;
     bool      fullscreen;
+
   } LDKConfig;
 
   LDK_API bool  ldk_engine_initialize(const LDKGame* game, const char* config_ini_path);

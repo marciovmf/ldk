@@ -34,6 +34,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
   # modules
   ${INCLUDE_DIR}/ldk_ui.h         module/ldk_ui.c
+  ${INCLUDE_DIR}/ldk_font.h         module/ldk_font.c
   ${INCLUDE_DIR}/ldk_ui_renderer.h module/ldk_ui_renderer.c
   ${INCLUDE_DIR}/ldk_component.h  module/ldk_component.c
   ${INCLUDE_DIR}/ldk_entity.h     module/ldk_entity.c

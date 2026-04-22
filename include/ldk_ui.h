@@ -7,6 +7,7 @@ extern "C" {
 
 #include <ldk_common.h>
 #include <ldk_os.h>
+#include <ldk_font.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_arena.h>
 
@@ -108,6 +109,13 @@ extern "C" {
     float h;
   } LDKUISize;
 
+  typedef enum 
+  {
+    LDK_UI_THEME_CUSTOM = 0,
+    LDK_UI_THEME_LIGHT = 1,
+    LDK_UI_THEME_DARK = 2,
+  } LDKUIDefaultTheme;
+
   typedef struct LDKUIRenderData
   {
     LDKUIVertex const* vertices;
@@ -126,6 +134,9 @@ extern "C" {
     u32 initial_command_capacity;
     u32 initial_window_capacity;
     u32 initial_id_stack_capacity;
+    const char* font;
+    LDKUIDefaultTheme theme;
+    u32 font_size;
   } LDKUIConfig;
 
   typedef enum LDKUILayoutDirection
@@ -220,6 +231,8 @@ extern "C" {
   struct LDKUIContext
   {
     XArena* frame_arena;
+    LDKFontInstance* font;
+    void* font_file; // this is a XFile*
     LDKMouseState const* mouse;
     LDKKeyboardState const* keyboard;
     LDKUIRect viewport;

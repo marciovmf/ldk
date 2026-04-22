@@ -30,6 +30,9 @@
 #define X_IMPL_MATH
 #include <stdx/stdx_math.h>
 
+#define X_IMPL_IO
+#include <stdx/stdx_io.h>
+
 #include <ldk.h>
 
 #include <ldk_entity.h>
@@ -182,6 +185,7 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   const char* title;
   const char* icon_path;
 
+
   X_ASSERT(out_config != NULL);
   X_ASSERT(config_ini_path != NULL);
 
@@ -212,6 +216,7 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   title      = x_ini_get(&ini, "display", "title", NULL);
   icon_path  = x_ini_get(&ini, "display", "icon_path", NULL);
 
+
   if (asset_root != NULL && asset_root[0] != 0)
   {
     s_config_resolve_path(&out_config->asset_root, &out_config->runtree_path, asset_root, NULL);
@@ -240,6 +245,15 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   out_config->width = x_ini_get_i32(&ini, "display", "width", out_config->width);
   out_config->height = x_ini_get_i32(&ini, "display", "height", out_config->height);
   out_config->fullscreen = x_ini_get_bool(&ini, "display", "fullscreen", out_config->fullscreen);
+
+  x_smallstr_from_cstr(&out_config->editor_theme, x_ini_get(&ini, "editor", "theme", "dark"));
+  const char* editor_font = x_ini_get(&ini, "editor", "font", NULL);
+  out_config->editor_font_size  = x_ini_get_i32(&ini, "editor", "font_size", 12);
+
+  if (editor_font != NULL && editor_font[0] != 0)
+  {
+    s_config_resolve_path(&out_config->editor_font, &out_config->runtree_path, editor_font, NULL);
+  }
 
   x_ini_free(&ini);
   return true;
@@ -430,6 +444,17 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   ui_cfg.initial_command_capacity = 256;
   ui_cfg.initial_window_capacity = 64;
   ui_cfg.initial_id_stack_capacity = 64;
+  ui_cfg.font_size = e->config.editor_font_size;
+  ui_cfg.font = e->config.editor_font.buf;
+  if (strncmp(e->config.editor_theme.buf, "light", 5) == 0)
+  ui_cfg.theme = LDK_UI_THEME_LIGHT;
+  else if (strncmp(e->config.editor_theme.buf, "dark", 4) == 0)
+  ui_cfg.theme = LDK_UI_THEME_DARK;
+  else
+  {
+    ldk_log_error("Unknown Editor theme name '%s'. Default to 'dark'.", e->config.editor_theme.buf);
+    ui_cfg.theme = LDK_UI_THEME_DARK;
+  }
 
   if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
   {

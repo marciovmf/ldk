@@ -1,5 +1,7 @@
+#include "ldk_font.h"
 #include <ldk_common.h>
 #include <ldk_ui.h>
+#include <stdx/stdx_io.h>
 #include <string.h>
 #include <math.h>
 
@@ -128,39 +130,42 @@ static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
   return hash;
 }
 
-static LDKUISize s_ui_measure_text(char const* text)
+static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
 {
-  LDKUISize size = { 0.0f, 0.0f };
-  size_t length = 0;
+  LDKUISize size = {0};
+  LDKFontMetrics metrics;
+  float width = 0.0f;
 
-  if (text != NULL)
+  if (font == NULL || text == NULL)
   {
-    length = strlen(text);
+    return size;
   }
 
-  size.w = (float)length * 8.0f;
-  size.h = 16.0f;
+  width = ldk_font_measure_text_cstr(font, text);
+  metrics = ldk_font_get_metrics(font);
 
+  size.w = width;
+  size.h = metrics.line_height;
   return size;
 }
 
-static LDKUISize s_ui_measure_label_impl(char const* text)
+static LDKUISize s_ui_measure_label_impl(LDKFontInstance* font, char const* text)
 {
-  LDKUISize size = s_ui_measure_text(text);
+  LDKUISize size = s_ui_measure_text(font, text);
   return size;
 }
 
-static LDKUISize s_ui_measure_button_impl(char const* text)
+static LDKUISize s_ui_measure_button_impl(LDKFontInstance* font, char const* text)
 {
-  LDKUISize size = s_ui_measure_text(text);
+  LDKUISize size = s_ui_measure_text(font, text);
   size.w += 16.0f;
   size.h += 10.0f;
   return size;
 }
 
-static LDKUISize s_ui_measure_slider_impl(char const* text)
+static LDKUISize s_ui_measure_slider_impl(LDKFontInstance* font, char const* text)
 {
-  LDKUISize label_size = s_ui_measure_text(text);
+  LDKUISize label_size = s_ui_measure_text(font, text);
   LDKUISize size = { 0.0f, 0.0f };
   size.w = s_ui_maxf(140.0f, label_size.w + 80.0f);
   size.h = 22.0f;
@@ -1063,7 +1068,24 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->indices = x_array_ldk_ui_u32_create(config->initial_index_capacity);
   ctx->commands = x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->widget_states = x_array_ldk_ui_widget_state_create(256);
-  s_init_theme_dark(&ctx->theme);
+
+  if (config->theme == LDK_UI_THEME_DARK)
+    s_init_theme_dark(&ctx->theme);
+  else if (config->theme == LDK_UI_THEME_LIGHT)
+    s_init_theme_dark(&ctx->theme);
+  // else assume the theme is initialized
+
+  // Initialize font
+  XFile* file = x_io_open(config->font, "rb");
+  size_t font_file_size = 0;
+  const char* font_file_data = x_io_read_all(file, &font_file_size);
+  LDKFontFace* face = ldk_font_face_create(font_file_data, (u32) font_file_size);
+  LDKFontAtlasDesc atlas_desc = {0};
+  atlas_desc.page_width = 512;
+  atlas_desc.page_height = 512;
+  ctx->font = ldk_font_get_instance(face, (float) config->font_size, &atlas_desc);
+  ldk_font_preload_basic_ascii(ctx->font);
+  x_io_close(file);
 
   bool success = ctx->frame_arena != NULL;
   return success;
@@ -1078,6 +1100,7 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   x_array_ldk_ui_draw_cmd_destroy(ctx->commands);
   x_array_ldk_ui_widget_state_destroy(ctx->widget_states);
   x_arena_destroy(ctx->frame_arena);
+
   memset(ctx, 0, sizeof(*ctx));
 }
 
@@ -1514,7 +1537,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
     return;
   }
 
-  size = s_ui_measure_label_impl(text);
+  size = s_ui_measure_label_impl(ctx->font, text);
 
   item->type = LDK_UI_ITEM_LABEL;
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LABEL);
@@ -1538,7 +1561,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  size = s_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(ctx->font, text);
 
   item->type = LDK_UI_ITEM_BUTTON;
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
@@ -1574,7 +1597,7 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
     return false;
   }
 
-  size = s_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(ctx->font, text);
 
   item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
@@ -1617,7 +1640,7 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
     return false;
   }
 
-  size = s_ui_measure_slider_impl(text);
+  size = s_ui_measure_slider_impl(ctx->font, text);
 
   item->type = LDK_UI_ITEM_SLIDER_FLOAT;
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
