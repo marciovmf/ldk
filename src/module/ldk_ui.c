@@ -89,7 +89,7 @@ static LDKUIId s_ui_hash_cstr(LDKUIId hash, char const* text)
   return hash;
 }
 
-static LDKUIId s_ui_make_id(LDKUIContext* ctx, LDKUIItemType item_type)
+static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
 {
   LDKUIId hash = 2166136261u;
   LDKUIId parent_id = 0;
@@ -400,7 +400,6 @@ static LDKUILayoutNode* s_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDi
   }
 
   node->id = 0;
-  node->child_count = 0;
   node->direction = direction;
   node->spacing = 4.0f;
   node->padding = (direction == LDK_UI_LAYOUT_HORIZONTAL) ? 0.0f : 4.0f;
