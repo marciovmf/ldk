@@ -19,6 +19,31 @@ extern "C" {
   typedef struct LDKUILayoutNode LDKUILayoutNode;
   typedef struct LDKUIWindow LDKUIWindow;
   typedef struct LDKUIContext LDKUIContext;
+  typedef u32 LDKUIColor;
+
+  typedef enum LDKUIColorSlot
+  {
+    LDK_UI_COLOR_TEXT,
+    LDK_UI_COLOR_TEXT_DISABLED,
+    LDK_UI_COLOR_WINDOW_BG,
+    LDK_UI_COLOR_PANEL_BG,
+    LDK_UI_COLOR_CONTROL_BG,
+    LDK_UI_COLOR_CONTROL_BG_HOVERED,
+    LDK_UI_COLOR_CONTROL_BG_ACTIVE,
+    LDK_UI_COLOR_BORDER,
+    LDK_UI_COLOR_FOCUS,
+    LDK_UI_COLOR_SLIDER_TRACK,
+    LDK_UI_COLOR_SLIDER_FILL,
+    LDK_UI_COLOR_TITLE_BAR,
+    LDK_UI_COLOR_TITLE_BAR_FOCUSED,
+    LDK_UI_COLOR_COUNT,
+  } LDKUIColorSlot;
+
+  typedef struct LDKUITheme
+  {
+    LDKUIColor colors[LDK_UI_COLOR_COUNT];
+  } LDKUITheme;
+
 
   typedef struct LDKUIVertex
   {
@@ -215,6 +240,7 @@ extern "C" {
     XArray_ldk_ui_draw_cmd* commands;
     XArray_ldk_ui_widget_state* widget_states;
     LDKUIRenderData render_data;
+    LDKUITheme theme;
   };
 
   // lifecycle

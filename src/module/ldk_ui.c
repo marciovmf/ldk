@@ -676,7 +676,7 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
 
 static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
-  u32 color = 0xff606060u;
+  u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 
   if (item->type == LDK_UI_ITEM_LABEL)
   {
@@ -687,11 +687,11 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
   {
     if (ctx->active_id == item->id)
     {
-      color = 0xff909090u;
+      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
     }
     else if (ctx->hot_id == item->id)
     {
-      color = 0xff7a7a7au;
+      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
     }
 
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
@@ -707,7 +707,22 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
       toggled = *item->data.toggle_button.value;
     }
 
-    color = toggled ? 0xff5f8f5fu : 0xff5f5f5fu;
+    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+
+    if (toggled)
+    {
+      color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
+    }
+
+    if (ctx->active_id == item->id)
+    {
+      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+    }
+    else if (ctx->hot_id == item->id)
+    {
+      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+    }
+
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
     return;
   }
@@ -716,6 +731,8 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
   {
     float t = 0.0f;
     LDKUIRect fill_rect = item->rect;
+    u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
+    u32 fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
 
     if (item->data.slider_float.value != NULL)
     {
@@ -728,10 +745,19 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
       }
     }
 
-    s_ui_emit_quad(ctx, item->rect, 0xff404040u, clip_rect, 0);
+    if (ctx->active_id == item->id)
+    {
+      track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+    }
+    else if (ctx->hot_id == item->id)
+    {
+      track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+    }
+
+    s_ui_emit_quad(ctx, item->rect, track_color, clip_rect, 0);
 
     fill_rect.w = item->rect.w * t;
-    s_ui_emit_quad(ctx, fill_rect, 0xff8080c0u, clip_rect, 0);
+    s_ui_emit_quad(ctx, fill_rect, fill_color, clip_rect, 0);
     return;
   }
 }
@@ -986,6 +1012,54 @@ static LDKUIWindow* s_ui_window_at_cursor_topmost(LDKUIContext* ctx)
   return NULL;
 }
 
+static void s_init_theme_dark(LDKUITheme* theme)
+{
+  LDK_ASSERT(theme != NULL);
+
+  theme->colors[LDK_UI_COLOR_TEXT]               = 0xffe0e0e0u;
+  theme->colors[LDK_UI_COLOR_TEXT_DISABLED]      = 0xff808080u;
+
+  theme->colors[LDK_UI_COLOR_WINDOW_BG]          = 0xff202020u;
+  theme->colors[LDK_UI_COLOR_PANEL_BG]           = 0xff2a2a2au;
+
+  theme->colors[LDK_UI_COLOR_CONTROL_BG]         = 0xff404040u;
+  theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = 0xff505050u;
+  theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]  = 0xff606060u;
+
+  theme->colors[LDK_UI_COLOR_BORDER]             = 0xff101010u;
+  theme->colors[LDK_UI_COLOR_FOCUS]              = 0xff5f8f5fu;
+
+  theme->colors[LDK_UI_COLOR_SLIDER_TRACK]       = 0xff303030u;
+  theme->colors[LDK_UI_COLOR_SLIDER_FILL]        = 0xff8080c0u;
+
+  theme->colors[LDK_UI_COLOR_TITLE_BAR]          = 0xff3a3a3au;
+  theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]  = 0xff4a4a6au;
+}
+
+static void s_init_theme_light(LDKUITheme* theme)
+{
+  LDK_ASSERT(theme != NULL);
+
+  theme->colors[LDK_UI_COLOR_TEXT]               = 0xff202020u;
+  theme->colors[LDK_UI_COLOR_TEXT_DISABLED]      = 0xffa0a0a0u;
+
+  theme->colors[LDK_UI_COLOR_WINDOW_BG]          = 0xfff0f0f0u;
+  theme->colors[LDK_UI_COLOR_PANEL_BG]           = 0xffe0e0e0u;
+
+  theme->colors[LDK_UI_COLOR_CONTROL_BG]         = 0xffd0d0d0u;
+  theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = 0xffc0c0c0u;
+  theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]  = 0xffb0b0b0u;
+
+  theme->colors[LDK_UI_COLOR_BORDER]             = 0xffa0a0a0u;
+  theme->colors[LDK_UI_COLOR_FOCUS]              = 0xff4f7fd0u;
+
+  theme->colors[LDK_UI_COLOR_SLIDER_TRACK]       = 0xffc0c0c0u;
+  theme->colors[LDK_UI_COLOR_SLIDER_FILL]        = 0xff6f8fd0u;
+
+  theme->colors[LDK_UI_COLOR_TITLE_BAR]          = 0xffdcdcdcu;
+  theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]  = 0xffbfcfffu;
+}
+
 bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 {
   memset(ctx, 0, sizeof(*ctx));
@@ -997,6 +1071,7 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->indices = x_array_ldk_ui_u32_create(config->initial_index_capacity);
   ctx->commands = x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->widget_states = x_array_ldk_ui_widget_state_create(256);
+  s_init_theme_dark(&ctx->theme);
 
   bool success = ctx->frame_arena != NULL;
   return success;
@@ -1069,6 +1144,11 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
 
+  LDK_ASSERT(ctx != NULL);
+  LDK_ASSERT(ctx->current_window == NULL);
+  LDK_ASSERT(ctx->current_layout == NULL);
+  LDK_ASSERT(x_array_ldk_ui_id_count(ctx->id_stack) == 0);
+
   for (u32 i = 0; i < count; ++i)
   {
     LDKUIWindow* window = x_array_ldk_ui_window_get(ctx->windows, i);
@@ -1088,8 +1168,26 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       continue;
     }
 
+    if (window->is_dragging && ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+      window->rect.x = (float)cursor.x - window->drag_offset_x;
+      window->rect.y = (float)cursor.y - window->drag_offset_y;
+    }
+    else
+    {
+      window->is_dragging = false;
+    }
+
     {
       float header_height = window->title_bar_rect.h;
+      u32 window_bg = ctx->theme.colors[LDK_UI_COLOR_WINDOW_BG];
+      u32 title_bg = ctx->theme.colors[LDK_UI_COLOR_TITLE_BAR];
+
+      if (window->is_focused)
+      {
+        title_bg = ctx->theme.colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED];
+      }
 
       window->title_bar_rect.x = window->rect.x;
       window->title_bar_rect.y = window->rect.y;
@@ -1100,23 +1198,12 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       window->content_rect.w = window->rect.w;
       window->content_rect.h = window->rect.h - header_height;
 
-      s_ui_emit_quad(ctx, window->rect, 0xff2a2a2au, window->rect, 0);
+      s_ui_emit_quad(ctx, window->rect, window_bg, window->rect, 0);
 
       if (header_height > 0.0f)
       {
-        s_ui_emit_quad(ctx, window->title_bar_rect, window->is_focused ? 0xff4a4a6au : 0xff3a3a3au, window->rect, 0);
+        s_ui_emit_quad(ctx, window->title_bar_rect, title_bg, window->rect, 0);
       }
-    }
-
-    if (window->is_dragging && ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-      window->rect.x = (float)cursor.x - window->drag_offset_x;
-      window->rect.y = (float)cursor.y - window->drag_offset_y;
-    }
-    else
-    {
-      window->is_dragging = false;
     }
 
     s_ui_layout_measure_node(window->root_layout);
