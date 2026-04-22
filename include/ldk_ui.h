@@ -136,11 +136,12 @@ extern "C" {
 
   typedef enum LDKUIItemType
   {
-    LDK_UI_ITEM_LABEL = 0,
-    LDK_UI_ITEM_BUTTON = 1,
-    LDK_UI_ITEM_TOGGLE_BUTTON = 2,
-    LDK_UI_ITEM_SLIDER_FLOAT = 3,
-    LDK_UI_ITEM_LAYOUT = 4
+    LDK_UI_ITEM_SPACER = 0,
+    LDK_UI_ITEM_LABEL = 1,
+    LDK_UI_ITEM_BUTTON = 2,
+    LDK_UI_ITEM_TOGGLE_BUTTON = 3,
+    LDK_UI_ITEM_SLIDER_FLOAT = 4,
+    LDK_UI_ITEM_LAYOUT = 5
   } LDKUIItemType;
 
   typedef struct LDKUINextLayout
@@ -262,7 +263,15 @@ extern "C" {
   LDK_API void ldk_ui_set_next_height(LDKUIContext* ctx, float height);
   LDK_API void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width);
   LDK_API void ldk_ui_set_next_min_height (LDKUIContext* ctx, float height);
-  LDK_API void ldk_ui_set_next_control_max_size(LDKUIContext* ctx, float width, float height);
+
+  LDK_API void ldk_ui_set_next_preferred_width(LDKUIContext* ctx, float width);
+  LDK_API void ldk_ui_set_next_preferred_height(LDKUIContext* ctx, float height);
+  LDK_API void ldk_ui_set_next_preferred_size(LDKUIContext* ctx, float width, float height);
+
+  LDK_API void ldk_ui_set_next_fixed_width(LDKUIContext* ui, float width);
+  LDK_API void ldk_ui_set_next_fixed_height(LDKUIContext* ui, float height);
+  LDK_API void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height);
+
   LDK_API void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand);
   LDK_API void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand);
 
@@ -287,6 +296,7 @@ extern "C" {
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value);
   LDK_API bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value);
+  LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
 
   // text input
   LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);

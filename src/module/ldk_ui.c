@@ -875,12 +875,9 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
     for (item = node->first_item; item != NULL; item = item->next_sibling)
     {
       float item_h = s_ui_maxf(item->preferred_height, item->min_height);
-      float item_w = inner_w;
-
-      if (item->type == LDK_UI_ITEM_LAYOUT)
-      {
-        item_w = item->expand_width ? inner_w : s_ui_minf(s_ui_maxf(item->preferred_width, item->min_width), inner_w);
-      }
+      float item_w = item->expand_width
+        ? inner_w
+        : s_ui_minf(s_ui_maxf(item->preferred_width, item->min_width), inner_w);
 
       if (item->expand_height)
       {
@@ -949,7 +946,9 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
   for (item = node->first_item; item != NULL; item = item->next_sibling)
   {
     float item_w = s_ui_maxf(item->preferred_width, item->min_width);
-    float item_h = item->expand_height ? inner_h : s_ui_minf(s_ui_maxf(item->preferred_height, item->min_height), inner_h);
+    float item_h = item->expand_height
+      ? inner_h
+      : s_ui_minf(s_ui_maxf(item->preferred_height, item->min_height), inner_h);
 
     if (item->expand_width)
     {
@@ -1254,6 +1253,22 @@ void ldk_ui_set_next_height(LDKUIContext* ctx, float height)
   ctx->next_layout.height = height;
 }
 
+void ldk_ui_set_next_preferred_width(LDKUIContext* ctx, float width)
+{
+  ldk_ui_set_next_width(ctx, width);
+}
+
+void ldk_ui_set_next_preferred_height(LDKUIContext* ctx, float height)
+{
+  ldk_ui_set_next_height(ctx, height);
+}
+
+void ldk_ui_set_next_preferred_size(LDKUIContext* ctx, float width, float height)
+{
+  ldk_ui_set_next_preferred_width(ctx, width);
+  ldk_ui_set_next_preferred_height(ctx, height);
+}
+
 void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width)
 {
   ctx->next_layout.has_min_width = true;
@@ -1278,6 +1293,26 @@ void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand)
   ctx->next_layout.expand_height = expand;
 }
 
+void ldk_ui_set_next_fixed_width(LDKUIContext* ui, float width)
+{
+  ldk_ui_set_next_preferred_width(ui, width);
+  ldk_ui_set_next_min_width(ui, width);
+  ldk_ui_set_next_expand_width(ui, false);
+}
+
+void ldk_ui_set_next_fixed_height(LDKUIContext* ui, float height)
+{
+  ldk_ui_set_next_preferred_height(ui, height);
+  ldk_ui_set_next_min_height(ui, height);
+  ldk_ui_set_next_expand_height(ui, false);
+}
+
+void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height)
+{
+  ldk_ui_set_next_fixed_width(ui, width);
+  ldk_ui_set_next_fixed_height(ui, height);
+}
+
 void ldk_ui_begin_vertical(LDKUIContext* ctx)
 {
   LDK_ASSERT(ctx->current_layout != NULL);
@@ -1299,9 +1334,11 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
-  item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
+
+  item->expand_width = true;
+  item->expand_height = true;
 
   s_ui_apply_next_layout(ctx, item);
 
@@ -1341,9 +1378,11 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
-  item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
+
+  item->expand_width = true;
+  item->expand_height = true;
 
   s_ui_apply_next_layout(ctx, item);
 
@@ -1634,6 +1673,56 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   return item->changed;
 }
 
+void ldk_ui_spacer(LDKUIContext* ctx)
+{
+  LDKUIItem* item = NULL;
+
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (ctx->current_layout == NULL)
+  {
+    return;
+  }
+
+  item = s_ui_item_create(ctx);
+
+  if (item == NULL)
+  {
+    return;
+  }
+
+  item->id = s_ui_make_id(ctx, LDK_UI_ITEM_SPACER);
+  item->type = LDK_UI_ITEM_SPACER;
+  item->preferred_width = 0.0f;
+  item->preferred_height = 0.0f;
+  item->min_width = 0.0f;
+  item->min_height = 0.0f;
+  item->max_width = 0.0f;
+  item->max_height = 0.0f;
+  item->has_max_width = false;
+  item->has_max_height = false;
+  item->clicked = false;
+  item->changed = false;
+  item->text = NULL;
+
+  if (ctx->current_layout->direction == LDK_UI_LAYOUT_HORIZONTAL)
+  {
+    item->expand_width = true;
+    item->expand_height = false;
+  }
+  else
+  {
+    item->expand_width = false;
+    item->expand_height = true;
+  }
+
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
+}
+
 void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
 {
   (void)ctx;
@@ -1642,17 +1731,3 @@ void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
   //TODO: Implement this later
 }
 
-void ldk_ui_set_next_control_max_size(LDKUIContext* ctx, float width, float height)
-{
-  if (width > 0.0f)
-  {
-    ctx->next_layout.has_max_width = true;
-    ctx->next_layout.max_width = width;
-  }
-
-  if (height > 0.0f)
-  {
-    ctx->next_layout.has_max_height = true;
-    ctx->next_layout.max_height = height;
-  }
-}
