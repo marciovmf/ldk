@@ -52,6 +52,8 @@
 #define  LDK_OS_OSX
 #endif
 
+#define LDK_ASSERT(expr) X_ASSERT(expr)
+
 typedef void* LDKWindow;
 
 #endif //LDK_COMMON_H

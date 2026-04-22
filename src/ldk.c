@@ -147,8 +147,8 @@ static bool s_config_resolve_path(XFSPath* out_path, const XFSPath* base_path, c
 
 static bool s_config_load_defaults(LDKConfig* out_config, const char* config_ini_path)
 {
-  X_ASSERT(out_config != NULL);
-  X_ASSERT(config_ini_path != NULL);
+  LDK_ASSERT(out_config != NULL);
+  LDK_ASSERT(config_ini_path != NULL);
 
   memset(out_config, 0, sizeof(*out_config));
 

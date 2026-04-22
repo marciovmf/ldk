@@ -179,12 +179,12 @@ extern "C" {
   struct LDKUILayoutNode
   {
     LDKUIId id;
-    u32 item_count;
+    //u32 item_count;
+    u32 child_count;
     LDKUILayoutDirection direction;
     LDKUIRect rect;
     float spacing;
     float padding;
-    u32 child_count;
     LDKUIItem* first_item;
     LDKUIItem* last_item;
     LDKUILayoutNode* parent;
@@ -218,60 +218,58 @@ extern "C" {
   };
 
   // lifecycle
-  bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config);
-  void ldk_ui_terminate(LDKUIContext* ctx);
+  LDK_API bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config);
+  LDK_API void ldk_ui_terminate(LDKUIContext* ctx);
 
   // frame
-  void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport);
-  void ldk_ui_end_frame(LDKUIContext* ctx);
-  LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
+  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport);
+  LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
+  LDK_API LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
 
   // id stack
-  void ldk_ui_push_id_u32(LDKUIContext* ctx, uint32_t value);
-  void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value);
-  void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value);
-  void ldk_ui_pop_id(LDKUIContext* ctx);
+  LDK_API void ldk_ui_push_id_u32(LDKUIContext* ctx, uint32_t value);
+  LDK_API void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value);
+  LDK_API void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value);
+  LDK_API void ldk_ui_pop_id(LDKUIContext* ctx);
 
   // next-item layout hints
-  void ldk_ui_set_next_width(LDKUIContext* ctx, float width);
-  void ldk_ui_set_next_height(LDKUIContext* ctx, float height);
-  void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width);
-  void ldk_ui_set_next_min_height (LDKUIContext* ctx, float height);
-  void ldk_ui_set_next_control_max_size(LDKUIContext* ctx, float width, float height);
-  void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand);
-  void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand);
+  LDK_API void ldk_ui_set_next_width(LDKUIContext* ctx, float width);
+  LDK_API void ldk_ui_set_next_height(LDKUIContext* ctx, float height);
+  LDK_API void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width);
+  LDK_API void ldk_ui_set_next_min_height (LDKUIContext* ctx, float height);
+  LDK_API void ldk_ui_set_next_control_max_size(LDKUIContext* ctx, float width, float height);
+  LDK_API void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand);
+  LDK_API void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand);
 
   // layout
-  void ldk_ui_begin_vertical(LDKUIContext* ctx);
-  void ldk_ui_end_vertical(LDKUIContext* ctx);
-  void ldk_ui_begin_horizontal(LDKUIContext* ctx);
-  void ldk_ui_end_horizontal(LDKUIContext* ctx);
+  LDK_API void ldk_ui_begin_vertical(LDKUIContext* ctx);
+  LDK_API void ldk_ui_end_vertical(LDKUIContext* ctx);
+  LDK_API void ldk_ui_begin_horizontal(LDKUIContext* ctx);
+  LDK_API void ldk_ui_end_horizontal(LDKUIContext* ctx);
 
 
   // Pane
-  bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect);
-  bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable);
-  void ldk_ui_end_pane(LDKUIContext* ctx);
+  LDK_API bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect);
+  LDK_API bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable);
+  LDK_API void ldk_ui_end_pane(LDKUIContext* ctx);
 
 
   // windows
-  bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
-  bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect);
-  void ldk_ui_end_window(LDKUIContext* ctx);
+  LDK_API bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
+  LDK_API bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect);
+  LDK_API void ldk_ui_end_window(LDKUIContext* ctx);
 
   // widgets
-  void ldk_ui_label(LDKUIContext* ctx, char const* text);
-  bool ldk_ui_button(LDKUIContext* ctx, char const* text);
-  bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text);
-  bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value);
-  bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value);
-  bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value);
-  bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value);
-
-
+  LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
+  LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
+  LDK_API bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text);
+  LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value);
+  LDK_API bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value);
+  LDK_API bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value);
+  LDK_API bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value);
 
   // text input
-  void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
+  LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
 
 #ifdef __cplusplus
 }

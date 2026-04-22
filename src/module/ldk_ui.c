@@ -11,7 +11,7 @@ typedef struct
   u32 item_count;
 } LDKUIIdImplicit;
 
-static float ldk_ui_maxf(float a, float b)
+static float s_ui_maxf(float a, float b)
 {
   if (a > b)
   {
@@ -21,7 +21,7 @@ static float ldk_ui_maxf(float a, float b)
   return b;
 }
 
-static float ldk_ui_minf(float a, float b)
+static float s_ui_minf(float a, float b)
 {
   if (a < b)
   {
@@ -31,7 +31,7 @@ static float ldk_ui_minf(float a, float b)
   return b;
 }
 
-static float ldk_ui_clampf(float x, float a, float b)
+static float s_ui_clampf(float x, float a, float b)
 {
   float value = x;
 
@@ -48,7 +48,7 @@ static float ldk_ui_clampf(float x, float a, float b)
   return value;
 }
 
-static bool ldk_ui_rect_contains(LDKUIRect rect, float x, float y)
+static bool s_ui_rect_contains(LDKUIRect rect, float x, float y)
 {
   if (x < rect.x)
   {
@@ -73,13 +73,13 @@ static bool ldk_ui_rect_contains(LDKUIRect rect, float x, float y)
   return true;
 }
 
-static LDKUIId ldk_ui_hash_u32(LDKUIId hash, u32 value)
+static LDKUIId s_ui_hash_u32(LDKUIId hash, u32 value)
 {
   hash ^= value + 0x9e3779b9u + (hash << 6) + (hash >> 2);
   return hash;
 }
 
-static LDKUIId ldk_ui_hash_cstr(LDKUIId hash, char const* text)
+static LDKUIId s_ui_hash_cstr(LDKUIId hash, char const* text)
 {
   char const* cursor = text;
 
@@ -90,39 +90,21 @@ static LDKUIId ldk_ui_hash_cstr(LDKUIId hash, char const* text)
 
   while (*cursor != 0)
   {
-    hash = ldk_ui_hash_u32(hash, (u32)(uint8_t)*cursor);
+    hash = s_ui_hash_u32(hash, (u32)(uint8_t)*cursor);
     cursor += 1;
   }
 
   return hash;
 }
 
-static LDKUIId ldk_ui_hash_struct(LDKUIId hash, const u8* ptr, size_t size)
-{
-  u8 const* cursor = ptr;
-
-  if (cursor == NULL)
-  {
-    return hash;
-  }
-
-  for (size_t i = 0; i < size; i++)
-  {
-    hash = ldk_ui_hash_u32(hash, (u32)(uint8_t)*cursor);
-    cursor++;
-  }
-
-  return hash;
-}
-
-static LDKUIId ldk_ui_make_id(LDKUIContext* ctx, char const* id)
+static LDKUIId s_ui_make_id(LDKUIContext* ctx, char const* id)
 {
   LDKUIId hash = 2166136261u;
   u32 count = x_array_ldk_ui_id_count(ctx->id_stack);
 
   if (ctx->current_window != NULL)
   {
-    hash = ldk_ui_hash_u32(hash, ctx->current_window->id);
+    hash = s_ui_hash_u32(hash, ctx->current_window->id);
   }
 
   for (u32 i = 0; i < count; ++i)
@@ -131,24 +113,24 @@ static LDKUIId ldk_ui_make_id(LDKUIContext* ctx, char const* id)
 
     if (value != NULL)
     {
-      hash = ldk_ui_hash_u32(hash, *value);
+      hash = s_ui_hash_u32(hash, *value);
     }
   }
 
-  hash = ldk_ui_hash_cstr(hash, id);
+  hash = s_ui_hash_cstr(hash, id);
   ctx->last_id = hash;
 
   return hash;
 }
 
-static u32 ldk_ui_next_implicit_item_count(LDKUIContext* ctx)
+static u32 s_ui_next_implicit_item_count(LDKUIContext* ctx)
 {
   u32 item_count = 0;
 
   if (ctx->current_layout != NULL)
   {
-    item_count = ctx->current_layout->item_count;
-    ctx->current_layout->item_count += 1;
+    item_count = ctx->current_layout->child_count;
+    ctx->current_layout->child_count += 1;
     return item_count;
   }
 
@@ -157,27 +139,27 @@ static u32 ldk_ui_next_implicit_item_count(LDKUIContext* ctx)
   return item_count;
 }
 
-static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
+static LDKUIId s_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
 {
   LDKUIId hash = 2166136261u;
   LDKUIId parent_id = 0;
-  u32 item_count = ldk_ui_next_implicit_item_count(ctx);
+  u32 item_count = s_ui_next_implicit_item_count(ctx);
 
   if (ctx->current_layout != NULL)
   {
     parent_id = ctx->current_layout->id;
   }
 
-  hash = ldk_ui_hash_u32(hash, item_type);
-  hash = ldk_ui_hash_u32(hash, parent_id);
-  hash = ldk_ui_hash_u32(hash, item_count);
+  hash = s_ui_hash_u32(hash, item_type);
+  hash = s_ui_hash_u32(hash, parent_id);
+  hash = s_ui_hash_u32(hash, item_count);
   ctx->last_id = hash;
 
   return hash;
 }
 
 
-static LDKUISize ldk_ui_measure_text(char const* text)
+static LDKUISize s_ui_measure_text(char const* text)
 {
   LDKUISize size = { 0.0f, 0.0f };
   size_t length = 0;
@@ -193,30 +175,30 @@ static LDKUISize ldk_ui_measure_text(char const* text)
   return size;
 }
 
-static LDKUISize ldk_ui_measure_label_impl(char const* text)
+static LDKUISize s_ui_measure_label_impl(char const* text)
 {
-  LDKUISize size = ldk_ui_measure_text(text);
+  LDKUISize size = s_ui_measure_text(text);
   return size;
 }
 
-static LDKUISize ldk_ui_measure_button_impl(char const* text)
+static LDKUISize s_ui_measure_button_impl(char const* text)
 {
-  LDKUISize size = ldk_ui_measure_text(text);
+  LDKUISize size = s_ui_measure_text(text);
   size.w += 16.0f;
   size.h += 10.0f;
   return size;
 }
 
-static LDKUISize ldk_ui_measure_slider_impl(char const* text)
+static LDKUISize s_ui_measure_slider_impl(char const* text)
 {
-  LDKUISize label_size = ldk_ui_measure_text(text);
+  LDKUISize label_size = s_ui_measure_text(text);
   LDKUISize size = { 0.0f, 0.0f };
-  size.w = ldk_ui_maxf(140.0f, label_size.w + 80.0f);
+  size.w = s_ui_maxf(140.0f, label_size.w + 80.0f);
   size.h = 22.0f;
   return size;
 }
 
-static LDKUIWidgetState* ldk_ui_widget_state_find(LDKUIContext* ctx, LDKUIId id)
+static LDKUIWidgetState* s_ui_widget_state_find(LDKUIContext* ctx, LDKUIId id)
 {
   u32 count = x_array_ldk_ui_widget_state_count(ctx->widget_states);
 
@@ -238,9 +220,9 @@ static LDKUIWidgetState* ldk_ui_widget_state_find(LDKUIContext* ctx, LDKUIId id)
   return NULL;
 }
 
-static LDKUIWidgetState* ldk_ui_widget_state_get_or_create(LDKUIContext* ctx, LDKUIId id)
+static LDKUIWidgetState* s_ui_widget_state_get_or_create(LDKUIContext* ctx, LDKUIId id)
 {
-  LDKUIWidgetState* state = ldk_ui_widget_state_find(ctx, id);
+  LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
 
   if (state != NULL)
   {
@@ -255,7 +237,7 @@ static LDKUIWidgetState* ldk_ui_widget_state_get_or_create(LDKUIContext* ctx, LD
   return x_array_ldk_ui_widget_state_back(ctx->widget_states);
 }
 
-static bool ldk_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
+static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
 {
   if (window == NULL)
   {
@@ -275,7 +257,7 @@ static bool ldk_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
   return false;
 }
 
-static bool ldk_ui_keyboard_accept_pressed(LDKUIContext* ctx)
+static bool s_ui_keyboard_accept_pressed(LDKUIContext* ctx)
 {
   if (ctx->keyboard == NULL)
   {
@@ -295,7 +277,7 @@ static bool ldk_ui_keyboard_accept_pressed(LDKUIContext* ctx)
   return false;
 }
 
-static bool ldk_ui_keyboard_left_pressed(LDKUIContext* ctx)
+static bool s_ui_keyboard_left_pressed(LDKUIContext* ctx)
 {
   if (ctx->keyboard == NULL)
   {
@@ -305,7 +287,7 @@ static bool ldk_ui_keyboard_left_pressed(LDKUIContext* ctx)
   return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_LEFT);
 }
 
-static bool ldk_ui_keyboard_right_pressed(LDKUIContext* ctx)
+static bool s_ui_keyboard_right_pressed(LDKUIContext* ctx)
 {
   if (ctx->keyboard == NULL)
   {
@@ -315,9 +297,9 @@ static bool ldk_ui_keyboard_right_pressed(LDKUIContext* ctx)
   return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
-static bool ldk_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
+static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
 {
-  LDKUIWidgetState* state = ldk_ui_widget_state_find(ctx, id);
+  LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
   LDKPoint cursor;
   bool inside;
 
@@ -326,13 +308,13 @@ static bool ldk_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
     return false;
   }
 
-  if (!ldk_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != id)
+  if (!s_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != id)
   {
     return false;
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = ldk_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -368,9 +350,9 @@ static bool ldk_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
   return true;
 }
 
-static bool ldk_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* value, float min_value, float max_value)
+static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* value, float min_value, float max_value)
 {
-  LDKUIWidgetState* state = ldk_ui_widget_state_find(ctx, id);
+  LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
   LDKPoint cursor;
   bool inside;
   bool down;
@@ -380,13 +362,13 @@ static bool ldk_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* va
     return false;
   }
 
-  if (!ldk_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != id)
+  if (!s_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != id)
   {
     return false;
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = ldk_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -414,8 +396,8 @@ static bool ldk_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* va
   }
 
   float local = (float)cursor.x - state->rect.x;
-  float denom = ldk_ui_maxf(state->rect.w, 1.0f);
-  float t = ldk_ui_clampf(local / denom, 0.0f, 1.0f);
+  float denom = s_ui_maxf(state->rect.w, 1.0f);
+  float t = s_ui_clampf(local / denom, 0.0f, 1.0f);
   float new_value = min_value + (max_value - min_value) * t;
 
   if (*value == new_value)
@@ -427,9 +409,9 @@ static bool ldk_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* va
   return true;
 }
 
-static void ldk_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
+static void s_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
 {
-  LDKUIWidgetState* state = ldk_ui_widget_state_get_or_create(ctx, item->id);
+  LDKUIWidgetState* state = s_ui_widget_state_get_or_create(ctx, item->id);
 
   if (state == NULL)
   {
@@ -439,7 +421,7 @@ static void ldk_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
   state->rect = item->rect;
 }
 
-static LDKUILayoutNode* ldk_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDirection direction, LDKUILayoutNode* parent, LDKUIWindow* window)
+static LDKUILayoutNode* s_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDirection direction, LDKUILayoutNode* parent, LDKUIWindow* window)
 {
   LDKUILayoutNode* node = x_arena_alloc_zero(ctx->frame_arena, sizeof(LDKUILayoutNode));
 
@@ -449,7 +431,7 @@ static LDKUILayoutNode* ldk_ui_layout_node_create(LDKUIContext* ctx, LDKUILayout
   }
 
   node->id = 0;
-  node->item_count = 0;
+  node->child_count = 0;
   node->direction = direction;
   node->spacing = 4.0f;
   node->padding = (direction == LDK_UI_LAYOUT_HORIZONTAL) ? 0.0f : 4.0f;
@@ -462,7 +444,7 @@ static LDKUILayoutNode* ldk_ui_layout_node_create(LDKUIContext* ctx, LDKUILayout
   return node;
 }
 
-static LDKUIItem* ldk_ui_item_create(LDKUIContext* ctx)
+static LDKUIItem* s_ui_item_create(LDKUIContext* ctx)
 {
   LDKUIItem* item = x_arena_alloc_zero(ctx->frame_arena, sizeof(LDKUIItem));
 
@@ -474,7 +456,7 @@ static LDKUIItem* ldk_ui_item_create(LDKUIContext* ctx)
   return item;
 }
 
-static void ldk_ui_layout_append_item(LDKUILayoutNode* layout, LDKUIItem* item)
+static void s_ui_layout_append_item(LDKUILayoutNode* layout, LDKUIItem* item)
 {
   if (layout == NULL)
   {
@@ -501,12 +483,12 @@ static void ldk_ui_layout_append_item(LDKUILayoutNode* layout, LDKUIItem* item)
   layout->child_count += 1;
 }
 
-static void ldk_ui_reset_next_layout(LDKUIContext* ctx)
+static void s_ui_reset_next_layout(LDKUIContext* ctx)
 {
   memset(&ctx->next_layout, 0, sizeof(ctx->next_layout));
 }
 
-static void ldk_ui_apply_next_layout(LDKUIContext* ctx, LDKUIItem* item)
+static void s_ui_apply_next_layout(LDKUIContext* ctx, LDKUIItem* item)
 {
   if (ctx->next_layout.has_width)
   {
@@ -538,10 +520,10 @@ static void ldk_ui_apply_next_layout(LDKUIContext* ctx, LDKUIItem* item)
     item->expand_height = ctx->next_layout.expand_height;
   }
 
-  ldk_ui_reset_next_layout(ctx);
+  s_ui_reset_next_layout(ctx);
 }
 
-static LDKUIWindow* ldk_ui_window_find(LDKUIContext* ctx, LDKUIId id)
+static LDKUIWindow* s_ui_window_find(LDKUIContext* ctx, LDKUIId id)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
 
@@ -563,9 +545,9 @@ static LDKUIWindow* ldk_ui_window_find(LDKUIContext* ctx, LDKUIId id)
   return NULL;
 }
 
-static LDKUIWindow* ldk_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect)
+static LDKUIWindow* s_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect)
 {
-  LDKUIWindow* window = ldk_ui_window_find(ctx, id);
+  LDKUIWindow* window = s_ui_window_find(ctx, id);
 
   if (window != NULL)
   {
@@ -591,7 +573,7 @@ static LDKUIWindow* ldk_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, c
   return x_array_ldk_ui_window_back(ctx->windows);
 }
 
-static void ldk_ui_window_bring_to_front(LDKUIContext* ctx, LDKUIWindow* window)
+static void s_ui_window_bring_to_front(LDKUIContext* ctx, LDKUIWindow* window)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
   u32 found_index = UINT32_MAX;
@@ -642,7 +624,7 @@ static void ldk_ui_window_bring_to_front(LDKUIContext* ctx, LDKUIWindow* window)
   ctx->current_window = x_array_ldk_ui_window_back(ctx->windows);
 }
 
-static void ldk_ui_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect clip_rect, u32 index_offset, u32 index_count)
+static void s_ui_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect clip_rect, u32 index_offset, u32 index_count)
 {
   LDKUIDrawCmd* back = x_array_ldk_ui_draw_cmd_back(ctx->commands);
 
@@ -671,7 +653,7 @@ static void ldk_ui_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle texture, L
   x_array_ldk_ui_draw_cmd_push(ctx->commands, cmd);
 }
 
-static void ldk_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
+static void s_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
   u32 index_offset = x_array_ldk_ui_u32_count(ctx->indices);
   u32 base_index = x_array_ldk_ui_vertex_count(ctx->vertices);
@@ -698,20 +680,20 @@ static void ldk_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUI
   x_array_ldk_ui_u32_push(ctx->indices, i3);
   x_array_ldk_ui_u32_push(ctx->indices, i0);
 
-  ldk_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
+  s_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
-static void ldk_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
+static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
 {
   LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
   bool inside;
 
-  if (!ldk_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != item->id)
+  if (!s_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != item->id)
   {
     return;
   }
 
-  inside = ldk_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -724,7 +706,7 @@ static void ldk_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
   }
 }
 
-static void ldk_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   u32 color = 0xff606060u;
 
@@ -744,7 +726,7 @@ static void ldk_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
       color = 0xff7a7a7au;
     }
 
-    ldk_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
+    s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
     return;
   }
 
@@ -758,7 +740,7 @@ static void ldk_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
     }
 
     color = toggled ? 0xff5f8f5fu : 0xff5f5f5fu;
-    ldk_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
+    s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
     return;
   }
 
@@ -774,19 +756,19 @@ static void ldk_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
       if (range > 0.0f)
       {
         t = (*item->data.slider_float.value - item->data.slider_float.min_value) / range;
-        t = ldk_ui_clampf(t, 0.0f, 1.0f);
+        t = s_ui_clampf(t, 0.0f, 1.0f);
       }
     }
 
-    ldk_ui_emit_quad(ctx, item->rect, 0xff404040u, clip_rect, 0);
+    s_ui_emit_quad(ctx, item->rect, 0xff404040u, clip_rect, 0);
 
     fill_rect.w = item->rect.w * t;
-    ldk_ui_emit_quad(ctx, fill_rect, 0xff8080c0u, clip_rect, 0);
+    s_ui_emit_quad(ctx, fill_rect, 0xff8080c0u, clip_rect, 0);
     return;
   }
 }
 
-static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
+static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
 {
   LDKUISize size = { 0.0f, 0.0f };
   u32 count = 0;
@@ -813,12 +795,12 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
     {
       if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
       {
-        LDKUISize child_size = ldk_ui_layout_measure_node(item->data.layout.node);
+        LDKUISize child_size = s_ui_layout_measure_node(item->data.layout.node);
         item->preferred_width = child_size.w;
         item->preferred_height = child_size.h;
       }
 
-      width = ldk_ui_maxf(width, item->preferred_width);
+      width = s_ui_maxf(width, item->preferred_width);
       height += item->preferred_height;
     }
 
@@ -839,13 +821,13 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
   {
     if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
     {
-      LDKUISize child_size = ldk_ui_layout_measure_node(item->data.layout.node);
+      LDKUISize child_size = s_ui_layout_measure_node(item->data.layout.node);
       item->preferred_width = child_size.w;
       item->preferred_height = child_size.h;
     }
 
     width += item->preferred_width;
-    height = ldk_ui_maxf(height, item->preferred_height);
+    height = s_ui_maxf(height, item->preferred_height);
   }
 
   size.w = width;
@@ -853,7 +835,7 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
   return size;
 }
 
-static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect)
+static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect)
 {
   u32 count = 0;
   float inner_x = rect.x + node->padding;
@@ -878,7 +860,7 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
       }
       else
       {
-        fixed_height += ldk_ui_maxf(item->preferred_height, item->min_height);
+        fixed_height += s_ui_maxf(item->preferred_height, item->min_height);
       }
     }
 
@@ -905,17 +887,17 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
 
     for (item = node->first_item; item != NULL; item = item->next_sibling)
     {
-      float item_h = ldk_ui_maxf(item->preferred_height, item->min_height);
+      float item_h = s_ui_maxf(item->preferred_height, item->min_height);
       float item_w = inner_w;
 
       if (item->type == LDK_UI_ITEM_LAYOUT)
       {
-        item_w = item->expand_width ? inner_w : ldk_ui_minf(ldk_ui_maxf(item->preferred_width, item->min_width), inner_w);
+        item_w = item->expand_width ? inner_w : s_ui_minf(s_ui_maxf(item->preferred_width, item->min_width), inner_w);
       }
 
       if (item->expand_height)
       {
-        item_h = ldk_ui_maxf(expand_height, item->min_height);
+        item_h = s_ui_maxf(expand_height, item->min_height);
       }
 
       item->rect.x = inner_x;
@@ -923,16 +905,16 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
       item->rect.w = item_w;
       item->rect.h = item_h;
 
-      ldk_ui_layout_update_state_rect(ctx, item);
-      ldk_ui_resolve_interaction(ctx, item);
+      s_ui_layout_update_state_rect(ctx, item);
+      s_ui_resolve_interaction(ctx, item);
 
       if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
       {
-        ldk_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
+        s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
       }
       else
       {
-        ldk_ui_emit_item(ctx, item, rect);
+        s_ui_emit_item(ctx, item, rect);
       }
 
       cursor_y += item_h + node->spacing;
@@ -952,7 +934,7 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
     }
     else
     {
-      fixed_width += ldk_ui_maxf(item->preferred_width, item->min_width);
+      fixed_width += s_ui_maxf(item->preferred_width, item->min_width);
     }
   }
 
@@ -979,12 +961,12 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
 
   for (item = node->first_item; item != NULL; item = item->next_sibling)
   {
-    float item_w = ldk_ui_maxf(item->preferred_width, item->min_width);
-    float item_h = item->expand_height ? inner_h : ldk_ui_minf(ldk_ui_maxf(item->preferred_height, item->min_height), inner_h);
+    float item_w = s_ui_maxf(item->preferred_width, item->min_width);
+    float item_h = item->expand_height ? inner_h : s_ui_minf(s_ui_maxf(item->preferred_height, item->min_height), inner_h);
 
     if (item->expand_width)
     {
-      item_w = ldk_ui_maxf(expand_width, item->min_width);
+      item_w = s_ui_maxf(expand_width, item->min_width);
     }
 
     item->rect.x = cursor_x;
@@ -992,23 +974,23 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
     item->rect.w = item_w;
     item->rect.h = item_h;
 
-    ldk_ui_layout_update_state_rect(ctx, item);
-    ldk_ui_resolve_interaction(ctx, item);
+    s_ui_layout_update_state_rect(ctx, item);
+    s_ui_resolve_interaction(ctx, item);
 
     if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
     {
-      ldk_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
+      s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
     }
     else
     {
-      ldk_ui_emit_item(ctx, item, rect);
+      s_ui_emit_item(ctx, item, rect);
     }
 
     cursor_x += item_w + node->spacing;
   }
 }
 
-static LDKUIWindow* ldk_ui_window_at_cursor_topmost(LDKUIContext* ctx)
+static LDKUIWindow* s_ui_window_at_cursor_topmost(LDKUIContext* ctx)
 {
   LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
@@ -1027,7 +1009,7 @@ static LDKUIWindow* ldk_ui_window_at_cursor_topmost(LDKUIContext* ctx)
       continue;
     }
 
-    if (ldk_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y))
+    if (s_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y))
     {
       return window;
     }
@@ -1054,8 +1036,6 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 
 void ldk_ui_terminate(LDKUIContext* ctx)
 {
-  u32 count = x_array_ldk_ui_window_count(ctx->windows);
-
   x_array_ldk_ui_window_destroy(ctx->windows);
   x_array_ldk_ui_id_destroy(ctx->id_stack);
   x_array_ldk_ui_vertex_destroy(ctx->vertices);
@@ -1063,7 +1043,6 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   x_array_ldk_ui_draw_cmd_destroy(ctx->commands);
   x_array_ldk_ui_widget_state_destroy(ctx->widget_states);
   x_arena_destroy(ctx->frame_arena);
-
   memset(ctx, 0, sizeof(*ctx));
 }
 
@@ -1081,7 +1060,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->current_window = NULL;
   ctx->current_layout = NULL;
 
-  ldk_ui_reset_next_layout(ctx);
+  s_ui_reset_next_layout(ctx);
 
   x_arena_reset_keep_head(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);
@@ -1104,7 +1083,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
     window->is_focused = false;
   }
 
-  ctx->hovered_window = ldk_ui_window_at_cursor_topmost(ctx);
+  ctx->hovered_window = s_ui_window_at_cursor_topmost(ctx);
 
   if (ctx->hovered_window != NULL)
   {
@@ -1115,11 +1094,6 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   {
     ctx->focused_window->is_focused = true;
     ctx->focused_window->is_active = true;
-  }
-
-  if (ctx->active_window != NULL && !ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    ctx->active_window = NULL;
   }
 }
 
@@ -1158,11 +1132,11 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       window->content_rect.w = window->rect.w;
       window->content_rect.h = window->rect.h - header_height;
 
-      ldk_ui_emit_quad(ctx, window->rect, 0xff2a2a2au, window->rect, 0);
+      s_ui_emit_quad(ctx, window->rect, 0xff2a2a2au, window->rect, 0);
 
       if (header_height > 0.0f)
       {
-        ldk_ui_emit_quad(ctx, window->title_bar_rect, window->is_focused ? 0xff4a4a6au : 0xff3a3a3au, window->rect, 0);
+        s_ui_emit_quad(ctx, window->title_bar_rect, window->is_focused ? 0xff4a4a6au : 0xff3a3a3au, window->rect, 0);
       }
     }
 
@@ -1177,8 +1151,8 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       window->is_dragging = false;
     }
 
-    ldk_ui_layout_measure_node(window->root_layout);
-    ldk_ui_layout_resolve_node(ctx, window->root_layout, window->content_rect);
+    s_ui_layout_measure_node(window->root_layout);
+    s_ui_layout_resolve_node(ctx, window->root_layout, window->content_rect);
   }
 
   ctx->render_data.vertices = x_array_ldk_ui_vertex_data_const(ctx->vertices);
@@ -1209,7 +1183,7 @@ void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value)
 
 void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value)
 {
-  LDKUIId hashed = ldk_ui_hash_cstr(2166136261u, value);
+  LDKUIId hashed = s_ui_hash_cstr(2166136261u, value);
   x_array_ldk_ui_id_push(ctx->id_stack, hashed);
 }
 
@@ -1259,13 +1233,15 @@ void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand)
 
 void ldk_ui_begin_vertical(LDKUIContext* ctx)
 {
-  LDKUILayoutNode* node = ldk_ui_layout_node_create(
+  LDK_ASSERT(ctx->current_layout != NULL);
+
+  LDKUILayoutNode* node = s_ui_layout_node_create(
       ctx,
       LDK_UI_LAYOUT_VERTICAL,
       ctx->current_layout,
       ctx->current_window
       );
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
 
   if (node == NULL || item == NULL)
   {
@@ -1273,18 +1249,18 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
 
-  ldk_ui_apply_next_layout(ctx, item);
+  s_ui_apply_next_layout(ctx, item);
 
   if (ctx->current_layout != NULL)
   {
-    ldk_ui_layout_append_item(ctx->current_layout, item);
+    s_ui_layout_append_item(ctx->current_layout, item);
   }
 
   ctx->current_layout = node;
@@ -1300,13 +1276,14 @@ void ldk_ui_end_vertical(LDKUIContext* ctx)
 
 void ldk_ui_begin_horizontal(LDKUIContext* ctx)
 {
-  LDKUILayoutNode* node = ldk_ui_layout_node_create(
+  LDK_ASSERT(ctx->current_layout != NULL);
+  LDKUILayoutNode* node = s_ui_layout_node_create(
       ctx,
       LDK_UI_LAYOUT_HORIZONTAL,
       ctx->current_layout,
       ctx->current_window
       );
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
 
   if (node == NULL || item == NULL)
   {
@@ -1314,18 +1291,18 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
   item->preferred_width = 0.0f;
   item->preferred_height = 0.0f;
 
-  ldk_ui_apply_next_layout(ctx, item);
+  s_ui_apply_next_layout(ctx, item);
 
   if (ctx->current_layout != NULL)
   {
-    ldk_ui_layout_append_item(ctx->current_layout, item);
+    s_ui_layout_append_item(ctx->current_layout, item);
   }
 
   ctx->current_layout = node;
@@ -1341,8 +1318,8 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
 
 static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
-  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
-  LDKUIWindow* window = ldk_ui_window_get_or_create(ctx, resolved_id, title, rect);
+  LDKUIId resolved_id = s_ui_make_id(ctx, id);
+  LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title, rect);
   LDKUILayoutNode* root = NULL;
   LDKPoint cursor;
   bool inside_window;
@@ -1372,9 +1349,9 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
   window->content_rect.w = window->rect.w;
   window->content_rect.h = window->rect.h - header_height;
 
-  inside_window = ldk_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y);
+  inside_window = s_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y);
   inside_title_bar = header_height > 0.0f &&
-    ldk_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
+    s_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
 
   if (ctx->hovered_window == window && inside_window)
   {
@@ -1383,7 +1360,7 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
 
     if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
-      ldk_ui_window_bring_to_front(ctx, window);
+      s_ui_window_bring_to_front(ctx, window);
       window = x_array_ldk_ui_window_back(ctx->windows);
       ctx->focused_window = window;
       ctx->active_window = window;
@@ -1404,7 +1381,7 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
     }
   }
 
-  root = ldk_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
+  root = s_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
 
   if (root == NULL)
   {
@@ -1422,7 +1399,7 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
   char id[32];
-  LDKUIId value = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  LDKUIId value = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
 
   snprintf(id, sizeof(id), "%u", value);
   return ldk_ui_begin_pane_internal(ctx, id, NULL, rect, false, false);
@@ -1442,7 +1419,7 @@ void ldk_ui_end_pane(LDKUIContext* ctx)
 bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect)
 {
   char id[32];
-  LDKUIId value = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  LDKUIId value = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
 
   snprintf(id, sizeof(id), "%u", value);
   return ldk_ui_begin_window_ex(ctx, id, title, rect);
@@ -1460,7 +1437,7 @@ void ldk_ui_end_window(LDKUIContext* ctx)
 
 void ldk_ui_label(LDKUIContext* ctx, char const* text)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1468,23 +1445,23 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
     return;
   }
 
-  size = ldk_ui_measure_label_impl(text);
+  size = s_ui_measure_label_impl(text);
 
   item->type = LDK_UI_ITEM_LABEL;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LABEL);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LABEL);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
   item->min_width = size.w;
   item->min_height = size.h;
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 }
 
 bool ldk_ui_button(LDKUIContext* ctx, char const* text)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1492,10 +1469,10 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  size = ldk_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_BUTTON;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1503,24 +1480,24 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   item->min_height = size.h;
   item->expand_width = true;
 
-  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
-      ldk_ui_keyboard_accept_pressed(ctx))
+      s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->clicked;
 }
 
 bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1528,10 +1505,10 @@ bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
     return false;
   }
 
-  size = ldk_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_BUTTON;
-  item->id = ldk_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, id);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1539,24 +1516,24 @@ bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
   item->min_height = size.h;
   item->expand_width = true;
 
-  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
-      ldk_ui_keyboard_accept_pressed(ctx))
+      s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->clicked;
 }
 
 bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1564,10 +1541,10 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
     return false;
   }
 
-  size = ldk_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1576,11 +1553,11 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
   item->expand_width = true;
   item->data.toggle_button.value = value;
 
-  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
-      ldk_ui_keyboard_accept_pressed(ctx))
+      s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
   }
@@ -1591,15 +1568,15 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
     item->changed = true;
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->changed;
 }
 
 bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1607,10 +1584,10 @@ bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text
     return false;
   }
 
-  size = ldk_ui_measure_button_impl(text);
+  size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
-  item->id = ldk_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, id);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1619,11 +1596,11 @@ bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text
   item->expand_width = true;
   item->data.toggle_button.value = value;
 
-  item->clicked = ldk_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
-      ldk_ui_keyboard_accept_pressed(ctx))
+      s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
   }
@@ -1634,15 +1611,15 @@ bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text
     item->changed = true;
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->changed;
 }
 
 bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1650,10 +1627,10 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
     return false;
   }
 
-  size = ldk_ui_measure_slider_impl(text);
+  size = s_ui_measure_slider_impl(text);
 
   item->type = LDK_UI_ITEM_SLIDER_FLOAT;
-  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
+  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1664,7 +1641,7 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   item->data.slider_float.min_value = min_value;
   item->data.slider_float.max_value = max_value;
 
-  item->changed = ldk_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
+  item->changed = s_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
@@ -1677,9 +1654,9 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
       step = 1.0f;
     }
 
-    if (ldk_ui_keyboard_left_pressed(ctx))
+    if (s_ui_keyboard_left_pressed(ctx))
     {
-      float new_value = ldk_ui_clampf(*value - step, min_value, max_value);
+      float new_value = s_ui_clampf(*value - step, min_value, max_value);
 
       if (new_value != *value)
       {
@@ -1688,9 +1665,9 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
       }
     }
 
-    if (ldk_ui_keyboard_right_pressed(ctx))
+    if (s_ui_keyboard_right_pressed(ctx))
     {
-      float new_value = ldk_ui_clampf(*value + step, min_value, max_value);
+      float new_value = s_ui_clampf(*value + step, min_value, max_value);
 
       if (new_value != *value)
       {
@@ -1700,15 +1677,15 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
     }
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->changed;
 }
 
 bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value)
 {
-  LDKUIItem* item = ldk_ui_item_create(ctx);
+  LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
 
   if (item == NULL)
@@ -1716,10 +1693,10 @@ bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text,
     return false;
   }
 
-  size = ldk_ui_measure_slider_impl(text);
+  size = s_ui_measure_slider_impl(text);
 
   item->type = LDK_UI_ITEM_SLIDER_FLOAT;
-  item->id = ldk_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, id);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1730,7 +1707,7 @@ bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text,
   item->data.slider_float.min_value = min_value;
   item->data.slider_float.max_value = max_value;
 
-  item->changed = ldk_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
+  item->changed = s_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
@@ -1743,9 +1720,9 @@ bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text,
       step = 1.0f;
     }
 
-    if (ldk_ui_keyboard_left_pressed(ctx))
+    if (s_ui_keyboard_left_pressed(ctx))
     {
-      float new_value = ldk_ui_clampf(*value - step, min_value, max_value);
+      float new_value = s_ui_clampf(*value - step, min_value, max_value);
 
       if (new_value != *value)
       {
@@ -1754,9 +1731,9 @@ bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text,
       }
     }
 
-    if (ldk_ui_keyboard_right_pressed(ctx))
+    if (s_ui_keyboard_right_pressed(ctx))
     {
-      float new_value = ldk_ui_clampf(*value + step, min_value, max_value);
+      float new_value = s_ui_clampf(*value + step, min_value, max_value);
 
       if (new_value != *value)
       {
@@ -1766,8 +1743,8 @@ bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text,
     }
   }
 
-  ldk_ui_apply_next_layout(ctx, item);
-  ldk_ui_layout_append_item(ctx->current_layout, item);
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
   return item->changed;
 }
