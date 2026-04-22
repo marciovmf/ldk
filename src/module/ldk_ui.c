@@ -1,15 +1,7 @@
 #include <ldk_common.h>
-#include "ldk_ui.h"
-
+#include <ldk_ui.h>
 #include <string.h>
 #include <math.h>
-
-typedef struct 
-{
-  LDKUIId id_parent;
-  LDKUIItemType item_type;
-  u32 item_count;
-} LDKUIIdImplicit;
 
 static float s_ui_maxf(float a, float b)
 {
@@ -123,31 +115,20 @@ static LDKUIId s_ui_make_id(LDKUIContext* ctx, char const* id)
   return hash;
 }
 
-static u32 s_ui_next_implicit_item_count(LDKUIContext* ctx)
-{
-  u32 item_count = 0;
-
-  if (ctx->current_layout != NULL)
-  {
-    item_count = ctx->current_layout->child_count;
-    ctx->current_layout->child_count += 1;
-    return item_count;
-  }
-
-  item_count = ctx->root_item_count;
-  ctx->root_item_count += 1;
-  return item_count;
-}
-
 static LDKUIId s_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
 {
   LDKUIId hash = 2166136261u;
   LDKUIId parent_id = 0;
-  u32 item_count = s_ui_next_implicit_item_count(ctx);
+  u32 item_count = 0;
 
   if (ctx->current_layout != NULL)
   {
     parent_id = ctx->current_layout->id;
+    item_count = ctx->current_layout->child_count;
+  }
+  else
+  {
+    item_count = ctx->root_item_count;
   }
 
   hash = s_ui_hash_u32(hash, item_type);
@@ -157,7 +138,6 @@ static LDKUIId s_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
 
   return hash;
 }
-
 
 static LDKUISize s_ui_measure_text(char const* text)
 {
@@ -1392,6 +1372,7 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
   window->root_layout = root;
   ctx->current_window = window;
   ctx->current_layout = root;
+  ctx->root_item_count++;
 
   return true;
 }
