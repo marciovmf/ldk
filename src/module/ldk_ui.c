@@ -89,37 +89,14 @@ static LDKUIId s_ui_hash_cstr(LDKUIId hash, char const* text)
   return hash;
 }
 
-static LDKUIId s_ui_make_id(LDKUIContext* ctx, char const* id)
-{
-  LDKUIId hash = 2166136261u;
-  u32 count = x_array_ldk_ui_id_count(ctx->id_stack);
-
-  if (ctx->current_window != NULL)
-  {
-    hash = s_ui_hash_u32(hash, ctx->current_window->id);
-  }
-
-  for (u32 i = 0; i < count; ++i)
-  {
-    LDKUIId* value = x_array_ldk_ui_id_get(ctx->id_stack, i);
-
-    if (value != NULL)
-    {
-      hash = s_ui_hash_u32(hash, *value);
-    }
-  }
-
-  hash = s_ui_hash_cstr(hash, id);
-  ctx->last_id = hash;
-
-  return hash;
-}
-
-static LDKUIId s_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
+static LDKUIId s_ui_make_id(LDKUIContext* ctx, LDKUIItemType item_type)
 {
   LDKUIId hash = 2166136261u;
   LDKUIId parent_id = 0;
   u32 item_count = 0;
+  u32 scope_count = 0;
+
+  LDK_ASSERT(ctx != NULL);
 
   if (ctx->current_layout != NULL)
   {
@@ -131,8 +108,20 @@ static LDKUIId s_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
     item_count = ctx->root_item_count;
   }
 
-  hash = s_ui_hash_u32(hash, item_type);
+  scope_count = x_array_ldk_ui_id_count(ctx->id_stack);
+
+  for (u32 i = 0; i < scope_count; ++i)
+  {
+    LDKUIId* value = x_array_ldk_ui_id_get(ctx->id_stack, i);
+
+    if (value != NULL)
+    {
+      hash = s_ui_hash_u32(hash, *value);
+    }
+  }
+
   hash = s_ui_hash_u32(hash, parent_id);
+  hash = s_ui_hash_u32(hash, item_type);
   hash = s_ui_hash_u32(hash, item_count);
   ctx->last_id = hash;
 
@@ -1229,7 +1218,7 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
@@ -1271,7 +1260,7 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
@@ -1296,7 +1285,7 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   }
 }
 
-static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
+static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
   LDKUIId resolved_id = s_ui_make_id(ctx, id);
   LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title, rect);
@@ -1379,16 +1368,8 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
 
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
-  char id[32];
-  LDKUIId value = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
-
-  snprintf(id, sizeof(id), "%u", value);
+  LDKUIId id = s_ui_make_id(ctx, LDK_UI_ITEM_LAYOUT);
   return ldk_ui_begin_pane_internal(ctx, id, NULL, rect, false, false);
-}
-
-bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
-{
-  return ldk_ui_begin_pane_internal(ctx, id, title, rect, toolbar, draggable);
 }
 
 void ldk_ui_end_pane(LDKUIContext* ctx)
@@ -1399,15 +1380,7 @@ void ldk_ui_end_pane(LDKUIContext* ctx)
 
 bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect)
 {
-  char id[32];
-  LDKUIId value = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
-
-  snprintf(id, sizeof(id), "%u", value);
-  return ldk_ui_begin_window_ex(ctx, id, title, rect);
-}
-
-bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect)
-{
+  LDKUIId id = s_ui_make_id(ctx, LDK_UI_ITEM_LAYOUT);
   return ldk_ui_begin_pane_internal(ctx, id, title, rect, true, true);
 }
 
@@ -1429,7 +1402,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   size = s_ui_measure_label_impl(text);
 
   item->type = LDK_UI_ITEM_LABEL;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LABEL);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_LABEL);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1453,43 +1426,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_BUTTON;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
-  item->text = text;
-  item->preferred_width = size.w;
-  item->preferred_height = size.h;
-  item->min_width = size.w;
-  item->min_height = size.h;
-  item->expand_width = true;
-
-  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
-
-  if (ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
-      s_ui_keyboard_accept_pressed(ctx))
-  {
-    item->clicked = true;
-  }
-
-  s_ui_apply_next_layout(ctx, item);
-  s_ui_layout_append_item(ctx->current_layout, item);
-
-  return item->clicked;
-}
-
-bool ldk_ui_button_ex(LDKUIContext* ctx, char const* id, char const* text)
-{
-  LDKUIItem* item = s_ui_item_create(ctx);
-  LDKUISize size;
-
-  if (item == NULL)
-  {
-    return false;
-  }
-
-  size = s_ui_measure_button_impl(text);
-
-  item->type = LDK_UI_ITEM_BUTTON;
-  item->id = s_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1525,50 +1462,7 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
   size = s_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
-  item->text = text;
-  item->preferred_width = size.w;
-  item->preferred_height = size.h;
-  item->min_width = size.w;
-  item->min_height = size.h;
-  item->expand_width = true;
-  item->data.toggle_button.value = value;
-
-  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
-
-  if (ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
-      s_ui_keyboard_accept_pressed(ctx))
-  {
-    item->clicked = true;
-  }
-
-  if (item->clicked && value != NULL)
-  {
-    *value = !*value;
-    item->changed = true;
-  }
-
-  s_ui_apply_next_layout(ctx, item);
-  s_ui_layout_append_item(ctx->current_layout, item);
-
-  return item->changed;
-}
-
-bool ldk_ui_toggle_button_ex(LDKUIContext* ctx, char const* id, char const* text, bool* value)
-{
-  LDKUIItem* item = s_ui_item_create(ctx);
-  LDKUISize size;
-
-  if (item == NULL)
-  {
-    return false;
-  }
-
-  size = s_ui_measure_button_impl(text);
-
-  item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
-  item->id = s_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1611,73 +1505,7 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   size = s_ui_measure_slider_impl(text);
 
   item->type = LDK_UI_ITEM_SLIDER_FLOAT;
-  item->id = s_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
-  item->text = text;
-  item->preferred_width = size.w;
-  item->preferred_height = size.h;
-  item->min_width = 80.0f;
-  item->min_height = size.h;
-  item->expand_width = true;
-  item->data.slider_float.value = value;
-  item->data.slider_float.min_value = min_value;
-  item->data.slider_float.max_value = max_value;
-
-  item->changed = s_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
-
-  if (ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
-      value != NULL)
-  {
-    float step = (max_value - min_value) / 100.0f;
-
-    if (step <= 0.0f)
-    {
-      step = 1.0f;
-    }
-
-    if (s_ui_keyboard_left_pressed(ctx))
-    {
-      float new_value = s_ui_clampf(*value - step, min_value, max_value);
-
-      if (new_value != *value)
-      {
-        *value = new_value;
-        item->changed = true;
-      }
-    }
-
-    if (s_ui_keyboard_right_pressed(ctx))
-    {
-      float new_value = s_ui_clampf(*value + step, min_value, max_value);
-
-      if (new_value != *value)
-      {
-        *value = new_value;
-        item->changed = true;
-      }
-    }
-  }
-
-  s_ui_apply_next_layout(ctx, item);
-  s_ui_layout_append_item(ctx->current_layout, item);
-
-  return item->changed;
-}
-
-bool ldk_ui_slider_float_ex(LDKUIContext* ctx, char const* id, char const* text, float* value, float min_value, float max_value)
-{
-  LDKUIItem* item = s_ui_item_create(ctx);
-  LDKUISize size;
-
-  if (item == NULL)
-  {
-    return false;
-  }
-
-  size = s_ui_measure_slider_impl(text);
-
-  item->type = LDK_UI_ITEM_SLIDER_FLOAT;
-  item->id = s_ui_make_id(ctx, id);
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
