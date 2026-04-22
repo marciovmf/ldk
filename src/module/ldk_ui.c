@@ -213,11 +213,6 @@ static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
     return false;
   }
 
-  if (ctx->active_window == window)
-  {
-    return true;
-  }
-
   if (ctx->focused_window == window)
   {
     return true;
@@ -295,7 +290,6 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
     ctx->active_id = id;
     ctx->focused_id = id;
     ctx->focused_window = ctx->current_window;
-    ctx->active_window = ctx->current_window;
   }
 
   if (!inside)
@@ -349,7 +343,6 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* valu
     ctx->active_id = id;
     ctx->focused_id = id;
     ctx->focused_window = ctx->current_window;
-    ctx->active_window = ctx->current_window;
   }
 
   down = ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
@@ -1099,7 +1092,6 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->root_item_count = 0;
   ctx->hot_id = 0;
   ctx->hovered_window = NULL;
-  ctx->active_window = NULL;
   ctx->current_window = NULL;
   ctx->current_layout = NULL;
 
@@ -1418,7 +1410,6 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const
       s_ui_window_bring_to_front(ctx, window);
       window = x_array_ldk_ui_window_back(ctx->windows);
       ctx->focused_window = window;
-      ctx->active_window = window;
       ctx->focused_id = 0;
     }
   }
@@ -1431,7 +1422,6 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const
       window->drag_offset_x = (float)cursor.x - window->rect.x;
       window->drag_offset_y = (float)cursor.y - window->rect.y;
       ctx->focused_window = window;
-      ctx->active_window = window;
       ctx->focused_id = 0;
     }
   }

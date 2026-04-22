@@ -229,7 +229,6 @@ extern "C" {
     LDKUIId last_id;
     LDKUIWindow* hovered_window;
     LDKUIWindow* focused_window;
-    LDKUIWindow* active_window;
     LDKUIWindow* current_window;
     LDKUILayoutNode* current_layout;
     LDKUINextLayout next_layout;
