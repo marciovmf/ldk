@@ -1,8 +1,15 @@
 #include <ldk_common.h>
-#include <ldk_ui.h>
+#include "ldk_ui.h"
 
 #include <string.h>
 #include <math.h>
+
+typedef struct 
+{
+  LDKUIId id_parent;
+  LDKUIItemType item_type;
+  u32 item_count;
+} LDKUIIdImplicit;
 
 static float ldk_ui_maxf(float a, float b)
 {
@@ -90,6 +97,24 @@ static LDKUIId ldk_ui_hash_cstr(LDKUIId hash, char const* text)
   return hash;
 }
 
+static LDKUIId ldk_ui_hash_struct(LDKUIId hash, const u8* ptr, size_t size)
+{
+  u8 const* cursor = ptr;
+
+  if (cursor == NULL)
+  {
+    return hash;
+  }
+
+  for (size_t i = 0; i < size; i++)
+  {
+    hash = ldk_ui_hash_u32(hash, (u32)(uint8_t)*cursor);
+    cursor++;
+  }
+
+  return hash;
+}
+
 static LDKUIId ldk_ui_make_id(LDKUIContext* ctx, char const* id)
 {
   LDKUIId hash = 2166136261u;
@@ -132,7 +157,7 @@ static u32 ldk_ui_next_implicit_item_count(LDKUIContext* ctx)
   return item_count;
 }
 
-static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, LDKUIItemType item_type)
+static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, u32 item_type)
 {
   LDKUIId hash = 2166136261u;
   LDKUIId parent_id = 0;
@@ -143,7 +168,7 @@ static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, LDKUIItemType item_typ
     parent_id = ctx->current_layout->id;
   }
 
-  hash = ldk_ui_hash_u32(hash, (u32) item_type);
+  hash = ldk_ui_hash_u32(hash, item_type);
   hash = ldk_ui_hash_u32(hash, parent_id);
   hash = ldk_ui_hash_u32(hash, item_count);
   ctx->last_id = hash;
@@ -151,15 +176,6 @@ static LDKUIId ldk_ui_make_implicit_id(LDKUIContext* ctx, LDKUIItemType item_typ
   return hash;
 }
 
-static LDKUIId ldk_ui_make_window_id(LDKUIContext* ctx, LDKUIId id)
-{
-  LDKUIId hash = 2166136261u;
-
-  (void)ctx;
-
-  hash = ldk_ui_hash_u32(hash, id);
-  return hash;
-}
 
 static LDKUISize ldk_ui_measure_text(char const* text)
 {
@@ -432,12 +448,16 @@ static LDKUILayoutNode* ldk_ui_layout_node_create(LDKUIContext* ctx, LDKUILayout
     return NULL;
   }
 
+  node->id = 0;
+  node->item_count = 0;
   node->direction = direction;
   node->spacing = 4.0f;
   node->padding = (direction == LDK_UI_LAYOUT_HORIZONTAL) ? 0.0f : 4.0f;
   node->parent = parent;
   node->window = window;
-  node->items = x_array_ldk_ui_item_ptr_create(8);
+  node->child_count = 0;
+  node->first_item = NULL;
+  node->last_item = NULL;
 
   return node;
 }
@@ -466,7 +486,19 @@ static void ldk_ui_layout_append_item(LDKUILayoutNode* layout, LDKUIItem* item)
     return;
   }
 
-  x_array_ldk_ui_item_ptr_push(layout->items, item);
+  item->next_sibling = NULL;
+
+  if (layout->last_item != NULL)
+  {
+    layout->last_item->next_sibling = item;
+  }
+  else
+  {
+    layout->first_item = item;
+  }
+
+  layout->last_item = item;
+  layout->child_count += 1;
 }
 
 static void ldk_ui_reset_next_layout(LDKUIContext* ctx)
@@ -757,7 +789,15 @@ static void ldk_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
 static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
 {
   LDKUISize size = { 0.0f, 0.0f };
-  u32 count = x_array_ldk_ui_item_ptr_count(node->items);
+  u32 count = 0;
+  LDKUIItem* item = NULL;
+
+  if (node == NULL)
+  {
+    return size;
+  }
+
+  count = node->child_count;
 
   if (node->direction == LDK_UI_LAYOUT_VERTICAL)
   {
@@ -769,17 +809,8 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
       height += node->spacing * (float)(count - 1);
     }
 
-    for (u32 i = 0; i < count; ++i)
+    for (item = node->first_item; item != NULL; item = item->next_sibling)
     {
-      LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-      if (ptr == NULL || *ptr == NULL)
-      {
-        continue;
-      }
-
-      LDKUIItem* item = *ptr;
-
       if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
       {
         LDKUISize child_size = ldk_ui_layout_measure_node(item->data.layout.node);
@@ -804,17 +835,8 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
     width += node->spacing * (float)(count - 1);
   }
 
-  for (u32 i = 0; i < count; ++i)
+  for (item = node->first_item; item != NULL; item = item->next_sibling)
   {
-    LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-    if (ptr == NULL || *ptr == NULL)
-    {
-      continue;
-    }
-
-    LDKUIItem* item = *ptr;
-
     if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
     {
       LDKUISize child_size = ldk_ui_layout_measure_node(item->data.layout.node);
@@ -833,30 +855,23 @@ static LDKUISize ldk_ui_layout_measure_node(LDKUILayoutNode* node)
 
 static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect)
 {
-  u32 count = x_array_ldk_ui_item_ptr_count(node->items);
+  u32 count = 0;
   float inner_x = rect.x + node->padding;
   float inner_y = rect.y + node->padding;
   float inner_w = rect.w - node->padding * 2.0f;
   float inner_h = rect.h - node->padding * 2.0f;
+  LDKUIItem* item = NULL;
 
   node->rect = rect;
+  count = node->child_count;
 
   if (node->direction == LDK_UI_LAYOUT_VERTICAL)
   {
     float fixed_height = 0.0f;
     u32 expand_count = 0;
 
-    for (u32 i = 0; i < count; ++i)
+    for (item = node->first_item; item != NULL; item = item->next_sibling)
     {
-      LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-      if (ptr == NULL || *ptr == NULL)
-      {
-        continue;
-      }
-
-      LDKUIItem* item = *ptr;
-
       if (item->expand_height)
       {
         expand_count += 1;
@@ -888,16 +903,8 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
 
     float cursor_y = inner_y;
 
-    for (u32 i = 0; i < count; ++i)
+    for (item = node->first_item; item != NULL; item = item->next_sibling)
     {
-      LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-      if (ptr == NULL || *ptr == NULL)
-      {
-        continue;
-      }
-
-      LDKUIItem* item = *ptr;
       float item_h = ldk_ui_maxf(item->preferred_height, item->min_height);
       float item_w = inner_w;
 
@@ -937,17 +944,8 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
   float fixed_width = 0.0f;
   u32 expand_count = 0;
 
-  for (u32 i = 0; i < count; ++i)
+  for (item = node->first_item; item != NULL; item = item->next_sibling)
   {
-    LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-    if (ptr == NULL || *ptr == NULL)
-    {
-      continue;
-    }
-
-    LDKUIItem* item = *ptr;
-
     if (item->expand_width)
     {
       expand_count += 1;
@@ -979,16 +977,8 @@ static void ldk_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node,
 
   float cursor_x = inner_x;
 
-  for (u32 i = 0; i < count; ++i)
+  for (item = node->first_item; item != NULL; item = item->next_sibling)
   {
-    LDKUIItem** ptr = x_array_ldk_ui_item_ptr_get(node->items, i);
-
-    if (ptr == NULL || *ptr == NULL)
-    {
-      continue;
-    }
-
-    LDKUIItem* item = *ptr;
     float item_w = ldk_ui_maxf(item->preferred_width, item->min_width);
     float item_h = item->expand_height ? inner_h : ldk_ui_minf(ldk_ui_maxf(item->preferred_height, item->min_height), inner_h);
 
@@ -1065,17 +1055,6 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 void ldk_ui_terminate(LDKUIContext* ctx)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
-
-  for (u32 i = 0; i < count; ++i)
-  {
-    LDKUIWindow* window = x_array_ldk_ui_window_get(ctx->windows, i);
-
-    if (window != NULL && window->root_layout != NULL && window->root_layout->items != NULL)
-    {
-      x_array_ldk_ui_item_ptr_destroy(window->root_layout->items);
-      window->root_layout->items = NULL;
-    }
-  }
 
   x_array_ldk_ui_window_destroy(ctx->windows);
   x_array_ldk_ui_id_destroy(ctx->id_stack);
@@ -1294,7 +1273,7 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
@@ -1335,7 +1314,7 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   }
 
   item->type = LDK_UI_ITEM_LAYOUT;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
   item->data.layout.node = node;
   node->id = item->id;
   item->expand_width = true;
@@ -1362,7 +1341,7 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
 
 static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
-  LDKUIId resolved_id = ldk_ui_make_window_id(ctx, *((LDKUIId const*)id));
+  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
   LDKUIWindow* window = ldk_ui_window_get_or_create(ctx, resolved_id, title, rect);
   LDKUILayoutNode* root = NULL;
   LDKPoint cursor;
@@ -1442,16 +1421,16 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, char const* id, char c
 
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
-  LDKUIId id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+  char id[32];
+  LDKUIId value = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
 
-  return ldk_ui_begin_pane_internal(ctx, (char const*)&id, NULL, rect, false, false);
+  snprintf(id, sizeof(id), "%u", value);
+  return ldk_ui_begin_pane_internal(ctx, id, NULL, rect, false, false);
 }
 
 bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
 {
-  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
-
-  return ldk_ui_begin_pane_internal(ctx, (char const*)&resolved_id, title, rect, toolbar, draggable);
+  return ldk_ui_begin_pane_internal(ctx, id, title, rect, toolbar, draggable);
 }
 
 void ldk_ui_end_pane(LDKUIContext* ctx)
@@ -1462,16 +1441,16 @@ void ldk_ui_end_pane(LDKUIContext* ctx)
 
 bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect)
 {
-  LDKUIId id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LAYOUT);
+  char id[32];
+  LDKUIId value = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LAYOUT);
 
-  return ldk_ui_begin_pane_internal(ctx, (char const*)&id, title, rect, true, true);
+  snprintf(id, sizeof(id), "%u", value);
+  return ldk_ui_begin_window_ex(ctx, id, title, rect);
 }
 
 bool ldk_ui_begin_window_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect)
 {
-  LDKUIId resolved_id = ldk_ui_make_id(ctx, id);
-
-  return ldk_ui_begin_pane_internal(ctx, (char const*)&resolved_id, title, rect, true, true);
+  return ldk_ui_begin_pane_internal(ctx, id, title, rect, true, true);
 }
 
 void ldk_ui_end_window(LDKUIContext* ctx)
@@ -1492,7 +1471,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   size = ldk_ui_measure_label_impl(text);
 
   item->type = LDK_UI_ITEM_LABEL;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_LABEL);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_LABEL);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1516,7 +1495,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   size = ldk_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_BUTTON;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_BUTTON);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1588,7 +1567,7 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
   size = ldk_ui_measure_button_impl(text);
 
   item->type = LDK_UI_ITEM_TOGGLE_BUTTON;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_TOGGLE_BUTTON);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_TOGGLE_BUTTON);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;
@@ -1674,7 +1653,7 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   size = ldk_ui_measure_slider_impl(text);
 
   item->type = LDK_UI_ITEM_SLIDER_FLOAT;
-  item->id = ldk_ui_make_implicit_id(ctx, LDK_UI_ITEM_SLIDER_FLOAT);
+  item->id = ldk_ui_make_implicit_id(ctx, (u32)LDK_UI_ITEM_SLIDER_FLOAT);
   item->text = text;
   item->preferred_width = size.w;
   item->preferred_height = size.h;

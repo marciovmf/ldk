@@ -141,6 +141,7 @@ extern "C" {
   struct LDKUIItem
   {
     LDKUIId id;
+    LDKUIItem* next_sibling;
     LDKUIItemType type;
     LDKUIRect rect;
     float preferred_width;
@@ -183,7 +184,9 @@ extern "C" {
     LDKUIRect rect;
     float spacing;
     float padding;
-    XArray_ldk_ui_item_ptr* items;
+    u32 child_count;
+    LDKUIItem* first_item;
+    LDKUIItem* last_item;
     LDKUILayoutNode* parent;
     LDKUIWindow* window;
   };
@@ -247,13 +250,7 @@ extern "C" {
 
   // Pane
   bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect);
-  bool ldk_ui_begin_pane_ex(
-      LDKUIContext* ctx,
-      char const* id,
-      char const* title,
-      LDKUIRect rect,
-      bool toolbar,
-      bool draggable);
+  bool ldk_ui_begin_pane_ex(LDKUIContext* ctx, char const* id, char const* title, LDKUIRect rect, bool toolbar, bool draggable);
   void ldk_ui_end_pane(LDKUIContext* ctx);
 
 
@@ -280,4 +277,4 @@ extern "C" {
 }
 #endif
 
-#endif
+#endif // LDK_UI_H
