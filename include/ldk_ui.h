@@ -1,3 +1,20 @@
+/**
+ * @file ldk_ui.h
+ *
+ * Immediate-mode UI system.
+ *
+ * Widgets are declared every frame and arranged using layout containers.
+ * Windows and panels use explicit positioning; everything else is layout-driven.
+ *
+ * IDs are generated internally from the UI structure and ID stack.
+ *
+ * The UI stores only transient interaction state (hover, active, focus).
+ * Persistent data (e.g. values) belongs to the caller and is passed each frame.
+ *
+ * Layout is resolved at the end of the frame. A small cache is kept to
+ * support interaction between frames.
+ */
+
 #ifndef LDK_UI_H
 #define LDK_UI_H
 
@@ -80,6 +97,7 @@ extern "C" {
   typedef struct LDKUIWidgetState
   {
     LDKUIId id;
+    u32 last_frame_touched;
     LDKUIRect rect;
   } LDKUIWidgetState;
 
@@ -262,6 +280,7 @@ extern "C" {
     LDKUIRenderData render_data;
     LDKUITheme theme;
     XArray_ldk_ui_font_page_texture* font_page_textures;
+    u32 frame_index;
   };
 
   // lifecycle

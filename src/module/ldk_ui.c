@@ -8,65 +8,24 @@
 
 #include <ldk_gl.h>
 
-static float s_ui_maxf(float a, float b)
-{
-  if (a > b)
-  {
-    return a;
-  }
+static float s_ui_maxf(float a, float b) { return (a > b) ? a : b; }
 
-  return b;
-}
-
-static float s_ui_minf(float a, float b)
-{
-  if (a < b)
-  {
-    return a;
-  }
-
-  return b;
-}
+static float s_ui_minf(float a, float b) { return (a < b) ? a : b; }
 
 static float s_ui_clampf(float x, float a, float b)
 {
   float value = x;
-
-  if (value < a)
-  {
-    value = a;
-  }
-
-  if (value > b)
-  {
-    value = b;
-  }
-
+  if (value < a) { value = a; }
+  if (value > b) { value = b; }
   return value;
 }
 
 static bool s_ui_rect_contains(LDKUIRect rect, float x, float y)
 {
-  if (x < rect.x)
-  {
-    return false;
-  }
-
-  if (y < rect.y)
-  {
-    return false;
-  }
-
-  if (x >= rect.x + rect.w)
-  {
-    return false;
-  }
-
-  if (y >= rect.y + rect.h)
-  {
-    return false;
-  }
-
+  if (x < rect.x) { return false; }
+  if (y < rect.y) { return false; }
+  if (x >= rect.x + rect.w) { return false; }
+  if (y >= rect.y + rect.h) { return false; }
   return true;
 }
 
@@ -94,6 +53,13 @@ static LDKUIId s_ui_hash_cstr(LDKUIId hash, char const* text)
   return hash;
 }
 
+/**
+ * Generates a stable ID for the current widget.
+ *
+ * The ID is computed by hashing the current window ID, the ID stack,
+ * and the provided identifier string. This ensures that IDs are stable
+ * across frames as long as the UI structure and pushed IDs remain consistent.
+ */
 static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
 {
   LDKUIId hash = 2166136261u;
@@ -133,8 +99,12 @@ static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
   return hash;
 }
 
+/**
+ * Temporary OpenGL hack to retrieve Font atlas texture while we do not have a RHI api.
+ */
 static LDKUITextureHandle s_ui_get_font_page_texture(LDKUIContext* ctx, u32 page_index)
 {
+  //TODO: Remove all OpenGL code frome here. This shoud be done somewhere else using the RHI api.
   LDKFontPageInfo page = {0};
   u32 count;
   u32 i;
@@ -161,16 +131,16 @@ static LDKUITextureHandle s_ui_get_font_page_texture(LDKUIContext* ctx, u32 page
       {
         glBindTexture(GL_TEXTURE_2D, entry->texture);
         glTexSubImage2D(
-          GL_TEXTURE_2D,
-          0,
-          0,
-          0,
-          (GLsizei)page.width,
-          (GLsizei)page.height,
-          GL_RED,
-          GL_UNSIGNED_BYTE,
-          page.pixels
-        );
+            GL_TEXTURE_2D,
+            0,
+            0,
+            0,
+            (GLsizei)page.width,
+            (GLsizei)page.height,
+            GL_RED,
+            GL_UNSIGNED_BYTE,
+            page.pixels
+            );
 
         ldk_font_clear_page_dirty(ctx->font, page_index);
       }
@@ -264,6 +234,9 @@ static LDKUISize s_ui_measure_slider_impl(LDKFontInstance* font, char const* tex
 
 static LDKUIWidgetState* s_ui_widget_state_find(LDKUIContext* ctx, LDKUIId id)
 {
+  //We look for a widget via linear search. This is acceptable for small UIs with hundreds of widgets,
+  //for thousands of widgets we're probably switch to a hash table.
+
   u32 count = x_array_ldk_ui_widget_state_count(ctx->widget_states);
 
   for (u32 i = 0; i < count; ++i)
@@ -290,15 +263,46 @@ static LDKUIWidgetState* s_ui_widget_state_get_or_create(LDKUIContext* ctx, LDKU
 
   if (state != NULL)
   {
+    state->last_frame_touched = ctx->frame_index;
     return state;
   }
 
   LDKUIWidgetState new_state;
   memset(&new_state, 0, sizeof(new_state));
   new_state.id = id;
+  new_state.last_frame_touched = ctx->frame_index;
   x_array_ldk_ui_widget_state_push(ctx->widget_states, new_state);
 
   return x_array_ldk_ui_widget_state_back(ctx->widget_states);
+}
+
+/**
+ * In an immediate-mode UI, widgets can appear and disappear between frames.
+ * This may leave stale entries in the widget_states cache.
+ * This function removes any state that was not accessed in the current frame.
+ */
+static void s_ui_widget_states_gc(LDKUIContext* ctx)
+{
+  u32 i = 0;
+  u32 widget_state_count = x_array_ldk_ui_widget_state_count(ctx->widget_states); 
+  while (i < widget_state_count)
+  {
+    LDKUIWidgetState* state = x_array_ldk_ui_widget_state_get(ctx->widget_states, i);
+
+    if (state == NULL)
+    {
+      i += 1;
+      continue;
+    }
+
+    if (state->last_frame_touched != ctx->frame_index)
+    {
+      x_array_ldk_ui_widget_state_delete_at(ctx->widget_states, i);
+      continue;
+    }
+
+    i += 1;
+  }
 }
 
 static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
@@ -1285,6 +1289,89 @@ static void s_init_theme_light(LDKUITheme* theme)
   theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]  = 0xffbfcfffu;
 }
 
+static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
+{
+  LDKUIId resolved_id = s_ui_make_id(ctx, id);
+  LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title, rect);
+  LDKUILayoutNode* root = NULL;
+  LDKPoint cursor;
+  bool inside_window;
+  bool inside_title_bar;
+  float header_height = toolbar ? 24.0f : 0.0f;
+
+  if (window == NULL)
+  {
+    return false;
+  }
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+
+  if (title != NULL)
+  {
+    strncpy(window->title, title, sizeof(window->title) - 1);
+    window->title[sizeof(window->title) - 1] = 0;
+  }
+
+  window->title_bar_rect.x = window->rect.x;
+  window->title_bar_rect.y = window->rect.y;
+  window->title_bar_rect.w = window->rect.w;
+  window->title_bar_rect.h = header_height;
+
+  window->content_rect.x = window->rect.x;
+  window->content_rect.y = window->rect.y + header_height;
+  window->content_rect.w = window->rect.w;
+  window->content_rect.h = window->rect.h - header_height;
+
+  inside_window = s_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y);
+  inside_title_bar = header_height > 0.0f &&
+    s_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
+
+  if (ctx->hovered_window == window && inside_window)
+  {
+    window->is_hovered = true;
+    ctx->hovered_window = window;
+
+    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      s_ui_window_bring_to_front(ctx, window);
+      window = x_array_ldk_ui_window_back(ctx->windows);
+      ctx->focused_window = window;
+      ctx->focused_id = 0;
+    }
+  }
+
+  if (ctx->hovered_window == window && draggable && inside_title_bar)
+  {
+    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      window->is_dragging = true;
+      window->drag_offset_x = (float)cursor.x - window->rect.x;
+      window->drag_offset_y = (float)cursor.y - window->rect.y;
+      ctx->focused_window = window;
+      ctx->focused_id = 0;
+    }
+  }
+
+  root = s_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
+
+  if (root == NULL)
+  {
+    return false;
+  }
+
+  root->id = resolved_id;
+  window->root_layout = root;
+  ctx->current_window = window;
+  ctx->current_layout = root;
+  ctx->root_item_count++;
+
+  return true;
+}
+
+//
+// Life cycle
+//
+
 bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 {
   memset(ctx, 0, sizeof(*ctx));
@@ -1356,6 +1443,10 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   memset(ctx, 0, sizeof(*ctx));
 }
 
+//
+// Frame
+//
+
 void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
@@ -1363,6 +1454,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->mouse = mouse;
   ctx->keyboard = keyboard;
   ctx->viewport = viewport;
+  ctx->frame_index += 1;
   ctx->root_item_count = 0;
   ctx->hot_id = 0;
   ctx->hovered_window = NULL;
@@ -1476,6 +1568,8 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
     s_ui_layout_resolve_node(ctx, window->root_layout, window->content_rect);
   }
 
+  s_ui_widget_states_gc(ctx);
+
   ctx->render_data.vertices = x_array_ldk_ui_vertex_data_const(ctx->vertices);
   ctx->render_data.vertex_count = x_array_ldk_ui_vertex_count(ctx->vertices);
   ctx->render_data.indices = x_array_ldk_ui_u32_data_const(ctx->indices);
@@ -1488,6 +1582,11 @@ LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx)
 {
   return &ctx->render_data;
 }
+
+
+//
+// Explicit ID
+//
 
 void ldk_ui_push_id_u32(LDKUIContext* ctx, u32 value)
 {
@@ -1515,6 +1614,12 @@ void ldk_ui_pop_id(LDKUIContext* ctx)
     x_array_ldk_ui_id_pop(ctx->id_stack);
   }
 }
+
+
+//
+// Layout overrides
+//
+
 
 void ldk_ui_set_next_width(LDKUIContext* ctx, float width)
 {
@@ -1587,6 +1692,11 @@ void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height)
   ldk_ui_set_next_fixed_width(ui, width);
   ldk_ui_set_next_fixed_height(ui, height);
 }
+
+
+//
+// Layout
+//
 
 void ldk_ui_begin_vertical(LDKUIContext* ctx)
 {
@@ -1677,84 +1787,10 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   }
 }
 
-static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable)
-{
-  LDKUIId resolved_id = s_ui_make_id(ctx, id);
-  LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title, rect);
-  LDKUILayoutNode* root = NULL;
-  LDKPoint cursor;
-  bool inside_window;
-  bool inside_title_bar;
-  float header_height = toolbar ? 24.0f : 0.0f;
 
-  if (window == NULL)
-  {
-    return false;
-  }
-
-  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-
-  if (title != NULL)
-  {
-    strncpy(window->title, title, sizeof(window->title) - 1);
-    window->title[sizeof(window->title) - 1] = 0;
-  }
-
-  window->title_bar_rect.x = window->rect.x;
-  window->title_bar_rect.y = window->rect.y;
-  window->title_bar_rect.w = window->rect.w;
-  window->title_bar_rect.h = header_height;
-
-  window->content_rect.x = window->rect.x;
-  window->content_rect.y = window->rect.y + header_height;
-  window->content_rect.w = window->rect.w;
-  window->content_rect.h = window->rect.h - header_height;
-
-  inside_window = s_ui_rect_contains(window->rect, (float)cursor.x, (float)cursor.y);
-  inside_title_bar = header_height > 0.0f &&
-    s_ui_rect_contains(window->title_bar_rect, (float)cursor.x, (float)cursor.y);
-
-  if (ctx->hovered_window == window && inside_window)
-  {
-    window->is_hovered = true;
-    ctx->hovered_window = window;
-
-    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      s_ui_window_bring_to_front(ctx, window);
-      window = x_array_ldk_ui_window_back(ctx->windows);
-      ctx->focused_window = window;
-      ctx->focused_id = 0;
-    }
-  }
-
-  if (ctx->hovered_window == window && draggable && inside_title_bar)
-  {
-    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      window->is_dragging = true;
-      window->drag_offset_x = (float)cursor.x - window->rect.x;
-      window->drag_offset_y = (float)cursor.y - window->rect.y;
-      ctx->focused_window = window;
-      ctx->focused_id = 0;
-    }
-  }
-
-  root = s_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
-
-  if (root == NULL)
-  {
-    return false;
-  }
-
-  root->id = resolved_id;
-  window->root_layout = root;
-  ctx->current_window = window;
-  ctx->current_layout = root;
-  ctx->root_item_count++;
-
-  return true;
-}
+//
+// Controls
+//
 
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
