@@ -45,6 +45,12 @@ extern "C" {
     LDKUIColor colors[LDK_UI_COLOR_COUNT];
   } LDKUITheme;
 
+  typedef struct LDKUIFontPageTexture
+  {
+    u32 page_index;
+    u32 texture;
+  } LDKUIFontPageTexture;
+
 
   typedef struct LDKUIVertex
   {
@@ -102,6 +108,7 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIDrawCmd, ldk_ui_draw_cmd);
   X_ARRAY_TYPE_NAMED(LDKUIItem*, ldk_ui_item_ptr);
   X_ARRAY_TYPE_NAMED(LDKUIWidgetState, ldk_ui_widget_state);
+  X_ARRAY_TYPE_NAMED(LDKUIFontPageTexture, ldk_ui_font_page_texture);
 
   typedef struct LDKUISize
   {
@@ -254,6 +261,7 @@ extern "C" {
     XArray_ldk_ui_widget_state* widget_states;
     LDKUIRenderData render_data;
     LDKUITheme theme;
+    XArray_ldk_ui_font_page_texture* font_page_textures;
   };
 
   // lifecycle

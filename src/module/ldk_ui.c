@@ -1,9 +1,12 @@
 #include "ldk_font.h"
+#include "stdx/stdx_array.h"
 #include <ldk_common.h>
 #include <ldk_ui.h>
 #include <stdx/stdx_io.h>
 #include <string.h>
 #include <math.h>
+
+#include <ldk_gl.h>
 
 static float s_ui_maxf(float a, float b)
 {
@@ -130,22 +133,109 @@ static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
   return hash;
 }
 
+static LDKUITextureHandle s_ui_get_font_page_texture(LDKUIContext* ctx, u32 page_index)
+{
+  LDKFontPageInfo page = {0};
+  u32 count;
+  u32 i;
+
+  if (ctx == NULL || ctx->font == NULL)
+  {
+    return 0;
+  }
+
+  if (!ldk_font_get_page_info(ctx->font, page_index, &page))
+  {
+    return 0;
+  }
+
+  count = x_array_ldk_ui_font_page_texture_count(ctx->font_page_textures);
+
+  for (i = 0; i < count; ++i)
+  {
+    LDKUIFontPageTexture* entry = x_array_ldk_ui_font_page_texture_get(ctx->font_page_textures, i);
+
+    if (entry != NULL && entry->page_index == page_index)
+    {
+      if (page.dirty)
+      {
+        glBindTexture(GL_TEXTURE_2D, entry->texture);
+        glTexSubImage2D(
+          GL_TEXTURE_2D,
+          0,
+          0,
+          0,
+          (GLsizei)page.width,
+          (GLsizei)page.height,
+          GL_RED,
+          GL_UNSIGNED_BYTE,
+          page.pixels
+        );
+
+        ldk_font_clear_page_dirty(ctx->font, page_index);
+      }
+
+      return (LDKUITextureHandle)entry->texture;
+    }
+  }
+
+  {
+    GLuint texture = 0;
+    LDKUIFontPageTexture entry = {0};
+
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Font atlas stores glyph coverage in a single (R) channel.
+    // The shader expects standard RGBA textures, so we remap:
+    //   RGB -> 1 (use vertex color for text color)
+    //   A   -> R (use glyph coverage as alpha mask)
+    // This allows text to share the same pipeline as other UI quads.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_ONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_ONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_R8,
+        (GLsizei)page.width,
+        (GLsizei)page.height,
+        0,
+        GL_RED,
+        GL_UNSIGNED_BYTE,
+        page.pixels
+        );
+
+    ldk_font_clear_page_dirty(ctx->font, page_index);
+
+    entry.page_index = page_index;
+    entry.texture = texture;
+    x_array_ldk_ui_font_page_texture_push(ctx->font_page_textures, entry);
+
+    return (LDKUITextureHandle)texture;
+  }
+}
+
 static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
 {
   LDKUISize size = {0};
-  LDKFontMetrics metrics;
-  float width = 0.0f;
 
   if (font == NULL || text == NULL)
   {
     return size;
   }
 
-  width = ldk_font_measure_text_cstr(font, text);
-  metrics = ldk_font_get_metrics(font);
+  size.w = ldk_font_measure_text_cstr(font, text);
+  size.h = ldk_font_get_line_height(font);
 
-  size.w = width;
-  size.h = metrics.line_height;
   return size;
 }
 
@@ -672,17 +762,137 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
   }
 }
 
+
+static void ldk_ui_draw_text(LDKUIContext* ctx, char const* text, float x, float y, u32 color, LDKUIRect clip_rect)
+{
+  LDKFontInstance* font;
+  LDKFontMetrics metrics;
+  float pen_x;
+  float pen_y;
+  u32 prev_codepoint;
+  char const* cursor;
+
+  if (ctx == NULL || text == NULL)
+  {
+    return;
+  }
+
+  font = ctx->font;
+
+  if (font == NULL)
+  {
+    return;
+  }
+
+  metrics = ldk_font_get_metrics(font);
+  pen_x = x;
+  pen_y = y + metrics.ascent;
+  prev_codepoint = 0;
+  cursor = text;
+
+  while (*cursor != '\0')
+  {
+    u32 codepoint = 0;
+    LDKGlyph const* glyph;
+    LDKFontPageInfo page;
+    float gx0;
+    float gy0;
+    float gx1;
+    float gy1;
+    float u0;
+    float v0;
+    float u1;
+    float v1;
+    u32 base_index;
+    u32 index_offset;
+
+    if (!ldk_font_utf8_decode(&cursor, &codepoint))
+    {
+      break;
+    }
+
+    if (codepoint == '\n')
+    {
+      pen_x = x;
+      pen_y += metrics.line_height;
+      prev_codepoint = 0;
+      continue;
+    }
+
+    glyph = ldk_font_get_glyph(font, codepoint);
+
+    if (glyph == NULL || !glyph->valid)
+    {
+      prev_codepoint = 0;
+      continue;
+    }
+
+    if (prev_codepoint != 0)
+    {
+      pen_x += ldk_font_get_kerning(font, prev_codepoint, codepoint);
+    }
+
+    if (!ldk_font_get_page_info(font, glyph->page_index, &page))
+    {
+      pen_x += (float)glyph->advance_x;
+      prev_codepoint = codepoint;
+      continue;
+    }
+
+    gx0 = pen_x + (float)glyph->offset_x;
+    gy0 = pen_y + (float)glyph->offset_y;
+    gx1 = gx0 + (float)(glyph->atlas_x1 - glyph->atlas_x0);
+    gy1 = gy0 + (float)(glyph->atlas_y1 - glyph->atlas_y0);
+
+    u0 = (float)glyph->atlas_x0 / (float)page.width;
+    v0 = (float)glyph->atlas_y0 / (float)page.height;
+    u1 = (float)glyph->atlas_x1 / (float)page.width;
+    v1 = (float)glyph->atlas_y1 / (float)page.height;
+
+    index_offset = x_array_ldk_ui_u32_count(ctx->indices);
+    base_index = x_array_ldk_ui_vertex_count(ctx->vertices);
+
+    x_array_ldk_ui_vertex_push(ctx->vertices, (LDKUIVertex){ gx0, gy0, u0, v0, color });
+    x_array_ldk_ui_vertex_push(ctx->vertices, (LDKUIVertex){ gx1, gy0, u1, v0, color });
+    x_array_ldk_ui_vertex_push(ctx->vertices, (LDKUIVertex){ gx1, gy1, u1, v1, color });
+    x_array_ldk_ui_vertex_push(ctx->vertices, (LDKUIVertex){ gx0, gy1, u0, v1, color });
+
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 0);
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 1);
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 2);
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 2);
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 3);
+    x_array_ldk_ui_u32_push(ctx->indices, base_index + 0);
+
+    LDKUITextureHandle texture = s_ui_get_font_page_texture(ctx, glyph->page_index);
+    s_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
+
+    pen_x += (float)glyph->advance_x;
+    prev_codepoint = codepoint;
+  }
+}
+
 static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 
   if (item->type == LDK_UI_ITEM_LABEL)
   {
+    ldk_ui_draw_text(
+        ctx,
+        item->text,
+        item->rect.x,
+        item->rect.y,
+        ctx->theme.colors[LDK_UI_COLOR_TEXT],
+        clip_rect
+        );
     return;
   }
 
   if (item->type == LDK_UI_ITEM_BUTTON)
   {
+    LDKUISize text_size;
+
     if (ctx->active_id == item->id)
     {
       color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
@@ -693,6 +903,17 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     }
 
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
+
+    text_size = s_ui_measure_text(ctx->font, item->text);
+
+    ldk_ui_draw_text(
+        ctx,
+        item->text,
+        item->rect.x + (item->rect.w - text_size.w) * 0.5f,
+        item->rect.y + (item->rect.h - text_size.h) * 0.5f,
+        ctx->theme.colors[LDK_UI_COLOR_TEXT],
+        clip_rect
+        );
     return;
   }
 
@@ -1067,12 +1288,13 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->vertices = x_array_ldk_ui_vertex_create(config->initial_vertex_capacity);
   ctx->indices = x_array_ldk_ui_u32_create(config->initial_index_capacity);
   ctx->commands = x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
+  ctx->font_page_textures = x_array_ldk_ui_font_page_texture_create(2);
   ctx->widget_states = x_array_ldk_ui_widget_state_create(256);
 
   if (config->theme == LDK_UI_THEME_DARK)
     s_init_theme_dark(&ctx->theme);
   else if (config->theme == LDK_UI_THEME_LIGHT)
-    s_init_theme_dark(&ctx->theme);
+    s_init_theme_light(&ctx->theme);
   // else assume the theme is initialized
 
   // Initialize font
@@ -1093,12 +1315,35 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 
 void ldk_ui_terminate(LDKUIContext* ctx)
 {
-  x_array_ldk_ui_window_destroy(ctx->windows);
-  x_array_ldk_ui_id_destroy(ctx->id_stack);
-  x_array_ldk_ui_vertex_destroy(ctx->vertices);
-  x_array_ldk_ui_u32_destroy(ctx->indices);
-  x_array_ldk_ui_draw_cmd_destroy(ctx->commands);
-  x_array_ldk_ui_widget_state_destroy(ctx->widget_states);
+
+  // TODO: Destroy font
+  //ldk_font_face_destroy();
+
+
+  //TODO: Update this when whe remove OpenGL code from UI
+  //Destroy textures
+  u32 count = x_array_ldk_ui_font_page_texture_count(ctx->font_page_textures);
+  u32 i;
+
+  for (i = 0; i < count; ++i)
+  {
+    LDKUIFontPageTexture* entry = x_array_ldk_ui_font_page_texture_get(ctx->font_page_textures, i);
+
+    if (entry != NULL && entry->texture != 0)
+    {
+      GLuint texture = entry->texture;
+      glDeleteTextures(1, &texture);
+    }
+  }
+
+
+  x_array_destroy(ctx->windows);
+  x_array_destroy(ctx->id_stack);
+  x_array_destroy(ctx->vertices);
+  x_array_destroy(ctx->indices);
+  x_array_destroy(ctx->commands);
+  x_array_destroy(ctx->widget_states);
+  x_array_destroy(ctx->font_page_textures);
   x_arena_destroy(ctx->frame_arena);
 
   memset(ctx, 0, sizeof(*ctx));
@@ -1753,4 +1998,3 @@ void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
 
   //TODO: Implement this later
 }
-
