@@ -356,11 +356,15 @@ static bool s_ui_keyboard_right_pressed(LDKUIContext* ctx)
   return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
-static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
+static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
 {
+  if (item == NULL)
+  {
+    return false;
+  }
+
+  LDKUIId id = item->id;
   LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
-  LDKPoint cursor;
-  bool inside;
 
   if (state == NULL)
   {
@@ -372,8 +376,8 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
     return false;
   }
 
-  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+  bool inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -408,14 +412,17 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIId id)
   return true;
 }
 
-static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* value, float min_value, float max_value)
+static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float* value, float min_value, float max_value)
 {
-  LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
-  LDKPoint cursor;
-  bool inside;
-  bool down;
+  if (item == NULL || value == NULL)
+  {
+    return false;
+  }
 
-  if (state == NULL || value == NULL)
+  LDKUIId id = item->id;
+  LDKUIWidgetState* state = s_ui_widget_state_find(ctx, id);
+
+  if (state == NULL)
   {
     return false;
   }
@@ -425,8 +432,8 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* valu
     return false;
   }
 
-  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+  bool inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -440,7 +447,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIId id, float* valu
     ctx->focused_window = ctx->current_window;
   }
 
-  down = ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
+  bool down = ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
 
   if (ctx->active_id != id || !down)
   {
@@ -1817,7 +1824,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   item->min_height = size.h;
   item->expand_width = true;
 
-  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
@@ -1854,7 +1861,7 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
   item->expand_width = true;
   item->data.toggle_button.value = value;
 
-  item->clicked = s_ui_widget_submit_pressed(ctx, item->id);
+  item->clicked = s_ui_widget_submit_pressed(ctx, item);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
@@ -1899,7 +1906,7 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   item->data.slider_float.min_value = min_value;
   item->data.slider_float.max_value = max_value;
 
-  item->changed = s_ui_widget_submit_slider(ctx, item->id, value, min_value, max_value);
+  item->changed = s_ui_widget_submit_slider(ctx, item, value, min_value, max_value);
 
   if (ctx->focused_id == item->id &&
       ctx->focused_window == ctx->current_window &&
