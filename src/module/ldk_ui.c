@@ -360,6 +360,12 @@ static bool s_ui_keyboard_right_pressed(LDKUIContext* ctx)
   return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
+/**
+ * Returns true if the widget was clicked this frame.
+ *
+ * Interaction is evaluated using the widget's rect from the previous frame,
+ * since the current frame layout has not yet been resolved at call time.
+ */
 static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
 {
   if (item == NULL)
@@ -416,9 +422,15 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
   return true;
 }
 
-static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float* value, float min_value, float max_value)
+/**
+ * Returns true if the slider value changed this frame.
+ *
+ * Interaction is evaluated using the widget's rect from the previous frame,
+ * since the current frame layout has not yet been resolved at call time.
+ */
+static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float *value, float min_value, float max_value)
 {
-  if (item == NULL || value == NULL)
+  if (item == NULL)
   {
     return false;
   }
@@ -514,6 +526,7 @@ static LDKUILayoutNode* s_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDi
 static LDKUIItem* s_ui_item_create(LDKUIContext* ctx)
 {
   LDKUIItem* item = x_arena_alloc_zero(ctx->frame_arena, sizeof(LDKUIItem));
+  LDK_ASSERT(item);
 
   if (item == NULL)
   {
@@ -773,33 +786,24 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
   }
 }
 
-
 static void ldk_ui_draw_text(LDKUIContext* ctx, char const* text, float x, float y, u32 color, LDKUIRect clip_rect)
 {
-  LDKFontInstance* font;
-  LDKFontMetrics metrics;
-  float pen_x;
-  float pen_y;
-  u32 prev_codepoint;
-  char const* cursor;
-
   if (ctx == NULL || text == NULL)
   {
     return;
   }
 
-  font = ctx->font;
-
+  LDKFontInstance* font = ctx->font;
   if (font == NULL)
   {
     return;
   }
 
-  metrics = ldk_font_get_metrics(font);
-  pen_x = x;
-  pen_y = y + metrics.ascent;
-  prev_codepoint = 0;
-  cursor = text;
+  LDKFontMetrics metrics = ldk_font_get_metrics(font);
+  float pen_x = x;
+  float pen_y = y + metrics.ascent;
+  u32 prev_codepoint = 0;
+  char const* cursor = text;
 
   while (*cursor != '\0')
   {
@@ -931,12 +935,7 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
   if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
   {
     bool toggled = false;
-
-    if (item->data.toggle_button.value != NULL)
-    {
-      toggled = *item->data.toggle_button.value;
-    }
-
+    toggled = item->data.toggle_button.value;
     color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 
     if (toggled)
@@ -964,15 +963,12 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
     u32 fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
 
-    if (item->data.slider_float.value != NULL)
-    {
-      float range = item->data.slider_float.max_value - item->data.slider_float.min_value;
+    float range = item->data.slider_float.max_value - item->data.slider_float.min_value;
 
-      if (range > 0.0f)
-      {
-        t = (*item->data.slider_float.value - item->data.slider_float.min_value) / range;
-        t = s_ui_clampf(t, 0.0f, 1.0f);
-      }
+    if (range > 0.0f)
+    {
+      t = (item->data.slider_float.value - item->data.slider_float.min_value) / range;
+      t = s_ui_clampf(t, 0.0f, 1.0f);
     }
 
     if (ctx->active_id == item->id)
@@ -1059,6 +1055,18 @@ static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
   return size;
 }
 
+/**
+ * Resolves layout and geometry for a layout node and its children.
+ *
+ * Each node arranges its children vertically or horizontally in order,
+ * applying spacing and padding.
+ *
+ * Final rectangles (item->rect) are computed from preferred/min sizes
+ * and expansion rules, distributing remaining space among expandable items.
+ *
+ * Layout is resolved top-down after all widgets are declared, producing
+ * concrete geometry and interaction results for the current frame.
+ */
 static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect)
 {
   u32 count = 0;
@@ -1066,7 +1074,6 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
   float inner_y = rect.y + node->padding;
   float inner_w = rect.w - node->padding * 2.0f;
   float inner_h = rect.h - node->padding * 2.0f;
-  LDKUIItem* item = NULL;
 
   node->rect = rect;
   count = node->child_count;
@@ -1076,7 +1083,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
     float fixed_height = 0.0f;
     u32 expand_count = 0;
 
-    for (item = node->first_item; item != NULL; item = item->next_sibling)
+    for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
     {
       if (item->expand_height)
       {
@@ -1109,7 +1116,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
 
     float cursor_y = inner_y;
 
-    for (item = node->first_item; item != NULL; item = item->next_sibling)
+    for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
     {
       float item_h = s_ui_maxf(item->preferred_height, item->min_height);
       float item_w = item->expand_width
@@ -1147,7 +1154,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
   float fixed_width = 0.0f;
   u32 expand_count = 0;
 
-  for (item = node->first_item; item != NULL; item = item->next_sibling)
+  for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
   {
     if (item->expand_width)
     {
@@ -1180,7 +1187,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
 
   float cursor_x = inner_x;
 
-  for (item = node->first_item; item != NULL; item = item->next_sibling)
+  for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
   {
     float item_w = s_ui_maxf(item->preferred_width, item->min_width);
     float item_h = item->expand_height
@@ -1617,7 +1624,7 @@ void ldk_ui_pop_id(LDKUIContext* ctx)
 
 
 //
-// Layout overrides
+// Next-item layout hints
 //
 
 
@@ -1631,6 +1638,18 @@ void ldk_ui_set_next_height(LDKUIContext* ctx, float height)
 {
   ctx->next_layout.has_height = true;
   ctx->next_layout.height = height;
+}
+
+void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width)
+{
+  ctx->next_layout.has_min_width = true;
+  ctx->next_layout.min_width = width;
+}
+
+void ldk_ui_set_next_min_height(LDKUIContext* ctx, float height)
+{
+  ctx->next_layout.has_min_height = true;
+  ctx->next_layout.min_height = height;
 }
 
 void ldk_ui_set_next_preferred_width(LDKUIContext* ctx, float width)
@@ -1647,30 +1666,6 @@ void ldk_ui_set_next_preferred_size(LDKUIContext* ctx, float width, float height
 {
   ldk_ui_set_next_preferred_width(ctx, width);
   ldk_ui_set_next_preferred_height(ctx, height);
-}
-
-void ldk_ui_set_next_min_width(LDKUIContext* ctx, float width)
-{
-  ctx->next_layout.has_min_width = true;
-  ctx->next_layout.min_width = width;
-}
-
-void ldk_ui_set_next_min_height(LDKUIContext* ctx, float height)
-{
-  ctx->next_layout.has_min_height = true;
-  ctx->next_layout.min_height = height;
-}
-
-void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand)
-{
-  ctx->next_layout.has_expand_width = true;
-  ctx->next_layout.expand_width = expand;
-}
-
-void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand)
-{
-  ctx->next_layout.has_expand_height = true;
-  ctx->next_layout.expand_height = expand;
 }
 
 void ldk_ui_set_next_fixed_width(LDKUIContext* ui, float width)
@@ -1691,6 +1686,19 @@ void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height)
 {
   ldk_ui_set_next_fixed_width(ui, width);
   ldk_ui_set_next_fixed_height(ui, height);
+}
+
+
+void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand)
+{
+  ctx->next_layout.has_expand_width = true;
+  ctx->next_layout.expand_width = expand;
+}
+
+void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand)
+{
+  ctx->next_layout.has_expand_height = true;
+  ctx->next_layout.expand_height = expand;
 }
 
 
@@ -1875,7 +1883,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   return item->clicked;
 }
 
-bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
+bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value)
 {
   LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
@@ -1906,19 +1914,19 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value)
     item->clicked = true;
   }
 
-  if (item->clicked && value != NULL)
+  if (item->clicked)
   {
-    *value = !*value;
+    value = !value;
     item->changed = true;
   }
 
   s_ui_apply_next_layout(ctx, item);
   s_ui_layout_append_item(ctx->current_layout, item);
 
-  return item->changed;
+  return value;
 }
 
-bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value)
+float ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value)
 {
   LDKUIItem* item = s_ui_item_create(ctx);
   LDKUISize size;
@@ -1942,11 +1950,10 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
   item->data.slider_float.min_value = min_value;
   item->data.slider_float.max_value = max_value;
 
-  item->changed = s_ui_widget_submit_slider(ctx, item, value, min_value, max_value);
+  item->changed = s_ui_widget_submit_slider(ctx, item, &value, min_value, max_value);
 
   if (ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
-      value != NULL)
+      ctx->focused_window == ctx->current_window)
   {
     float step = (max_value - min_value) / 100.0f;
 
@@ -1957,31 +1964,33 @@ bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, floa
 
     if (s_ui_keyboard_left_pressed(ctx))
     {
-      float new_value = s_ui_clampf(*value - step, min_value, max_value);
+      float new_value = s_ui_clampf(value - step, min_value, max_value);
 
-      if (new_value != *value)
+      if (new_value != value)
       {
-        *value = new_value;
+        value = new_value;
         item->changed = true;
       }
     }
 
     if (s_ui_keyboard_right_pressed(ctx))
     {
-      float new_value = s_ui_clampf(*value + step, min_value, max_value);
+      float new_value = s_ui_clampf(value + step, min_value, max_value);
 
-      if (new_value != *value)
+      if (new_value != value)
       {
-        *value = new_value;
+        value = new_value;
         item->changed = true;
       }
     }
   }
 
+  item->data.slider_float.value = value;
+
   s_ui_apply_next_layout(ctx, item);
   s_ui_layout_append_item(ctx->current_layout, item);
 
-  return item->changed;
+  return value;
 }
 
 void ldk_ui_spacer(LDKUIContext* ctx)
@@ -2041,3 +2050,4 @@ void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
 
   //TODO: Implement this later
 }
+

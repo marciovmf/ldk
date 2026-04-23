@@ -223,11 +223,11 @@ extern "C" {
     {
       struct
       {
-        bool* value;
+        bool value;
       } toggle_button;
       struct
       {
-        float* value;
+        float value;
         float min_value;
         float max_value;
       } slider_float;
@@ -241,7 +241,6 @@ extern "C" {
   struct LDKUILayoutNode
   {
     LDKUIId id;
-    //u32 item_count;
     u32 child_count;
     LDKUILayoutDirection direction;
     LDKUIRect rect;
@@ -321,11 +320,9 @@ extern "C" {
   LDK_API void ldk_ui_begin_horizontal(LDKUIContext* ctx);
   LDK_API void ldk_ui_end_horizontal(LDKUIContext* ctx);
 
-
   // Pane
   LDK_API bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect);
   LDK_API void ldk_ui_end_pane(LDKUIContext* ctx);
-
 
   // windows
   LDK_API bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
@@ -334,8 +331,8 @@ extern "C" {
   // widgets
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
-  LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool* value);
-  LDK_API bool ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float* value, float min_value, float max_value);
+  LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value);
+  LDK_API float ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
 
   // text input
