@@ -48,6 +48,7 @@ extern "C" {
     LDK_UI_COLOR_CONTROL_BG,
     LDK_UI_COLOR_CONTROL_BG_HOVERED,
     LDK_UI_COLOR_CONTROL_BG_ACTIVE,
+    LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED,
     LDK_UI_COLOR_BORDER,
     LDK_UI_COLOR_FOCUS,
     LDK_UI_COLOR_SLIDER_TRACK,
@@ -105,15 +106,11 @@ extern "C" {
   {
     LDKUIId id;
     char title[64];
-    LDKUIRect rect;
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
     bool is_hovered;
     bool is_focused;
     bool is_active;
-    bool is_dragging;
-    float drag_offset_x;
-    float drag_offset_y;
     uint32_t z_order;
     LDKUILayoutNode* root_layout;
   };
@@ -136,9 +133,9 @@ extern "C" {
   typedef enum 
   {
     LDK_UI_THEME_CUSTOM = 0,
-    LDK_UI_THEME_LIGHT = 1,
-    LDK_UI_THEME_DARK = 2,
-  } LDKUIDefaultTheme;
+    LDK_UI_THEME_DEFAULT_LIGHT = 1,
+    LDK_UI_THEME_DEFAULT_DARK = 2,
+  } LDKUIThemeType;
 
   typedef struct LDKUIRenderData
   {
@@ -159,7 +156,7 @@ extern "C" {
     u32 initial_window_capacity;
     u32 initial_id_stack_capacity;
     const char* font;
-    LDKUIDefaultTheme theme;
+    LDKUIThemeType theme;
     u32 font_size;
   } LDKUIConfig;
 
@@ -279,6 +276,10 @@ extern "C" {
     LDKUITheme theme;
     XArray_ldk_ui_font_page_texture* font_page_textures;
     u32 frame_index;
+
+    LDKUIId dragging_item;
+    float drag_x;
+    float drag_y;
   };
 
   // lifecycle
@@ -324,7 +325,7 @@ extern "C" {
   LDK_API void ldk_ui_end_pane(LDKUIContext* ctx);
 
   // windows
-  LDK_API bool ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
+  LDK_API LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect);
   LDK_API void ldk_ui_end_window(LDKUIContext* ctx);
 
   // widgets
@@ -336,6 +337,9 @@ extern "C" {
 
   // text input
   LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
+
+  // Theme
+  LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
 
 #ifdef __cplusplus
 }
