@@ -262,53 +262,54 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
 float float_value = 0.5f;
 bool bool_value = false;
 
+char* msg = "Hello, Sailor!";
 void s_draw_editor_ui(LDKUIContext* ui)
 {
-  if (ldk_ui_begin_window(ui, "Window 1", (LDKUIRect){ 10, 100, 300, 200 }))
   {
-    ldk_ui_begin_vertical(ui);
+    ldk_ui_begin_window(ui, "Window 1", (LDKUIRect){ 10, 100, 300, 200 });
 
     ldk_ui_begin_horizontal(ui);
     if (ldk_ui_button(ui, "Button 1"))
     {
-      ldk_log_info("Button 0 clicked\n");
+      msg = "Button 0 clicked";
     }
 
     if (ldk_ui_button(ui, "Button 2"))
     {
-      ldk_log_info("Button 1 clicked\n");
+      msg = "Button 1 clicked";
     }
 
     ldk_ui_end_horizontal(ui);
 
-    if (ldk_ui_toggle_button(ui, "Toggle", &bool_value))
-    {
-      ldk_log_info("Toggle clicked\n");
-    }
+    bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
+    float_value = ldk_ui_slider_float(ui, "Slider", float_value, 0.0f, 1.0f);
 
-    if (ldk_ui_slider_float(ui, "Slider", &float_value, 0.0f, 1.0f))
-    {
-      ldk_log_info("Slider value = %f\n", float_value);
-    }
+    ldk_ui_label(ui, msg);
+    ldk_ui_end_window(ui);
   }
 
-  if (ldk_ui_begin_window(ui, "Window 2", (LDKUIRect){ 10, 100, 300, 200 }))
+  if (bool_value)
   {
-    ldk_ui_begin_vertical(ui);
-
-    if (ldk_ui_button(ui, "Button 1"))
+    ldk_ui_begin_window(ui, "Window 2", (LDKUIRect){ 10, 100, 300, 200 });
+    if (ldk_ui_button(ui, "Set 0"))
     {
-      ldk_log_info("WINDOW 2: Button 0 clicked\n");
+      float_value = 0.0f;
+      msg = "Empty!";
     }
 
-    if (ldk_ui_button(ui, "Button 2"))
+    if (ldk_ui_button(ui, "Set 1"))
     {
-      ldk_log_info("WINDOW 2: Button 1 clicked\n");
+      float_value = 1.0f;
+      msg = "Full!";
     }
+
+    if (ldk_ui_button(ui, "Close"))
+    {
+      bool_value = false;
+    }
+
+    ldk_ui_end_window(ui);
   }
-
-  ldk_ui_end_vertical(ui);
-  ldk_ui_end_window(ui);
 }
 
 bool ldk_engine_is_initialized(void)
