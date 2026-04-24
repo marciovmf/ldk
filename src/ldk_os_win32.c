@@ -925,7 +925,7 @@ LDKSize ldk_os_window_client_area_size_get(LDKWindow window)
   HWND handle = ((LDKWin32Window*)window)->handle;
   RECT rect;
   GetClientRect(handle, &rect);
-  LDKSize size = { .width = rect.right, .height = rect.bottom };
+  LDKSize size = { .w = rect.right, .h = rect.bottom };
   return size;
 }
 

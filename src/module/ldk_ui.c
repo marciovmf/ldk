@@ -35,6 +35,42 @@ static bool s_ui_rect_contains(LDKUIRect rect, float x, float y)
   return true;
 }
 
+static LDKUIRect s_ui_rect_intersect(LDKUIRect a, LDKUIRect b)
+{
+  LDKUIRect rect;
+  float x0 = s_ui_maxf(a.x, b.x);
+  float y0 = s_ui_maxf(a.y, b.y);
+  float x1 = s_ui_minf(a.x + a.w, b.x + b.w);
+  float y1 = s_ui_minf(a.y + a.h, b.y + b.h);
+
+  rect.x = x0;
+  rect.y = y0;
+  rect.w = s_ui_maxf(0.0f, x1 - x0);
+  rect.h = s_ui_maxf(0.0f, y1 - y0);
+
+  return rect;
+}
+
+static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, float y)
+{
+  if (state == NULL)
+  {
+    return false;
+  }
+
+  if (!s_ui_rect_contains(state->rect, x, y))
+  {
+    return false;
+  }
+
+  if (!s_ui_rect_contains(state->clip_rect, x, y))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 static LDKUIId s_ui_hash_u32(LDKUIId hash, u32 value)
 {
   hash ^= value + 0x9e3779b9u + (hash << 6) + (hash >> 2);
@@ -364,7 +400,7 @@ static void s_ui_windows_gc(LDKUIContext* ctx)
   }
 }
 
-static void s_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
+static void s_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   LDKUIWidgetState* state;
 
@@ -381,6 +417,27 @@ static void s_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item)
   }
 
   state->rect = item->rect;
+  state->clip_rect = clip_rect;
+}
+
+static void s_ui_layout_update_state_content_size(LDKUIContext* ctx, LDKUIId id, LDKUISize content_size)
+{
+  LDKUIWidgetState* state;
+
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  state = s_ui_widget_state_get_or_create(ctx, id);
+
+  if (state == NULL)
+  {
+    return;
+  }
+
+  state->content_size.w = content_size.w;
+  state->content_size.h = content_size.h;
 }
 
 static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
@@ -466,7 +523,7 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -532,7 +589,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-  inside = s_ui_rect_contains(state->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -830,7 +887,7 @@ static void s_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRe
   s_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
-static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
+static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
   bool inside;
@@ -840,7 +897,8 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item)
     return;
   }
 
-  inside = s_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y) &&
+    s_ui_rect_contains(clip_rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -1188,13 +1246,15 @@ static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
  * Layout is resolved top-down after all widgets are declared, producing
  * concrete geometry and interaction results for the current frame.
  */
-static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect)
+static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect, LDKUIRect inherited_clip)
 {
   u32 count = 0;
   float inner_x = rect.x + node->padding;
   float inner_y = rect.y + node->padding;
   float inner_w = rect.w - node->padding * 2.0f;
   float inner_h = rect.h - node->padding * 2.0f;
+
+  LDKUIRect node_clip = s_ui_rect_intersect(inherited_clip, rect);
 
   node->rect = rect;
   count = node->child_count;
@@ -1254,16 +1314,30 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
       item->rect.w = item_w;
       item->rect.h = item_h;
 
-      s_ui_layout_update_state_rect(ctx, item);
-      s_ui_resolve_interaction(ctx, item);
+      s_ui_layout_update_state_rect(ctx, item, node_clip);
+      s_ui_resolve_interaction(ctx, item, node_clip);
 
       if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
       {
-        s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
+        s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect, node_clip);
+      }
+      else if (item->type == LDK_UI_ITEM_VERTICAL_SCROLL_AREA && item->data.scroll_area.node != NULL)
+      {
+        LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
+        LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
+        LDKUIRect content_rect = item->rect;
+
+        content_rect.x -= item->data.scroll_area.scroll.x;
+        content_rect.y -= item->data.scroll_area.scroll.y;
+        content_rect.w = s_ui_maxf(item->rect.w, content_size.w);
+        content_rect.h = s_ui_maxf(item->rect.h, content_size.h);
+
+        s_ui_layout_update_state_content_size(ctx, item->id, content_size);
+        s_ui_layout_resolve_node(ctx, item->data.scroll_area.node, content_rect, scroll_clip);
       }
       else
       {
-        s_ui_emit_item(ctx, item, rect);
+        s_ui_emit_item(ctx, item, node_clip);
       }
 
       cursor_y += item_h + node->spacing;
@@ -1325,16 +1399,30 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
     item->rect.w = item_w;
     item->rect.h = item_h;
 
-    s_ui_layout_update_state_rect(ctx, item);
-    s_ui_resolve_interaction(ctx, item);
+    s_ui_layout_update_state_rect(ctx, item, node_clip);
+    s_ui_resolve_interaction(ctx, item, node_clip);
 
     if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
     {
-      s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect);
+      s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect, node_clip);
+    }
+    else if (item->type == LDK_UI_ITEM_VERTICAL_SCROLL_AREA && item->data.scroll_area.node != NULL)
+    {
+      LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
+      LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
+      LDKUIRect content_rect = item->rect;
+
+      content_rect.x -= item->data.scroll_area.scroll.x;
+      content_rect.y -= item->data.scroll_area.scroll.y;
+      content_rect.w = s_ui_maxf(item->rect.w, content_size.w);
+      content_rect.h = s_ui_maxf(item->rect.h, content_size.h);
+
+      s_ui_layout_update_state_content_size(ctx, item->id, content_size);
+      s_ui_layout_resolve_node(ctx, item->data.scroll_area.node, content_rect, scroll_clip);
     }
     else
     {
-      s_ui_emit_item(ctx, item, rect);
+      s_ui_emit_item(ctx, item, node_clip);
     }
 
     cursor_x += item_w + node->spacing;
@@ -1595,7 +1683,7 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       }
     }
     s_ui_layout_measure_node(window->root_layout);
-    s_ui_layout_resolve_node(ctx, window->root_layout, window->content_rect);
+    s_ui_layout_resolve_node(ctx, window->root_layout, window->content_rect, window->content_rect);
   }
 
   s_ui_widget_states_gc(ctx);
@@ -1808,6 +1896,88 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
 }
 
 void ldk_ui_end_horizontal(LDKUIContext* ctx)
+{
+  if (ctx->current_layout != NULL)
+  {
+    ctx->current_layout = ctx->current_layout->parent;
+  }
+}
+
+
+LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
+{
+  LDKUILayoutNode* node;
+  LDKUIItem* item;
+  LDKUIId id;
+  LDKUIWidgetState* state;
+
+  LDK_ASSERT(ctx->current_layout != NULL);
+
+  id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_VERTICAL_SCROLL_AREA);
+  state = s_ui_widget_state_find(ctx, id);
+
+  scroll.x = 0.0f;
+
+  if (state != NULL)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    float max_y = s_ui_maxf(0.0f, state->content_size.h - state->rect.h);
+
+    if (s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y))
+    {
+      i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
+
+      if (wheel_delta != 0)
+      {
+        scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+      }
+    }
+
+    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
+  }
+  else
+  {
+    scroll.y = s_ui_maxf(0.0f, scroll.y);
+  }
+
+  node = s_ui_layout_node_create(
+      ctx,
+      LDK_UI_LAYOUT_VERTICAL,
+      ctx->current_layout,
+      ctx->current_window
+      );
+  item = s_ui_item_create(ctx);
+
+  if (node == NULL || item == NULL)
+  {
+    return scroll;
+  }
+
+  item->type = LDK_UI_ITEM_VERTICAL_SCROLL_AREA;
+  item->id = id;
+  item->data.scroll_area.node = node;
+  item->data.scroll_area.scroll = scroll;
+  node->id = item->id;
+  item->preferred_width = 0.0f;
+  item->preferred_height = 0.0f;
+  item->min_width = 0.0f;
+  item->min_height = 0.0f;
+  item->expand_width = true;
+  item->expand_height = true;
+
+  s_ui_apply_next_layout(ctx, item);
+
+  if (ctx->current_layout != NULL)
+  {
+    s_ui_layout_append_item(ctx->current_layout, item);
+  }
+
+  ctx->current_layout = node;
+
+  return scroll;
+}
+
+void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx)
 {
   if (ctx->current_layout != NULL)
   {

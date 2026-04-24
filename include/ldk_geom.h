@@ -13,13 +13,24 @@
 // LDKSize
 typedef struct
 {
-  i32 width;
-  i32 height;
+  i32 w;
+  i32 h;
 } LDKSize;
 
 LDK_API LDKSize ldkSize(i32 width, i32 height);
 LDK_API LDKSize ldkSizeZero();
 LDK_API LDKSize ldkSizeOne();
+
+typedef struct
+{
+  float w;
+  float h;
+} LDKSizef;
+
+LDK_API LDKSizef ldkSizef(float width, float height);
+LDK_API LDKSizef ldkSizefZero();
+LDK_API LDKSizef ldkSizefOne();
+
 
 // LDKRect
 typedef struct 
@@ -50,6 +61,7 @@ typedef struct
   i32 x;
   i32 y;
 } LDKPoint;
+
 
 LDK_API LDKPoint ldkPoint(i32 x, i32 y);
 

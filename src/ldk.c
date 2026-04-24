@@ -2,6 +2,7 @@
 #include "ldk_eventqueue.h"
 #include "ldk_gl.h"
 #include "stdx/stdx_common.h"
+#include <stdio.h>
 
 #define X_IMPL_ARENA
 #include <stdx/stdx_arena.h>
@@ -185,7 +186,6 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   const char* title;
   const char* icon_path;
 
-
   X_ASSERT(out_config != NULL);
   X_ASSERT(config_ini_path != NULL);
 
@@ -215,7 +215,6 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   game_dll   = x_ini_get(&ini, "general", "game_dll", NULL);
   title      = x_ini_get(&ini, "display", "title", NULL);
   icon_path  = x_ini_get(&ini, "display", "icon_path", NULL);
-
 
   if (asset_root != NULL && asset_root[0] != 0)
   {
@@ -265,8 +264,8 @@ float b = 0.0f;
 bool bool_value = false;
 char* msg = "Hello, Sailor!";
 
-LDKUIRect w1 = { 10, 100, 400, 200 };
-LDKUIRect w2 = { 10, 100, 400, 200 };
+LDKUIRect w1 = { 10, 100, 400, 300 };
+LDKUIRect w2 = { 10, 100, 400, 400 };
 LDKUIRect w3 = {0};
 
 typedef enum ConsoleState
@@ -285,6 +284,8 @@ bool theme = true;
    ((u32)(g) & 0xFFu) << 16 | \
    ((u32)(b) & 0xFFu) << 8  | \
    0xFFu)
+
+LDKUIPoint scroll_pos = {0};
 
 void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 {
@@ -312,6 +313,7 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     w1 = ldk_ui_begin_window(ui, "Window 1", w1);
 
     ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_expand_height(ui, true);
     if (ldk_ui_button(ui, "Toggle Console"))
     {
       if (console_state == CONSOLE_IS_OPENED || console_state == CONSOLE_IS_OPENING) {
@@ -322,24 +324,38 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
       }
     }
 
+    ldk_ui_set_next_expand_height(ui, true);
     if (ldk_ui_button(ui, "Theme"))
     {
       theme = !theme;
       ldk_ui_set_theme(ui, theme ? LDK_UI_THEME_DEFAULT_LIGHT : LDK_UI_THEME_DEFAULT_DARK, NULL);
     }
 
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_set_next_expand_height(ui, true);
+    bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
+
+    ldk_ui_begin_horizontal(ui);
+
+    ldk_ui_begin_vertical(ui);
+    ldk_ui_set_next_expand_height(ui, true);
+    r = ldk_ui_slider_float(ui, "Slider", r, 0.0f, 255.0f);
+    ldk_ui_set_next_expand_height(ui, true);
+    g = ldk_ui_slider_float(ui, "Slider", g, 0.0f, 255.0f);
+    ldk_ui_set_next_expand_height(ui, true);
+    b = ldk_ui_slider_float(ui, "Slider", b, 0.0f, 255.0f);
+    ldk_ui_end_vertical(ui);
+
+    ldk_ui_set_next_expand_height(ui, true);
     ldk_ui_color_view(ui, RGBA_U32(r, g, b));
     ldk_ui_end_horizontal(ui);
 
 
-    bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
-    r = ldk_ui_slider_float(ui, "Slider", r, 0.0f, 255.0f);
-    g = ldk_ui_slider_float(ui, "Slider", g, 0.0f, 255.0f);
-    b = ldk_ui_slider_float(ui, "Slider", b, 0.0f, 255.0f);
     ldk_ui_label(ui, msg);
     ldk_ui_end_window(ui);
   }
 
+#if 0
   if (bool_value)
   {
     w2 = ldk_ui_begin_window(ui, "Window 2", w2);
@@ -364,6 +380,20 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 
     ldk_ui_end_window(ui);
   }
+#endif
+
+  if (bool_value)
+  {
+    w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
+    scroll_pos = ldk_ui_begin_vertical_scroll_area(ui, scroll_pos);
+
+    for(u32 i = 0; i < 30; i++)
+    {
+      ldk_ui_button(ui, "Button");
+    }
+    ldk_ui_end_vertical_scroll_area(ui);
+    ldk_ui_end_window(ui);
+  }
 
   if (console_state != CONSOLE_IS_CLOSED)
   { // console
@@ -373,6 +403,7 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_label(ui, "This is a console with text\nIt suport multiple lines!\nHello, Sailor!");
     ldk_ui_end_pane(ui);
   }
+
 }
 
 bool ldk_engine_is_initialized(void)
@@ -669,7 +700,7 @@ void ldk_engine_frame(void)
 #ifdef LDK_EDITOR
   LDKMouseState     mouse_state;
   LDKKeyboardState  kbd_state;
-  LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f, .y = 0.0f, .w = (float) window_size.width, .h = (float) window_size.height };
+  LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f, .y = 0.0f, .w = (float) window_size.w, .h = (float) window_size.h};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
 
@@ -679,7 +710,7 @@ void ldk_engine_frame(void)
    */
 #endif
 
-  glViewport(0, 0, window_size.width, window_size.height);
+  glViewport(0, 0, window_size.w, window_size.h);
 
   if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
   {
@@ -722,7 +753,6 @@ void ldk_engine_frame(void)
   ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, ui_viewport);
   s_draw_editor_ui(&e->editor_ui, delta_time);
   ldk_ui_end_frame(&e->editor_ui);
-
 #endif
 
   current_ticks = ldk_os_time_ticks_get();
@@ -730,8 +760,8 @@ void ldk_engine_frame(void)
   const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
   ldk_ui_renderer_draw(&e->ui_renderer,
       ui_data,
-      window_size.width,
-      window_size.height);
+      window_size.w,
+      window_size.h);
 
   event.type = LDK_EVENT_TYPE_RENDER_AFTER;
   event.frameEvent.ticks = current_ticks;

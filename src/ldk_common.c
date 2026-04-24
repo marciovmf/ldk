@@ -6,7 +6,7 @@
 
 LDKSize ldkSize(i32 width, i32 height)
 {
-  LDKSize size = {.width = width, .height = height}; 
+  LDKSize size = {.w = width, .h = height}; 
   return size;
 }
 
@@ -18,9 +18,28 @@ LDKSize ldkSizeZero()
 
 LDKSize ldkSizeOne()
 {
-  LDKSize size = {.width = 1, .height = 1}; 
+  LDKSize size = {.w = 1, .h = 1}; 
   return size;
 }
+
+LDKSizef ldkSizef(float width, float height)
+{
+  LDKSizef size = {.w = width, .h = height}; 
+  return size;
+}
+
+LDKSizef ldkSizefZero()
+{
+  LDKSizef size = {0};
+  return size;
+}
+
+LDKSizef ldkSizefOne()
+{
+  LDKSizef size = {.w = 1.0f, .h = 1.0f}; 
+  return size;
+}
+
 
 LDKRect ldkRect(i32 x, i32 y, i32 width, i32 height)
 {

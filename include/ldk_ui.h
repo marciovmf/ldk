@@ -33,11 +33,13 @@ extern "C" {
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
+  typedef u32 LDKUIColor;
   typedef struct LDKUIItem LDKUIItem;
   typedef struct LDKUILayoutNode LDKUILayoutNode;
   typedef struct LDKUIWindow LDKUIWindow;
   typedef struct LDKUIContext LDKUIContext;
-  typedef u32 LDKUIColor;
+  typedef LDKPointf LDKUIPoint;
+  typedef LDKSizef LDKUISize;
 
   typedef enum LDKUIColorSlot
   {
@@ -99,6 +101,8 @@ extern "C" {
     LDKUIId id;
     u32 last_frame_touched;
     LDKUIRect rect;
+    LDKUIRect clip_rect;
+    LDKUISize content_size;
   } LDKUIWidgetState;
 
   struct LDKUIWindow
@@ -119,11 +123,6 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIWidgetState, ldk_ui_widget_state);
   X_ARRAY_TYPE_NAMED(LDKUIFontPageTexture, ldk_ui_font_page_texture);
 
-  typedef struct LDKUISize
-  {
-    float w;
-    float h;
-  } LDKUISize;
 
   typedef enum 
   {
@@ -170,6 +169,7 @@ extern "C" {
     LDK_UI_ITEM_SLIDER_FLOAT = 4,
     LDK_UI_ITEM_LAYOUT = 5,
     LDK_UI_ITEM_COLOR_VIEW = 6,
+    LDK_UI_ITEM_VERTICAL_SCROLL_AREA = 7,
   } LDKUIItemType;
 
   typedef struct LDKUINextLayout
@@ -232,6 +232,14 @@ extern "C" {
         LDKUIColor color;
         char label[32];
       } color_view;
+      struct
+      {
+        LDKUILayoutNode* node;
+        LDKUIPoint scroll;
+        LDKUIRect track_rect;
+        LDKUIRect thumb_rect;
+        bool has_scrollbar;
+      } scroll_area;
     } data;
   };
 
@@ -287,6 +295,9 @@ extern "C" {
   LDK_API bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config);
   LDK_API void ldk_ui_terminate(LDKUIContext* ctx);
 
+  // Theme
+  LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
+
   // frame
   LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport);
   LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
@@ -341,8 +352,8 @@ extern "C" {
   // text input
   LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
 
-  // Theme
-  LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
+  LDK_API LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll);
+  LDK_API void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx);
 
 #ifdef __cplusplus
 }
