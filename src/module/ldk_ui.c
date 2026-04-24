@@ -8,6 +8,12 @@
 
 #include <ldk_gl.h>
 
+#define LDK_RGBA_TO_ABGR(c) \
+  ((((c) & 0x000000FFu) << 24) | \
+   (((c) & 0x0000FF00u) << 8)  | \
+   (((c) & 0x00FF0000u) >> 8)  | \
+   (((c) & 0xFF000000u) >> 24))
+
 static float s_ui_maxf(float a, float b) { return (a > b) ? a : b; }
 
 static float s_ui_minf(float a, float b) { return (a < b) ? a : b; }
@@ -700,7 +706,6 @@ static LDKUIWindow* s_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, cha
   memset(&new_window, 0, sizeof(new_window));
 
   new_window.id = id;
-  new_window.z_order = x_array_ldk_ui_window_count(ctx->windows);
 
   if (title != NULL)
   {
@@ -763,19 +768,6 @@ static void s_ui_window_bring_to_front(LDKUIContext* ctx, LDKUIWindow* window)
 
   x_array_ldk_ui_window_delete_at(ctx->windows, found_index);
   x_array_ldk_ui_window_push(ctx->windows, copy);
-
-  count = x_array_ldk_ui_window_count(ctx->windows);
-
-  for (u32 i = 0; i < count; ++i)
-  {
-    LDKUIWindow* current = x_array_ldk_ui_window_get(ctx->windows, i);
-
-    if (current != NULL)
-    {
-      current->z_order = i;
-    }
-  }
-
   ctx->current_window = x_array_ldk_ui_window_back(ctx->windows);
 }
 
@@ -1092,6 +1084,23 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     ldk_ui_draw_text(
         ctx,
         value_text,
+        item->rect.x + (item->rect.w - text_size.w) * 0.5f,
+        item->rect.y + (item->rect.h - text_size.h) * 0.5f,
+        ctx->theme.colors[LDK_UI_COLOR_TEXT],
+        clip_rect);
+    return;
+  }
+
+  if (item->type == LDK_UI_ITEM_COLOR_VIEW)
+  {
+    s_ui_emit_quad(ctx, item->rect, item->data.color_view.color, clip_rect, 0);
+
+    const char* text = item->data.color_view.label;
+    LDKUISize text_size = s_ui_measure_text(ctx->font, text);
+
+    ldk_ui_draw_text(
+        ctx,
+        text,
         item->rect.x + (item->rect.w - text_size.w) * 0.5f,
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
@@ -1532,21 +1541,6 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
       continue;
     }
     window->root_layout = NULL;
-    window->is_hovered = false;
-    window->is_active = false;
-    window->is_focused = false;
-  }
-
-
-  if (ctx->hovered_window != NULL)
-  {
-    ctx->hovered_window->is_hovered = true;
-  }
-
-  if (ctx->focused_window != NULL)
-  {
-    ctx->focused_window->is_focused = true;
-    ctx->focused_window->is_active = true;
   }
 }
 
@@ -1579,7 +1573,7 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       u32 window_bg = ctx->theme.colors[LDK_UI_COLOR_WINDOW_BG];
       u32 title_bg = ctx->theme.colors[LDK_UI_COLOR_TITLE_BAR];
 
-      if (window->is_focused)
+      if (ctx->focused_window == window)
       {
         title_bg = ctx->theme.colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED];
       }
@@ -1651,7 +1645,6 @@ void ldk_ui_pop_id(LDKUIContext* ctx)
     x_array_ldk_ui_id_pop(ctx->id_stack);
   }
 }
-
 
 //
 // Next-item layout hints
@@ -1822,7 +1815,19 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   }
 }
 
-static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable, LDKUIRect* out_rect)
+/**
+ * Begins a root container.
+ *
+ * A root container is positioned explicitly (not by layout) and is used for
+ * top-level UI elements like windows, popups, and overlays.
+ *
+ * The input `rect` is the source of truth. If `draggable` is enabled, the
+ * rect may be modified based on user input and written to `out_rect`.
+ *
+ * This function also handles top-level interaction (hover, focus, z-order)
+ * and creates the root layout node for its contents.
+ */
+static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable, LDKUIRect* out_rect)
 {
   LDKUIId resolved_id = s_ui_make_id(ctx, id);
   LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title);
@@ -1860,8 +1865,6 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const
 
   if (ctx->hovered_window == window && inside_window)
   {
-    window->is_hovered = true;
-
     if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
       s_ui_window_bring_to_front(ctx, window);
@@ -1926,10 +1929,11 @@ static bool ldk_ui_begin_pane_internal(LDKUIContext* ctx, LDKUIId id, char const
 
   return true;
 }
+
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
   LDKUIId id = s_ui_make_id(ctx, LDK_UI_ITEM_LAYOUT);
-  return ldk_ui_begin_pane_internal(ctx, id, NULL, rect, false, false, NULL);
+  return s_ui_begin_root_container(ctx, id, NULL, rect, false, false, NULL);
 }
 
 void ldk_ui_end_pane(LDKUIContext* ctx)
@@ -1942,7 +1946,7 @@ LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect re
 {
   LDKUIId id = s_ui_make_id(ctx, LDK_UI_ITEM_LAYOUT);
   LDKUIRect out_rect = rect;
-  ldk_ui_begin_pane_internal(ctx, id, title, rect, true, true, &out_rect);
+  s_ui_begin_root_container(ctx, id, title, rect, true, true, &out_rect);
   return out_rect;
 }
 
@@ -2172,6 +2176,44 @@ void ldk_ui_spacer(LDKUIContext* ctx)
   s_ui_apply_next_layout(ctx, item);
   s_ui_layout_append_item(ctx->current_layout, item);
 }
+
+void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color)
+{
+  LDKUIItem* item = s_ui_item_create(ctx);
+  LDKUISize size;
+
+  if (item == NULL)
+  {
+    return ;
+  }
+
+  snprintf((char*)item->data.color_view.label,
+      sizeof(item->data.color_view.label),
+      "#%x", color);
+
+  size = s_ui_measure_button_impl(ctx->font, item->data.color_view.label);
+  item->type = LDK_UI_ITEM_COLOR_VIEW;
+  item->id = s_ui_make_id(ctx, (u32)item->type);
+  item->text = NULL;
+  item->preferred_width = size.w;
+  item->preferred_height = size.h;
+  item->min_width = size.w;
+  item->min_height = size.h;
+  item->expand_width = true;
+  item->data.color_view.color = LDK_RGBA_TO_ABGR(color);
+  item->clicked = false;
+
+  if (ctx->focused_id == item->id &&
+      ctx->focused_window == ctx->current_window &&
+      s_ui_keyboard_accept_pressed(ctx))
+  {
+    item->clicked = true;
+  }
+
+  s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
+}
+
 
 void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
 {

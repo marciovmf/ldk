@@ -69,7 +69,6 @@ extern "C" {
     u32 texture;
   } LDKUIFontPageTexture;
 
-
   typedef struct LDKUIVertex
   {
     float x;
@@ -108,10 +107,6 @@ extern "C" {
     char title[64];
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
-    bool is_hovered;
-    bool is_focused;
-    bool is_active;
-    uint32_t z_order;
     LDKUILayoutNode* root_layout;
   };
 
@@ -173,7 +168,8 @@ extern "C" {
     LDK_UI_ITEM_BUTTON = 2,
     LDK_UI_ITEM_TOGGLE_BUTTON = 3,
     LDK_UI_ITEM_SLIDER_FLOAT = 4,
-    LDK_UI_ITEM_LAYOUT = 5
+    LDK_UI_ITEM_LAYOUT = 5,
+    LDK_UI_ITEM_COLOR_VIEW = 6,
   } LDKUIItemType;
 
   typedef struct LDKUINextLayout
@@ -231,6 +227,11 @@ extern "C" {
       {
         LDKUILayoutNode* node;
       } layout;
+      struct
+      {
+        LDKUIColor color;
+        char label[32];
+      } color_view;
     } data;
   };
 
@@ -334,6 +335,8 @@ extern "C" {
   LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value);
   LDK_API float ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
+
+  LDK_API void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color);
 
   // text input
   LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);

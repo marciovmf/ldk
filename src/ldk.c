@@ -259,12 +259,14 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   return true;
 }
 
-float float_value = 0.5f;
+float r = 0.0f;
+float g = 0.0f;
+float b = 0.0f;
 bool bool_value = false;
 char* msg = "Hello, Sailor!";
 
-LDKUIRect w1 = { 10, 100, 300, 200 };
-LDKUIRect w2 = { 10, 100, 300, 200 };
+LDKUIRect w1 = { 10, 100, 400, 200 };
+LDKUIRect w2 = { 10, 100, 400, 200 };
 LDKUIRect w3 = {0};
 
 typedef enum ConsoleState
@@ -277,6 +279,13 @@ typedef enum ConsoleState
 
 ConsoleState console_state = CONSOLE_IS_OPENED;
 bool theme = true;
+
+#define RGBA_U32(r, g, b) \
+  (((u32)(r) & 0xFFu) << 24 | \
+   ((u32)(g) & 0xFFu) << 16 | \
+   ((u32)(b) & 0xFFu) << 8  | \
+   0xFFu)
+
 void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 {
   const float step = 1000.0f * delta_time;
@@ -319,10 +328,14 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
       ldk_ui_set_theme(ui, theme ? LDK_UI_THEME_DEFAULT_LIGHT : LDK_UI_THEME_DEFAULT_DARK, NULL);
     }
 
+    ldk_ui_color_view(ui, RGBA_U32(r, g, b));
     ldk_ui_end_horizontal(ui);
 
+
     bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
-    float_value = ldk_ui_slider_float(ui, "Slider", float_value, 0.0f, 100.0f);
+    r = ldk_ui_slider_float(ui, "Slider", r, 0.0f, 255.0f);
+    g = ldk_ui_slider_float(ui, "Slider", g, 0.0f, 255.0f);
+    b = ldk_ui_slider_float(ui, "Slider", b, 0.0f, 255.0f);
     ldk_ui_label(ui, msg);
     ldk_ui_end_window(ui);
   }
@@ -330,16 +343,18 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
   if (bool_value)
   {
     w2 = ldk_ui_begin_window(ui, "Window 2", w2);
-    if (ldk_ui_button(ui, "Set 0"))
+    if (ldk_ui_button(ui, "BLUE"))
     {
-      float_value = 0.0f;
-      msg = "Empty!";
+      r = 0.0f;
+      g = 0.0f;
+      b = 255.0f;
     }
 
-    if (ldk_ui_button(ui, "Set 1"))
+    if (ldk_ui_button(ui, "RED"))
     {
-      float_value = 1.0f;
-      msg = "Full!";
+      r = 255.0f;
+      g = 0.0f;
+      b = 0.0f;
     }
 
     if (ldk_ui_button(ui, "Close"))
