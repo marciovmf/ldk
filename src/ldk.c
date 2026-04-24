@@ -261,36 +261,75 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
 
 float float_value = 0.5f;
 bool bool_value = false;
-
 char* msg = "Hello, Sailor!";
-void s_draw_editor_ui(LDKUIContext* ui)
+
+LDKUIRect w1 = { 10, 100, 300, 200 };
+LDKUIRect w2 = { 10, 100, 300, 200 };
+LDKUIRect w3 = {0};
+
+typedef enum ConsoleState
 {
+  CONSOLE_IS_OPENED,
+  CONSOLE_IS_OPENING,
+  CONSOLE_IS_CLOSED,
+  CONSOLE_IS_CLOSING,
+} ConsoleState;
+
+ConsoleState console_state = CONSOLE_IS_OPENED;
+bool theme = true;
+void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
+{
+  const float step = 1000.0f * delta_time;
+  if (console_state == CONSOLE_IS_CLOSING)
   {
-    ldk_ui_begin_window(ui, "Window 1", (LDKUIRect){ 10, 100, 300, 200 });
+    w3.y -= step;
+    if (w3.y < -w3.h)
+    {
+      w3.y = -w3.h;
+      console_state = CONSOLE_IS_CLOSED;
+    }
+  }
+  else if (console_state == CONSOLE_IS_OPENING)
+  {
+    w3.y += step;
+    if (w3.y >= 0.0f)
+    {
+      w3.y = 0.0f;
+      console_state = CONSOLE_IS_OPENED;
+    }
+  }
+
+  {
+    w1 = ldk_ui_begin_window(ui, "Window 1", w1);
 
     ldk_ui_begin_horizontal(ui);
-    if (ldk_ui_button(ui, "Button 1"))
+    if (ldk_ui_button(ui, "Toggle Console"))
     {
-      msg = "Button 0 clicked";
+      if (console_state == CONSOLE_IS_OPENED || console_state == CONSOLE_IS_OPENING) {
+        console_state = CONSOLE_IS_CLOSING;
+      }
+      else if (console_state == CONSOLE_IS_CLOSED || console_state == CONSOLE_IS_CLOSING) {
+        console_state = CONSOLE_IS_OPENING;
+      }
     }
 
-    if (ldk_ui_button(ui, "Button 2"))
+    if (ldk_ui_button(ui, "Theme"))
     {
-      msg = "Button 1 clicked";
+      theme = !theme;
+      ldk_ui_set_theme(ui, theme ? LDK_UI_THEME_DEFAULT_LIGHT : LDK_UI_THEME_DEFAULT_DARK, NULL);
     }
 
     ldk_ui_end_horizontal(ui);
 
     bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
-    float_value = ldk_ui_slider_float(ui, "Slider", float_value, 0.0f, 1.0f);
-
+    float_value = ldk_ui_slider_float(ui, "Slider", float_value, 0.0f, 100.0f);
     ldk_ui_label(ui, msg);
     ldk_ui_end_window(ui);
   }
 
   if (bool_value)
   {
-    ldk_ui_begin_window(ui, "Window 2", (LDKUIRect){ 10, 100, 300, 200 });
+    w2 = ldk_ui_begin_window(ui, "Window 2", w2);
     if (ldk_ui_button(ui, "Set 0"))
     {
       float_value = 0.0f;
@@ -309,6 +348,15 @@ void s_draw_editor_ui(LDKUIContext* ui)
     }
 
     ldk_ui_end_window(ui);
+  }
+
+  if (console_state != CONSOLE_IS_CLOSED)
+  { // console
+    w3.w = ui->viewport.w;
+    w3.h = ui->viewport.h / 3;
+    ldk_ui_begin_pane(ui, w3);
+    ldk_ui_label(ui, "This is a console with text\nIt suport multiple lines!\nHello, Sailor!");
+    ldk_ui_end_pane(ui);
   }
 }
 
@@ -448,13 +496,13 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   ui_cfg.font_size = e->config.editor_font_size;
   ui_cfg.font = e->config.editor_font.buf;
   if (strncmp(e->config.editor_theme.buf, "light", 5) == 0)
-  ui_cfg.theme = LDK_UI_THEME_LIGHT;
+    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   else if (strncmp(e->config.editor_theme.buf, "dark", 4) == 0)
-  ui_cfg.theme = LDK_UI_THEME_DARK;
+    ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
   else
   {
-    ldk_log_error("Unknown Editor theme name '%s'. Default to 'dark'.", e->config.editor_theme.buf);
-    ui_cfg.theme = LDK_UI_THEME_DARK;
+    ldk_log_error("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
+    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
   if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
@@ -657,7 +705,7 @@ void ldk_engine_frame(void)
 #ifdef LDK_EDITOR
   /* render editor overlays, gizmos and tool UI here */
   ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, ui_viewport);
-  s_draw_editor_ui(&e->editor_ui);
+  s_draw_editor_ui(&e->editor_ui, delta_time);
   ldk_ui_end_frame(&e->editor_ui);
 
 #endif
