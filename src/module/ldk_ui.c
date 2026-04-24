@@ -1212,16 +1212,17 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     {
       LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB);
       u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
-      u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
+      u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
 
       if (ctx->active_id == thumb_id)
       {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
       }
       else if (ctx->hot_id == thumb_id)
       {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
       }
+
 
       s_ui_emit_quad(ctx, item->data.scroll_area.track_rect, track_color, clip_rect, 0);
       s_ui_emit_quad(ctx, item->data.scroll_area.thumb_rect, thumb_color, clip_rect, 0);
@@ -1592,59 +1593,91 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
 {
   LDK_ASSERT(ctx != NULL);
   LDKUITheme* theme = &ctx->theme;
+
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
-    theme->colors[LDK_UI_COLOR_TEXT]               = 0xffe0e0e0u;
-    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]      = 0xff808080u;
+    LDKUIColor text          = LDK_RGBA_TO_ABGR(0xd8d8d8ffu);
+    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0x707070ffu);
+    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0x333333ffu);
+    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0x252525ffu);
+    LDKUIColor control       = LDK_RGBA_TO_ABGR(0x444444ffu);
+    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0x505050ffu);
+    LDKUIColor active        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0x43c8b3ffu);
+    LDKUIColor border        = LDK_RGBA_TO_ABGR(0x1c1c1cffu);
+    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    LDKUIColor dark_track    = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor title         = LDK_RGBA_TO_ABGR(0x3f3f3fffu);
+    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0x2a2a2affu);
+    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0x555555ffu);
+    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x666666ffu);
+    LDKUIColor thumb_active  = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
 
-    theme->colors[LDK_UI_COLOR_WINDOW_BG]          = 0xff202020u;
-    theme->colors[LDK_UI_COLOR_PANEL_BG]           = 0xff2a2a2au;
-
-    theme->colors[LDK_UI_COLOR_CONTROL_BG]         = 0xff404040u;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = 0xff505050u;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]  = 0xff606060u;
-
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = 0xff6f8f6fu;
-
-    theme->colors[LDK_UI_COLOR_BORDER]             = 0xff101010u;
-    theme->colors[LDK_UI_COLOR_FOCUS]              = 0xff5f8f5fu;
-
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]       = 0xff303030u;
-    theme->colors[LDK_UI_COLOR_SLIDER_FILL]        = 0xff8080c0u;
-
-    theme->colors[LDK_UI_COLOR_TITLE_BAR]          = 0xff3a3a3au;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]  = 0xff4a4a6au;
+    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
+    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
+    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
+    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
+    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
+    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = dark_track;
+    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = accent;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
   }
   else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
   {
+    LDKUIColor text          = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
+    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0xf0f0f0ffu);
+    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0xe0e0e0ffu);
+    LDKUIColor control       = LDK_RGBA_TO_ABGR(0xd0d0d0ffu);
+    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
+    LDKUIColor active        = LDK_RGBA_TO_ABGR(0xb0b0b0ffu);
+    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0xb4b4b4ffu);
+    LDKUIColor border        = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
+    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x4f8cc9ffu);
+    LDKUIColor track         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
+    LDKUIColor title         = LDK_RGBA_TO_ABGR(0xdcdcdcffu);
+    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0xbfcfffffu);
+    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0xc8c8c8ffu);
+    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0xa8a8a8ffu);
+    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x909090ffu);
+    LDKUIColor thumb_active  = accent;
 
-    theme->colors[LDK_UI_COLOR_TEXT]               = 0xff202020u;
-    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]      = 0xffa0a0a0u;
-
-    theme->colors[LDK_UI_COLOR_WINDOW_BG]          = 0xfff0f0f0u;
-    theme->colors[LDK_UI_COLOR_PANEL_BG]           = 0xffe0e0e0u;
-
-    theme->colors[LDK_UI_COLOR_CONTROL_BG]         = 0xffd0d0d0u;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = 0xffc0c0c0u;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]  = 0xffb0b0b0u;
-
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = 0xffb4b4b4u;
-
-
-    theme->colors[LDK_UI_COLOR_BORDER]             = 0xffa0a0a0u;
-    theme->colors[LDK_UI_COLOR_FOCUS]              = 0xff4f7fd0u;
-
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]       = 0xffc0c0c0u;
-    theme->colors[LDK_UI_COLOR_SLIDER_FILL]        = 0xff6f8fd0u;
-
-    theme->colors[LDK_UI_COLOR_TITLE_BAR]          = 0xffdcdcdcu;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]  = 0xffbfcfffu;
+    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
+    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
+    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
+    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
+    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
+    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = track;
+    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = accent;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
   }
   else if (type == LDK_UI_THEME_CUSTOM && custom != NULL)
   {
     memcpy(&ctx->theme, custom, sizeof(*custom));
   }
-  else {
+  else
+  {
     ldk_ui_set_theme(ctx, LDK_UI_THEME_DEFAULT_LIGHT, NULL);
   }
 }

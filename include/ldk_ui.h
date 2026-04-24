@@ -57,7 +57,12 @@ extern "C" {
     LDK_UI_COLOR_SLIDER_FILL,
     LDK_UI_COLOR_TITLE_BAR,
     LDK_UI_COLOR_TITLE_BAR_FOCUSED,
+    LDK_UI_COLOR_SCROLLBAR_TRACK,
+    LDK_UI_COLOR_SCROLLBAR_THUMB,
+    LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED,
+    LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE,
     LDK_UI_COLOR_COUNT,
+
   } LDKUIColorSlot;
 
   typedef struct LDKUITheme
@@ -285,7 +290,6 @@ extern "C" {
     LDKUITheme theme;
     XArray_ldk_ui_font_page_texture* font_page_textures;
     u32 frame_index;
-
     LDKUIId dragging_item;
     float drag_x;
     float drag_y;
