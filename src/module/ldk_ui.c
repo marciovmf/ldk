@@ -687,7 +687,6 @@ static LDKUIWindow* s_ui_window_get_or_create(LDKUIContext* ctx, LDKUIId id, cha
 
   new_window.id = id;
   new_window.rect = rect;
-  new_window.is_open = true;
   new_window.z_order = x_array_ldk_ui_window_count(ctx->windows);
 
   if (title != NULL)
@@ -1304,7 +1303,7 @@ static LDKUIWindow* s_ui_window_at_cursor_topmost(LDKUIContext* ctx)
       continue;
     }
 
-    if (!window->is_open)
+    if (window->root_layout == NULL)
     {
       continue;
     }
@@ -1546,6 +1545,8 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   x_array_ldk_ui_u32_clear(ctx->indices);
   x_array_ldk_ui_draw_cmd_clear(ctx->commands);
 
+  ctx->hovered_window = s_ui_window_at_cursor_topmost(ctx);
+
   for (u32 i = 0; i < count; ++i)
   {
     LDKUIWindow* window = x_array_ldk_ui_window_get(ctx->windows, i);
@@ -1561,7 +1562,6 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
     window->is_focused = false;
   }
 
-  ctx->hovered_window = s_ui_window_at_cursor_topmost(ctx);
 
   if (ctx->hovered_window != NULL)
   {
@@ -1577,23 +1577,18 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
 
 void ldk_ui_end_frame(LDKUIContext* ctx)
 {
-  u32 count = x_array_ldk_ui_window_count(ctx->windows);
-
   LDK_ASSERT(ctx != NULL);
   LDK_ASSERT(ctx->current_window == NULL);
   LDK_ASSERT(ctx->current_layout == NULL);
   LDK_ASSERT(x_array_ldk_ui_id_count(ctx->id_stack) == 0);
+
+  u32 count = x_array_ldk_ui_window_count(ctx->windows);
 
   for (u32 i = 0; i < count; ++i)
   {
     LDKUIWindow* window = x_array_ldk_ui_window_get(ctx->windows, i);
 
     if (window == NULL)
-    {
-      continue;
-    }
-
-    if (!window->is_open)
     {
       continue;
     }
@@ -1667,18 +1662,6 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
   ctx->render_data.index_count = x_array_ldk_ui_u32_count(ctx->indices);
   ctx->render_data.commands = x_array_ldk_ui_draw_cmd_data_const(ctx->commands);
   ctx->render_data.command_count = x_array_ldk_ui_draw_cmd_count(ctx->commands);
-
-  // If the focused window was not submitted this frame, unselect it.
-if (ctx->focused_window != NULL)
-{
-  if (!ctx->focused_window->is_open || ctx->focused_window->root_layout == NULL)
-  {
-    ctx->focused_window = NULL;
-    ctx->focused_id = 0;
-    ctx->active_id = 0;
-  }
-}
-
 }
 
 LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx)

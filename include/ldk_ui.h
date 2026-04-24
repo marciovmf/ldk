@@ -108,7 +108,6 @@ extern "C" {
     LDKUIRect rect;
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
-    bool is_open;
     bool is_hovered;
     bool is_focused;
     bool is_active;
