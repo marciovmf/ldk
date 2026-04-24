@@ -899,8 +899,7 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.x,
         item->rect.y,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
-        clip_rect
-        );
+        clip_rect);
     return;
   }
 
@@ -953,6 +952,14 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     }
 
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
+    LDKUISize text_size = s_ui_measure_text(ctx->font, item->text);
+    ldk_ui_draw_text(
+        ctx,
+        item->text,
+        item->rect.x + (item->rect.w - text_size.w) * 0.5f,
+        item->rect.y + (item->rect.h - text_size.h) * 0.5f,
+        ctx->theme.colors[LDK_UI_COLOR_TEXT],
+        clip_rect);
     return;
   }
 
@@ -984,6 +991,21 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
 
     fill_rect.w = item->rect.w * t;
     s_ui_emit_quad(ctx, fill_rect, fill_color, clip_rect, 0);
+
+    char value_text[32];
+
+    snprintf(value_text, sizeof(value_text), "%.2f", item->data.slider_float.value);
+
+    LDKUISize text_size = s_ui_measure_text(ctx->font, value_text);
+
+    ldk_ui_draw_text(
+        ctx,
+        value_text,
+        item->rect.x + (item->rect.w - text_size.w) * 0.5f,
+        item->rect.y + (item->rect.h - text_size.h) * 0.5f,
+        ctx->theme.colors[LDK_UI_COLOR_TEXT],
+        clip_rect);
+
     return;
   }
 }
@@ -1569,6 +1591,19 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
       {
         s_ui_emit_quad(ctx, window->title_bar_rect, title_bg, window->rect, 0);
       }
+
+      if (window->title[0] != 0)
+      {
+        float text_x = window->title_bar_rect.x + 6.0f;
+        float font_line_height = ldk_font_get_line_height(ctx->font);
+        float text_y = window->title_bar_rect.y + (window->title_bar_rect.h - font_line_height) * 0.5f;
+        ldk_ui_draw_text(
+            ctx,
+            window->title,
+            text_x, text_y,
+            ctx->theme.colors[LDK_UI_COLOR_TEXT],
+            window->rect);
+      }
     }
 
     s_ui_layout_measure_node(window->root_layout);
@@ -1687,7 +1722,6 @@ void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height)
   ldk_ui_set_next_fixed_width(ui, width);
   ldk_ui_set_next_fixed_height(ui, height);
 }
-
 
 void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand)
 {
