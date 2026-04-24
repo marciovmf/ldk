@@ -305,6 +305,54 @@ static void s_ui_widget_states_gc(LDKUIContext* ctx)
   }
 }
 
+/**
+ * Removes windows that were not submitted during the current frame.
+ *
+ * Windows are persistent only while the user keeps submitting them.
+ * If a window's root_layout is NULL at the end of the frame, it did not
+ * appear in this frame and must not keep participating in hit-testing,
+ * focus, or z-order.
+ */
+static void s_ui_windows_gc(LDKUIContext* ctx)
+{
+  u32 i = 0;
+
+  while (i < x_array_ldk_ui_window_count(ctx->windows))
+  {
+    LDKUIWindow* window = x_array_ldk_ui_window_get(ctx->windows, i);
+
+    if (window == NULL)
+    {
+      i += 1;
+      continue;
+    }
+
+    if (window->root_layout == NULL)
+    {
+      if (ctx->hovered_window == window)
+      {
+        ctx->hovered_window = NULL;
+      }
+
+      if (ctx->focused_window == window)
+      {
+        ctx->focused_window = NULL;
+        ctx->focused_id = 0;
+      }
+
+      if (ctx->current_window == window)
+      {
+        ctx->current_window = NULL;
+      }
+
+      x_array_ldk_ui_window_delete_at(ctx->windows, i);
+      continue;
+    }
+
+    i += 1;
+  }
+}
+
 static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
 {
   if (window == NULL)
@@ -312,12 +360,12 @@ static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
     return false;
   }
 
-  if (ctx->focused_window == window)
+  if (ctx->focused_window == NULL)
   {
     return true;
   }
 
-  return false;
+  return ctx->focused_window == window;
 }
 
 static bool s_ui_keyboard_accept_pressed(LDKUIContext* ctx)
@@ -1611,6 +1659,7 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
   }
 
   s_ui_widget_states_gc(ctx);
+  s_ui_windows_gc(ctx);
 
   ctx->render_data.vertices = x_array_ldk_ui_vertex_data_const(ctx->vertices);
   ctx->render_data.vertex_count = x_array_ldk_ui_vertex_count(ctx->vertices);
@@ -1618,6 +1667,18 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
   ctx->render_data.index_count = x_array_ldk_ui_u32_count(ctx->indices);
   ctx->render_data.commands = x_array_ldk_ui_draw_cmd_data_const(ctx->commands);
   ctx->render_data.command_count = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+
+  // If the focused window was not submitted this frame, unselect it.
+if (ctx->focused_window != NULL)
+{
+  if (!ctx->focused_window->is_open || ctx->focused_window->root_layout == NULL)
+  {
+    ctx->focused_window = NULL;
+    ctx->focused_id = 0;
+    ctx->active_id = 0;
+  }
+}
+
 }
 
 LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx)
