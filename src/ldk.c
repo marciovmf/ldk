@@ -126,58 +126,27 @@ static void s_terminate_all_modules(LDKRoot* e)
   x_log_close(&e->logger);
 }
 
-static bool s_config_resolve_path(XFSPath* out_path, const XFSPath* base_path, const char* value, const char* default_value)
+static bool s_config_resolve_path(XFSPath* out_path, const XFSPath* base_path, const char* value)
 {
-  const char* source_value = value;
+  X_ASSERT(out_path != NULL);
+  X_ASSERT(base_path != NULL);
 
-  if (source_value == NULL || source_value[0] == 0)
-  {
-    source_value = default_value;
-  }
-
-  if (source_value == NULL || source_value[0] == 0)
+  if (value == NULL || value[0] == 0)
   {
     x_fs_path_set(out_path, "");
     return true;
   }
 
-  if (x_fs_path_is_absolute_cstr(source_value))
+  if (x_fs_path_is_absolute_cstr(value))
   {
-    x_fs_path_set(out_path, source_value);
+    x_fs_path_set(out_path, value);
   }
   else
   {
-    x_fs_path(out_path, x_fs_path_cstr(base_path), source_value);
+    x_fs_path(out_path, x_fs_path_cstr(base_path), value);
   }
 
   x_fs_path_normalize(out_path);
-  return true;
-}
-
-static bool s_config_load_defaults(LDKConfig* out_config, const char* config_ini_path)
-{
-  LDK_ASSERT(out_config != NULL);
-  LDK_ASSERT(config_ini_path != NULL);
-
-  memset(out_config, 0, sizeof(*out_config));
-
-  x_fs_path_set(&out_config->config_file_path, config_ini_path);
-  x_fs_path_normalize(&out_config->config_file_path);
-
-  x_fs_path_dirname(&out_config->config_file_path, &out_config->runtree_path);
-  x_fs_path_normalize(&out_config->runtree_path);
-
-  s_config_resolve_path(&out_config->asset_root, &out_config->runtree_path, NULL, "assets");
-  s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, NULL, "ldk.log");
-  s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, NULL, "assets/ldk.ico");
-
-  x_fs_path_set(&out_config->game_dll, "");
-
-  x_smallstr_from_cstr(&out_config->title, "LDK");
-  out_config->width = 800;
-  out_config->height = 600;
-  out_config->fullscreen = false;
-
   return true;
 }
 
@@ -185,22 +154,19 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
 {
   XIni ini;
   XIniError ini_error;
-  const char* asset_root;
-  const char* log_file;
-  const char* game_dll;
-  const char* title;
-  const char* icon_path;
 
   X_ASSERT(out_config != NULL);
   X_ASSERT(config_ini_path != NULL);
 
-  if (!s_config_load_defaults(out_config, config_ini_path))
-  {
-    return false;
-  }
-
+  memset(out_config, 0, sizeof(*out_config));
   memset(&ini, 0, sizeof(ini));
   memset(&ini_error, 0, sizeof(ini_error));
+
+  x_fs_path_set(&out_config->config_file_path, config_ini_path);
+  x_fs_path_normalize(&out_config->config_file_path);
+
+  x_fs_path_dirname(&out_config->config_file_path, &out_config->runtree_path);
+  x_fs_path_normalize(&out_config->runtree_path);
 
   if (!x_ini_load_file(config_ini_path, &ini, &ini_error))
   {
@@ -215,49 +181,27 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
     return false;
   }
 
-  asset_root = x_ini_get(&ini, "general", "asset_root", NULL);
-  log_file   = x_ini_get(&ini, "general", "log_file", NULL);
-  game_dll   = x_ini_get(&ini, "general", "game_dll", NULL);
-  title      = x_ini_get(&ini, "display", "title", NULL);
-  icon_path  = x_ini_get(&ini, "display", "icon_path", NULL);
+  // scetion: general
+  const char* asset_root = x_ini_get(&ini, "general", "asset_root", "assets");
+  const char* log_file = x_ini_get(&ini, "general", "log_file", "ldk.log");
+  const char* game_dll = x_ini_get(&ini, "general", "game_dll", "");
+  s_config_resolve_path(&out_config->asset_root, &out_config->runtree_path, asset_root);
+  s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, log_file);
+  s_config_resolve_path(&out_config->game_dll, &out_config->runtree_path, game_dll);
 
-  if (asset_root != NULL && asset_root[0] != 0)
-  {
-    s_config_resolve_path(&out_config->asset_root, &out_config->runtree_path, asset_root, NULL);
-  }
+  // scetion: display
+  out_config->width = x_ini_get_i32(&ini, "display", "width", 800);
+  out_config->height = x_ini_get_i32(&ini, "display", "height", 600);
+  out_config->fullscreen = x_ini_get_bool(&ini, "display", "fullscreen", false);
+  const char* icon_path = x_ini_get(&ini, "display", "icon_path", "assets/ldk.ico");
+  s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path);
 
-  if (log_file != NULL && log_file[0] != 0)
-  {
-    s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, log_file, NULL);
-  }
-
-  if (game_dll != NULL && game_dll[0] != 0)
-  {
-    s_config_resolve_path(&out_config->game_dll, &out_config->runtree_path, game_dll, NULL);
-  }
-
-  if (icon_path != NULL && icon_path[0] != 0)
-  {
-    s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path, NULL);
-  }
-
-  if (title != NULL && title[0] != 0)
-  {
-    x_smallstr_from_cstr(&out_config->title, title);
-  }
-
-  out_config->width = x_ini_get_i32(&ini, "display", "width", out_config->width);
-  out_config->height = x_ini_get_i32(&ini, "display", "height", out_config->height);
-  out_config->fullscreen = x_ini_get_bool(&ini, "display", "fullscreen", out_config->fullscreen);
-
+  // section: editor
+  x_smallstr_from_cstr(&out_config->title, x_ini_get(&ini, "display", "title", "LDK"));
   x_smallstr_from_cstr(&out_config->editor_theme, x_ini_get(&ini, "editor", "theme", "dark"));
-  const char* editor_font = x_ini_get(&ini, "editor", "font", NULL);
-  out_config->editor_font_size  = x_ini_get_i32(&ini, "editor", "font_size", 12);
-
-  if (editor_font != NULL && editor_font[0] != 0)
-  {
-    s_config_resolve_path(&out_config->editor_font, &out_config->runtree_path, editor_font, NULL);
-  }
+  const char* editor_font = x_ini_get(&ini, "editor", "font", "InterDisplay-Regular.ttf");
+  s_config_resolve_path(&out_config->editor_font, &out_config->runtree_path, editor_font);
+  out_config->editor_font_size = x_ini_get_i32(&ini, "editor", "font_size", 12);
 
   x_ini_free(&ini);
   return true;
@@ -859,8 +803,9 @@ void ldk_engine_terminate(void)
 }
 
 /*
- * Standalone convenience path. Editor hosts are expected to drive frames
- * explicitly and toggle play mode with ldk_engine_play_start/stop.
+ * Standalone convenience path:
+ * Editor hosts are expected to drive frames explicitly and toggle play mode
+ * with ldk_engine_play_start/stop.
  */
 i32 ldk_engine_run(void)
 {
