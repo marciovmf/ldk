@@ -14,8 +14,10 @@
 
 typedef enum LDKUIInternalIdPart
 {
-  LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB = 1,
-  LDK_UI_INTERNAL_ID_SCROLLBAR_TRACK = 2,
+  LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y = 1,
+  LDK_UI_INTERNAL_ID_SCROLLBAR_TRACK_Y = 2,
+  LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X = 3,
+  LDK_UI_INTERNAL_ID_SCROLLBAR_TRACK_X = 4,
 } LDKUIInternalIdPart;
 
 static float s_ui_maxf(float a, float b) { return (a > b) ? a : b; }
@@ -818,51 +820,81 @@ static void s_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRe
   s_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
-static bool s_ui_vertical_scrollbar_rects(LDKUIRect rect, float content_height, float scroll_y, LDKUIRect* track_rect, LDKUIRect* thumb_rect)
+static bool s_ui_scrollbar_rects(
+    LDKUIRect rect,
+    float visible_size,
+    float content_size,
+    float scroll,
+    bool horizontal,
+    LDKUIRect* track_rect,
+    LDKUIRect* thumb_rect)
 {
-  float scrollbar_w = 12.0f;
-  float min_thumb_h = 12.0f;
-  float visible_h = rect.h;
-  float max_y;
-  float thumb_h;
-  float thumb_range;
-  float max_scroll;
+  float thickness = 12.0f;
+  float max_scroll = s_ui_maxf(0.0f, content_size - visible_size);
 
-  if (track_rect != NULL)
-  {
-    memset(track_rect, 0, sizeof(*track_rect));
-  }
-
-  if (thumb_rect != NULL)
-  {
-    memset(thumb_rect, 0, sizeof(*thumb_rect));
-  }
-
-  if (visible_h <= 0.0f || content_height <= visible_h)
+  if (track_rect == NULL || thumb_rect == NULL)
   {
     return false;
   }
 
-  max_y = s_ui_maxf(0.0f, content_height - visible_h);
-  thumb_h = visible_h * visible_h / content_height;
-  thumb_h = s_ui_maxf(thumb_h, min_thumb_h);
-  thumb_h = s_ui_minf(thumb_h, visible_h);
-  thumb_range = s_ui_maxf(0.0f, visible_h - thumb_h);
-  max_scroll = s_ui_maxf(1.0f, max_y);
+  memset(track_rect, 0, sizeof(*track_rect));
+  memset(thumb_rect, 0, sizeof(*thumb_rect));
 
-  if (track_rect != NULL)
+  if (max_scroll <= 0.0f)
   {
-    track_rect->x = rect.x + rect.w - scrollbar_w;
-    track_rect->y = rect.y;
-    track_rect->w = scrollbar_w;
-    track_rect->h = rect.h;
+    return false;
   }
 
-  if (thumb_rect != NULL)
+  if (horizontal)
   {
-    thumb_rect->x = rect.x + rect.w - scrollbar_w;
-    thumb_rect->y = rect.y + (scroll_y / max_scroll) * thumb_range;
-    thumb_rect->w = scrollbar_w;
+    float thumb_w = 0.0f;
+    float thumb_range = 0.0f;
+    float t = 0.0f;
+
+    track_rect->x = rect.x;
+    track_rect->y = rect.y + rect.h - thickness;
+    track_rect->w = rect.w;
+    track_rect->h = thickness;
+
+    thumb_w = (visible_size / content_size) * track_rect->w;
+    thumb_w = s_ui_clampf(thumb_w, 16.0f, track_rect->w);
+
+    thumb_range = s_ui_maxf(0.0f, track_rect->w - thumb_w);
+
+    if (max_scroll > 0.0f)
+    {
+      t = s_ui_clampf(scroll / max_scroll, 0.0f, 1.0f);
+    }
+
+    thumb_rect->x = track_rect->x + thumb_range * t;
+    thumb_rect->y = track_rect->y;
+    thumb_rect->w = thumb_w;
+    thumb_rect->h = track_rect->h;
+  }
+  else
+  {
+    float thumb_h = 0.0f;
+    float thumb_range = 0.0f;
+    float t = 0.0f;
+
+    track_rect->x = rect.x + rect.w - thickness;
+    track_rect->y = rect.y;
+    track_rect->w = thickness;
+    track_rect->h = rect.h;
+
+    thumb_h = (visible_size / content_size) * track_rect->h;
+    thumb_h = s_ui_clampf(thumb_h, 16.0f, track_rect->h);
+
+    thumb_range = s_ui_maxf(0.0f, track_rect->h - thumb_h);
+
+    if (max_scroll > 0.0f)
+    {
+      t = s_ui_clampf(scroll / max_scroll, 0.0f, 1.0f);
+    }
+
+    thumb_rect->x = track_rect->x;
+    thumb_rect->y = track_rect->y + thumb_range * t;
+    thumb_rect->w = track_rect->w;
     thumb_rect->h = thumb_h;
   }
 
@@ -1014,8 +1046,8 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.x,
         item->rect.y,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
-        clip_rect
-        );
+        clip_rect);
+
     return;
   }
 
@@ -1042,28 +1074,29 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.x + (item->rect.w - text_size.w) * 0.5f,
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
-        clip_rect
-        );
+        clip_rect);
+
     return;
   }
 
   if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
   {
     bool toggled = item->data.toggle_button.value;
+    LDKUISize text_size;
 
     color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 
     if (toggled)
     {
       color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
+
       if (ctx->hot_id == item->id)
       {
-        color = (u32) (ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]);
+        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
       }
-
     }
-    else {
-
+    else
+    {
       if (ctx->active_id == item->id)
       {
         color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
@@ -1074,9 +1107,10 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
       }
     }
 
-
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
-    LDKUISize text_size = s_ui_measure_text(ctx->font, item->text);
+
+    text_size = s_ui_measure_text(ctx->font, item->text);
+
     ldk_ui_draw_text(
         ctx,
         item->text,
@@ -1084,6 +1118,7 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+
     return;
   }
 
@@ -1093,8 +1128,9 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     LDKUIRect fill_rect = item->rect;
     u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
     u32 fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
-
     float range = item->data.slider_float.max_value - item->data.slider_float.min_value;
+    char value_text[32];
+    LDKUISize text_size;
 
     if (range > 0.0f)
     {
@@ -1114,12 +1150,12 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     s_ui_emit_quad(ctx, item->rect, track_color, clip_rect, 0);
 
     fill_rect.w = item->rect.w * t;
+
     s_ui_emit_quad(ctx, fill_rect, fill_color, clip_rect, 0);
-    char value_text[32];
 
     snprintf(value_text, sizeof(value_text), "%.2f", item->data.slider_float.value);
 
-    LDKUISize text_size = s_ui_measure_text(ctx->font, value_text);
+    text_size = s_ui_measure_text(ctx->font, value_text);
 
     ldk_ui_draw_text(
         ctx,
@@ -1128,14 +1164,15 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+
     return;
   }
 
-  if (item->type == LDK_UI_ITEM_VERTICAL_SCROLL_AREA)
+  if (item->type == LDK_UI_ITEM_SCROLL_AREA)
   {
-    if (item->data.scroll_area.has_scrollbar)
+    if (item->data.scroll_area.has_vertical_scrollbar)
     {
-      LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB);
+      LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
       u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
       u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
 
@@ -1148,9 +1185,27 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
       }
 
+      s_ui_emit_quad(ctx, item->data.scroll_area.vertical_track_rect, track_color, clip_rect, 0);
+      s_ui_emit_quad(ctx, item->data.scroll_area.vertical_thumb_rect, thumb_color, clip_rect, 0);
+    }
 
-      s_ui_emit_quad(ctx, item->data.scroll_area.track_rect, track_color, clip_rect, 0);
-      s_ui_emit_quad(ctx, item->data.scroll_area.thumb_rect, thumb_color, clip_rect, 0);
+    if (item->data.scroll_area.has_horizontal_scrollbar)
+    {
+      LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+      u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
+      u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
+
+      if (ctx->active_id == thumb_id)
+      {
+        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
+      }
+      else if (ctx->hot_id == thumb_id)
+      {
+        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
+      }
+
+      s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_track_rect, track_color, clip_rect, 0);
+      s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_thumb_rect, thumb_color, clip_rect, 0);
     }
 
     return;
@@ -1158,10 +1213,12 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
 
   if (item->type == LDK_UI_ITEM_COLOR_VIEW)
   {
+    char const* text = item->data.color_view.label;
+    LDKUISize text_size;
+
     s_ui_emit_quad(ctx, item->rect, item->data.color_view.color, clip_rect, 0);
 
-    const char* text = item->data.color_view.label;
-    LDKUISize text_size = s_ui_measure_text(ctx->font, text);
+    text_size = s_ui_measure_text(ctx->font, text);
 
     ldk_ui_draw_text(
         ctx,
@@ -1170,6 +1227,7 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+
     return;
   }
 }
@@ -1328,39 +1386,77 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
       {
         s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect, node_clip);
       }
-      else if (item->type == LDK_UI_ITEM_VERTICAL_SCROLL_AREA && item->data.scroll_area.node != NULL)
+      else if (item->type == LDK_UI_ITEM_SCROLL_AREA && item->data.scroll_area.node != NULL)
       {
         LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
         LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
         LDKUIRect content_rect = item->rect;
-        bool has_scrollbar = s_ui_vertical_scrollbar_rects(
-            item->rect,
-            content_size.h,
-            item->data.scroll_area.scroll.y,
-            &item->data.scroll_area.track_rect,
-            &item->data.scroll_area.thumb_rect
-            );
 
-        item->data.scroll_area.has_scrollbar = has_scrollbar;
+        bool allow_vertical = (item->data.scroll_area.flags & LDK_UI_SCROLL_VERTICAL) != 0;
+        bool allow_horizontal = (item->data.scroll_area.flags & LDK_UI_SCROLL_HORIZONTAL) != 0;
 
-        if (has_scrollbar)
+        bool has_vertical_scrollbar = false;
+        bool has_horizontal_scrollbar = false;
+
+        if (allow_vertical)
+        {
+          has_vertical_scrollbar = s_ui_scrollbar_rects(
+              item->rect,
+              item->rect.h,
+              content_size.h,
+              item->data.scroll_area.scroll.y,
+              false,
+              &item->data.scroll_area.vertical_track_rect,
+              &item->data.scroll_area.vertical_thumb_rect);
+        }
+
+        if (allow_horizontal)
+        {
+          has_horizontal_scrollbar = s_ui_scrollbar_rects(
+              item->rect,
+              item->rect.w,
+              content_size.w,
+              item->data.scroll_area.scroll.x,
+              true,
+              &item->data.scroll_area.horizontal_track_rect,
+              &item->data.scroll_area.horizontal_thumb_rect);
+        }
+
+        item->data.scroll_area.has_vertical_scrollbar = has_vertical_scrollbar;
+        item->data.scroll_area.has_horizontal_scrollbar = has_horizontal_scrollbar;
+
+        if (has_vertical_scrollbar)
         {
           LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-          LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB);
+          LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
 
-          if (s_ui_rect_contains(item->data.scroll_area.thumb_rect, (float)cursor.x, (float)cursor.y))
+          if (s_ui_rect_contains(item->data.scroll_area.vertical_thumb_rect, (float)cursor.x, (float)cursor.y))
           {
             ctx->hot_id = thumb_id;
           }
 
-          content_rect.w = s_ui_maxf(0.0f, content_rect.w - item->data.scroll_area.track_rect.w);
-          scroll_clip = s_ui_rect_intersect(node_clip, content_rect);
+          content_rect.w = s_ui_maxf(0.0f, content_rect.w - item->data.scroll_area.vertical_track_rect.w);
         }
+
+        if (has_horizontal_scrollbar)
+        {
+          LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+          LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+
+          if (s_ui_rect_contains(item->data.scroll_area.horizontal_thumb_rect, (float)cursor.x, (float)cursor.y))
+          {
+            ctx->hot_id = thumb_id;
+          }
+
+          content_rect.h = s_ui_maxf(0.0f, content_rect.h - item->data.scroll_area.horizontal_track_rect.h);
+        }
+
+        scroll_clip = s_ui_rect_intersect(node_clip, content_rect);
 
         content_rect.x -= item->data.scroll_area.scroll.x;
         content_rect.y -= item->data.scroll_area.scroll.y;
         content_rect.w = s_ui_maxf(content_rect.w, content_size.w);
-        content_rect.h = s_ui_maxf(item->rect.h, content_size.h);
+        content_rect.h = s_ui_maxf(content_rect.h, content_size.h);
 
         s_ui_layout_update_state_content_size(ctx, item->id, content_size);
         s_ui_layout_resolve_node(ctx, item->data.scroll_area.node, content_rect, scroll_clip);
@@ -1437,39 +1533,77 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
     {
       s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect, node_clip);
     }
-    else if (item->type == LDK_UI_ITEM_VERTICAL_SCROLL_AREA && item->data.scroll_area.node != NULL)
+    else if (item->type == LDK_UI_ITEM_SCROLL_AREA && item->data.scroll_area.node != NULL)
     {
       LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
       LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
       LDKUIRect content_rect = item->rect;
-      bool has_scrollbar = s_ui_vertical_scrollbar_rects(
-          item->rect,
-          content_size.h,
-          item->data.scroll_area.scroll.y,
-          &item->data.scroll_area.track_rect,
-          &item->data.scroll_area.thumb_rect
-          );
 
-      item->data.scroll_area.has_scrollbar = has_scrollbar;
+      bool allow_vertical = (item->data.scroll_area.flags & LDK_UI_SCROLL_VERTICAL) != 0;
+      bool allow_horizontal = (item->data.scroll_area.flags & LDK_UI_SCROLL_HORIZONTAL) != 0;
 
-      if (has_scrollbar)
+      bool has_vertical_scrollbar = false;
+      bool has_horizontal_scrollbar = false;
+
+      if (allow_vertical)
+      {
+        has_vertical_scrollbar = s_ui_scrollbar_rects(
+            item->rect,
+            item->rect.h,
+            content_size.h,
+            item->data.scroll_area.scroll.y,
+            false,
+            &item->data.scroll_area.vertical_track_rect,
+            &item->data.scroll_area.vertical_thumb_rect);
+      }
+
+      if (allow_horizontal)
+      {
+        has_horizontal_scrollbar = s_ui_scrollbar_rects(
+            item->rect,
+            item->rect.w,
+            content_size.w,
+            item->data.scroll_area.scroll.x,
+            true,
+            &item->data.scroll_area.horizontal_track_rect,
+            &item->data.scroll_area.horizontal_thumb_rect);
+      }
+
+      item->data.scroll_area.has_vertical_scrollbar = has_vertical_scrollbar;
+      item->data.scroll_area.has_horizontal_scrollbar = has_horizontal_scrollbar;
+
+      if (has_vertical_scrollbar)
       {
         LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-        LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB);
+        LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
 
-        if (s_ui_rect_contains(item->data.scroll_area.thumb_rect, (float)cursor.x, (float)cursor.y))
+        if (s_ui_rect_contains(item->data.scroll_area.vertical_thumb_rect, (float)cursor.x, (float)cursor.y))
         {
           ctx->hot_id = thumb_id;
         }
 
-        content_rect.w = s_ui_maxf(0.0f, content_rect.w - item->data.scroll_area.track_rect.w);
-        scroll_clip = s_ui_rect_intersect(node_clip, content_rect);
+        content_rect.w = s_ui_maxf(0.0f, content_rect.w - item->data.scroll_area.vertical_track_rect.w);
       }
+
+      if (has_horizontal_scrollbar)
+      {
+        LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+        LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+
+        if (s_ui_rect_contains(item->data.scroll_area.horizontal_thumb_rect, (float)cursor.x, (float)cursor.y))
+        {
+          ctx->hot_id = thumb_id;
+        }
+
+        content_rect.h = s_ui_maxf(0.0f, content_rect.h - item->data.scroll_area.horizontal_track_rect.h);
+      }
+
+      scroll_clip = s_ui_rect_intersect(node_clip, content_rect);
 
       content_rect.x -= item->data.scroll_area.scroll.x;
       content_rect.y -= item->data.scroll_area.scroll.y;
       content_rect.w = s_ui_maxf(content_rect.w, content_size.w);
-      content_rect.h = s_ui_maxf(item->rect.h, content_size.h);
+      content_rect.h = s_ui_maxf(content_rect.h, content_size.h);
 
       s_ui_layout_update_state_content_size(ctx, item->id, content_size);
       s_ui_layout_resolve_node(ctx, item->data.scroll_area.node, content_rect, scroll_clip);
@@ -1974,133 +2108,6 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
 }
 
 
-LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
-{
-  LDKUILayoutNode* node;
-  LDKUIItem* item;
-  LDKUIId id;
-  LDKUIWidgetState* state;
-  LDKUIRect track_rect = {0};
-  LDKUIRect thumb_rect = {0};
-  bool has_scrollbar = false;
-
-  LDK_ASSERT(ctx->current_layout != NULL);
-
-  id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_VERTICAL_SCROLL_AREA);
-  state = s_ui_widget_state_find(ctx, id);
-
-  scroll.x = 0.0f;
-
-  if (state != NULL)
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-    float max_y = s_ui_maxf(0.0f, state->content_size.h - state->rect.h);
-
-    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
-    has_scrollbar = s_ui_vertical_scrollbar_rects(state->rect, state->content_size.h, scroll.y, &track_rect, &thumb_rect);
-
-    if (s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y))
-    {
-      i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
-
-      if (wheel_delta != 0)
-      {
-        scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
-      }
-    }
-
-    if (has_scrollbar)
-    {
-      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB);
-      bool inside_thumb = s_ui_rect_contains(thumb_rect, (float)cursor.x, (float)cursor.y);
-
-      if (inside_thumb)
-      {
-        ctx->hot_id = thumb_id;
-      }
-
-      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-      {
-        ctx->active_id = thumb_id;
-      }
-
-      if (ctx->active_id == thumb_id)
-      {
-        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-        {
-          float thumb_range = s_ui_maxf(0.0f, track_rect.h - thumb_rect.h);
-          float local = (float)cursor.y - track_rect.y - thumb_rect.h * 0.5f;
-          float t = 0.0f;
-
-          if (thumb_range > 0.0f)
-          {
-            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
-          }
-
-          scroll.y = t * max_y;
-        }
-        else
-        {
-          ctx->active_id = 0;
-        }
-      }
-    }
-
-    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
-    has_scrollbar = s_ui_vertical_scrollbar_rects(state->rect, state->content_size.h, scroll.y, &track_rect, &thumb_rect);
-  }
-  else
-  {
-    scroll.y = s_ui_maxf(0.0f, scroll.y);
-  }
-
-  node = s_ui_layout_node_create(
-      ctx,
-      LDK_UI_LAYOUT_VERTICAL,
-      ctx->current_layout,
-      ctx->current_window);
-  item = s_ui_item_create(ctx);
-
-  if (node == NULL || item == NULL)
-  {
-    return scroll;
-  }
-
-  item->type = LDK_UI_ITEM_VERTICAL_SCROLL_AREA;
-  item->id = id;
-  item->data.scroll_area.node = node;
-  item->data.scroll_area.scroll = scroll;
-  item->data.scroll_area.has_scrollbar = has_scrollbar;
-  item->data.scroll_area.track_rect = track_rect;
-  item->data.scroll_area.thumb_rect = thumb_rect;
-  node->id = item->id;
-  item->preferred_width = 0.0f;
-  item->preferred_height = 0.0f;
-  item->min_width = 0.0f;
-  item->min_height = 0.0f;
-  item->expand_width = true;
-  item->expand_height = true;
-
-  s_ui_apply_next_layout(ctx, item);
-
-  if (ctx->current_layout != NULL)
-  {
-    s_ui_layout_append_item(ctx->current_layout, item);
-  }
-
-  ctx->current_layout = node;
-
-  return scroll;
-}
-
-void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx)
-{
-  if (ctx->current_layout != NULL)
-  {
-    ctx->current_layout = ctx->current_layout->parent;
-  }
-}
-
 /**
  * Begins a root container.
  *
@@ -2507,4 +2514,235 @@ void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
   (void)codepoint;
 
   //TODO: Implement this later
+}
+
+LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags)
+{
+  LDKUILayoutNode* node = NULL;
+  LDKUIItem* item = NULL;
+  LDKUIId id = 0;
+  LDKUIWidgetState* state = NULL;
+
+  LDKUIRect vertical_track_rect = {0};
+  LDKUIRect vertical_thumb_rect = {0};
+  LDKUIRect horizontal_track_rect = {0};
+  LDKUIRect horizontal_thumb_rect = {0};
+
+  bool has_vertical_scrollbar = false;
+  bool has_horizontal_scrollbar = false;
+
+  LDK_ASSERT(ctx->current_layout != NULL);
+
+  id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_SCROLL_AREA);
+  state = s_ui_widget_state_find(ctx, id);
+
+  if ((flags & LDK_UI_SCROLL_HORIZONTAL) == 0)
+  {
+    scroll.x = 0.0f;
+  }
+
+  if ((flags & LDK_UI_SCROLL_VERTICAL) == 0)
+  {
+    scroll.y = 0.0f;
+  }
+
+  if (state != NULL)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    float max_x = s_ui_maxf(0.0f, state->content_size.w - state->rect.w);
+    float max_y = s_ui_maxf(0.0f, state->content_size.h - state->rect.h);
+
+    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
+    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
+
+    if ((flags & LDK_UI_SCROLL_VERTICAL) != 0)
+    {
+      has_vertical_scrollbar = s_ui_scrollbar_rects(
+          state->rect,
+          state->rect.h,
+          state->content_size.h,
+          scroll.y,
+          false,
+          &vertical_track_rect,
+          &vertical_thumb_rect);
+    }
+
+    if ((flags & LDK_UI_SCROLL_HORIZONTAL) != 0)
+    {
+      has_horizontal_scrollbar = s_ui_scrollbar_rects(
+          state->rect,
+          state->rect.w,
+          state->content_size.w,
+          scroll.x,
+          true,
+          &horizontal_track_rect,
+          &horizontal_thumb_rect);
+    }
+
+    if (s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y))
+    {
+      i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
+
+      if (wheel_delta != 0 && (flags & LDK_UI_SCROLL_VERTICAL) != 0)
+      {
+        scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+      }
+    }
+
+    if (has_vertical_scrollbar)
+    {
+      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
+      bool inside_thumb = s_ui_rect_contains(vertical_thumb_rect, (float)cursor.x, (float)cursor.y);
+
+      if (inside_thumb)
+      {
+        ctx->hot_id = thumb_id;
+      }
+
+      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+      {
+        ctx->active_id = thumb_id;
+      }
+
+      if (ctx->active_id == thumb_id)
+      {
+        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+        {
+          float thumb_range = s_ui_maxf(0.0f, vertical_track_rect.h - vertical_thumb_rect.h);
+          float local = (float)cursor.y - vertical_track_rect.y - vertical_thumb_rect.h * 0.5f;
+          float t = 0.0f;
+
+          if (thumb_range > 0.0f)
+          {
+            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+          }
+
+          scroll.y = t * max_y;
+        }
+        else
+        {
+          ctx->active_id = 0;
+        }
+      }
+    }
+
+    if (has_horizontal_scrollbar)
+    {
+      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+      bool inside_thumb = s_ui_rect_contains(horizontal_thumb_rect, (float)cursor.x, (float)cursor.y);
+
+      if (inside_thumb)
+      {
+        ctx->hot_id = thumb_id;
+      }
+
+      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+      {
+        ctx->active_id = thumb_id;
+      }
+
+      if (ctx->active_id == thumb_id)
+      {
+        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+        {
+          float thumb_range = s_ui_maxf(0.0f, horizontal_track_rect.w - horizontal_thumb_rect.w);
+          float local = (float)cursor.x - horizontal_track_rect.x - horizontal_thumb_rect.w * 0.5f;
+          float t = 0.0f;
+
+          if (thumb_range > 0.0f)
+          {
+            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+          }
+
+          scroll.x = t * max_x;
+        }
+        else
+        {
+          ctx->active_id = 0;
+        }
+      }
+    }
+
+    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
+    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
+  }
+  else
+  {
+    scroll.x = s_ui_maxf(0.0f, scroll.x);
+    scroll.y = s_ui_maxf(0.0f, scroll.y);
+  }
+
+  node = s_ui_layout_node_create(
+      ctx,
+      LDK_UI_LAYOUT_VERTICAL,
+      ctx->current_layout,
+      ctx->current_window);
+
+  item = s_ui_item_create(ctx);
+
+  if (node == NULL || item == NULL)
+  {
+    return scroll;
+  }
+
+  item->type = LDK_UI_ITEM_SCROLL_AREA;
+  item->id = id;
+  item->data.scroll_area.node = node;
+  item->data.scroll_area.scroll = scroll;
+  item->data.scroll_area.flags = flags;
+  item->data.scroll_area.has_vertical_scrollbar = has_vertical_scrollbar;
+  item->data.scroll_area.has_horizontal_scrollbar = has_horizontal_scrollbar;
+  item->data.scroll_area.vertical_track_rect = vertical_track_rect;
+  item->data.scroll_area.vertical_thumb_rect = vertical_thumb_rect;
+  item->data.scroll_area.horizontal_track_rect = horizontal_track_rect;
+  item->data.scroll_area.horizontal_thumb_rect = horizontal_thumb_rect;
+
+  node->id = item->id;
+
+  item->preferred_width = 0.0f;
+  item->preferred_height = 0.0f;
+  item->min_width = 0.0f;
+  item->min_height = 0.0f;
+  item->expand_width = true;
+  item->expand_height = true;
+
+  s_ui_apply_next_layout(ctx, item);
+
+  if (ctx->current_layout != NULL)
+  {
+    s_ui_layout_append_item(ctx->current_layout, item);
+  }
+
+  ctx->current_layout = node;
+
+  return scroll;
+}
+
+LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx)
+{
+  if (ctx->current_layout != NULL)
+  {
+    ctx->current_layout = ctx->current_layout->parent;
+  }
+}
+
+
+LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
+{
+  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_VERTICAL);
+}
+
+void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx)
+{
+  ldk_ui_end_scroll_area(ctx);
+}
+
+LDKUIPoint ldk_ui_begin_horizontal_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
+{
+  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_HORIZONTAL);
+}
+
+void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx)
+{
+  ldk_ui_end_scroll_area(ctx);
 }

@@ -63,8 +63,16 @@ extern "C" {
     LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED,
     LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE,
     LDK_UI_COLOR_COUNT,
-
   } LDKUIColorSlot;
+
+  typedef enum LDKUIScrollFlags
+  {
+    LDK_UI_SCROLL_VERTICAL   = 1 << 0,
+    LDK_UI_SCROLL_HORIZONTAL = 1 << 1,
+    LDK_UI_SCROLL_BOTH =
+      LDK_UI_SCROLL_VERTICAL |
+      LDK_UI_SCROLL_HORIZONTAL
+  } LDKUIScrollFlags;
 
   typedef struct LDKUITheme
   {
@@ -169,7 +177,7 @@ extern "C" {
     LDK_UI_ITEM_SLIDER_FLOAT = 4,
     LDK_UI_ITEM_LAYOUT = 5,
     LDK_UI_ITEM_COLOR_VIEW = 6,
-    LDK_UI_ITEM_VERTICAL_SCROLL_AREA = 7,
+    LDK_UI_ITEM_SCROLL_AREA = 7,
   } LDKUIItemType;
 
   typedef struct LDKUINextLayout
@@ -236,9 +244,16 @@ extern "C" {
       {
         LDKUILayoutNode* node;
         LDKUIPoint scroll;
-        LDKUIRect track_rect;
-        LDKUIRect thumb_rect;
-        bool has_scrollbar;
+        LDKUIScrollFlags flags;
+
+        bool has_vertical_scrollbar;
+        bool has_horizontal_scrollbar;
+
+        LDKUIRect vertical_track_rect;
+        LDKUIRect vertical_thumb_rect;
+
+        LDKUIRect horizontal_track_rect;
+        LDKUIRect horizontal_thumb_rect;
       } scroll_area;
     } data;
   };
@@ -352,8 +367,15 @@ extern "C" {
   // text input
   LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
 
+  LDK_API LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags);
+
+  LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx);
+
   LDK_API LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll);
   LDK_API void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx);
+
+  LDK_API LDKUIPoint ldk_ui_begin_horizontal_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll);
+  LDK_API void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx);
 
 #ifdef __cplusplus
 }
