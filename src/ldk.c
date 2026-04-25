@@ -450,9 +450,8 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   }
 
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
-  x_log_info(&e->logger, "Initializing LDK\n");
+  x_log_info(&e->logger, "=========LDK=========\n");
 
-  // this is temporary. We need something to see for now
   ldk_os_initialize();
   e->graphics = ldk_os_graphics_context_opengl_create(3, 3, 24, 8);
   e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
@@ -565,7 +564,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     }
   }
 
-
   if (engine_init_failed)
   {
     s_terminate_all_modules(e);
@@ -590,6 +588,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   e->playing = false;
   e->previous_ticks = 0;
   g_engine_initialized = true;
+  ldk_log_info("LDK initialized\n");
   return true;
 }
 

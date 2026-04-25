@@ -24,7 +24,7 @@ bool on_window_event(const LDKEvent* event, void* state)
 {
   if (event->windowEvent.type == LDK_WINDOW_EVENT_CLOSE)
   {
-    printf("Closing game window\n");
+    ldk_log_info("Closing game window\n");
     ldk_engine_stop(0);
     return true;
   }
@@ -34,7 +34,7 @@ bool on_window_event(const LDKEvent* event, void* state)
 
 bool game_initialize(LDKGame* game)
 {
-  printf("Game initialize\n");
+  ldk_log_info("Game initialize\n");
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(q, on_window_event, LDK_EVENT_TYPE_WINDOW, NULL);
   return true;
@@ -42,7 +42,7 @@ bool game_initialize(LDKGame* game)
 
 bool game_start(LDKGame* game)
 {
-  printf("Game start\n");
+  ldk_log_info("Game start\n");
   return true;
 }
 
@@ -53,13 +53,13 @@ bool game_update(LDKGame* game, float delta_time)
 
 bool game_terminate(LDKGame* game)
 {
-  printf("Game terminate\n");
+  ldk_log_info("Game terminate\n");
   return true;
 }
 
 bool game_stop(LDKGame* game)
 {
-  printf("Game stop\n");
+  ldk_log_info("Game stop\n");
   return true;
 }
 
