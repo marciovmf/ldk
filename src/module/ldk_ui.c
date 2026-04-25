@@ -20,10 +20,6 @@ typedef enum LDKUIInternalIdPart
   LDK_UI_INTERNAL_ID_SCROLLBAR_TRACK_X = 4,
 } LDKUIInternalIdPart;
 
-//
-// Helpers
-//
-
 static float s_ui_maxf(float a, float b) { return (a > b) ? a : b; }
 
 static float s_ui_minf(float a, float b) { return (a < b) ? a : b; }
@@ -81,9 +77,6 @@ static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, f
   return true;
 }
 
-//
-// Hashing
-//
 static LDKUIId s_ui_hash_u32(LDKUIId hash, u32 value)
 {
   hash ^= value + 0x9e3779b9u + (hash << 6) + (hash >> 2);
@@ -175,10 +168,6 @@ static LDKUITextureHandle s_ui_get_font_page_texture(LDKUIContext* ctx, u32 page
   return ctx->get_font_page_texture(ctx->font_texture_user, ctx->font, page_index);
 }
 
-//
-// Text Measuring
-//
-
 static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
 {
   LDKUISize size = {0};
@@ -216,11 +205,6 @@ static LDKUISize s_ui_measure_slider_impl(LDKFontInstance* font, char const* tex
   size.h = 22.0f;
   return size;
 }
-
-
-//
-// Widget State Handling
-//
 
 /**
  * Finds widget state by ID using a linear search.
@@ -300,10 +284,6 @@ static void s_ui_widget_states_gc(LDKUIContext* ctx)
   }
 }
 
-//
-// Stale data prunning
-//
-
 /**
  * Removes windows that were not submitted during the current frame.
  *
@@ -351,10 +331,6 @@ static void s_ui_windows_gc(LDKUIContext* ctx)
     i += 1;
   }
 }
-
-//
-// Layout
-//
 
 static void s_ui_layout_update_state_rect(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
@@ -585,6 +561,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
   *value = new_value;
   return true;
 }
+
 static LDKUILayoutNode* s_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDirection direction, LDKUILayoutNode* parent, LDKUIWindow* window)
 {
   LDKUILayoutNode* node = x_arena_alloc_zero(ctx->frame_arena, sizeof(LDKUILayoutNode));
@@ -942,12 +919,7 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item, LDKUIRe
   }
 }
 
-
-//
-// Widget renderting 
-//
-
-static void s_ui_emit_text(LDKUIContext* ctx, char const* text, float x, float y, u32 color, LDKUIRect clip_rect)
+static void ldk_ui_draw_text(LDKUIContext* ctx, char const* text, float x, float y, u32 color, LDKUIRect clip_rect)
 {
   LDKFontInstance* font;
   LDKFontMetrics metrics;
@@ -1056,9 +1028,13 @@ static void s_ui_emit_text(LDKUIContext* ctx, char const* text, float x, float y
   }
 }
 
+//
+// Widget renderting 
+//
+
 static void s_ui_emit_label(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
-  s_ui_emit_text(
+  ldk_ui_draw_text(
       ctx,
       item->text,
       item->rect.x,
@@ -1085,7 +1061,7 @@ static void s_ui_emit_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
 
   text_size = s_ui_measure_text(ctx->font, item->text);
 
-  s_ui_emit_text(
+  ldk_ui_draw_text(
       ctx,
       item->text,
       item->rect.x + (item->rect.w - text_size.w) * 0.5f,
@@ -1125,7 +1101,7 @@ static void s_ui_emit_toggle_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRec
 
   text_size = s_ui_measure_text(ctx->font, item->text);
 
-  s_ui_emit_text(
+  ldk_ui_draw_text(
       ctx,
       item->text,
       item->rect.x + (item->rect.w - text_size.w) * 0.5f,
@@ -1169,7 +1145,7 @@ static void s_ui_emit_slider_float(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect
 
   text_size = s_ui_measure_text(ctx->font, value_text);
 
-  s_ui_emit_text(
+  ldk_ui_draw_text(
       ctx,
       value_text,
       item->rect.x + (item->rect.w - text_size.w) * 0.5f,
@@ -1228,7 +1204,7 @@ static void s_ui_emit_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect c
 
   text_size = s_ui_measure_text(ctx->font, text);
 
-  s_ui_emit_text(
+  ldk_ui_draw_text(
       ctx,
       text,
       item->rect.x + (item->rect.w - text_size.w) * 0.5f,
@@ -1343,31 +1319,35 @@ static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
   return size;
 }
 
-//
-// Node Layout resolution
-//
+/**
+ * Resolves layout and geometry for a layout node and its children.
+ *
+ * Each node arranges its children vertically or horizontally in order,
+ * applying spacing and padding.
+ *
+ * Final rectangles (item->rect) are computed from preferred/min sizes
+ * and expansion rules, distributing remaining space among expandable items.
+ *
+ * Layout is resolved top-down after all widgets are declared, producing
+ * concrete geometry and interaction results for the current frame.
+ */
+static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect, LDKUIRect inherited_clip);
 
-static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect, LDKUIRect node_clip);
-
-static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect rect, LDKUIRect node_clip)
+static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect node_clip)
 {
   LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
-  LDKUIRect content_rect = rect;
-  LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, rect);
-
+  LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
+  LDKUIRect content_rect = item->rect;
   bool allow_vertical = (item->data.scroll_area.flags & LDK_UI_SCROLL_VERTICAL) != 0;
   bool allow_horizontal = (item->data.scroll_area.flags & LDK_UI_SCROLL_HORIZONTAL) != 0;
-
   bool has_vertical_scrollbar = false;
   bool has_horizontal_scrollbar = false;
-
-  item->rect = rect;
 
   if (allow_vertical)
   {
     has_vertical_scrollbar = s_ui_scrollbar_rects(
-        rect,
-        rect.h,
+        item->rect,
+        item->rect.h,
         content_size.h,
         item->data.scroll_area.scroll.y,
         false,
@@ -1378,8 +1358,8 @@ static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, 
   if (allow_horizontal)
   {
     has_horizontal_scrollbar = s_ui_scrollbar_rects(
-        rect,
-        rect.w,
+        item->rect,
+        item->rect.w,
         content_size.w,
         item->data.scroll_area.scroll.x,
         true,
@@ -1427,23 +1407,24 @@ static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, 
   s_ui_layout_resolve_node(ctx, item->data.scroll_area.node, content_rect, scroll_clip);
   s_ui_emit_item(ctx, item, node_clip);
 }
-static void s_ui_layout_resolve_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect rect, LDKUIRect node_clip)
+
+static void s_ui_layout_resolve_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect node_clip)
 {
-  if (item == NULL)
+  s_ui_layout_update_state_rect(ctx, item, node_clip);
+  s_ui_resolve_interaction(ctx, item, node_clip);
+
+  if (item->type == LDK_UI_ITEM_LAYOUT && item->data.layout.node != NULL)
   {
+    s_ui_layout_resolve_node(ctx, item->data.layout.node, item->rect, node_clip);
     return;
   }
 
   if (item->type == LDK_UI_ITEM_SCROLL_AREA && item->data.scroll_area.node != NULL)
   {
-    s_ui_layout_resolve_scroll_area(ctx, item, rect, node_clip);
+    s_ui_layout_resolve_scroll_area(ctx, item, node_clip);
     return;
   }
 
-  item->rect = rect;
-
-  s_ui_layout_update_state_rect(ctx, item, node_clip);
-  s_ui_resolve_interaction(ctx, item, node_clip);
   s_ui_emit_item(ctx, item, node_clip);
 }
 
@@ -1459,83 +1440,139 @@ static void s_ui_layout_resolve_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRe
  * Layout is resolved top-down after all widgets are declared, producing
  * concrete geometry and interaction results for the current frame.
  */
-static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect, LDKUIRect node_clip)
+static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, LDKUIRect rect, LDKUIRect inherited_clip)
 {
-  LDKUIItem* item;
-  float cursor_x;
-  float cursor_y;
+  u32 count = 0;
+  float inner_x = rect.x + node->padding;
+  float inner_y = rect.y + node->padding;
+  float inner_w = rect.w - node->padding * 2.0f;
+  float inner_h = rect.h - node->padding * 2.0f;
+  LDKUIRect node_clip = s_ui_rect_intersect(inherited_clip, rect);
 
-  if (node == NULL)
-  {
-    return;
-  }
-
-  item = node->first_item;
-  cursor_x = rect.x + node->padding;
-  cursor_y = rect.y + node->padding;
+  node->rect = rect;
+  count = node->child_count;
 
   if (node->direction == LDK_UI_LAYOUT_VERTICAL)
   {
-    while (item != NULL)
+    float fixed_height = 0.0f;
+    u32 expand_count = 0;
+    float remaining;
+    float expand_height = 0.0f;
+    float cursor_y;
+
+    for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
     {
-      LDKUIRect item_rect = {0};
-      float item_width = item->preferred_width;
-      float item_height = item->preferred_height;
-
-      if (item_width <= 0.0f || item->expand_width)
+      if (item->expand_height)
       {
-        item_width = rect.w - node->padding * 2.0f;
+        expand_count += 1;
+      }
+      else
+      {
+        fixed_height += s_ui_maxf(item->preferred_height, item->min_height);
+      }
+    }
+
+    if (count > 0)
+    {
+      fixed_height += node->spacing * (float)(count - 1);
+    }
+
+    remaining = inner_h - fixed_height;
+
+    if (remaining < 0.0f)
+    {
+      remaining = 0.0f;
+    }
+
+    if (expand_count > 0)
+    {
+      expand_height = remaining / (float)expand_count;
+    }
+
+    cursor_y = inner_y;
+
+    for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
+    {
+      float item_h = s_ui_maxf(item->preferred_height, item->min_height);
+      float item_w = item->expand_width
+        ? inner_w
+        : s_ui_minf(s_ui_maxf(item->preferred_width, item->min_width), inner_w);
+
+      if (item->expand_height)
+      {
+        item_h = s_ui_maxf(expand_height, item->min_height);
       }
 
-      if (item_height <= 0.0f)
-      {
-        item_height = item->min_height;
-      }
+      item->rect.x = inner_x;
+      item->rect.y = cursor_y;
+      item->rect.w = item_w;
+      item->rect.h = item_h;
 
-      item_rect.x = cursor_x;
-      item_rect.y = cursor_y;
-      item_rect.w = s_ui_maxf(item_width, item->min_width);
-      item_rect.h = s_ui_maxf(item_height, item->min_height);
+      s_ui_layout_resolve_item(ctx, item, node_clip);
 
-      s_ui_layout_resolve_item(ctx, item, item_rect, node_clip);
-
-      cursor_y += item_rect.h + node->spacing;
-      item = item->next_sibling;
+      cursor_y += item_h + node->spacing;
     }
 
     return;
   }
 
-  if (node->direction == LDK_UI_LAYOUT_HORIZONTAL)
+  float fixed_width = 0.0f;
+  u32 expand_count = 0;
+  float remaining;
+  float expand_width = 0.0f;
+  float cursor_x;
+
+  for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
   {
-    while (item != NULL)
+    if (item->expand_width)
     {
-      LDKUIRect item_rect = {0};
-      float item_width = item->preferred_width;
-      float item_height = item->preferred_height;
+      expand_count += 1;
+    }
+    else
+    {
+      fixed_width += s_ui_maxf(item->preferred_width, item->min_width);
+    }
+  }
 
-      if (item_width <= 0.0f)
-      {
-        item_width = item->min_width;
-      }
+  if (count > 0)
+  {
+    fixed_width += node->spacing * (float)(count - 1);
+  }
 
-      if (item_height <= 0.0f || item->expand_height)
-      {
-        item_height = rect.h - node->padding * 2.0f;
-      }
+  remaining = inner_w - fixed_width;
 
-      item_rect.x = cursor_x;
-      item_rect.y = cursor_y;
-      item_rect.w = s_ui_maxf(item_width, item->min_width);
-      item_rect.h = s_ui_maxf(item_height, item->min_height);
+  if (remaining < 0.0f)
+  {
+    remaining = 0.0f;
+  }
 
-      s_ui_layout_resolve_item(ctx, item, item_rect, node_clip);
+  if (expand_count > 0)
+  {
+    expand_width = remaining / (float)expand_count;
+  }
 
-      cursor_x += item_rect.w + node->spacing;
-      item = item->next_sibling;
+  cursor_x = inner_x;
+
+  for (LDKUIItem* item = node->first_item; item != NULL; item = item->next_sibling)
+  {
+    float item_w = s_ui_maxf(item->preferred_width, item->min_width);
+    float item_h = item->expand_height
+      ? inner_h
+      : s_ui_minf(s_ui_maxf(item->preferred_height, item->min_height), inner_h);
+
+    if (item->expand_width)
+    {
+      item_w = s_ui_maxf(expand_width, item->min_width);
     }
 
-    return;
+    item->rect.x = cursor_x;
+    item->rect.y = inner_y;
+    item->rect.w = item_w;
+    item->rect.h = item_h;
+
+    s_ui_layout_resolve_item(ctx, item, node_clip);
+
+    cursor_x += item_w + node->spacing;
   }
 }
 
@@ -1799,7 +1836,7 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
         float text_x = window->title_bar_rect.x + 6.0f;
         float font_line_height = ldk_font_get_line_height(ctx->font);
         float text_y = window->title_bar_rect.y + (window->title_bar_rect.h - font_line_height) * 0.5f;
-        s_ui_emit_text(
+        ldk_ui_draw_text(
             ctx,
             window->title,
             text_x, text_y,
@@ -1862,7 +1899,6 @@ void ldk_ui_pop_id(LDKUIContext* ctx)
 //
 // Next-item layout hints
 //
-
 
 void ldk_ui_set_next_width(LDKUIContext* ctx, float width)
 {
@@ -1939,6 +1975,7 @@ void ldk_ui_set_next_fixed_size(LDKUIContext* ui, float width, float height)
 //
 // Layout
 //
+
 void ldk_ui_begin_vertical(LDKUIContext* ctx)
 {
   LDK_ASSERT(ctx->current_layout != NULL);
@@ -2646,7 +2683,6 @@ LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx)
     ctx->current_layout = ctx->current_layout->parent;
   }
 }
-
 
 LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
 {
