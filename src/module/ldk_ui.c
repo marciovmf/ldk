@@ -1,12 +1,10 @@
-#include "ldk_font.h"
+#include "ldk_ttf.h"
 #include "stdx/stdx_array.h"
 #include <ldk_common.h>
 #include <ldk_ui.h>
 #include <stdx/stdx_io.h>
 #include <string.h>
 #include <math.h>
-
-#include <ldk_gl.h>
 
 #define LDK_RGBA_TO_ABGR(c) \
   ((((c) & 0x000000FFu) << 24) | \
@@ -148,99 +146,26 @@ static LDKUIId s_ui_make_id(LDKUIContext* ctx, u32 item_type)
 }
 
 /**
- * Temporary OpenGL hack to retrieve Font atlas texture while we do not have a RHI api.
+ * Requests a renderable texture handle for a font atlas page.
+ *
+ * The UI does not own font page textures. The engine, renderer, or font cache
+ * provides this callback and handles GPU resource creation/update.
  */
 static LDKUITextureHandle s_ui_get_font_page_texture(LDKUIContext* ctx, u32 page_index)
 {
-  //TODO: Remove all OpenGL code frome here. This shoud be done somewhere else using the RHI api.
-  LDKFontPageInfo page = {0};
-  u32 count;
-  u32 i;
-
-  if (ctx == NULL || ctx->font == NULL)
+  if (ctx == NULL)
   {
     return 0;
   }
 
-  if (!ldk_font_get_page_info(ctx->font, page_index, &page))
+  if (ctx->get_font_page_texture == NULL)
   {
     return 0;
   }
 
-  count = x_array_ldk_ui_font_page_texture_count(ctx->font_page_textures);
-
-  for (i = 0; i < count; ++i)
-  {
-    LDKUIFontPageTexture* entry = x_array_ldk_ui_font_page_texture_get(ctx->font_page_textures, i);
-
-    if (entry != NULL && entry->page_index == page_index)
-    {
-      if (page.dirty)
-      {
-        glBindTexture(GL_TEXTURE_2D, entry->texture);
-        glTexSubImage2D(
-            GL_TEXTURE_2D,
-            0,
-            0,
-            0,
-            (GLsizei)page.width,
-            (GLsizei)page.height,
-            GL_RED,
-            GL_UNSIGNED_BYTE,
-            page.pixels
-            );
-
-        ldk_font_clear_page_dirty(ctx->font, page_index);
-      }
-
-      return (LDKUITextureHandle)entry->texture;
-    }
-  }
-
-  {
-    GLuint texture = 0;
-    LDKUIFontPageTexture entry = {0};
-
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // Font atlas stores glyph coverage in a single (R) channel.
-    // The shader expects standard RGBA textures, so we remap:
-    //   RGB -> 1 (use vertex color for text color)
-    //   A   -> R (use glyph coverage as alpha mask)
-    // This allows text to share the same pipeline as other UI quads.
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_R8,
-        (GLsizei)page.width,
-        (GLsizei)page.height,
-        0,
-        GL_RED,
-        GL_UNSIGNED_BYTE,
-        page.pixels
-        );
-
-    ldk_font_clear_page_dirty(ctx->font, page_index);
-
-    entry.page_index = page_index;
-    entry.texture = texture;
-    x_array_ldk_ui_font_page_texture_push(ctx->font_page_textures, entry);
-
-    return (LDKUITextureHandle)texture;
-  }
+  return ctx->get_font_page_texture(ctx->font_texture_user, ctx->font, page_index);
 }
+
 
 static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
 {
@@ -1697,7 +1622,9 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->commands = x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->widget_states = x_array_ldk_ui_widget_state_create(256);
 
-  ctx->font_page_textures = x_array_ldk_ui_font_page_texture_create(2);
+  ctx->font_texture_user = config->font_texture_user;
+  ctx->get_font_page_texture = config->get_font_page_texture;
+
   ldk_ui_set_theme(ctx, config->theme, NULL);
 
   // Initialize font
@@ -1722,30 +1649,11 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   // TODO: Destroy font
   //ldk_font_face_destroy();
 
-
-  //TODO: Update this when whe remove OpenGL code from UI
-  //Destroy textures
-  u32 count = x_array_ldk_ui_font_page_texture_count(ctx->font_page_textures);
-  u32 i;
-
-  for (i = 0; i < count; ++i)
-  {
-    LDKUIFontPageTexture* entry = x_array_ldk_ui_font_page_texture_get(ctx->font_page_textures, i);
-
-    if (entry != NULL && entry->texture != 0)
-    {
-      GLuint texture = entry->texture;
-      glDeleteTextures(1, &texture);
-    }
-  }
-
-
   x_array_destroy(ctx->windows);
   x_array_destroy(ctx->id_stack);
   x_array_destroy(ctx->vertices);
   x_array_destroy(ctx->indices);
   x_array_destroy(ctx->commands);
-  x_array_destroy(ctx->font_page_textures);
   x_arena_destroy(ctx->frame_arena);
 
   memset(ctx, 0, sizeof(*ctx));

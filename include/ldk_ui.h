@@ -24,7 +24,7 @@ extern "C" {
 
 #include <ldk_common.h>
 #include <ldk_os.h>
-#include <ldk_font.h>
+#include <ldk_ttf.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_arena.h>
 
@@ -33,6 +33,7 @@ extern "C" {
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
+  typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(void* user, LDKFontInstance* font, u32 page_index);
   typedef u32 LDKUIColor;
   typedef struct LDKUIItem LDKUIItem;
   typedef struct LDKUILayoutNode LDKUILayoutNode;
@@ -69,12 +70,6 @@ extern "C" {
   {
     LDKUIColor colors[LDK_UI_COLOR_COUNT];
   } LDKUITheme;
-
-  typedef struct LDKUIFontPageTexture
-  {
-    u32 page_index;
-    u32 texture;
-  } LDKUIFontPageTexture;
 
   typedef struct LDKUIVertex
   {
@@ -126,8 +121,6 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIDrawCmd, ldk_ui_draw_cmd);
   X_ARRAY_TYPE_NAMED(LDKUIItem*, ldk_ui_item_ptr);
   X_ARRAY_TYPE_NAMED(LDKUIWidgetState, ldk_ui_widget_state);
-  X_ARRAY_TYPE_NAMED(LDKUIFontPageTexture, ldk_ui_font_page_texture);
-
 
   typedef enum 
   {
@@ -155,6 +148,8 @@ extern "C" {
     u32 initial_window_capacity;
     u32 initial_id_stack_capacity;
     const char* font;
+    void* font_texture_user;
+    LDKUIGetFontPageTextureFn get_font_page_texture;
     LDKUIThemeType theme;
     u32 font_size;
   } LDKUIConfig;
@@ -267,6 +262,8 @@ extern "C" {
     XArena* frame_arena;
     LDKFontInstance* font;
     void* font_file; // this is a XFile*
+    void* font_texture_user;
+    LDKUIGetFontPageTextureFn get_font_page_texture;
     LDKMouseState const* mouse;
     LDKKeyboardState const* keyboard;
     LDKUIRect viewport;
@@ -288,7 +285,6 @@ extern "C" {
     XArray_ldk_ui_widget_state* widget_states;
     LDKUIRenderData render_data;
     LDKUITheme theme;
-    XArray_ldk_ui_font_page_texture* font_page_textures;
     u32 frame_index;
     LDKUIId dragging_item;
     float drag_x;

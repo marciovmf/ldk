@@ -1,5 +1,6 @@
 #include "ldk_common.h"
 #include "ldk_eventqueue.h"
+#include "ldk_ttf.h"
 #include "ldk_gl.h"
 #include "stdx/stdx_common.h"
 #include <stdio.h>
@@ -43,6 +44,7 @@
 #include <ldk_os.h>
 #include <ldk_ui.h>
 #include <ldk_ui_renderer.h>
+#include <ldk_font_cache.h>
 #include <ldk_game.h>
 
 #include <signal.h>
@@ -59,6 +61,8 @@ struct LDKRoot
   LDKConfig             config;
   LDKUIContext          editor_ui;
   LDKUIRenderer         ui_renderer;
+  LDKFontCache          font_cache;
+  LDKFontFace*          editor_font_face;
   XLogger               logger;
   // Runtime state
   i32                   exit_code;
@@ -111,6 +115,7 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot* e)
 {
   ldk_ui_terminate(&e->editor_ui);
+  ldk_font_cache_terminate(&e->font_cache);
   ldk_system_registry_terminate(&e->system_registry);
   ldk_component_registry_terminate(&e->component_registry);
   ldk_entity_module_terminate(&e->entity_registry);
@@ -445,6 +450,9 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_UI:
       return &g_engine.editor_ui;
 
+    case LDK_MODULE_FONT_CACHE:
+      return &g_engine.font_cache;
+
     case LDK_MODULE_UI_RENDERER:
       return &g_engine.ui_renderer;
 
@@ -551,12 +559,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
-  if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
-  {
-    ldk_log_error("Failed to initialize module: UI System.");
-    engine_init_failed = true;
-  }
-
   LDKUIRendererConfig ui_renderer_config;
   ui_renderer_config.initial_index_capacity = ui_cfg.initial_index_capacity;
   ui_renderer_config.initial_vertex_capacity = ui_cfg.initial_vertex_capacity;
@@ -566,6 +568,59 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ldk_engine_terminate();
     return false;
   }
+
+
+  { // Font cache initialization
+    LDKFontCacheConfig font_cache_config;
+    memset(&font_cache_config, 0, sizeof(font_cache_config));
+    font_cache_config.initial_page_capacity = 4;
+
+    XFile* font_file = x_io_open(config->editor_font.buf, "rb");
+    size_t font_file_size = 0;
+    if (!font_file)
+    {
+      ldk_log_error("Failed to load editor font '%s' .", config->editor_font.buf);
+      ldk_engine_terminate();
+      return false;
+    }
+    const char* font_file_data = x_io_read_all(font_file, &font_file_size);
+    if (! font_file_data)
+    {
+      ldk_log_error("Failed to read editor font '%s' .", config->editor_font.buf);
+      ldk_engine_terminate();
+      return false;
+    }
+
+    LDKFontAtlasDesc font_atlas_desc = {0};
+    font_atlas_desc.padding = 1;
+    font_atlas_desc.page_width = 256;
+    font_atlas_desc.page_height = 256;
+
+    e->editor_font_face = ldk_font_face_create(font_file_data, (u32)font_file_size);
+    LDKFontInstance* editor_font =  ldk_font_get_instance(
+        e->editor_font_face,
+        (float)e->config.editor_font_size,
+        &font_atlas_desc);
+
+    if (!ldk_font_cache_initialize(&e->font_cache, editor_font, &font_cache_config))
+    {
+      ldk_log_error("Failed to initialize module: UI Renderer.");
+      ldk_engine_terminate();
+      return false;
+    }
+  }
+
+  { // UI Initialization
+    ui_cfg.font_texture_user = &e->font_cache;
+    ui_cfg.get_font_page_texture = ldk_font_cache_get_page_texture_callback;
+
+    if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
+    {
+      ldk_log_error("Failed to initialize module: UI System.");
+      engine_init_failed = true;
+    }
+  }
+
 
   if (engine_init_failed)
   {
