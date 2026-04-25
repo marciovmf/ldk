@@ -1034,12 +1034,12 @@ static void ldk_ui_draw_text(LDKUIContext* ctx, char const* text, float x, float
   }
 }
 
-static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
-{
-  u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+//
+// Widget renderting 
+//
 
-  if (item->type == LDK_UI_ITEM_LABEL)
-  {
+static void s_ui_emit_label(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
     ldk_ui_draw_text(
         ctx,
         item->text,
@@ -1047,21 +1047,20 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+}
 
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_BUTTON)
-  {
+static void s_ui_emit_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
+    u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
     LDKUISize text_size;
 
     if (ctx->active_id == item->id)
     {
-      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
     }
     else if (ctx->hot_id == item->id)
     {
-      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
     }
 
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
@@ -1075,36 +1074,33 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+}
 
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
-  {
+static void s_ui_emit_toggle_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
     bool toggled = item->data.toggle_button.value;
+    u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
     LDKUISize text_size;
-
-    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 
     if (toggled)
     {
-      color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
+        color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
 
-      if (ctx->hot_id == item->id)
-      {
-        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
-      }
+        if (ctx->hot_id == item->id)
+        {
+            color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
+        }
     }
     else
     {
-      if (ctx->active_id == item->id)
-      {
-        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-      }
-      else if (ctx->hot_id == item->id)
-      {
-        color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
-      }
+        if (ctx->active_id == item->id)
+        {
+            color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+        }
+        else if (ctx->hot_id == item->id)
+        {
+            color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+        }
     }
 
     s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
@@ -1118,12 +1114,10 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+}
 
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_SLIDER_FLOAT)
-  {
+static void s_ui_emit_slider_float(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
     float t = 0.0f;
     LDKUIRect fill_rect = item->rect;
     u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
@@ -1134,17 +1128,17 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
 
     if (range > 0.0f)
     {
-      t = (item->data.slider_float.value - item->data.slider_float.min_value) / range;
-      t = s_ui_clampf(t, 0.0f, 1.0f);
+        t = (item->data.slider_float.value - item->data.slider_float.min_value) / range;
+        t = s_ui_clampf(t, 0.0f, 1.0f);
     }
 
     if (ctx->active_id == item->id)
     {
-      track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+        track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
     }
     else if (ctx->hot_id == item->id)
     {
-      track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+        track_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
     }
 
     s_ui_emit_quad(ctx, item->rect, track_color, clip_rect, 0);
@@ -1164,55 +1158,51 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+}
 
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_SCROLL_AREA)
-  {
+static void s_ui_emit_scroll_area(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
     if (item->data.scroll_area.has_vertical_scrollbar)
     {
-      LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
-      u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
-      u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
+        LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
+        u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
+        u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
 
-      if (ctx->active_id == thumb_id)
-      {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
-      }
-      else if (ctx->hot_id == thumb_id)
-      {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
-      }
+        if (ctx->active_id == thumb_id)
+        {
+            thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
+        }
+        else if (ctx->hot_id == thumb_id)
+        {
+            thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
+        }
 
-      s_ui_emit_quad(ctx, item->data.scroll_area.vertical_track_rect, track_color, clip_rect, 0);
-      s_ui_emit_quad(ctx, item->data.scroll_area.vertical_thumb_rect, thumb_color, clip_rect, 0);
+        s_ui_emit_quad(ctx, item->data.scroll_area.vertical_track_rect, track_color, clip_rect, 0);
+        s_ui_emit_quad(ctx, item->data.scroll_area.vertical_thumb_rect, thumb_color, clip_rect, 0);
     }
 
     if (item->data.scroll_area.has_horizontal_scrollbar)
     {
-      LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
-      u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
-      u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
+        LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+        u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
+        u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
 
-      if (ctx->active_id == thumb_id)
-      {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
-      }
-      else if (ctx->hot_id == thumb_id)
-      {
-        thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
-      }
+        if (ctx->active_id == thumb_id)
+        {
+            thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
+        }
+        else if (ctx->hot_id == thumb_id)
+        {
+            thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
+        }
 
-      s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_track_rect, track_color, clip_rect, 0);
-      s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_thumb_rect, thumb_color, clip_rect, 0);
+        s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_track_rect, track_color, clip_rect, 0);
+        s_ui_emit_quad(ctx, item->data.scroll_area.horizontal_thumb_rect, thumb_color, clip_rect, 0);
     }
+}
 
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_COLOR_VIEW)
-  {
+static void s_ui_emit_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
     char const* text = item->data.color_view.label;
     LDKUISize text_size;
 
@@ -1227,9 +1217,45 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
         item->rect.y + (item->rect.h - text_size.h) * 0.5f,
         ctx->theme.colors[LDK_UI_COLOR_TEXT],
         clip_rect);
+}
 
-    return;
-  }
+static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
+    if (item->type == LDK_UI_ITEM_LABEL)
+    {
+        s_ui_emit_label(ctx, item, clip_rect);
+        return;
+    }
+
+    if (item->type == LDK_UI_ITEM_BUTTON)
+    {
+        s_ui_emit_button(ctx, item, clip_rect);
+        return;
+    }
+
+    if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
+    {
+        s_ui_emit_toggle_button(ctx, item, clip_rect);
+        return;
+    }
+
+    if (item->type == LDK_UI_ITEM_SLIDER_FLOAT)
+    {
+        s_ui_emit_slider_float(ctx, item, clip_rect);
+        return;
+    }
+
+    if (item->type == LDK_UI_ITEM_SCROLL_AREA)
+    {
+        s_ui_emit_scroll_area(ctx, item, clip_rect);
+        return;
+    }
+
+    if (item->type == LDK_UI_ITEM_COLOR_VIEW)
+    {
+        s_ui_emit_color_view(ctx, item, clip_rect);
+        return;
+    }
 }
 
 static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
