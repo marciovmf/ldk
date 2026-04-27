@@ -452,7 +452,7 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 g
   return true;
 }
 
-inline static LDKWindow s_dkwindow_from_win32_hwnd(HWND hWnd)
+inline static LDKWindow s_lkwindow_from_win32_hwnd(HWND hWnd)
 {
   for (u32 i =0; i < s_oswin32.windowCount; i++)
   {
@@ -1015,7 +1015,7 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   i32 mouseButtonId = -1;
   LRESULT returnValue = FALSE;
 
-  LDKWin32Window* window = (LDKWin32Window*) s_dkwindow_from_win32_hwnd(hwnd);
+  LDKWin32Window* window = (LDKWin32Window*) s_lkwindow_from_win32_hwnd(hwnd);
 
   switch(uMsg) 
   {
@@ -1102,14 +1102,20 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_MOUSEWHEEL:
       {
+        // A wheel event may be sent to the focus window, not necessarily the window under the cursor.
+        // Becasue of that we must to explicitly convert it to client space first.
+        // Also because of that I lost hours chasing a stupid IMGUI bug. Thanks Microsoft.
+        POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        ScreenToClient(hwnd, &pt);
+
         i32 delta = GET_WHEEL_DELTA_WPARAM(wParam);
         s_oswin32.mouseState.wheelDelta = delta;
 
         // update cursor position
         i32 lastX = s_oswin32.mouseState.cursor.x;
         i32 lastY = s_oswin32.mouseState.cursor.y;
-        s_oswin32.mouseState.cursor.x = GET_X_LPARAM(lParam);
-        s_oswin32.mouseState.cursor.y = GET_Y_LPARAM(lParam); 
+        s_oswin32.mouseState.cursor.x = pt.x;
+        s_oswin32.mouseState.cursor.y = pt.y;
         s_oswin32.mouseState.cursorRelative.x = s_oswin32.mouseState.cursor.x - lastX;
         s_oswin32.mouseState.cursorRelative.y = s_oswin32.mouseState.cursor.y - lastY;
 
@@ -1118,10 +1124,12 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         e->window = window;
         e->mouseEvent.wheelDelta = delta;
         e->mouseEvent.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
-        e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
-        e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
+        e->mouseEvent.cursorX = pt.x;
+        e->mouseEvent.cursorY = pt.y;
         e->mouseEvent.xRel    = s_oswin32.mouseState.cursorRelative.x;
         e->mouseEvent.yRel    = s_oswin32.mouseState.cursorRelative.y;
+
+        ScreenToClient(hwnd, &pt);
       }
       break;
 
@@ -1139,7 +1147,7 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         e->mouseEvent.xRel    = e->mouseEvent.cursorX - lastX;
         e->mouseEvent.yRel    = e->mouseEvent.cursorY - lastY;
         e->window = window;
-        e->mouseEvent.type = LDK_MOUSE_EVENT_MOVE;
+        e->mouseEvent.type    = LDK_MOUSE_EVENT_MOVE;
         e->mouseEvent.cursorX = GET_X_LPARAM(lParam); 
         e->mouseEvent.cursorY = GET_Y_LPARAM(lParam); 
         e->mouseEvent.xRel    = s_oswin32.mouseState.cursorRelative.x;
