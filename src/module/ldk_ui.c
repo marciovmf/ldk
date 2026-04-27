@@ -821,6 +821,25 @@ static void s_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRe
   s_ui_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
+#ifdef LDK_UI_DEBUG_DRAW
+static void s_ui_emit_debug_rect(LDKUIContext* ctx, LDKUIRect rect, u32 color)
+{
+  float t = 1.0f;
+
+  LDKUIRect top = { rect.x, rect.y, rect.w, t };
+  LDKUIRect bottom = { rect.x, rect.y + rect.h - t, rect.w, t };
+  LDKUIRect left = { rect.x, rect.y, t, rect.h };
+  LDKUIRect right = { rect.x + rect.w - t, rect.y, t, rect.h };
+
+  LDKUIRect no_clip = { -100000.0f, -100000.0f, 200000.0f, 200000.0f };
+
+  s_ui_emit_quad(ctx, top, color, no_clip, 0);
+  s_ui_emit_quad(ctx, bottom, color, no_clip, 0);
+  s_ui_emit_quad(ctx, left, color, no_clip, 0);
+  s_ui_emit_quad(ctx, right, color, no_clip, 0);
+}
+#endif
+
 static bool s_ui_scrollbar_rects(LDKUIRect rect, float visible_size, float content_size, float scroll, bool horizontal, LDKUIRect* track_rect, LDKUIRect* thumb_rect)
 {
   float thickness = 12.0f;
@@ -898,6 +917,7 @@ static bool s_ui_scrollbar_rects(LDKUIRect rect, float visible_size, float conte
 static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+
   bool inside;
 
   if (!s_ui_window_can_interact(ctx, ctx->current_window) && ctx->active_id != item->id)
@@ -1216,40 +1236,32 @@ static void s_ui_emit_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect c
 static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   if (item->type == LDK_UI_ITEM_LABEL)
-  {
     s_ui_emit_label(ctx, item, clip_rect);
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_BUTTON)
-  {
+  else if (item->type == LDK_UI_ITEM_BUTTON)
     s_ui_emit_button(ctx, item, clip_rect);
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
-  {
+  else if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
     s_ui_emit_toggle_button(ctx, item, clip_rect);
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_SLIDER_FLOAT)
-  {
+  else if (item->type == LDK_UI_ITEM_SLIDER_FLOAT)
     s_ui_emit_slider_float(ctx, item, clip_rect);
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_SCROLL_AREA)
-  {
+  else if (item->type == LDK_UI_ITEM_SCROLL_AREA)
     s_ui_emit_scroll_area(ctx, item, clip_rect);
-    return;
-  }
-
-  if (item->type == LDK_UI_ITEM_COLOR_VIEW)
-  {
+  else if (item->type == LDK_UI_ITEM_COLOR_VIEW)
     s_ui_emit_color_view(ctx, item, clip_rect);
-    return;
+
+#ifdef LDK_UI_DEBUG_DRAW
+  if (ctx->hot_id == item->id)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    LDKUIRect debug_clip = s_ui_rect_intersect(clip_rect, item->rect);
+
+    if (s_ui_rect_contains(debug_clip, (float)cursor.x, (float)cursor.y))
+    {
+      s_ui_emit_debug_rect(ctx, item->rect, 0x00ff00ffu);
+      s_ui_emit_debug_rect(ctx, clip_rect, 0xff00ffffu);
+      s_ui_emit_debug_rect(ctx, debug_clip, 0xffff00ffu);
+    }
   }
+#endif
 }
 
 static LDKUISize s_ui_layout_measure_node(LDKUILayoutNode* node)
@@ -1758,7 +1770,6 @@ void ldk_ui_terminate(LDKUIContext* ctx)
 void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
-
   ctx->mouse = mouse;
   ctx->keyboard = keyboard;
   ctx->viewport = viewport;
@@ -2537,13 +2548,16 @@ LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIS
           &horizontal_thumb_rect);
     }
 
-    if (s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y))
+    if (s_ui_window_can_interact(ctx, ctx->current_window))
     {
-      i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
-
-      if (wheel_delta != 0 && (flags & LDK_UI_SCROLL_VERTICAL) != 0)
+      if (s_ui_rect_contains(state->clip_rect, (float)cursor.x, (float)cursor.y))
       {
-        scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+        i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
+
+        if (wheel_delta != 0 && (flags & LDK_UI_SCROLL_VERTICAL) != 0)
+        {
+          scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+        }
       }
     }
 
