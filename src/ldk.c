@@ -287,12 +287,12 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_begin_horizontal(ui);
 
     ldk_ui_begin_vertical(ui);
-    ldk_ui_set_next_expand_height(ui, true);
-    r = ldk_ui_slider_bar(ui, "Slider", r, 0.0f, 255.0f);
-    ldk_ui_set_next_expand_height(ui, true);
-    g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
-    ldk_ui_set_next_expand_height(ui, true);
-    b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
+      ldk_ui_set_next_expand_height(ui, true);
+      r = ldk_ui_slider(ui, "Slider", r, 0.0f, 255.0f);
+      ldk_ui_set_next_expand_height(ui, true);
+      g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
+      ldk_ui_set_next_expand_height(ui, true);
+      b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
     ldk_ui_end_vertical(ui);
 
     ldk_ui_set_next_expand_height(ui, true);
@@ -335,6 +335,13 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
   {
     w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
     scroll_pos = ldk_ui_begin_vertical_scroll_area(ui, scroll_pos);
+
+
+    ldk_ui_set_next_expand_height(ui, true);
+    ui->theme.slider_track_height = ldk_ui_slider(ui, "Slider", ui->theme.slider_track_height, 0.0f, 1.0f);
+
+    ldk_ui_set_next_expand_height(ui, true);
+    ui->theme.slider_thumb_width = ldk_ui_slider(ui, "Slider", ui->theme.slider_thumb_width, 0.0f, 1.0f);
 
     for(u32 i = 0; i < 30; i++)
     {

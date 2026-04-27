@@ -201,8 +201,9 @@ static LDKUISize s_ui_measure_slider_impl(LDKUIContext* ctx, char const* text, L
 {
   LDKUISize label_size = s_ui_measure_text(ctx->font, text);
   LDKUISize size = { 0.0f, 0.0f };
-  float track_height = s_ui_maxf(ctx->theme.slider_track_height, 1.0f);
-  float thumb_width = s_ui_maxf(ctx->theme.slider_thumb_width, 1.0f);
+  float base_height = 22.0f;
+  float track_height = base_height * s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
+  float thumb_width = base_height * s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
 
   if (type == LDK_UI_ITEM_SLIDER_BAR)
   {
@@ -211,7 +212,7 @@ static LDKUISize s_ui_measure_slider_impl(LDKUIContext* ctx, char const* text, L
   }
 
   size.w = s_ui_maxf(140.0f, label_size.w + 80.0f);
-  size.h = s_ui_maxf(22.0f, s_ui_maxf(track_height, thumb_width));
+  size.h = s_ui_maxf(base_height, s_ui_maxf(track_height, thumb_width));
 
   return size;
 }
@@ -557,7 +558,8 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
 
   if (item->type == LDK_UI_ITEM_SLIDER)
   {
-    thumb_width = s_ui_minf(ctx->theme.slider_thumb_width, state->rect.w);
+    float thumb_width_factor = s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
+    thumb_width = s_ui_minf(state->rect.h * thumb_width_factor, state->rect.w);
   }
 
   float usable_width = s_ui_maxf(state->rect.w - thumb_width, 1.0f);
@@ -1196,11 +1198,13 @@ static void s_ui_emit_slider_bar(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect c
 static void s_ui_emit_slider(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   float t = s_ui_slider_normalized_value(item);
-  float track_height = s_ui_minf(ctx->theme.slider_track_height, item->rect.h);
-  float thumb_width = s_ui_minf(ctx->theme.slider_thumb_width, item->rect.w);
+  float track_height_factor = s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
+  float thumb_width_factor = s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
+  float track_height = item->rect.h * track_height_factor;
+  float thumb_width = s_ui_minf(item->rect.h * thumb_width_factor, item->rect.w);
   LDKUIRect track_rect = item->rect;
-  LDKUIRect fill_rect;
-  LDKUIRect thumb_rect;
+  LDKUIRect fill_rect = item->rect;
+  LDKUIRect thumb_rect = item->rect;
   u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
   u32 fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
   u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_THUMB];
@@ -1731,8 +1735,8 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
     theme->slider_bar_track_height                         = 22.0f;
-    theme->slider_track_height                             = 6.0f;
-    theme->slider_thumb_width                              = 14.0f;
+    theme->slider_track_height                             = 0.27272728f;
+    theme->slider_thumb_width                              = 0.63636363f;
   }
   else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
   {
@@ -1782,8 +1786,8 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
     theme->slider_bar_track_height                         = 22.0f;
-    theme->slider_track_height                             = 6.0f;
-    theme->slider_thumb_width                              = 14.0f;
+    theme->slider_track_height                             = 0.27272728f;
+    theme->slider_thumb_width                              = 0.63636363f;
   }
   else if (type == LDK_UI_THEME_CUSTOM && custom != NULL)
   {
