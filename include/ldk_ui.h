@@ -54,8 +54,17 @@ extern "C" {
     LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED,
     LDK_UI_COLOR_BORDER,
     LDK_UI_COLOR_FOCUS,
+    LDK_UI_COLOR_SLIDER_BAR_TRACK,
+    LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED,
+    LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE,
+    LDK_UI_COLOR_SLIDER_BAR_FILL,
     LDK_UI_COLOR_SLIDER_TRACK,
+    LDK_UI_COLOR_SLIDER_TRACK_HOVERED,
+    LDK_UI_COLOR_SLIDER_TRACK_ACTIVE,
     LDK_UI_COLOR_SLIDER_FILL,
+    LDK_UI_COLOR_SLIDER_THUMB,
+    LDK_UI_COLOR_SLIDER_THUMB_HOVERED,
+    LDK_UI_COLOR_SLIDER_THUMB_ACTIVE,
     LDK_UI_COLOR_TITLE_BAR,
     LDK_UI_COLOR_TITLE_BAR_FOCUSED,
     LDK_UI_COLOR_SCROLLBAR_TRACK,
@@ -77,6 +86,9 @@ extern "C" {
   typedef struct LDKUITheme
   {
     LDKUIColor colors[LDK_UI_COLOR_COUNT];
+    float slider_bar_track_height;
+    float slider_track_height;
+    float slider_thumb_width;
   } LDKUITheme;
 
   typedef struct LDKUIVertex
@@ -174,10 +186,11 @@ extern "C" {
     LDK_UI_ITEM_LABEL = 1,
     LDK_UI_ITEM_BUTTON = 2,
     LDK_UI_ITEM_TOGGLE_BUTTON = 3,
-    LDK_UI_ITEM_SLIDER_FLOAT = 4,
-    LDK_UI_ITEM_LAYOUT = 5,
-    LDK_UI_ITEM_COLOR_VIEW = 6,
-    LDK_UI_ITEM_SCROLL_AREA = 7,
+    LDK_UI_ITEM_SLIDER_BAR = 4,
+    LDK_UI_ITEM_SLIDER = 5,
+    LDK_UI_ITEM_LAYOUT = 6,
+    LDK_UI_ITEM_COLOR_VIEW = 7,
+    LDK_UI_ITEM_SCROLL_AREA = 8,
   } LDKUIItemType;
 
   typedef struct LDKUINextLayout
@@ -230,7 +243,7 @@ extern "C" {
         float value;
         float min_value;
         float max_value;
-      } slider_float;
+      } slider;
       struct
       {
         LDKUILayoutNode* node;
@@ -359,7 +372,8 @@ extern "C" {
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value);
-  LDK_API float ldk_ui_slider_float(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
+  LDK_API float ldk_ui_slider_bar(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
+  LDK_API float ldk_ui_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
 
   LDK_API void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color);

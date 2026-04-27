@@ -288,11 +288,11 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 
     ldk_ui_begin_vertical(ui);
     ldk_ui_set_next_expand_height(ui, true);
-    r = ldk_ui_slider_float(ui, "Slider", r, 0.0f, 255.0f);
+    r = ldk_ui_slider_bar(ui, "Slider", r, 0.0f, 255.0f);
     ldk_ui_set_next_expand_height(ui, true);
-    g = ldk_ui_slider_float(ui, "Slider", g, 0.0f, 255.0f);
+    g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
     ldk_ui_set_next_expand_height(ui, true);
-    b = ldk_ui_slider_float(ui, "Slider", b, 0.0f, 255.0f);
+    b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
     ldk_ui_end_vertical(ui);
 
     ldk_ui_set_next_expand_height(ui, true);
