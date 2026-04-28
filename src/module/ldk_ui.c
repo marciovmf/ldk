@@ -39,28 +39,6 @@ typedef enum LDKUIControlVisualState
 #define s_ui_rect_contains ldk_rectf_contains
 #define s_ui_rect_intersect ldk_rectf_intersect
 
-static bool s_ui_context_disabled(LDKUIContext const* ctx)
-{
-  if (ctx == NULL)
-  {
-    return false;
-  }
-
-  if (ctx->next_disabled)
-  {
-    return true;
-  }
-
-  bool const* disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
-
-  if (disabled == NULL)
-  {
-    return false;
-  }
-
-  return *disabled;
-}
-
 static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, float y)
 {
   if (state == NULL)
@@ -748,6 +726,29 @@ static bool s_ui_keyboard_right_pressed(LDKUIContext* ctx)
   return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
+static void s_ui_clear_item_interaction_if_disabled(LDKUIContext* ctx, LDKUIItem const* item)
+{
+  if (ctx == NULL || item == NULL)
+  {
+    return;
+  }
+
+  if (!item->disabled)
+  {
+    return;
+  }
+
+  if (ctx->active_id == item->id)
+  {
+    ctx->active_id = 0;
+  }
+
+  if (ctx->focused_id == item->id)
+  {
+    ctx->focused_id = 0;
+  }
+}
+
 /**
  * Returns true if the widget was clicked this frame.
  *
@@ -763,16 +764,7 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
 
   if (item->disabled)
   {
-    if (ctx->active_id == item->id)
-    {
-      ctx->active_id = 0;
-    }
-
-    if (ctx->focused_id == item->id)
-    {
-      ctx->focused_id = 0;
-    }
-
+    s_ui_clear_item_interaction_if_disabled(ctx, item);
     return false;
   }
 
@@ -842,16 +834,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
 
   if (item->disabled)
   {
-    if (ctx->active_id == item->id)
-    {
-      ctx->active_id = 0;
-    }
-
-    if (ctx->focused_id == item->id)
-    {
-      ctx->focused_id = 0;
-    }
-
+    s_ui_clear_item_interaction_if_disabled(ctx, item);
     return false;
   }
 
@@ -886,7 +869,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
 
   if (ctx->active_id != item->id || !down)
   {
-    if (!item->disabled && ldk_os_mouse_button_up((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT) && ctx->active_id == item->id)
+    if (ldk_os_mouse_button_up((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT) && ctx->active_id == item->id)
     {
       ctx->active_id = 0;
     }
@@ -938,6 +921,38 @@ static LDKUILayoutNode* s_ui_layout_node_create(LDKUIContext* ctx, LDKUILayoutDi
   return node;
 }
 
+static bool s_ui_current_disabled_scope(LDKUIContext const* ctx)
+{
+  if (ctx == NULL)
+  {
+    return false;
+  }
+
+  bool const* disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
+
+  if (disabled == NULL)
+  {
+    return false;
+  }
+
+  return *disabled;
+}
+
+static bool s_ui_next_item_disabled(LDKUIContext const* ctx)
+{
+  if (ctx == NULL)
+  {
+    return false;
+  }
+
+  if (ctx->next_disabled)
+  {
+    return true;
+  }
+
+  return s_ui_current_disabled_scope(ctx);
+}
+
 static LDKUIItem* s_ui_item_create(LDKUIContext* ctx)
 {
   if (ctx == NULL)
@@ -953,7 +968,7 @@ static LDKUIItem* s_ui_item_create(LDKUIContext* ctx)
     return NULL;
   }
 
-  item->disabled = s_ui_context_disabled(ctx);
+  item->disabled = s_ui_next_item_disabled(ctx);
   ctx->next_disabled = false;
 
   return item;
@@ -1260,6 +1275,21 @@ static u32 s_ui_control_border_color(LDKUIContext* ctx, LDKUIControlVisualState 
   return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
 }
 
+static u32 s_ui_control_bg_color(LDKUIContext* ctx, LDKUIControlVisualState state)
+{
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE || state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+  }
+
+  return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+}
+
 static void s_ui_emit_border(LDKUIContext* ctx, LDKUIRect rect, float size, u32 color, LDKUIRect clip_rect)
 {
   float border_size = s_ui_maxf(size, 0.0f);
@@ -1524,20 +1554,11 @@ static void s_ui_emit_label(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_r
 
 static void s_ui_emit_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
-  u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
   LDKUIControlVisualState state = s_ui_control_visual_state(ctx, item);
+  u32 color = s_ui_control_bg_color(ctx, state);
   u32 text_color = s_ui_control_text_color(ctx, state);
   u32 border_color = s_ui_control_border_color(ctx, state);
   LDKUISize text_size;
-
-  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE || state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
-  {
-    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-  }
-  else if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
-  {
-    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
-  }
 
   s_ui_emit_quad(ctx, item->rect, color, clip_rect, 0);
   s_ui_emit_border(ctx, item->rect, ctx->theme.control_border_size, border_color, clip_rect);
@@ -1556,8 +1577,8 @@ static void s_ui_emit_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
 static void s_ui_emit_toggle_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   bool toggled = item->data.toggle_button.value;
-  u32 color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
   LDKUIControlVisualState state = s_ui_control_visual_state(ctx, item);
+  u32 color = s_ui_control_bg_color(ctx, state);
   u32 text_color = s_ui_control_text_color(ctx, state);
   u32 border_color = s_ui_control_border_color(ctx, state);
   LDKUISize text_size;
@@ -1569,17 +1590,6 @@ static void s_ui_emit_toggle_button(LDKUIContext* ctx, LDKUIItem* item, LDKUIRec
     if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
     {
       color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
-    }
-  }
-  else if (!item->disabled)
-  {
-    if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE || state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
-    {
-      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-    }
-    else if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
-    {
-      color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
     }
   }
 
@@ -2941,7 +2951,7 @@ LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIS
 
   bool has_vertical_scrollbar = false;
   bool has_horizontal_scrollbar = false;
-  bool disabled = s_ui_context_disabled(ctx);
+  bool disabled = s_ui_next_item_disabled(ctx);
 
   LDK_ASSERT(ctx->current_layout != NULL);
 
@@ -3474,18 +3484,7 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
 
   state = s_ui_widget_state_find(ctx, item->id);
 
-  if (item->disabled)
-  {
-    if (ctx->active_id == item->id)
-    {
-      ctx->active_id = 0;
-    }
-
-    if (ctx->focused_id == item->id)
-    {
-      ctx->focused_id = 0;
-    }
-  }
+  s_ui_clear_item_interaction_if_disabled(ctx, item);
 
   if (!item->disabled && state != NULL && s_ui_window_can_interact(ctx, ctx->current_window))
   {
