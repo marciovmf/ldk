@@ -187,6 +187,178 @@ static void ldk_rhi_collect_deferred_deletes(LDKRHIContext* context, bool force)
   context->deferred_delete_count = write_index;
 }
 
+
+static bool ldk_rhi_is_valid_buffer_usage(uint32_t usage)
+{
+  const uint32_t valid_bits = LDK_RHI_BUFFER_USAGE_VERTEX |
+      LDK_RHI_BUFFER_USAGE_INDEX |
+      LDK_RHI_BUFFER_USAGE_UNIFORM |
+      LDK_RHI_BUFFER_USAGE_STORAGE |
+      LDK_RHI_BUFFER_USAGE_TRANSFER_SRC |
+      LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+
+  return usage != LDK_RHI_BUFFER_USAGE_NONE && (usage & ~valid_bits) == 0;
+}
+
+static bool ldk_rhi_is_valid_texture_usage(uint32_t usage)
+{
+  const uint32_t valid_bits = LDK_RHI_TEXTURE_USAGE_SAMPLED |
+      LDK_RHI_TEXTURE_USAGE_RENDER_TARGET |
+      LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL |
+      LDK_RHI_TEXTURE_USAGE_STORAGE |
+      LDK_RHI_TEXTURE_USAGE_TRANSFER_SRC |
+      LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
+
+  return usage != LDK_RHI_TEXTURE_USAGE_NONE && (usage & ~valid_bits) == 0;
+}
+
+static bool ldk_rhi_is_valid_shader_stage_mask(uint32_t stages)
+{
+  const uint32_t valid_bits = LDK_RHI_SHADER_STAGE_VERTEX |
+      LDK_RHI_SHADER_STAGE_FRAGMENT |
+      LDK_RHI_SHADER_STAGE_COMPUTE;
+
+  return stages != LDK_RHI_SHADER_STAGE_NONE && (stages & ~valid_bits) == 0;
+}
+
+static bool ldk_rhi_is_valid_shader_stage_single(uint32_t stage)
+{
+  return stage == LDK_RHI_SHADER_STAGE_VERTEX ||
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT ||
+      stage == LDK_RHI_SHADER_STAGE_COMPUTE;
+}
+
+static bool ldk_rhi_is_valid_format(LDKRHIFormat format)
+{
+  return format > LDK_RHI_FORMAT_INVALID && format <= LDK_RHI_FORMAT_D32_FLOAT;
+}
+
+static bool ldk_rhi_is_valid_texture_type(LDKRHITextureType type)
+{
+  return type >= LDK_RHI_TEXTURE_TYPE_2D && type <= LDK_RHI_TEXTURE_TYPE_CUBE;
+}
+
+static bool ldk_rhi_is_valid_texture_swizzle(LDKRHITextureSwizzle swizzle)
+{
+  return swizzle >= LDK_RHI_TEXTURE_SWIZZLE_IDENTITY && swizzle <= LDK_RHI_TEXTURE_SWIZZLE_A;
+}
+
+static bool ldk_rhi_is_valid_filter(LDKRHIFilter filter)
+{
+  return filter >= LDK_RHI_FILTER_NEAREST && filter <= LDK_RHI_FILTER_LINEAR;
+}
+
+static bool ldk_rhi_is_valid_wrap(LDKRHIWrap wrap)
+{
+  return wrap >= LDK_RHI_WRAP_REPEAT && wrap <= LDK_RHI_WRAP_MIRROR;
+}
+
+static bool ldk_rhi_is_valid_shader_code_format(LDKRHIShaderCodeFormat format)
+{
+  return format >= LDK_RHI_SHADER_CODE_FORMAT_GLSL && format <= LDK_RHI_SHADER_CODE_FORMAT_MSL;
+}
+
+static bool ldk_rhi_is_valid_primitive_topology(LDKRHIPrimitiveTopology topology)
+{
+  return topology >= LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES && topology <= LDK_RHI_PRIMITIVE_TOPOLOGY_LINES;
+}
+
+static bool ldk_rhi_is_valid_cull_mode(LDKRHICullMode cull_mode)
+{
+  return cull_mode >= LDK_RHI_CULL_MODE_NONE && cull_mode <= LDK_RHI_CULL_MODE_BACK;
+}
+
+static bool ldk_rhi_is_valid_front_face(LDKRHIFrontFace front_face)
+{
+  return front_face >= LDK_RHI_FRONT_FACE_CCW && front_face <= LDK_RHI_FRONT_FACE_CW;
+}
+
+static bool ldk_rhi_is_valid_compare_op(LDKRHICompareOp compare_op)
+{
+  return compare_op >= LDK_RHI_COMPARE_OP_NEVER && compare_op <= LDK_RHI_COMPARE_OP_ALWAYS;
+}
+
+static bool ldk_rhi_is_valid_blend_factor(LDKRHIBlendFactor factor)
+{
+  return factor >= LDK_RHI_BLEND_FACTOR_ZERO && factor <= LDK_RHI_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+}
+
+static bool ldk_rhi_is_valid_blend_op(LDKRHIBlendOp op)
+{
+  return op >= LDK_RHI_BLEND_OP_ADD && op <= LDK_RHI_BLEND_OP_REVERSE_SUBTRACT;
+}
+
+static bool ldk_rhi_is_valid_color_write_mask(uint32_t mask)
+{
+  return (mask & ~LDK_RHI_COLOR_WRITE_MASK_ALL) == 0;
+}
+
+static bool ldk_rhi_is_valid_vertex_format(LDKRHIVertexFormat format)
+{
+  return format >= LDK_RHI_VERTEX_FORMAT_FLOAT && format <= LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
+}
+
+static bool ldk_rhi_is_valid_binding_type(LDKRHIBindingType type)
+{
+  return type >= LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER && type <= LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+}
+
+static bool ldk_rhi_is_valid_load_op(LDKRHILoadOp op)
+{
+  return op >= LDK_RHI_LOAD_OP_LOAD && op <= LDK_RHI_LOAD_OP_DONT_CARE;
+}
+
+static bool ldk_rhi_is_valid_store_op(LDKRHIStoreOp op)
+{
+  return op >= LDK_RHI_STORE_OP_STORE && op <= LDK_RHI_STORE_OP_DONT_CARE;
+}
+
+static bool ldk_rhi_is_valid_index_type(LDKRHIIndexType index_type)
+{
+  return index_type >= LDK_RHI_INDEX_TYPE_UINT16 && index_type <= LDK_RHI_INDEX_TYPE_UINT32;
+}
+
+static bool ldk_rhi_is_valid_blend_state(const LDKRHIBlendState* state)
+{
+  if (state == NULL)
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_blend_factor(state->src_color_factor) ||
+      !ldk_rhi_is_valid_blend_factor(state->dst_color_factor) ||
+      !ldk_rhi_is_valid_blend_op(state->color_op) ||
+      !ldk_rhi_is_valid_blend_factor(state->src_alpha_factor) ||
+      !ldk_rhi_is_valid_blend_factor(state->dst_alpha_factor) ||
+      !ldk_rhi_is_valid_blend_op(state->alpha_op) ||
+      !ldk_rhi_is_valid_color_write_mask(state->color_write_mask))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+static bool ldk_rhi_is_valid_depth_state(const LDKRHIDepthState* state)
+{
+  if (state == NULL)
+  {
+    return false;
+  }
+
+  return ldk_rhi_is_valid_compare_op(state->compare_op);
+}
+
+static bool ldk_rhi_is_valid_raster_state(const LDKRHIRasterState* state)
+{
+  if (state == NULL)
+  {
+    return false;
+  }
+
+  return ldk_rhi_is_valid_cull_mode(state->cull_mode) && ldk_rhi_is_valid_front_face(state->front_face);
+}
+
 static bool ldk_rhi_has_backend(const LDKRHIContext* context)
 {
   if (context == NULL)
@@ -441,7 +613,12 @@ bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc)
     return false;
   }
 
-  if (desc->usage == LDK_RHI_BUFFER_USAGE_NONE)
+  if (!ldk_rhi_is_valid_buffer_usage(desc->usage))
+  {
+    return false;
+  }
+
+  if (desc->memory_usage < LDK_RHI_MEMORY_USAGE_GPU || desc->memory_usage > LDK_RHI_MEMORY_USAGE_GPU_TO_CPU)
   {
     return false;
   }
@@ -456,7 +633,12 @@ bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc)
     return false;
   }
 
-  if (desc->format == LDK_RHI_FORMAT_INVALID)
+  if (!ldk_rhi_is_valid_texture_type(desc->type))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_format(desc->format))
   {
     return false;
   }
@@ -471,7 +653,15 @@ bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc)
     return false;
   }
 
-  if (desc->usage == LDK_RHI_TEXTURE_USAGE_NONE)
+  if (!ldk_rhi_is_valid_texture_usage(desc->usage))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_texture_swizzle(desc->swizzle_r) ||
+      !ldk_rhi_is_valid_texture_swizzle(desc->swizzle_g) ||
+      !ldk_rhi_is_valid_texture_swizzle(desc->swizzle_b) ||
+      !ldk_rhi_is_valid_texture_swizzle(desc->swizzle_a))
   {
     return false;
   }
@@ -481,7 +671,22 @@ bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc)
 
 bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc)
 {
-  return desc != NULL;
+  if (desc == NULL)
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_filter(desc->min_filter) ||
+      !ldk_rhi_is_valid_filter(desc->mag_filter) ||
+      !ldk_rhi_is_valid_filter(desc->mip_filter) ||
+      !ldk_rhi_is_valid_wrap(desc->wrap_u) ||
+      !ldk_rhi_is_valid_wrap(desc->wrap_v) ||
+      !ldk_rhi_is_valid_wrap(desc->wrap_w))
+  {
+    return false;
+  }
+
+  return true;
 }
 
 bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc)
@@ -491,7 +696,12 @@ bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc)
     return false;
   }
 
-  if (desc->stage == LDK_RHI_SHADER_STAGE_NONE)
+  if (!ldk_rhi_is_valid_shader_stage_single(desc->stage))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_shader_code_format(desc->code_format))
   {
     return false;
   }
@@ -511,7 +721,12 @@ bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc)
     return false;
   }
 
-  if (desc->stage == LDK_RHI_SHADER_STAGE_NONE)
+  if (!ldk_rhi_is_valid_shader_stage_single(desc->stage))
+  {
+    return false;
+  }
+
+  if (desc->source_type < LDK_RHI_SHADER_SOURCE_TEXT || desc->source_type > LDK_RHI_SHADER_SOURCE_BINARY)
   {
     return false;
   }
@@ -536,6 +751,34 @@ bool ldk_rhi_is_valid_bindings_layout_desc(const LDKRHIBindingsLayoutDesc* desc)
     return false;
   }
 
+  for (uint32_t i = 0; i < desc->entry_count; i++)
+  {
+    const LDKRHIBindingLayoutEntry* entry = &desc->entries[i];
+
+    if (entry->slot >= LDK_RHI_BINDING_MAX)
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_binding_type(entry->type))
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_shader_stage_mask(entry->stages))
+    {
+      return false;
+    }
+
+    for (uint32_t j = i + 1; j < desc->entry_count; j++)
+    {
+      if (entry->slot == desc->entries[j].slot)
+      {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -556,12 +799,78 @@ bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc)
     return false;
   }
 
+  if (!ldk_rhi_is_valid_primitive_topology(desc->topology))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_blend_state(&desc->blend_state))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_depth_state(&desc->depth_state))
+  {
+    return false;
+  }
+
+  if (!ldk_rhi_is_valid_raster_state(&desc->raster_state))
+  {
+    return false;
+  }
+
+  if (desc->color_attachment_count > 0 && desc->blend_state.color_write_mask == LDK_RHI_COLOR_WRITE_MASK_NONE)
+  {
+    return false;
+  }
+
   if (desc->vertex_layout.attribute_count > LDK_RHI_VERTEX_ATTRIBUTE_MAX)
   {
     return false;
   }
 
+  if (desc->vertex_layout.attribute_count > 0 && desc->vertex_layout.stride == 0)
+  {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < desc->vertex_layout.attribute_count; i++)
+  {
+    const LDKRHIVertexAttributeDesc* attribute = &desc->vertex_layout.attributes[i];
+
+    if (attribute->location >= LDK_RHI_VERTEX_ATTRIBUTE_MAX)
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_vertex_format(attribute->format))
+    {
+      return false;
+    }
+
+    for (uint32_t j = i + 1; j < desc->vertex_layout.attribute_count; j++)
+    {
+      if (attribute->location == desc->vertex_layout.attributes[j].location)
+      {
+        return false;
+      }
+    }
+  }
+
   if (desc->color_attachment_count > LDK_RHI_COLOR_ATTACHMENT_MAX)
+  {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < desc->color_attachment_count; i++)
+  {
+    if (!ldk_rhi_is_valid_format(desc->color_formats[i]))
+    {
+      return false;
+    }
+  }
+
+  if (desc->depth_format != LDK_RHI_FORMAT_INVALID && !ldk_rhi_is_valid_format(desc->depth_format))
   {
     return false;
   }
@@ -625,21 +934,68 @@ bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc)
 
   for (uint32_t i = 0; i < desc->color_attachment_count; i++)
   {
-    LDKRHITexture texture = desc->color_attachments[i].texture;
+    const LDKRHIPassColorAttachmentDesc* attachment = &desc->color_attachments[i];
+    LDKRHITexture texture = attachment->texture;
     bool default_backbuffer = desc->color_attachment_count == 1 && texture == LDK_RHI_INVALID_TEXTURE;
+
     if (!default_backbuffer && !ldk_rhi_is_valid_texture(texture))
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_load_op(attachment->load_op))
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_store_op(attachment->store_op))
     {
       return false;
     }
   }
 
-  if (desc->depth_attachment.valid && !ldk_rhi_is_valid_texture(desc->depth_attachment.texture))
+  if (desc->depth_attachment.valid)
   {
-    return false;
+    if (!ldk_rhi_is_valid_texture(desc->depth_attachment.texture))
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_load_op(desc->depth_attachment.depth_load_op))
+    {
+      return false;
+    }
+
+    if (!ldk_rhi_is_valid_store_op(desc->depth_attachment.depth_store_op))
+    {
+      return false;
+    }
+  }
+
+  if (desc->has_viewport)
+  {
+    if (desc->viewport.width <= 0.0f || desc->viewport.height <= 0.0f)
+    {
+      return false;
+    }
+
+    if (desc->viewport.min_depth > desc->viewport.max_depth)
+    {
+      return false;
+    }
+  }
+
+  if (desc->has_scissor)
+  {
+    if (desc->scissor.width <= 0 || desc->scissor.height <= 0)
+    {
+      return false;
+    }
   }
 
   return true;
 }
+
 
 LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc)
 {
@@ -949,6 +1305,7 @@ void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uin
 void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
 {
   if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_buffer(buffer) &&
+      ldk_rhi_is_valid_index_type(index_type) &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
       context->functions.bind_index_buffer != NULL)
   {

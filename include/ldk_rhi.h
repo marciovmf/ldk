@@ -491,8 +491,6 @@ extern "C"
   typedef struct LDKRHIBindingDesc
   {
     uint32_t slot;
-    LDKRHIBindingType type;
-    uint32_t stages;
     LDKRHIBuffer buffer;
     uint32_t buffer_offset;
     uint32_t buffer_size;
