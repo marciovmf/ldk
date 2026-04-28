@@ -1,6 +1,6 @@
 /**
  * @file   ldk_geom.h
- * @brief  Geometry and point/rect helper types
+ * @brief  Geometry and point/rect/size helper types
  *
  * Defines basic geometry types and constructors used across LDK.
  */
@@ -17,9 +17,9 @@ typedef struct
   i32 h;
 } LDKSize;
 
-LDK_API LDKSize ldkSize(i32 width, i32 height);
-LDK_API LDKSize ldkSizeZero();
-LDK_API LDKSize ldkSizeOne();
+LDK_API LDKSize ldk_size(i32 width, i32 height);
+LDK_API LDKSize ldk_size_zero();
+LDK_API LDKSize ldk_size_one();
 
 typedef struct
 {
@@ -27,9 +27,9 @@ typedef struct
   float h;
 } LDKSizef;
 
-LDK_API LDKSizef ldkSizef(float width, float height);
-LDK_API LDKSizef ldkSizefZero();
-LDK_API LDKSizef ldkSizefOne();
+LDK_API LDKSizef ldk_sizef(float width, float height);
+LDK_API LDKSizef ldk_sizef_zero();
+LDK_API LDKSizef ldk_sizef_one();
 
 
 // LDKRect
@@ -41,7 +41,9 @@ typedef struct
   i32 h;
 } LDKRect;
 
-LDK_API LDKRect ldkRect(i32 x, i32 y, i32 width, i32 height);
+LDK_API LDKRect ldk_rect(i32 x, i32 y, i32 width, i32 height);
+LDK_API bool ldk_rect_contains(const LDKRect* rect, i32 x, i32 y);
+LDK_API LDKRect ldk_rect_intersect(const LDKRect* a, const LDKRect* b);
 
 // LDKRectf
 typedef struct 
@@ -53,7 +55,9 @@ typedef struct
 } LDKRectf;
 
 
-LDK_API LDKRectf ldkRectf(float x, float y, float width, float height);
+LDK_API LDKRectf ldk_rectf(float x, float y, float width, float height);
+LDK_API bool ldk_rectf_contains(const LDKRectf* rect, float x, float y);
+LDK_API LDKRectf ldk_rectf_intersect(const LDKRectf* a, const LDKRectf* b);
 
 // LDKPoint
 typedef struct
@@ -62,8 +66,7 @@ typedef struct
   i32 y;
 } LDKPoint;
 
-
-LDK_API LDKPoint ldkPoint(i32 x, i32 y);
+LDK_API LDKPoint ldk_point(i32 x, i32 y);
 
 // LDKPointf
 typedef struct
@@ -72,6 +75,6 @@ typedef struct
   float y;
 } LDKPointf;
 
-LDK_API LDKPointf ldkPointf(float x, float y);
+LDK_API LDKPointf ldk_pointf(float x, float y);
 #endif //LDK_GEOM_H
 

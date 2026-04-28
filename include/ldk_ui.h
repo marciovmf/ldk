@@ -45,6 +45,7 @@ extern "C" {
   typedef struct LDKUIContext LDKUIContext;
   typedef LDKPointf LDKUIPoint;
   typedef LDKSizef LDKUISize;
+  typedef LDKRectf LDKUIRect;
 
   typedef enum LDKUIColorSlot
   {
@@ -103,14 +104,6 @@ extern "C" {
     float v;
     u32 color;
   } LDKUIVertex;
-
-  typedef struct LDKUIRect
-  {
-    float x;
-    float y;
-    float w;
-    float h;
-  } LDKUIRect;
 
   typedef struct LDKUIDrawCmd
   {

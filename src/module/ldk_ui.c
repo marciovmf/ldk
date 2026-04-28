@@ -1,9 +1,11 @@
+#include "ldk_geom.h"
 #include "ldk_os.h"
 #include "ldk_ttf.h"
 #include "stdx/stdx_array.h"
 #include <ldk_common.h>
 #include <ldk_ui.h>
 #include <stdx/stdx_io.h>
+#include <stdx/stdx_math.h>
 #include <string.h>
 #include <math.h>
 
@@ -21,42 +23,12 @@ typedef enum LDKUIInternalIdPart
   LDK_UI_INTERNAL_ID_SCROLLBAR_TRACK_X = 4,
 } LDKUIInternalIdPart;
 
-static float s_ui_maxf(float a, float b) { return (a > b) ? a : b; }
 
-static float s_ui_minf(float a, float b) { return (a < b) ? a : b; }
-
-static float s_ui_clampf(float x, float a, float b)
-{
-  float value = x;
-  if (value < a) { value = a; }
-  if (value > b) { value = b; }
-  return value;
-}
-
-static bool s_ui_rect_contains(LDKUIRect rect, float x, float y)
-{
-  if (x < rect.x) { return false; }
-  if (y < rect.y) { return false; }
-  if (x >= rect.x + rect.w) { return false; }
-  if (y >= rect.y + rect.h) { return false; }
-  return true;
-}
-
-static LDKUIRect s_ui_rect_intersect(LDKUIRect a, LDKUIRect b)
-{
-  LDKUIRect rect;
-  float x0 = s_ui_maxf(a.x, b.x);
-  float y0 = s_ui_maxf(a.y, b.y);
-  float x1 = s_ui_minf(a.x + a.w, b.x + b.w);
-  float y1 = s_ui_minf(a.y + a.h, b.y + b.h);
-
-  rect.x = x0;
-  rect.y = y0;
-  rect.w = s_ui_maxf(0.0f, x1 - x0);
-  rect.h = s_ui_maxf(0.0f, y1 - y0);
-
-  return rect;
-}
+#define s_ui_maxf float_max
+#define s_ui_minf float_min
+#define s_ui_clampf float_clamp
+#define s_ui_rect_contains ldk_rectf_contains
+#define s_ui_rect_intersect ldk_rectf_intersect
 
 static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, float y)
 {
@@ -65,12 +37,12 @@ static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, f
     return false;
   }
 
-  if (!s_ui_rect_contains(state->rect, x, y))
+  if (!s_ui_rect_contains(&state->rect, x, y))
   {
     return false;
   }
 
-  if (!s_ui_rect_contains(state->clip_rect, x, y))
+  if (!s_ui_rect_contains(&state->clip_rect, x, y))
   {
     return false;
   }
@@ -1246,8 +1218,8 @@ static void s_ui_resolve_interaction(LDKUIContext* ctx, LDKUIItem* item, LDKUIRe
     return;
   }
 
-  inside = s_ui_rect_contains(item->rect, (float)cursor.x, (float)cursor.y) &&
-    s_ui_rect_contains(clip_rect, (float)cursor.x, (float)cursor.y);
+  inside = s_ui_rect_contains(&item->rect, (float)cursor.x, (float)cursor.y) &&
+    s_ui_rect_contains(&clip_rect, (float)cursor.x, (float)cursor.y);
 
   if (inside)
   {
@@ -1606,7 +1578,7 @@ static void s_ui_emit_text_box(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect cli
 {
   float padding_x = 6.0f;
   LDKUISize text_size = s_ui_measure_text(ctx->font, item->text);
-  LDKUIRect inner_clip = s_ui_rect_intersect(clip_rect, item->rect);
+  LDKUIRect inner_clip = s_ui_rect_intersect(&clip_rect, &item->rect);
   LDKUIRect cursor_rect = {0};
   u32 bg_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
   u32 border_color = ctx->theme.colors[LDK_UI_COLOR_BORDER];
@@ -1704,9 +1676,9 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
   if (ctx->hot_id == item->id)
   {
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-    LDKUIRect debug_clip = s_ui_rect_intersect(clip_rect, item->rect);
+    LDKUIRect debug_clip = s_ui_rect_intersect(&clip_rect, &item->rect);
 
-    if (s_ui_rect_contains(debug_clip, (float)cursor.x, (float)cursor.y))
+    if (s_ui_rect_contains(&debug_clip, (float)cursor.x, (float)cursor.y))
     {
       s_ui_emit_debug_rect(ctx, item->rect, 0x00ff00ffu);
       s_ui_emit_debug_rect(ctx, clip_rect, 0xff00ffffu);
@@ -1800,7 +1772,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
 static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect node_clip)
 {
   LDKUISize content_size = s_ui_layout_measure_node(item->data.scroll_area.node);
-  LDKUIRect scroll_clip = s_ui_rect_intersect(node_clip, item->rect);
+  LDKUIRect scroll_clip = s_ui_rect_intersect(&node_clip, &item->rect);
   LDKUIRect content_rect = item->rect;
   bool allow_vertical = (item->data.scroll_area.flags & LDK_UI_SCROLL_VERTICAL) != 0;
   bool allow_horizontal = (item->data.scroll_area.flags & LDK_UI_SCROLL_HORIZONTAL) != 0;
@@ -1839,7 +1811,7 @@ static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, 
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
     LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
 
-    if (s_ui_rect_contains(item->data.scroll_area.vertical_thumb_rect, (float)cursor.x, (float)cursor.y))
+    if (s_ui_rect_contains(&item->data.scroll_area.vertical_thumb_rect, (float)cursor.x, (float)cursor.y))
     {
       ctx->hot_id = thumb_id;
     }
@@ -1852,7 +1824,7 @@ static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, 
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
     LDKUIId thumb_id = s_ui_hash_u32(item->id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
 
-    if (s_ui_rect_contains(item->data.scroll_area.horizontal_thumb_rect, (float)cursor.x, (float)cursor.y))
+    if (s_ui_rect_contains(&item->data.scroll_area.horizontal_thumb_rect, (float)cursor.x, (float)cursor.y))
     {
       ctx->hot_id = thumb_id;
     }
@@ -1860,7 +1832,7 @@ static void s_ui_layout_resolve_scroll_area(LDKUIContext* ctx, LDKUIItem* item, 
     content_rect.h = s_ui_maxf(0.0f, content_rect.h - item->data.scroll_area.horizontal_track_rect.h);
   }
 
-  scroll_clip = s_ui_rect_intersect(node_clip, content_rect);
+  scroll_clip = s_ui_rect_intersect(&node_clip, &content_rect);
 
   content_rect.x -= item->data.scroll_area.scroll.x;
   content_rect.y -= item->data.scroll_area.scroll.y;
@@ -1911,7 +1883,7 @@ static void s_ui_layout_resolve_node(LDKUIContext* ctx, LDKUILayoutNode* node, L
   float inner_y = rect.y + node->padding;
   float inner_w = rect.w - node->padding * 2.0f;
   float inner_h = rect.h - node->padding * 2.0f;
-  LDKUIRect node_clip = s_ui_rect_intersect(inherited_clip, rect);
+  LDKUIRect node_clip = s_ui_rect_intersect(&inherited_clip, &rect);
 
   node->rect = rect;
   count = node->child_count;
@@ -2061,7 +2033,7 @@ static LDKUIWindow* s_ui_window_at_cursor_topmost(LDKUIContext* ctx)
 
     LDKUIRect window_rect = s_ui_window_rect(window);
 
-    if (s_ui_rect_contains(window_rect, (float)cursor.x, (float)cursor.y))
+    if (s_ui_rect_contains(&window_rect, (float)cursor.x, (float)cursor.y))
     {
       return window;
     }
@@ -2114,9 +2086,9 @@ static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const*
   title_bar_rect.w = rect.w;
   title_bar_rect.h = header_height;
 
-  inside_window = s_ui_rect_contains(rect, (float)cursor.x, (float)cursor.y);
+  inside_window = s_ui_rect_contains(&rect, (float)cursor.x, (float)cursor.y);
   inside_title_bar = header_height > 0.0f &&
-    s_ui_rect_contains(title_bar_rect, (float)cursor.x, (float)cursor.y);
+    s_ui_rect_contains(&title_bar_rect, (float)cursor.x, (float)cursor.y);
 
   if (ctx->hovered_window == window && inside_window)
   {
@@ -2770,7 +2742,7 @@ LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIS
 
     if (s_ui_window_can_interact(ctx, ctx->current_window))
     {
-      if (s_ui_rect_contains(state->clip_rect, (float)cursor.x, (float)cursor.y))
+      if (s_ui_rect_contains(&state->clip_rect, (float)cursor.x, (float)cursor.y))
       {
         i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
 
@@ -2784,7 +2756,7 @@ LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIS
     if (has_vertical_scrollbar)
     {
       LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
-      bool inside_thumb = s_ui_rect_contains(vertical_thumb_rect, (float)cursor.x, (float)cursor.y);
+      bool inside_thumb = s_ui_rect_contains(&vertical_thumb_rect, (float)cursor.x, (float)cursor.y);
 
       if (inside_thumb)
       {
@@ -2821,7 +2793,7 @@ LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIS
     if (has_horizontal_scrollbar)
     {
       LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
-      bool inside_thumb = s_ui_rect_contains(horizontal_thumb_rect, (float)cursor.x, (float)cursor.y);
+      bool inside_thumb = s_ui_rect_contains(&horizontal_thumb_rect, (float)cursor.x, (float)cursor.y);
 
       if (inside_thumb)
       {

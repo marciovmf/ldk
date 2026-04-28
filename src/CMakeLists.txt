@@ -26,11 +26,11 @@ list(APPEND SOURCE
   # Core
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h 
-  ${INCLUDE_DIR}/ldk_geom.h 
   ${INCLUDE_DIR}/ldk_color.h 
   ${INCLUDE_DIR}/ldk_game.h
+  ${INCLUDE_DIR}/ldk_common.h
+  ${INCLUDE_DIR}/ldk_geom.h       ldk_geom.c
   ${INCLUDE_DIR}/ldk.h            ldk.c
-  ${INCLUDE_DIR}/ldk_common.h     ldk_common.c
   ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
   # modules
   ${INCLUDE_DIR}/ldk_ui.h         module/ldk_ui.c
