@@ -477,17 +477,20 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
   x_log_info(&e->logger, "=========LDK=========\n");
 
-  ldk_os_initialize();
+  if (!ldk_os_initialize())
+  {
+    ldk_log_error("Failed to initialize module: OS layer.");
+    engine_init_failed = true;
+  }
+
   e->graphics = ldk_os_graphics_context_opengl_create(3, 3, 24, 8);
 
   if (!ldk_rhi_gl33_initialize(&e->rhi))
   {
-    ldk_log_error("Failed to initialize RHI.");
+    ldk_log_error("Failed to initialize module: RHI.");
     ldk_engine_terminate();
     return false;
   }
-
-
 
   e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
   //e->window = ldk_os_window_create(e->config.title.buf, e->config.width, e->config.height);
@@ -534,7 +537,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
   else
   {
-    ldk_log_error("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
+    ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
@@ -778,44 +781,45 @@ void ldk_engine_frame(void)
   ldk_event_queue_broadcast(&e->event_queue);
 
   /* render scene/game view here */
-  ldk_rhi_begin_frame(&e->rhi);
+  {
+    ldk_rhi_begin_frame(&e->rhi);
+    LDKRHIPassDesc main_pass = {0};
+    ldk_rhi_pass_desc_defaults(&main_pass);
+    main_pass.color_attachment_count = 1;
+    main_pass.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
+    main_pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+    main_pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+    main_pass.color_attachments[0].clear_color.r = 0.0f;
+    main_pass.color_attachments[0].clear_color.g = 0.0f;
+    main_pass.color_attachments[0].clear_color.b = 1.0f;
+    main_pass.color_attachments[0].clear_color.a = 0.0f;
+    main_pass.has_viewport = true;
+    main_pass.viewport.x = 0.0f;
+    main_pass.viewport.y = 0.0f;
+    main_pass.viewport.width = (float)window_size.w;
+    main_pass.viewport.height = (float)window_size.h;
+    main_pass.viewport.min_depth = 0.0f;
+    main_pass.viewport.max_depth = 1.0f;
 
-  LDKRHIPassDesc main_pass = {0};
-  ldk_rhi_pass_desc_defaults(&main_pass);
-  main_pass.color_attachment_count = 1;
-  main_pass.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
-  main_pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
-  main_pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
-  main_pass.color_attachments[0].clear_color.r = 0.0f;
-  main_pass.color_attachments[0].clear_color.g = 0.0f;
-  main_pass.color_attachments[0].clear_color.b = 1.0f;
-  main_pass.color_attachments[0].clear_color.a = 0.0f;
-  main_pass.has_viewport = true;
-  main_pass.viewport.x = 0.0f;
-  main_pass.viewport.y = 0.0f;
-  main_pass.viewport.width = (float)window_size.w;
-  main_pass.viewport.height = (float)window_size.h;
-  main_pass.viewport.min_depth = 0.0f;
-  main_pass.viewport.max_depth = 1.0f;
-  ldk_rhi_begin_pass(&e->rhi, &main_pass);
-
+    ldk_rhi_begin_pass(&e->rhi, &main_pass);
 #ifdef LDK_EDITOR
-  /* render editor overlays, gizmos and tool UI here */
-  ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
-  s_draw_editor_ui(&e->editor_ui, delta_time);
-  ldk_ui_end_frame(&e->editor_ui);
+    /* render editor overlays, gizmos and tool UI here */
+    ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
+    s_draw_editor_ui(&e->editor_ui, delta_time);
+    ldk_ui_end_frame(&e->editor_ui);
 #endif
 
-  current_ticks = ldk_os_time_ticks_get();
+    current_ticks = ldk_os_time_ticks_get();
+    const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
+    ldk_ui_renderer_draw(&e->ui_renderer,
+        ui_data,
+        window_size.w,
+        window_size.h);
 
-  const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
-  ldk_ui_renderer_draw(&e->ui_renderer,
-      ui_data,
-      window_size.w,
-      window_size.h);
+    ldk_rhi_end_pass(&e->rhi);
+    ldk_rhi_end_frame(&e->rhi);
+  }
 
-  ldk_rhi_end_pass(&e->rhi);
-  ldk_rhi_end_frame(&e->rhi);
 
   event.type = LDK_EVENT_TYPE_RENDER_AFTER;
   event.frameEvent.ticks = current_ticks;
