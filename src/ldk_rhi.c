@@ -199,22 +199,22 @@ void ldk_rhi_terminate(LDKRHIContext* context)
 
 bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer)
 {
-  return buffer != LDK_RHI_BUFFER_INVALID;
+  return buffer != LDK_RHI_INVALID_BUFFER;
 }
 
 bool ldk_rhi_is_valid_texture(LDKRHITexture texture)
 {
-  return texture != LDK_RHI_TEXTURE_INVALID;
+  return texture != LDK_RHI_INVALID_TEXTURE;
 }
 
 bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler)
 {
-  return sampler != LDK_RHI_SAMPLER_INVALID;
+  return sampler != LDK_RHI_INVALID_SAMPLER;
 }
 
 bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module)
 {
-  return shader_module != LDK_RHI_SHADER_MODULE_INVALID;
+  return shader_module != LDK_RHI_INVALID_SHADER_MODULE;
 }
 
 bool ldk_rhi_is_valid_shader(LDKRHIShader shader)
@@ -224,17 +224,17 @@ bool ldk_rhi_is_valid_shader(LDKRHIShader shader)
 
 bool ldk_rhi_is_valid_bindings_layout(LDKRHIBindingsLayout bindings_layout)
 {
-  return bindings_layout != LDK_RHI_BINDINGS_LAYOUT_INVALID;
+  return bindings_layout != LDK_RHI_INVALID_BINDINGS_LAYOUT;
 }
 
 bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline)
 {
-  return pipeline != LDK_RHI_PIPELINE_INVALID;
+  return pipeline != LDK_RHI_INVALID_PIPELINE;
 }
 
 bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings)
 {
-  return bindings != LDK_RHI_BINDINGS_INVALID;
+  return bindings != LDK_RHI_INVALID_BINDINGS;
 }
 
 bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc)
@@ -458,7 +458,7 @@ bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc)
   for (uint32_t i = 0; i < desc->color_attachment_count; i++)
   {
     LDKRHITexture texture = desc->color_attachments[i].texture;
-    bool default_backbuffer = desc->color_attachment_count == 1 && texture == LDK_RHI_TEXTURE_INVALID;
+    bool default_backbuffer = desc->color_attachment_count == 1 && texture == LDK_RHI_INVALID_TEXTURE;
     if (!default_backbuffer && !ldk_rhi_is_valid_texture(texture))
     {
       return false;
@@ -477,7 +477,7 @@ LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDes
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer_desc(desc) || context->functions.create_buffer == NULL)
   {
-    return LDK_RHI_BUFFER_INVALID;
+    return LDK_RHI_INVALID_BUFFER;
   }
 
   return context->functions.create_buffer(context->backend_user_data, desc);
@@ -507,7 +507,7 @@ LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITexture
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture_desc(desc) || context->functions.create_texture == NULL)
   {
-    return LDK_RHI_TEXTURE_INVALID;
+    return LDK_RHI_INVALID_TEXTURE;
   }
 
   return context->functions.create_texture(context->backend_user_data, desc);
@@ -537,7 +537,7 @@ LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISampler
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_sampler_desc(desc) || context->functions.create_sampler == NULL)
   {
-    return LDK_RHI_SAMPLER_INVALID;
+    return LDK_RHI_INVALID_SAMPLER;
   }
 
   return context->functions.create_sampler(context->backend_user_data, desc);
@@ -557,7 +557,7 @@ LDKRHIShaderModule ldk_rhi_create_shader_module(LDKRHIContext* context, const LD
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module_desc(desc) || context->functions.create_shader_module == NULL)
   {
-    return LDK_RHI_SHADER_MODULE_INVALID;
+    return LDK_RHI_INVALID_SHADER_MODULE;
   }
 
   return context->functions.create_shader_module(context->backend_user_data, desc);
@@ -579,7 +579,7 @@ LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDes
 
   if (!ldk_rhi_is_valid_shader_desc(desc))
   {
-    return LDK_RHI_SHADER_INVALID;
+    return LDK_RHI_INVALID_SHADER;
   }
 
   ldk_rhi_shader_module_desc_defaults(&module_desc);
@@ -599,7 +599,7 @@ LDKRHIBindingsLayout ldk_rhi_create_bindings_layout(LDKRHIContext* context, cons
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout_desc(desc) || context->functions.create_bindings_layout == NULL)
   {
-    return LDK_RHI_BINDINGS_LAYOUT_INVALID;
+    return LDK_RHI_INVALID_BINDINGS_LAYOUT;
   }
 
   return context->functions.create_bindings_layout(context->backend_user_data, desc);
@@ -619,7 +619,7 @@ LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipel
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_pipeline_desc(desc) || context->functions.create_pipeline == NULL)
   {
-    return LDK_RHI_PIPELINE_INVALID;
+    return LDK_RHI_INVALID_PIPELINE;
   }
 
   return context->functions.create_pipeline(context->backend_user_data, desc);
@@ -639,7 +639,7 @@ LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindi
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_desc(desc) || context->functions.create_bindings == NULL)
   {
-    return LDK_RHI_BINDINGS_INVALID;
+    return LDK_RHI_INVALID_BINDINGS;
   }
 
   return context->functions.create_bindings(context->backend_user_data, desc);
