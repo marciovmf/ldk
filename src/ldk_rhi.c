@@ -384,6 +384,11 @@ bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc)
     return false;
   }
 
+  if (!ldk_rhi_is_valid_bindings_layout(desc->layout))
+  {
+    return false;
+  }
+
   if (desc->binding_count > LDK_RHI_BINDING_MAX)
   {
     return false;
@@ -393,45 +398,16 @@ bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc)
   {
     const LDKRHIBindingDesc* binding = &desc->bindings[i];
 
-    switch (binding->type)
+    if (binding->slot >= LDK_RHI_BINDING_MAX)
     {
-      case LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER:
-      case LDK_RHI_BINDING_TYPE_STORAGE_BUFFER:
-        {
-          if (!ldk_rhi_is_valid_buffer(binding->buffer))
-          {
-            return false;
-          }
-        } break;
+      return false;
+    }
 
-      case LDK_RHI_BINDING_TYPE_TEXTURE:
-        {
-          if (!ldk_rhi_is_valid_texture(binding->texture))
-          {
-            return false;
-          }
-        } break;
-
-      case LDK_RHI_BINDING_TYPE_SAMPLER:
-        {
-          if (!ldk_rhi_is_valid_sampler(binding->sampler))
-          {
-            return false;
-          }
-        } break;
-
-      case LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER:
-        {
-          if (!ldk_rhi_is_valid_texture(binding->texture) || !ldk_rhi_is_valid_sampler(binding->sampler))
-          {
-            return false;
-          }
-        } break;
-
-      default:
-        {
-          return false;
-        } break;
+    if (!ldk_rhi_is_valid_buffer(binding->buffer) &&
+        !ldk_rhi_is_valid_texture(binding->texture) &&
+        !ldk_rhi_is_valid_sampler(binding->sampler))
+    {
+      return false;
     }
   }
 

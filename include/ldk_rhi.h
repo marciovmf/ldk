@@ -7,7 +7,15 @@
  * commands. It knows nothing about engine systems, modules or anything else
  * except buffers, textures, samplers, shaders, pipelines, bindings, passes, and draw calls.
  *
- * Typical usage:
+ * typical flow looks like:
+ *  - Create resources (meshes, textures)
+ *  - Create shaders
+ *  - Create pipeline (defines how things render)
+ *  - Create immutable bindings (connect textures/buffers to layout slots)
+ *  - Begin a pass (where to render)
+ *  - Issue draw calls (render objects)
+ *
+ * In code, it looks like this:
  *
  * @code
  * LDKRHIContext rhi;
@@ -50,7 +58,31 @@
  * Texture swizzle can be used for single-channel font atlases. An R8 atlas that
  * stores glyph coverage in the red channel can be sampled as white RGB with
  * alpha from red by using swizzle { ONE, ONE, ONE, R }.
- */
+ *
+ * Because different rendering APIs give things different names, here is how
+ * this API call things:
+ *  Attachments: Textures bound as outputs in a pass (color/depth targets).
+ *  Bindings Layout: Defines which resources a pipeline expects and in which slots.
+ *  Bindings: Immutable objects containing actual resources assigned to layout slots.
+ *  Blend State: How new pixels combine with existing ones.
+ *  Buffers: Raw GPU memory used for vertex, index, or uniform data.
+ *  Depth State: Controls depth testing and writing.
+ *  Draw Call: Command that renders geometry using current state.
+ *  Indexed Draw Call: Draw call that uses an index buffer to reuse vertices.
+ *  Load/Store Ops: Control how attachments are treated before/after a pass.
+ *  Pass: Defines where and how rendering happens (targets, clears, viewport).
+ *  Pipeline: Preconfigured rendering state (shaders + fixed settings).
+ *  Raster State: Controls culling and polygon rendering rules.
+ *  Resources: GPU objects (buffers, textures, pipelines, etc.) referenced by handles.
+ *  Samplers: Define how textures are read (filtering, wrapping).
+ *  Scissor: Clipping region that discards pixels outside it.
+ *  Shader Modules: Compiled shader code for a single stage.
+ *  Shaders: GPU programs that process vertices and pixels.
+ *  Textures: Image data used as shader input (sampling) or render output.
+ *  Topology: How vertices form primitives (triangles, lines, etc.).
+ *  Vertex Layout: Describes how vertex data is structured in a buffer.
+ *  Viewport: Region of the render target used for drawing.
+*/
 #ifndef LDK_RHI_H
 #define LDK_RHI_H
 
@@ -448,8 +480,6 @@ extern "C"
   typedef struct LDKRHIBindingDesc
   {
     uint32_t slot;
-    LDKRHIBindingType type;
-    uint32_t stages;
     LDKRHIBuffer buffer;
     uint32_t buffer_offset;
     uint32_t buffer_size;

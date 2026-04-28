@@ -37,10 +37,10 @@ static char const* LDK_UI_RENDERER_FRAGMENT_SHADER =
   "in vec2 v_uv;\n"
   "in vec4 v_color;\n"
   "out vec4 out_color;\n"
-  "uniform sampler2D LDK_TEXTURE_0;\n"
+  "uniform sampler2D LDK_TEXTURE_1;\n"
   "void main()\n"
   "{\n"
-  "  vec4 tex = texture(LDK_TEXTURE_0, v_uv);\n"
+  "  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
   "  out_color = tex * v_color;\n"
   "}\n";
 
@@ -88,7 +88,7 @@ static bool ldk_ui_renderer_create_bindings_layout(LDKUIRenderer* renderer)
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
-  desc.entries[1].slot = 0;
+  desc.entries[1].slot = 1;
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
@@ -343,14 +343,10 @@ static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* render
   desc.layout = renderer->bindings_layout;
   desc.binding_count = 2;
   desc.bindings[0].slot = 0;
-  desc.bindings[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  desc.bindings[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
   desc.bindings[0].buffer = renderer->params_buffer;
   desc.bindings[0].buffer_offset = 0;
   desc.bindings[0].buffer_size = sizeof(LDKUIRendererParams);
-  desc.bindings[1].slot = 0;
-  desc.bindings[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
-  desc.bindings[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.bindings[1].slot = 1;
   desc.bindings[1].texture = texture;
   desc.bindings[1].sampler = renderer->sampler;
   return ldk_rhi_create_bindings(renderer->rhi, &desc);

@@ -833,32 +833,68 @@ static void ldk_rhi_gl33_destroy_pipeline(void* backend_user_data, LDKRHIPipelin
   memset(object, 0, sizeof(*object));
 }
 
-static LDKRHIBindings ldk_rhi_gl33_create_bindings(void* backend_user_data, const LDKRHIBindingsDesc* desc)
+static LDKRHIBindings ldk_rhi_gl33_create_bindings(LDKRHIGL33Backend* backend, const LDKRHIBindingsDesc* desc)
 {
-  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
-  LDKRHIBindings handle = ldk_rhi_gl33_alloc_bindings(backend);
-  if (handle == LDK_RHI_INVALID_BINDINGS)
+  if (!desc)
   {
-    return handle;
+    return LDK_RHI_INVALID_BINDINGS;
   }
 
-  LDKRHIGL33BindingsObject* object = &backend->bindings[handle];
+  if (desc->binding_count > LDK_RHI_MAX_BINDINGS)
+  {
+    return LDK_RHI_INVALID_BINDINGS;
+  }
+
+  if (desc->layout >= backend->bindings_layout_capacity || !backend->bindings_layouts[desc->layout].alive)
+  {
+    return LDK_RHI_INVALID_BINDINGS;
+  }
+
+  LDKRHIGL33BindingsLayoutObject* layout = &backend->bindings_layouts[desc->layout];
+
+  uint32_t index = ldk_rhi_gl33_alloc_bindings(backend);
+
+  if (index == LDK_RHI_INVALID_BINDINGS)
+  {
+    return LDK_RHI_INVALID_BINDINGS;
+  }
+
+  LDKRHIGL33BindingsObject* object = &backend->bindings[index];
+
+  object->alive = true;
   object->layout = desc->layout;
   object->binding_count = desc->binding_count;
 
   for (uint32_t i = 0; i < desc->binding_count; i++)
   {
+    bool found = false;
+
     object->bindings[i].slot = desc->bindings[i].slot;
-    object->bindings[i].type = desc->bindings[i].type;
-    object->bindings[i].stages = desc->bindings[i].stages;
     object->bindings[i].buffer = desc->bindings[i].buffer;
     object->bindings[i].buffer_offset = desc->bindings[i].buffer_offset;
     object->bindings[i].buffer_size = desc->bindings[i].buffer_size;
     object->bindings[i].texture = desc->bindings[i].texture;
     object->bindings[i].sampler = desc->bindings[i].sampler;
+
+    for (uint32_t j = 0; j < layout->entry_count; j++)
+    {
+      if (layout->entries[j].slot == desc->bindings[i].slot)
+      {
+        object->bindings[i].type = layout->entries[j].type;
+        object->bindings[i].stages = layout->entries[j].stages;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found)
+    {
+      memset(object, 0, sizeof(*object));
+      return LDK_RHI_INVALID_BINDINGS;
+    }
   }
 
-  return handle;
+  return index;
 }
 
 static void ldk_rhi_gl33_destroy_bindings(void* backend_user_data, LDKRHIBindings bindings)
