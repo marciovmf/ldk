@@ -8,6 +8,7 @@
 #include <stdx/stdx_math.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 
 #define LDK_RGBA_TO_ABGR(c) \
   ((((c) & 0x000000FFu) << 24) | \
