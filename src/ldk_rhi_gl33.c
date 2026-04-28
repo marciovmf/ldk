@@ -440,6 +440,13 @@ static void ldk_rhi_gl33_apply_pipeline_state(const LDKRHIGL33PipelineObject* pi
     glDisable(GL_BLEND);
   }
 
+  glColorMask(
+      (pipeline->blend_state.color_write_mask & LDK_RHI_COLOR_WRITE_MASK_R) ? GL_TRUE : GL_FALSE,
+      (pipeline->blend_state.color_write_mask & LDK_RHI_COLOR_WRITE_MASK_G) ? GL_TRUE : GL_FALSE,
+      (pipeline->blend_state.color_write_mask & LDK_RHI_COLOR_WRITE_MASK_B) ? GL_TRUE : GL_FALSE,
+      (pipeline->blend_state.color_write_mask & LDK_RHI_COLOR_WRITE_MASK_A) ? GL_TRUE : GL_FALSE
+      );
+
   if (pipeline->depth_state.test_enabled)
   {
     glEnable(GL_DEPTH_TEST);

@@ -279,6 +279,7 @@ void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state)
   state->src_alpha_factor = LDK_RHI_BLEND_FACTOR_ONE;
   state->dst_alpha_factor = LDK_RHI_BLEND_FACTOR_ZERO;
   state->alpha_op = LDK_RHI_BLEND_OP_ADD;
+  state->color_write_mask = LDK_RHI_COLOR_WRITE_MASK_ALL;
 }
 
 void ldk_rhi_depth_state_defaults(LDKRHIDepthState* state)

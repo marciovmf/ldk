@@ -11,7 +11,7 @@
  *  - Create resources (meshes, textures)
  *  - Create shaders
  *  - Create pipeline (defines how things render)
- *  - Create immutable bindings (connect textures/buffers to layout slots)
+ *  - Set bindings (connect textures/buffers)
  *  - Begin a pass (where to render)
  *  - Issue draw calls (render objects)
  *
@@ -63,7 +63,7 @@
  * this API call things:
  *  Attachments: Textures bound as outputs in a pass (color/depth targets).
  *  Bindings Layout: Defines which resources a pipeline expects and in which slots.
- *  Bindings: Immutable objects containing actual resources assigned to layout slots.
+ *  Bindings: Actual resources assigned to those slots.
  *  Blend State: How new pixels combine with existing ones.
  *  Buffers: Raw GPU memory used for vertex, index, or uniform data.
  *  Depth State: Controls depth testing and writing.
@@ -284,6 +284,16 @@ extern "C"
     LDK_RHI_BLEND_OP_REVERSE_SUBTRACT
   } LDKRHIBlendOp;
 
+  typedef enum LDKRHIColorWriteMask
+  {
+    LDK_RHI_COLOR_WRITE_MASK_NONE = 0,
+    LDK_RHI_COLOR_WRITE_MASK_R = 1 << 0,
+    LDK_RHI_COLOR_WRITE_MASK_G = 1 << 1,
+    LDK_RHI_COLOR_WRITE_MASK_B = 1 << 2,
+    LDK_RHI_COLOR_WRITE_MASK_A = 1 << 3,
+    LDK_RHI_COLOR_WRITE_MASK_ALL = LDK_RHI_COLOR_WRITE_MASK_R | LDK_RHI_COLOR_WRITE_MASK_G | LDK_RHI_COLOR_WRITE_MASK_B | LDK_RHI_COLOR_WRITE_MASK_A
+  } LDKRHIColorWriteMask;
+
   typedef enum LDKRHIVertexFormat
   {
     LDK_RHI_VERTEX_FORMAT_FLOAT = 0,
@@ -410,6 +420,7 @@ extern "C"
     LDKRHIBlendFactor src_alpha_factor;
     LDKRHIBlendFactor dst_alpha_factor;
     LDKRHIBlendOp alpha_op;
+    uint32_t color_write_mask;
   } LDKRHIBlendState;
 
   typedef struct LDKRHIDepthState
@@ -480,6 +491,8 @@ extern "C"
   typedef struct LDKRHIBindingDesc
   {
     uint32_t slot;
+    LDKRHIBindingType type;
+    uint32_t stages;
     LDKRHIBuffer buffer;
     uint32_t buffer_offset;
     uint32_t buffer_size;
