@@ -57,6 +57,16 @@ extern "C" {
     LDK_UI_COLOR_CONTROL_BG_HOVERED,
     LDK_UI_COLOR_CONTROL_BG_ACTIVE,
     LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED,
+    LDK_UI_COLOR_CONTROL_TEXT,
+    LDK_UI_COLOR_CONTROL_TEXT_HOVERED,
+    LDK_UI_COLOR_CONTROL_TEXT_ACTIVE,
+    LDK_UI_COLOR_CONTROL_TEXT_ACTIVE_HOVERED,
+    LDK_UI_COLOR_CONTROL_TEXT_DISABLED,
+    LDK_UI_COLOR_CONTROL_BORDER,
+    LDK_UI_COLOR_CONTROL_BORDER_HOVERED,
+    LDK_UI_COLOR_CONTROL_BORDER_ACTIVE,
+    LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED,
+    LDK_UI_COLOR_CONTROL_BORDER_DISABLED,
     LDK_UI_COLOR_BORDER,
     LDK_UI_COLOR_FOCUS,
     LDK_UI_COLOR_SLIDER_BAR_TRACK,
@@ -91,6 +101,9 @@ extern "C" {
   typedef struct LDKUITheme
   {
     LDKUIColor colors[LDK_UI_COLOR_COUNT];
+    float control_border_size;
+    float window_border_size;
+    float window_interaction_border_size;
     float slider_bar_track_height;
     float slider_track_height;
     float slider_thumb_width;
