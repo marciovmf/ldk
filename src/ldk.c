@@ -2,8 +2,11 @@
 #include "ldk_event.h"
 #include "ldk_eventqueue.h"
 #include "ldk_ttf.h"
-#include "ldk_gl.h"
+#include <ldk_rhi.h>
+#include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
+
 #include "stdx/stdx_common.h"
+
 #include <stdio.h>
 
 #define X_IMPL_ARENA
@@ -63,6 +66,7 @@ struct LDKRoot
   LDKUIContext          editor_ui;
   LDKUIRenderer         ui_renderer;
   LDKFontCache          font_cache;
+  LDKRHIContext         rhi;
   LDKFontFace*          editor_font_face;
   XLogger               logger;
   // Runtime state
@@ -121,6 +125,7 @@ static void s_terminate_all_modules(LDKRoot* e)
   ldk_component_registry_terminate(&e->component_registry);
   ldk_entity_module_terminate(&e->entity_registry);
   ldk_event_queue_terminate(&e->event_queue);
+  ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
   ldk_log_info("LDK Terminated\n");
@@ -474,6 +479,16 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   ldk_os_initialize();
   e->graphics = ldk_os_graphics_context_opengl_create(3, 3, 24, 8);
+
+  if (!ldk_rhi_gl33_initialize(&e->rhi))
+  {
+    ldk_log_error("Failed to initialize RHI.");
+    ldk_engine_terminate();
+    return false;
+  }
+
+
+
   e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
   //e->window = ldk_os_window_create(e->config.title.buf, e->config.width, e->config.height);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
@@ -503,6 +518,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
+
   LDKUIConfig ui_cfg;
   ui_cfg.frame_arena_size = 1024 * 4;
   ui_cfg.initial_vertex_capacity = 1024;
@@ -523,6 +539,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   }
 
   LDKUIRendererConfig ui_renderer_config;
+  ui_renderer_config.rhi = &e->rhi;
   ui_renderer_config.initial_index_capacity = ui_cfg.initial_index_capacity;
   ui_renderer_config.initial_vertex_capacity = ui_cfg.initial_vertex_capacity;
   if (!ldk_ui_renderer_initialize(&e->ui_renderer, &ui_renderer_config))
@@ -717,19 +734,16 @@ void ldk_engine_frame(void)
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
 
 #ifdef LDK_EDITOR
+  /*
+   * Editor mode is always active in editor builds. Scene view, picking, gizmos,
+   * inspectors and other tools should update here even when play mode is off.
+   */
   LDKMouseState     mouse_state;
   LDKKeyboardState  kbd_state;
   LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f, .y = 0.0f, .w = (float) window_size.w, .h = (float) window_size.h};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
-
-  /*
-   * Editor mode is always active in editor builds. Scene view, picking, gizmos,
-   * inspectors and other tools should update here even when play mode is off.
-   */
 #endif
-
-  glViewport(0, 0, window_size.w, window_size.h);
 
   if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
   {
@@ -764,8 +778,26 @@ void ldk_engine_frame(void)
   ldk_event_queue_broadcast(&e->event_queue);
 
   /* render scene/game view here */
+  ldk_rhi_begin_frame(&e->rhi);
 
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  LDKRHIPassDesc main_pass = {0};
+  ldk_rhi_pass_desc_defaults(&main_pass);
+  main_pass.color_attachment_count = 1;
+  main_pass.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
+  main_pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+  main_pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+  main_pass.color_attachments[0].clear_color.r = 0.0f;
+  main_pass.color_attachments[0].clear_color.g = 0.0f;
+  main_pass.color_attachments[0].clear_color.b = 1.0f;
+  main_pass.color_attachments[0].clear_color.a = 0.0f;
+  main_pass.has_viewport = true;
+  main_pass.viewport.x = 0.0f;
+  main_pass.viewport.y = 0.0f;
+  main_pass.viewport.width = (float)window_size.w;
+  main_pass.viewport.height = (float)window_size.h;
+  main_pass.viewport.min_depth = 0.0f;
+  main_pass.viewport.max_depth = 1.0f;
+  ldk_rhi_begin_pass(&e->rhi, &main_pass);
 
 #ifdef LDK_EDITOR
   /* render editor overlays, gizmos and tool UI here */
@@ -781,6 +813,9 @@ void ldk_engine_frame(void)
       ui_data,
       window_size.w,
       window_size.h);
+
+  ldk_rhi_end_pass(&e->rhi);
+  ldk_rhi_end_frame(&e->rhi);
 
   event.type = LDK_EVENT_TYPE_RENDER_AFTER;
   event.frameEvent.ticks = current_ticks;
@@ -834,10 +869,6 @@ i32 ldk_engine_run(void)
   e->running = true;
   ldk_os_window_show(e->window, true);
   ldk_os_window_fullscreen_set(e->window, e->config.fullscreen);
-
-  //TODO: Remove GL stuff when we have a renderer!
-  glClearColor(0, 0, 255, 0);
-  glViewport(0, 0, e->config.width, e->config.height);
 
   if (!ldk_engine_play_start())
   {

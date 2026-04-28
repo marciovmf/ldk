@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <ldk_common.h>
+#include "ldk_rhi.h"
 #include "ldk_ui.h"
 
 #include <stdbool.h>
@@ -13,20 +14,23 @@ extern "C" {
 
 typedef struct LDKUIRendererConfig
 {
+  LDKRHIContext* rhi;
   u32 initial_vertex_capacity;
   u32 initial_index_capacity;
 } LDKUIRendererConfig;
 
 typedef struct LDKUIRenderer
 {
-  u32 program;
-  u32 vertex_shader;
-  u32 fragment_shader;
-  u32 vao;
-  u32 vbo;
-  u32 ebo;
-  u32 white_texture;
-  i32 viewport_size_uniform;
+  LDKRHIContext* rhi;
+  LDKRHIShaderModule vertex_shader_module;
+  LDKRHIShaderModule fragment_shader_module;
+  LDKRHIBindingsLayout bindings_layout;
+  LDKRHIPipeline pipeline;
+  LDKRHIBuffer vertex_buffer;
+  LDKRHIBuffer index_buffer;
+  LDKRHIBuffer params_buffer;
+  LDKRHITexture white_texture;
+  LDKRHISampler sampler;
   u32 vertex_capacity;
   u32 index_capacity;
   bool is_initialized;

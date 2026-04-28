@@ -1,18 +1,26 @@
 #include <ldk_common.h>
-#include <ldk_gl.h>
 #include "ldk_ui_renderer.h"
 
 #include <stddef.h>
 #include <string.h>
+
+typedef struct LDKUIRendererParams
+{
+  float viewport_size[2];
+  float padding[2];
+} LDKUIRendererParams;
 
 static char const* LDK_UI_RENDERER_VERTEX_SHADER =
   "#version 330 core\n"
   "layout(location = 0) in vec2 a_position;\n"
   "layout(location = 1) in vec2 a_uv;\n"
   "layout(location = 2) in vec4 a_color;\n"
+  "layout(std140) uniform LDK_UBO_0\n"
+  "{\n"
+  "  vec2 u_viewport_size;\n"
+  "};\n"
   "out vec2 v_uv;\n"
   "out vec4 v_color;\n"
-  "uniform vec2 u_viewport_size;\n"
   "void main()\n"
   "{\n"
   "  vec2 ndc = vec2(\n"
@@ -29,190 +37,205 @@ static char const* LDK_UI_RENDERER_FRAGMENT_SHADER =
   "in vec2 v_uv;\n"
   "in vec4 v_color;\n"
   "out vec4 out_color;\n"
-  "uniform sampler2D u_texture;\n"
+  "uniform sampler2D LDK_TEXTURE_0;\n"
   "void main()\n"
   "{\n"
-  "  vec4 tex = texture(u_texture, v_uv);\n"
+  "  vec4 tex = texture(LDK_TEXTURE_0, v_uv);\n"
   "  out_color = tex * v_color;\n"
   "}\n";
 
-static bool ldk_ui_renderer_compile_shader(u32* shader, GLenum type, char const* source)
+static u32 ldk_ui_renderer_cstr_size(char const* cstr)
 {
-  GLint compiled = 0;
+  return (u32)strlen(cstr);
+}
 
-  *shader = glCreateShader(type);
+static bool ldk_ui_renderer_create_shaders(LDKUIRenderer* renderer)
+{
+  LDKRHIShaderModuleDesc vertex_desc = {0};
+  ldk_rhi_shader_module_desc_defaults(&vertex_desc);
+  vertex_desc.stage = LDK_RHI_SHADER_STAGE_VERTEX;
+  vertex_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
+  vertex_desc.code = LDK_UI_RENDERER_VERTEX_SHADER;
+  vertex_desc.code_size = ldk_ui_renderer_cstr_size(LDK_UI_RENDERER_VERTEX_SHADER);
 
-  if (*shader == 0)
+  renderer->vertex_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &vertex_desc);
+  if (renderer->vertex_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
   {
     return false;
   }
 
-  glShaderSource(*shader, 1, &source, NULL);
-  glCompileShader(*shader);
-  glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
+  LDKRHIShaderModuleDesc fragment_desc = {0};
+  ldk_rhi_shader_module_desc_defaults(&fragment_desc);
+  fragment_desc.stage = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  fragment_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
+  fragment_desc.code = LDK_UI_RENDERER_FRAGMENT_SHADER;
+  fragment_desc.code_size = ldk_ui_renderer_cstr_size(LDK_UI_RENDERER_FRAGMENT_SHADER);
 
-  if (compiled == GL_FALSE)
+  renderer->fragment_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &fragment_desc);
+  if (renderer->fragment_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
   {
-    glDeleteShader(*shader);
-    *shader = 0;
     return false;
   }
 
   return true;
 }
 
-static bool ldk_ui_renderer_create_program(LDKUIRenderer* renderer)
+static bool ldk_ui_renderer_create_bindings_layout(LDKUIRenderer* renderer)
 {
-  GLint linked = 0;
+  LDKRHIBindingsLayoutDesc desc = {0};
+  ldk_rhi_bindings_layout_desc_defaults(&desc);
+  desc.entry_count = 2;
+  desc.entries[0].slot = 0;
+  desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[1].slot = 0;
+  desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
-  if (!ldk_ui_renderer_compile_shader(&renderer->vertex_shader, GL_VERTEX_SHADER, LDK_UI_RENDERER_VERTEX_SHADER))
-  {
-    return false;
-  }
+  renderer->bindings_layout = ldk_rhi_create_bindings_layout(renderer->rhi, &desc);
+  return renderer->bindings_layout != LDK_RHI_INVALID_BINDINGS_LAYOUT;
+}
 
-  if (!ldk_ui_renderer_compile_shader(&renderer->fragment_shader, GL_FRAGMENT_SHADER, LDK_UI_RENDERER_FRAGMENT_SHADER))
-  {
-    glDeleteShader(renderer->vertex_shader);
-    renderer->vertex_shader = 0;
-    return false;
-  }
+static bool ldk_ui_renderer_create_pipeline(LDKUIRenderer* renderer)
+{
+  LDKRHIPipelineDesc desc = {0};
+  ldk_rhi_pipeline_desc_defaults(&desc);
+  desc.vertex_shader_module = renderer->vertex_shader_module;
+  desc.fragment_shader_module = renderer->fragment_shader_module;
+  desc.bindings_layout = renderer->bindings_layout;
+  desc.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
+  desc.blend_state.enabled = true;
+  desc.blend_state.src_color_factor = LDK_RHI_BLEND_FACTOR_SRC_ALPHA;
+  desc.blend_state.dst_color_factor = LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  desc.blend_state.color_op = LDK_RHI_BLEND_OP_ADD;
+  desc.blend_state.src_alpha_factor = LDK_RHI_BLEND_FACTOR_ONE;
+  desc.blend_state.dst_alpha_factor = LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  desc.blend_state.alpha_op = LDK_RHI_BLEND_OP_ADD;
+  desc.depth_state.test_enabled = false;
+  desc.depth_state.write_enabled = false;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
+  desc.raster_state.scissor_enabled = true;
+  desc.vertex_layout.stride = sizeof(LDKUIVertex);
+  desc.vertex_layout.attribute_count = 3;
+  desc.vertex_layout.attributes[0].location = 0;
+  desc.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
+  desc.vertex_layout.attributes[0].offset = (u32)offsetof(LDKUIVertex, x);
+  desc.vertex_layout.attributes[1].location = 1;
+  desc.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
+  desc.vertex_layout.attributes[1].offset = (u32)offsetof(LDKUIVertex, u);
+  desc.vertex_layout.attributes[2].location = 2;
+  desc.vertex_layout.attributes[2].format = LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
+  desc.vertex_layout.attributes[2].offset = (u32)offsetof(LDKUIVertex, color);
+  desc.color_attachment_count = 1;
+  desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
+  desc.depth_format = LDK_RHI_FORMAT_INVALID;
 
-  renderer->program = glCreateProgram();
-
-  if (renderer->program == 0)
-  {
-    glDeleteShader(renderer->vertex_shader);
-    glDeleteShader(renderer->fragment_shader);
-    renderer->vertex_shader = 0;
-    renderer->fragment_shader = 0;
-    return false;
-  }
-
-  glAttachShader(renderer->program, renderer->vertex_shader);
-  glAttachShader(renderer->program, renderer->fragment_shader);
-  glLinkProgram(renderer->program);
-  glGetProgramiv(renderer->program, GL_LINK_STATUS, &linked);
-
-  if (linked == GL_FALSE)
-  {
-    glDeleteProgram(renderer->program);
-    glDeleteShader(renderer->vertex_shader);
-    glDeleteShader(renderer->fragment_shader);
-    renderer->program = 0;
-    renderer->vertex_shader = 0;
-    renderer->fragment_shader = 0;
-    return false;
-  }
-
-  renderer->viewport_size_uniform = glGetUniformLocation(renderer->program, "u_viewport_size");
-
-  glUseProgram(renderer->program);
-
-  GLint texture_uniform = glGetUniformLocation(renderer->program, "u_texture");
-
-  if (texture_uniform >= 0)
-  {
-    glUniform1i(texture_uniform, 0);
-  }
-
-  glUseProgram(0);
-
-  return true;
+  renderer->pipeline = ldk_rhi_create_pipeline(renderer->rhi, &desc);
+  return renderer->pipeline != LDK_RHI_INVALID_PIPELINE;
 }
 
 static bool ldk_ui_renderer_create_white_texture(LDKUIRenderer* renderer)
 {
   u32 pixel = 0xffffffffu;
+  LDKRHITextureDesc texture_desc = {0};
+  ldk_rhi_texture_desc_defaults(&texture_desc);
+  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  texture_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  texture_desc.width = 1;
+  texture_desc.height = 1;
+  texture_desc.depth = 1;
+  texture_desc.mip_count = 1;
+  texture_desc.layer_count = 1;
+  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  texture_desc.initial_data = &pixel;
+  texture_desc.initial_data_size = sizeof(pixel);
 
-  glGenTextures(1, &renderer->white_texture);
+  renderer->white_texture = ldk_rhi_create_texture(renderer->rhi, &texture_desc);
+  return renderer->white_texture != LDK_RHI_INVALID_TEXTURE;
+}
 
-  if (renderer->white_texture == 0)
-  {
-    return false;
-  }
+static bool ldk_ui_renderer_create_sampler(LDKUIRenderer* renderer)
+{
+  LDKRHISamplerDesc desc = {0};
+  ldk_rhi_sampler_desc_defaults(&desc);
+  desc.min_filter = LDK_RHI_FILTER_NEAREST;
+  desc.mag_filter = LDK_RHI_FILTER_NEAREST;
+  desc.mip_filter = LDK_RHI_FILTER_NEAREST;
+  desc.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  desc.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
 
-  glBindTexture(GL_TEXTURE_2D, renderer->white_texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  return true;
+  renderer->sampler = ldk_rhi_create_sampler(renderer->rhi, &desc);
+  return renderer->sampler != LDK_RHI_INVALID_SAMPLER;
 }
 
 static bool ldk_ui_renderer_create_buffers(LDKUIRenderer* renderer)
 {
-  glGenVertexArrays(1, &renderer->vao);
-  glGenBuffers(1, &renderer->vbo);
-  glGenBuffers(1, &renderer->ebo);
+  LDKRHIBufferDesc vertex_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&vertex_desc);
+  vertex_desc.size = renderer->vertex_capacity * (u32)sizeof(LDKUIVertex);
+  vertex_desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  vertex_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  if (renderer->vao == 0 || renderer->vbo == 0 || renderer->ebo == 0)
+  renderer->vertex_buffer = ldk_rhi_create_buffer(renderer->rhi, &vertex_desc);
+  if (renderer->vertex_buffer == LDK_RHI_INVALID_BUFFER)
   {
     return false;
   }
 
-  glBindVertexArray(renderer->vao);
+  LDKRHIBufferDesc index_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&index_desc);
+  index_desc.size = renderer->index_capacity * (u32)sizeof(u32);
+  index_desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  index_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-  glBufferData(
-    GL_ARRAY_BUFFER,
-    (GLsizeiptr)(renderer->vertex_capacity * sizeof(LDKUIVertex)),
-    NULL,
-    GL_DYNAMIC_DRAW
-  );
+  renderer->index_buffer = ldk_rhi_create_buffer(renderer->rhi, &index_desc);
+  if (renderer->index_buffer == LDK_RHI_INVALID_BUFFER)
+  {
+    return false;
+  }
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-  glBufferData(
-    GL_ELEMENT_ARRAY_BUFFER,
-    (GLsizeiptr)(renderer->index_capacity * sizeof(u32)),
-    NULL,
-    GL_DYNAMIC_DRAW
-  );
+  LDKRHIBufferDesc params_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&params_desc);
+  params_desc.size = sizeof(LDKUIRendererParams);
+  params_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  params_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(
-    0,
-    2,
-    GL_FLOAT,
-    GL_FALSE,
-    sizeof(LDKUIVertex),
-    (void*)offsetof(LDKUIVertex, x)
-  );
-
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-    1,
-    2,
-    GL_FLOAT,
-    GL_FALSE,
-    sizeof(LDKUIVertex),
-    (void*)offsetof(LDKUIVertex, u)
-  );
-
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(
-    2,
-    4,
-    GL_UNSIGNED_BYTE,
-    GL_TRUE,
-    sizeof(LDKUIVertex),
-    (void*)offsetof(LDKUIVertex, color)
-  );
-
-  glBindVertexArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-  return true;
+  renderer->params_buffer = ldk_rhi_create_buffer(renderer->rhi, &params_desc);
+  return renderer->params_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
-static void ldk_ui_renderer_ensure_vertex_capacity(LDKUIRenderer* renderer, u32 vertex_count)
+static bool ldk_ui_renderer_recreate_vertex_buffer(LDKUIRenderer* renderer)
+{
+  LDKRHIBufferDesc desc = {0};
+  ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
+  renderer->vertex_buffer = LDK_RHI_INVALID_BUFFER;
+  ldk_rhi_buffer_desc_defaults(&desc);
+  desc.size = renderer->vertex_capacity * (u32)sizeof(LDKUIVertex);
+  desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  renderer->vertex_buffer = ldk_rhi_create_buffer(renderer->rhi, &desc);
+  return renderer->vertex_buffer != LDK_RHI_INVALID_BUFFER;
+}
+
+static bool ldk_ui_renderer_recreate_index_buffer(LDKUIRenderer* renderer)
+{
+  LDKRHIBufferDesc desc = {0};
+  ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
+  renderer->index_buffer = LDK_RHI_INVALID_BUFFER;
+  ldk_rhi_buffer_desc_defaults(&desc);
+  desc.size = renderer->index_capacity * (u32)sizeof(u32);
+  desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  renderer->index_buffer = ldk_rhi_create_buffer(renderer->rhi, &desc);
+  return renderer->index_buffer != LDK_RHI_INVALID_BUFFER;
+}
+
+static bool ldk_ui_renderer_ensure_vertex_capacity(LDKUIRenderer* renderer, u32 vertex_count)
 {
   if (vertex_count <= renderer->vertex_capacity)
   {
-    return;
+    return true;
   }
 
   while (renderer->vertex_capacity < vertex_count)
@@ -220,21 +243,14 @@ static void ldk_ui_renderer_ensure_vertex_capacity(LDKUIRenderer* renderer, u32 
     renderer->vertex_capacity *= 2;
   }
 
-  glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-  glBufferData(
-    GL_ARRAY_BUFFER,
-    (GLsizeiptr)(renderer->vertex_capacity * sizeof(LDKUIVertex)),
-    NULL,
-    GL_DYNAMIC_DRAW
-  );
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  return ldk_ui_renderer_recreate_vertex_buffer(renderer);
 }
 
-static void ldk_ui_renderer_ensure_index_capacity(LDKUIRenderer* renderer, u32 index_count)
+static bool ldk_ui_renderer_ensure_index_capacity(LDKUIRenderer* renderer, u32 index_count)
 {
   if (index_count <= renderer->index_capacity)
   {
-    return;
+    return true;
   }
 
   while (renderer->index_capacity < index_count)
@@ -242,30 +258,46 @@ static void ldk_ui_renderer_ensure_index_capacity(LDKUIRenderer* renderer, u32 i
     renderer->index_capacity *= 2;
   }
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-  glBufferData(
-    GL_ELEMENT_ARRAY_BUFFER,
-    (GLsizeiptr)(renderer->index_capacity * sizeof(u32)),
-    NULL,
-    GL_DYNAMIC_DRAW
-  );
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  return ldk_ui_renderer_recreate_index_buffer(renderer);
 }
 
 bool ldk_ui_renderer_initialize(LDKUIRenderer* renderer, LDKUIRendererConfig const* config)
 {
-  memset(renderer, 0, sizeof(*renderer));
+  if (renderer == NULL || config == NULL || config->rhi == NULL)
+  {
+    return false;
+  }
 
+  memset(renderer, 0, sizeof(*renderer));
+  renderer->rhi = config->rhi;
   renderer->vertex_capacity = config->initial_vertex_capacity > 0 ? config->initial_vertex_capacity : 1024;
   renderer->index_capacity = config->initial_index_capacity > 0 ? config->initial_index_capacity : 2048;
 
-  if (!ldk_ui_renderer_create_program(renderer))
+  if (!ldk_ui_renderer_create_shaders(renderer))
+  {
+    ldk_ui_renderer_terminate(renderer);
+    return false;
+  }
+
+  if (!ldk_ui_renderer_create_bindings_layout(renderer))
+  {
+    ldk_ui_renderer_terminate(renderer);
+    return false;
+  }
+
+  if (!ldk_ui_renderer_create_pipeline(renderer))
   {
     ldk_ui_renderer_terminate(renderer);
     return false;
   }
 
   if (!ldk_ui_renderer_create_white_texture(renderer))
+  {
+    ldk_ui_renderer_terminate(renderer);
+    return false;
+  }
+
+  if (!ldk_ui_renderer_create_sampler(renderer))
   {
     ldk_ui_renderer_terminate(renderer);
     return false;
@@ -283,42 +315,45 @@ bool ldk_ui_renderer_initialize(LDKUIRenderer* renderer, LDKUIRendererConfig con
 
 void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
 {
-  if (renderer->ebo != 0)
+  if (renderer == NULL)
   {
-    glDeleteBuffers(1, &renderer->ebo);
+    return;
   }
 
-  if (renderer->vbo != 0)
+  if (renderer->rhi != NULL)
   {
-    glDeleteBuffers(1, &renderer->vbo);
-  }
-
-  if (renderer->vao != 0)
-  {
-    glDeleteVertexArrays(1, &renderer->vao);
-  }
-
-  if (renderer->white_texture != 0)
-  {
-    glDeleteTextures(1, &renderer->white_texture);
-  }
-
-  if (renderer->program != 0)
-  {
-    glDeleteProgram(renderer->program);
-  }
-
-  if (renderer->vertex_shader != 0)
-  {
-    glDeleteShader(renderer->vertex_shader);
-  }
-
-  if (renderer->fragment_shader != 0)
-  {
-    glDeleteShader(renderer->fragment_shader);
+    ldk_rhi_destroy_buffer(renderer->rhi, renderer->params_buffer);
+    ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
+    ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
+    ldk_rhi_destroy_sampler(renderer->rhi, renderer->sampler);
+    ldk_rhi_destroy_texture(renderer->rhi, renderer->white_texture);
+    ldk_rhi_destroy_pipeline(renderer->rhi, renderer->pipeline);
+    ldk_rhi_destroy_bindings_layout(renderer->rhi, renderer->bindings_layout);
+    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->fragment_shader_module);
+    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
   }
 
   memset(renderer, 0, sizeof(*renderer));
+}
+
+static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+{
+  LDKRHIBindingsDesc desc = {0};
+  ldk_rhi_bindings_desc_defaults(&desc);
+  desc.layout = renderer->bindings_layout;
+  desc.binding_count = 2;
+  desc.bindings[0].slot = 0;
+  desc.bindings[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  desc.bindings[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.bindings[0].buffer = renderer->params_buffer;
+  desc.bindings[0].buffer_offset = 0;
+  desc.bindings[0].buffer_size = sizeof(LDKUIRendererParams);
+  desc.bindings[1].slot = 0;
+  desc.bindings[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.bindings[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.bindings[1].texture = texture;
+  desc.bindings[1].sampler = renderer->sampler;
+  return ldk_rhi_create_bindings(renderer->rhi, &desc);
 }
 
 void ldk_ui_renderer_draw(
@@ -328,7 +363,7 @@ void ldk_ui_renderer_draw(
   i32 framebuffer_height
 )
 {
-  if (!renderer->is_initialized)
+  if (renderer == NULL || !renderer->is_initialized)
   {
     return;
   }
@@ -348,35 +383,29 @@ void ldk_ui_renderer_draw(
     return;
   }
 
-  ldk_ui_renderer_ensure_vertex_capacity(renderer, render_data->vertex_count);
-  ldk_ui_renderer_ensure_index_capacity(renderer, render_data->index_count);
+  if (!ldk_ui_renderer_ensure_vertex_capacity(renderer, render_data->vertex_count))
+  {
+    return;
+  }
 
-  glUseProgram(renderer->program);
-  glUniform2f(renderer->viewport_size_uniform, (float)framebuffer_width, (float)framebuffer_height);
+  if (!ldk_ui_renderer_ensure_index_capacity(renderer, render_data->index_count))
+  {
+    return;
+  }
 
-  glBindVertexArray(renderer->vao);
+  LDKUIRendererParams params = {0};
+  params.viewport_size[0] = (float)framebuffer_width;
+  params.viewport_size[1] = (float)framebuffer_height;
+  params.padding[0] = 0.0f;
+  params.padding[1] = 0.0f;
 
-  glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-  glBufferSubData(
-    GL_ARRAY_BUFFER,
-    0,
-    (GLsizeiptr)(render_data->vertex_count * sizeof(LDKUIVertex)),
-    render_data->vertices
-  );
+  ldk_rhi_update_buffer(renderer->rhi, renderer->params_buffer, 0, sizeof(params), &params);
+  ldk_rhi_update_buffer(renderer->rhi, renderer->vertex_buffer, 0, render_data->vertex_count * (u32)sizeof(LDKUIVertex), render_data->vertices);
+  ldk_rhi_update_buffer(renderer->rhi, renderer->index_buffer, 0, render_data->index_count * (u32)sizeof(u32), render_data->indices);
 
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-  glBufferSubData(
-    GL_ELEMENT_ARRAY_BUFFER,
-    0,
-    (GLsizeiptr)(render_data->index_count * sizeof(u32)),
-    render_data->indices
-  );
-
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable(GL_SCISSOR_TEST);
-  glDisable(GL_CULL_FACE);
-  glDisable(GL_DEPTH_TEST);
+  ldk_rhi_bind_pipeline(renderer->rhi, renderer->pipeline);
+  ldk_rhi_bind_vertex_buffer(renderer->rhi, renderer->vertex_buffer, 0);
+  ldk_rhi_bind_index_buffer(renderer->rhi, renderer->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
 
   for (u32 i = 0; i < render_data->command_count; ++i)
   {
@@ -385,26 +414,33 @@ void ldk_ui_renderer_draw(
     i32 scissor_y = framebuffer_height - (i32)(cmd->clip_rect.y + cmd->clip_rect.h);
     i32 scissor_w = (i32)cmd->clip_rect.w;
     i32 scissor_h = (i32)cmd->clip_rect.h;
-    u32 texture = cmd->texture != 0 ? (u32)cmd->texture : renderer->white_texture;
-    void const* index_offset_ptr = (void*)(uintptr_t)(cmd->index_offset * sizeof(u32));
+    LDKRHITexture texture = cmd->texture != 0 ? (LDKRHITexture)cmd->texture : renderer->white_texture;
 
     if (scissor_w <= 0 || scissor_h <= 0 || cmd->index_count == 0)
     {
       continue;
     }
 
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glScissor(scissor_x, scissor_y, scissor_w, scissor_h);
+    LDKRHIBindings bindings = ldk_ui_renderer_create_draw_bindings(renderer, texture);
+    if (bindings == LDK_RHI_INVALID_BINDINGS)
+    {
+      continue;
+    }
 
-    glDrawElements(
-      GL_TRIANGLES,
-      (GLsizei)cmd->index_count,
-      GL_UNSIGNED_INT,
-      index_offset_ptr
-    );
+    LDKRHIRect scissor = {0};
+    scissor.x = scissor_x;
+    scissor.y = scissor_y;
+    scissor.width = scissor_w;
+    scissor.height = scissor_h;
+    ldk_rhi_set_scissor(renderer->rhi, &scissor);
+    ldk_rhi_bind_bindings(renderer->rhi, bindings);
+
+    LDKRHIDrawIndexedDesc draw_desc = {0};
+    draw_desc.index_count = cmd->index_count;
+    draw_desc.first_index = cmd->index_offset;
+    draw_desc.vertex_offset = 0;
+    ldk_rhi_draw_indexed(renderer->rhi, &draw_desc);
+
+    ldk_rhi_destroy_bindings(renderer->rhi, bindings);
   }
-
-  glDisable(GL_SCISSOR_TEST);
-  glBindVertexArray(0);
-  glUseProgram(0);
 }

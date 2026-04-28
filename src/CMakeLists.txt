@@ -32,7 +32,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_geom.h       ldk_geom.c
   ${INCLUDE_DIR}/ldk.h            ldk.c
   ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
-  # modules
+  ${INCLUDE_DIR}/ldk_rhi.h        ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/ldk_ui.h         module/ldk_ui.c
   ${INCLUDE_DIR}/ldk_ttf.h        ldk_ttf.c
   ${INCLUDE_DIR}/ldk_font_cache.h module/ldk_font_cache.c
