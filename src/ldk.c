@@ -1,4 +1,5 @@
 #include "ldk_common.h"
+#include "ldk_event.h"
 #include "ldk_eventqueue.h"
 #include "ldk_ttf.h"
 #include "ldk_gl.h"
@@ -207,11 +208,29 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   return true;
 }
 
+static LDKUITextInputState ui_text_input = {0};
+static bool s_on_text_event(const LDKEvent* event, void* state)
+{
+  if (event->textEvent.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
+  {
+    if (ui_text_input.codepoint_count < LDK_UI_INPUT_CODEPOINTS_CAPACITY)
+    {
+      printf("TEXT EVET #%d\n", ui_text_input.codepoint_count);
+      ui_text_input.codepoints[ui_text_input.codepoint_count++] = event->textEvent.character;
+      return true;
+    }
+  }
+  return false;
+}
+
 float r = 0.0f;
 float g = 0.0f;
 float b = 0.0f;
 bool bool_value = false;
 char* msg = "Hello, Sailor!";
+
+XSmallstr text_box1 = {0};
+XSmallstr text_box2 = {0};
 
 LDKUIRect w1 = { 10, 100, 400, 300 };
 LDKUIRect w2 = { 10, 100, 400, 400 };
@@ -238,6 +257,7 @@ LDKUIPoint scroll_pos = {0};
 
 void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 {
+
   const float step = 1000.0f * delta_time;
   if (console_state == CONSOLE_IS_CLOSING)
   {
@@ -287,12 +307,12 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_begin_horizontal(ui);
 
     ldk_ui_begin_vertical(ui);
-      ldk_ui_set_next_expand_height(ui, true);
-      r = ldk_ui_slider(ui, "Slider", r, 0.0f, 255.0f);
-      ldk_ui_set_next_expand_height(ui, true);
-      g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
-      ldk_ui_set_next_expand_height(ui, true);
-      b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
+    ldk_ui_set_next_expand_height(ui, true);
+    r = ldk_ui_slider(ui, "Slider", r, 0.0f, 255.0f);
+    ldk_ui_set_next_expand_height(ui, true);
+    g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
+    ldk_ui_set_next_expand_height(ui, true);
+    b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
     ldk_ui_end_vertical(ui);
 
     ldk_ui_set_next_expand_height(ui, true);
@@ -303,34 +323,7 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_label(ui, msg);
     ldk_ui_end_window(ui);
   }
-
 #if 0
-  if (bool_value)
-  {
-    w2 = ldk_ui_begin_window(ui, "Window 2", w2);
-    if (ldk_ui_button(ui, "BLUE"))
-    {
-      r = 0.0f;
-      g = 0.0f;
-      b = 255.0f;
-    }
-
-    if (ldk_ui_button(ui, "RED"))
-    {
-      r = 255.0f;
-      g = 0.0f;
-      b = 0.0f;
-    }
-
-    if (ldk_ui_button(ui, "Close"))
-    {
-      bool_value = false;
-    }
-
-    ldk_ui_end_window(ui);
-  }
-#endif
-
   if (bool_value)
   {
     w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
@@ -350,6 +343,24 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_end_vertical_scroll_area(ui);
     ldk_ui_end_window(ui);
   }
+#endif
+
+  if (bool_value)
+  {
+    w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
+    ldk_ui_label(ui, "Box 1");
+    ldk_ui_text_box(ui, text_box1.buf, X_SMALLSTR_MAX_LENGTH);
+
+    ldk_ui_label(ui, "Box 2");
+    ldk_ui_text_box(ui, text_box2.buf, X_SMALLSTR_MAX_LENGTH);
+
+    if (ldk_ui_button(ui, "copy"))
+    {
+      memcpy((char*) &text_box2.buf, (char*) &text_box1.buf, strlen(text_box1.buf));
+    }
+    ldk_ui_end_window(ui);
+  }
+
 
   if (console_state != CONSOLE_IS_CLOSED)
   { // console
@@ -360,6 +371,7 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_end_pane(ui);
   }
 
+  ui_text_input.codepoint_count = 0;
 }
 
 bool ldk_engine_is_initialized(void)
@@ -519,7 +531,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-
   { // Font cache initialization
     LDKFontCacheConfig font_cache_config;
     memset(&font_cache_config, 0, sizeof(font_cache_config));
@@ -590,6 +601,8 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ldk_engine_terminate();
     return false;
   }
+
+  ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
 
   e->running = true;
   e->playing = false;
@@ -755,7 +768,7 @@ void ldk_engine_frame(void)
 
 #ifdef LDK_EDITOR
   /* render editor overlays, gizmos and tool UI here */
-  ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, ui_viewport);
+  ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
   s_draw_editor_ui(&e->editor_ui, delta_time);
   ldk_ui_end_frame(&e->editor_ui);
 #endif

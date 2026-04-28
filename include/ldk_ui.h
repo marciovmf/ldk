@@ -31,6 +31,10 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifndef LDK_UI_INPUT_CODEPOINTS_CAPACITY
+#define LDK_UI_INPUT_CODEPOINTS_CAPACITY 16
+#endif
+
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
   typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(void* user, LDKFontInstance* font, u32 page_index);
@@ -191,7 +195,16 @@ extern "C" {
     LDK_UI_ITEM_LAYOUT = 6,
     LDK_UI_ITEM_COLOR_VIEW = 7,
     LDK_UI_ITEM_SCROLL_AREA = 8,
+    LDK_UI_ITEM_TEXT_BOX = 9,
   } LDKUIItemType;
+
+  typedef enum LDKUITextBoxResult
+  {
+    LDK_UI_TEXT_BOX_NONE      = 0,
+    LDK_UI_TEXT_BOX_CHANGED   = 1 << 0,
+    LDK_UI_TEXT_BOX_COMMITTED = 1 << 1,
+    LDK_UI_TEXT_BOX_CANCELED  = 1 << 2,
+  } LDKUITextBoxResult;
 
   typedef struct LDKUINextLayout
   {
@@ -255,6 +268,13 @@ extern "C" {
       } color_view;
       struct
       {
+        u32 cursor;
+        u32 select_start;
+        u32 select_end;
+        bool focused;
+      } text_box;
+      struct
+      {
         LDKUILayoutNode* node;
         LDKUIPoint scroll;
         LDKUIScrollFlags flags;
@@ -285,26 +305,37 @@ extern "C" {
     LDKUIWindow* window;
   };
 
+  typedef struct LDKUITextInputState
+  {
+    u32 codepoints[LDK_UI_INPUT_CODEPOINTS_CAPACITY];
+    u32 codepoint_count;
+  } LDKUITextInputState;
+
   struct LDKUIContext
   {
     XArena* frame_arena;
-    LDKFontInstance* font;
-    void* font_file; // this is a XFile*
+    LDKFontInstance* font;    //TODO: Move this to theme
+    void* font_file;          // this is a XFile*
     void* font_texture_user;
     LDKUIGetFontPageTextureFn get_font_page_texture;
+    // User owned, passed in every frame
     LDKMouseState const* mouse;
     LDKKeyboardState const* keyboard;
+    LDKUITextInputState const* input_text;
+    // UI owned
     LDKUIWindow* hovered_window;
     LDKUIWindow* focused_window;
     LDKUIWindow* current_window;
     LDKUILayoutNode* current_layout;
     LDKUINextLayout next_layout;
+    // Rendering
     XArray_ldk_ui_window* windows;
     XArray_ldk_ui_id* id_stack;
     XArray_ldk_ui_vertex* vertices;
     XArray_ldk_ui_u32* indices;
     XArray_ldk_ui_draw_cmd* commands;
     XArray_ldk_ui_widget_state* widget_states;
+    // Theme and state
     LDKUITheme theme;
     LDKUIRenderData render_data;
     LDKUIRect viewport;
@@ -312,12 +343,17 @@ extern "C" {
     LDKUIId active_id;
     LDKUIId focused_id;
     LDKUIId last_id;
+    LDKUIId text_box_id;
     LDKUIId dragging_item;
     u32 root_item_count;
     u32 frame_index;
+    u32 text_cursor;
+    u32 text_select_start;
+    u32 text_select_end;
     float drag_x;
     float drag_y;
   };
+
 
   // lifecycle
   LDK_API bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config);
@@ -327,7 +363,7 @@ extern "C" {
   LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
 
   // frame
-  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport);
+  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUITextInputState const* text_input, LDKUIRect viewport);
   LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
   LDK_API LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
 
@@ -378,9 +414,6 @@ extern "C" {
 
   LDK_API void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color);
 
-  // text input
-  LDK_API void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint);
-
   LDK_API LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags);
 
   LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx);
@@ -390,6 +423,8 @@ extern "C" {
 
   LDK_API LDKUIPoint ldk_ui_begin_horizontal_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll);
   LDK_API void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx);
+
+  LDK_API u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size);
 
 #ifdef __cplusplus
 }

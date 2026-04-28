@@ -1,3 +1,4 @@
+#include "ldk_os.h"
 #include "ldk_ttf.h"
 #include "stdx/stdx_array.h"
 #include <ldk_common.h>
@@ -183,6 +184,301 @@ static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
   return size;
 }
 
+static float s_ui_measure_text_bytes(LDKFontInstance* font, char const* text, u32 byte_count)
+{
+  float width = 0.0f;
+  u32 prev_codepoint = 0;
+  char const* cursor = text;
+  char const* end = text + byte_count;
+
+  if (font == NULL || text == NULL)
+  {
+    return 0.0f;
+  }
+
+  while (cursor < end && *cursor != '\0')
+  {
+    u32 codepoint = 0;
+    char const* before = cursor;
+    LDKGlyph const* glyph = NULL;
+
+    if (!ldk_font_utf8_decode(&cursor, &codepoint))
+    {
+      break;
+    }
+
+    if (cursor > end)
+    {
+      cursor = before;
+      break;
+    }
+
+    if (codepoint == '\n')
+    {
+      break;
+    }
+
+    glyph = ldk_font_get_glyph(font, codepoint);
+
+    if (glyph == NULL || !glyph->valid)
+    {
+      prev_codepoint = 0;
+      continue;
+    }
+
+    if (prev_codepoint != 0)
+    {
+      width += ldk_font_get_kerning(font, prev_codepoint, codepoint);
+    }
+
+    width += (float)glyph->advance_x;
+    prev_codepoint = codepoint;
+  }
+
+  return width;
+}
+
+static u32 s_ui_cstr_len_u32(char const* text)
+{
+  size_t len = 0;
+
+  if (text == NULL)
+  {
+    return 0;
+  }
+
+  len = strlen(text);
+
+  if (len > UINT32_MAX)
+  {
+    return UINT32_MAX;
+  }
+
+  return (u32)len;
+}
+
+static u32 s_ui_utf8_prev(char const* text, u32 cursor)
+{
+  u32 i = cursor;
+
+  if (text == NULL || cursor == 0)
+  {
+    return 0;
+  }
+
+  i -= 1;
+
+  while (i > 0 && (((u8)text[i] & 0xc0u) == 0x80u))
+  {
+    i -= 1;
+  }
+
+  return i;
+}
+
+static u32 s_ui_utf8_next(char const* text, u32 cursor)
+{
+  u32 len = s_ui_cstr_len_u32(text);
+  u32 i = cursor;
+
+  if (text == NULL || cursor >= len)
+  {
+    return len;
+  }
+
+  i += 1;
+
+  while (i < len && (((u8)text[i] & 0xc0u) == 0x80u))
+  {
+    i += 1;
+  }
+
+  return i;
+}
+
+static u32 s_ui_text_box_cursor_from_x(LDKUIContext* ctx, char const* text, LDKUIRect rect, float x)
+{
+  float padding_x = 6.0f;
+  float local_x = x - rect.x - padding_x;
+  u32 len = s_ui_cstr_len_u32(text);
+  u32 best = 0;
+  float best_distance = 1000000000.0f;
+  u32 cursor = 0;
+
+  if (local_x <= 0.0f)
+  {
+    return 0;
+  }
+
+  while (cursor <= len)
+  {
+    float cursor_x = s_ui_measure_text_bytes(ctx->font, text, cursor);
+    float distance = fabsf(cursor_x - local_x);
+
+    if (distance < best_distance)
+    {
+      best_distance = distance;
+      best = cursor;
+    }
+
+    if (cursor == len)
+    {
+      break;
+    }
+
+    cursor = s_ui_utf8_next(text, cursor);
+  }
+
+  return best;
+}
+
+static bool s_ui_codepoint_to_utf8(u32 codepoint, char out_text[4], u32* out_len)
+{
+  if (out_text == NULL || out_len == NULL)
+  {
+    return false;
+  }
+
+  if (codepoint <= 0x7fu)
+  {
+    out_text[0] = (char)codepoint;
+    *out_len = 1;
+    return true;
+  }
+
+  if (codepoint <= 0x7ffu)
+  {
+    out_text[0] = (char)(0xc0u | (codepoint >> 6));
+    out_text[1] = (char)(0x80u | (codepoint & 0x3fu));
+    *out_len = 2;
+    return true;
+  }
+
+  if (codepoint <= 0xffffu)
+  {
+    out_text[0] = (char)(0xe0u | (codepoint >> 12));
+    out_text[1] = (char)(0x80u | ((codepoint >> 6) & 0x3fu));
+    out_text[2] = (char)(0x80u | (codepoint & 0x3fu));
+    *out_len = 3;
+    return true;
+  }
+
+  if (codepoint <= 0x10ffffu)
+  {
+    out_text[0] = (char)(0xf0u | (codepoint >> 18));
+    out_text[1] = (char)(0x80u | ((codepoint >> 12) & 0x3fu));
+    out_text[2] = (char)(0x80u | ((codepoint >> 6) & 0x3fu));
+    out_text[3] = (char)(0x80u | (codepoint & 0x3fu));
+    *out_len = 4;
+    return true;
+  }
+
+  return false;
+}
+
+static bool s_ui_text_delete_range(char* buffer, u32 buffer_len, u32 start, u32 end)
+{
+  if (buffer == NULL || start >= end || end > buffer_len)
+  {
+    return false;
+  }
+
+  memmove(buffer + start, buffer + end, (size_t)(buffer_len - end + 1));
+  return true;
+}
+
+static bool s_ui_text_insert_bytes(char* buffer, u32 buffer_size, u32* cursor, char const* text, u32 text_len)
+{
+  u32 buffer_len = s_ui_cstr_len_u32(buffer);
+
+  if (buffer == NULL || cursor == NULL || text == NULL || buffer_size == 0 || text_len == 0)
+  {
+    return false;
+  }
+
+  if (*cursor > buffer_len)
+  {
+    *cursor = buffer_len;
+  }
+
+  if (buffer_len + text_len >= buffer_size)
+  {
+    text_len = buffer_size - buffer_len - 1;
+  }
+
+  if (text_len == 0)
+  {
+    return false;
+  }
+
+  memmove(buffer + *cursor + text_len, buffer + *cursor, (size_t)(buffer_len - *cursor + 1));
+  memcpy(buffer + *cursor, text, (size_t)text_len);
+  *cursor += text_len;
+  return true;
+}
+
+static bool s_ui_keyboard_shift_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_is_pressed((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_SHIFT);
+}
+
+static bool s_ui_keyboard_backspace_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_BACKSPACE);
+}
+
+static bool s_ui_keyboard_delete_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_DELETE);
+}
+
+static bool s_ui_keyboard_ctrla_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_A) &&
+    ldk_os_keyboard_key_is_pressed((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_CONTROL);
+
+}
+
+static bool s_ui_keyboard_home_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_HOME);
+}
+
+static bool s_ui_keyboard_end_pressed(LDKUIContext* ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_END);
+}
+
 static LDKUISize s_ui_measure_label_impl(LDKFontInstance* font, char const* text)
 {
   LDKUISize size = s_ui_measure_text(font, text);
@@ -194,6 +490,17 @@ static LDKUISize s_ui_measure_button_impl(LDKFontInstance* font, char const* tex
   LDKUISize size = s_ui_measure_text(font, text);
   size.w += 16.0f;
   size.h += 10.0f;
+  return size;
+}
+
+static LDKUISize s_ui_measure_text_box_impl(LDKUIContext* ctx, char const* text)
+{
+  LDKUISize text_size = s_ui_measure_text(ctx->font, text);
+  LDKUISize size = {0};
+
+  size.w = s_ui_maxf(140.0f, text_size.w + 12.0f);
+  size.h = s_ui_maxf(22.0f, text_size.h + 8.0f);
+
   return size;
 }
 
@@ -1295,6 +1602,85 @@ static void s_ui_emit_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect c
       clip_rect);
 }
 
+static void s_ui_emit_text_box(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
+{
+  float padding_x = 6.0f;
+  LDKUISize text_size = s_ui_measure_text(ctx->font, item->text);
+  LDKUIRect inner_clip = s_ui_rect_intersect(clip_rect, item->rect);
+  LDKUIRect cursor_rect = {0};
+  u32 bg_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+  u32 border_color = ctx->theme.colors[LDK_UI_COLOR_BORDER];
+  u32 selection_color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
+  u32 cursor_color = ctx->theme.colors[LDK_UI_COLOR_TEXT];
+  float text_x = item->rect.x + padding_x;
+  float text_y = item->rect.y + (item->rect.h - text_size.h) * 0.5f;
+  u32 select_start = item->data.text_box.select_start;
+  u32 select_end = item->data.text_box.select_end;
+
+  if (ctx->hot_id == item->id)
+  {
+    bg_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+  }
+
+  if (item->data.text_box.focused)
+  {
+    border_color = ctx->theme.colors[LDK_UI_COLOR_FOCUS];
+  }
+
+  s_ui_emit_quad(ctx, item->rect, bg_color, clip_rect, 0);
+
+  if (select_start != select_end)
+  {
+    if (select_start > select_end)
+    {
+      u32 temp = select_start;
+      select_start = select_end;
+      select_end = temp;
+    }
+
+    {
+      float selection_x0 = text_x + s_ui_measure_text_bytes(ctx->font, item->text, select_start);
+      float selection_x1 = text_x + s_ui_measure_text_bytes(ctx->font, item->text, select_end);
+      LDKUIRect selection_rect = { selection_x0, item->rect.y + 3.0f, selection_x1 - selection_x0, item->rect.h - 6.0f };
+
+      if (selection_rect.w > 0.0f && ctx->text_box_id == item->id)
+      {
+        s_ui_emit_quad(ctx, selection_rect, selection_color, inner_clip, 0);
+      }
+    }
+  }
+
+  ldk_ui_draw_text(
+      ctx,
+      item->text,
+      text_x,
+      text_y,
+      ctx->theme.colors[LDK_UI_COLOR_TEXT],
+      inner_clip);
+
+  if (item->data.text_box.focused)
+  {
+    float cursor_x = text_x + s_ui_measure_text_bytes(ctx->font, item->text, item->data.text_box.cursor);
+    cursor_rect.x = cursor_x;
+    cursor_rect.y = item->rect.y + 3.0f;
+    cursor_rect.w = 1.0f;
+    cursor_rect.h = item->rect.h - 6.0f;
+    s_ui_emit_quad(ctx, cursor_rect, cursor_color, inner_clip, 0);
+  }
+
+  {
+    LDKUIRect top = { item->rect.x, item->rect.y, item->rect.w, 1.0f };
+    LDKUIRect bottom = { item->rect.x, item->rect.y + item->rect.h - 1.0f, item->rect.w, 1.0f };
+    LDKUIRect left = { item->rect.x, item->rect.y, 1.0f, item->rect.h };
+    LDKUIRect right = { item->rect.x + item->rect.w - 1.0f, item->rect.y, 1.0f, item->rect.h };
+
+    s_ui_emit_quad(ctx, top, border_color, clip_rect, 0);
+    s_ui_emit_quad(ctx, bottom, border_color, clip_rect, 0);
+    s_ui_emit_quad(ctx, left, border_color, clip_rect, 0);
+    s_ui_emit_quad(ctx, right, border_color, clip_rect, 0);
+  }
+}
+
 static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   if (item->type == LDK_UI_ITEM_LABEL)
@@ -1311,6 +1697,8 @@ static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_re
     s_ui_emit_scroll_area(ctx, item, clip_rect);
   else if (item->type == LDK_UI_ITEM_COLOR_VIEW)
     s_ui_emit_color_view(ctx, item, clip_rect);
+  else if (item->type == LDK_UI_ITEM_TEXT_BOX)
+    s_ui_emit_text_box(ctx, item, clip_rect);
 
 #ifdef LDK_UI_DEBUG_DRAW
   if (ctx->hot_id == item->id)
@@ -1682,122 +2070,121 @@ static LDKUIWindow* s_ui_window_at_cursor_topmost(LDKUIContext* ctx)
   return NULL;
 }
 
-void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom)
+/**
+ * Begins a root container.
+ *
+ * A root container is positioned explicitly (not by layout) and is used for
+ * top-level UI elements like windows, popups, and overlays.
+ *
+ * The input `rect` is the source of truth. If `draggable` is enabled, the
+ * rect may be modified based on user input and written to `out_rect`.
+ *
+ * This function also handles top-level interaction (hover, focus, z-order)
+ * and creates the root layout node for its contents.
+ */
+static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable, LDKUIRect* out_rect)
 {
-  LDK_ASSERT(ctx != NULL);
-  LDKUITheme* theme = &ctx->theme;
+  LDKUIId resolved_id = s_ui_make_id(ctx, id);
+  LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title);
+  LDKUIRect result_rect = rect;
+  float header_height = toolbar ? 24.0f : 0.0f;
+  LDKUIRect title_bar_rect = {0};
+  LDKPoint cursor;
+  bool inside_window;
+  bool inside_title_bar;
+  LDKUILayoutNode* root;
 
-  if (type == LDK_UI_THEME_DEFAULT_DARK)
+  if (window == NULL)
   {
-    LDKUIColor text          = LDK_RGBA_TO_ABGR(0xd8d8d8ffu);
-    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0x707070ffu);
-    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0x333333ffu);
-    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0x252525ffu);
-    LDKUIColor control       = LDK_RGBA_TO_ABGR(0x444444ffu);
-    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0x505050ffu);
-    LDKUIColor active        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
-    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0x43c8b3ffu);
-    LDKUIColor border        = LDK_RGBA_TO_ABGR(0x1c1c1cffu);
-    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
-    LDKUIColor dark_track    = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor title         = LDK_RGBA_TO_ABGR(0x3f3f3fffu);
-    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0x2a2a2affu);
-    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0x555555ffu);
-    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x666666ffu);
-    LDKUIColor thumb_active  = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    return false;
+  }
+  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
 
-    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
-    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
-    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
-    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
-    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
-    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = dark_track;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = control;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = dark_track;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = control;
-    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = 0x0;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB]               = thumb;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED]       = thumb_hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE]        = thumb_active;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
-    theme->slider_bar_track_height                         = 22.0f;
-    theme->slider_track_height                             = 0.27272728f;
-    theme->slider_thumb_width                              = 0.63636363f;
-  }
-  else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
+  //
+  // Controls
+  //
+  if (title != NULL)
   {
-    LDKUIColor text          = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
-    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0xf0f0f0ffu);
-    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0xe0e0e0ffu);
-    LDKUIColor control       = LDK_RGBA_TO_ABGR(0xd0d0d0ffu);
-    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
-    LDKUIColor active        = LDK_RGBA_TO_ABGR(0xb0b0b0ffu);
-    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0xb4b4b4ffu);
-    LDKUIColor border        = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
-    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x4f8cc9ffu);
-    LDKUIColor track         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
-    LDKUIColor title         = LDK_RGBA_TO_ABGR(0xdcdcdcffu);
-    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0xbfcfffffu);
-    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0xc8c8c8ffu);
-    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0xa8a8a8ffu);
-    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x909090ffu);
-    LDKUIColor thumb_active  = accent;
+    strncpy(window->title, title, sizeof(window->title) - 1);
+    window->title[sizeof(window->title) - 1] = 0;
+  }
 
-    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
-    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
-    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
-    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
-    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
-    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
-    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = track;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = active;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = track;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = active;
-    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB]               = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED]       = active_hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE]        = accent;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
-    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
-    theme->slider_bar_track_height                         = 22.0f;
-    theme->slider_track_height                             = 0.27272728f;
-    theme->slider_thumb_width                              = 0.63636363f;
-  }
-  else if (type == LDK_UI_THEME_CUSTOM && custom != NULL)
+  title_bar_rect.x = rect.x;
+  title_bar_rect.y = rect.y;
+  title_bar_rect.w = rect.w;
+  title_bar_rect.h = header_height;
+
+  inside_window = s_ui_rect_contains(rect, (float)cursor.x, (float)cursor.y);
+  inside_title_bar = header_height > 0.0f &&
+    s_ui_rect_contains(title_bar_rect, (float)cursor.x, (float)cursor.y);
+
+  if (ctx->hovered_window == window && inside_window)
   {
-    memcpy(&ctx->theme, custom, sizeof(*custom));
+    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      s_ui_window_bring_to_front(ctx, window);
+      window = x_array_ldk_ui_window_back(ctx->windows);
+      ctx->focused_window = window;
+      ctx->focused_id = 0;
+    }
   }
-  else
+
+  if (ctx->hovered_window == window && draggable && inside_title_bar)
   {
-    ldk_ui_set_theme(ctx, LDK_UI_THEME_DEFAULT_LIGHT, NULL);
+    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      ctx->dragging_item = resolved_id;
+      ctx->drag_x = (float)cursor.x - rect.x;
+      ctx->drag_y = (float)cursor.y - rect.y;
+      ctx->focused_window = window;
+      ctx->focused_id = 0;
+    }
   }
+
+  if (ctx->dragging_item == resolved_id)
+  {
+    if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      result_rect.x = (float)cursor.x - ctx->drag_x;
+      result_rect.y = (float)cursor.y - ctx->drag_y;
+    }
+    else
+    {
+      ctx->dragging_item = 0;
+    }
+  }
+
+  window->title_bar_rect.x = result_rect.x;
+  window->title_bar_rect.y = result_rect.y;
+  window->title_bar_rect.w = result_rect.w;
+  window->title_bar_rect.h = header_height;
+
+  window->content_rect.x = result_rect.x;
+  window->content_rect.y = result_rect.y + header_height;
+  window->content_rect.w = result_rect.w;
+  window->content_rect.h = result_rect.h - header_height;
+
+  root = s_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
+
+  if (root == NULL)
+  {
+    return false;
+  }
+
+  root->id = resolved_id;
+  window->root_layout = root;
+  ctx->current_window = window;
+  ctx->current_layout = root;
+  ctx->root_item_count++;
+
+  if (out_rect != NULL)
+  {
+    *out_rect = result_rect;
+  }
+
+  return true;
 }
+
 
 //
 // Life cycle
@@ -1855,11 +2242,12 @@ void ldk_ui_terminate(LDKUIContext* ctx)
 // Frame
 //
 
-void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUIRect viewport)
+void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUITextInputState const* text_input, LDKUIRect viewport)
 {
   u32 count = x_array_ldk_ui_window_count(ctx->windows);
   ctx->mouse = mouse;
   ctx->keyboard = keyboard;
+  ctx->input_text = text_input;
   ctx->viewport = viewport;
   ctx->root_item_count = 0;
   ctx->hot_id = 0;
@@ -1996,6 +2384,127 @@ void ldk_ui_pop_id(LDKUIContext* ctx)
 }
 
 //
+// Theme
+//
+
+void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom)
+{
+  LDK_ASSERT(ctx != NULL);
+  LDKUITheme* theme = &ctx->theme;
+
+  if (type == LDK_UI_THEME_DEFAULT_DARK)
+  {
+    LDKUIColor text          = LDK_RGBA_TO_ABGR(0xd8d8d8ffu);
+    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0x707070ffu);
+    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0x333333ffu);
+    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0x252525ffu);
+    LDKUIColor control       = LDK_RGBA_TO_ABGR(0x444444ffu);
+    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0x505050ffu);
+    LDKUIColor active        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0x43c8b3ffu);
+    LDKUIColor border        = LDK_RGBA_TO_ABGR(0x1c1c1cffu);
+    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    LDKUIColor dark_track    = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor title         = LDK_RGBA_TO_ABGR(0x3f3f3fffu);
+    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0x2a2a2affu);
+    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0x555555ffu);
+    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x666666ffu);
+    LDKUIColor thumb_active  = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+
+    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
+    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
+    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
+    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
+    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
+    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = dark_track;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = control;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = dark_track;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = control;
+    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = 0x0;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB]               = thumb;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED]       = thumb_hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE]        = thumb_active;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
+    theme->slider_bar_track_height                         = 22.0f;
+    theme->slider_track_height                             = 0.27272728f;
+    theme->slider_thumb_width                              = 0.63636363f;
+  }
+  else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
+  {
+    LDKUIColor text          = LDK_RGBA_TO_ABGR(0x202020ffu);
+    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
+    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0xf0f0f0ffu);
+    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0xe0e0e0ffu);
+    LDKUIColor control       = LDK_RGBA_TO_ABGR(0xd0d0d0ffu);
+    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
+    LDKUIColor active        = LDK_RGBA_TO_ABGR(0xb0b0b0ffu);
+    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0xb4b4b4ffu);
+    LDKUIColor border        = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
+    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x4f8cc9ffu);
+    LDKUIColor track         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
+    LDKUIColor title         = LDK_RGBA_TO_ABGR(0xdcdcdcffu);
+    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0xbfcfffffu);
+    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0xc8c8c8ffu);
+    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0xa8a8a8ffu);
+    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x909090ffu);
+    LDKUIColor thumb_active  = accent;
+
+    theme->colors[LDK_UI_COLOR_TEXT]                       = text;
+    theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
+    theme->colors[LDK_UI_COLOR_WINDOW_BG]                  = bg;
+    theme->colors[LDK_UI_COLOR_PANEL_BG]                   = panel;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG]                 = control;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_HOVERED]         = hover;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]          = active;
+    theme->colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED]  = active_hover;
+    theme->colors[LDK_UI_COLOR_BORDER]                     = border;
+    theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = track;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = active;
+    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = track;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = active;
+    theme->colors[LDK_UI_COLOR_SLIDER_FILL]                = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB]               = accent;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED]       = active_hover;
+    theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE]        = accent;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR]                  = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED]          = title_focus;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK]            = scrollbar;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB]            = thumb;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
+    theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
+    theme->slider_bar_track_height                         = 22.0f;
+    theme->slider_track_height                             = 0.27272728f;
+    theme->slider_thumb_width                              = 0.63636363f;
+  }
+  else if (type == LDK_UI_THEME_CUSTOM && custom != NULL)
+  {
+    memcpy(&ctx->theme, custom, sizeof(*custom));
+  }
+  else
+  {
+    ldk_ui_set_theme(ctx, LDK_UI_THEME_DEFAULT_LIGHT, NULL);
+  }
+}
+
+//
 // Next-item layout hints
 //
 
@@ -2120,6 +2629,7 @@ void ldk_ui_end_vertical(LDKUIContext* ctx)
   }
 }
 
+
 void ldk_ui_begin_horizontal(LDKUIContext* ctx)
 {
   LDK_ASSERT(ctx->current_layout != NULL);
@@ -2165,121 +2675,6 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
 }
 
 
-/**
- * Begins a root container.
- *
- * A root container is positioned explicitly (not by layout) and is used for
- * top-level UI elements like windows, popups, and overlays.
- *
- * The input `rect` is the source of truth. If `draggable` is enabled, the
- * rect may be modified based on user input and written to `out_rect`.
- *
- * This function also handles top-level interaction (hover, focus, z-order)
- * and creates the root layout node for its contents.
- */
-static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const* title, LDKUIRect rect, bool toolbar, bool draggable, LDKUIRect* out_rect)
-{
-  LDKUIId resolved_id = s_ui_make_id(ctx, id);
-  LDKUIWindow* window = s_ui_window_get_or_create(ctx, resolved_id, title);
-  LDKUIRect result_rect = rect;
-  float header_height = toolbar ? 24.0f : 0.0f;
-  LDKUIRect title_bar_rect = {0};
-  LDKPoint cursor;
-  bool inside_window;
-  bool inside_title_bar;
-  LDKUILayoutNode* root;
-
-  if (window == NULL)
-  {
-    return false;
-  }
-  cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-
-  //
-  // Controls
-  //
-  if (title != NULL)
-  {
-    strncpy(window->title, title, sizeof(window->title) - 1);
-    window->title[sizeof(window->title) - 1] = 0;
-  }
-
-  title_bar_rect.x = rect.x;
-  title_bar_rect.y = rect.y;
-  title_bar_rect.w = rect.w;
-  title_bar_rect.h = header_height;
-
-  inside_window = s_ui_rect_contains(rect, (float)cursor.x, (float)cursor.y);
-  inside_title_bar = header_height > 0.0f &&
-    s_ui_rect_contains(title_bar_rect, (float)cursor.x, (float)cursor.y);
-
-  if (ctx->hovered_window == window && inside_window)
-  {
-    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      s_ui_window_bring_to_front(ctx, window);
-      window = x_array_ldk_ui_window_back(ctx->windows);
-      ctx->focused_window = window;
-      ctx->focused_id = 0;
-    }
-  }
-
-  if (ctx->hovered_window == window && draggable && inside_title_bar)
-  {
-    if (ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      ctx->dragging_item = resolved_id;
-      ctx->drag_x = (float)cursor.x - rect.x;
-      ctx->drag_y = (float)cursor.y - rect.y;
-      ctx->focused_window = window;
-      ctx->focused_id = 0;
-    }
-  }
-
-  if (ctx->dragging_item == resolved_id)
-  {
-    if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      result_rect.x = (float)cursor.x - ctx->drag_x;
-      result_rect.y = (float)cursor.y - ctx->drag_y;
-    }
-    else
-    {
-      ctx->dragging_item = 0;
-    }
-  }
-
-  window->title_bar_rect.x = result_rect.x;
-  window->title_bar_rect.y = result_rect.y;
-  window->title_bar_rect.w = result_rect.w;
-  window->title_bar_rect.h = header_height;
-
-  window->content_rect.x = result_rect.x;
-  window->content_rect.y = result_rect.y + header_height;
-  window->content_rect.w = result_rect.w;
-  window->content_rect.h = result_rect.h - header_height;
-
-  root = s_ui_layout_node_create(ctx, LDK_UI_LAYOUT_VERTICAL, NULL, window);
-
-  if (root == NULL)
-  {
-    return false;
-  }
-
-  root->id = resolved_id;
-  window->root_layout = root;
-  ctx->current_window = window;
-  ctx->current_layout = root;
-  ctx->root_item_count++;
-
-  if (out_rect != NULL)
-  {
-    *out_rect = result_rect;
-  }
-
-  return true;
-}
-
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
   LDKUIId id = s_ui_make_id(ctx, LDK_UI_ITEM_LAYOUT);
@@ -2303,6 +2698,244 @@ LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect re
 void ldk_ui_end_window(LDKUIContext* ctx)
 {
   ldk_ui_end_pane(ctx);
+}
+
+
+//
+// Widgets
+//
+
+LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags)
+{
+  LDKUILayoutNode* node = NULL;
+  LDKUIItem* item = NULL;
+  LDKUIId id = 0;
+  LDKUIWidgetState* state = NULL;
+
+  LDKUIRect vertical_track_rect = {0};
+  LDKUIRect vertical_thumb_rect = {0};
+  LDKUIRect horizontal_track_rect = {0};
+  LDKUIRect horizontal_thumb_rect = {0};
+
+  bool has_vertical_scrollbar = false;
+  bool has_horizontal_scrollbar = false;
+
+  LDK_ASSERT(ctx->current_layout != NULL);
+
+  id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_SCROLL_AREA);
+  state = s_ui_widget_state_find(ctx, id);
+
+  if ((flags & LDK_UI_SCROLL_HORIZONTAL) == 0)
+  {
+    scroll.x = 0.0f;
+  }
+
+  if ((flags & LDK_UI_SCROLL_VERTICAL) == 0)
+  {
+    scroll.y = 0.0f;
+  }
+
+  if (state != NULL)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    float max_x = s_ui_maxf(0.0f, state->content_size.w - state->rect.w);
+    float max_y = s_ui_maxf(0.0f, state->content_size.h - state->rect.h);
+
+    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
+    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
+
+    if ((flags & LDK_UI_SCROLL_VERTICAL) != 0)
+    {
+      has_vertical_scrollbar = s_ui_scrollbar_rects(
+          state->rect,
+          state->rect.h,
+          state->content_size.h,
+          scroll.y,
+          false,
+          &vertical_track_rect,
+          &vertical_thumb_rect);
+    }
+
+    if ((flags & LDK_UI_SCROLL_HORIZONTAL) != 0)
+    {
+      has_horizontal_scrollbar = s_ui_scrollbar_rects(
+          state->rect,
+          state->rect.w,
+          state->content_size.w,
+          scroll.x,
+          true,
+          &horizontal_track_rect,
+          &horizontal_thumb_rect);
+    }
+
+    if (s_ui_window_can_interact(ctx, ctx->current_window))
+    {
+      if (s_ui_rect_contains(state->clip_rect, (float)cursor.x, (float)cursor.y))
+      {
+        i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
+
+        if (wheel_delta != 0 && (flags & LDK_UI_SCROLL_VERTICAL) != 0)
+        {
+          scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+        }
+      }
+    }
+
+    if (has_vertical_scrollbar)
+    {
+      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
+      bool inside_thumb = s_ui_rect_contains(vertical_thumb_rect, (float)cursor.x, (float)cursor.y);
+
+      if (inside_thumb)
+      {
+        ctx->hot_id = thumb_id;
+      }
+
+      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+      {
+        ctx->active_id = thumb_id;
+      }
+
+      if (ctx->active_id == thumb_id)
+      {
+        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+        {
+          float thumb_range = s_ui_maxf(0.0f, vertical_track_rect.h - vertical_thumb_rect.h);
+          float local = (float)cursor.y - vertical_track_rect.y - vertical_thumb_rect.h * 0.5f;
+          float t = 0.0f;
+
+          if (thumb_range > 0.0f)
+          {
+            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+          }
+
+          scroll.y = t * max_y;
+        }
+        else
+        {
+          ctx->active_id = 0;
+        }
+      }
+    }
+
+    if (has_horizontal_scrollbar)
+    {
+      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
+      bool inside_thumb = s_ui_rect_contains(horizontal_thumb_rect, (float)cursor.x, (float)cursor.y);
+
+      if (inside_thumb)
+      {
+        ctx->hot_id = thumb_id;
+      }
+
+      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+      {
+        ctx->active_id = thumb_id;
+      }
+
+      if (ctx->active_id == thumb_id)
+      {
+        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+        {
+          float thumb_range = s_ui_maxf(0.0f, horizontal_track_rect.w - horizontal_thumb_rect.w);
+          float local = (float)cursor.x - horizontal_track_rect.x - horizontal_thumb_rect.w * 0.5f;
+          float t = 0.0f;
+
+          if (thumb_range > 0.0f)
+          {
+            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+          }
+
+          scroll.x = t * max_x;
+        }
+        else
+        {
+          ctx->active_id = 0;
+        }
+      }
+    }
+
+    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
+    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
+  }
+  else
+  {
+    scroll.x = s_ui_maxf(0.0f, scroll.x);
+    scroll.y = s_ui_maxf(0.0f, scroll.y);
+  }
+
+  node = s_ui_layout_node_create(
+      ctx,
+      LDK_UI_LAYOUT_VERTICAL,
+      ctx->current_layout,
+      ctx->current_window);
+
+  item = s_ui_item_create(ctx);
+
+  if (node == NULL || item == NULL)
+  {
+    return scroll;
+  }
+
+  item->type = LDK_UI_ITEM_SCROLL_AREA;
+  item->id = id;
+  item->data.scroll_area.node = node;
+  item->data.scroll_area.scroll = scroll;
+  item->data.scroll_area.flags = flags;
+  item->data.scroll_area.has_vertical_scrollbar = has_vertical_scrollbar;
+  item->data.scroll_area.has_horizontal_scrollbar = has_horizontal_scrollbar;
+  item->data.scroll_area.vertical_track_rect = vertical_track_rect;
+  item->data.scroll_area.vertical_thumb_rect = vertical_thumb_rect;
+  item->data.scroll_area.horizontal_track_rect = horizontal_track_rect;
+  item->data.scroll_area.horizontal_thumb_rect = horizontal_thumb_rect;
+
+  node->id = item->id;
+
+  item->preferred_width = 0.0f;
+  item->preferred_height = 0.0f;
+  item->min_width = 0.0f;
+  item->min_height = 0.0f;
+  item->expand_width = true;
+  item->expand_height = true;
+
+  s_ui_apply_next_layout(ctx, item);
+
+  if (ctx->current_layout != NULL)
+  {
+    s_ui_layout_append_item(ctx->current_layout, item);
+  }
+
+  ctx->current_layout = node;
+
+  return scroll;
+}
+
+LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx)
+{
+  if (ctx->current_layout != NULL)
+  {
+    ctx->current_layout = ctx->current_layout->parent;
+  }
+}
+
+LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
+{
+  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_VERTICAL);
+}
+
+void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx)
+{
+  ldk_ui_end_scroll_area(ctx);
+}
+
+LDKUIPoint ldk_ui_begin_horizontal_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
+{
+  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_HORIZONTAL);
+}
+
+void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx)
+{
+  ldk_ui_end_scroll_area(ctx);
 }
 
 void ldk_ui_label(LDKUIContext* ctx, char const* text)
@@ -2574,244 +3207,296 @@ void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color)
   s_ui_layout_append_item(ctx->current_layout, item);
 }
 
-
-void ldk_ui_input_text(LDKUIContext* ctx, u32 codepoint)
+u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
 {
-  (void)ctx;
-  (void)codepoint;
-
-  //TODO: Implement this later
-}
-
-LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags)
-{
-  LDKUILayoutNode* node = NULL;
-  LDKUIItem* item = NULL;
-  LDKUIId id = 0;
+  LDKUIItem* item = s_ui_item_create(ctx);
+  LDKUISize size = {0};
   LDKUIWidgetState* state = NULL;
+  u32 result = LDK_UI_TEXT_BOX_NONE;
+  u32 buffer_len = 0;
+  bool focused = false;
 
-  LDKUIRect vertical_track_rect = {0};
-  LDKUIRect vertical_thumb_rect = {0};
-  LDKUIRect horizontal_track_rect = {0};
-  LDKUIRect horizontal_thumb_rect = {0};
-
-  bool has_vertical_scrollbar = false;
-  bool has_horizontal_scrollbar = false;
-
-  LDK_ASSERT(ctx->current_layout != NULL);
-
-  id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_SCROLL_AREA);
-  state = s_ui_widget_state_find(ctx, id);
-
-  if ((flags & LDK_UI_SCROLL_HORIZONTAL) == 0)
+  if (ctx == NULL || item == NULL || buffer == NULL || buffer_size == 0)
   {
-    scroll.x = 0.0f;
+    return result;
   }
 
-  if ((flags & LDK_UI_SCROLL_VERTICAL) == 0)
-  {
-    scroll.y = 0.0f;
-  }
+  buffer[buffer_size - 1] = 0;
+  buffer_len = s_ui_cstr_len_u32(buffer);
+  size = s_ui_measure_text_box_impl(ctx, buffer);
 
-  if (state != NULL)
+  item->type = LDK_UI_ITEM_TEXT_BOX;
+  item->id = s_ui_make_id(ctx, (u32)LDK_UI_ITEM_TEXT_BOX);
+  item->text = buffer;
+  item->preferred_width = size.w;
+  item->preferred_height = size.h;
+  item->min_width = 80.0f;
+  item->min_height = size.h;
+  item->expand_width = true;
+
+  state = s_ui_widget_state_find(ctx, item->id);
+
+  if (state != NULL && s_ui_window_can_interact(ctx, ctx->current_window))
   {
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
-    float max_x = s_ui_maxf(0.0f, state->content_size.w - state->rect.w);
-    float max_y = s_ui_maxf(0.0f, state->content_size.h - state->rect.h);
+    bool inside = s_ui_widget_state_contains(state, (float)cursor.x, (float)cursor.y);
 
-    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
-    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
-
-    if ((flags & LDK_UI_SCROLL_VERTICAL) != 0)
+    if (inside)
     {
-      has_vertical_scrollbar = s_ui_scrollbar_rects(
-          state->rect,
-          state->rect.h,
-          state->content_size.h,
-          scroll.y,
-          false,
-          &vertical_track_rect,
-          &vertical_thumb_rect);
+      ctx->hot_id = item->id;
     }
 
-    if ((flags & LDK_UI_SCROLL_HORIZONTAL) != 0)
+    if (inside && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
-      has_horizontal_scrollbar = s_ui_scrollbar_rects(
-          state->rect,
-          state->rect.w,
-          state->content_size.w,
-          scroll.x,
-          true,
-          &horizontal_track_rect,
-          &horizontal_thumb_rect);
+      ctx->active_id = item->id;
+      ctx->focused_id = item->id;
+      ctx->focused_window = ctx->current_window;
+      ctx->text_box_id = item->id;
+      ctx->text_cursor = s_ui_text_box_cursor_from_x(ctx, buffer, state->rect, (float)cursor.x);
+      ctx->text_select_start = ctx->text_cursor;
+      ctx->text_select_end = ctx->text_cursor;
+    }
+  }
+
+  if (ldk_os_mouse_button_up((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT) && ctx->active_id == item->id)
+  {
+    ctx->active_id = 0;
+  }
+
+  focused = ctx->focused_id == item->id && ctx->focused_window == ctx->current_window;
+
+  if (focused && ctx->text_box_id != item->id)
+  {
+    ctx->text_box_id = item->id;
+    ctx->text_cursor = buffer_len;
+    ctx->text_select_start = buffer_len;
+    ctx->text_select_end = buffer_len;
+  }
+
+  if (focused)
+  {
+    bool shift = s_ui_keyboard_shift_pressed(ctx);
+
+    if (ctx->text_cursor > buffer_len)
+    {
+      ctx->text_cursor = buffer_len;
     }
 
-    if (s_ui_window_can_interact(ctx, ctx->current_window))
+    if (ctx->text_select_start > buffer_len)
     {
-      if (s_ui_rect_contains(state->clip_rect, (float)cursor.x, (float)cursor.y))
+      ctx->text_select_start = buffer_len;
+    }
+
+    if (ctx->text_select_end > buffer_len)
+    {
+      ctx->text_select_end = buffer_len;
+    }
+
+    if (s_ui_keyboard_left_pressed(ctx))
+    {
+      ctx->text_cursor = s_ui_utf8_prev(buffer, ctx->text_cursor);
+
+      if (shift)
       {
-        i32 wheel_delta = ldk_os_mouse_wheel_delta((LDKMouseState*)ctx->mouse);
+        ctx->text_select_end = ctx->text_cursor;
+      }
+      else
+      {
+        ctx->text_select_start = ctx->text_cursor;
+        ctx->text_select_end = ctx->text_cursor;
+      }
+    }
 
-        if (wheel_delta != 0 && (flags & LDK_UI_SCROLL_VERTICAL) != 0)
+    if (s_ui_keyboard_right_pressed(ctx))
+    {
+      ctx->text_cursor = s_ui_utf8_next(buffer, ctx->text_cursor);
+
+      if (shift)
+      {
+        ctx->text_select_end = ctx->text_cursor;
+      }
+      else
+      {
+        ctx->text_select_start = ctx->text_cursor;
+        ctx->text_select_end = ctx->text_cursor;
+      }
+    }
+
+    if (s_ui_keyboard_ctrla_pressed(ctx))
+    {
+      ctx->text_cursor = buffer_len;
+      ctx->text_select_start = 0;
+      ctx->text_select_end = buffer_len;
+    }
+
+    if (s_ui_keyboard_home_pressed(ctx))
+    {
+      ctx->text_cursor = 0;
+
+      if (shift)
+      {
+        ctx->text_select_end = ctx->text_cursor;
+      }
+      else
+      {
+        ctx->text_select_start = ctx->text_cursor;
+        ctx->text_select_end = ctx->text_cursor;
+      }
+    }
+
+    if (s_ui_keyboard_end_pressed(ctx))
+    {
+      ctx->text_cursor = buffer_len;
+
+      if (shift)
+      {
+        ctx->text_select_end = ctx->text_cursor;
+      }
+      else
+      {
+        ctx->text_select_start = ctx->text_cursor;
+        ctx->text_select_end = ctx->text_cursor;
+      }
+    }
+
+    if (s_ui_keyboard_backspace_pressed(ctx))
+    {
+      if (ctx->text_select_start != ctx->text_select_end)
+      {
+        u32 start = ctx->text_select_start;
+        u32 end = ctx->text_select_end;
+
+        if (start > end)
         {
-          scroll.y -= ((float)wheel_delta / 120.0f) * 32.0f;
+          u32 temp = start;
+          start = end;
+          end = temp;
+        }
+
+        if (s_ui_text_delete_range(buffer, buffer_len, start, end))
+        {
+          ctx->text_cursor = start;
+          ctx->text_select_start = start;
+          ctx->text_select_end = start;
+          result |= LDK_UI_TEXT_BOX_CHANGED;
         }
       }
+      else if (ctx->text_cursor > 0)
+      {
+        u32 start = s_ui_utf8_prev(buffer, ctx->text_cursor);
+
+        if (s_ui_text_delete_range(buffer, buffer_len, start, ctx->text_cursor))
+        {
+          ctx->text_cursor = start;
+          ctx->text_select_start = start;
+          ctx->text_select_end = start;
+          result |= LDK_UI_TEXT_BOX_CHANGED;
+        }
+      }
+
+      buffer_len = s_ui_cstr_len_u32(buffer);
     }
 
-    if (has_vertical_scrollbar)
+    if (s_ui_keyboard_delete_pressed(ctx))
     {
-      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y);
-      bool inside_thumb = s_ui_rect_contains(vertical_thumb_rect, (float)cursor.x, (float)cursor.y);
-
-      if (inside_thumb)
+      if (ctx->text_select_start != ctx->text_select_end)
       {
-        ctx->hot_id = thumb_id;
-      }
+        u32 start = ctx->text_select_start;
+        u32 end = ctx->text_select_end;
 
-      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-      {
-        ctx->active_id = thumb_id;
-      }
-
-      if (ctx->active_id == thumb_id)
-      {
-        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+        if (start > end)
         {
-          float thumb_range = s_ui_maxf(0.0f, vertical_track_rect.h - vertical_thumb_rect.h);
-          float local = (float)cursor.y - vertical_track_rect.y - vertical_thumb_rect.h * 0.5f;
-          float t = 0.0f;
+          u32 temp = start;
+          start = end;
+          end = temp;
+        }
 
-          if (thumb_range > 0.0f)
+        if (s_ui_text_delete_range(buffer, buffer_len, start, end))
+        {
+          ctx->text_cursor = start;
+          ctx->text_select_start = start;
+          ctx->text_select_end = start;
+          result |= LDK_UI_TEXT_BOX_CHANGED;
+        }
+      }
+      else if (ctx->text_cursor < buffer_len)
+      {
+        u32 end = s_ui_utf8_next(buffer, ctx->text_cursor);
+
+        if (s_ui_text_delete_range(buffer, buffer_len, ctx->text_cursor, end))
+        {
+          ctx->text_select_start = ctx->text_cursor;
+          ctx->text_select_end = ctx->text_cursor;
+          result |= LDK_UI_TEXT_BOX_CHANGED;
+        }
+      }
+
+      buffer_len = s_ui_cstr_len_u32(buffer);
+    }
+
+    if (ctx->input_text != NULL && ctx->input_text->codepoint_count > 0)
+    {
+      for (u32 i = 0; i < ctx->input_text->codepoint_count; ++i)
+      {
+        char encoded[4] = {0};
+        u32 encoded_len = 0;
+
+        if (!s_ui_codepoint_to_utf8(ctx->input_text->codepoints[i], encoded, &encoded_len))
+        {
+          continue;
+        }
+
+        if (ctx->text_select_start != ctx->text_select_end)
+        {
+          u32 start = ctx->text_select_start;
+          u32 end = ctx->text_select_end;
+
+          if (start > end)
           {
-            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+            u32 temp = start;
+            start = end;
+            end = temp;
           }
 
-          scroll.y = t * max_y;
-        }
-        else
-        {
-          ctx->active_id = 0;
-        }
-      }
-    }
-
-    if (has_horizontal_scrollbar)
-    {
-      LDKUIId thumb_id = s_ui_hash_u32(id, (u32)LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_X);
-      bool inside_thumb = s_ui_rect_contains(horizontal_thumb_rect, (float)cursor.x, (float)cursor.y);
-
-      if (inside_thumb)
-      {
-        ctx->hot_id = thumb_id;
-      }
-
-      if (inside_thumb && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-      {
-        ctx->active_id = thumb_id;
-      }
-
-      if (ctx->active_id == thumb_id)
-      {
-        if (ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
-        {
-          float thumb_range = s_ui_maxf(0.0f, horizontal_track_rect.w - horizontal_thumb_rect.w);
-          float local = (float)cursor.x - horizontal_track_rect.x - horizontal_thumb_rect.w * 0.5f;
-          float t = 0.0f;
-
-          if (thumb_range > 0.0f)
+          if (s_ui_text_delete_range(buffer, buffer_len, start, end))
           {
-            t = s_ui_clampf(local / thumb_range, 0.0f, 1.0f);
+            ctx->text_cursor = start;
+            ctx->text_select_start = start;
+            ctx->text_select_end = start;
+            buffer_len = s_ui_cstr_len_u32(buffer);
           }
-
-          scroll.x = t * max_x;
         }
-        else
+
+        if (s_ui_text_insert_bytes(buffer, buffer_size, &ctx->text_cursor, encoded, encoded_len))
         {
-          ctx->active_id = 0;
+          ctx->text_select_start = ctx->text_cursor;
+          ctx->text_select_end = ctx->text_cursor;
+          buffer_len = s_ui_cstr_len_u32(buffer);
+          result |= LDK_UI_TEXT_BOX_CHANGED;
         }
       }
     }
 
-    scroll.x = s_ui_clampf(scroll.x, 0.0f, max_x);
-    scroll.y = s_ui_clampf(scroll.y, 0.0f, max_y);
-  }
-  else
-  {
-    scroll.x = s_ui_maxf(0.0f, scroll.x);
-    scroll.y = s_ui_maxf(0.0f, scroll.y);
-  }
+    if (s_ui_keyboard_accept_pressed(ctx))
+    {
+      result |= LDK_UI_TEXT_BOX_COMMITTED;
+    }
 
-  node = s_ui_layout_node_create(
-      ctx,
-      LDK_UI_LAYOUT_VERTICAL,
-      ctx->current_layout,
-      ctx->current_window);
-
-  item = s_ui_item_create(ctx);
-
-  if (node == NULL || item == NULL)
-  {
-    return scroll;
+    if (ctx->keyboard != NULL && ldk_os_keyboard_key_down((LDKKeyboardState*)ctx->keyboard, LDK_KEYCODE_ESCAPE))
+    {
+      result |= LDK_UI_TEXT_BOX_CANCELED;
+    }
   }
 
-  item->type = LDK_UI_ITEM_SCROLL_AREA;
-  item->id = id;
-  item->data.scroll_area.node = node;
-  item->data.scroll_area.scroll = scroll;
-  item->data.scroll_area.flags = flags;
-  item->data.scroll_area.has_vertical_scrollbar = has_vertical_scrollbar;
-  item->data.scroll_area.has_horizontal_scrollbar = has_horizontal_scrollbar;
-  item->data.scroll_area.vertical_track_rect = vertical_track_rect;
-  item->data.scroll_area.vertical_thumb_rect = vertical_thumb_rect;
-  item->data.scroll_area.horizontal_track_rect = horizontal_track_rect;
-  item->data.scroll_area.horizontal_thumb_rect = horizontal_thumb_rect;
-
-  node->id = item->id;
-
-  item->preferred_width = 0.0f;
-  item->preferred_height = 0.0f;
-  item->min_width = 0.0f;
-  item->min_height = 0.0f;
-  item->expand_width = true;
-  item->expand_height = true;
+  item->changed = (result & LDK_UI_TEXT_BOX_CHANGED) != 0;
+  item->data.text_box.cursor = ctx->text_cursor;
+  item->data.text_box.select_start = ctx->text_select_start;
+  item->data.text_box.select_end = ctx->text_select_end;
+  item->data.text_box.focused = focused;
 
   s_ui_apply_next_layout(ctx, item);
+  s_ui_layout_append_item(ctx->current_layout, item);
 
-  if (ctx->current_layout != NULL)
-  {
-    s_ui_layout_append_item(ctx->current_layout, item);
-  }
-
-  ctx->current_layout = node;
-
-  return scroll;
+  return result;
 }
 
-LDK_API void ldk_ui_end_scroll_area(LDKUIContext* ctx)
-{
-  if (ctx->current_layout != NULL)
-  {
-    ctx->current_layout = ctx->current_layout->parent;
-  }
-}
-
-LDKUIPoint ldk_ui_begin_vertical_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
-{
-  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_VERTICAL);
-}
-
-void ldk_ui_end_vertical_scroll_area(LDKUIContext* ctx)
-{
-  ldk_ui_end_scroll_area(ctx);
-}
-
-LDKUIPoint ldk_ui_begin_horizontal_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll)
-{
-  return ldk_ui_begin_scroll_area(ctx, scroll, LDK_UI_SCROLL_HORIZONTAL);
-}
-
-void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx)
-{
-  ldk_ui_end_scroll_area(ctx);
-}
