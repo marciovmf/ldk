@@ -597,6 +597,10 @@ extern "C"
     LDKRHIBackendType backend_type;
     void* backend_user_data;
     LDKRHIFunctions functions;
+    uint64_t frame_index;
+    void* deferred_deletes;
+    uint32_t deferred_delete_count;
+    uint32_t deferred_delete_capacity;
   };
 
   /**
