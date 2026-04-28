@@ -215,7 +215,6 @@ static bool s_on_text_event(const LDKEvent* event, void* state)
   {
     if (ui_text_input.codepoint_count < LDK_UI_INPUT_CODEPOINTS_CAPACITY)
     {
-      printf("TEXT EVET #%d\n", ui_text_input.codepoint_count);
       ui_text_input.codepoints[ui_text_input.codepoint_count++] = event->textEvent.character;
       return true;
     }

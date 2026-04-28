@@ -1045,6 +1045,8 @@ static LRESULT s_windowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       break;
     case WM_CHAR:
       {
+        if (ldk_os_keyboard_key_is_pressed(&s_oswin32.keyboardState, LDK_KEYCODE_CONTROL))
+          break;
         LDKEvent* e = s_win32_event_new();
         e->type                = LDK_EVENT_TYPE_TEXT;
         e->window = window;
