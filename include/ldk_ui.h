@@ -35,9 +35,6 @@ extern "C" {
 #define LDK_UI_INPUT_CODEPOINTS_CAPACITY 16
 #endif
 
-#ifndef LDK_UI_DISABLED_STACK_CAPACITY
-#define LDK_UI_DISABLED_STACK_CAPACITY 16
-#endif
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
@@ -155,6 +152,7 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIDrawCmd, ldk_ui_draw_cmd);
   X_ARRAY_TYPE_NAMED(LDKUIItem*, ldk_ui_item_ptr);
   X_ARRAY_TYPE_NAMED(LDKUIWidgetState, ldk_ui_widget_state);
+  X_ARRAY_TYPE_NAMED(bool, ldk_ui_bool);
 
   typedef enum 
   {
@@ -357,8 +355,7 @@ extern "C" {
     LDKUIId text_box_id;
     LDKUIId dragging_item;
     bool next_disabled;
-    bool disabled_stack[LDK_UI_DISABLED_STACK_CAPACITY];
-    u32 disabled_stack_count;
+    XArray_ldk_ui_bool* disabled_stack;
     u32 root_item_count;
     u32 frame_index;
     u32 text_cursor;

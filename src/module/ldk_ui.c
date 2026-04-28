@@ -51,15 +51,14 @@ static bool s_ui_context_disabled(LDKUIContext const* ctx)
     return true;
   }
 
-  for (u32 i = 0; i < ctx->disabled_stack_count; ++i)
+  bool const* disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
+
+  if (disabled == NULL)
   {
-    if (ctx->disabled_stack[i])
-    {
-      return true;
-    }
+    return false;
   }
 
-  return false;
+  return *disabled;
 }
 
 static bool s_ui_widget_state_contains(LDKUIWidgetState const* state, float x, float y)
@@ -2346,6 +2345,7 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->indices = x_array_ldk_ui_u32_create(config->initial_index_capacity);
   ctx->commands = x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->widget_states = x_array_ldk_ui_widget_state_create(256);
+  ctx->disabled_stack = x_array_ldk_ui_bool_create(8);
 
   ctx->font_texture_user = config->font_texture_user;
   ctx->get_font_page_texture = config->get_font_page_texture;
@@ -2379,6 +2379,7 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   x_array_destroy(ctx->vertices);
   x_array_destroy(ctx->indices);
   x_array_destroy(ctx->commands);
+  x_array_destroy(ctx->disabled_stack);
   x_arena_destroy(ctx->frame_arena);
 
   memset(ctx, 0, sizeof(*ctx));
@@ -2401,9 +2402,10 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->current_window = NULL;
   ctx->current_layout = NULL;
   ctx->next_disabled = false;
-  ctx->disabled_stack_count = 0;
 
   s_ui_reset_next_layout(ctx);
+
+  x_array_ldk_ui_bool_clear(ctx->disabled_stack);
 
   x_arena_reset_keep_head(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);
@@ -2752,13 +2754,15 @@ void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled)
     return;
   }
 
-  if (ctx->disabled_stack_count >= LDK_UI_DISABLED_STACK_CAPACITY)
+  bool effective_disabled = disabled;
+  bool const* parent_disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
+
+  if (parent_disabled != NULL && *parent_disabled)
   {
-    return;
+    effective_disabled = true;
   }
 
-  ctx->disabled_stack[ctx->disabled_stack_count] = disabled;
-  ctx->disabled_stack_count += 1;
+  x_array_ldk_ui_bool_push(ctx->disabled_stack, effective_disabled);
 }
 
 void ldk_ui_end_disabled(LDKUIContext* ctx)
@@ -2768,12 +2772,14 @@ void ldk_ui_end_disabled(LDKUIContext* ctx)
     return;
   }
 
-  if (ctx->disabled_stack_count == 0)
+  u32 count = x_array_ldk_ui_bool_count(ctx->disabled_stack);
+
+  if (count == 0)
   {
     return;
   }
 
-  ctx->disabled_stack_count -= 1;
+  x_array_ldk_ui_bool_delete_at(ctx->disabled_stack, count - 1);
 }
 
 void ldk_ui_set_next_fixed_width(LDKUIContext* ui, float width)
