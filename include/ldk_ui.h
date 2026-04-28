@@ -35,6 +35,10 @@ extern "C" {
 #define LDK_UI_INPUT_CODEPOINTS_CAPACITY 16
 #endif
 
+#ifndef LDK_UI_DISABLED_STACK_CAPACITY
+#define LDK_UI_DISABLED_STACK_CAPACITY 16
+#endif
+
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
   typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(void* user, LDKFontInstance* font, u32 page_index);
@@ -248,6 +252,7 @@ extern "C" {
     bool has_max_height;
     bool expand_width;
     bool expand_height;
+    bool disabled;
     bool clicked;
     bool changed;
     char const* text;
@@ -351,6 +356,9 @@ extern "C" {
     LDKUIId last_id;
     LDKUIId text_box_id;
     LDKUIId dragging_item;
+    bool next_disabled;
+    bool disabled_stack[LDK_UI_DISABLED_STACK_CAPACITY];
+    u32 disabled_stack_count;
     u32 root_item_count;
     u32 frame_index;
     u32 text_cursor;
@@ -395,6 +403,11 @@ extern "C" {
 
   LDK_API void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand);
   LDK_API void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand);
+  LDK_API void ldk_ui_set_next_disabled(LDKUIContext* ctx, bool disabled);
+
+  // disabled scope
+  LDK_API void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled);
+  LDK_API void ldk_ui_end_disabled(LDKUIContext* ctx);
 
   // layout
   LDK_API void ldk_ui_begin_vertical(LDKUIContext* ctx);

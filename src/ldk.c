@@ -350,8 +350,10 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_label(ui, "Box 1");
     ldk_ui_text_box(ui, text_box1.buf, X_SMALLSTR_MAX_LENGTH);
 
+    ldk_ui_begin_disabled(ui, true);
     ldk_ui_label(ui, "Box 2");
     ldk_ui_text_box(ui, text_box2.buf, X_SMALLSTR_MAX_LENGTH);
+    ldk_ui_end_disabled(ui);
 
     if (ldk_ui_button(ui, "copy"))
     {
