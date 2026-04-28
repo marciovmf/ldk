@@ -612,6 +612,12 @@ extern "C"
     void* deferred_deletes;
     uint32_t deferred_delete_count;
     uint32_t deferred_delete_capacity;
+    bool frame_active;
+    bool pass_active;
+    LDKRHIPipeline bound_pipeline;
+    LDKRHIBindings bound_bindings;
+    LDKRHIBuffer bound_vertex_buffer;
+    LDKRHIBuffer bound_index_buffer;
   };
 
   /**

@@ -188,6 +188,20 @@ static void ldk_rhi_collect_deferred_deletes(LDKRHIContext* context, bool force)
 }
 
 
+
+static void ldk_rhi_reset_bound_state(LDKRHIContext* context)
+{
+  if (context == NULL)
+  {
+    return;
+  }
+
+  context->bound_pipeline = LDK_RHI_INVALID_PIPELINE;
+  context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+  context->bound_vertex_buffer = LDK_RHI_INVALID_BUFFER;
+  context->bound_index_buffer = LDK_RHI_INVALID_BUFFER;
+}
+
 static bool ldk_rhi_is_valid_buffer_usage(uint32_t usage)
 {
   const uint32_t valid_bits = LDK_RHI_BUFFER_USAGE_VERTEX |
@@ -1215,39 +1229,45 @@ void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
 
 void ldk_rhi_begin_frame(LDKRHIContext* context)
 {
-  if (ldk_rhi_has_backend(context))
+  if (ldk_rhi_has_backend(context) && !context->frame_active && !context->pass_active)
   {
     ldk_rhi_collect_deferred_deletes(context, false);
+    ldk_rhi_reset_bound_state(context);
 
     if (context->functions.begin_frame != NULL)
     {
       context->functions.begin_frame(context->backend_user_data);
     }
+
+    context->frame_active = true;
   }
 }
 
 void ldk_rhi_end_frame(LDKRHIContext* context)
 {
-  if (ldk_rhi_has_backend(context))
+  if (ldk_rhi_has_backend(context) && context->frame_active && !context->pass_active)
   {
     if (context->functions.end_frame != NULL)
     {
       context->functions.end_frame(context->backend_user_data);
     }
 
+    context->frame_active = false;
+    ldk_rhi_reset_bound_state(context);
     context->frame_index++;
   }
 }
 
 void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc)
 {
-  if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_pass_desc(desc) && context->functions.begin_pass != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && !context->pass_active &&
+      ldk_rhi_is_valid_pass_desc(desc) && context->functions.begin_pass != NULL)
   {
     for (uint32_t i = 0; i < desc->color_attachment_count; i++)
     {
       LDKRHITexture texture = desc->color_attachments[i].texture;
 
-      if (ldk_rhi_is_valid_texture(texture) &&
+      if (texture != LDK_RHI_INVALID_TEXTURE &&
           ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_TEXTURE, texture))
       {
         return;
@@ -1260,62 +1280,77 @@ void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc)
       return;
     }
 
+    ldk_rhi_reset_bound_state(context);
     context->functions.begin_pass(context->backend_user_data, desc);
+    context->pass_active = true;
   }
 }
 
 void ldk_rhi_end_pass(LDKRHIContext* context)
 {
-  if (ldk_rhi_has_backend(context) && context->functions.end_pass != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active && context->functions.end_pass != NULL)
   {
     context->functions.end_pass(context->backend_user_data);
+    context->pass_active = false;
+    ldk_rhi_reset_bound_state(context);
   }
 }
 
 void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline)
 {
-  if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_pipeline(pipeline) &&
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      pipeline != LDK_RHI_INVALID_PIPELINE &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_PIPELINE, pipeline) &&
       context->functions.bind_pipeline != NULL)
   {
     context->functions.bind_pipeline(context->backend_user_data, pipeline);
+    context->bound_pipeline = pipeline;
+    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
   }
 }
 
 void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
 {
-  if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_bindings(bindings) &&
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
+      bindings != LDK_RHI_INVALID_BINDINGS &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS, bindings) &&
       context->functions.bind_bindings != NULL)
   {
     context->functions.bind_bindings(context->backend_user_data, bindings);
+    context->bound_bindings = bindings;
   }
 }
 
 void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset)
 {
-  if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_buffer(buffer) &&
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      buffer != LDK_RHI_INVALID_BUFFER &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
       context->functions.bind_vertex_buffer != NULL)
   {
     context->functions.bind_vertex_buffer(context->backend_user_data, buffer, offset);
+    context->bound_vertex_buffer = buffer;
   }
 }
 
 void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
 {
-  if (ldk_rhi_has_backend(context) && ldk_rhi_is_valid_buffer(buffer) &&
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      buffer != LDK_RHI_INVALID_BUFFER &&
       ldk_rhi_is_valid_index_type(index_type) &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
       context->functions.bind_index_buffer != NULL)
   {
     context->functions.bind_index_buffer(context->backend_user_data, buffer, offset, index_type);
+    context->bound_index_buffer = buffer;
   }
 }
 
 void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport)
 {
-  if (ldk_rhi_has_backend(context) && viewport != NULL && context->functions.set_viewport != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      viewport != NULL && context->functions.set_viewport != NULL)
   {
     context->functions.set_viewport(context->backend_user_data, viewport);
   }
@@ -1323,7 +1358,8 @@ void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport
 
 void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor)
 {
-  if (ldk_rhi_has_backend(context) && scissor != NULL && context->functions.set_scissor != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      scissor != NULL && context->functions.set_scissor != NULL)
   {
     context->functions.set_scissor(context->backend_user_data, scissor);
   }
@@ -1331,7 +1367,12 @@ void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor)
 
 void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc)
 {
-  if (ldk_rhi_has_backend(context) && desc != NULL && context->functions.draw != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      desc != NULL && desc->vertex_count > 0 &&
+      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
+      context->bound_bindings != LDK_RHI_INVALID_BINDINGS &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_BUFFER &&
+      context->functions.draw != NULL)
   {
     context->functions.draw(context->backend_user_data, desc);
   }
@@ -1339,7 +1380,13 @@ void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc)
 
 void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc)
 {
-  if (ldk_rhi_has_backend(context) && desc != NULL && context->functions.draw_indexed != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      desc != NULL && desc->index_count > 0 &&
+      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
+      context->bound_bindings != LDK_RHI_INVALID_BINDINGS &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_BUFFER &&
+      context->bound_index_buffer != LDK_RHI_INVALID_BUFFER &&
+      context->functions.draw_indexed != NULL)
   {
     context->functions.draw_indexed(context->backend_user_data, desc);
   }
