@@ -187,8 +187,6 @@ static void ldk_rhi_collect_deferred_deletes(LDKRHIContext* context, bool force)
   context->deferred_delete_count = write_index;
 }
 
-
-
 static void ldk_rhi_reset_bound_state(LDKRHIContext* context)
 {
   if (context == NULL)
@@ -205,11 +203,11 @@ static void ldk_rhi_reset_bound_state(LDKRHIContext* context)
 static bool ldk_rhi_is_valid_buffer_usage(uint32_t usage)
 {
   const uint32_t valid_bits = LDK_RHI_BUFFER_USAGE_VERTEX |
-      LDK_RHI_BUFFER_USAGE_INDEX |
-      LDK_RHI_BUFFER_USAGE_UNIFORM |
-      LDK_RHI_BUFFER_USAGE_STORAGE |
-      LDK_RHI_BUFFER_USAGE_TRANSFER_SRC |
-      LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+    LDK_RHI_BUFFER_USAGE_INDEX |
+    LDK_RHI_BUFFER_USAGE_UNIFORM |
+    LDK_RHI_BUFFER_USAGE_STORAGE |
+    LDK_RHI_BUFFER_USAGE_TRANSFER_SRC |
+    LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
 
   return usage != LDK_RHI_BUFFER_USAGE_NONE && (usage & ~valid_bits) == 0;
 }
@@ -217,11 +215,11 @@ static bool ldk_rhi_is_valid_buffer_usage(uint32_t usage)
 static bool ldk_rhi_is_valid_texture_usage(uint32_t usage)
 {
   const uint32_t valid_bits = LDK_RHI_TEXTURE_USAGE_SAMPLED |
-      LDK_RHI_TEXTURE_USAGE_RENDER_TARGET |
-      LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL |
-      LDK_RHI_TEXTURE_USAGE_STORAGE |
-      LDK_RHI_TEXTURE_USAGE_TRANSFER_SRC |
-      LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
+    LDK_RHI_TEXTURE_USAGE_RENDER_TARGET |
+    LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL |
+    LDK_RHI_TEXTURE_USAGE_STORAGE |
+    LDK_RHI_TEXTURE_USAGE_TRANSFER_SRC |
+    LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
 
   return usage != LDK_RHI_TEXTURE_USAGE_NONE && (usage & ~valid_bits) == 0;
 }
@@ -229,8 +227,8 @@ static bool ldk_rhi_is_valid_texture_usage(uint32_t usage)
 static bool ldk_rhi_is_valid_shader_stage_mask(uint32_t stages)
 {
   const uint32_t valid_bits = LDK_RHI_SHADER_STAGE_VERTEX |
-      LDK_RHI_SHADER_STAGE_FRAGMENT |
-      LDK_RHI_SHADER_STAGE_COMPUTE;
+    LDK_RHI_SHADER_STAGE_FRAGMENT |
+    LDK_RHI_SHADER_STAGE_COMPUTE;
 
   return stages != LDK_RHI_SHADER_STAGE_NONE && (stages & ~valid_bits) == 0;
 }
@@ -238,8 +236,8 @@ static bool ldk_rhi_is_valid_shader_stage_mask(uint32_t stages)
 static bool ldk_rhi_is_valid_shader_stage_single(uint32_t stage)
 {
   return stage == LDK_RHI_SHADER_STAGE_VERTEX ||
-      stage == LDK_RHI_SHADER_STAGE_FRAGMENT ||
-      stage == LDK_RHI_SHADER_STAGE_COMPUTE;
+    stage == LDK_RHI_SHADER_STAGE_FRAGMENT ||
+    stage == LDK_RHI_SHADER_STAGE_COMPUTE;
 }
 
 static bool ldk_rhi_is_valid_format(LDKRHIFormat format)
@@ -1029,6 +1027,15 @@ void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer)
   }
 
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer);
+  if (context->bound_vertex_buffer == buffer)
+  {
+    context->bound_vertex_buffer = LDK_RHI_INVALID_BUFFER;
+  }
+
+  if (context->bound_index_buffer == buffer)
+  {
+    context->bound_index_buffer = LDK_RHI_INVALID_BUFFER;
+  }
 }
 
 bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1179,6 +1186,11 @@ void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline)
   }
 
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_PIPELINE, pipeline);
+  if (context->bound_pipeline == pipeline)
+  {
+    context->bound_pipeline = LDK_RHI_INVALID_PIPELINE;
+    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+  }
 }
 
 LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc)
@@ -1225,6 +1237,10 @@ void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
   }
 
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_BINDINGS, bindings);
+  if (context->bound_bindings == bindings)
+  {
+    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+  }
 }
 
 void ldk_rhi_begin_frame(LDKRHIContext* context)

@@ -165,5 +165,6 @@ list(APPEND SOURCE
     create_test(TARGET test_module_component SOURCES tests/test_ldk_component.c)
     create_test(TARGET test_module_system SOURCES tests/test_ldk_system.c)
     create_test(TARGET test_module_transform SOURCES tests/test_ldk_transform.c)
+    create_test(TARGET test_module_rhi SOURCES tests/test_ldk_rhi.c)
 
   endif()

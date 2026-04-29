@@ -91,6 +91,7 @@ extern "C"
 {
 #endif
 
+#include <ldk_common.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -624,73 +625,73 @@ extern "C"
    * @brief Initializes a buffer descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_buffer_desc_defaults(LDKRHIBufferDesc* desc);
+  LDK_API void ldk_rhi_buffer_desc_defaults(LDKRHIBufferDesc* desc);
 
   /**
    * @brief Initializes a texture descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_texture_desc_defaults(LDKRHITextureDesc* desc);
+  LDK_API void ldk_rhi_texture_desc_defaults(LDKRHITextureDesc* desc);
 
   /**
    * @brief Initializes a sampler descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_sampler_desc_defaults(LDKRHISamplerDesc* desc);
+  LDK_API void ldk_rhi_sampler_desc_defaults(LDKRHISamplerDesc* desc);
 
   /**
    * @brief Initializes a shader module descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_shader_module_desc_defaults(LDKRHIShaderModuleDesc* desc);
+  LDK_API void ldk_rhi_shader_module_desc_defaults(LDKRHIShaderModuleDesc* desc);
 
   /**
    * @brief Initializes a shader descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
+  LDK_API void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
 
   /**
    * @brief Initializes a blend state with default values.
    * @param state Pointer to the state to initialize.
    */
-  void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state);
+  LDK_API void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state);
 
   /**
    * @brief Initializes a depth state with default values.
    * @param state Pointer to the state to initialize.
    */
-  void ldk_rhi_depth_state_defaults(LDKRHIDepthState* state);
+  LDK_API void ldk_rhi_depth_state_defaults(LDKRHIDepthState* state);
 
   /**
    * @brief Initializes a raster state with default values.
    * @param state Pointer to the state to initialize.
    */
-  void ldk_rhi_raster_state_defaults(LDKRHIRasterState* state);
+  LDK_API void ldk_rhi_raster_state_defaults(LDKRHIRasterState* state);
 
   /**
    * @brief Initializes a pipeline descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_pipeline_desc_defaults(LDKRHIPipelineDesc* desc);
+  LDK_API void ldk_rhi_pipeline_desc_defaults(LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Initializes a bindings layout descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_bindings_layout_desc_defaults(LDKRHIBindingsLayoutDesc* desc);
+  LDK_API void ldk_rhi_bindings_layout_desc_defaults(LDKRHIBindingsLayoutDesc* desc);
 
   /**
    * @brief Initializes a bindings descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_bindings_desc_defaults(LDKRHIBindingsDesc* desc);
+  LDK_API void ldk_rhi_bindings_desc_defaults(LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Initializes a pass descriptor with default values.
    * @param desc Pointer to the descriptor to initialize.
    */
-  void ldk_rhi_pass_desc_defaults(LDKRHIPassDesc* desc);
+  LDK_API void ldk_rhi_pass_desc_defaults(LDKRHIPassDesc* desc);
 
   /**
    * @brief Initializes the RHI context.
@@ -699,132 +700,132 @@ extern "C"
    * @param functions Backend function table.
    * @return true if initialization succeeded, false otherwise.
    */
-  bool ldk_rhi_initialize(LDKRHIContext* context, const LDKRHIContextDesc* desc, const LDKRHIFunctions* functions);
+  LDK_API bool ldk_rhi_initialize(LDKRHIContext* context, const LDKRHIContextDesc* desc, const LDKRHIFunctions* functions);
 
   /**
    * @brief Terminates the RHI context.
    * @param context Pointer to the context to terminate.
    */
-  void ldk_rhi_terminate(LDKRHIContext* context);
+  LDK_API void ldk_rhi_terminate(LDKRHIContext* context);
 
   /**
    * @brief Checks if a buffer handle is valid.
    * @param buffer Buffer handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer);
+  LDK_API bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer);
 
   /**
    * @brief Checks if a texture handle is valid.
    * @param texture Texture handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_texture(LDKRHITexture texture);
+  LDK_API bool ldk_rhi_is_valid_texture(LDKRHITexture texture);
 
   /**
    * @brief Checks if a sampler handle is valid.
    * @param sampler Sampler handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler);
+  LDK_API bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler);
 
   /**
    * @brief Checks if a shader module handle is valid.
    * @param shader_module Shader module handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module);
+  LDK_API bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module);
 
   /**
    * @brief Checks if a shader handle is valid.
    * @param shader Shader handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
+  LDK_API bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
 
   /**
    * @brief Checks if a bindings layout handle is valid.
    * @param bindings_layout Bindings layout handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings_layout(LDKRHIBindingsLayout bindings_layout);
+  LDK_API bool ldk_rhi_is_valid_bindings_layout(LDKRHIBindingsLayout bindings_layout);
 
   /**
    * @brief Checks if a pipeline handle is valid.
    * @param pipeline Pipeline handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline);
+  LDK_API bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline);
 
   /**
    * @brief Checks if a bindings handle is valid.
    * @param bindings Bindings handle.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings);
+  LDK_API bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings);
 
   /**
    * @brief Validates a buffer descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc);
 
   /**
    * @brief Validates a texture descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc);
 
   /**
    * @brief Validates a sampler descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc);
 
   /**
    * @brief Validates a shader module descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc);
 
   /**
    * @brief Validates a shader descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Validates a bindings layout descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings_layout_desc(const LDKRHIBindingsLayoutDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_bindings_layout_desc(const LDKRHIBindingsLayoutDesc* desc);
 
   /**
    * @brief Validates a pipeline descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Validates a bindings descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Validates a pass descriptor.
    * @param desc Descriptor to validate.
    * @return true if valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc);
 
   /**
    * @brief Creates a GPU buffer.
@@ -832,14 +833,14 @@ extern "C"
    * @param desc Buffer descriptor.
    * @return A valid buffer handle on success, or an invalid handle on failure.
    */
-  LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc);
+  LDK_API LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc);
 
   /**
    * @brief Destroys a GPU buffer.
    * @param context RHI context.
    * @param buffer Buffer handle.
    */
-  void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer);
+  LDK_API void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer);
 
   /**
    * @brief Updates a region of a buffer.
@@ -850,7 +851,7 @@ extern "C"
    * @param data Pointer to source data.
    * @return true if the update succeeded, false otherwise.
    */
-  bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+  LDK_API bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data);
 
   /**
    * @brief Creates a GPU texture.
@@ -858,14 +859,14 @@ extern "C"
    * @param desc Texture descriptor.
    * @return A valid texture handle on success, or an invalid handle on failure.
    */
-  LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITextureDesc* desc);
+  LDK_API LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITextureDesc* desc);
 
   /**
    * @brief Destroys a GPU texture.
    * @param context RHI context.
    * @param texture Texture handle.
    */
-  void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture);
+  LDK_API void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture);
 
   /**
    * @brief Updates a texture subresource.
@@ -877,7 +878,7 @@ extern "C"
    * @param size Size in bytes.
    * @return true if the update succeeded, false otherwise.
    */
-  bool ldk_rhi_update_texture(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
+  LDK_API bool ldk_rhi_update_texture(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
 
   /**
    * @brief Creates a sampler object.
@@ -886,14 +887,14 @@ extern "C"
    *
    * @return A valid sampler handle on success, or an invalid handle on failure.
    */
-  LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISamplerDesc* desc);
+  LDK_API LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISamplerDesc* desc);
 
   /**
    * @brief Destroys a sampler object.
    * @param context RHI context.
    * @param sampler Sampler handle.
    */
-  void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler);
+  LDK_API void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler);
 
   /**
    * @brief Creates a shader module.
@@ -902,14 +903,14 @@ extern "C"
    *
    * @return A valid shader module handle on success, or an invalid handle on failure.
    */
-  LDKRHIShaderModule ldk_rhi_create_shader_module(LDKRHIContext* context, const LDKRHIShaderModuleDesc* desc);
+  LDK_API LDKRHIShaderModule ldk_rhi_create_shader_module(LDKRHIContext* context, const LDKRHIShaderModuleDesc* desc);
 
   /**
    * @brief Destroys a shader module.
    * @param context RHI context.
    * @param shader_module Shader module handle.
    */
-  void ldk_rhi_destroy_shader_module(LDKRHIContext* context, LDKRHIShaderModule shader_module);
+  LDK_API void ldk_rhi_destroy_shader_module(LDKRHIContext* context, LDKRHIShaderModule shader_module);
 
   /**
    * @brief Creates a shader object.
@@ -917,14 +918,14 @@ extern "C"
    * @param desc Shader descriptor.
    * @return A valid shader handle on success, or an invalid handle on failure.
    */
-  LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
+  LDK_API LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Destroys a shader object.
    * @param context RHI context.
    * @param shader Shader handle.
    */
-  void ldk_rhi_destroy_shader(LDKRHIContext* context, LDKRHIShader shader);
+  LDK_API void ldk_rhi_destroy_shader(LDKRHIContext* context, LDKRHIShader shader);
 
   /**
    * @brief Creates a bindings layout.
@@ -932,14 +933,14 @@ extern "C"
    * @param desc Layout descriptor.
    * @return A valid layout handle on success, or an invalid handle on failure.
    */
-  LDKRHIBindingsLayout ldk_rhi_create_bindings_layout(LDKRHIContext* context, const LDKRHIBindingsLayoutDesc* desc);
+  LDK_API LDKRHIBindingsLayout ldk_rhi_create_bindings_layout(LDKRHIContext* context, const LDKRHIBindingsLayoutDesc* desc);
 
   /**
    * @brief Destroys a bindings layout.
    * @param context RHI context.
    * @param bindings_layout Layout handle.
    */
-  void ldk_rhi_destroy_bindings_layout(LDKRHIContext* context, LDKRHIBindingsLayout bindings_layout);
+  LDK_API void ldk_rhi_destroy_bindings_layout(LDKRHIContext* context, LDKRHIBindingsLayout bindings_layout);
 
   /**
    * @brief Creates a pipeline.
@@ -947,14 +948,14 @@ extern "C"
    * @param desc Pipeline descriptor.
    * @return A valid pipeline handle on success, or an invalid handle on failure.
    */
-  LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipelineDesc* desc);
+  LDK_API LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Destroys a pipeline.
    * @param context RHI context.
    * @param pipeline Pipeline handle.
    */
-  void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
+  LDK_API void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
 
   /**
    * @brief Creates a bindings object.
@@ -962,53 +963,53 @@ extern "C"
    * @param desc Bindings descriptor.
    * @return A valid bindings handle on success, or an invalid handle on failure.
    */
-  LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc);
+  LDK_API LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Destroys a bindings object.
    * @param context RHI context.
    * @param bindings Bindings handle.
    */
-  void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
+  LDK_API void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
 
   /**
    * @brief Begins a new frame.
    * @param context RHI context.
    */
-  void ldk_rhi_begin_frame(LDKRHIContext* context);
+  LDK_API void ldk_rhi_begin_frame(LDKRHIContext* context);
 
   /**
    * @brief Ends the current frame.
    * @param context RHI context.
    */
-  void ldk_rhi_end_frame(LDKRHIContext* context);
+  LDK_API void ldk_rhi_end_frame(LDKRHIContext* context);
 
   /**
    * @brief Begins a rendering pass.
    * @param context RHI context.
    * @param desc Pass descriptor.
    */
-  void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc);
+  LDK_API void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc);
 
   /**
    * @brief Ends the current rendering pass.
    * @param context RHI context.
    */
-  void ldk_rhi_end_pass(LDKRHIContext* context);
+  LDK_API void ldk_rhi_end_pass(LDKRHIContext* context);
 
   /**
    * @brief Binds a pipeline.
    * @param context RHI context.
    * @param pipeline Pipeline handle.
    */
-  void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
+  LDK_API void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
 
   /**
    * @brief Binds resource bindings.
    * @param context RHI context.
    * @param bindings Bindings handle.
    */
-  void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
+  LDK_API void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
 
   /**
    * @brief Binds a vertex buffer.
@@ -1016,7 +1017,7 @@ extern "C"
    * @param buffer Buffer handle.
    * @param offset Byte offset.
    */
-  void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
+  LDK_API void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
 
   /**
    * @brief Binds an index buffer.
@@ -1025,105 +1026,105 @@ extern "C"
    * @param offset Byte offset.
    * @param index_type Index type.
    */
-  void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type);
+  LDK_API void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type);
 
   /**
    * @brief Sets the viewport.
    * @param context RHI context.
    * @param viewport Viewport definition.
    */
-  void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport);
+  LDK_API void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport);
 
   /**
    * @brief Sets the scissor rectangle.
    * @param context RHI context.
    * @param scissor Rectangle definition.
    */
-  void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor);
+  LDK_API void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor);
 
   /**
    * @brief Issues a non-indexed draw call.
    * @param context RHI context.
    * @param desc Draw descriptor.
    */
-  void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
+  LDK_API void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
 
   /**
    * @brief Issues an indexed draw call.
    * @param context RHI context.
    * @param desc Draw descriptor.
    */
-  void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
+  LDK_API void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
 
   /**
    * @brief Fills a buffer descriptor with safe default values.
    *
    * @param desc Pointer to the buffer descriptor to initialize.
    */
-  void ldk_rhi_buffer_desc_defaults(LDKRHIBufferDesc* desc);
+  LDK_API void ldk_rhi_buffer_desc_defaults(LDKRHIBufferDesc* desc);
 
   /**
    * @brief Fills a texture descriptor with safe default values.
    *
    * @param desc Pointer to the texture descriptor to initialize.
    */
-  void ldk_rhi_texture_desc_defaults(LDKRHITextureDesc* desc);
+  LDK_API void ldk_rhi_texture_desc_defaults(LDKRHITextureDesc* desc);
 
   /**
    * @brief Fills a sampler descriptor with default filtering and wrapping state.
    *
    * @param desc Pointer to the sampler descriptor to initialize.
    */
-  void ldk_rhi_sampler_desc_defaults(LDKRHISamplerDesc* desc);
+  LDK_API void ldk_rhi_sampler_desc_defaults(LDKRHISamplerDesc* desc);
 
   /**
    * @brief Fills a shader descriptor with safe default values.
    *
    * @param desc Pointer to the shader descriptor to initialize.
    */
-  void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
+  LDK_API void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
 
   /**
    * @brief Fills a blend state with default disabled blending.
    *
    * @param state Pointer to the blend state to initialize.
    */
-  void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state);
+  LDK_API void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state);
 
   /**
    * @brief Fills a depth state with default depth testing configuration.
    *
    * @param state Pointer to the depth state to initialize.
    */
-  void ldk_rhi_depth_state_defaults(LDKRHIDepthState* state);
+  LDK_API void ldk_rhi_depth_state_defaults(LDKRHIDepthState* state);
 
   /**
    * @brief Fills a raster state with default culling, front-face, and scissor configuration.
    *
    * @param state Pointer to the raster state to initialize.
    */
-  void ldk_rhi_raster_state_defaults(LDKRHIRasterState* state);
+  LDK_API void ldk_rhi_raster_state_defaults(LDKRHIRasterState* state);
 
   /**
    * @brief Fills a pipeline descriptor with safe default values.
    *
    * @param desc Pointer to the pipeline descriptor to initialize.
    */
-  void ldk_rhi_pipeline_desc_defaults(LDKRHIPipelineDesc* desc);
+  LDK_API void ldk_rhi_pipeline_desc_defaults(LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Fills a bindings descriptor with no bindings.
    *
    * @param desc Pointer to the bindings descriptor to initialize.
    */
-  void ldk_rhi_bindings_desc_defaults(LDKRHIBindingsDesc* desc);
+  LDK_API void ldk_rhi_bindings_desc_defaults(LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Fills a pass descriptor with no attachments and no dynamic viewport or scissor.
    *
    * @param desc Pointer to the pass descriptor to initialize.
    */
-  void ldk_rhi_pass_desc_defaults(LDKRHIPassDesc* desc);
+  LDK_API void ldk_rhi_pass_desc_defaults(LDKRHIPassDesc* desc);
 
   /**
    * @brief Initializes an RHI context using the supplied backend functions.
@@ -1134,14 +1135,14 @@ extern "C"
    *
    * @return true if the context was initialized successfully, false otherwise.
    */
-  bool ldk_rhi_initialize(LDKRHIContext* context, const LDKRHIContextDesc* desc, const LDKRHIFunctions* functions);
+  LDK_API bool ldk_rhi_initialize(LDKRHIContext* context, const LDKRHIContextDesc* desc, const LDKRHIFunctions* functions);
 
   /**
    * @brief Terminates an RHI context and calls backend shutdown if present.
    *
    * @param context Pointer to the context to terminate.
    */
-  void ldk_rhi_terminate(LDKRHIContext* context);
+  LDK_API void ldk_rhi_terminate(LDKRHIContext* context);
 
   /**
    * @brief Checks whether a buffer handle is valid.
@@ -1150,7 +1151,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer);
+  LDK_API bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer);
 
   /**
    * @brief Checks whether a texture handle is valid.
@@ -1159,7 +1160,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_texture(LDKRHITexture texture);
+  LDK_API bool ldk_rhi_is_valid_texture(LDKRHITexture texture);
 
   /**
    * @brief Checks whether a sampler handle is valid.
@@ -1168,7 +1169,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler);
+  LDK_API bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler);
 
   /**
    * @brief Checks whether a shader handle is valid.
@@ -1177,7 +1178,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
+  LDK_API bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
 
   /**
    * @brief Checks whether a pipeline handle is valid.
@@ -1186,7 +1187,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline);
+  LDK_API bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline);
 
   /**
    * @brief Checks whether a bindings handle is valid.
@@ -1195,7 +1196,7 @@ extern "C"
    *
    * @return true if the handle is not invalid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings);
+  LDK_API bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings);
 
   /**
    * @brief Validates a buffer descriptor before buffer creation.
@@ -1204,7 +1205,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc);
 
   /**
    * @brief Validates a texture descriptor before texture creation.
@@ -1213,7 +1214,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc);
 
   /**
    * @brief Validates a sampler descriptor before sampler creation.
@@ -1222,7 +1223,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc);
 
   /**
    * @brief Validates a shader descriptor before shader creation.
@@ -1231,7 +1232,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Validates a pipeline descriptor before pipeline creation.
@@ -1240,7 +1241,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Validates a bindings descriptor before bindings creation.
@@ -1249,7 +1250,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_bindings_desc(const LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Validates a pass descriptor before beginning a pass.
@@ -1258,7 +1259,7 @@ extern "C"
    *
    * @return true if the descriptor is valid, false otherwise.
    */
-  bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc);
+  LDK_API bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc);
 
   /**
    * @brief Creates a GPU buffer using the active backend.
@@ -1268,7 +1269,7 @@ extern "C"
    *
    * @return A valid buffer handle on success, or LDK_RHI_BUFFER_INVALID on failure.
    */
-  LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc);
+  LDK_API LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc);
 
   /**
    * @brief Destroys a GPU buffer.
@@ -1278,7 +1279,7 @@ extern "C"
    * @param context RHI context.
    * @param buffer Buffer handle to destroy.
    */
-  void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer);
+  LDK_API void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer);
 
   /**
    * @brief Updates a byte range inside an existing buffer.
@@ -1291,7 +1292,7 @@ extern "C"
    *
    * @return true if the buffer update succeeded, false otherwise.
    */
-  bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+  LDK_API bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data);
 
   /**
    * @brief Creates a GPU texture using the active backend.
@@ -1301,7 +1302,7 @@ extern "C"
    *
    * @return A valid texture handle on success, or LDK_RHI_TEXTURE_INVALID on failure.
    */
-  LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITextureDesc* desc);
+  LDK_API LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITextureDesc* desc);
 
   /**
    * @brief Destroys a GPU texture.
@@ -1311,7 +1312,7 @@ extern "C"
    * @param context RHI context.
    * @param texture Texture handle to destroy.
    */
-  void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture);
+  LDK_API void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture);
 
   /**
    * @brief Updates texture data for a mip level and layer.
@@ -1325,7 +1326,7 @@ extern "C"
    *
    * @return true if the texture update succeeded, false otherwise.
    */
-  bool ldk_rhi_update_texture(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
+  LDK_API bool ldk_rhi_update_texture(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
 
   /**
    * @brief Creates a sampler object from filtering and wrapping state.
@@ -1335,7 +1336,7 @@ extern "C"
    *
    * @return A valid sampler handle on success, or LDK_RHI_SAMPLER_INVALID on failure.
    */
-  LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISamplerDesc* desc);
+  LDK_API LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISamplerDesc* desc);
 
   /**
    * @brief Destroys a sampler object.
@@ -1345,7 +1346,7 @@ extern "C"
    * @param context RHI context.
    * @param sampler Sampler handle to destroy.
    */
-  void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler);
+  LDK_API void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler);
 
   /**
    * @brief Creates a shader object from source or binary data.
@@ -1355,7 +1356,7 @@ extern "C"
    *
    * @return A valid shader handle on success, or LDK_RHI_SHADER_INVALID on failure.
    */
-  LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
+  LDK_API LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Destroys a shader object.
@@ -1365,7 +1366,7 @@ extern "C"
    * @param context RHI context.
    * @param shader Shader handle to destroy.
    */
-  void ldk_rhi_destroy_shader(LDKRHIContext* context, LDKRHIShader shader);
+  LDK_API void ldk_rhi_destroy_shader(LDKRHIContext* context, LDKRHIShader shader);
 
   /**
    * @brief Creates an immutable graphics pipeline.
@@ -1375,7 +1376,7 @@ extern "C"
    *
    * @return A valid pipeline handle on success, or LDK_RHI_PIPELINE_INVALID on failure.
    */
-  LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipelineDesc* desc);
+  LDK_API LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipelineDesc* desc);
 
   /**
    * @brief Destroys a graphics pipeline.
@@ -1385,7 +1386,7 @@ extern "C"
    * @param context RHI context.
    * @param pipeline Pipeline handle to destroy.
    */
-  void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
+  LDK_API void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
 
   /**
    * @brief Creates a bindings object from buffer, texture, and sampler bindings.
@@ -1395,7 +1396,7 @@ extern "C"
    *
    * @return A valid bindings handle on success, or LDK_RHI_BINDINGS_INVALID on failure.
    */
-  LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc);
+  LDK_API LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc);
 
   /**
    * @brief Destroys a bindings object.
@@ -1405,21 +1406,21 @@ extern "C"
    * @param context RHI context.
    * @param bindings Bindings handle to destroy.
    */
-  void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
+  LDK_API void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
 
   /**
    * @brief Begins a rendering frame.
    *
    * @param context RHI context.
    */
-  void ldk_rhi_begin_frame(LDKRHIContext* context);
+  LDK_API void ldk_rhi_begin_frame(LDKRHIContext* context);
 
   /**
    * @brief Ends the current rendering frame.
    *
    * @param context RHI context.
    */
-  void ldk_rhi_end_frame(LDKRHIContext* context);
+  LDK_API void ldk_rhi_end_frame(LDKRHIContext* context);
 
   /**
    * @brief Begins a render pass using the supplied pass descriptor.
@@ -1427,14 +1428,14 @@ extern "C"
    * @param context RHI context.
    * @param desc Pointer to the pass descriptor.
    */
-  void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc);
+  LDK_API void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc);
 
   /**
    * @brief Ends the current render pass.
    *
    * @param context RHI context.
    */
-  void ldk_rhi_end_pass(LDKRHIContext* context);
+  LDK_API void ldk_rhi_end_pass(LDKRHIContext* context);
 
   /**
    * @brief Binds a graphics pipeline for subsequent draw calls.
@@ -1442,7 +1443,7 @@ extern "C"
    * @param context RHI context.
    * @param pipeline Pipeline handle to bind.
    */
-  void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
+  LDK_API void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline);
 
   /**
    * @brief Binds a resource bindings object for subsequent draw calls.
@@ -1450,7 +1451,7 @@ extern "C"
    * @param context RHI context.
    * @param bindings Bindings handle to bind.
    */
-  void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
+  LDK_API void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings);
 
   /**
    * @brief Binds a vertex buffer and byte offset for subsequent draw calls.
@@ -1459,7 +1460,7 @@ extern "C"
    * @param buffer Vertex buffer handle.
    * @param offset Byte offset inside the vertex buffer.
    */
-  void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
+  LDK_API void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
 
   /**
    * @brief Binds an index buffer, byte offset, and index type for indexed draw calls.
@@ -1469,7 +1470,7 @@ extern "C"
    * @param offset Byte offset inside the index buffer.
    * @param index_type Type of indices stored in the buffer.
    */
-  void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type);
+  LDK_API void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type);
 
   /**
    * @brief Sets the active viewport dynamically.
@@ -1477,7 +1478,7 @@ extern "C"
    * @param context RHI context.
    * @param viewport Pointer to the viewport to apply.
    */
-  void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport);
+  LDK_API void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport);
 
   /**
    * @brief Sets the active scissor rectangle dynamically.
@@ -1485,7 +1486,7 @@ extern "C"
    * @param context RHI context.
    * @param scissor Pointer to the scissor rectangle to apply.
    */
-  void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor);
+  LDK_API void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor);
 
   /**
    * @brief Issues a non-indexed draw call.
@@ -1493,7 +1494,7 @@ extern "C"
    * @param context RHI context.
    * @param desc Pointer to the draw descriptor.
    */
-  void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
+  LDK_API void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
 
   /**
    * @brief Issues an indexed draw call.
@@ -1501,7 +1502,7 @@ extern "C"
    * @param context RHI context.
    * @param desc Pointer to the indexed draw descriptor.
    */
-  void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
+  LDK_API void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
 
 #ifdef __cplusplus
 }
