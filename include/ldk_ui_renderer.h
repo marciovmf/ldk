@@ -19,6 +19,12 @@ typedef struct LDKUIRendererConfig
   u32 initial_index_capacity;
 } LDKUIRendererConfig;
 
+typedef struct LDKUIRendererBindingsCacheEntry
+{
+  LDKRHITexture texture;
+  LDKRHIBindings bindings;
+} LDKUIRendererBindingsCacheEntry;
+
 typedef struct LDKUIRenderer
 {
   LDKRHIContext* rhi;
@@ -31,6 +37,9 @@ typedef struct LDKUIRenderer
   LDKRHIBuffer params_buffer;
   LDKRHITexture white_texture;
   LDKRHISampler sampler;
+  LDKUIRendererBindingsCacheEntry* bindings_cache;
+  u32 bindings_cache_count;
+  u32 bindings_cache_capacity;
   u32 vertex_capacity;
   u32 index_capacity;
   bool is_initialized;

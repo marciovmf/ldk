@@ -2,6 +2,7 @@
 #include "ldk_ui_renderer.h"
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct LDKUIRendererParams
@@ -322,6 +323,11 @@ void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
 
   if (renderer->rhi != NULL)
   {
+    for (u32 i = 0; i < renderer->bindings_cache_count; ++i)
+    {
+      ldk_rhi_destroy_bindings(renderer->rhi, renderer->bindings_cache[i].bindings);
+    }
+
     ldk_rhi_destroy_buffer(renderer->rhi, renderer->params_buffer);
     ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
     ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
@@ -333,6 +339,7 @@ void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
     ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
   }
 
+  free(renderer->bindings_cache);
   memset(renderer, 0, sizeof(*renderer));
 }
 
@@ -352,6 +359,63 @@ static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* render
   return ldk_rhi_create_bindings(renderer->rhi, &desc);
 }
 
+
+static LDKRHIBindings ldk_ui_renderer_find_cached_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+{
+  for (u32 i = 0; i < renderer->bindings_cache_count; ++i)
+  {
+    if (renderer->bindings_cache[i].texture == texture)
+    {
+      return renderer->bindings_cache[i].bindings;
+    }
+  }
+
+  return LDK_RHI_INVALID_BINDINGS;
+}
+
+static bool ldk_ui_renderer_grow_bindings_cache(LDKUIRenderer* renderer)
+{
+  u32 new_capacity = renderer->bindings_cache_capacity == 0 ? 16 : renderer->bindings_cache_capacity * 2;
+  size_t new_size = (size_t)new_capacity * sizeof(LDKUIRendererBindingsCacheEntry);
+  LDKUIRendererBindingsCacheEntry* new_cache = (LDKUIRendererBindingsCacheEntry*)realloc(renderer->bindings_cache, new_size);
+  if (new_cache == NULL)
+  {
+    return false;
+  }
+
+  renderer->bindings_cache = new_cache;
+  renderer->bindings_cache_capacity = new_capacity;
+  return true;
+}
+
+static LDKRHIBindings ldk_ui_renderer_get_draw_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+{
+  LDKRHIBindings cached_bindings = ldk_ui_renderer_find_cached_bindings(renderer, texture);
+  if (cached_bindings != LDK_RHI_INVALID_BINDINGS)
+  {
+    return cached_bindings;
+  }
+
+  if (renderer->bindings_cache_count == renderer->bindings_cache_capacity)
+  {
+    if (!ldk_ui_renderer_grow_bindings_cache(renderer))
+    {
+      return LDK_RHI_INVALID_BINDINGS;
+    }
+  }
+
+  LDKRHIBindings bindings = ldk_ui_renderer_create_draw_bindings(renderer, texture);
+  if (bindings == LDK_RHI_INVALID_BINDINGS)
+  {
+    return LDK_RHI_INVALID_BINDINGS;
+  }
+
+  LDKUIRendererBindingsCacheEntry* entry = &renderer->bindings_cache[renderer->bindings_cache_count];
+  entry->texture = texture;
+  entry->bindings = bindings;
+  renderer->bindings_cache_count += 1;
+  return bindings;
+}
 void ldk_ui_renderer_draw(
   LDKUIRenderer* renderer,
   LDKUIRenderData const* render_data,
@@ -417,7 +481,7 @@ void ldk_ui_renderer_draw(
       continue;
     }
 
-    LDKRHIBindings bindings = ldk_ui_renderer_create_draw_bindings(renderer, texture);
+    LDKRHIBindings bindings = ldk_ui_renderer_get_draw_bindings(renderer, texture);
     if (bindings == LDK_RHI_INVALID_BINDINGS)
     {
       continue;
@@ -436,7 +500,5 @@ void ldk_ui_renderer_draw(
     draw_desc.first_index = cmd->index_offset;
     draw_desc.vertex_offset = 0;
     ldk_rhi_draw_indexed(renderer->rhi, &draw_desc);
-
-    ldk_rhi_destroy_bindings(renderer->rhi, bindings);
   }
 }
