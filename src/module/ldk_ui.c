@@ -4,7 +4,6 @@
 #include "stdx/stdx_array.h"
 #include <ldk_common.h>
 #include <ldk_ui.h>
-#include <stdx/stdx_io.h>
 #include <stdx/stdx_math.h>
 #include <string.h>
 #include <math.h>
@@ -2372,17 +2371,8 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 
   ldk_ui_set_theme(ctx, config->theme, NULL);
 
-  // Initialize font
-  XFile* file = x_io_open(config->font, "rb");
-  size_t font_file_size = 0;
-  const char* font_file_data = x_io_read_all(file, &font_file_size);
-  LDKFontFace* face = ldk_font_face_create(font_file_data, (u32) font_file_size);
-  LDKFontAtlasDesc atlas_desc = {0};
-  atlas_desc.page_width = 512;
-  atlas_desc.page_height = 512;
-  ctx->font = ldk_font_get_instance(face, (float) config->font_size, &atlas_desc);
+  ctx->font = config->font;
   ldk_font_preload_basic_ascii(ctx->font);
-  x_io_close(file);
 
   bool success = ctx->frame_arena != NULL;
   return success;

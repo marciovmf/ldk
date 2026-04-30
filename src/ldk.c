@@ -55,6 +55,29 @@
 #include <signal.h>
 #include <string.h>
 
+// Editor UI defaults
+#ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY
+#define LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY 256
+#endif
+
+#ifndef LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY
+#define LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY 1024
+#endif
+
+#ifndef LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY 
+#define LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY 32
+#endif
+
+#ifndef LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY 
+#define LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY 16
+#endif
+
+#ifndef LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY 
+#define LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY 16
+#endif
+
+
+
 struct LDKRoot
 {
   // Engine Modules
@@ -69,7 +92,7 @@ struct LDKRoot
   LDKRenderer           renderer;
   LDKSystemRegistry     system_registry;
   LDKUIContext          editor_ui;
-  LDKFontFace*          editor_font_face;
+  LDKAssetFont          editor_font;
   XLogger               logger;
   // Runtime state
   i32                   exit_code;
@@ -531,29 +554,10 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  LDKUIConfig ui_cfg;
-  ui_cfg.frame_arena_size = 1024 * 4;
-  ui_cfg.initial_vertex_capacity = 1024;
-  ui_cfg.initial_index_capacity = 1024;
-  ui_cfg.initial_command_capacity = 256;
-  ui_cfg.initial_window_capacity = 64;
-  ui_cfg.initial_id_stack_capacity = 64;
-  ui_cfg.font_size = e->config.editor_font_size;
-  ui_cfg.font = e->config.editor_font.buf;
-  if (strncmp(e->config.editor_theme.buf, "light", 5) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  else if (strncmp(e->config.editor_theme.buf, "dark", 4) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
-  else
-  {
-    ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  }
-
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;
-  renderer_config.initial_ui_index_capacity = ui_cfg.initial_index_capacity;
-  renderer_config.initial_ui_vertex_capacity = ui_cfg.initial_vertex_capacity;
+  renderer_config.initial_ui_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
+  renderer_config.initial_ui_vertex_capacity = LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY;
   if (!ldk_renderer_initialize(&e->renderer, &renderer_config))
   {
     ldk_log_error("Failed to initialize module: UI Renderer.");
@@ -561,47 +565,67 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
+  // Load UI editor font
+  e->editor_font = ldk_asset_manager_font_load(&e->asset_manager, e->config.editor_font.buf);
+  LDKAssetFontData* editor_font_data = ldk_asset_manager_font_get(&e->asset_manager, e->editor_font);
+  if (!editor_font_data || !editor_font_data->face)
+  {
+    ldk_log_error("Failed to load editor font '%s'.", e->config.editor_font.buf);
+    ldk_engine_terminate();
+    return false;
+  }
+
+  LDKFontAtlasDesc font_atlas_desc = {0};
+  font_atlas_desc.padding = 1;
+  font_atlas_desc.page_width = 256;
+  font_atlas_desc.page_height = 256;
+
+  LDKFontInstance* editor_font = ldk_font_get_instance(
+      editor_font_data->face,
+      (float)e->config.editor_font_size,
+      &font_atlas_desc);
+
+  if (!editor_font)
+  {
+    ldk_log_error("Failed to create editor font instance.");
+    ldk_engine_terminate();
+    return false;
+  }
+
   { // Font cache initialization
+
     LDKFontCacheConfig font_cache_config;
     memset(&font_cache_config, 0, sizeof(font_cache_config));
     font_cache_config.initial_page_capacity = 4;
 
-    XFile* font_file = x_io_open(config->editor_font.buf, "rb");
-    size_t font_file_size = 0;
-    if (!font_file)
-    {
-      ldk_log_error("Failed to load editor font '%s' .", config->editor_font.buf);
-      ldk_engine_terminate();
-      return false;
-    }
-    const char* font_file_data = x_io_read_all(font_file, &font_file_size);
-    if (! font_file_data)
-    {
-      ldk_log_error("Failed to read editor font '%s' .", config->editor_font.buf);
-      ldk_engine_terminate();
-      return false;
-    }
-
-    LDKFontAtlasDesc font_atlas_desc = {0};
-    font_atlas_desc.padding = 1;
-    font_atlas_desc.page_width = 256;
-    font_atlas_desc.page_height = 256;
-
-    e->editor_font_face = ldk_font_face_create(font_file_data, (u32)font_file_size);
-    LDKFontInstance* editor_font =  ldk_font_get_instance(
-        e->editor_font_face,
-        (float)e->config.editor_font_size,
-        &font_atlas_desc);
-
     if (!ldk_font_cache_initialize(&e->font_cache, editor_font, &font_cache_config))
     {
-      ldk_log_error("Failed to initialize module: UI Renderer.");
+      ldk_log_error("Failed to initialize module: Font Cache.");
       ldk_engine_terminate();
       return false;
     }
   }
 
   { // UI Initialization
+    LDKUIConfig ui_cfg = {0};
+    ui_cfg.frame_arena_size = 1024 * 4;
+    ui_cfg.initial_vertex_capacity = LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY;
+    ui_cfg.initial_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
+    ui_cfg.initial_command_capacity = LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY;
+    ui_cfg.initial_window_capacity = LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY;
+    ui_cfg.initial_id_stack_capacity = LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY;
+    ui_cfg.font = editor_font;
+
+    if (strncmp(e->config.editor_theme.buf, "light", 5) == 0)
+      ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
+    else if (strncmp(e->config.editor_theme.buf, "dark", 4) == 0)
+      ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
+    else
+    {
+      ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
+      ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
+    }
+
     ui_cfg.font_texture_user = &e->font_cache;
     ui_cfg.get_font_page_texture = ldk_font_cache_get_page_texture_callback;
 

@@ -2,6 +2,7 @@
 #define LDK_ASSET_MANAGER_H
 
 #include <ldk_common.h>
+#include <ldk_ttf.h>
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_filesystem.h>
 
@@ -49,6 +50,11 @@ extern "C" {
     u64 byte_count;
   } LDKAssetTextFileData;
 
+  typedef struct LDKAssetFontData
+  {
+    LDKFontFace* face;
+  } LDKAssetFontData;
+
   typedef struct LDKAssetInfo
   {
     LDKAssetType type;
@@ -72,13 +78,10 @@ extern "C" {
   LDK_API void ldk_asset_manager_clear(LDKAssetManager* manager);
 
   LDK_API LDKAssetHandle ldk_asset_handle_null(void);
-  LDK_API LDKAssetTextFile ldk_asset_text_file_null(void);
   LDK_API LDKAssetImage ldk_asset_image_null(void);
-  LDK_API LDKAssetFont ldk_asset_font_null(void);
   LDK_API LDKAssetMesh ldk_asset_mesh_null(void);
 
   LDK_API bool ldk_asset_handle_is_alive(LDKAssetManager* manager, LDKAssetHandle asset);
-  LDK_API bool ldk_asset_manager_text_file_is_alive(LDKAssetManager* manager, LDKAssetTextFile asset);
 
   LDK_API LDKAssetInfo* ldk_asset_get_info(LDKAssetManager* manager, LDKAssetHandle asset);
   LDK_API const LDKAssetInfo* ldk_asset_get_info_const(LDKAssetManager* manager, LDKAssetHandle asset);
@@ -86,11 +89,24 @@ extern "C" {
   LDK_API u32 ldk_asset_alive_count(LDKAssetManager* manager);
   LDK_API void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user);
 
+  LDK_API LDKAssetTextFile ldk_asset_text_file_null(void);
+  LDK_API bool ldk_asset_manager_text_file_is_alive(LDKAssetManager* manager, LDKAssetTextFile asset);
   LDK_API LDKAssetTextFile ldk_asset_manager_text_file_create(LDKAssetManager* manager, const char* text, u64 byte_count);
   LDK_API LDKAssetTextFile ldk_asset_manager_text_file_load(LDKAssetManager* manager, const char* path);
   LDK_API void ldk_asset_manager_text_file_unload(LDKAssetManager* manager, LDKAssetTextFile asset);
   LDK_API LDKAssetTextFileData* ldk_asset_manager_text_file_get(LDKAssetManager* manager, LDKAssetTextFile asset);
   LDK_API const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManager* manager, LDKAssetTextFile asset);
+
+
+  // Font asset
+  LDK_API LDKAssetFont ldk_asset_font_null(void);
+  LDK_API bool ldk_asset_manager_font_is_alive(LDKAssetManager* manager, LDKAssetFont asset);
+  LDK_API LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void* data, u32 data_size);
+  LDK_API LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path);
+  LDK_API void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset);
+  LDK_API LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset);
+  LDK_API const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset);
+
 
 #ifdef __cplusplus
 }

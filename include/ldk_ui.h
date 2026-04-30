@@ -179,7 +179,7 @@ extern "C" {
     u32 initial_command_capacity;
     u32 initial_window_capacity;
     u32 initial_id_stack_capacity;
-    const char* font;
+    LDKFontInstance* font;
     void* font_texture_user;
     LDKUIGetFontPageTextureFn get_font_page_texture;
     LDKUIThemeType theme;
