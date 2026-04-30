@@ -47,7 +47,7 @@
 #include <ldk_system_scenegraph.h>
 #include <ldk_os.h>
 #include <ldk_ui.h>
-#include <ldk_ui_renderer.h>
+#include <ldk_renderer.h>
 #include <ldk_font_cache.h>
 #include <ldk_game.h>
 
@@ -64,7 +64,7 @@ struct LDKRoot
   LDKGame               game;
   LDKConfig             config;
   LDKUIContext          editor_ui;
-  LDKUIRenderer         ui_renderer;
+  LDKRenderer           renderer;
   LDKFontCache          font_cache;
   LDKRHIContext         rhi;
   LDKFontFace*          editor_font_face;
@@ -422,8 +422,8 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_FONT_CACHE:
       return &g_engine.font_cache;
 
-    case LDK_MODULE_UI_RENDERER:
-      return &g_engine.ui_renderer;
+    case LDK_MODULE_RENDERER:
+      return &g_engine.renderer;
 
     case LDK_MODULE_NONE:
     default:
@@ -541,11 +541,11 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
-  LDKUIRendererConfig ui_renderer_config;
-  ui_renderer_config.rhi = &e->rhi;
-  ui_renderer_config.initial_index_capacity = ui_cfg.initial_index_capacity;
-  ui_renderer_config.initial_vertex_capacity = ui_cfg.initial_vertex_capacity;
-  if (!ldk_ui_renderer_initialize(&e->ui_renderer, &ui_renderer_config))
+  LDKRendererConfig renderer_config;
+  renderer_config.rhi = &e->rhi;
+  renderer_config.initial_ui_index_capacity = ui_cfg.initial_index_capacity;
+  renderer_config.initial_ui_vertex_capacity = ui_cfg.initial_vertex_capacity;
+  if (!ldk_renderer_initialize(&e->renderer, &renderer_config))
   {
     ldk_log_error("Failed to initialize module: UI Renderer.");
     ldk_engine_terminate();
@@ -811,10 +811,13 @@ void ldk_engine_frame(void)
 
     current_ticks = ldk_os_time_ticks_get();
     const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
-    ldk_ui_renderer_draw(&e->ui_renderer,
-        ui_data,
-        window_size.w,
-        window_size.h);
+    ldk_renderer_submit_ui(&e->renderer, ui_data);
+
+    LDKRendererFrameDesc frame_desc;
+    frame_desc.framebuffer_width = window_size.w;
+    frame_desc.framebuffer_height = window_size.h;
+    frame_desc.clear_color = 0xABABABFFu;
+    ldk_renderer_render_frame(&e->renderer, &frame_desc);
 
     ldk_rhi_end_pass(&e->rhi);
     ldk_rhi_end_frame(&e->rhi);

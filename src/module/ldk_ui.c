@@ -10,12 +10,6 @@
 #include <math.h>
 #include <stdio.h>
 
-#define LDK_RGBA_TO_ABGR(c) \
-  ((((c) & 0x000000FFu) << 24) | \
-   (((c) & 0x0000FF00u) << 8)  | \
-   (((c) & 0x00FF0000u) >> 8)  | \
-   (((c) & 0xFF000000u) >> 24))
-
 typedef enum LDKUIInternalIdPart
 {
   LDK_UI_INTERNAL_ID_SCROLLBAR_THUMB_Y = 1,
@@ -1185,6 +1179,7 @@ static void s_ui_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle texture, LDK
 
 static void s_ui_emit_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
+  color = LDK_RGBA32(color);
   u32 index_offset = x_array_ldk_ui_u32_count(ctx->indices);
   u32 base_index = x_array_ldk_ui_vertex_count(ctx->vertices);
 
@@ -1450,6 +1445,7 @@ static void ldk_ui_draw_text(LDKUIContext* ctx, char const* text, float x, float
   float pen_y;
   u32 prev_codepoint;
   char const* cursor;
+  color = LDK_RGBA32(color);
 
   if (ctx == NULL || text == NULL)
   {
@@ -2569,23 +2565,23 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
 
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
-    LDKUIColor text          = LDK_RGBA_TO_ABGR(0xd8d8d8ffu);
-    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0x707070ffu);
-    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0x333333ffu);
-    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0x252525ffu);
-    LDKUIColor control       = LDK_RGBA_TO_ABGR(0x444444ffu);
-    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0x505050ffu);
-    LDKUIColor active        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
-    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0x43c8b3ffu);
-    LDKUIColor border        = LDK_RGBA_TO_ABGR(0x1c1c1cffu);
-    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
-    LDKUIColor dark_track    = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor title         = LDK_RGBA_TO_ABGR(0x3f3f3fffu);
-    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0x2a2a2affu);
-    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0x555555ffu);
-    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x666666ffu);
-    LDKUIColor thumb_active  = LDK_RGBA_TO_ABGR(0x38b8a4ffu);
+    rgba32 text          = (0xd8d8d8ffu);
+    rgba32 text_disabled = (0x707070ffu);
+    rgba32 bg            = (0x333333ffu);
+    rgba32 panel         = (0x252525ffu);
+    rgba32 control       = (0x444444ffu);
+    rgba32 hover         = (0x505050ffu);
+    rgba32 active        = (0x38b8a4ffu);
+    rgba32 active_hover  = (0x43c8b3ffu);
+    rgba32 border        = (0x1c1c1cffu);
+    rgba32 accent        = (0x38b8a4ffu);
+    rgba32 dark_track    = (0x202020ffu);
+    rgba32 title         = (0x3f3f3fffu);
+    rgba32 title_focus   = (0x2a2a2affu);
+    rgba32 scrollbar     = (0x202020ffu);
+    rgba32 thumb         = (0x555555ffu);
+    rgba32 thumb_hover   = (0x666666ffu);
+    rgba32 thumb_active  = (0x38b8a4ffu);
 
     theme->colors[LDK_UI_COLOR_TEXT]                       = text;
     theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
@@ -2633,23 +2629,23 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
   }
   else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
   {
-    LDKUIColor text          = LDK_RGBA_TO_ABGR(0x202020ffu);
-    LDKUIColor text_disabled = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
-    LDKUIColor bg            = LDK_RGBA_TO_ABGR(0xf0f0f0ffu);
-    LDKUIColor panel         = LDK_RGBA_TO_ABGR(0xe0e0e0ffu);
-    LDKUIColor control       = LDK_RGBA_TO_ABGR(0xd0d0d0ffu);
-    LDKUIColor hover         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
-    LDKUIColor active        = LDK_RGBA_TO_ABGR(0xb0b0b0ffu);
-    LDKUIColor active_hover  = LDK_RGBA_TO_ABGR(0xb4b4b4ffu);
-    LDKUIColor border        = LDK_RGBA_TO_ABGR(0xa0a0a0ffu);
-    LDKUIColor accent        = LDK_RGBA_TO_ABGR(0x4f8cc9ffu);
-    LDKUIColor track         = LDK_RGBA_TO_ABGR(0xc0c0c0ffu);
-    LDKUIColor title         = LDK_RGBA_TO_ABGR(0xdcdcdcffu);
-    LDKUIColor title_focus   = LDK_RGBA_TO_ABGR(0xbfcfffffu);
-    LDKUIColor scrollbar     = LDK_RGBA_TO_ABGR(0xc8c8c8ffu);
-    LDKUIColor thumb         = LDK_RGBA_TO_ABGR(0xa8a8a8ffu);
-    LDKUIColor thumb_hover   = LDK_RGBA_TO_ABGR(0x909090ffu);
-    LDKUIColor thumb_active  = accent;
+    rgba32 text          = (0x202020ffu);
+    rgba32 text_disabled = (0xa0a0a0ffu);
+    rgba32 bg            = (0xf0f0f0ffu);
+    rgba32 panel         = (0xe0e0e0ffu);
+    rgba32 control       = (0xd0d0d0ffu);
+    rgba32 hover         = (0xc0c0c0ffu);
+    rgba32 active        = (0xb0b0b0ffu);
+    rgba32 active_hover  = (0xb4b4b4ffu);
+    rgba32 border        = (0xa0a0a0ffu);
+    rgba32 accent        = (0x4f8cc9ffu);
+    rgba32 track         = (0xc0c0c0ffu);
+    rgba32 title         = (0xdcdcdcffu);
+    rgba32 title_focus   = (0xbfcfffffu);
+    rgba32 scrollbar     = (0xc8c8c8ffu);
+    rgba32 thumb         = (0xa8a8a8ffu);
+    rgba32 thumb_hover   = (0x909090ffu);
+    rgba32 thumb_active  = accent;
 
     theme->colors[LDK_UI_COLOR_TEXT]                       = text;
     theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
@@ -3400,7 +3396,7 @@ void ldk_ui_spacer(LDKUIContext* ctx)
   s_ui_item_submit(ctx, item);
 }
 
-void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color)
+void ldk_ui_color_view(LDKUIContext* ctx, rgba32 color)
 {
   LDKUIItem* item = s_ui_item_create(ctx, LDK_UI_ITEM_COLOR_VIEW);
   LDKUISize size;
@@ -3421,7 +3417,7 @@ void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color)
   item->min_width = size.w;
   item->min_height = size.h;
   item->expand_width = true;
-  item->data.color_view.color = LDK_RGBA_TO_ABGR(color);
+  item->data.color_view.color = color;
   item->clicked = false;
 
   if (!item->disabled &&

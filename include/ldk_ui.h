@@ -101,7 +101,7 @@ extern "C" {
 
   typedef struct LDKUITheme
   {
-    LDKUIColor colors[LDK_UI_COLOR_COUNT];
+    rgba32 colors[LDK_UI_COLOR_COUNT];
     float control_border_size;
     float window_border_size;
     float window_interaction_border_size;
@@ -116,7 +116,7 @@ extern "C" {
     float y;
     float u;
     float v;
-    u32 color;
+    rgba32 color;
   } LDKUIVertex;
 
   typedef struct LDKUIDrawCmd
@@ -272,7 +272,7 @@ extern "C" {
       } layout;
       struct
       {
-        LDKUIColor color;
+        rgba32 color;
         char label[32];
       } color_view;
       struct
@@ -428,7 +428,7 @@ extern "C" {
   LDK_API float ldk_ui_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
 
-  LDK_API void ldk_ui_color_view(LDKUIContext* ctx, LDKUIColor color);
+  LDK_API void ldk_ui_color_view(LDKUIContext* ctx, rgba32 color);
 
   LDK_API LDKUIPoint ldk_ui_begin_scroll_area(LDKUIContext* ctx, LDKUIPoint scroll, LDKUIScrollFlags flags);
 

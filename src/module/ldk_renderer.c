@@ -1,62 +1,64 @@
 #include <ldk_common.h>
-#include "ldk_ui_renderer.h"
+#include "ldk_renderer.h"
 
 #include <stddef.h>
 #include <string.h>
 
-typedef struct LDKUIRendererParams
+static void ldk_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
+
+typedef struct LDKRendererUIParams
 {
   float viewport_size[2];
   float padding[2];
-} LDKUIRendererParams;
+} LDKRendererUIParams;
 
-static char const* LDK_UI_RENDERER_VERTEX_SHADER =
-  "#version 330 core\n"
-  "layout(location = 0) in vec2 a_position;\n"
-  "layout(location = 1) in vec2 a_uv;\n"
-  "layout(location = 2) in vec4 a_color;\n"
-  "layout(std140) uniform LDK_UBO_0\n"
-  "{\n"
-  "  vec2 u_viewport_size;\n"
-  "};\n"
-  "out vec2 v_uv;\n"
-  "out vec4 v_color;\n"
-  "void main()\n"
-  "{\n"
-  "  vec2 ndc = vec2(\n"
-  "    (a_position.x / u_viewport_size.x) * 2.0 - 1.0,\n"
-  "    1.0 - (a_position.y / u_viewport_size.y) * 2.0\n"
-  "  );\n"
-  "  v_uv = a_uv;\n"
-  "  v_color = a_color;\n"
-  "  gl_Position = vec4(ndc, 0.0, 1.0);\n"
-  "}\n";
+static char const* LDK_RENDERER_UI_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec2 a_position;\n"
+"layout(location = 1) in vec2 a_uv;\n"
+"layout(location = 2) in vec4 a_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  vec2 u_viewport_size;\n"
+"};\n"
+"out vec2 v_uv;\n"
+"out vec4 v_color;\n"
+"void main()\n"
+"{\n"
+"  vec2 ndc = vec2(\n"
+"    (a_position.x / u_viewport_size.x) * 2.0 - 1.0,\n"
+"    1.0 - (a_position.y / u_viewport_size.y) * 2.0\n"
+"  );\n"
+"  v_uv = a_uv;\n"
+"  v_color = a_color;\n"
+"  gl_Position = vec4(ndc, 0.0, 1.0);\n"
+"}\n";
 
-static char const* LDK_UI_RENDERER_FRAGMENT_SHADER =
-  "#version 330 core\n"
-  "in vec2 v_uv;\n"
-  "in vec4 v_color;\n"
-  "out vec4 out_color;\n"
-  "uniform sampler2D LDK_TEXTURE_1;\n"
-  "void main()\n"
-  "{\n"
-  "  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
-  "  out_color = tex * v_color;\n"
-  "}\n";
+static char const* LDK_RENDERER_UI_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"in vec4 v_color;\n"
+"out vec4 out_color;\n"
+"uniform sampler2D LDK_TEXTURE_1;\n"
+"void main()\n"
+"{\n"
+"  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
+"  out_color = tex * v_color;\n"
+"}\n";
 
-static u32 ldk_ui_renderer_cstr_size(char const* cstr)
+static u32 ldk_renderer_ui_pass_cstr_size(char const* cstr)
 {
   return (u32)strlen(cstr);
 }
 
-static bool ldk_ui_renderer_create_shaders(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_shaders(LDKRendererUIPass* renderer)
 {
   LDKRHIShaderModuleDesc vertex_desc = {0};
   ldk_rhi_shader_module_desc_defaults(&vertex_desc);
   vertex_desc.stage = LDK_RHI_SHADER_STAGE_VERTEX;
   vertex_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
-  vertex_desc.code = LDK_UI_RENDERER_VERTEX_SHADER;
-  vertex_desc.code_size = ldk_ui_renderer_cstr_size(LDK_UI_RENDERER_VERTEX_SHADER);
+  vertex_desc.code = LDK_RENDERER_UI_PASS_VERTEX_SHADER;
+  vertex_desc.code_size = ldk_renderer_ui_pass_cstr_size(LDK_RENDERER_UI_PASS_VERTEX_SHADER);
 
   renderer->vertex_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &vertex_desc);
   if (renderer->vertex_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
@@ -68,8 +70,8 @@ static bool ldk_ui_renderer_create_shaders(LDKUIRenderer* renderer)
   ldk_rhi_shader_module_desc_defaults(&fragment_desc);
   fragment_desc.stage = LDK_RHI_SHADER_STAGE_FRAGMENT;
   fragment_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
-  fragment_desc.code = LDK_UI_RENDERER_FRAGMENT_SHADER;
-  fragment_desc.code_size = ldk_ui_renderer_cstr_size(LDK_UI_RENDERER_FRAGMENT_SHADER);
+  fragment_desc.code = LDK_RENDERER_UI_PASS_FRAGMENT_SHADER;
+  fragment_desc.code_size = ldk_renderer_ui_pass_cstr_size(LDK_RENDERER_UI_PASS_FRAGMENT_SHADER);
 
   renderer->fragment_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &fragment_desc);
   if (renderer->fragment_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
@@ -80,7 +82,7 @@ static bool ldk_ui_renderer_create_shaders(LDKUIRenderer* renderer)
   return true;
 }
 
-static bool ldk_ui_renderer_create_bindings_layout(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_bindings_layout(LDKRendererUIPass* renderer)
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
@@ -96,7 +98,7 @@ static bool ldk_ui_renderer_create_bindings_layout(LDKUIRenderer* renderer)
   return renderer->bindings_layout != LDK_RHI_INVALID_BINDINGS_LAYOUT;
 }
 
-static bool ldk_ui_renderer_create_pipeline(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_pipeline(LDKRendererUIPass* renderer)
 {
   LDKRHIPipelineDesc desc = {0};
   ldk_rhi_pipeline_desc_defaults(&desc);
@@ -134,7 +136,7 @@ static bool ldk_ui_renderer_create_pipeline(LDKUIRenderer* renderer)
   return renderer->pipeline != LDK_RHI_INVALID_PIPELINE;
 }
 
-static bool ldk_ui_renderer_create_white_texture(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_white_texture(LDKRendererUIPass* renderer)
 {
   u32 pixel = 0xffffffffu;
   LDKRHITextureDesc texture_desc = {0};
@@ -154,7 +156,7 @@ static bool ldk_ui_renderer_create_white_texture(LDKUIRenderer* renderer)
   return renderer->white_texture != LDK_RHI_INVALID_TEXTURE;
 }
 
-static bool ldk_ui_renderer_create_sampler(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_sampler(LDKRendererUIPass* renderer)
 {
   LDKRHISamplerDesc desc = {0};
   ldk_rhi_sampler_desc_defaults(&desc);
@@ -169,7 +171,7 @@ static bool ldk_ui_renderer_create_sampler(LDKUIRenderer* renderer)
   return renderer->sampler != LDK_RHI_INVALID_SAMPLER;
 }
 
-static bool ldk_ui_renderer_create_buffers(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_create_buffers(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc vertex_desc = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_desc);
@@ -197,7 +199,7 @@ static bool ldk_ui_renderer_create_buffers(LDKUIRenderer* renderer)
 
   LDKRHIBufferDesc params_desc = {0};
   ldk_rhi_buffer_desc_defaults(&params_desc);
-  params_desc.size = sizeof(LDKUIRendererParams);
+  params_desc.size = sizeof(LDKRendererUIParams);
   params_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   params_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
@@ -205,7 +207,7 @@ static bool ldk_ui_renderer_create_buffers(LDKUIRenderer* renderer)
   return renderer->params_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
-static bool ldk_ui_renderer_recreate_vertex_buffer(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_recreate_vertex_buffer(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc desc = {0};
   ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
@@ -218,7 +220,7 @@ static bool ldk_ui_renderer_recreate_vertex_buffer(LDKUIRenderer* renderer)
   return renderer->vertex_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
-static bool ldk_ui_renderer_recreate_index_buffer(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_recreate_index_buffer(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc desc = {0};
   ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
@@ -231,7 +233,7 @@ static bool ldk_ui_renderer_recreate_index_buffer(LDKUIRenderer* renderer)
   return renderer->index_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
-static bool ldk_ui_renderer_ensure_vertex_capacity(LDKUIRenderer* renderer, u32 vertex_count)
+static bool ldk_renderer_ui_pass_ensure_vertex_capacity(LDKRendererUIPass* renderer, u32 vertex_count)
 {
   if (vertex_count <= renderer->vertex_capacity)
   {
@@ -243,10 +245,10 @@ static bool ldk_ui_renderer_ensure_vertex_capacity(LDKUIRenderer* renderer, u32 
     renderer->vertex_capacity *= 2;
   }
 
-  return ldk_ui_renderer_recreate_vertex_buffer(renderer);
+  return ldk_renderer_ui_pass_recreate_vertex_buffer(renderer);
 }
 
-static bool ldk_ui_renderer_ensure_index_capacity(LDKUIRenderer* renderer, u32 index_count)
+static bool ldk_renderer_ui_pass_ensure_index_capacity(LDKRendererUIPass* renderer, u32 index_count)
 {
   if (index_count <= renderer->index_capacity)
   {
@@ -258,10 +260,10 @@ static bool ldk_ui_renderer_ensure_index_capacity(LDKUIRenderer* renderer, u32 i
     renderer->index_capacity *= 2;
   }
 
-  return ldk_ui_renderer_recreate_index_buffer(renderer);
+  return ldk_renderer_ui_pass_recreate_index_buffer(renderer);
 }
 
-bool ldk_ui_renderer_initialize(LDKUIRenderer* renderer, LDKUIRendererConfig const* config)
+static bool ldk_renderer_ui_pass_initialize(LDKRendererUIPass* renderer, LDKRendererConfig const* config)
 {
   if (renderer == NULL || config == NULL || config->rhi == NULL)
   {
@@ -270,42 +272,42 @@ bool ldk_ui_renderer_initialize(LDKUIRenderer* renderer, LDKUIRendererConfig con
 
   memset(renderer, 0, sizeof(*renderer));
   renderer->rhi = config->rhi;
-  renderer->vertex_capacity = config->initial_vertex_capacity > 0 ? config->initial_vertex_capacity : 1024;
-  renderer->index_capacity = config->initial_index_capacity > 0 ? config->initial_index_capacity : 2048;
+  renderer->vertex_capacity = config->initial_ui_vertex_capacity > 0 ? config->initial_ui_vertex_capacity : 1024;
+  renderer->index_capacity = config->initial_ui_index_capacity > 0 ? config->initial_ui_index_capacity : 2048;
 
-  if (!ldk_ui_renderer_create_shaders(renderer))
+  if (!ldk_renderer_ui_pass_create_shaders(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
-  if (!ldk_ui_renderer_create_bindings_layout(renderer))
+  if (!ldk_renderer_ui_pass_create_bindings_layout(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
-  if (!ldk_ui_renderer_create_pipeline(renderer))
+  if (!ldk_renderer_ui_pass_create_pipeline(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
-  if (!ldk_ui_renderer_create_white_texture(renderer))
+  if (!ldk_renderer_ui_pass_create_white_texture(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
-  if (!ldk_ui_renderer_create_sampler(renderer))
+  if (!ldk_renderer_ui_pass_create_sampler(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
-  if (!ldk_ui_renderer_create_buffers(renderer))
+  if (!ldk_renderer_ui_pass_create_buffers(renderer))
   {
-    ldk_ui_renderer_terminate(renderer);
+    ldk_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
@@ -313,7 +315,7 @@ bool ldk_ui_renderer_initialize(LDKUIRenderer* renderer, LDKUIRendererConfig con
   return true;
 }
 
-void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
+static void ldk_renderer_ui_pass_terminate(LDKRendererUIPass* renderer)
 {
   if (renderer == NULL)
   {
@@ -338,11 +340,11 @@ void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
     ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
   }
 
-  LDK_UI_RENDERER_FREE(renderer->bindings_cache);
+  LDK_RENDERER_FREE(renderer->bindings_cache);
   memset(renderer, 0, sizeof(*renderer));
 }
 
-static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+static LDKRHIBindings ldk_renderer_ui_pass_create_draw_bindings(LDKRendererUIPass* renderer, LDKRHITexture texture)
 {
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
@@ -351,7 +353,7 @@ static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* render
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = renderer->params_buffer;
   desc.bindings[0].buffer_offset = 0;
-  desc.bindings[0].buffer_size = sizeof(LDKUIRendererParams);
+  desc.bindings[0].buffer_size = sizeof(LDKRendererUIParams);
   desc.bindings[1].slot = 1;
   desc.bindings[1].texture = texture;
   desc.bindings[1].sampler = renderer->sampler;
@@ -359,7 +361,7 @@ static LDKRHIBindings ldk_ui_renderer_create_draw_bindings(LDKUIRenderer* render
 }
 
 
-static LDKRHIBindings ldk_ui_renderer_find_cached_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+static LDKRHIBindings ldk_renderer_ui_pass_find_cached_bindings(LDKRendererUIPass* renderer, LDKRHITexture texture)
 {
   for (u32 i = 0; i < renderer->bindings_cache_count; ++i)
   {
@@ -372,19 +374,13 @@ static LDKRHIBindings ldk_ui_renderer_find_cached_bindings(LDKUIRenderer* render
   return LDK_RHI_INVALID_BINDINGS;
 }
 
-static bool ldk_ui_renderer_grow_bindings_cache(LDKUIRenderer* renderer)
+static bool ldk_renderer_ui_pass_grow_bindings_cache(LDKRendererUIPass* renderer)
 {
   u32 new_capacity = renderer->bindings_cache_capacity == 0 ? 16 : renderer->bindings_cache_capacity * 2;
-  size_t new_size = (size_t)new_capacity * sizeof(LDKUIRendererBindingsCacheEntry);
-  LDKUIRendererBindingsCacheEntry* new_cache = NULL;
-  if (renderer->bindings_cache == NULL)
-  {
-    new_cache = (LDKUIRendererBindingsCacheEntry*)LDK_UI_RENDERER_ALLOC(new_size);
-  }
-  else
-  {
-    new_cache = (LDKUIRendererBindingsCacheEntry*)LDK_UI_RENDERER_REALLOC(renderer->bindings_cache, new_size);
-  }
+  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererBindingsCacheEntry);
+  LDKRendererBindingsCacheEntry* new_cache = renderer->bindings_cache == NULL
+    ? (LDKRendererBindingsCacheEntry*)LDK_RENDERER_ALLOC(new_size)
+    : (LDKRendererBindingsCacheEntry*)LDK_RENDERER_REALLOC(renderer->bindings_cache, new_size);
   if (new_cache == NULL)
   {
     return false;
@@ -395,9 +391,9 @@ static bool ldk_ui_renderer_grow_bindings_cache(LDKUIRenderer* renderer)
   return true;
 }
 
-static LDKRHIBindings ldk_ui_renderer_get_draw_bindings(LDKUIRenderer* renderer, LDKRHITexture texture)
+static LDKRHIBindings ldk_renderer_ui_pass_get_draw_bindings(LDKRendererUIPass* renderer, LDKRHITexture texture)
 {
-  LDKRHIBindings cached_bindings = ldk_ui_renderer_find_cached_bindings(renderer, texture);
+  LDKRHIBindings cached_bindings = ldk_renderer_ui_pass_find_cached_bindings(renderer, texture);
   if (cached_bindings != LDK_RHI_INVALID_BINDINGS)
   {
     return cached_bindings;
@@ -405,30 +401,31 @@ static LDKRHIBindings ldk_ui_renderer_get_draw_bindings(LDKUIRenderer* renderer,
 
   if (renderer->bindings_cache_count == renderer->bindings_cache_capacity)
   {
-    if (!ldk_ui_renderer_grow_bindings_cache(renderer))
+    if (!ldk_renderer_ui_pass_grow_bindings_cache(renderer))
     {
       return LDK_RHI_INVALID_BINDINGS;
     }
   }
 
-  LDKRHIBindings bindings = ldk_ui_renderer_create_draw_bindings(renderer, texture);
+  LDKRHIBindings bindings = ldk_renderer_ui_pass_create_draw_bindings(renderer, texture);
   if (bindings == LDK_RHI_INVALID_BINDINGS)
   {
     return LDK_RHI_INVALID_BINDINGS;
   }
 
-  LDKUIRendererBindingsCacheEntry* entry = &renderer->bindings_cache[renderer->bindings_cache_count];
+  LDKRendererBindingsCacheEntry* entry = &renderer->bindings_cache[renderer->bindings_cache_count];
   entry->texture = texture;
   entry->bindings = bindings;
   renderer->bindings_cache_count += 1;
   return bindings;
 }
-void ldk_ui_renderer_draw(
-  LDKUIRenderer* renderer,
-  LDKUIRenderData const* render_data,
-  i32 framebuffer_width,
-  i32 framebuffer_height
-)
+
+static void ldk_renderer_ui_pass_draw(
+    LDKRendererUIPass* renderer,
+    LDKUIRenderData const* render_data,
+    i32 framebuffer_width,
+    i32 framebuffer_height
+    )
 {
   if (renderer == NULL || !renderer->is_initialized)
   {
@@ -450,17 +447,17 @@ void ldk_ui_renderer_draw(
     return;
   }
 
-  if (!ldk_ui_renderer_ensure_vertex_capacity(renderer, render_data->vertex_count))
+  if (!ldk_renderer_ui_pass_ensure_vertex_capacity(renderer, render_data->vertex_count))
   {
     return;
   }
 
-  if (!ldk_ui_renderer_ensure_index_capacity(renderer, render_data->index_count))
+  if (!ldk_renderer_ui_pass_ensure_index_capacity(renderer, render_data->index_count))
   {
     return;
   }
 
-  LDKUIRendererParams params = {0};
+  LDKRendererUIParams params = {0};
   params.viewport_size[0] = (float)framebuffer_width;
   params.viewport_size[1] = (float)framebuffer_height;
   params.padding[0] = 0.0f;
@@ -488,7 +485,7 @@ void ldk_ui_renderer_draw(
       continue;
     }
 
-    LDKRHIBindings bindings = ldk_ui_renderer_get_draw_bindings(renderer, texture);
+    LDKRHIBindings bindings = ldk_renderer_ui_pass_get_draw_bindings(renderer, texture);
     if (bindings == LDK_RHI_INVALID_BINDINGS)
     {
       continue;
@@ -508,4 +505,100 @@ void ldk_ui_renderer_draw(
     draw_desc.vertex_offset = 0;
     ldk_rhi_draw_indexed(renderer->rhi, &draw_desc);
   }
+}
+
+inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
+{
+  LDKRHIColor result = {0};
+  result.r = (float)((color >> 24) & 0xffu) / 255.0f;
+  result.g = (float)((color >> 16) & 0xffu) / 255.0f;
+  result.b = (float)((color >> 8) & 0xffu) / 255.0f;
+  result.a = (float)(color & 0xffu) / 255.0f;
+
+  return result;
+}
+
+bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config)
+{
+  if (renderer == NULL || config == NULL || config->rhi == NULL)
+  {
+    return false;
+  }
+
+  memset(renderer, 0, sizeof(*renderer));
+  renderer->rhi = config->rhi;
+
+  if (!ldk_renderer_ui_pass_initialize(&renderer->ui_pass, config))
+  {
+    ldk_renderer_terminate(renderer);
+    return false;
+  }
+
+  renderer->is_initialized = true;
+  return true;
+}
+
+void ldk_renderer_terminate(LDKRenderer* renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  ldk_renderer_ui_pass_terminate(&renderer->ui_pass);
+  memset(renderer, 0, sizeof(*renderer));
+}
+
+void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data)
+{
+  if (renderer == NULL || !renderer->is_initialized)
+  {
+    return;
+  }
+
+  renderer->submitted_ui = render_data;
+}
+
+void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc)
+{
+  if (renderer == NULL || !renderer->is_initialized || desc == NULL)
+  {
+    return;
+  }
+
+  if (desc->framebuffer_width <= 0 || desc->framebuffer_height <= 0)
+  {
+    renderer->submitted_ui = NULL;
+    return;
+  }
+
+  LDKRHIPassDesc pass_desc = {0};
+  ldk_rhi_pass_desc_defaults(&pass_desc);
+  pass_desc.color_attachment_count = 1;
+  pass_desc.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
+  pass_desc.color_attachments[0].load_op = desc->clear_color_enabled ? LDK_RHI_LOAD_OP_CLEAR : LDK_RHI_LOAD_OP_LOAD;
+  pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+  pass_desc.color_attachments[0].clear_color = ldk_renderer_color_from_rgba32(desc->clear_color);
+  pass_desc.has_viewport = true;
+  pass_desc.viewport.x = 0.0f;
+  pass_desc.viewport.y = 0.0f;
+  pass_desc.viewport.width = (float)desc->framebuffer_width;
+  pass_desc.viewport.height = (float)desc->framebuffer_height;
+  pass_desc.viewport.min_depth = 0.0f;
+  pass_desc.viewport.max_depth = 1.0f;
+
+  ldk_rhi_begin_frame(renderer->rhi);
+  ldk_rhi_begin_pass(renderer->rhi, &pass_desc);
+
+  ldk_renderer_ui_pass_draw(
+      &renderer->ui_pass,
+      renderer->submitted_ui,
+      desc->framebuffer_width,
+      desc->framebuffer_height
+      );
+
+  ldk_rhi_end_pass(renderer->rhi);
+  ldk_rhi_end_frame(renderer->rhi);
+
+  renderer->submitted_ui = NULL;
 }

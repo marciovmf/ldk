@@ -36,7 +36,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_ui.h         module/ldk_ui.c
   ${INCLUDE_DIR}/ldk_ttf.h        ldk_ttf.c
   ${INCLUDE_DIR}/ldk_font_cache.h module/ldk_font_cache.c
-  ${INCLUDE_DIR}/ldk_ui_renderer.h module/ldk_ui_renderer.c
+  ${INCLUDE_DIR}/ldk_renderer.h module/ldk_renderer.c
   ${INCLUDE_DIR}/ldk_component.h  module/ldk_component.c
   ${INCLUDE_DIR}/ldk_entity.h     module/ldk_entity.c
   ${INCLUDE_DIR}/ldk_eventqueue.h module/ldk_eventqueue.c
