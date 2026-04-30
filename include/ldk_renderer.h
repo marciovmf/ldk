@@ -32,6 +32,13 @@ extern "C" {
 #define LDK_RENDERER_REALLOC(ptr, size) realloc(ptr, size)
 #endif
 
+
+  typedef enum LDKShader
+  {
+    LDK_SHADER_INVALID = 0,
+    LDK_SHADER_UI_PASS
+  } LDKShader;
+
   typedef struct LDKRendererConfig
   {
     LDKRHIContext* rhi;

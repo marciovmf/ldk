@@ -12,70 +12,21 @@ typedef struct LDKRendererUIParams
   float padding[2];
 } LDKRendererUIParams;
 
-static char const* LDK_RENDERER_UI_PASS_VERTEX_SHADER =
-"#version 330 core\n"
-"layout(location = 0) in vec2 a_position;\n"
-"layout(location = 1) in vec2 a_uv;\n"
-"layout(location = 2) in vec4 a_color;\n"
-"layout(std140) uniform LDK_UBO_0\n"
-"{\n"
-"  vec2 u_viewport_size;\n"
-"};\n"
-"out vec2 v_uv;\n"
-"out vec4 v_color;\n"
-"void main()\n"
-"{\n"
-"  vec2 ndc = vec2(\n"
-"    (a_position.x / u_viewport_size.x) * 2.0 - 1.0,\n"
-"    1.0 - (a_position.y / u_viewport_size.y) * 2.0\n"
-"  );\n"
-"  v_uv = a_uv;\n"
-"  v_color = a_color;\n"
-"  gl_Position = vec4(ndc, 0.0, 1.0);\n"
-"}\n";
-
-static char const* LDK_RENDERER_UI_PASS_FRAGMENT_SHADER =
-"#version 330 core\n"
-"in vec2 v_uv;\n"
-"in vec4 v_color;\n"
-"out vec4 out_color;\n"
-"uniform sampler2D LDK_TEXTURE_1;\n"
-"void main()\n"
-"{\n"
-"  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
-"  out_color = tex * v_color;\n"
-"}\n";
-
-static u32 ldk_renderer_ui_pass_cstr_size(char const* cstr)
-{
-  return (u32)strlen(cstr);
-}
+LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, u32 shader, u32 stage);
 
 static bool ldk_renderer_ui_pass_create_shaders(LDKRendererUIPass* renderer)
 {
-  LDKRHIShaderModuleDesc vertex_desc = {0};
-  ldk_rhi_shader_module_desc_defaults(&vertex_desc);
-  vertex_desc.stage = LDK_RHI_SHADER_STAGE_VERTEX;
-  vertex_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
-  vertex_desc.code = LDK_RENDERER_UI_PASS_VERTEX_SHADER;
-  vertex_desc.code_size = ldk_renderer_ui_pass_cstr_size(LDK_RENDERER_UI_PASS_VERTEX_SHADER);
-
-  renderer->vertex_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &vertex_desc);
+  renderer->vertex_shader_module = ldk_rhi_create_builtin_shader_module(renderer->rhi, LDK_SHADER_UI_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
   if (renderer->vertex_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
   {
     return false;
   }
 
-  LDKRHIShaderModuleDesc fragment_desc = {0};
-  ldk_rhi_shader_module_desc_defaults(&fragment_desc);
-  fragment_desc.stage = LDK_RHI_SHADER_STAGE_FRAGMENT;
-  fragment_desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
-  fragment_desc.code = LDK_RENDERER_UI_PASS_FRAGMENT_SHADER;
-  fragment_desc.code_size = ldk_renderer_ui_pass_cstr_size(LDK_RENDERER_UI_PASS_FRAGMENT_SHADER);
-
-  renderer->fragment_shader_module = ldk_rhi_create_shader_module(renderer->rhi, &fragment_desc);
+  renderer->fragment_shader_module = ldk_rhi_create_builtin_shader_module(renderer->rhi, LDK_SHADER_UI_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (renderer->fragment_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
   {
+    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
+    renderer->vertex_shader_module = LDK_RHI_INVALID_SHADER_MODULE;
     return false;
   }
 

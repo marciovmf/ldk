@@ -1,4 +1,5 @@
 #include "ldk_rhi_gl33.h"
+#include "ldk_renderer.h"
 
 #include <ldk_gl.h>
 
@@ -84,6 +85,82 @@ typedef struct LDKRHIGL33Backend
   uint32_t current_index_buffer_offset;
   LDKRHIIndexType current_index_type;
 } LDKRHIGL33Backend;
+
+static char const* LDK_RHI_GL33_UI_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec2 a_position;\n"
+"layout(location = 1) in vec2 a_uv;\n"
+"layout(location = 2) in vec4 a_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  vec2 u_viewport_size;\n"
+"};\n"
+"out vec2 v_uv;\n"
+"out vec4 v_color;\n"
+"void main()\n"
+"{\n"
+"  vec2 ndc = vec2(\n"
+"    (a_position.x / u_viewport_size.x) * 2.0 - 1.0,\n"
+"    1.0 - (a_position.y / u_viewport_size.y) * 2.0\n"
+"  );\n"
+"  v_uv = a_uv;\n"
+"  v_color = a_color;\n"
+"  gl_Position = vec4(ndc, 0.0, 1.0);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"in vec4 v_color;\n"
+"out vec4 out_color;\n"
+"uniform sampler2D LDK_TEXTURE_1;\n"
+"void main()\n"
+"{\n"
+"  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
+"  out_color = tex * v_color;\n"
+"}\n";
+
+static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
+{
+  return (uint32_t)strlen(cstr);
+}
+
+static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t stage)
+{
+  if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_UI_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER;
+  }
+
+  return NULL;
+}
+
+LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint32_t shader, uint32_t stage)
+{
+  if (rhi == NULL)
+  {
+    return LDK_RHI_INVALID_SHADER_MODULE;
+  }
+
+  char const* code = ldk_rhi_gl33_builtin_shader_source(shader, stage);
+  if (code == NULL)
+  {
+    return LDK_RHI_INVALID_SHADER_MODULE;
+  }
+
+  LDKRHIShaderModuleDesc desc = {0};
+  ldk_rhi_shader_module_desc_defaults(&desc);
+  desc.stage = stage;
+  desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
+  desc.code = code;
+  desc.code_size = ldk_rhi_gl33_cstr_size(code);
+  return ldk_rhi_create_shader_module(rhi, &desc);
+}
 
 static bool ldk_rhi_gl33_grow(void** data, uint32_t* capacity, uint32_t element_size, uint32_t required_index)
 {
