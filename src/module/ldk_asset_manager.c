@@ -462,17 +462,8 @@ LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* p
   {
     return result;
   }
-
-  LDKFontFace* face = ldk_font_face_create(font_file_data, (u32) font_file_size);
-  if (!face)
-  {
-    return result;
-  }
   x_io_close(file);
 
-  LDKFontAtlasDesc atlas_desc = {0};
-  atlas_desc.page_width = 512;
-  atlas_desc.page_height = 512;
   result = ldk_asset_manager_font_create(manager, font_file_data, (u32)font_file_size);
   free((void*)font_file_data);
 
