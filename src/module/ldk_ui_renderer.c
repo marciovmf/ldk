@@ -2,7 +2,6 @@
 #include "ldk_ui_renderer.h"
 
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 
 typedef struct LDKUIRendererParams
@@ -339,7 +338,7 @@ void ldk_ui_renderer_terminate(LDKUIRenderer* renderer)
     ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
   }
 
-  free(renderer->bindings_cache);
+  LDK_UI_RENDERER_FREE(renderer->bindings_cache);
   memset(renderer, 0, sizeof(*renderer));
 }
 
@@ -377,7 +376,15 @@ static bool ldk_ui_renderer_grow_bindings_cache(LDKUIRenderer* renderer)
 {
   u32 new_capacity = renderer->bindings_cache_capacity == 0 ? 16 : renderer->bindings_cache_capacity * 2;
   size_t new_size = (size_t)new_capacity * sizeof(LDKUIRendererBindingsCacheEntry);
-  LDKUIRendererBindingsCacheEntry* new_cache = (LDKUIRendererBindingsCacheEntry*)realloc(renderer->bindings_cache, new_size);
+  LDKUIRendererBindingsCacheEntry* new_cache = NULL;
+  if (renderer->bindings_cache == NULL)
+  {
+    new_cache = (LDKUIRendererBindingsCacheEntry*)LDK_UI_RENDERER_ALLOC(new_size);
+  }
+  else
+  {
+    new_cache = (LDKUIRendererBindingsCacheEntry*)LDK_UI_RENDERER_REALLOC(renderer->bindings_cache, new_size);
+  }
   if (new_cache == NULL)
   {
     return false;

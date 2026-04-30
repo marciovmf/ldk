@@ -11,6 +11,19 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
+
+#ifndef LDK_UI_RENDERER_ALLOC
+#define LDK_UI_RENDERER_ALLOC(size) malloc(size)
+#endif
+
+#ifndef LDK_UI_RENDERER_FREE
+#define LDK_UI_RENDERER_FREE(ptr) free(ptr)
+#endif
+
+#ifndef LDK_UI_RENDERER_REALLOC
+#define LDK_UI_RENDERER_REALLOC(ptr, size) realloc(ptr, size)
+#endif
 
 typedef struct LDKUIRendererConfig
 {
