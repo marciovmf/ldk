@@ -29,18 +29,21 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_color.h 
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk_common.h
-  ${INCLUDE_DIR}/ldk_geom.h       ldk_geom.c
-  ${INCLUDE_DIR}/ldk.h            ldk.c
-  ${INCLUDE_DIR}/ldk_argparse.h   ldk_argparse.c
-  ${INCLUDE_DIR}/ldk_rhi.h        ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
-  ${INCLUDE_DIR}/ldk_ui.h         module/ldk_ui.c
-  ${INCLUDE_DIR}/ldk_ttf.h        ldk_ttf.c
-  ${INCLUDE_DIR}/ldk_font_cache.h module/ldk_font_cache.c
-  ${INCLUDE_DIR}/ldk_renderer.h module/ldk_renderer.c
-  ${INCLUDE_DIR}/ldk_component.h  module/ldk_component.c
-  ${INCLUDE_DIR}/ldk_entity.h     module/ldk_entity.c
-  ${INCLUDE_DIR}/ldk_eventqueue.h module/ldk_eventqueue.c
-  ${INCLUDE_DIR}/ldk_system.h     module/ldk_system.c
+  ${INCLUDE_DIR}/ldk_geom.h           ldk_geom.c
+  ${INCLUDE_DIR}/ldk.h                ldk.c
+  ${INCLUDE_DIR}/ldk_argparse.h       ldk_argparse.c
+  ${INCLUDE_DIR}/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
+  ${INCLUDE_DIR}/ldk_ttf.h            ldk_ttf.c
+  ${INCLUDE_DIR}/ldk_image.h          ldk_image.c
+  ${INCLUDE_DIR}/ldk_font_cache.h     module/ldk_font_cache.c
+  # Engine modules
+  ${INCLUDE_DIR}/ldk_ui.h             module/ldk_ui.c
+  ${INCLUDE_DIR}/ldk_renderer.h       module/ldk_renderer.c
+  ${INCLUDE_DIR}/ldk_component.h      module/ldk_component.c
+  ${INCLUDE_DIR}/ldk_entity.h         module/ldk_entity.c
+  ${INCLUDE_DIR}/ldk_eventqueue.h     module/ldk_eventqueue.c
+  ${INCLUDE_DIR}/ldk_asset_manager.h  module/ldk_asset_manager.c
+  ${INCLUDE_DIR}/ldk_system.h         module/ldk_system.c
   # systems
   ${INCLUDE_DIR}/ldk_system_scenegraph.h system/ldk_system_scenegraph.c
   # components

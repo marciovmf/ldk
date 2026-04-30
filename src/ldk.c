@@ -49,6 +49,7 @@
 #include <ldk_ui.h>
 #include <ldk_renderer.h>
 #include <ldk_font_cache.h>
+#include <ldk_asset_manager.h>
 #include <ldk_game.h>
 
 #include <signal.h>
@@ -57,16 +58,17 @@
 struct LDKRoot
 {
   // Engine Modules
-  LDKEntityRegistry     entity_registry;
+  LDKAssetManager       asset_manager;
   LDKComponentRegistry  component_registry;
-  LDKSystemRegistry     system_registry;
-  LDKEventQueue         event_queue;
-  LDKGame               game;
   LDKConfig             config;
-  LDKUIContext          editor_ui;
-  LDKRenderer           renderer;
+  LDKEntityRegistry     entity_registry;
+  LDKEventQueue         event_queue;
   LDKFontCache          font_cache;
+  LDKGame               game;
   LDKRHIContext         rhi;
+  LDKRenderer           renderer;
+  LDKSystemRegistry     system_registry;
+  LDKUIContext          editor_ui;
   LDKFontFace*          editor_font_face;
   XLogger               logger;
   // Runtime state
@@ -125,6 +127,7 @@ static void s_terminate_all_modules(LDKRoot* e)
   ldk_component_registry_terminate(&e->component_registry);
   ldk_entity_module_terminate(&e->entity_registry);
   ldk_event_queue_terminate(&e->event_queue);
+  ldk_asset_manager_terminate(&e->asset_manager);
   ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
@@ -425,7 +428,9 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_RENDERER:
       return &g_engine.renderer;
 
-    case LDK_MODULE_NONE:
+    case LDK_MODULE_ASSET_MANAGER:
+      return &g_engine.asset_manager;
+
     default:
       break;
   }
@@ -475,7 +480,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   }
 
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
-  x_log_info(&e->logger, "=========LDK=========\n");
+  x_log_info(&e->logger, "========= LDK v%d.%d.%d =========\n", LDK_VERSION_MAJOR, LDK_VERSION_MINOR, LDK_VERSION_PATCH);
 
   if (!ldk_os_initialize())
   {
@@ -493,7 +498,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   }
 
   e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
-  //e->window = ldk_os_window_create(e->config.title.buf, e->config.width, e->config.height);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
   ldk_os_graphics_context_current(e->window, e->graphics);
 
@@ -503,7 +507,13 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  if (!ldk_entity_module_initialize(&e->entity_registry, 1024, 1))
+  if (!ldk_asset_manager_initialize(&e->asset_manager, 16, 1))
+  {
+    ldk_log_error("Failed to initialize module: Asset Manager.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_entity_module_initialize(&e->entity_registry, 64, 1))
   {
     ldk_log_error("Failed to initialize module: Entity Registry.");
     engine_init_failed = true;
@@ -520,7 +530,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ldk_log_error("Failed to initialize module: System Registry.");
     engine_init_failed = true;
   }
-
 
   LDKUIConfig ui_cfg;
   ui_cfg.frame_arena_size = 1024 * 4;
