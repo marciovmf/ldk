@@ -366,7 +366,7 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
 // Font
 //
 
-static LDKAssetFont s_ldk_asset_font_from_x(XHandle h)
+static LDKAssetFont s_ldk_asset_font_from_handle(XHandle h)
 {
   LDKAssetFont out = { h };
   return out;
@@ -438,7 +438,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
   info->load_timestamp = (u64)time(NULL);
 #endif
 
-  return s_ldk_asset_font_from_x(h);
+  return s_ldk_asset_font_from_handle(h);
 }
 
 LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path)
