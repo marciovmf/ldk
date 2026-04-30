@@ -458,11 +458,12 @@ LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* p
 
   size_t font_file_size = 0;
   const char* font_file_data = x_io_read_all(file, &font_file_size);
+  x_io_close(file);
+
   if (!font_file_data)
   {
     return result;
   }
-  x_io_close(file);
 
   result = ldk_asset_manager_font_create(manager, font_file_data, (u32)font_file_size);
   free((void*)font_file_data);
@@ -499,7 +500,7 @@ void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset)
 LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset)
 {
   LDKAssetHandle generic = { asset.h };
-          LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
+  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
 
   if (!info || info->type != LDK_ASSET_TYPE_FONT)
   {
