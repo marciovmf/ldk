@@ -3,6 +3,7 @@
  * @brief Camera component API.
  */
 
+#include "module/ldk_entity.h"
 #include <component/ldk_camera.h>
 #include <ldk.h>
 
@@ -168,6 +169,11 @@ bool ldk_camera_attach(LDKEntity entity, const LDKCamera* initial_value)
   }
 
   if (s_camera_has(entity_registry, entity))
+  {
+    return false;
+  }
+
+  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
   {
     return false;
   }
