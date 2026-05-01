@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <string.h>
 
-static void ldk_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
-static void s_ldk_renderer_destroy_font_page_cache(LDKRenderer* renderer);
+static void s_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
+static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 
 typedef struct LDKRendererUIParams
 {
@@ -229,37 +229,37 @@ static bool ldk_renderer_ui_pass_initialize(LDKRendererUIPass* renderer, LDKRend
 
   if (!ldk_renderer_ui_pass_create_shaders(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
   if (!ldk_renderer_ui_pass_create_bindings_layout(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
   if (!ldk_renderer_ui_pass_create_pipeline(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
   if (!ldk_renderer_ui_pass_create_white_texture(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
   if (!ldk_renderer_ui_pass_create_sampler(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
   if (!ldk_renderer_ui_pass_create_buffers(renderer))
   {
-    ldk_renderer_ui_pass_terminate(renderer);
+    s_renderer_ui_pass_terminate(renderer);
     return false;
   }
 
@@ -267,7 +267,7 @@ static bool ldk_renderer_ui_pass_initialize(LDKRendererUIPass* renderer, LDKRend
   return true;
 }
 
-static void ldk_renderer_ui_pass_terminate(LDKRendererUIPass* renderer)
+static void s_renderer_ui_pass_terminate(LDKRendererUIPass* renderer)
 {
   if (renderer == NULL)
   {
@@ -497,8 +497,8 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
     return;
   }
 
-  ldk_renderer_ui_pass_terminate(&renderer->ui_pass);
-  s_ldk_renderer_destroy_font_page_cache(renderer);
+  s_renderer_ui_pass_terminate(&renderer->ui_pass);
+  s_renderer_destroy_font_page_cache(renderer);
   memset(renderer, 0, sizeof(*renderer));
 }
 
@@ -560,7 +560,7 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
 // ---------------------------------------------------------------------------
 // Font cache
 // ---------------------------------------------------------------------------
-static LDKRendererFontPageCacheEntry* s_ldk_renderer_find_font_page(
+static LDKRendererFontPageCacheEntry* s_renderer_find_font_page(
     LDKRenderer* renderer,
     LDKFontInstance* font,
     u32 page_index)
@@ -583,7 +583,7 @@ static LDKRendererFontPageCacheEntry* s_ldk_renderer_find_font_page(
   return NULL;
 }
 
-static bool s_ldk_renderer_grow_font_page_cache(LDKRenderer* renderer)
+static bool s_renderer_grow_font_page_cache(LDKRenderer* renderer)
 {
   if (!renderer)
   {
@@ -608,7 +608,7 @@ static bool s_ldk_renderer_grow_font_page_cache(LDKRenderer* renderer)
   return true;
 }
 
-static LDKRHITexture s_ldk_renderer_create_font_page_texture(
+static LDKRHITexture s_renderer_create_font_page_texture(
     LDKRenderer* renderer,
     const LDKFontPageInfo* page)
 {
@@ -644,7 +644,7 @@ static LDKRHITexture s_ldk_renderer_create_font_page_texture(
   return ldk_rhi_create_texture(renderer->rhi, &desc);
 }
 
-static bool s_ldk_renderer_update_font_page_texture(
+static bool s_renderer_update_font_page_texture(
     LDKRenderer* renderer,
     LDKRendererFontPageCacheEntry* entry,
     const LDKFontPageInfo* page)
@@ -661,7 +661,7 @@ static bool s_ldk_renderer_update_font_page_texture(
 
   if (entry->texture == LDK_RHI_INVALID_TEXTURE)
   {
-    entry->texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+    entry->texture = s_renderer_create_font_page_texture(renderer, page);
     entry->width = page->width;
     entry->height = page->height;
     return entry->texture != LDK_RHI_INVALID_TEXTURE;
@@ -671,7 +671,7 @@ static bool s_ldk_renderer_update_font_page_texture(
   {
     ldk_rhi_destroy_texture(renderer->rhi, entry->texture);
 
-    entry->texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+    entry->texture = s_renderer_create_font_page_texture(renderer, page);
     entry->width = page->width;
     entry->height = page->height;
 
@@ -687,7 +687,7 @@ static bool s_ldk_renderer_update_font_page_texture(
       page->width * page->height);
 }
 
-static LDKRendererFontPageCacheEntry* s_ldk_renderer_create_font_page_entry(
+static LDKRendererFontPageCacheEntry* s_renderer_create_font_page_entry(
     LDKRenderer* renderer,
     LDKFontInstance* font,
     const LDKFontPageInfo* page)
@@ -699,13 +699,13 @@ static LDKRendererFontPageCacheEntry* s_ldk_renderer_create_font_page_entry(
 
   if (renderer->font_page_count == renderer->font_page_capacity)
   {
-    if (!s_ldk_renderer_grow_font_page_cache(renderer))
+    if (!s_renderer_grow_font_page_cache(renderer))
     {
       return NULL;
     }
   }
 
-  LDKRHITexture texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+  LDKRHITexture texture = s_renderer_create_font_page_texture(renderer, page);
 
   if (texture == LDK_RHI_INVALID_TEXTURE)
   {
@@ -726,7 +726,7 @@ static LDKRendererFontPageCacheEntry* s_ldk_renderer_create_font_page_entry(
   return entry;
 }
 
-static void s_ldk_renderer_destroy_font_page_cache(LDKRenderer* renderer)
+static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer)
 {
   if (!renderer)
   {
@@ -770,14 +770,14 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(
     return 0;
   }
 
-  LDKRendererFontPageCacheEntry* entry = s_ldk_renderer_find_font_page(
+  LDKRendererFontPageCacheEntry* entry = s_renderer_find_font_page(
       renderer,
       font,
       page_index);
 
   if (!entry)
   {
-    entry = s_ldk_renderer_create_font_page_entry(renderer, font, &page);
+    entry = s_renderer_create_font_page_entry(renderer, font, &page);
 
     if (!entry)
     {
@@ -790,7 +790,7 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(
 
   if (page.dirty)
   {
-    if (s_ldk_renderer_update_font_page_texture(renderer, entry, &page))
+    if (s_renderer_update_font_page_texture(renderer, entry, &page))
     {
       ldk_font_clear_page_dirty(font, page_index);
     }

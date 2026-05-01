@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-static bool s_ldk_camera_get_modules(
+static bool s_camera_get_modules(
     LDKEntityRegistry** out_entity_registry,
     LDKComponentRegistry** out_component_registry)
 {
@@ -38,7 +38,7 @@ static bool s_ldk_camera_get_modules(
   return true;
 }
 
-static bool s_ldk_camera_get_ref(
+static bool s_camera_get_ref(
     LDKEntityRegistry* entity_registry,
     LDKEntity entity,
     LDKComponentRef* out_ref)
@@ -55,7 +55,7 @@ static bool s_ldk_camera_get_ref(
       out_ref);
 }
 
-static LDKCamera* s_ldk_camera_from_ref(
+static LDKCamera* s_camera_from_ref(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKComponentRef ref)
@@ -63,7 +63,7 @@ static LDKCamera* s_ldk_camera_from_ref(
   return (LDKCamera*)ldk_component_ref_get(entity_registry, component_registry, ref);
 }
 
-static const LDKCamera* s_ldk_camera_from_ref_const(
+static const LDKCamera* s_camera_from_ref_const(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKComponentRef ref)
@@ -71,37 +71,37 @@ static const LDKCamera* s_ldk_camera_from_ref_const(
   return (const LDKCamera*)ldk_component_ref_get_const(entity_registry, component_registry, ref);
 }
 
-static LDKCamera* s_ldk_camera_get_ptr(
+static LDKCamera* s_camera_get_ptr(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
-  if (!s_ldk_camera_get_ref(entity_registry, entity, &ref))
+  if (!s_camera_get_ref(entity_registry, entity, &ref))
   {
     return NULL;
   }
 
-  return s_ldk_camera_from_ref(entity_registry, component_registry, ref);
+  return s_camera_from_ref(entity_registry, component_registry, ref);
 }
 
-static const LDKCamera* s_ldk_camera_get_ptr_const(
+static const LDKCamera* s_camera_get_ptr_const(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
-  if (!s_ldk_camera_get_ref(entity_registry, entity, &ref))
+  if (!s_camera_get_ref(entity_registry, entity, &ref))
   {
     return NULL;
   }
 
-  return s_ldk_camera_from_ref_const(entity_registry, component_registry, ref);
+  return s_camera_from_ref_const(entity_registry, component_registry, ref);
 }
 
-static bool s_ldk_camera_has(
+static bool s_camera_has(
     LDKEntityRegistry* entity_registry,
     LDKEntity entity)
 {
@@ -152,7 +152,7 @@ bool ldk_camera_attach(LDKEntity entity, const LDKCamera* initial_value)
   LDKCamera camera = ldk_camera_make_default();
   LDKCamera* new_camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
@@ -167,7 +167,7 @@ bool ldk_camera_attach(LDKEntity entity, const LDKCamera* initial_value)
     return false;
   }
 
-  if (s_ldk_camera_has(entity_registry, entity))
+  if (s_camera_has(entity_registry, entity))
   {
     return false;
   }
@@ -204,12 +204,12 @@ bool ldk_camera_detach(LDKEntity entity)
   LDKComponentRegistry* component_registry = NULL;
   LDKCamera* camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;
@@ -235,12 +235,12 @@ bool ldk_camera_get(LDKEntity entity, LDKCamera* out_camera)
     return false;
   }
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr_const(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr_const(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;
@@ -261,12 +261,12 @@ bool ldk_camera_set(LDKEntity entity, const LDKCamera* camera)
     return false;
   }
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  current = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  current = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!current)
   {
     return false;
@@ -282,12 +282,12 @@ bool ldk_camera_set_enabled(LDKEntity entity, bool enabled)
   LDKComponentRegistry* component_registry = NULL;
   LDKCamera* camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;
@@ -303,12 +303,12 @@ bool ldk_camera_set_role(LDKEntity entity, LDKCameraRole role)
   LDKComponentRegistry* component_registry = NULL;
   LDKCamera* camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;
@@ -324,12 +324,12 @@ bool ldk_camera_set_perspective(LDKEntity entity, float fov_y, float near_plane,
   LDKComponentRegistry* component_registry = NULL;
   LDKCamera* camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;
@@ -348,12 +348,12 @@ bool ldk_camera_set_orthographic(LDKEntity entity, float orthographic_height, fl
   LDKComponentRegistry* component_registry = NULL;
   LDKCamera* camera = NULL;
 
-  if (!s_ldk_camera_get_modules(&entity_registry, &component_registry))
+  if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  camera = s_ldk_camera_get_ptr(entity_registry, component_registry, entity);
+  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
   if (!camera)
   {
     return false;

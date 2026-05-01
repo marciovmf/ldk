@@ -2,7 +2,7 @@
 #include <component/ldk_transform.h>
 #include <ldk.h>
 
-static bool s_ldk_scenegraph_update_subtree(
+static bool s_scenegraph_update_subtree(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity,
@@ -60,7 +60,7 @@ static bool s_ldk_scenegraph_update_subtree(
     }
 
     next_child = child_transform->next_sibling;
-    s_ldk_scenegraph_update_subtree(
+    s_scenegraph_update_subtree(
         entity_registry,
         component_registry,
         child,
@@ -126,7 +126,7 @@ bool ldk_scenegraph_update(float dt)
       continue;
     }
 
-    s_ldk_scenegraph_update_subtree(
+    s_scenegraph_update_subtree(
         entity_registry,
         component_registry,
         *entity_ptr,
@@ -137,7 +137,7 @@ bool ldk_scenegraph_update(float dt)
   return true;
 }
 
-static int s_ldk_scenegraph_initialize(void** userdata)
+static int s_scenegraph_initialize(void** userdata)
 {
   if (userdata)
   {
@@ -147,7 +147,7 @@ static int s_ldk_scenegraph_initialize(void** userdata)
   return 0;
 }
 
-static void s_ldk_scenegraph_update_callback(void* userdata, float dt)
+static void s_scenegraph_update_callback(void* userdata, float dt)
 {
   (void)userdata;
   ldk_scenegraph_update(dt);
@@ -165,10 +165,10 @@ const LDKSystemDesc* ldk_scenegraph_system_desc(void)
     0,
     0,
     {
-      s_ldk_scenegraph_initialize,
+      s_scenegraph_initialize,
       NULL,
       NULL,
-      s_ldk_scenegraph_update_callback,
+      s_scenegraph_update_callback,
       NULL,
       NULL
     }

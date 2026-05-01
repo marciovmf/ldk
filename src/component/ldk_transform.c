@@ -11,12 +11,12 @@
 
 #include <string.h>
 
-static int s_ldk_entity_eq(LDKEntity a, LDKEntity b)
+static int s_entity_eq(LDKEntity a, LDKEntity b)
 {
   return a.index == b.index && a.version == b.version;
 }
 
-static bool s_ldk_transform_get_modules(
+static bool s_transform_get_modules(
     LDKEntityRegistry** out_entity_registry,
     LDKComponentRegistry** out_component_registry)
 {
@@ -46,7 +46,7 @@ static bool s_ldk_transform_get_modules(
   return true;
 }
 
-static bool s_ldk_transform_get_ref(
+static bool s_transform_get_ref(
     LDKEntityRegistry* entity_registry,
     LDKEntity entity,
     LDKComponentRef* out_ref)
@@ -63,7 +63,7 @@ static bool s_ldk_transform_get_ref(
       out_ref);
 }
 
-static LDKTransform* s_ldk_transform_from_ref(
+static LDKTransform* s_transform_from_ref(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKComponentRef ref)
@@ -71,7 +71,7 @@ static LDKTransform* s_ldk_transform_from_ref(
   return (LDKTransform*)ldk_component_ref_get(entity_registry, component_registry, ref);
 }
 
-static const LDKTransform* s_ldk_transform_from_ref_const(
+static const LDKTransform* s_transform_from_ref_const(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKComponentRef ref)
@@ -79,37 +79,37 @@ static const LDKTransform* s_ldk_transform_from_ref_const(
   return (const LDKTransform*)ldk_component_ref_get_const(entity_registry, component_registry, ref);
 }
 
-static LDKTransform* s_ldk_transform_get_ptr(
+static LDKTransform* s_transform_get_ptr(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
-  if (!s_ldk_transform_get_ref(entity_registry, entity, &ref))
+  if (!s_transform_get_ref(entity_registry, entity, &ref))
   {
     return NULL;
   }
 
-  return s_ldk_transform_from_ref(entity_registry, component_registry, ref);
+  return s_transform_from_ref(entity_registry, component_registry, ref);
 }
 
-static const LDKTransform* s_ldk_transform_get_ptr_const(
+static const LDKTransform* s_transform_get_ptr_const(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
-  if (!s_ldk_transform_get_ref(entity_registry, entity, &ref))
+  if (!s_transform_get_ref(entity_registry, entity, &ref))
   {
     return NULL;
   }
 
-  return s_ldk_transform_from_ref_const(entity_registry, component_registry, ref);
+  return s_transform_from_ref_const(entity_registry, component_registry, ref);
 }
 
-static bool s_ldk_transform_has(
+static bool s_transform_has(
     LDKEntityRegistry* entity_registry,
     LDKEntity entity)
 {
@@ -124,7 +124,7 @@ static bool s_ldk_transform_has(
       LDK_COMPONENT_TYPE_TRANSFORM);
 }
 
-static bool s_ldk_transform_mark_subtree_dirty(
+static bool s_transform_mark_subtree_dirty(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity)
@@ -132,7 +132,7 @@ static bool s_ldk_transform_mark_subtree_dirty(
   LDKTransform* transform = NULL;
   LDKEntity child = {0};
 
-  transform = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
@@ -146,21 +146,21 @@ static bool s_ldk_transform_mark_subtree_dirty(
     const LDKTransform* child_transform = NULL;
     LDKEntity next_child = {0};
 
-    child_transform = s_ldk_transform_get_ptr_const(entity_registry, component_registry, child);
+    child_transform = s_transform_get_ptr_const(entity_registry, component_registry, child);
     if (!child_transform)
     {
       break;
     }
 
     next_child = child_transform->next_sibling;
-    s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, child);
+    s_transform_mark_subtree_dirty(entity_registry, component_registry, child);
     child = next_child;
   }
 
   return true;
 }
 
-static bool s_ldk_transform_is_ancestor(
+static bool s_transform_is_ancestor(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKEntity entity,
@@ -172,13 +172,13 @@ static bool s_ldk_transform_is_ancestor(
   {
     const LDKTransform* transform = NULL;
 
-    transform = s_ldk_transform_get_ptr_const(entity_registry, component_registry, current);
+    transform = s_transform_get_ptr_const(entity_registry, component_registry, current);
     if (!transform)
     {
       return false;
     }
 
-    if (s_ldk_entity_eq(transform->parent, possible_ancestor))
+    if (s_entity_eq(transform->parent, possible_ancestor))
     {
       return true;
     }
@@ -189,7 +189,7 @@ static bool s_ldk_transform_is_ancestor(
   return false;
 }
 
-static bool s_ldk_transform_unlink_from_parent(
+static bool s_transform_unlink_from_parent(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKTransform* child)
@@ -210,7 +210,7 @@ static bool s_ldk_transform_unlink_from_parent(
   {
     LDKTransform* parent_transform = NULL;
 
-    parent_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, child->parent);
+    parent_transform = s_transform_get_ptr(entity_registry, component_registry, child->parent);
     if (parent_transform)
     {
       parent_transform->first_child = child->next_sibling;
@@ -220,7 +220,7 @@ static bool s_ldk_transform_unlink_from_parent(
   {
     LDKTransform* prev_transform = NULL;
 
-    prev_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, child->prev_sibling);
+    prev_transform = s_transform_get_ptr(entity_registry, component_registry, child->prev_sibling);
     if (prev_transform)
     {
       prev_transform->next_sibling = child->next_sibling;
@@ -231,7 +231,7 @@ static bool s_ldk_transform_unlink_from_parent(
   {
     LDKTransform* next_transform = NULL;
 
-    next_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, child->next_sibling);
+    next_transform = s_transform_get_ptr(entity_registry, component_registry, child->next_sibling);
     if (next_transform)
     {
       next_transform->prev_sibling = child->prev_sibling;
@@ -244,7 +244,7 @@ static bool s_ldk_transform_unlink_from_parent(
   return true;
 }
 
-static bool s_ldk_transform_orphan_children(
+static bool s_transform_orphan_children(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
     LDKTransform* transform)
@@ -264,7 +264,7 @@ static bool s_ldk_transform_orphan_children(
     LDKTransform* child_transform = NULL;
     LDKEntity next_child = {0};
 
-    child_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, child);
+    child_transform = s_transform_get_ptr(entity_registry, component_registry, child);
     if (!child_transform)
     {
       break;
@@ -275,7 +275,7 @@ static bool s_ldk_transform_orphan_children(
     child_transform->prev_sibling = x_handle_null();
     child_transform->next_sibling = x_handle_null();
     child_transform->flags |= LDK_TRANSFORM_FLAG_WORLD_DIRTY;
-    s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, child);
+    s_transform_mark_subtree_dirty(entity_registry, component_registry, child);
     child = next_child;
   }
 
@@ -320,7 +320,7 @@ bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value)
   LDKTransform transform = ldk_transform_make_default();
   LDKTransform* new_transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
@@ -335,7 +335,7 @@ bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value)
     return false;
   }
 
-  if (s_ldk_transform_has(entity_registry, entity))
+  if (s_transform_has(entity_registry, entity))
   {
     return false;
   }
@@ -374,19 +374,19 @@ bool ldk_transform_detach(LDKEntity entity)
   LDKComponentRegistry* component_registry = NULL;
   LDKTransform* transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  transform = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
   }
 
-  s_ldk_transform_unlink_from_parent(entity_registry, component_registry, transform);
-  s_ldk_transform_orphan_children(entity_registry, component_registry, transform);
+  s_transform_unlink_from_parent(entity_registry, component_registry, transform);
+  s_transform_orphan_children(entity_registry, component_registry, transform);
   ldk_entity_remove_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
 
   return ldk_component_remove_entity(
@@ -407,12 +407,12 @@ bool ldk_transform_get(LDKEntity entity, LDKTransform* out_transform)
     return false;
   }
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  transform = s_ldk_transform_get_ptr_const(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr_const(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
@@ -433,12 +433,12 @@ bool ldk_transform_set(LDKEntity entity, const LDKTransform* transform)
     return false;
   }
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  current = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  current = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!current)
   {
     return false;
@@ -447,7 +447,7 @@ bool ldk_transform_set(LDKEntity entity, const LDKTransform* transform)
   current->local_position = transform->local_position;
   current->local_rotation = transform->local_rotation;
   current->local_scale = transform->local_scale;
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
 }
 
 bool ldk_transform_set_local_position(LDKEntity entity, Vec3 position)
@@ -456,19 +456,19 @@ bool ldk_transform_set_local_position(LDKEntity entity, Vec3 position)
   LDKComponentRegistry* component_registry = NULL;
   LDKTransform* transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  transform = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
   }
 
   transform->local_position = position;
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
 }
 
 bool ldk_transform_set_local_rotation(LDKEntity entity, Quat rotation)
@@ -477,19 +477,19 @@ bool ldk_transform_set_local_rotation(LDKEntity entity, Quat rotation)
   LDKComponentRegistry* component_registry = NULL;
   LDKTransform* transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  transform = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
   }
 
   transform->local_rotation = rotation;
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
 }
 
 bool ldk_transform_set_local_scale(LDKEntity entity, Vec3 scale)
@@ -498,19 +498,19 @@ bool ldk_transform_set_local_scale(LDKEntity entity, Vec3 scale)
   LDKComponentRegistry* component_registry = NULL;
   LDKTransform* transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  transform = s_ldk_transform_get_ptr(entity_registry, component_registry, entity);
+  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
   if (!transform)
   {
     return false;
   }
 
   transform->local_scale = scale;
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
 }
 
 bool ldk_transform_get_local_position(LDKEntity entity, Vec3* out_position)
@@ -603,12 +603,12 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
   LDKComponentRegistry* component_registry = NULL;
   LDKTransform* child_transform = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  child_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, child_entity);
+  child_transform = s_transform_get_ptr(entity_registry, component_registry, child_entity);
   if (!child_transform)
   {
     return false;
@@ -618,35 +618,35 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
   {
     LDKTransform* parent_transform = NULL;
 
-    if (s_ldk_entity_eq(child_entity, parent_entity))
+    if (s_entity_eq(child_entity, parent_entity))
     {
       return false;
     }
 
-    parent_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, parent_entity);
+    parent_transform = s_transform_get_ptr(entity_registry, component_registry, parent_entity);
     if (!parent_transform)
     {
       return false;
     }
 
-    if (s_ldk_transform_is_ancestor(entity_registry, component_registry, parent_entity, child_entity))
+    if (s_transform_is_ancestor(entity_registry, component_registry, parent_entity, child_entity))
     {
       return false;
     }
   }
 
-  if (s_ldk_entity_eq(child_transform->parent, parent_entity))
+  if (s_entity_eq(child_transform->parent, parent_entity))
   {
     return true;
   }
 
-  s_ldk_transform_unlink_from_parent(entity_registry, component_registry, child_transform);
+  s_transform_unlink_from_parent(entity_registry, component_registry, child_transform);
 
   if (!x_handle_is_null(parent_entity))
   {
     LDKTransform* parent_transform = NULL;
 
-    parent_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, parent_entity);
+    parent_transform = s_transform_get_ptr(entity_registry, component_registry, parent_entity);
     if (!parent_transform)
     {
       return false;
@@ -660,7 +660,7 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
     {
       LDKTransform* first_child_transform = NULL;
 
-      first_child_transform = s_ldk_transform_get_ptr(entity_registry, component_registry, parent_transform->first_child);
+      first_child_transform = s_transform_get_ptr(entity_registry, component_registry, parent_transform->first_child);
       if (first_child_transform)
       {
         first_child_transform->prev_sibling = child_entity;
@@ -670,7 +670,7 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
     parent_transform->first_child = child_entity;
   }
 
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, child_entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, child_entity);
 }
 
 bool ldk_transform_mark_dirty(LDKEntity entity)
@@ -678,10 +678,10 @@ bool ldk_transform_mark_dirty(LDKEntity entity)
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
 
-  if (!s_ldk_transform_get_modules(&entity_registry, &component_registry))
+  if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  return s_ldk_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
+  return s_transform_mark_subtree_dirty(entity_registry, component_registry, entity);
 }

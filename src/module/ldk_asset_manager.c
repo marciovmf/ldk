@@ -6,19 +6,19 @@
 #include <string.h>
 #include <time.h>
 
-static LDKAssetHandle s_ldk_asset_handle_from_x(XHandle h)
+static LDKAssetHandle s_asset_handle_from_x(XHandle h)
 {
   LDKAssetHandle out = { h };
   return out;
 }
 
-static LDKAssetTextFile s_ldk_asset_text_file_from_x(XHandle h)
+static LDKAssetTextFile s_asset_text_file_from_x(XHandle h)
 {
   LDKAssetTextFile out = { h };
   return out;
 }
 
-static void s_ldk_asset_info_destroy(LDKAssetInfo* info)
+static void s_asset_info_destroy(LDKAssetInfo* info)
 {
   if (!info)
   {
@@ -68,18 +68,18 @@ static void s_ldk_asset_info_destroy(LDKAssetInfo* info)
   memset(info, 0, sizeof(*info));
 }
 
-static void s_ldk_asset_ctor(void* user, void* item)
+static void s_asset_ctor(void* user, void* item)
 {
   (void)user;
 
   memset(item, 0, sizeof(LDKAssetInfo));
 }
 
-static void s_ldk_asset_dtor(void* user, void* item)
+static void s_asset_dtor(void* user, void* item)
 {
   (void)user;
 
-  s_ldk_asset_info_destroy((LDKAssetInfo*)item);
+  s_asset_info_destroy((LDKAssetInfo*)item);
 }
 
 bool ldk_asset_manager_initialize(LDKAssetManager* manager, u32 page_capacity, u32 initial_pages)
@@ -99,8 +99,8 @@ bool ldk_asset_manager_initialize(LDKAssetManager* manager, u32 page_capacity, u
       &manager->pool,
       sizeof(LDKAssetInfo),
       config,
-      s_ldk_asset_ctor,
-      s_ldk_asset_dtor,
+      s_asset_ctor,
+      s_asset_dtor,
       NULL) != 0;
 }
 
@@ -127,7 +127,7 @@ void ldk_asset_manager_clear(LDKAssetManager* manager)
 
 LDKAssetHandle ldk_asset_handle_null(void)
 {
-  return s_ldk_asset_handle_from_x(x_handle_null());
+  return s_asset_handle_from_x(x_handle_null());
 }
 
 
@@ -210,7 +210,7 @@ void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user)
       info;
       info = (LDKAssetInfo*)x_hpool_iter_next(&manager->pool, &it, &h))
   {
-    if (!fn(s_ldk_asset_handle_from_x(h), info, user))
+    if (!fn(s_asset_handle_from_x(h), info, user))
     {
       break;
     }
@@ -223,7 +223,7 @@ void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user)
 
 LDKAssetTextFile ldk_asset_text_file_null(void)
 {
-  return s_ldk_asset_text_file_from_x(x_handle_null());
+  return s_asset_text_file_from_x(x_handle_null());
 }
 
 bool ldk_asset_manager_text_file_is_alive(LDKAssetManager* manager, LDKAssetTextFile asset)
@@ -305,7 +305,7 @@ LDKAssetTextFile ldk_asset_manager_text_file_create(LDKAssetManager* manager, co
   info->load_timestamp = (u64)time(NULL);
 #endif
 
-  return s_ldk_asset_text_file_from_x(h);
+  return s_asset_text_file_from_x(h);
 }
 
 LDKAssetTextFile ldk_asset_manager_text_file_load(LDKAssetManager* manager, const char* path)
@@ -317,7 +317,7 @@ LDKAssetTextFile ldk_asset_manager_text_file_load(LDKAssetManager* manager, cons
   free(text_file_data);
 
 #ifdef LDK_DEBUG
-  LDKAssetInfo* info = ldk_asset_get_info(manager, s_ldk_asset_handle_from_x(result.h));
+  LDKAssetInfo* info = ldk_asset_get_info(manager, s_asset_handle_from_x(result.h));
 
   if (info)
   {
@@ -371,7 +371,7 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
 // Font asset
 // ---------------------------------------------------------------------------
 
-static LDKAssetFont s_ldk_asset_font_from_handle(XHandle h)
+static LDKAssetFont s_asset_font_from_handle(XHandle h)
 {
   LDKAssetFont out = { h };
   return out;
@@ -443,7 +443,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
   info->load_timestamp = (u64)time(NULL);
 #endif
 
-  return s_ldk_asset_font_from_handle(h);
+  return s_asset_font_from_handle(h);
 }
 
 LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path)
@@ -534,7 +534,7 @@ LDKAssetImage ldk_asset_image_null(void)
 // Mesh asset
 // ---------------------------------------------------------------------------
 //
-static LDKAssetMesh s_ldk_asset_mesh_from_handle(XHandle h)
+static LDKAssetMesh s_asset_mesh_from_handle(XHandle h)
 {
   LDKAssetMesh out = { h };
   return out;
@@ -636,7 +636,7 @@ LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager, const LDKMe
   info->load_timestamp = (u64)time(NULL);
 #endif
 
-  return s_ldk_asset_mesh_from_handle(h);
+  return s_asset_mesh_from_handle(h);
 }
 
 void ldk_asset_manager_mesh_unload(LDKAssetManager* manager, LDKAssetMesh asset)

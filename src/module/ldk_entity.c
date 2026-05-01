@@ -5,7 +5,7 @@
 #include <string.h>
 
 
-static void s_ldk_entity_ctor(void* user, void* item)
+static void s_entity_ctor(void* user, void* item)
 {
   (void)user;
 
@@ -129,7 +129,7 @@ bool ldk_entity_module_initialize(LDKEntityRegistry* module, u32 page_capacity, 
         &module->pool,
         sizeof(LDKEntityInfo),
         pool_config,
-        s_ldk_entity_ctor,
+        s_entity_ctor,
         NULL,
         NULL))
   {
