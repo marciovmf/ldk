@@ -3,7 +3,7 @@
  * @brief Camera component API.
  */
 
-#include <ldk_component_camera.h>
+#include <component/ldk_camera.h>
 #include <ldk.h>
 
 #include <string.h>

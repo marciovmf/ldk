@@ -5,7 +5,7 @@
 #include <math.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
-#include <stb/stb_truetype.h>
+#include "stb/stb_truetype.h"
 
 #ifndef LDK_FONT_MALLOC
 #define LDK_FONT_MALLOC(size) malloc(size)

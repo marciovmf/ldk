@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 #include <ldk_common.h>
-#include <ldk_entity.h>
-#include <ldk_component.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_component.h>
 
 #include <stdx/stdx_math.h>
 

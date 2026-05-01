@@ -1,5 +1,5 @@
-#include <ldk_entity.h>
-#include <ldk_component.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_component.h>
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_array.h>
 #include <string.h>

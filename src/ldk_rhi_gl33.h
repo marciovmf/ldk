@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
 
-#include "ldk_rhi.h"
+#include <module/ldk_rhi.h>
 
   bool ldk_rhi_gl33_initialize(LDKRHIContext* context);
 

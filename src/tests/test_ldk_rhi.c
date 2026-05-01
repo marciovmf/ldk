@@ -1,9 +1,11 @@
+#include <ldk_common.h>
 #include <stdx/stdx_common.h>
-
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
 
-#include <ldk_rhi.h>
+#include <module/ldk_rhi.h>
+
+
 #include <stdlib.h>
 #include <string.h>
 

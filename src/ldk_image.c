@@ -1,11 +1,11 @@
-#include "ldk_image.h"
+#include <ldk_image.h>
 
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
+#include "stb/stb_image.h"
 
 #ifndef LDK_IMAGE_MALLOC
 #define LDK_IMAGE_MALLOC(size) malloc(size)

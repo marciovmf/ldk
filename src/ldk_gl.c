@@ -1,6 +1,6 @@
 #include <ldk_common.h>
 #define LDK_GL_NO_EXTERN // prevent setting function pointers as 'extern'
-#include <ldk_gl.h>
+#include "ldk_gl.h"
 #undef LDK_GL_NO_EXTERN
 
 #ifdef LDK_OS_WINDOWS

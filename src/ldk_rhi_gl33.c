@@ -1,7 +1,6 @@
 #include "ldk_rhi_gl33.h"
-#include "ldk_renderer.h"
-
-#include <ldk_gl.h>
+#include <module/ldk_renderer.h>
+#include "ldk_gl.h"
 
 #include <stdio.h>
 

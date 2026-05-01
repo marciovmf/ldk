@@ -1,6 +1,6 @@
-#include <ldk_asset_manager.h>
+#include <module/ldk_asset_manager.h>
+#include <component/ldk_mesh_source.h>
 #include <stdx/stdx_hpool.h>
-#include <ldk_component_mesh_source.h>
 
 LDKMeshSource ldk_mesh_source_make_default(void)
 {

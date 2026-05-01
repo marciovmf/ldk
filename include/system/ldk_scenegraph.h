@@ -2,7 +2,7 @@
 #define LDK_SYSTEM_SCENEGRAPH_H
 
 #include <ldk_common.h>
-#include <ldk_system.h>
+#include <module/ldk_system.h>
 
 #ifdef __cplusplus
 extern "C" {

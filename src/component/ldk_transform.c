@@ -6,7 +6,7 @@
  * operations.
  */
 
-#include <ldk_component_transform.h>
+#include <component/ldk_transform.h>
 #include <ldk.h>
 
 #include <string.h>

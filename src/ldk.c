@@ -1,13 +1,4 @@
-#include "ldk_common.h"
-#include "ldk_event.h"
-#include "ldk_eventqueue.h"
-#include "ldk_ttf.h"
-#include <ldk_rhi.h>
-#include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
-
-#include "stdx/stdx_common.h"
-
-#include <stdio.h>
+#include <ldk_common.h>
 
 #define X_IMPL_ARENA
 #include <stdx/stdx_arena.h>
@@ -40,20 +31,26 @@
 #include <stdx/stdx_io.h>
 
 #include <ldk.h>
-
-#include <ldk_entity.h>
-#include <ldk_component.h>
-#include <ldk_system.h>
-#include <ldk_system_scenegraph.h>
 #include <ldk_os.h>
-#include <ldk_ui.h>
-#include <ldk_renderer.h>
-#include <ldk_font_cache.h>
-#include <ldk_asset_manager.h>
 #include <ldk_game.h>
+#include <ldk_event.h>
+#include <ldk_ttf.h>
+#include <module/ldk_asset_manager.h>
+#include <module/ldk_component.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_eventqueue.h>
+#include <module/ldk_font_cache.h>
+#include <module/ldk_renderer.h>
+#include <module/ldk_rhi.h>
+#include <module/ldk_system.h>
+#include <module/ldk_ui.h>
+#include <system/ldk_scenegraph.h>
+
+#include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
 #include <signal.h>
 #include <string.h>
+#include <stdio.h>
 
 // Editor UI defaults
 #ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY

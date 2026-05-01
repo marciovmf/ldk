@@ -1,5 +1,5 @@
 #include <ldk.h>
-#include <ldk_eventqueue.h>
+#include <module/ldk_eventqueue.h>
 #include <stdx/stdx_log.h>
 #include <memory.h>
 

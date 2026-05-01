@@ -1,7 +1,5 @@
-#include <ldk_font_cache.h>
-
-#include <ldk_gl.h>
-
+#include <module/ldk_font_cache.h>
+#include "../ldk_gl.h"
 #include <stdlib.h>
 #include <string.h>
 

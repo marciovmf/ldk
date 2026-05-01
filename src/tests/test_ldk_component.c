@@ -6,8 +6,8 @@
 #endif // LDK_SHAREDLIB
 #endif // LDK_GAME
 
-#include <ldk_entity.h>
-#include <ldk_component.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_component.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>

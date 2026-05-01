@@ -9,7 +9,7 @@
 #define LDK_COMPONENT_H
 
 #include <ldk_common.h>
-#include <ldk_entity.h>
+#include <module/ldk_entity.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_hashtable.h>
 

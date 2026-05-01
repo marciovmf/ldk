@@ -13,11 +13,10 @@
 #include <ldk_common.h>
 #include <ldk_argparse.h>
 #include <ldk_os.h>
-#include <ldk_gl.h>
-#include <ldk_entity.h>
-#include <ldk_component.h>
-#include <ldk_system.h>
-#include <ldk_eventqueue.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_component.h>
+#include <module/ldk_system.h>
+#include <module/ldk_eventqueue.h>
 
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_filesystem.h>

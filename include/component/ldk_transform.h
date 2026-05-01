@@ -47,8 +47,8 @@
 #define LDK_COMPONENT_TRANSFORM_H
 
 #include <ldk_common.h>
-#include <ldk_entity.h>
-#include <ldk_component.h>
+#include <module/ldk_entity.h>
+#include <module/ldk_component.h>
 #include <stdx/stdx_math.h>
 
 #ifdef __cplusplus

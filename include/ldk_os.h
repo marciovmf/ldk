@@ -10,7 +10,7 @@
 
 #include <ldk_common.h>
 #include <ldk_geom.h>
-#include <ldk_eventqueue.h>
+#include <module/ldk_eventqueue.h>
 
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_filesystem.h>

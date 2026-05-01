@@ -1,5 +1,5 @@
-#include <ldk_system_scenegraph.h>
-#include <ldk_component_transform.h>
+#include <system/ldk_scenegraph.h>
+#include <component/ldk_transform.h>
 #include <ldk.h>
 
 static bool s_ldk_scenegraph_update_subtree(

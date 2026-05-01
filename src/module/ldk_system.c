@@ -1,4 +1,4 @@
-#include <ldk_system.h>
+#include <module/ldk_system.h>
 #include <ldk.h>
 
 #ifndef LDK_ALLOC

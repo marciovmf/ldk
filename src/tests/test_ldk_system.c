@@ -1,9 +1,8 @@
 #include <stdx/stdx_common.h>
+#include <module/ldk_system.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
-
-#include <ldk_system.h>
 #include <stdlib.h>
 
 #define DELTA_TIME 0.016f

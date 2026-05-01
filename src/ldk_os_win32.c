@@ -1,6 +1,6 @@
 #include <ldk.h>
 #include <ldk_os.h>
-#include <ldk_gl.h>
+#include "ldk_gl.h"
 
 #include <stdbool.h>
 #include <stdlib.h>

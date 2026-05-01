@@ -1,5 +1,5 @@
-#include "ldk_event.h"
-#include "ldk_eventqueue.h"
+#include <ldk_event.h>
+#include <module/ldk_eventqueue.h>
 #include <ldk_common.h>
 
 #if defined(LDK_GAME)

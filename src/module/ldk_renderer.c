@@ -1,5 +1,5 @@
 #include <ldk_common.h>
-#include "ldk_renderer.h"
+#include <module/ldk_renderer.h>
 
 #include <stddef.h>
 #include <string.h>

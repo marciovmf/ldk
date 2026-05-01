@@ -33,25 +33,25 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk.h                ldk.c
   ${INCLUDE_DIR}/ldk_geom.h           ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h       ldk_argparse.c
-  ${INCLUDE_DIR}/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/ldk_ttf.h            ldk_ttf.c
   ${INCLUDE_DIR}/ldk_image.h          ldk_image.c
   ${INCLUDE_DIR}/ldk_gl.h             ldk_gl.c
   # Engine modules
-  ${INCLUDE_DIR}/ldk_ui.h             module/ldk_ui.c
-  ${INCLUDE_DIR}/ldk_renderer.h       module/ldk_renderer.c
-  ${INCLUDE_DIR}/ldk_component.h      module/ldk_component.c
-  ${INCLUDE_DIR}/ldk_entity.h         module/ldk_entity.c
-  ${INCLUDE_DIR}/ldk_eventqueue.h     module/ldk_eventqueue.c
-  ${INCLUDE_DIR}/ldk_asset_manager.h  module/ldk_asset_manager.c
-  ${INCLUDE_DIR}/ldk_system.h         module/ldk_system.c
-  ${INCLUDE_DIR}/ldk_font_cache.h     module/ldk_font_cache.c
+  ${INCLUDE_DIR}/module/ldk_asset_manager.h  module/ldk_asset_manager.c
+  ${INCLUDE_DIR}/module/ldk_component.h      module/ldk_component.c
+  ${INCLUDE_DIR}/module/ldk_entity.h         module/ldk_entity.c
+  ${INCLUDE_DIR}/module/ldk_eventqueue.h     module/ldk_eventqueue.c
+  ${INCLUDE_DIR}/module/ldk_font_cache.h     module/ldk_font_cache.c
+  ${INCLUDE_DIR}/module/ldk_renderer.h       module/ldk_renderer.c
+  ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
+  ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c
+  ${INCLUDE_DIR}/module/ldk_ui.h             module/ldk_ui.c
   # systems
-  ${INCLUDE_DIR}/ldk_system_scenegraph.h system/ldk_system_scenegraph.c
+  ${INCLUDE_DIR}/system/ldk_scenegraph.h system/ldk_scenegraph.c
   # components
-  ${INCLUDE_DIR}/ldk_component_transform.h  component/ldk_component_transform.c
-  ${INCLUDE_DIR}/ldk_component_camera.h     component/ldk_component_camera.c
-  ${INCLUDE_DIR}/ldk_component_mesh_source.h component/ldk_component_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_transform.h  component/ldk_transform.c
+  ${INCLUDE_DIR}/component/ldk_camera.h     component/ldk_camera.c
+  ${INCLUDE_DIR}/component/ldk_mesh_source.h component/ldk_mesh_source.c
 )
 
 # Use this list when building games

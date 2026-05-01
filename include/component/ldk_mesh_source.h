@@ -2,7 +2,7 @@
 #define LDK_COMPONENT_MESH_SOURCE_H
 
 #include <ldk_mesh.h>
-#include <ldk_asset_manager.h>
+#include <module/ldk_asset_manager.h>
 
 typedef uintptr_t LDKRendererMeshHandle;
 #define LDK_RENDERER_MESH_INVALID ((LDKRendererMeshHandle)0)

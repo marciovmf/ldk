@@ -10,8 +10,8 @@
 
 #include <stdx/stdx_common.h>
 #include <stdx/stdx_math.h>
-#include <ldk_component_transform.h>
-#include <ldk_system_scenegraph.h>
+#include <component/ldk_transform.h>
+#include <system/ldk_scenegraph.h>
 
 static int s_entity_eq(LDKEntity a, LDKEntity b)
 {
