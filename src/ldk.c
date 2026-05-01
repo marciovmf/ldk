@@ -40,7 +40,6 @@
 #include <module/ldk_entity.h>
 #include <module/ldk_eventqueue.h>
 #include <module/ldk_renderer.h>
-#include <module/ldk_rhi.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ui.h>
 #include <system/ldk_scenegraph.h>
@@ -793,25 +792,7 @@ void ldk_engine_frame(void)
   /* render scene/game view here */
   {
     ldk_rhi_begin_frame(&e->rhi);
-    LDKRHIPassDesc main_pass = {0};
-    ldk_rhi_pass_desc_defaults(&main_pass);
-    main_pass.color_attachment_count = 1;
-    main_pass.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
-    main_pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
-    main_pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
-    main_pass.color_attachments[0].clear_color.r = 0.0f;
-    main_pass.color_attachments[0].clear_color.g = 0.0f;
-    main_pass.color_attachments[0].clear_color.b = 1.0f;
-    main_pass.color_attachments[0].clear_color.a = 0.0f;
-    main_pass.has_viewport = true;
-    main_pass.viewport.x = 0.0f;
-    main_pass.viewport.y = 0.0f;
-    main_pass.viewport.width = (float)window_size.w;
-    main_pass.viewport.height = (float)window_size.h;
-    main_pass.viewport.min_depth = 0.0f;
-    main_pass.viewport.max_depth = 1.0f;
 
-    ldk_rhi_begin_pass(&e->rhi, &main_pass);
 #ifdef LDK_EDITOR
     /* render editor overlays, gizmos and tool UI here */
     ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
@@ -829,7 +810,6 @@ void ldk_engine_frame(void)
     frame_desc.clear_color = 0xABABABFFu;
     ldk_renderer_render_frame(&e->renderer, &frame_desc);
 
-    ldk_rhi_end_pass(&e->rhi);
     ldk_rhi_end_frame(&e->rhi);
   }
 
