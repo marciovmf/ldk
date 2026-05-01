@@ -106,7 +106,6 @@ typedef struct
   PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
   PFNWGLSWAPINTERVALEXTPROC         wglSwapIntervalEXT;
   PFNWGLGETSWAPINTERVALEXTPROC      wglGetSwapIntervalEXT;
-  HGLRC   sharedContext;
   HGLRC   rc;
   u32  versionMajor;
   u32  versionMinor;
@@ -431,7 +430,7 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 g
 
   // Initialize the global rendering api info with OpenGL api details
   s_graphicsAPIInfo.api = api;
-  s_graphicsAPIInfo.gl.sharedContext = 0;
+  s_graphicsAPIInfo.gl.rc = 0;
   s_graphicsAPIInfo.gl.versionMajor = glVersionMajor;
   s_graphicsAPIInfo.gl.versionMinor = glVersionMinor;
   s_graphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
@@ -755,23 +754,24 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
       return NULL;
     }
 
-    HGLRC sharedContext = s_graphicsAPIInfo.gl.sharedContext;
-    HGLRC rc = s_graphicsAPIInfo.gl.wglCreateContextAttribsARB(window->dc, sharedContext, contextAttribList);
-
-    // The first context created will be used as a shared context for the rest
-    // of the program execution
-    if (! sharedContext)
-    {
-      s_graphicsAPIInfo.gl.sharedContext = rc;
-    }
+    HGLRC rc = s_graphicsAPIInfo.gl.rc;
 
     if (! rc)
     {
-      ldk_log_error("Unable to create a valid OpenGL context", 0);
-      return NULL;
+      rc = s_graphicsAPIInfo.gl.wglCreateContextAttribsARB(
+          window->dc,
+          NULL,
+          contextAttribList
+          );
+
+      if (! rc)
+      {
+        return NULL;
+      }
+
+      s_graphicsAPIInfo.gl.rc = rc;
     }
 
-    s_graphicsAPIInfo.gl.rc = rc;
     if (! wglMakeCurrent(window->dc, rc))
     {
       ldk_log_error("Unable to set OpenGL context current", 0);
