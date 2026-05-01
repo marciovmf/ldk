@@ -61,11 +61,6 @@ typedef enum LDKTransformFlags
   LDK_TRANSFORM_FLAG_WORLD_DIRTY = 1 << 0,
 } LDKTransformFlags;
 
-typedef enum LDKBuiltinComponentType
-{
-  LDK_COMPONENT_TYPE_TRANSFORM = 1
-} LDKBuiltinComponentType;
-
 typedef struct LDKTransform
 {
   Vec3 local_position;

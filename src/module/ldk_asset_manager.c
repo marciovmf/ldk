@@ -53,6 +53,17 @@ static void s_ldk_asset_info_destroy(LDKAssetInfo* info)
       free(data);
     }
   }
+  else if (info->type == LDK_ASSET_TYPE_MESH)
+  {
+    LDKAssetMeshData* data = (LDKAssetMeshData*)info->data;
+
+    if (data)
+    {
+      free(data->mesh.vertices);
+      free(data->mesh.indices);
+      free(data);
+    }
+  }
 
   memset(info, 0, sizeof(*info));
 }
@@ -119,12 +130,6 @@ LDKAssetHandle ldk_asset_handle_null(void)
   return s_ldk_asset_handle_from_x(x_handle_null());
 }
 
-
-LDKAssetImage ldk_asset_image_null(void)
-{
-  LDKAssetImage out = { x_handle_null() };
-  return out;
-}
 
 LDKAssetFont ldk_asset_font_null(void)
 {
@@ -212,9 +217,9 @@ void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user)
   }
 }
 
-// 
-// Text file
-//
+// ---------------------------------------------------------------------------
+// Text file asset
+// ---------------------------------------------------------------------------
 
 LDKAssetTextFile ldk_asset_text_file_null(void)
 {
@@ -362,9 +367,9 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
   return ldk_asset_manager_text_file_get(manager, asset);
 }
 
-//
-// Font
-//
+// ---------------------------------------------------------------------------
+// Font asset
+// ---------------------------------------------------------------------------
 
 static LDKAssetFont s_ldk_asset_font_from_handle(XHandle h)
 {
@@ -513,4 +518,161 @@ LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetF
 const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset)
 {
   return ldk_asset_manager_font_get(manager, asset);
+}
+
+// ---------------------------------------------------------------------------
+// Image asset
+// ---------------------------------------------------------------------------
+
+LDKAssetImage ldk_asset_image_null(void)
+{
+  LDKAssetImage out = { x_handle_null() };
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Mesh asset
+// ---------------------------------------------------------------------------
+//
+static LDKAssetMesh s_ldk_asset_mesh_from_handle(XHandle h)
+{
+  LDKAssetMesh out = { h };
+  return out;
+}
+
+bool ldk_asset_manager_mesh_is_alive(LDKAssetManager* manager, LDKAssetMesh asset)
+{
+  LDKAssetHandle generic = { asset.h };
+
+  if (!ldk_asset_handle_is_alive(manager, generic))
+  {
+    return false;
+  }
+
+  return ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_MESH;
+}
+
+LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager, const LDKMeshVertex* vertices, u32 vertex_count, const u32* indices, u32 index_count)
+{
+  LDKAssetMesh result = ldk_asset_mesh_null();
+
+  if (!manager)
+  {
+    return result;
+  }
+
+  if (!vertices || vertex_count == 0)
+  {
+    return result;
+  }
+
+  if (!indices || index_count == 0)
+  {
+    return result;
+  }
+
+  LDKAssetMeshData* data = (LDKAssetMeshData*)malloc(sizeof(LDKAssetMeshData));
+
+  if (!data)
+  {
+    return result;
+  }
+
+  memset(data, 0, sizeof(*data));
+
+  size_t vertex_bytes = (size_t)vertex_count * sizeof(LDKMeshVertex);
+  size_t index_bytes = (size_t)index_count * sizeof(u32);
+
+  data->mesh.vertices = (LDKMeshVertex*)malloc(vertex_bytes);
+
+  if (!data->mesh.vertices)
+  {
+    free(data);
+    return result;
+  }
+
+  data->mesh.indices = (u32*)malloc(index_bytes);
+
+  if (!data->mesh.indices)
+  {
+    free(data->mesh.vertices);
+    free(data);
+    return result;
+  }
+
+  memcpy(data->mesh.vertices, vertices, vertex_bytes);
+  memcpy(data->mesh.indices, indices, index_bytes);
+
+  data->mesh.vertex_count = vertex_count;
+  data->mesh.index_count = index_count;
+
+  XHandle h = x_hpool_alloc(&manager->pool);
+
+  if (x_handle_is_null(h))
+  {
+    free(data->mesh.vertices);
+    free(data->mesh.indices);
+    free(data);
+    return result;
+  }
+
+  LDKAssetInfo* info = (LDKAssetInfo*)x_hpool_get(&manager->pool, h);
+
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, h);
+    free(data->mesh.vertices);
+    free(data->mesh.indices);
+    free(data);
+    return result;
+  }
+
+  info->type = LDK_ASSET_TYPE_MESH;
+  info->data = data;
+
+#ifdef LDK_DEBUG
+  info->asset_path.buf[0] = 0;
+  info->asset_path.length = 0;
+  info->load_timestamp = (u64)time(NULL);
+#endif
+
+  return s_ldk_asset_mesh_from_handle(h);
+}
+
+void ldk_asset_manager_mesh_unload(LDKAssetManager* manager, LDKAssetMesh asset)
+{
+  if (!manager)
+  {
+    return;
+  }
+
+  if (!ldk_asset_manager_mesh_is_alive(manager, asset))
+  {
+    return;
+  }
+
+  x_hpool_free(&manager->pool, asset.h);
+}
+
+LDKAssetMeshData* ldk_asset_manager_mesh_get(LDKAssetManager* manager, LDKAssetMesh asset)
+{
+  LDKAssetHandle generic = { asset.h };
+  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
+
+  if (!info)
+  {
+    return NULL;
+  }
+
+  if (info->type != LDK_ASSET_TYPE_MESH)
+  {
+    return NULL;
+  }
+
+  return (LDKAssetMeshData*)info->data;
+}
+
+const LDKAssetMeshData* ldk_asset_manager_mesh_get_const(LDKAssetManager* manager, LDKAssetMesh asset)
+{
+  return ldk_asset_manager_mesh_get(manager, asset);
 }

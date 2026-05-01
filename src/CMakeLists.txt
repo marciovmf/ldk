@@ -29,13 +29,14 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_color.h 
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk_common.h
-  ${INCLUDE_DIR}/ldk_geom.h           ldk_geom.c
+  ${INCLUDE_DIR}/ldk_mesh.h
   ${INCLUDE_DIR}/ldk.h                ldk.c
+  ${INCLUDE_DIR}/ldk_geom.h           ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h       ldk_argparse.c
   ${INCLUDE_DIR}/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/ldk_ttf.h            ldk_ttf.c
   ${INCLUDE_DIR}/ldk_image.h          ldk_image.c
-  ${INCLUDE_DIR}/ldk_font_cache.h     module/ldk_font_cache.c
+  ${INCLUDE_DIR}/ldk_gl.h             ldk_gl.c
   # Engine modules
   ${INCLUDE_DIR}/ldk_ui.h             module/ldk_ui.c
   ${INCLUDE_DIR}/ldk_renderer.h       module/ldk_renderer.c
@@ -44,130 +45,132 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_eventqueue.h     module/ldk_eventqueue.c
   ${INCLUDE_DIR}/ldk_asset_manager.h  module/ldk_asset_manager.c
   ${INCLUDE_DIR}/ldk_system.h         module/ldk_system.c
+  ${INCLUDE_DIR}/ldk_font_cache.h     module/ldk_font_cache.c
   # systems
   ${INCLUDE_DIR}/ldk_system_scenegraph.h system/ldk_system_scenegraph.c
   # components
-  ${INCLUDE_DIR}/ldk_component_transform.h component/ldk_component_transform.c
-  ${INCLUDE_DIR}/ldk_gl.h         ldk_gl.c
-  )
+  ${INCLUDE_DIR}/ldk_component_transform.h  component/ldk_component_transform.c
+  ${INCLUDE_DIR}/ldk_component_camera.h     component/ldk_component_camera.c
+  ${INCLUDE_DIR}/ldk_component_mesh_source.h component/ldk_component_mesh_source.c
+)
 
-  # Use this list when building games
+# Use this list when building games
 
-  #if (OPTION_BUILD_EDITOR)
-  #  #list(APPEND SOURCE ${INCLUDE_DIR}/module/editor.h module/editor.c)
-  #endif()
+#if (OPTION_BUILD_EDITOR)
+#  #list(APPEND SOURCE ${INCLUDE_DIR}/module/editor.h module/editor.c)
+#endif()
 
-  if(WIN32)
-    # Windows specific sources and libs
-    list(APPEND SOURCE ldk_os_win32.c)
-    set(LIBS dbghelp.lib)
+if(WIN32)
+  # Windows specific sources and libs
+  list(APPEND SOURCE ldk_os_win32.c)
+  set(LIBS dbghelp.lib)
 
-    # Release
-    list(APPEND Release_LIBS ${LIBS})
-    list(APPEND Release_DEFINITIONS)
-    list(APPEND Release_COMPILE_OPTIONS /O2)
+  # Release
+  list(APPEND Release_LIBS ${LIBS})
+  list(APPEND Release_DEFINITIONS)
+  list(APPEND Release_COMPILE_OPTIONS /O2)
 
-    # RelWithDebInfo
-    list(APPEND RelWithDebInfo_LIBS ${LIBS})
-    list(APPEND RelWithDebInfo_DEFINITIONS ${Release_DEFINITIONS} LDK_DEBUG)
-    list(APPEND RelWithDebInfo_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
+  # RelWithDebInfo
+  list(APPEND RelWithDebInfo_LIBS ${LIBS})
+  list(APPEND RelWithDebInfo_DEFINITIONS ${Release_DEFINITIONS} LDK_DEBUG)
+  list(APPEND RelWithDebInfo_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
 
-    # MinSizeRel
-    list(APPEND MinSizeRel_LIBS ${LIBS})
-    list(APPEND MinSizeRel_DEFINITIONS ${Relese_DEFINITIONS} LDK_DEBUG)
-    list(APPEND MinSizeRel_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
+  # MinSizeRel
+  list(APPEND MinSizeRel_LIBS ${LIBS})
+  list(APPEND MinSizeRel_DEFINITIONS ${Relese_DEFINITIONS} LDK_DEBUG)
+  list(APPEND MinSizeRel_COMPILE_OPTIONS ${Release_COMPILE_OPTIONS})
 
-    # Debug
-    list(APPEND Debug_LIBS ${LIBS})
-    list(APPEND Debug_DEFINITIONS LDK_DEBUG LDK_EDITOR LDK_DEBUG)
-    list(APPEND Debug_COMPILE_OPTIONS /Zi /DEBUG)
-  else()
-    message(FATAL_ERROR "UNSUPPORTED PLATFORM")
-  endif()
+  # Debug
+  list(APPEND Debug_LIBS ${LIBS})
+  list(APPEND Debug_DEFINITIONS LDK_DEBUG LDK_EDITOR LDK_DEBUG)
+  list(APPEND Debug_COMPILE_OPTIONS /Zi /DEBUG)
+else()
+  message(FATAL_ERROR "UNSUPPORTED PLATFORM")
+endif()
 
-  if (OPTION_LDKSHAREDLIB)
-    set(LIBTYPE "SHARED")
-  else()
-    set(LIBTYPE "STATIC")
-  endif()
+if (OPTION_LDKSHAREDLIB)
+  set(LIBTYPE "SHARED")
+else()
+  set(LIBTYPE "STATIC")
+endif()
 
-  add_library(ldk ${LIBTYPE} ${SOURCE})
+add_library(ldk ${LIBTYPE} ${SOURCE})
 
-  target_compile_definitions(ldk PRIVATE
-    LDK_ENGINE
-    $<$<CONFIG:Release>:${Release_DEFINITIONS}>
-    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
-    $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
-    $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
-    $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
-    $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>
-    LDK_BUILD_TYPE="$<CONFIG>"
-    )
+target_compile_definitions(ldk PRIVATE
+  LDK_ENGINE
+  $<$<CONFIG:Release>:${Release_DEFINITIONS}>
+  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_DEFINITIONS}>
+  $<$<CONFIG:Debug>:${Debug_DEFINITIONS}>
+  $<$<CONFIG:MinSizeRel>:${MinSizeRel_DEFINITIONS}>
+  $<$<BOOL:${OPTION_BUILD_EDITOR}>:LDK_EDITOR>
+  $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>
+  LDK_BUILD_TYPE="$<CONFIG>"
+)
 
-  target_compile_options(ldk PRIVATE
-    $<$<CONFIG:Release>:${Release_COMPILE_OPTIONS}>
-    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_COMPILE_OPTIONS}>
-    $<$<CONFIG:MinSizeRel>:${MinSizeRel_COMPILE_OPTIONS}>
-    $<$<CONFIG:Debug>:${Debug_COMPILE_OPTIONS}>
-    )
+target_compile_options(ldk PRIVATE
+  $<$<CONFIG:Release>:${Release_COMPILE_OPTIONS}>
+  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_COMPILE_OPTIONS}>
+  $<$<CONFIG:MinSizeRel>:${MinSizeRel_COMPILE_OPTIONS}>
+  $<$<CONFIG:Debug>:${Debug_COMPILE_OPTIONS}>
+)
 
-  target_link_libraries(ldk PRIVATE
-    $<$<CONFIG:Release>:${Release_LIBS}>
-    $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_LIBS}>
-    $<$<CONFIG:MinSizeRel>:${MinSizeRel_LIBS}>
-    $<$<CONFIG:Debug>:${Debug_LIBS}>
-    )
+target_link_libraries(ldk PRIVATE
+  $<$<CONFIG:Release>:${Release_LIBS}>
+  $<$<CONFIG:RelWithDebInfo>:${RelWithDebInfo_LIBS}>
+  $<$<CONFIG:MinSizeRel>:${MinSizeRel_LIBS}>
+  $<$<CONFIG:Debug>:${Debug_LIBS}>
+)
 
-  target_link_libraries(ldk PUBLIC ${OPENGL_LIBRARY})
-  target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
-  add_dependencies(ldk print_options)
+target_link_libraries(ldk PUBLIC ${OPENGL_LIBRARY})
+target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
+add_dependencies(ldk print_options)
 
-  #----------------------------------------------
-  # Tests
-  #----------------------------------------------
+#----------------------------------------------
+# Tests
+#----------------------------------------------
 
-  if (OPTION_BUILD_TESTS)
-    function(create_test)
-      set(options "")
-      set(oneValueArgs TARGET)
-      set(multiValueArgs SOURCES LIBRARIES)
-      cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+if (OPTION_BUILD_TESTS)
+  function(create_test)
+    set(options "")
+    set(oneValueArgs TARGET)
+    set(multiValueArgs SOURCES LIBRARIES)
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-      if(NOT ARG_TARGET)
-        message(FATAL_ERROR "TARGET parameter is required for create_test function.")
-        return()
-      endif()
+    if(NOT ARG_TARGET)
+      message(FATAL_ERROR "TARGET parameter is required for create_test function.")
+      return()
+    endif()
 
-      if(NOT ARG_SOURCES)
-        message(FATAL_ERROR "SOURCES parameter is required for create_test function.")
-        return()
-      endif()
+    if(NOT ARG_SOURCES)
+      message(FATAL_ERROR "SOURCES parameter is required for create_test function.")
+      return()
+    endif()
 
-      if(NOT ARG_LIBRARIES)
-        set(ARG_LIBRARIES ldk)
-      else()
-        list(APPEND ARG_LIBRARIES ldk)
-      endif()
+    if(NOT ARG_LIBRARIES)
+      set(ARG_LIBRARIES ldk)
+    else()
+      list(APPEND ARG_LIBRARIES ldk)
+    endif()
 
-      add_executable(${ARG_TARGET} ${ARG_SOURCES})
+    add_executable(${ARG_TARGET} ${ARG_SOURCES})
 
-      target_compile_definitions(${ARG_TARGET} PRIVATE 
+    target_compile_definitions(${ARG_TARGET} PRIVATE 
       $<$<BOOL:${OPTION_LDKSHAREDLIB}>:LDK_SHAREDLIB>)
-      set_target_properties(${ARG_TARGET} PROPERTIES OUTPUT_NAME ${ARG_TARGET}${OUTPUT_NAME_SUFFIX})
-      target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
-      target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
-      add_dependencies(${ARG_TARGET} ldk)
+    set_target_properties(${ARG_TARGET} PROPERTIES OUTPUT_NAME ${ARG_TARGET}${OUTPUT_NAME_SUFFIX})
+    target_include_directories(${ARG_TARGET} PUBLIC ${INCLUDE_DIR})
+    target_link_libraries(${ARG_TARGET} PRIVATE ${ARG_LIBRARIES})
+    add_dependencies(${ARG_TARGET} ldk)
 
-      add_custom_target(test_${ARG_TARGET} ALL
-        COMMAND $<TARGET_FILE:${ARG_TARGET}>
-        COMMENT "Testing $<TARGET_FILE:${ARG_TARGET}>"
-        DEPENDS ${ARG_TARGET} ldk)
-    endfunction()
+    add_custom_target(test_${ARG_TARGET} ALL
+      COMMAND $<TARGET_FILE:${ARG_TARGET}>
+      COMMENT "Testing $<TARGET_FILE:${ARG_TARGET}>"
+      DEPENDS ${ARG_TARGET} ldk)
+  endfunction()
 
-    create_test(TARGET test_module_entity SOURCES tests/test_ldk_entity.c)
-    create_test(TARGET test_module_component SOURCES tests/test_ldk_component.c)
-    create_test(TARGET test_module_system SOURCES tests/test_ldk_system.c)
-    create_test(TARGET test_module_transform SOURCES tests/test_ldk_transform.c)
-    create_test(TARGET test_module_rhi SOURCES tests/test_ldk_rhi.c)
+  create_test(TARGET test_module_entity SOURCES tests/test_ldk_entity.c)
+  create_test(TARGET test_module_component SOURCES tests/test_ldk_component.c)
+  create_test(TARGET test_module_system SOURCES tests/test_ldk_system.c)
+  create_test(TARGET test_module_transform SOURCES tests/test_ldk_transform.c)
+  create_test(TARGET test_module_rhi SOURCES tests/test_ldk_rhi.c)
 
-  endif()
+endif()

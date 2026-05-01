@@ -38,6 +38,15 @@ extern "C" {
     LDK_ENTITY_INTERNAL_HAS_LIGHT      = 1 << 4
   } LDKEntityInternalFlags;
 
+
+  typedef enum LDKBuiltinComponentType
+  {
+    LDK_COMPONENT_TYPE_TRANSFORM    = 1,
+    LDK_COMPONENT_TYPE_CAMERA       = 2,
+    LDK_COMPONENT_TYPE_MESH_SORUCE  = 3,
+  } LDKBuiltinComponentType;
+
+
   /**
    * A list of all components and component types in an entity
    */
