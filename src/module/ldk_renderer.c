@@ -5,6 +5,7 @@
 #include <string.h>
 
 static void ldk_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
+static void s_ldk_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 
 typedef struct LDKRendererUIParams
 {
@@ -497,6 +498,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
   }
 
   ldk_renderer_ui_pass_terminate(&renderer->ui_pass);
+  s_ldk_renderer_destroy_font_page_cache(renderer);
   memset(renderer, 0, sizeof(*renderer));
 }
 
@@ -552,4 +554,258 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   ldk_rhi_end_frame(renderer->rhi);
 
   renderer->submitted_ui = NULL;
+}
+
+
+// ---------------------------------------------------------------------------
+// Font cache
+// ---------------------------------------------------------------------------
+static LDKRendererFontPageCacheEntry* s_ldk_renderer_find_font_page(
+    LDKRenderer* renderer,
+    LDKFontInstance* font,
+    u32 page_index)
+{
+  if (!renderer || !font)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < renderer->font_page_count; ++i)
+  {
+    LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
+
+    if (entry->font == font && entry->page_index == page_index)
+    {
+      return entry;
+    }
+  }
+
+  return NULL;
+}
+
+static bool s_ldk_renderer_grow_font_page_cache(LDKRenderer* renderer)
+{
+  if (!renderer)
+  {
+    return false;
+  }
+
+  u32 new_capacity = renderer->font_page_capacity == 0 ? 16 : renderer->font_page_capacity * 2;
+  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererFontPageCacheEntry);
+
+  LDKRendererFontPageCacheEntry* new_pages = renderer->font_pages == NULL
+    ? (LDKRendererFontPageCacheEntry*)LDK_RENDERER_ALLOC(new_size)
+    : (LDKRendererFontPageCacheEntry*)LDK_RENDERER_REALLOC(renderer->font_pages, new_size);
+
+  if (!new_pages)
+  {
+    return false;
+  }
+
+  renderer->font_pages = new_pages;
+  renderer->font_page_capacity = new_capacity;
+
+  return true;
+}
+
+static LDKRHITexture s_ldk_renderer_create_font_page_texture(
+    LDKRenderer* renderer,
+    const LDKFontPageInfo* page)
+{
+  if (!renderer || !renderer->rhi || !page)
+  {
+    return LDK_RHI_INVALID_TEXTURE;
+  }
+
+  if (!page->pixels || page->width == 0 || page->height == 0)
+  {
+    return LDK_RHI_INVALID_TEXTURE;
+  }
+
+  LDKRHITextureDesc desc = {0};
+  ldk_rhi_texture_desc_defaults(&desc);
+
+  desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  desc.format = LDK_RHI_FORMAT_R8_UNORM;
+  desc.width = page->width;
+  desc.height = page->height;
+  desc.depth = 1;
+  desc.mip_count = 1;
+  desc.layer_count = 1;
+  desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED | LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
+  desc.initial_data = page->pixels;
+  desc.initial_data_size = page->width * page->height;
+
+  desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
+
+  return ldk_rhi_create_texture(renderer->rhi, &desc);
+}
+
+static bool s_ldk_renderer_update_font_page_texture(
+    LDKRenderer* renderer,
+    LDKRendererFontPageCacheEntry* entry,
+    const LDKFontPageInfo* page)
+{
+  if (!renderer || !renderer->rhi || !entry || !page)
+  {
+    return false;
+  }
+
+  if (!page->pixels || page->width == 0 || page->height == 0)
+  {
+    return false;
+  }
+
+  if (entry->texture == LDK_RHI_INVALID_TEXTURE)
+  {
+    entry->texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+    entry->width = page->width;
+    entry->height = page->height;
+    return entry->texture != LDK_RHI_INVALID_TEXTURE;
+  }
+
+  if (entry->width != page->width || entry->height != page->height)
+  {
+    ldk_rhi_destroy_texture(renderer->rhi, entry->texture);
+
+    entry->texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+    entry->width = page->width;
+    entry->height = page->height;
+
+    return entry->texture != LDK_RHI_INVALID_TEXTURE;
+  }
+
+  return ldk_rhi_update_texture(
+      renderer->rhi,
+      entry->texture,
+      0,
+      0,
+      page->pixels,
+      page->width * page->height);
+}
+
+static LDKRendererFontPageCacheEntry* s_ldk_renderer_create_font_page_entry(
+    LDKRenderer* renderer,
+    LDKFontInstance* font,
+    const LDKFontPageInfo* page)
+{
+  if (!renderer || !font || !page)
+  {
+    return NULL;
+  }
+
+  if (renderer->font_page_count == renderer->font_page_capacity)
+  {
+    if (!s_ldk_renderer_grow_font_page_cache(renderer))
+    {
+      return NULL;
+    }
+  }
+
+  LDKRHITexture texture = s_ldk_renderer_create_font_page_texture(renderer, page);
+
+  if (texture == LDK_RHI_INVALID_TEXTURE)
+  {
+    return NULL;
+  }
+
+  LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[renderer->font_page_count];
+  memset(entry, 0, sizeof(*entry));
+
+  entry->font = font;
+  entry->page_index = page->page_index;
+  entry->width = page->width;
+  entry->height = page->height;
+  entry->texture = texture;
+
+  renderer->font_page_count += 1;
+
+  return entry;
+}
+
+static void s_ldk_renderer_destroy_font_page_cache(LDKRenderer* renderer)
+{
+  if (!renderer)
+  {
+    return;
+  }
+
+  if (renderer->rhi)
+  {
+    for (u32 i = 0; i < renderer->font_page_count; ++i)
+    {
+      LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
+
+      if (entry->texture != LDK_RHI_INVALID_TEXTURE)
+      {
+        ldk_rhi_destroy_texture(renderer->rhi, entry->texture);
+      }
+    }
+  }
+
+  LDK_RENDERER_FREE(renderer->font_pages);
+
+  renderer->font_pages = NULL;
+  renderer->font_page_count = 0;
+  renderer->font_page_capacity = 0;
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture(
+    LDKRenderer* renderer,
+    LDKFontInstance* font,
+    u32 page_index)
+{
+  if (!renderer || !renderer->is_initialized || !font)
+  {
+    return 0;
+  }
+
+  LDKFontPageInfo page = {0};
+
+  if (!ldk_font_get_page_info(font, page_index, &page))
+  {
+    return 0;
+  }
+
+  LDKRendererFontPageCacheEntry* entry = s_ldk_renderer_find_font_page(
+      renderer,
+      font,
+      page_index);
+
+  if (!entry)
+  {
+    entry = s_ldk_renderer_create_font_page_entry(renderer, font, &page);
+
+    if (!entry)
+    {
+      return 0;
+    }
+
+    ldk_font_clear_page_dirty(font, page_index);
+    return (LDKUITextureHandle)entry->texture;
+  }
+
+  if (page.dirty)
+  {
+    if (s_ldk_renderer_update_font_page_texture(renderer, entry, &page))
+    {
+      ldk_font_clear_page_dirty(font, page_index);
+    }
+  }
+
+  return (LDKUITextureHandle)entry->texture;
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(
+    void* user,
+    LDKFontInstance* font,
+    u32 page_index)
+{
+  return ldk_renderer_get_font_page_texture(
+      (LDKRenderer*)user,
+      font,
+      page_index);
 }

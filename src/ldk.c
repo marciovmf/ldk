@@ -39,7 +39,6 @@
 #include <module/ldk_component.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_eventqueue.h>
-#include <module/ldk_font_cache.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_rhi.h>
 #include <module/ldk_system.h>
@@ -83,7 +82,6 @@ struct LDKRoot
   LDKConfig             config;
   LDKEntityRegistry     entity_registry;
   LDKEventQueue         event_queue;
-  LDKFontCache          font_cache;
   LDKGame               game;
   LDKRHIContext         rhi;
   LDKRenderer           renderer;
@@ -142,7 +140,6 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot* e)
 {
   ldk_ui_terminate(&e->editor_ui);
-  ldk_font_cache_terminate(&e->font_cache);
   ldk_system_registry_terminate(&e->system_registry);
   ldk_component_registry_terminate(&e->component_registry);
   ldk_entity_module_terminate(&e->entity_registry);
@@ -442,9 +439,6 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_UI:
       return &g_engine.editor_ui;
 
-    case LDK_MODULE_FONT_CACHE:
-      return &g_engine.font_cache;
-
     case LDK_MODULE_RENDERER:
       return &g_engine.renderer;
 
@@ -589,20 +583,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-  { // Font cache initialization
-
-    LDKFontCacheConfig font_cache_config;
-    memset(&font_cache_config, 0, sizeof(font_cache_config));
-    font_cache_config.initial_page_capacity = 4;
-
-    if (!ldk_font_cache_initialize(&e->font_cache, editor_font, &font_cache_config))
-    {
-      ldk_log_error("Failed to initialize module: Font Cache.");
-      ldk_engine_terminate();
-      return false;
-    }
-  }
-
   { // UI Initialization
     LDKUIConfig ui_cfg = {0};
     ui_cfg.frame_arena_size = 1024 * 4;
@@ -623,8 +603,8 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
       ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
     }
 
-    ui_cfg.font_texture_user = &e->font_cache;
-    ui_cfg.get_font_page_texture = ldk_font_cache_get_page_texture_callback;
+    ui_cfg.font_texture_user = &e->renderer;
+    ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
 
     if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
     {

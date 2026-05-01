@@ -80,11 +80,34 @@ extern "C" {
     bool is_initialized;
   } LDKRendererUIPass;
 
+  typedef struct LDKRendererFontPageCacheEntry
+  {
+    LDKFontInstance* font;
+    u32 page_index;
+    u32 width;
+    u32 height;
+    LDKRHITexture texture;
+  } LDKRendererFontPageCacheEntry;
+
+  typedef struct LDKRendererFontPage
+  {
+    LDKFontInstance* font;
+    u32 page_index;
+    u32 width;
+    u32 height;
+    LDKRHITexture texture;
+  } LDKRendererFontPage;
+
   typedef struct LDKRenderer
   {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
     LDKUIRenderData const* submitted_ui;
+    // Font cache
+    LDKRendererFontPageCacheEntry* font_pages;
+    u32 font_page_count;
+    u32 font_page_capacity;
+
     bool is_initialized;
   } LDKRenderer;
 
@@ -92,6 +115,12 @@ extern "C" {
   void ldk_renderer_terminate(LDKRenderer* renderer);
   void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data);
   void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc);
+
+  // ---------------------------------------------------------------------------
+  // Font cache
+  // ---------------------------------------------------------------------------
+  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDKFontInstance* font, u32 page_index);
+  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFontInstance* font, u32 page_index);
 
 #ifdef __cplusplus
 }

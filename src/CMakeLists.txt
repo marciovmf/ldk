@@ -24,6 +24,7 @@ set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include")
 
 list(APPEND SOURCE
   # Core
+  ldk_gl.h ldk_gl.c
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h 
   ${INCLUDE_DIR}/ldk_color.h 
@@ -35,13 +36,12 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_argparse.h       ldk_argparse.c
   ${INCLUDE_DIR}/ldk_ttf.h            ldk_ttf.c
   ${INCLUDE_DIR}/ldk_image.h          ldk_image.c
-  ${INCLUDE_DIR}/ldk_gl.h             ldk_gl.c
   # Engine modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h  module/ldk_asset_manager.c
   ${INCLUDE_DIR}/module/ldk_component.h      module/ldk_component.c
   ${INCLUDE_DIR}/module/ldk_entity.h         module/ldk_entity.c
   ${INCLUDE_DIR}/module/ldk_eventqueue.h     module/ldk_eventqueue.c
-  ${INCLUDE_DIR}/module/ldk_font_cache.h     module/ldk_font_cache.c
+  #${INCLUDE_DIR}/module/ldk_font_cache.h     module/ldk_font_cache.c
   ${INCLUDE_DIR}/module/ldk_renderer.h       module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c
