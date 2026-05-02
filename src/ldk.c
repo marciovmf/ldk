@@ -791,26 +791,24 @@ void ldk_engine_frame(void)
 
   /* render scene/game view here */
   {
-    ldk_rhi_begin_frame(&e->rhi);
 
 #ifdef LDK_EDITOR
     /* render editor overlays, gizmos and tool UI here */
     ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
     s_draw_editor_ui(&e->editor_ui, delta_time);
     ldk_ui_end_frame(&e->editor_ui);
+    const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
+    ldk_renderer_submit_ui(&e->renderer, ui_data);
 #endif
 
     current_ticks = ldk_os_time_ticks_get();
-    const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
-    ldk_renderer_submit_ui(&e->renderer, ui_data);
 
     LDKRendererFrameDesc frame_desc;
     frame_desc.framebuffer_width = window_size.w;
     frame_desc.framebuffer_height = window_size.h;
     frame_desc.clear_color = 0xABABABFFu;
+    frame_desc.clear_color_enabled = true;
     ldk_renderer_render_frame(&e->renderer, &frame_desc);
-
-    ldk_rhi_end_frame(&e->rhi);
   }
 
 
