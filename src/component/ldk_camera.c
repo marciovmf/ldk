@@ -7,8 +7,6 @@
 #include <component/ldk_camera.h>
 #include <ldk.h>
 
-#include <string.h>
-
 static bool s_camera_get_modules(
     LDKEntityRegistry** out_entity_registry,
     LDKComponentRegistry** out_component_registry)
@@ -102,19 +100,66 @@ static const LDKCamera* s_camera_get_ptr_const(
   return s_camera_from_ref_const(entity_registry, component_registry, ref);
 }
 
-static bool s_camera_has(
+static bool s_camera_attach(
     LDKEntityRegistry* entity_registry,
-    LDKEntity entity)
+    LDKComponentRegistry* component_registry,
+    LDKEntity entity,
+    void* component,
+    u32 component_index,
+    const void* initial_value,
+    void* user)
 {
-  if (!entity_registry)
+  LDKCamera* camera = (LDKCamera*)component;
+
+  (void)component_registry;
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry || !camera)
   {
     return false;
   }
 
-  return ldk_entity_has_component(
+  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
+  {
+    return false;
+  }
+
+  if (!initial_value)
+  {
+    *camera = ldk_camera_make_default();
+  }
+
+  ldk_entity_add_internal_flags(
       entity_registry,
       entity,
-      LDK_COMPONENT_TYPE_CAMERA);
+      LDK_ENTITY_INTERNAL_HAS_CAMERA);
+
+  return true;
+}
+
+static void s_camera_destroy(
+    LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry,
+    LDKEntity entity,
+    void* component,
+    u32 component_index,
+    void* user)
+{
+  (void)component_registry;
+  (void)component;
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry)
+  {
+    return;
+  }
+
+  ldk_entity_remove_internal_flags(
+      entity_registry,
+      entity,
+      LDK_ENTITY_INTERNAL_HAS_CAMERA);
 }
 
 LDKCamera ldk_camera_make_default(void)
@@ -143,85 +188,39 @@ bool ldk_camera_register(LDKComponentRegistry* registry, u32 initial_capacity)
       "Camera",
       LDK_COMPONENT_TYPE_CAMERA,
       sizeof(LDKCamera),
-      initial_capacity);
+      initial_capacity,
+      s_camera_attach,
+      s_camera_destroy,
+      NULL);
 }
 
 bool ldk_camera_attach(LDKEntity entity, const LDKCamera* initial_value)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKCamera camera = ldk_camera_make_default();
-  LDKCamera* new_camera = NULL;
 
   if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  if (!ldk_entity_is_alive(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (!ldk_component_is_registered(component_registry, LDK_COMPONENT_TYPE_CAMERA))
-  {
-    return false;
-  }
-
-  if (s_camera_has(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
-  {
-    return false;
-  }
-
-  if (initial_value)
-  {
-    camera = *initial_value;
-  }
-
-  new_camera = (LDKCamera*)ldk_entity_add_component(
+  return ldk_entity_add_component(
       entity_registry,
       component_registry,
       entity,
-      LDK_COMPONENT_TYPE_CAMERA);
-
-  if (!new_camera)
-  {
-    return false;
-  }
-
-  *new_camera = camera;
-
-  ldk_entity_add_internal_flags(
-      entity_registry,
-      entity,
-      LDK_ENTITY_INTERNAL_HAS_CAMERA);
-
-  return true;
+      LDK_COMPONENT_TYPE_CAMERA,
+      initial_value) != NULL;
 }
 
 bool ldk_camera_detach(LDKEntity entity)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKCamera* camera = NULL;
 
   if (!s_camera_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
-
-  camera = s_camera_get_ptr(entity_registry, component_registry, entity);
-  if (!camera)
-  {
-    return false;
-  }
-
-  ldk_entity_remove_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_CAMERA);
 
   return ldk_component_remove_entity(
       component_registry,

@@ -17,6 +17,10 @@
 extern "C" {
 #endif
 
+  typedef bool (*LDKComponentAttachFn)(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, const void* initial_value, void* user);
+
+  typedef void (*LDKComponentDestroyFn)( LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, void* user);
+
   /**
    * A descriptor that identifies a Component.
    * Components are plain data structures that can be attached to entities.
@@ -28,6 +32,9 @@ extern "C" {
     u32 type;
     u32 entry_size;
     u32 initial_capacity;
+    LDKComponentAttachFn attach;
+    LDKComponentDestroyFn destroy;
+    void* user;
   } LDKComponentDesc;
 
   typedef struct LDKRegisteredComponent
@@ -46,7 +53,6 @@ extern "C" {
 
   LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
   LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
-  LDK_API bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u32 type, u32 entry_size, u32 initial_capacity);
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type);
@@ -55,6 +61,10 @@ extern "C" {
   LDK_API void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32* component_index);
   LDK_API void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 component_index);
   LDK_API bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* entity_module, u32 component_type, u32 component_index);
+  LDK_API bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u32 type, u32 entry_size, u32 initial_capacity, LDKComponentAttachFn attach, LDKComponentDestroyFn destroy, void* user);
+  LDK_API bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry, LDKEntity entity, u32 component_type, u32 component_index, const void* initial_value);
+  LDK_API void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry, LDKEntity entity, u32 component_type, u32 component_index);
+
 
 #ifdef __cplusplus
 }

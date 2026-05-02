@@ -49,7 +49,6 @@ typedef enum LDKBuiltinSystemId
   LDK_SYSTEM_ID_USER = 0x100  // Use this as a base for user defined systems
 } LDKBuiltinSystemId;
 
-
 typedef enum LDKSystemBucket
 {
   LDK_SYSTEM_BUCKET_PRE_UPDATE = 0,
@@ -80,7 +79,6 @@ typedef struct LDKSystemCallbacks
 {
   LDKSystemInitializeFn initialize;
   LDKSystemTerminateFn terminate;
-
   LDKSystemPreUpdateFn pre_update;
   LDKSystemUpdateFn update;
   LDKSystemPostUpdateFn post_update;
@@ -92,12 +90,10 @@ typedef struct LDKSystemDesc
   u64 id;
   const char* name;
   u32 flags;
-
   i32 pre_update_order;
   i32 update_order;
   i32 post_update_order;
   i32 render_order;
-
   LDKSystemCallbacks callbacks;
 } LDKSystemDesc;
 

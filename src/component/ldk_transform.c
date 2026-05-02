@@ -6,18 +6,16 @@
  * operations.
  */
 
+
 #include <component/ldk_transform.h>
 #include <ldk.h>
-
-#include <string.h>
 
 static int s_entity_eq(LDKEntity a, LDKEntity b)
 {
   return a.index == b.index && a.version == b.version;
 }
 
-static bool s_transform_get_modules(
-    LDKEntityRegistry** out_entity_registry,
+static bool s_transform_get_modules(LDKEntityRegistry** out_entity_registry,
     LDKComponentRegistry** out_component_registry)
 {
   LDKEntityRegistry* entity_registry = NULL;
@@ -46,10 +44,7 @@ static bool s_transform_get_modules(
   return true;
 }
 
-static bool s_transform_get_ref(
-    LDKEntityRegistry* entity_registry,
-    LDKEntity entity,
-    LDKComponentRef* out_ref)
+static bool s_transform_get_ref(LDKEntityRegistry* entity_registry, LDKEntity entity, LDKComponentRef* out_ref)
 {
   if (!entity_registry || !out_ref)
   {
@@ -63,26 +58,20 @@ static bool s_transform_get_ref(
       out_ref);
 }
 
-static LDKTransform* s_transform_from_ref(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKComponentRef ref)
+static LDKTransform* s_transform_from_ref(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKComponentRef ref)
 {
   return (LDKTransform*)ldk_component_ref_get(entity_registry, component_registry, ref);
 }
 
-static const LDKTransform* s_transform_from_ref_const(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKComponentRef ref)
+static const LDKTransform* s_transform_from_ref_const(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKComponentRef ref)
 {
   return (const LDKTransform*)ldk_component_ref_get_const(entity_registry, component_registry, ref);
 }
 
-static LDKTransform* s_transform_get_ptr(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKEntity entity)
+static LDKTransform* s_transform_get_ptr(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
@@ -94,10 +83,8 @@ static LDKTransform* s_transform_get_ptr(
   return s_transform_from_ref(entity_registry, component_registry, ref);
 }
 
-static const LDKTransform* s_transform_get_ptr_const(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKEntity entity)
+static const LDKTransform* s_transform_get_ptr_const(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKEntity entity)
 {
   LDKComponentRef ref = {0};
 
@@ -109,25 +96,8 @@ static const LDKTransform* s_transform_get_ptr_const(
   return s_transform_from_ref_const(entity_registry, component_registry, ref);
 }
 
-static bool s_transform_has(
-    LDKEntityRegistry* entity_registry,
-    LDKEntity entity)
-{
-  if (!entity_registry)
-  {
-    return false;
-  }
-
-  return ldk_entity_has_component(
-      entity_registry,
-      entity,
-      LDK_COMPONENT_TYPE_TRANSFORM);
-}
-
-static bool s_transform_mark_subtree_dirty(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKEntity entity)
+static bool s_transform_mark_subtree_dirty(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKEntity entity)
 {
   LDKTransform* transform = NULL;
   LDKEntity child = {0};
@@ -160,11 +130,8 @@ static bool s_transform_mark_subtree_dirty(
   return true;
 }
 
-static bool s_transform_is_ancestor(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKEntity entity,
-    LDKEntity possible_ancestor)
+static bool s_transform_is_ancestor(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKEntity entity, LDKEntity possible_ancestor)
 {
   LDKEntity current = entity;
 
@@ -189,10 +156,8 @@ static bool s_transform_is_ancestor(
   return false;
 }
 
-static bool s_transform_unlink_from_parent(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKTransform* child)
+static bool s_transform_unlink_from_parent(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKTransform* child)
 {
   if (!child)
   {
@@ -244,10 +209,8 @@ static bool s_transform_unlink_from_parent(
   return true;
 }
 
-static bool s_transform_orphan_children(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
-    LDKTransform* transform)
+static bool s_transform_orphan_children(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKTransform* transform)
 {
   LDKEntity child = {0};
 
@@ -282,6 +245,56 @@ static bool s_transform_orphan_children(
   return true;
 }
 
+static bool s_transform_attach(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKEntity entity, void* component,
+    u32 component_index, const void* initial_value, void* user)
+{
+  LDKTransform* transform = (LDKTransform*)component;
+
+  (void)component_registry;
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry || !transform)
+  {
+    return false;
+  }
+
+  if (!initial_value)
+  {
+    *transform = ldk_transform_make_default();
+  }
+
+  ldk_entity_add_internal_flags(
+      entity_registry,
+      entity,
+      LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
+
+  return true;
+}
+
+static void s_transform_destroy(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry,
+    LDKEntity entity, void* component, u32 component_index, void* user)
+{
+  LDKTransform* transform = (LDKTransform*)component;
+
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry || !component_registry || !transform)
+  {
+    return;
+  }
+
+  s_transform_unlink_from_parent(entity_registry, component_registry, transform);
+  s_transform_orphan_children(entity_registry, component_registry, transform);
+
+  ldk_entity_remove_internal_flags(
+      entity_registry,
+      entity,
+      LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
+}
+
 LDKTransform ldk_transform_make_default(void)
 {
   LDKTransform transform = {0};
@@ -310,84 +323,39 @@ bool ldk_transform_register(LDKComponentRegistry* registry, u32 initial_capacity
       "Transform",
       LDK_COMPONENT_TYPE_TRANSFORM,
       sizeof(LDKTransform),
-      initial_capacity);
+      initial_capacity,
+      s_transform_attach,
+      s_transform_destroy,
+      NULL);
 }
 
 bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKTransform transform = ldk_transform_make_default();
-  LDKTransform* new_transform = NULL;
 
   if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  if (!ldk_entity_is_alive(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (!ldk_component_is_registered(component_registry, LDK_COMPONENT_TYPE_TRANSFORM))
-  {
-    return false;
-  }
-
-  if (s_transform_has(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (initial_value)
-  {
-    transform.local_position = initial_value->local_position;
-    transform.local_rotation = initial_value->local_rotation;
-    transform.local_scale = initial_value->local_scale;
-  }
-
-  new_transform = (LDKTransform*)ldk_entity_add_component(
+  return ldk_entity_add_component(
       entity_registry,
       component_registry,
       entity,
-      LDK_COMPONENT_TYPE_TRANSFORM);
-
-  if (!new_transform)
-  {
-    return false;
-  }
-
-  *new_transform = transform;
-
-  ldk_entity_add_internal_flags(
-      entity_registry,
-      entity,
-      LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
-
-  return true;
+      LDK_COMPONENT_TYPE_TRANSFORM,
+      initial_value) != NULL;
 }
 
 bool ldk_transform_detach(LDKEntity entity)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKTransform* transform = NULL;
 
   if (!s_transform_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
-
-  transform = s_transform_get_ptr(entity_registry, component_registry, entity);
-  if (!transform)
-  {
-    return false;
-  }
-
-  s_transform_unlink_from_parent(entity_registry, component_registry, transform);
-  s_transform_orphan_children(entity_registry, component_registry, transform);
-  ldk_entity_remove_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
 
   return ldk_component_remove_entity(
       component_registry,

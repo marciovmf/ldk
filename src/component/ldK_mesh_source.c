@@ -4,9 +4,6 @@
 #include <stdx/stdx_hpool.h>
 #include <ldk.h>
 
-#include <component/ldk_mesh_source.h>
-#include <ldk.h>
-
 static bool s_ldk_mesh_source_get_modules(
     LDKEntityRegistry** out_entity_registry,
     LDKComponentRegistry** out_component_registry)
@@ -100,19 +97,66 @@ static const LDKMeshSource* s_ldk_mesh_source_get_ptr_const(
   return s_ldk_mesh_source_from_ref_const(entity_registry, component_registry, ref);
 }
 
-static bool s_ldk_mesh_source_has(
+static bool s_ldk_mesh_source_attach(
     LDKEntityRegistry* entity_registry,
-    LDKEntity entity)
+    LDKComponentRegistry* component_registry,
+    LDKEntity entity,
+    void* component,
+    u32 component_index,
+    const void* initial_value,
+    void* user)
 {
-  if (!entity_registry)
+  LDKMeshSource* mesh_source = (LDKMeshSource*)component;
+
+  (void)component_registry;
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry || !mesh_source)
   {
     return false;
   }
 
-  return ldk_entity_has_component(
+  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
+  {
+    return false;
+  }
+
+  if (!initial_value)
+  {
+    *mesh_source = ldk_mesh_source_make_default();
+  }
+
+  ldk_entity_add_internal_flags(
       entity_registry,
       entity,
-      LDK_COMPONENT_TYPE_MESH_SOURCE);
+      LDK_ENTITY_INTERNAL_HAS_RENDERABLE);
+
+  return true;
+}
+
+static void s_ldk_mesh_source_destroy(
+    LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry,
+    LDKEntity entity,
+    void* component,
+    u32 component_index,
+    void* user)
+{
+  (void)component_registry;
+  (void)component;
+  (void)component_index;
+  (void)user;
+
+  if (!entity_registry)
+  {
+    return;
+  }
+
+  ldk_entity_remove_internal_flags(
+      entity_registry,
+      entity,
+      LDK_ENTITY_INTERNAL_HAS_RENDERABLE);
 }
 
 LDKMeshSource ldk_mesh_source_make_default(void)
@@ -138,88 +182,39 @@ bool ldk_mesh_source_register(LDKComponentRegistry* registry, u32 initial_capaci
       "MeshSource",
       LDK_COMPONENT_TYPE_MESH_SOURCE,
       sizeof(LDKMeshSource),
-      initial_capacity);
+      initial_capacity,
+      s_ldk_mesh_source_attach,
+      s_ldk_mesh_source_destroy,
+      NULL);
 }
 
 bool ldk_mesh_source_attach(LDKEntity entity, const LDKMeshSource* initial_value)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKMeshSource mesh_source = ldk_mesh_source_make_default();
-  LDKMeshSource* new_mesh_source = NULL;
 
   if (!s_ldk_mesh_source_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
 
-  if (!ldk_entity_is_alive(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (!ldk_component_is_registered(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE))
-  {
-    return false;
-  }
-
-  if (s_ldk_mesh_source_has(entity_registry, entity))
-  {
-    return false;
-  }
-
-  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
-  {
-    return false;
-  }
-
-  if (initial_value)
-  {
-    mesh_source = *initial_value;
-  }
-
-  new_mesh_source = (LDKMeshSource*)ldk_entity_add_component(
+  return ldk_entity_add_component(
       entity_registry,
       component_registry,
       entity,
-      LDK_COMPONENT_TYPE_MESH_SOURCE);
-
-  if (!new_mesh_source)
-  {
-    return false;
-  }
-
-  *new_mesh_source = mesh_source;
-
-  ldk_entity_add_internal_flags(
-      entity_registry,
-      entity,
-      LDK_ENTITY_INTERNAL_HAS_RENDERABLE);
-
-  return true;
+      LDK_COMPONENT_TYPE_MESH_SOURCE,
+      initial_value) != NULL;
 }
 
 bool ldk_mesh_source_detach(LDKEntity entity)
 {
   LDKEntityRegistry* entity_registry = NULL;
   LDKComponentRegistry* component_registry = NULL;
-  LDKMeshSource* mesh_source = NULL;
 
   if (!s_ldk_mesh_source_get_modules(&entity_registry, &component_registry))
   {
     return false;
   }
-
-  mesh_source = s_ldk_mesh_source_get_ptr(entity_registry, component_registry, entity);
-  if (!mesh_source)
-  {
-    return false;
-  }
-
-  ldk_entity_remove_internal_flags(
-      entity_registry,
-      entity,
-      LDK_ENTITY_INTERNAL_HAS_RENDERABLE);
 
   return ldk_component_remove_entity(
       component_registry,
