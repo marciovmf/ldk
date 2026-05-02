@@ -1,3 +1,4 @@
+#include "module/ldk_system.h"
 #include <ldk_common.h>
 
 #define X_IMPL_ARENA
@@ -36,11 +37,9 @@
 #include <ldk_event.h>
 #include <ldk_ttf.h>
 #include <module/ldk_asset_manager.h>
-#include <module/ldk_component.h>
-#include <module/ldk_entity.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_eventqueue.h>
 #include <module/ldk_renderer.h>
-#include <module/ldk_system.h>
 #include <module/ldk_ui.h>
 #include <system/ldk_scenegraph.h>
 
@@ -77,14 +76,12 @@ struct LDKRoot
 {
   // Engine Modules
   LDKAssetManager       asset_manager;
-  LDKComponentRegistry  component_registry;
+  LDKECS                ecs;
   LDKConfig             config;
-  LDKEntityRegistry     entity_registry;
   LDKEventQueue         event_queue;
   LDKGame               game;
   LDKRHIContext         rhi;
   LDKRenderer           renderer;
-  LDKSystemRegistry     system_registry;
   LDKUIContext          editor_ui;
   LDKAssetFont          editor_font;
   XLogger               logger;
@@ -139,9 +136,7 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot* e)
 {
   ldk_ui_terminate(&e->editor_ui);
-  ldk_system_registry_terminate(&e->system_registry);
-  ldk_component_registry_terminate(&e->component_registry);
-  ldk_entity_module_terminate(&e->entity_registry);
+  ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
   ldk_asset_manager_terminate(&e->asset_manager);
   ldk_rhi_terminate(&e->rhi);
@@ -417,17 +412,10 @@ bool ldk_engine_is_playing(void)
 void* ldk_module_get(LDKModuleType module_type)
 {
   X_ASSERT(g_engine_initialized);
-
   switch (module_type)
   {
-    case LDK_MODULE_ENTITY:
-      return &g_engine.entity_registry;
-
-    case LDK_MODULE_COMPONENT:
-      return &g_engine.component_registry;
-
-    case LDK_MODULE_SYSTEM:
-      return &g_engine.system_registry;
+    case LDK_MODULE_ECS:
+      return &g_engine.ecs;
 
     case LDK_MODULE_EVENT:
       return &g_engine.event_queue;
@@ -526,21 +514,9 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  if (!ldk_entity_module_initialize(&e->entity_registry, 64, 1))
+  if (!ldk_ecs_initialize(&e->ecs, 64, 1))
   {
-    ldk_log_error("Failed to initialize module: Entity Registry.");
-    engine_init_failed = true;
-  }
-
-  if (!ldk_component_registry_initialize(&e->component_registry))
-  {
-    ldk_log_error("Failed to initialize module: Component Registry.");
-    engine_init_failed = true;
-  }
-
-  if (!ldk_system_registry_initialize(&e->system_registry))
-  {
-    ldk_log_error("Failed to initialize module: System Registry.");
+    ldk_log_error("Failed to initialize module: ECS.");
     engine_init_failed = true;
   }
 
@@ -618,20 +594,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-  if (!ldk_system_registry_register(&e->system_registry, ldk_scenegraph_system_desc()))
-  {
-    ldk_log_error("Failed to register engine system: SceneGraph.");
-    ldk_engine_terminate();
-    return false;
-  }
-
-  if (!ldk_system_registry_start(&e->system_registry))
-  {
-    ldk_log_error("Failed to start system registry.");
-    ldk_engine_terminate();
-    return false;
-  }
-
   ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
 
   e->running = true;
@@ -659,6 +621,13 @@ bool ldk_engine_play_start(void)
     return true;
   }
 
+  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
+  {
+    ldk_log_error("Failed to register engine system: SceneGraph.");
+    ldk_engine_terminate();
+    return false;
+  }
+
   if (!e->game_initialized && e->game.initialize != NULL)
   {
     if (!e->game.initialize(&e->game))
@@ -668,7 +637,16 @@ bool ldk_engine_play_start(void)
     }
 
     e->game_initialized = true;
+
+    if (!ldk_system_registry_start(&e->ecs.system))
+    {
+      ldk_log_error("Failed to start ECS system registry.");
+      ldk_engine_terminate();
+      return false;
+    }
+
   }
+
 
   if (!e->game.start(&e->game))
   {
@@ -757,7 +735,7 @@ void ldk_engine_frame(void)
   ldk_os_keyboard_state_get(&kbd_state);
 #endif
 
-  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
+  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
   {
     ldk_log_error("Failed to run system bucket: PRE_UPDATE.");
     ldk_engine_stop(1);
@@ -769,14 +747,14 @@ void ldk_engine_frame(void)
     e->game.update(&e->game, delta_time);
   }
 
-  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_UPDATE, delta_time))
+  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_UPDATE, delta_time))
   {
     ldk_log_error("Failed to run system bucket: UPDATE.");
     ldk_engine_stop(1);
     return;
   }
 
-  if (!ldk_system_registry_run_bucket(&e->system_registry, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time))
+  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time))
   {
     ldk_log_error("Failed to run system bucket: POST_UPDATE.");
     ldk_engine_stop(1);
@@ -832,9 +810,9 @@ void ldk_engine_terminate(void)
 
   ldk_engine_play_stop();
 
-  if (e->system_registry.is_started)
+  if (e->ecs.system.is_started)
   {
-    ldk_system_registry_stop(&e->system_registry);
+    ldk_system_registry_stop(&e->ecs.system);
   }
 
   if (e->game_initialized && e->game.terminate != NULL)

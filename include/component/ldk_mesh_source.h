@@ -1,30 +1,41 @@
-#ifndef LDK_COMPONENT_MESH_SOURCE_H
-#define LDK_COMPONENT_MESH_SOURCE_H
+/**
+ * @file ldk_mesh_source.h
+ * @brief Mesh source component data.
+ */
 
+#ifndef LDK_MESH_SOURCE_H
+#define LDK_MESH_SOURCE_H
+
+#include <ldk_common.h>
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 
-typedef uintptr_t LDKRendererMeshHandle;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+  typedef uintptr_t LDKRendererMeshHandle;
+
 #define LDK_RENDERER_MESH_INVALID ((LDKRendererMeshHandle)0)
 
-typedef struct LDKMeshSource
-{
-  LDKAssetMesh source_asset;
-  u32 version;
-  uintptr_t renderer_mesh;
-  u32 renderer_version;
-} LDKMeshSource;
+  typedef struct LDKMeshSource
+  {
+    LDKAssetMesh source_asset;
+    u32 version;
+    uintptr_t renderer_mesh;
+    u32 renderer_version;
+  } LDKMeshSource;
 
-LDK_API bool ldk_mesh_source_register(LDKComponentRegistry* registry, u32 initial_capacity);
+  LDK_API bool ldk_mesh_source_set_data(LDKMeshSource* mesh_source, LDKAssetMesh asset);
 
-LDK_API LDKMeshSource ldk_mesh_source_make_default(void);
-LDK_API bool ldk_mesh_source_set_data(LDKMeshSource* mesh_source, LDKAssetMesh asset);
+#ifdef LDK_ENGINE
+  LDK_API LDKComponentDesc ldk_mesh_source_component_desc(u32 initial_capacity);
+#endif // LDK_ENGINE
 
-LDK_API bool ldk_mesh_source_attach(LDKEntity entity, const LDKMeshSource* initial_value);
-LDK_API bool ldk_mesh_source_detach(LDKEntity entity);
-LDK_API bool ldk_mesh_source_get(LDKEntity entity, LDKMeshSource* out_mesh_source);
-LDK_API bool ldk_mesh_source_set(LDKEntity entity, const LDKMeshSource* mesh_source);
-LDK_API bool ldk_mesh_source_set_asset(LDKEntity entity, LDKAssetMesh asset);
+#ifdef __cplusplus
+}
+#endif
 
-#endif //LDK_COMPONENT_MESH_SOURCE_H
+#endif // LDK_MESH_SOURCE_H

@@ -41,7 +41,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/ldk_component.h      module/ldk_component.c
   ${INCLUDE_DIR}/module/ldk_entity.h         module/ldk_entity.c
   ${INCLUDE_DIR}/module/ldk_eventqueue.h     module/ldk_eventqueue.c
-  #${INCLUDE_DIR}/module/ldk_font_cache.h     module/ldk_font_cache.c
+  ${INCLUDE_DIR}/module/ldk_ecs.h            module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h       module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c

@@ -1,50 +1,16 @@
 /*
- * @file  ldk_component_transform.h
+ * @file  ldk_transform.h
  * @brief LDK Transform Component
- * 
+ *
  * Coordinate System Conventions:
- * 
  * - Right-handed coordinate system
  * - +X = right
  * - +Y = up
  * - -Z = forward
- * 
- * Math Conventions (stdx_math):
- * 
- * - Column-major matrices
- * - Column vectors (v' = M * v)
- * - Matrix multiplication: mat4_mul(a, b) = a * b (apply b, then a)
- * 
- * Transform Rules:
- * 
- * - Local transform is defined by (position, rotation, scale) in TRS form
- * - World transform is derived, not stored as authoritative state
- * - Forward movement decreases Z in world space
- * - World matrix is computed as:
- * 
- *     world = parent_world * local
- * 
- * - Root transforms use:
- * 
- *     world = local
- * 
- * - No shear is supported (TRS only)
- * 
- * Hierarchy:
- * 
- * - Transform hierarchy is represented via parent/child/sibling links
- * - Only entities with a transform component may participate in hierarchy
- * - Cycles are forbidden
- * 
- * Direction Conventions:
- * 
- * - Right   = +X
- * - Up      = +Y
- * - Forward = -Z
  */
 
-#ifndef LDK_COMPONENT_TRANSFORM_H
-#define LDK_COMPONENT_TRANSFORM_H
+#ifndef LDK_TRANSFORM_H
+#define LDK_TRANSFORM_H
 
 #include <ldk_common.h>
 #include <module/ldk_entity.h>
@@ -75,11 +41,7 @@ extern "C" {
   } LDKTransform;
 
   LDK_API LDKTransform ldk_transform_make_default(void);
-  LDK_API bool ldk_transform_register(LDKComponentRegistry* registry, u32 initial_capacity);
-  LDK_API bool ldk_transform_attach(LDKEntity entity, const LDKTransform* initial_value);
-  LDK_API bool ldk_transform_detach(LDKEntity entity);
-  LDK_API bool ldk_transform_get(LDKEntity entity, LDKTransform* out_transform);
-  LDK_API bool ldk_transform_set(LDKEntity entity, const LDKTransform* transform);
+
   LDK_API bool ldk_transform_set_local_position(LDKEntity entity, Vec3 position);
   LDK_API bool ldk_transform_set_local_rotation(LDKEntity entity, Quat rotation);
   LDK_API bool ldk_transform_set_local_scale(LDKEntity entity, Vec3 scale);
@@ -91,8 +53,12 @@ extern "C" {
   LDK_API LDKEntity ldk_transform_get_parent(LDKEntity entity);
   LDK_API bool ldk_transform_mark_dirty(LDKEntity entity);
 
+#ifdef LDK_ENGINE
+  LDK_API LDKComponentDesc ldk_transform_component_desc(u32 initial_capacity);
+#endif // LDK_ENGINE
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif // LDK_TRANSFORM_H

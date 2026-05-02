@@ -552,7 +552,8 @@ bool ldk_asset_manager_mesh_is_alive(LDKAssetManager* manager, LDKAssetMesh asse
   return ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_MESH;
 }
 
-LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager, const LDKMeshVertex* vertices, u32 vertex_count, const u32* indices, u32 index_count)
+LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager,
+    const LDKMeshVertex* vertices, u32 vertex_count, const u32* indices, u32 index_count)
 {
   LDKAssetMesh result = ldk_asset_mesh_null();
 

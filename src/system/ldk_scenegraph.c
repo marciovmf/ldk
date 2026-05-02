@@ -1,25 +1,20 @@
 #include <system/ldk_scenegraph.h>
 #include <component/ldk_transform.h>
-#include <ldk.h>
+#include <module/ldk_ecs.h>
 
 static bool s_scenegraph_update_subtree(
-    LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry,
     LDKEntity entity,
     Mat4 parent_world,
     int has_parent)
 {
-  LDKComponentRef ref = {0};
   LDKTransform* transform = NULL;
   Mat4 local_matrix = {0};
   LDKEntity child = {0};
 
-  if (!ldk_entity_get_component_ref(entity_registry, entity, LDK_COMPONENT_TYPE_TRANSFORM, &ref))
-  {
-    return false;
-  }
+  transform = (LDKTransform*)ldk_ecs_get_component(
+      entity,
+      LDK_COMPONENT_TYPE_TRANSFORM);
 
-  transform = (LDKTransform*)ldk_component_ref_get(entity_registry, component_registry, ref);
   if (!transform)
   {
     return false;
@@ -44,28 +39,25 @@ static bool s_scenegraph_update_subtree(
 
   while (!x_handle_is_null(child))
   {
-    LDKComponentRef child_ref = {0};
     const LDKTransform* child_transform = NULL;
     LDKEntity next_child = {0};
 
-    if (!ldk_entity_get_component_ref(entity_registry, child, LDK_COMPONENT_TYPE_TRANSFORM, &child_ref))
-    {
-      break;
-    }
+    child_transform = (const LDKTransform*)ldk_ecs_get_component_const(
+        child,
+        LDK_COMPONENT_TYPE_TRANSFORM);
 
-    child_transform = (const LDKTransform*)ldk_component_ref_get_const(entity_registry, component_registry, child_ref);
     if (!child_transform)
     {
       break;
     }
 
     next_child = child_transform->next_sibling;
+
     s_scenegraph_update_subtree(
-        entity_registry,
-        component_registry,
         child,
         transform->world_matrix,
         1);
+
     child = next_child;
   }
 
@@ -75,28 +67,25 @@ static bool s_scenegraph_update_subtree(
 bool ldk_scenegraph_update(float dt)
 {
   LDKComponentRegistry* component_registry = NULL;
-  LDKEntityRegistry* entity_registry = NULL;
   XArray* owners = NULL;
   XArray* store = NULL;
   u32 i = 0;
 
   (void)dt;
 
-  if (!ldk_engine_is_initialized())
+  component_registry = ldk_ecs_component_registry();
+  if (!component_registry)
   {
     return false;
   }
 
-  entity_registry = (LDKEntityRegistry*)ldk_module_get(LDK_MODULE_ENTITY);
-  component_registry = (LDKComponentRegistry*)ldk_module_get(LDK_MODULE_COMPONENT);
+  store = ldk_component_get_store(
+      component_registry,
+      LDK_COMPONENT_TYPE_TRANSFORM);
 
-  if (!entity_registry || !component_registry)
-  {
-    return false;
-  }
-
-  store = ldk_component_get_store(component_registry, LDK_COMPONENT_TYPE_TRANSFORM);
-  owners = ldk_component_get_owners(component_registry, LDK_COMPONENT_TYPE_TRANSFORM);
+  owners = ldk_component_get_owners(
+      component_registry,
+      LDK_COMPONENT_TYPE_TRANSFORM);
 
   if (!store || !owners)
   {
@@ -127,8 +116,6 @@ bool ldk_scenegraph_update(float dt)
     }
 
     s_scenegraph_update_subtree(
-        entity_registry,
-        component_registry,
         *entity_ptr,
         mat4_identity(),
         0);

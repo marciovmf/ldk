@@ -45,12 +45,10 @@ extern "C" {
   typedef enum LDKModuleType
   {
     LDK_MODULE_ASSET_MANAGER,
-    LDK_MODULE_COMPONENT,
-    LDK_MODULE_ENTITY,
+    LDK_MODULE_ECS,
     LDK_MODULE_EVENT,
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
-    LDK_MODULE_SYSTEM,
     LDK_MODULE_UI,
   } LDKModuleType;
 
@@ -72,7 +70,6 @@ extern "C" {
     i32       width;
     i32       height;
     bool      fullscreen;
-
   } LDKConfig;
 
   LDK_API bool  ldk_engine_initialize(const LDKGame* game, const char* config_ini_path);

@@ -568,7 +568,6 @@ bool ldk_system_registry_start(LDKSystemRegistry* registry)
     return false;
   }
 
-
   for (i = 0; i < x_array_LDKRegisteredSystem_count(internal->systems); ++i)
   {
     LDKRegisteredSystem* system;
