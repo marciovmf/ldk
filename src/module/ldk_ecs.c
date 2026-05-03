@@ -1,3 +1,4 @@
+#include "module/ldk_system.h"
 #include <module/ldk_ecs.h>
 #include <ldk.h>
 
@@ -227,14 +228,29 @@ bool ldk_ecs_unregister_system(u64 id)
   return ldk_system_registry_unregister(system_registry, id);
 }
 
-bool ldk_ecs_run_system_bucket(LDKSystemBucket bucket, float dt)
+#ifdef LDK_ENGINE
+bool ldk_ecs_system_registry_start(LDKECS* context)
 {
-  LDKSystemRegistry* system_registry = s_ecs_system_registry();
+  return ldk_system_registry_start(&context->system);
+}
+#endif
 
-  if (!system_registry)
+#ifdef LDK_ENGINE
+bool ldk_ecs_system_registry_stop(LDKECS* context)
+{
+  return ldk_system_registry_stop(&context->system);
+}
+#endif
+
+#ifdef LDK_ENGINE
+bool ldk_ecs_system_registry_run_bucket(LDKECS* context, LDKSystemBucket bucket, float dt)
+{
+  if (!context || !context->system.is_started)
   {
     return false;
   }
 
-  return ldk_system_registry_run_bucket(system_registry, bucket, dt);
+  return ldk_system_registry_run_bucket(&context->system, bucket, dt);
 }
+#endif
+

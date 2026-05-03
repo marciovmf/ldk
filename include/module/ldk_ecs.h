@@ -38,10 +38,16 @@ typedef struct LDKECS
       u32 initial_capacity, LDKComponentAttachFn attach, LDKComponentDestroyFn destroy, void* user);
   LDK_API bool ldk_ecs_register_system(const LDKSystemDesc* desc);
   LDK_API bool ldk_ecs_unregister_system(u64 id);
-  LDK_API bool ldk_ecs_run_system_bucket(LDKSystemBucket bucket, float dt);
+
   LDK_API LDKEntityRegistry* ldk_ecs_entity_registry(void);
   LDK_API LDKComponentRegistry* ldk_ecs_component_registry(void);
   LDK_API LDKSystemRegistry* ldk_ecs_system_registry(void);
+
+#ifdef LDK_ENGINE
+  LDK_API bool ldk_ecs_system_registry_start(LDKECS* context);
+  LDK_API bool ldk_ecs_system_registry_run_bucket(LDKECS* context, LDKSystemBucket bucket, float delta_time);
+  LDK_API bool ldk_ecs_system_registry_stop(LDKECS* context);
+#endif
 
 #ifdef __cplusplus
 }

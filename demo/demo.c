@@ -46,21 +46,18 @@ bool game_start(LDKGame* game)
   return true;
 }
 
-bool game_update(LDKGame* game, float delta_time)
+void game_update(LDKGame* game, float delta_time)
 {
-  return true;
 }
 
-bool game_terminate(LDKGame* game)
+void game_terminate(LDKGame* game)
 {
   ldk_log_info("Game terminate\n");
-  return true;
 }
 
-bool game_stop(LDKGame* game)
+void game_stop(LDKGame* game)
 {
   ldk_log_info("Game stop\n");
-  return true;
 }
 
 i32 run_game(const char* ini_file_path)

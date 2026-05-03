@@ -70,8 +70,6 @@
 #define LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY 16
 #endif
 
-
-
 struct LDKRoot
 {
   // Engine Modules
@@ -101,6 +99,12 @@ static bool g_engine_initialized = false;
 static volatile sig_atomic_t g_handling_signal = 0;
 static volatile sig_atomic_t g_signal_requested_stop = 0;
 static volatile sig_atomic_t g_last_signal = 0;
+
+bool s_stub_game_initialize(LDKGame* game) { return true; }
+bool s_stub_game_start(LDKGame* game) { return true; }
+void s_stub_game_update(LDKGame* game, float delta_time) { }
+void s_stub_game_terminate(LDKGame* game) { }
+void s_stub_game_stop(LDKGame* game) { }
 
 static void s_log_signal_info(i32 signal)
 {
@@ -480,6 +484,12 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     e->game = *game;
   }
 
+  // Asssign stub functions for unregistered game callbacks
+  if (!e->game.initialize) e->game.initialize = s_stub_game_initialize;
+  if (!e->game.start) e->game.start = s_stub_game_start;
+  if (!e->game.stop) e->game.stop = s_stub_game_stop;
+  if (!e->game.terminate) e->game.terminate = s_stub_game_terminate;
+
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
   x_log_info(&e->logger, "========= LDK v%d.%d.%d =========\n", LDK_VERSION_MAJOR, LDK_VERSION_MINOR, LDK_VERSION_PATCH);
 
@@ -517,6 +527,12 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   if (!ldk_ecs_initialize(&e->ecs, 64, 1))
   {
     ldk_log_error("Failed to initialize module: ECS.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_system_registry_register(&e->ecs.system, ldk_scenegraph_system_desc()))
+  {
+    ldk_log_error("Failed to register engine system: SceneGraph.");
     engine_init_failed = true;
   }
 
@@ -614,21 +630,13 @@ bool ldk_engine_play_start(void)
   LDKRoot* e = &g_engine;
 
   X_ASSERT(g_engine_initialized);
-  X_ASSERT(g_engine.game.start != NULL);
 
   if (e->playing)
   {
     return true;
   }
 
-  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
-  {
-    ldk_log_error("Failed to register engine system: SceneGraph.");
-    ldk_engine_terminate();
-    return false;
-  }
-
-  if (!e->game_initialized && e->game.initialize != NULL)
+  if (!e->game_initialized)
   {
     if (!e->game.initialize(&e->game))
     {
@@ -637,16 +645,16 @@ bool ldk_engine_play_start(void)
     }
 
     e->game_initialized = true;
-
-    if (!ldk_system_registry_start(&e->ecs.system))
-    {
-      ldk_log_error("Failed to start ECS system registry.");
-      ldk_engine_terminate();
-      return false;
-    }
-
   }
 
+  if (!e->ecs.system.is_started)
+  {
+    if (!ldk_ecs_system_registry_start(&e->ecs))
+    {
+      ldk_log_error("Failed to start ECS system registry.");
+      return false;
+    }
+  }
 
   if (!e->game.start(&e->game))
   {
@@ -669,11 +677,7 @@ void ldk_engine_play_stop(void)
     return;
   }
 
-  if (e->game.stop != NULL)
-  {
-    e->game.stop(&e->game);
-  }
-
+  e->game.stop(&e->game);
   e->playing = false;
   e->previous_ticks = 0;
 }
@@ -735,31 +739,16 @@ void ldk_engine_frame(void)
   ldk_os_keyboard_state_get(&kbd_state);
 #endif
 
-  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time))
-  {
-    ldk_log_error("Failed to run system bucket: PRE_UPDATE.");
-    ldk_engine_stop(1);
-    return;
-  }
+  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
 
-  if (e->playing && e->game.update != NULL)
+  if (e->playing)
   {
     e->game.update(&e->game, delta_time);
   }
 
-  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_UPDATE, delta_time))
-  {
-    ldk_log_error("Failed to run system bucket: UPDATE.");
-    ldk_engine_stop(1);
-    return;
-  }
+  ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
+  ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
 
-  if (!ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time))
-  {
-    ldk_log_error("Failed to run system bucket: POST_UPDATE.");
-    ldk_engine_stop(1);
-    return;
-  }
 
   event.type = LDK_EVENT_TYPE_RENDER_BEFORE;
   event.frameEvent.ticks = current_ticks;
@@ -815,7 +804,7 @@ void ldk_engine_terminate(void)
     ldk_system_registry_stop(&e->ecs.system);
   }
 
-  if (e->game_initialized && e->game.terminate != NULL)
+  if (e->game_initialized)
   {
     e->game.terminate(&e->game);
     e->game_initialized = false;
