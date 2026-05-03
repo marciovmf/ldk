@@ -3,6 +3,7 @@
 
 #include <ldk_common.h>
 #include <ldk_ttf.h>
+#include <ldk_image.h>
 #include <ldk_mesh.h>
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_filesystem.h>
@@ -25,10 +26,6 @@ extern "C" {
     XHandle h;
   } LDKAssetHandle;
 
-  typedef struct LDKAssetImage
-  {
-    XHandle h;
-  } LDKAssetImage;
 
   typedef struct LDKAssetInfo
   {
@@ -92,6 +89,47 @@ extern "C" {
 
 
   // ---------------------------------------------------------------------------
+  // Image
+  // ---------------------------------------------------------------------------
+
+  typedef struct LDKAssetImage
+  {
+    XHandle h;
+  } LDKAssetImage;
+
+  typedef struct LDKAssetImageData
+  {
+    LDKImage* image;
+  } LDKAssetImageData;
+
+  LDKAssetImage ldk_asset_image_null(void);
+
+
+  LDK_API bool ldk_asset_manager_image_is_alive(LDKAssetManager* manager, LDKAssetImage asset);
+
+  LDK_API LDKAssetImage ldk_asset_manager_image_create(
+      LDKAssetManager* manager,
+      u32 width,
+      u32 height,
+      const void* pixels);
+
+  LDK_API LDKAssetImage ldk_asset_manager_image_load(
+      LDKAssetManager* manager,
+      const char* path);
+
+  LDK_API void ldk_asset_manager_image_unload(
+      LDKAssetManager* manager,
+      LDKAssetImage asset);
+
+  LDK_API LDKAssetImageData* ldk_asset_manager_image_get(
+      LDKAssetManager* manager,
+      LDKAssetImage asset);
+
+  LDK_API const LDKAssetImageData* ldk_asset_manager_image_get_const(
+      LDKAssetManager* manager,
+      LDKAssetImage asset);
+
+  // ---------------------------------------------------------------------------
   // Font asset
   // ---------------------------------------------------------------------------
 
@@ -113,12 +151,6 @@ extern "C" {
   LDK_API LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset);
   LDK_API const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset);
 
-
-  // ---------------------------------------------------------------------------
-  // Image
-  // ---------------------------------------------------------------------------
-
-  LDKAssetImage ldk_asset_image_null(void);
 
 
   // ---------------------------------------------------------------------------
