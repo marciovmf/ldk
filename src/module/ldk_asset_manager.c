@@ -53,6 +53,20 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
       free(data);
     }
   }
+  else if (info->type == LDK_ASSET_TYPE_IMAGE)
+  {
+    LDKAssetImageData* data = (LDKAssetImageData*)info->data;
+
+    if (data)
+    {
+      if (data->image)
+      {
+        ldk_image_destroy(data->image);
+      }
+
+      free(data);
+    }
+  }
   else if (info->type == LDK_ASSET_TYPE_MESH)
   {
     LDKAssetMeshData* data = (LDKAssetMeshData*)info->data;
@@ -61,6 +75,9 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
     {
       free(data->mesh.vertices);
       free(data->mesh.indices);
+
+
+
       free(data);
     }
   }
@@ -130,18 +147,6 @@ LDKAssetHandle ldk_asset_handle_null(void)
   return s_asset_handle_from_x(x_handle_null());
 }
 
-
-LDKAssetFont ldk_asset_font_null(void)
-{
-  LDKAssetFont out = { x_handle_null() };
-  return out;
-}
-
-LDKAssetMesh ldk_asset_mesh_null(void)
-{
-  LDKAssetMesh out = { x_handle_null() };
-  return out;
-}
 
 bool ldk_asset_handle_is_alive(LDKAssetManager* manager, LDKAssetHandle asset)
 {
@@ -367,6 +372,182 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
   return ldk_asset_manager_text_file_get(manager, asset);
 }
 
+
+// ---------------------------------------------------------------------------
+// Image asset
+// ---------------------------------------------------------------------------
+
+static LDKAssetImage s_ldk_asset_image_from_handle(XHandle h)
+{
+  LDKAssetImage out = { h };
+  return out;
+}
+
+LDKAssetImage ldk_asset_image_null(void)
+{
+  LDKAssetImage out = { x_handle_null() };
+  return out;
+}
+
+bool ldk_asset_manager_image_is_alive(LDKAssetManager* manager, LDKAssetImage asset)
+{
+  LDKAssetHandle generic = { asset.h };
+
+  if (!ldk_asset_handle_is_alive(manager, generic))
+  {
+    return false;
+  }
+
+  return ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_IMAGE;
+}
+
+LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width, u32 height, const void* pixels)
+{
+  LDKAssetImage result = ldk_asset_image_null();
+
+  if (!manager || !pixels)
+  {
+    return result;
+  }
+
+  LDKImage* image = ldk_image_create(width, height, pixels);
+
+  if (!image)
+  {
+    return result;
+  }
+
+  LDKAssetImageData* image_data = malloc(sizeof(LDKAssetImageData));
+
+  if (!image_data)
+  {
+    ldk_image_destroy(image);
+    return result;
+  }
+
+  image_data->image = image;
+
+  XHandle h = x_hpool_alloc(&manager->pool);
+
+  if (x_handle_is_null(h))
+  {
+    ldk_image_destroy(image);
+    free(image_data);
+    return result;
+  }
+
+  LDKAssetInfo* info = x_hpool_get(&manager->pool, h);
+
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, h);
+    ldk_image_destroy(image);
+    free(image_data);
+    return result;
+  }
+
+  info->type = LDK_ASSET_TYPE_IMAGE;
+  info->data = image_data;
+
+#ifdef LDK_DEBUG
+  info->asset_path.buf[0] = 0;
+  info->asset_path.length = 0;
+  info->load_timestamp = (u64)time(NULL);
+#endif
+
+  return s_ldk_asset_image_from_handle(h);
+}
+
+LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char* path)
+{
+  LDKAssetImage result = ldk_asset_image_null();
+
+  if (!manager || !path)
+  {
+    return result;
+  }
+
+  LDKImage* image = ldk_image_load(path);
+
+  if (!image)
+  {
+    return result;
+  }
+
+  LDKAssetImageData* image_data = malloc(sizeof(LDKAssetImageData));
+
+  if (!image_data)
+  {
+    ldk_image_destroy(image);
+    return result;
+  }
+
+  image_data->image = image;
+
+  XHandle h = x_hpool_alloc(&manager->pool);
+
+  if (x_handle_is_null(h))
+  {
+    ldk_image_destroy(image);
+    free(image_data);
+    return result;
+  }
+
+  LDKAssetInfo* info = x_hpool_get(&manager->pool, h);
+
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, h);
+    ldk_image_destroy(image);
+    free(image_data);
+    return result;
+  }
+
+  info->type = LDK_ASSET_TYPE_IMAGE;
+  info->data = image_data;
+
+#ifdef LDK_DEBUG
+  x_fs_path_set(&info->asset_path, path);
+  info->load_timestamp = (u64)time(NULL);
+#endif
+
+  return s_ldk_asset_image_from_handle(h);
+}
+
+void ldk_asset_manager_image_unload(LDKAssetManager* manager, LDKAssetImage asset)
+{
+  if (!manager)
+  {
+    return;
+  }
+
+  if (!ldk_asset_manager_image_is_alive(manager, asset))
+  {
+    return;
+  }
+
+  x_hpool_free(&manager->pool, asset.h);
+}
+
+LDKAssetImageData* ldk_asset_manager_image_get(LDKAssetManager* manager, LDKAssetImage asset)
+{
+  LDKAssetHandle generic = { asset.h };
+  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
+
+  if (!info || info->type != LDK_ASSET_TYPE_IMAGE)
+  {
+    return NULL;
+  }
+
+  return (LDKAssetImageData*)info->data;
+}
+
+const LDKAssetImageData* ldk_asset_manager_image_get_const(LDKAssetManager* manager, LDKAssetImage asset)
+{
+  return ldk_asset_manager_image_get(manager, asset);
+}
+
+
 // ---------------------------------------------------------------------------
 // Font asset
 // ---------------------------------------------------------------------------
@@ -374,6 +555,12 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
 static LDKAssetFont s_asset_font_from_handle(XHandle h)
 {
   LDKAssetFont out = { h };
+  return out;
+}
+
+LDKAssetFont ldk_asset_font_null(void)
+{
+  LDKAssetFont out = { x_handle_null() };
   return out;
 }
 
@@ -521,22 +708,18 @@ const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manage
 }
 
 // ---------------------------------------------------------------------------
-// Image asset
-// ---------------------------------------------------------------------------
-
-LDKAssetImage ldk_asset_image_null(void)
-{
-  LDKAssetImage out = { x_handle_null() };
-  return out;
-}
-
-// ---------------------------------------------------------------------------
 // Mesh asset
 // ---------------------------------------------------------------------------
-//
+
 static LDKAssetMesh s_asset_mesh_from_handle(XHandle h)
 {
   LDKAssetMesh out = { h };
+  return out;
+}
+
+LDKAssetMesh ldk_asset_mesh_null(void)
+{
+  LDKAssetMesh out = { x_handle_null() };
   return out;
 }
 
