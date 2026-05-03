@@ -243,7 +243,7 @@ bool ldk_ecs_system_registry_stop(LDKECS* context)
 #endif
 
 #ifdef LDK_ENGINE
-bool ldk_ecs_system_registry_run_bucket(LDKECS* context, LDKSystemBucket bucket, float dt)
+bool ldk_ecs_run_system_bucket(LDKECS* context, LDKSystemBucket bucket, float dt)
 {
   if (!context || !context->system.is_started)
   {

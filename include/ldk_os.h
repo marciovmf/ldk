@@ -19,53 +19,31 @@
 extern "C" {
 #endif
 
-  typedef enum
-  {
-    FILE_OPEN_FLAG_READ		= 1,
-    FILE_OPEN_FLAG_WRITE	= 1 << 1,
-  } LDKFileOpenFlags;
-
-  //
+  // ---------------------------------------------------------------------------
   // Initialization / Termination
-  //
+  // ---------------------------------------------------------------------------
   LDK_API bool ldk_os_initialize(void);
   LDK_API void ldk_os_terminate(void);
   LDK_API void ldk_os_stack_trace_print(void);
 
-  //
+  // ---------------------------------------------------------------------------
   // Memory
-  //
+  // ---------------------------------------------------------------------------
   LDK_API void*   ldk_os_memory_alloc(size_t size);
   LDK_API void    ldk_os_memory_free(void* memory);
   LDK_API void*   ldk_os_memory_resize(void* memory, size_t size);
 
-  //
+  // ---------------------------------------------------------------------------
   // Time
-  //
+  // ---------------------------------------------------------------------------
   LDK_API u64  ldk_os_time_ticks_get(void);
   LDK_API double  ldk_os_time_ticks_interval_get_seconds(u64 start, u64 end);
   LDK_API double  ldk_os_time_ticks_interval_get_milliseconds(u64 start, u64 end);
   LDK_API double  ldk_os_time_ticks_interval_get_nanoseconds(u64 start, u64 end);
 
-  //
-  // System Date and Time
-  //
-  typedef struct {
-    u16 year;
-    u16 month;
-    u16 dayOfWeek;
-    u16 day;
-    u16 hour;
-    u16 minute;
-    u16 second;
-    u16 milliseconds;
-  } LDKDateTime;
-
-  LDK_API void ldk_os_system_date_time_get(LDKDateTime* outDateTime);
-
-  //
+  // ---------------------------------------------------------------------------
   // Windowing
-  //
+  // ---------------------------------------------------------------------------
   typedef enum
   {
 
@@ -93,27 +71,36 @@ extern "C" {
   LDK_API void      ldk_os_window_title_set(LDKWindow window, const char* title);
   LDK_API size_t    ldk_os_window_title_get(LDKWindow window, XSmallstr* outTitle);
   LDK_API bool      ldk_os_window_icon_set(LDKWindow window, const char* iconPath);
+  /**
+   * Show or hide a window.
+   * @param window The LDK window to show or hide.
+   * @param show true to show, false to hide the window.
+   * @return
+   *  If the window was previously visible, the return value is nonzero.
+   *  If the window was previously hidden, the return value is zero.
+   */
+  LDK_API bool ldk_os_window_show(LDKWindow window, bool show);
 
-  //
+  // ---------------------------------------------------------------------------
   // Graphics
-  //
+  // ---------------------------------------------------------------------------
   typedef void* LDKGCtx;
-  LDK_API LDKGCtx ldk_os_graphics_context_opengl_create(i32 versionMajor, i32 versionMinor, i32 colorBits, i32 depthBits);
-  LDK_API LDKGCtx ldk_os_graphics_context_opengles_create(i32 versionMajor, i32 versionMinor, i32 colorBits, i32 depthBits);
+  LDK_API LDKGCtx ldk_os_graphics_context_opengl_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
+  LDK_API LDKGCtx ldk_os_graphics_context_opengles_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
   LDK_API void    ldk_os_graphics_context_current(LDKWindow window, LDKGCtx context);
   LDK_API void    ldk_os_graphics_context_destroy(LDKGCtx context);
   LDK_API bool    ldk_os_graphics_vsync_set(bool vsync);
   LDK_API i32     ldk_os_graphics_vsync_get(void);
 
-  //
+  // ---------------------------------------------------------------------------
   // Misc
-  //
+  // ---------------------------------------------------------------------------
   LDK_API size_t ldk_os_executable_path_get(XFSPath* ldk_path);
   LDK_API size_t ldk_os_executable_path_file_name_get(XFSPath* ldk_path);
 
-  //
+  // ---------------------------------------------------------------------------
   // Mouse
-  //
+  // ---------------------------------------------------------------------------
   typedef enum
   {
     LDK_MOUSE_BUTTON_LEFT     = 0,
@@ -130,9 +117,9 @@ extern "C" {
   // LDKMouseState
   typedef struct 
   {
-    i32 wheelDelta;
+    i32 wheel_delta;
     LDKPoint cursor;
-    LDKPoint cursorRelative;
+    LDKPoint cursor_relative;
     unsigned char button[LDK_MOUSE_MAX_BUTTONS];
   } LDKMouseState;
 
@@ -144,9 +131,9 @@ extern "C" {
   LDK_API LDKPoint ldk_os_mouse_cursor(LDKMouseState* state);
   LDK_API LDKPoint ldk_os_mouse_cursor_relative(LDKMouseState* state);
 
-  //
+  // ---------------------------------------------------------------------------
   // Keyboard
-  //
+  // ---------------------------------------------------------------------------
 #define LDK_KEYBOARD_KEYCODES \
   X(LDK_KEYCODE_INVALID, "", 0x00) \
   X(LDK_KEYCODE_BACKSPACE, "BACK", 0x08) \
@@ -294,9 +281,9 @@ extern "C" {
   LDK_API bool ldk_os_keyboard_key_up(LDKKeyboardState* state, LDKKeycode keycode);       // True in the frame the key was released
 
 
-  //
+  // ---------------------------------------------------------------------------
   // Joystick
-  //
+  // ---------------------------------------------------------------------------
 #define LDK_JOYSTICK_BUTTONS \
   X(LDK_JOYSTICK_BUTTON_DPAD_UP,     "LDK_JOYSTICK_BUTTON_DPAD_UP",   0x00) \
   X(LDK_JOYSTICK_BUTTON_DPAD_DOWN,   "LDK_JOYSTICK_BUTTON_DPAD_DOWN", 0x01) \
@@ -366,7 +353,7 @@ extern "C" {
   } LDKJoystickState;
 
 
-  LDK_API void ldk_os_joystick_get_state(LDKJoystickState* outState, LDKJoystickID id);
+  LDK_API void ldk_os_joystick_state_get(LDKJoystickState* outState, LDKJoystickID id);
   LDK_API bool ldk_os_joystick_button_is_pressed(LDKJoystickState* state, LDKJoystickButton key);
   LDK_API bool ldk_os_joystick_button_down(LDKJoystickState* state, LDKJoystickButton key);
   LDK_API bool ldk_os_joystick_button_up(LDKJoystickState* state, LDKJoystickButton key);
@@ -377,18 +364,8 @@ extern "C" {
   LDK_API void ldk_os_joystick_vibration_left_set(LDKJoystickID id, float speed);
   LDK_API void ldk_os_joystick_vibration_right_set(LDKJoystickID id, float speed);
 
+  LDK_API float ldk_os_joystick_vibration_left_get(LDKJoystickID id);
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
-  LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
-
-  /**
-   * Show or hide a window.
-   * @param window The LDK window to show or hide.
-   * @param show true to show, false to hide the window.
-   * @return
-   *  If the window was previously visible, the return value is nonzero.
-   *  If the window was previously hidden, the return value is zero.
-   */
-  LDK_API bool ldk_os_window_show(LDKWindow window, bool show);
 
 #ifdef __cplusplus
 }

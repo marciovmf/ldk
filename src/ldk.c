@@ -95,11 +95,12 @@ static volatile sig_atomic_t g_handling_signal = 0;
 static volatile sig_atomic_t g_signal_requested_stop = 0;
 static volatile sig_atomic_t g_last_signal = 0;
 
-bool s_stub_game_initialize(LDKGame* game) { return true; }
-bool s_stub_game_start(LDKGame* game) { return true; }
-void s_stub_game_update(LDKGame* game, float delta_time) { }
-void s_stub_game_terminate(LDKGame* game) { }
-void s_stub_game_stop(LDKGame* game) { }
+// Stub game callbacks
+static bool s_stub_game_initialize(LDKGame* game) { return true; }
+static bool s_stub_game_start(LDKGame* game) { return true; }
+static void s_stub_game_update(LDKGame* game, float delta_time) { }
+static void s_stub_game_terminate(LDKGame* game) { }
+static void s_stub_game_stop(LDKGame* game) { }
 
 static void s_log_signal_info(i32 signal)
 {
@@ -230,11 +231,11 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
 static LDKUITextInputState ui_text_input = {0};
 static bool s_on_text_event(const LDKEvent* event, void* state)
 {
-  if (event->textEvent.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
+  if (event->text_event.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
   {
     if (ui_text_input.codepoint_count < LDK_UI_INPUT_CODEPOINTS_CAPACITY)
     {
-      ui_text_input.codepoints[ui_text_input.codepoint_count++] = event->textEvent.character;
+      ui_text_input.codepoints[ui_text_input.codepoint_count++] = event->text_event.character;
       return true;
     }
   }
@@ -527,12 +528,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
-  {
-    ldk_log_error("Failed to register engine system: SceneGraph.");
-    engine_init_failed = true;
-  }
-
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
@@ -614,6 +609,14 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   LDK_ASSERT(!e->game_initialized);
   LDK_ASSERT(!e->ecs.system.is_started);
 
+  // Initialize SceneGraph system
+  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
+  {
+    ldk_log_error("Failed to register engine system: SceneGraph.");
+    engine_init_failed = true;
+  }
+
+  // Initialize game
   if (!e->game.initialize(&e->game))
   {
     ldk_log_error("Failed to initialize game module.");
@@ -630,7 +633,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   if (engine_init_failed)
   {
-    s_terminate_all_modules(e);
+    ldk_engine_terminate();
     return false;
   }
 
@@ -722,7 +725,6 @@ void ldk_engine_frame(void)
 
   delta_time = (float) ldk_os_time_ticks_interval_get_milliseconds(e->previous_ticks, current_ticks) / 1000.0f;
   e->previous_ticks = current_ticks;
-
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
 
 #ifdef LDK_EDITOR
@@ -737,19 +739,23 @@ void ldk_engine_frame(void)
   ldk_os_keyboard_state_get(&kbd_state);
 #endif
 
-  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
-  if (e->playing) { e->game.update(&e->game, delta_time); }
-  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
-  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
+  { // Update simulation
+    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
+    if (e->playing)
+    {
+      e->game.update(&e->game, delta_time);
+    }
+    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
+    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
+  }
 
   event.type = LDK_EVENT_TYPE_RENDER_BEFORE;
-  event.frameEvent.ticks = current_ticks;
-  event.frameEvent.deltaTime = delta_time;
+  event.frame_event.ticks = current_ticks;
+  event.frame_event.delta_time = delta_time;
   ldk_event_push(&e->event_queue, &event);
   ldk_event_queue_broadcast(&e->event_queue);
 
-  /* render scene/game view here */
-  {
+  { // Render scene/game
 
 #ifdef LDK_EDITOR
     /* render editor overlays, gizmos and tool UI here */
@@ -770,10 +776,9 @@ void ldk_engine_frame(void)
     ldk_renderer_render_frame(&e->renderer, &frame_desc);
   }
 
-
   event.type = LDK_EVENT_TYPE_RENDER_AFTER;
-  event.frameEvent.ticks = current_ticks;
-  event.frameEvent.deltaTime = delta_time;
+  event.frame_event.ticks = current_ticks;
+  event.frame_event.delta_time = delta_time;
   ldk_event_push(&e->event_queue, &event);
   ldk_event_queue_broadcast(&e->event_queue);
 
@@ -791,7 +796,11 @@ void ldk_engine_terminate(void)
 
   // Stop game
   ldk_engine_play_stop();
-  if (e->game_initialized) e->game.terminate(&e->game);
+  if (e->game_initialized)
+  {
+    e->game.terminate(&e->game);
+  }
+
   e->game_initialized = false;
 
   // Stop engine modules

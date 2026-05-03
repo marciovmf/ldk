@@ -77,9 +77,9 @@ typedef struct
 {
   LDKEventType type;
   u32 keyCode; 
-  bool ctrlIsDown;
-  bool shiftIsDown;
-  bool altIsDown;
+  bool ctrl_is_down;
+  bool shift_is_down;
+  bool alt_is_down;
 } LDKKeyboardEvent;
 
 // LDKMouseEvent
@@ -93,8 +93,8 @@ typedef struct
 
   union
   {
-    i32 wheelDelta;
-    i32 mouseButton;
+    i32 wheel_delta;
+    i32 mouse_button;
   };
 
 } LDKMouseEvent;
@@ -103,7 +103,7 @@ typedef struct
 typedef struct
 {
   u64 ticks;
-  float deltaTime;
+  float delta_time;
 } LDKFrameEvent;
 
 // LDKEvent
@@ -113,11 +113,11 @@ typedef struct
   LDKEventType type;
   union
   {
-    LDKTextEvent        textEvent;
-    LDKWindowEvent      windowEvent;
-    LDKKeyboardEvent    keyboardEvent;
-    LDKMouseEvent       mouseEvent;
-    LDKFrameEvent       frameEvent;
+    LDKTextEvent        text_event;
+    LDKWindowEvent      window_event;
+    LDKKeyboardEvent    keyboard_event;
+    LDKMouseEvent       mouse_event;
+    LDKFrameEvent       frame_event;
   };
 } LDKEvent;
 

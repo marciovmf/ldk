@@ -45,7 +45,7 @@ typedef struct LDKECS
 
 #ifdef LDK_ENGINE
   LDK_API bool ldk_ecs_system_registry_start(LDKECS* context);
-  LDK_API bool ldk_ecs_system_registry_run_bucket(LDKECS* context, LDKSystemBucket bucket, float delta_time);
+  LDK_API bool ldk_ecs_run_system_bucket(LDKECS* context, LDKSystemBucket bucket, float delta_time);
   LDK_API bool ldk_ecs_system_registry_stop(LDKECS* context);
 #endif
 

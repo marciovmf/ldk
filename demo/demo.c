@@ -22,7 +22,7 @@ const char* game_data = NULL;
 
 bool on_window_event(const LDKEvent* event, void* state)
 {
-  if (event->windowEvent.type == LDK_WINDOW_EVENT_CLOSE)
+  if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
     ldk_log_info("Closing game window\n");
     ldk_engine_stop(0);
