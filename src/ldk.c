@@ -33,13 +33,9 @@
 #include <ldk.h>
 #include <ldk_os.h>
 #include <ldk_game.h>
-#include <ldk_event.h>
-#include <ldk_ttf.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
-#include <module/ldk_eventqueue.h>
 #include <module/ldk_renderer.h>
-#include <module/ldk_ui.h>
 #include <system/ldk_scenegraph.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
@@ -138,6 +134,7 @@ static void s_on_signal(i32 signal)
 
 static void s_terminate_all_modules(LDKRoot* e)
 {
+  ldk_ecs_system_registry_stop(&e->ecs);
   ldk_ui_terminate(&e->editor_ui);
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
@@ -530,7 +527,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  if (!ldk_system_registry_register(&e->ecs.system, ldk_scenegraph_system_desc()))
+  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
   {
     ldk_log_error("Failed to register engine system: SceneGraph.");
     engine_init_failed = true;
@@ -792,21 +789,15 @@ void ldk_engine_terminate(void)
     return;
   }
 
+  // Stop game
   ldk_engine_play_stop();
+  if (e->game_initialized) e->game.terminate(&e->game);
+  e->game_initialized = false;
 
-  if (e->ecs.system.is_started)
-  {
-    ldk_system_registry_stop(&e->ecs.system);
-  }
-
-  if (e->game_initialized)
-  {
-    e->game.terminate(&e->game);
-    e->game_initialized = false;
-  }
-
+  // Stop engine modules
   s_terminate_all_modules(e);
 
+  // Cleanup
   memset(e, 0, sizeof(*e));
   g_engine_initialized = false;
   g_handling_signal = 0;
