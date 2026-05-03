@@ -1,4 +1,3 @@
-#include "module/ldk_system.h"
 #include <ldk_common.h>
 
 #define X_IMPL_ARENA
@@ -487,6 +486,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   // Asssign stub functions for unregistered game callbacks
   if (!e->game.initialize) e->game.initialize = s_stub_game_initialize;
   if (!e->game.start) e->game.start = s_stub_game_start;
+  if (!e->game.update) e->game.update = s_stub_game_update;
   if (!e->game.stop) e->game.stop = s_stub_game_stop;
   if (!e->game.terminate) e->game.terminate = s_stub_game_terminate;
 
@@ -602,6 +602,33 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
       ldk_log_error("Failed to initialize module: UI System.");
       engine_init_failed = true;
     }
+
+    // Listen to text events for editor UI
+    ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
+  }
+
+
+  g_engine_initialized = true;
+  e->previous_ticks = 0;
+  e->running = true;
+  e->playing = false;
+  e->game_initialized = false;
+
+  LDK_ASSERT(!e->game_initialized);
+  LDK_ASSERT(!e->ecs.system.is_started);
+
+  if (!e->game.initialize(&e->game))
+  {
+    ldk_log_error("Failed to initialize game module.");
+    engine_init_failed = true;
+  }
+
+  e->game_initialized = true;
+
+  if (!ldk_ecs_system_registry_start(&e->ecs))
+  {
+    ldk_log_error("Failed to start ECS system registry.");
+    engine_init_failed = true;
   }
 
   if (engine_init_failed)
@@ -610,12 +637,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-  ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
-
-  e->running = true;
-  e->playing = false;
-  e->previous_ticks = 0;
-  g_engine_initialized = true;
   ldk_log_info("LDK initialized\n");
   return true;
 }
@@ -634,26 +655,6 @@ bool ldk_engine_play_start(void)
   if (e->playing)
   {
     return true;
-  }
-
-  if (!e->game_initialized)
-  {
-    if (!e->game.initialize(&e->game))
-    {
-      ldk_log_error("Failed to initialize game module.");
-      return false;
-    }
-
-    e->game_initialized = true;
-  }
-
-  if (!e->ecs.system.is_started)
-  {
-    if (!ldk_ecs_system_registry_start(&e->ecs))
-    {
-      ldk_log_error("Failed to start ECS system registry.");
-      return false;
-    }
   }
 
   if (!e->game.start(&e->game))
@@ -740,15 +741,9 @@ void ldk_engine_frame(void)
 #endif
 
   ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
-
-  if (e->playing)
-  {
-    e->game.update(&e->game, delta_time);
-  }
-
-  ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
-  ldk_system_registry_run_bucket(&e->ecs.system, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
-
+  if (e->playing) { e->game.update(&e->game, delta_time); }
+  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
+  ldk_ecs_system_registry_run_bucket(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
 
   event.type = LDK_EVENT_TYPE_RENDER_BEFORE;
   event.frameEvent.ticks = current_ticks;
