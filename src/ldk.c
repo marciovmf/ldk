@@ -508,7 +508,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
-  ldk_os_graphics_context_current(e->window, e->graphics);
+  ldk_os_graphics_context_make_current(e->window, e->graphics);
 
   if (!ldk_event_queue_initialize(&e->event_queue))
   {

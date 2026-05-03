@@ -1240,7 +1240,7 @@ LDKGCtx ldk_os_graphics_context_opengles_create(i32 version_major, i32 version_m
   return &s_graphicsAPIInfo;
 }
 
-void ldk_os_graphics_context_current(LDKWindow window, LDKGCtx context)
+void ldk_os_graphics_context_make_current(LDKWindow window, LDKGCtx context)
 {
   HDC dc = ((LDKWin32Window*)window)->dc;
   X_ASSERT(context == &s_graphicsAPIInfo);
@@ -1398,11 +1398,11 @@ void ldk_os_joystick_vibration_left_set(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  s_oswin32.joystick_state[id].vibrationLeft = speed;
+  s_oswin32.joystick_state[id].vibration_left = speed;
 
   // xinput wants them as short int
   WORD short_int_speed_left = (WORD) (0xFFFF * speed);
-  WORD short_int_speed_right = (WORD) (s_oswin32.joystick_state[id].vibrationRight * 0XFFFF);
+  WORD short_int_speed_right = (WORD) (s_oswin32.joystick_state[id].vibration_right * 0XFFFF);
 
   vibration.wLeftMotorSpeed = short_int_speed_left;
   vibration.wRightMotorSpeed = short_int_speed_right;
@@ -1420,10 +1420,10 @@ void ldk_os_joystick_vibration_right_set(LDKJoystickID id, float speed)
   if (speed > 1.0f) speed = 1.0f;
 
   // we store speed as floats
-  s_oswin32.joystick_state[id].vibrationRight = speed;
+  s_oswin32.joystick_state[id].vibration_right = speed;
 
   // xinput wants them as short int
-  WORD short_int_speed_left = (WORD) (s_oswin32.joystick_state[id].vibrationLeft * 0XFFFF);
+  WORD short_int_speed_left = (WORD) (s_oswin32.joystick_state[id].vibration_left * 0XFFFF);
   WORD short_int_speed_right = (WORD) (0xFFFF * speed);
 
   vibration.wLeftMotorSpeed = short_int_speed_left;
@@ -1434,12 +1434,12 @@ void ldk_os_joystick_vibration_right_set(LDKJoystickID id, float speed)
 float ldk_os_joystick_vibration_left_get(LDKJoystickID id)
 {
   X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return s_oswin32.joystick_state[id].vibrationLeft;
+  return s_oswin32.joystick_state[id].vibration_left;
 }
 
 float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
 {
   X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
-  return s_oswin32.joystick_state[id].vibrationRight;
+  return s_oswin32.joystick_state[id].vibration_right;
 }
 

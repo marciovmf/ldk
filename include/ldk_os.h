@@ -87,7 +87,7 @@ extern "C" {
   typedef void* LDKGCtx;
   LDK_API LDKGCtx ldk_os_graphics_context_opengl_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
   LDK_API LDKGCtx ldk_os_graphics_context_opengles_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
-  LDK_API void    ldk_os_graphics_context_current(LDKWindow window, LDKGCtx context);
+  LDK_API void    ldk_os_graphics_context_make_current(LDKWindow window, LDKGCtx context);
   LDK_API void    ldk_os_graphics_context_destroy(LDKGCtx context);
   LDK_API bool    ldk_os_graphics_vsync_set(bool vsync);
   LDK_API i32     ldk_os_graphics_vsync_get(void);
@@ -296,7 +296,7 @@ extern "C" {
   X(LDK_JOYSTICK_BUTTON_LEFT_THUMB,  "LDK_JOYSTICK_BUTTON_LEFT_THUMB",    0x06) \
   X(LDK_JOYSTICK_BUTTON_RIGHT_THUMB, "LDK_JOYSTICK_BUTTON_RIGHT_THUMB",    0x07) \
   X(LDK_JOYSTICK_BUTTON_LEFT_SHOULDER, "LDK_JOYSTICK_BUTTON_LEFT_SHOULDER", 0x08) \
-  X(LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER, "LDK_JOYSTICK_BUTTON_RIGHT_SHOULRDER", 0x09) \
+  X(LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER, "LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER", 0x09) \
   X(LDK_JOYSTICK_BUTTON_A, "LDK_JOYSTICK_BUTTON_A", 0x0A) \
   X(LDK_JOYSTICK_BUTTON_B, "LDK_JOYSTICK_BUTTON_B", 0x0B) \
   X(LDK_JOYSTICK_BUTTON_X, "LDK_JOYSTICK_BUTTON_X", 0x0C) \
@@ -348,8 +348,8 @@ extern "C" {
     u32 button[LDK_JOYSTICK_NUM_BUTTONS];
     float axis[LDK_JOYSTICK_NUM_AXIS];
     bool connected;
-    float vibrationLeft;
-    float vibrationRight;
+    float vibration_left;
+    float vibration_right;
   } LDKJoystickState;
 
 
