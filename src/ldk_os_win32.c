@@ -816,7 +816,7 @@ bool ldk_os_events_poll(LDKEvent* event)
   // clean up changed bit for joystick buttons
   for (u32 joystickId = 0; joystickId < LDK_JOYSTICK_MAX; joystickId++)
   {
-    for(int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
+    for(int button = 0; button < LDK_JOYSTICK_NUM_BUTTONS; button++)
     {
       s_oswin32.joystick_state[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
     }
