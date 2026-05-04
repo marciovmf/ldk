@@ -1,5 +1,7 @@
-#include "module/ldk_system.h"
+#include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_entity.h>
+#include <component/ldk_transform.h>
 #include <ldk.h>
 
 static LDKEntityRegistry* s_ecs_entity_registry(void)
@@ -97,13 +99,29 @@ void ldk_ecs_terminate(void)
 LDKEntity ldk_ecs_create_entity(void)
 {
   LDKEntityRegistry* entity_registry = s_ecs_entity_registry();
+  LDKComponentRegistry* component_registry = s_ecs_component_registry();
 
-  if (!entity_registry)
+  if (!entity_registry || !component_registry)
   {
     return x_handle_null();
   }
 
-  return ldk_entity_create(entity_registry);
+  LDKEntity entity = ldk_entity_create(entity_registry);
+
+  if (x_handle_is_null(entity))
+  {
+    return entity;
+  }
+
+  // Entities always have a transform component
+  if (!ldk_entity_add_component( entity_registry, component_registry,
+        entity, LDK_COMPONENT_TYPE_TRANSFORM, NULL))
+  {
+    ldk_entity_destroy(entity_registry, entity);
+    return x_handle_null();
+  }
+
+  return entity;
 }
 
 void ldk_ecs_destroy_entity(LDKEntity entity)
@@ -168,6 +186,12 @@ const void* ldk_ecs_get_component_const(LDKEntity entity, u32 component_type)
 
 bool ldk_ecs_remove_component(LDKEntity entity, u32 component_type)
 {
+  // Transform components can not be removed
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    return false;
+  }
+
   LDKEntityRegistry* entity_registry = s_ecs_entity_registry();
   LDKComponentRegistry* component_registry = s_ecs_component_registry();
 
@@ -176,6 +200,7 @@ bool ldk_ecs_remove_component(LDKEntity entity, u32 component_type)
     return false;
   }
 
+
   return ldk_entity_remove_component(
       entity_registry,
       component_registry,
@@ -183,8 +208,7 @@ bool ldk_ecs_remove_component(LDKEntity entity, u32 component_type)
       component_type);
 }
 
-bool ldk_ecs_register_component(const char* name, u32 type, u32 entry_size,
-    u32 initial_capacity, LDKComponentAttachFn attach, LDKComponentDestroyFn destroy, void* user)
+bool ldk_ecs_register_component(const LDKComponentDesc* desc)
 {
   LDKComponentRegistry* component_registry = s_ecs_component_registry();
 
@@ -192,16 +216,7 @@ bool ldk_ecs_register_component(const char* name, u32 type, u32 entry_size,
   {
     return false;
   }
-
-  return ldk_component_register(
-      component_registry,
-      name,
-      type,
-      entry_size,
-      initial_capacity,
-      attach,
-      destroy,
-      user);
+  return ldk_component_register(component_registry, desc);
 }
 
 bool ldk_ecs_register_system(const LDKSystemDesc* desc)

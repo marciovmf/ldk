@@ -7,8 +7,9 @@
 static void s_entity_ctor(void* user, void* item)
 {
   (void)user;
-
-  memset(item, 0, sizeof(LDKEntityInfo));
+  LDKEntityInfo* info = (LDKEntityInfo*)item;
+  memset(info, 0, sizeof(*info));
+  info->transform_index = LDK_ENTITY_INVALID_COMPONENT_INDEX;
 }
 
 static bool s_entity_add_component_ref(LDKEntityRegistry* module, LDKEntity entity,
@@ -39,6 +40,12 @@ static bool s_entity_add_component_ref(LDKEntityRegistry* module, LDKEntity enti
   info->components.component_count = (u16)(count + 1);
   info->components.version += 1;
 
+  // For faster entity/transform lookup we keep the transform index in the entityInfo 
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    info->transform_index = component_index;
+  }
+
   return true;
 }
 
@@ -59,6 +66,12 @@ static bool s_entity_update_component_ref(LDKEntityRegistry* module, LDKEntity e
   }
 
   info->components.component_index[slot] = component_index;
+
+  // For faster entity/transform lookup we keep the transform index in the entityInfo 
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    info->transform_index = component_index;
+  }
 
   return true;
 }
@@ -96,6 +109,11 @@ static bool s_entity_remove_component_ref(LDKEntityRegistry* module, LDKEntity e
   info->components.component_index[last] = 0;
   info->components.component_count = (u16)(count - 1);
   info->components.version += 1;
+
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    info->transform_index = LDK_ENTITY_INVALID_COMPONENT_INDEX;
+  }
 
   return true;
 }
@@ -402,6 +420,30 @@ bool ldk_entity_find_component(LDKEntityRegistry* module, LDKEntity entity, u32 
 bool ldk_entity_has_component(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
 {
   return ldk_entity_find_component(module, entity, component_type, NULL, NULL);
+}
+
+LDKTransform* ldk_entity_get_transform(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity)
+{
+  LDKEntityInfo* info = ldk_entity_get_info(entity_module, entity);
+
+  if (!info || !component_module)
+  {
+    return NULL;
+  }
+
+  if (info->transform_index == LDK_ENTITY_INVALID_COMPONENT_INDEX)
+  {
+    return NULL;
+  }
+
+  return (LDKTransform*)ldk_component_get(component_module, LDK_COMPONENT_TYPE_TRANSFORM, info->transform_index);
+}
+
+const LDKTransform* ldk_entity_get_transform_const(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity)
+{
+  return (const LDKTransform*)ldk_entity_get_transform(entity_module, component_module, entity);
 }
 
 bool ldk_entity_get_component_ref(LDKEntityRegistry* module, LDKEntity entity,

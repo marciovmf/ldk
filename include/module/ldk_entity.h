@@ -24,6 +24,8 @@ extern "C" {
 #define LDK_ENTITY_NAME_MAX_LEN   32
 #endif
 
+#define LDK_ENTITY_INVALID_COMPONENT_INDEX UINT32_MAX
+
 typedef XHandle LDKEntity;
 typedef struct LDKComponentRegistry LDKComponentRegistry;
 struct LDKComponentRegistry;
@@ -69,6 +71,7 @@ typedef struct LDKComponentRef
 typedef struct LDKEntityInfo
 {
   LDKComponentDirectory components;
+  u32 transform_index; // Transform is a special component. An entity always have a transform.
   u16 internal_flags;
   u16 flags;
 #ifdef _DEBUG
@@ -82,6 +85,8 @@ typedef struct LDKEntityRegistry
 {
   XHPool pool;
 } LDKEntityRegistry;
+
+typedef struct LDKTransform LDKTransform;
 
 LDK_API bool ldk_entity_module_initialize(LDKEntityRegistry* system, u32 page_capacity, u32 initial_pages);
 LDK_API void ldk_entity_module_terminate(LDKEntityRegistry* system);
@@ -102,6 +107,13 @@ LDK_API bool ldk_entity_has_internal_flags(LDKEntityRegistry* system, LDKEntity 
 LDK_API bool ldk_entity_set_name(LDKEntityRegistry* system, LDKEntity entity, const char* name);
 LDK_API const char* ldk_entity_get_name(LDKEntityRegistry* system, LDKEntity entity);
 LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
+
+LDK_API LDKTransform* ldk_entity_get_transform(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity);
+
+LDK_API const LDKTransform* ldk_entity_get_transform_const(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity);
+
 LDK_API bool ldk_entity_has_component(LDKEntityRegistry* system, LDKEntity entity, u32 component_type);
 LDK_API bool ldk_component_ref_is_valid(LDKEntityRegistry* system, LDKComponentRef ref);
 LDK_API void ldk_entity_foreach(LDKEntityRegistry* system, LDKEntityIterFn fn, void* user);

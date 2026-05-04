@@ -29,6 +29,36 @@ enum
   TEST_COMPONENT_B = 2
 };
 
+static const LDKComponentDesc* s_component_a_desc()
+{
+  static LDKComponentDesc component_a = {
+    .name = "TestComponentA",
+    .type = TEST_COMPONENT_A,
+    .entry_size = sizeof(TestComponentA),
+    .initial_capacity = 8,
+    .attach = NULL,
+    .destroy = NULL,
+    .user = NULL
+  };
+  return &component_a;
+}
+
+
+static const LDKComponentDesc* s_component_b_desc()
+{
+  static LDKComponentDesc component_a = {
+    .name = "TestComponentB",
+    .type = TEST_COMPONENT_B,
+    .entry_size = sizeof(TestComponentB),
+    .initial_capacity = 8,
+    .attach = NULL,
+    .destroy = NULL,
+    .user = NULL
+  };
+  return &component_a;
+}
+
+
 int test_entity_create_destroy(void)
 {
   LDKEntityRegistry registry;
@@ -82,17 +112,10 @@ int test_entity_component_refs(void)
   LDKComponentRef ref;
   TestComponentA* component = NULL;
 
+
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -107,33 +130,33 @@ int test_entity_component_refs(void)
   component->value = 123;
 
   ASSERT_TRUE(ldk_entity_has_component(
-      &entity_registry,
-      entity,
-      TEST_COMPONENT_A));
+        &entity_registry,
+        entity,
+        TEST_COMPONENT_A));
 
   ASSERT_TRUE(ldk_entity_get_component_ref(
-      &entity_registry,
-      entity,
-      TEST_COMPONENT_A,
-      &ref));
+        &entity_registry,
+        entity,
+        TEST_COMPONENT_A,
+        &ref));
 
   ASSERT_TRUE(ldk_component_ref_is_valid(&entity_registry, ref));
   ASSERT_TRUE(((TestComponentA*)ldk_component_ref_get(
-      &entity_registry,
-      &component_registry,
-      ref))->value == 123);
+          &entity_registry,
+          &component_registry,
+          ref))->value == 123);
 
   ASSERT_TRUE(ldk_entity_remove_component(
-      &entity_registry,
-      &component_registry,
-      entity,
-      TEST_COMPONENT_A));
+        &entity_registry,
+        &component_registry,
+        entity,
+        TEST_COMPONENT_A));
 
   ASSERT_TRUE(!ldk_component_ref_is_valid(&entity_registry, ref));
   ASSERT_TRUE(!ldk_entity_has_component(
-      &entity_registry,
-      entity,
-      TEST_COMPONENT_A));
+        &entity_registry,
+        entity,
+        TEST_COMPONENT_A));
 
   ldk_component_registry_terminate(&component_registry);
   ldk_entity_module_terminate(&entity_registry);
@@ -150,15 +173,7 @@ int test_entity_component_ref_dereference_and_invalidation(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -182,10 +197,10 @@ int test_entity_component_ref_dereference_and_invalidation(void)
   ASSERT_TRUE(stored_component->value == 77);
 
   ASSERT_TRUE(ldk_entity_remove_component(
-      &entity_registry,
-      &component_registry,
-      entity,
-      TEST_COMPONENT_A));
+        &entity_registry,
+        &component_registry,
+        entity,
+        TEST_COMPONENT_A));
 
   ASSERT_TRUE(!ldk_component_ref_is_valid(&entity_registry, ref));
   ASSERT_TRUE(ldk_component_ref_get(&entity_registry, &component_registry, ref) == NULL);
@@ -207,15 +222,7 @@ int test_entity_component_ref_mutation(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -264,15 +271,7 @@ int test_entity_component_ref_invalid_after_entity_destroy(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register( &component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -314,24 +313,9 @@ int test_entity_component_ref_invalidation_on_remove_add(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentB",
-      TEST_COMPONENT_B,
-      sizeof(TestComponentB),
-      8,
-      NULL,
-      NULL,
-      NULL));
+
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_b_desc()));
 
   entity = ldk_entity_create(&entity_registry);
   info = ldk_entity_get_info(&entity_registry, entity);
@@ -365,10 +349,10 @@ int test_entity_component_ref_invalidation_on_remove_add(void)
   ASSERT_TRUE(ldk_component_ref_is_valid(&entity_registry, ref_b));
 
   ASSERT_TRUE(ldk_entity_remove_component(
-      &entity_registry,
-      &component_registry,
-      entity,
-      TEST_COMPONENT_B));
+        &entity_registry,
+        &component_registry,
+        entity,
+        TEST_COMPONENT_B));
   ASSERT_TRUE(info->components.version == 3);
   ASSERT_TRUE(!ldk_component_ref_is_valid(&entity_registry, ref_b));
 
@@ -382,20 +366,20 @@ int test_entity_component_ref_invalidation_on_remove_add(void)
   component_b_1->value = 40;
 
   ASSERT_TRUE(ldk_entity_find_component(
-      &entity_registry,
-      entity,
-      TEST_COMPONENT_B,
-      &out_slot,
-      &out_index));
+        &entity_registry,
+        entity,
+        TEST_COMPONENT_B,
+        &out_slot,
+        &out_index));
   ASSERT_TRUE(out_index == 0);
   ASSERT_TRUE(info->components.version == 4);
 
   ASSERT_TRUE(ldk_entity_get_component_ref(&entity_registry, entity, TEST_COMPONENT_A, &ref_a_new));
   ASSERT_TRUE(ldk_component_ref_is_valid(&entity_registry, ref_a_new));
   ASSERT_TRUE(((TestComponentA*)ldk_component_ref_get(
-      &entity_registry,
-      &component_registry,
-      ref_a_new))->value == 10);
+          &entity_registry,
+          &component_registry,
+          ref_a_new))->value == 10);
 
   ldk_component_registry_terminate(&component_registry);
   ldk_entity_module_terminate(&entity_registry);

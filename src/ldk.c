@@ -33,16 +33,22 @@
 #include <ldk.h>
 #include <ldk_os.h>
 #include <ldk_game.h>
+#include <component/ldk_transform.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_renderer.h>
-#include <system/ldk_scenegraph.h>
+#include <module/ldk_scenegraph.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
+
+#ifndef LDK_DEFAULT_TRANSFORM_COUNT
+#define LDK_DEFAULT_TRANSFORM_COUNT 64
+#endif
 
 // Editor UI defaults
 #ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY
@@ -528,6 +534,14 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
+  // Register transform component
+  LDKComponentDesc transform_component_desc = ldk_transform_component_desc(LDK_DEFAULT_TRANSFORM_COUNT);
+  if(! ldk_component_register(&e->ecs.component, &transform_component_desc))
+  {
+    ldk_log_error("Failed to register component: Transform.");
+    engine_init_failed = true;
+  }
+
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
@@ -608,13 +622,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   LDK_ASSERT(!e->game_initialized);
   LDK_ASSERT(!e->ecs.system.is_started);
-
-  // Initialize SceneGraph system
-  if (!ldk_ecs_register_system(ldk_scenegraph_system_desc()))
-  {
-    ldk_log_error("Failed to register engine system: SceneGraph.");
-    engine_init_failed = true;
-  }
 
   // Initialize game
   if (!e->game.initialize(&e->game))

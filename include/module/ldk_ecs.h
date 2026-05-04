@@ -34,8 +34,7 @@ typedef struct LDKECS
   LDK_API void* ldk_ecs_get_component(LDKEntity entity, u32 component_type);
   LDK_API const void* ldk_ecs_get_component_const(LDKEntity entity, u32 component_type);
   LDK_API bool ldk_ecs_remove_component(LDKEntity entity, u32 component_type);
-  LDK_API bool ldk_ecs_register_component(const char* name, u32 type, u32 entry_size,
-      u32 initial_capacity, LDKComponentAttachFn attach, LDKComponentDestroyFn destroy, void* user);
+  LDK_API bool ldk_ecs_register_component(const LDKComponentDesc* desc);
   LDK_API bool ldk_ecs_register_system(const LDKSystemDesc* desc);
   LDK_API bool ldk_ecs_unregister_system(u64 id);
 

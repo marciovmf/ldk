@@ -320,8 +320,7 @@ bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* enti
   return true;
 }
 
-bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u32 type, u32 entry_size,
-    u32 initial_capacity, LDKComponentAttachFn attach, LDKComponentDestroyFn destroy, void* user)
+bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDesc* desc)
 {
   LDKRegisteredComponent entry = {0};
   XArray* owners = NULL;
@@ -332,23 +331,23 @@ bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u3
     return false;
   }
 
-  if (!type || !entry_size)
+  if (!desc->type || !desc->entry_size)
   {
     return false;
   }
 
-  if (x_hashtable_u32_registered_component_has(registry->table, type))
+  if (x_hashtable_u32_registered_component_has(registry->table, desc->type))
   {
     return false;
   }
 
-  store = x_array_create(entry_size, initial_capacity);
+  store = x_array_create(desc->entry_size, desc->initial_capacity);
   if (!store)
   {
     return false;
   }
 
-  owners = x_array_create(sizeof(LDKEntity), initial_capacity);
+  owners = x_array_create(sizeof(LDKEntity), desc->initial_capacity);
   if (!owners)
   {
     x_array_destroy(store);
@@ -358,15 +357,15 @@ bool ldk_component_register(LDKComponentRegistry* registry, const char* name, u3
 
   entry.store = store;
   entry.owners = owners;
-  entry.desc.name = name;
-  entry.desc.type = type;
-  entry.desc.attach = attach;
-  entry.desc.destroy = destroy;
-  entry.desc.entry_size = entry_size;
-  entry.desc.initial_capacity = initial_capacity;
-  entry.desc.user = user;
+  entry.desc.name = desc->name;
+  entry.desc.type = desc->type;
+  entry.desc.attach = desc->attach;
+  entry.desc.destroy = desc->destroy;
+  entry.desc.entry_size = desc->entry_size;
+  entry.desc.initial_capacity = desc->initial_capacity;
+  entry.desc.user = desc->user;
 
-  if (!x_hashtable_u32_registered_component_set(registry->table, type, entry))
+  if (!x_hashtable_u32_registered_component_set(registry->table, desc->type, entry))
   {
     x_array_destroy(store);
     x_array_destroy(owners);

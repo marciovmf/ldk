@@ -38,6 +38,34 @@ enum
   TEST_COMPONENT_B = 2
 };
 
+static const LDKComponentDesc* s_component_a_desc()
+{
+  static LDKComponentDesc component_a = {
+    .name = "TestComponentA",
+    .type = TEST_COMPONENT_A,
+    .entry_size = sizeof(TestComponentA),
+    .initial_capacity = 8,
+    .attach = NULL,
+    .destroy = NULL,
+    .user = NULL
+  };
+  return &component_a;
+}
+
+static const LDKComponentDesc* s_component_b_desc()
+{
+  static LDKComponentDesc component_b = {
+    .name = "TestComponentB",
+    .type = TEST_COMPONENT_B,
+    .entry_size = sizeof(TestComponentB),
+    .initial_capacity = 8,
+    .attach = NULL,
+    .destroy = NULL,
+    .user = NULL
+  };
+  return &component_b;
+}
+
 static bool test_component_attach(
     LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry,
@@ -125,16 +153,7 @@ int test_component_register_and_get_store(void)
   XArray* store = NULL;
 
   ASSERT_TRUE(ldk_component_registry_initialize(&registry));
-
-  ASSERT_TRUE(ldk_component_register(
-        &registry,
-        "TestComponentA",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        NULL,
-        NULL,
-        NULL));
+  ASSERT_TRUE(ldk_component_register(&registry, s_component_a_desc()));
 
   ASSERT_TRUE(ldk_component_is_registered(&registry, TEST_COMPONENT_A));
 
@@ -153,26 +172,8 @@ int test_component_duplicate_registration_fails(void)
   LDKComponentRegistry registry;
 
   ASSERT_TRUE(ldk_component_registry_initialize(&registry));
-
-  ASSERT_TRUE(ldk_component_register(
-        &registry,
-        "TestComponentA",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        NULL,
-        NULL,
-        NULL));
-
-  ASSERT_TRUE(!ldk_component_register(
-        &registry,
-        "TestComponentA_Duplicate",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        NULL,
-        NULL,
-        NULL));
+  ASSERT_TRUE(ldk_component_register(&registry, s_component_a_desc()));
+  ASSERT_TRUE(!ldk_component_register(&registry, s_component_a_desc()));
 
   ldk_component_registry_terminate(&registry);
   return 0;
@@ -190,15 +191,7 @@ int test_component_add_with_null_callbacks_and_initial_value_copies_component(vo
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-        &component_registry,
-        "TestComponentA",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        NULL,
-        NULL,
-        NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -224,7 +217,6 @@ int test_component_add_calls_attach_callback_after_copying_initial_value(void)
   LDKEntity entity;
   TestComponentA initial_value;
   TestComponentCallbackState state;
-  TestComponentA* component_a = NULL;
 
   initial_value.value = 123;
   state.attach_count = 0;
@@ -236,19 +228,16 @@ int test_component_add_calls_attach_callback_after_copying_initial_value(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-        &component_registry,
-        "TestComponentA",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        test_component_attach,
-        test_component_destroy,
-        &state));
+
+  LDKComponentDesc component_desc = *s_component_a_desc();
+  component_desc.attach = test_component_attach;
+  component_desc.destroy = test_component_destroy;
+  component_desc.user = &state;
+  ASSERT_TRUE(ldk_component_register(&component_registry, &component_desc));
 
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  TestComponentA* component_a = (TestComponentA*)ldk_entity_add_component(
       &entity_registry,
       &component_registry,
       entity,
@@ -274,7 +263,6 @@ int test_component_add_rolls_back_when_attach_fails(void)
   XArray* owners = NULL;
   XArray* store = NULL;
   TestComponentCallbackState state;
-  TestComponentA* component_a = NULL;
 
   state.attach_count = 0;
   state.destroy_count = 0;
@@ -285,19 +273,16 @@ int test_component_add_rolls_back_when_attach_fails(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-        &component_registry,
-        "TestComponentA",
-        TEST_COMPONENT_A,
-        sizeof(TestComponentA),
-        8,
-        test_component_attach_fails,
-        test_component_destroy,
-        &state));
 
+  LDKComponentDesc component_a_desc = *(s_component_a_desc());
+  component_a_desc.attach = test_component_attach_fails;
+  component_a_desc.destroy = test_component_destroy;
+  component_a_desc.user = &state;
+
+  ASSERT_TRUE(ldk_component_register(&component_registry, &component_a_desc));
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  TestComponentA* component_a = (TestComponentA*)ldk_entity_add_component(
       &entity_registry,
       &component_registry,
       entity,
@@ -334,15 +319,7 @@ int test_component_remove_entity_single_component(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -401,15 +378,11 @@ int test_component_remove_calls_destroy_callback(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      test_component_destroy,
-      &state));
+  LDKComponentDesc component_desc = *s_component_a_desc();
+  component_desc.destroy = test_component_destroy;
+  component_desc.user = &state;
+
+  ASSERT_TRUE(ldk_component_register(&component_registry, &component_desc));
 
   entity = ldk_entity_create(&entity_registry);
 
@@ -453,15 +426,7 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
 
   entity_a = ldk_entity_create(&entity_registry);
   entity_b = ldk_entity_create(&entity_registry);
@@ -535,24 +500,8 @@ int test_component_registry_remove_all(void)
 
   ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
   ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentA",
-      TEST_COMPONENT_A,
-      sizeof(TestComponentA),
-      8,
-      NULL,
-      NULL,
-      NULL));
-  ASSERT_TRUE(ldk_component_register(
-      &component_registry,
-      "TestComponentB",
-      TEST_COMPONENT_B,
-      sizeof(TestComponentB),
-      8,
-      NULL,
-      NULL,
-      NULL));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_a_desc()));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_b_desc()));
 
   entity = ldk_entity_create(&entity_registry);
 

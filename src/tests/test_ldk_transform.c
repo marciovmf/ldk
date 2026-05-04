@@ -11,7 +11,6 @@
 #include <stdx/stdx_common.h>
 #include <stdx/stdx_math.h>
 #include <component/ldk_transform.h>
-#include <system/ldk_scenegraph.h>
 
 static int s_entity_eq(LDKEntity a, LDKEntity b)
 {
@@ -44,16 +43,6 @@ static int test_transform_make_default(void)
   return 0;
 }
 
-static int test_scenegraph_system_desc_exists(void)
-{
-  const LDKSystemDesc* desc = ldk_scenegraph_system_desc();
-
-  ASSERT_TRUE(desc != NULL);
-  ASSERT_TRUE(desc->id == LDK_SYSTEM_ID_SCENEGRAPH);
-  ASSERT_TRUE(desc->callbacks.update != NULL);
-  return 0;
-}
-
 static int test_transform_parent_value_semantics(void)
 {
   LDKTransform parent = ldk_transform_make_default();
@@ -72,7 +61,6 @@ int main(void)
   STDXTestCase tests[] =
   {
     X_TEST(test_transform_make_default),
-    X_TEST(test_scenegraph_system_desc_exists),
     X_TEST(test_transform_parent_value_semantics),
   };
 
