@@ -58,6 +58,10 @@ extern "C" {
   LDK_API XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type);
   LDK_API bool ldk_component_remove_entity(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type);
+  /**
+   * Removes (destroys) ALL components, including core engine components like Transform.
+   * Intended for entity destruction only.
+   */
   LDK_API void ldk_component_registry_remove_all(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity);
   LDK_API void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32* component_index);

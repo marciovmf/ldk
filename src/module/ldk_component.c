@@ -118,6 +118,9 @@ bool ldk_component_remove_entity(LDKComponentRegistry* registry, LDKEntityRegist
 
 void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity)
 {
+  // WARNING: removes ALL components, including core ones (Transform).
+  // Intended for entity destruction only.
+
   LDKEntityInfo* info;
 
   if (!registry || !entity_system)
@@ -247,32 +250,17 @@ bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* enti
 {
   LDKRegisteredComponent registered_component = {0};
 
-  (void)entity_module;
-
-  if (!module)
+  if (!module || !module->table || !entity_module)
   {
     return false;
   }
 
-  if (!module->table)
+  if (!x_hashtable_u32_registered_component_get(module->table, component_type, &registered_component))
   {
     return false;
   }
 
-  if (!x_hashtable_u32_registered_component_get(
-        module->table,
-        component_type,
-        &registered_component))
-  {
-    return false;
-  }
-
-  if (!registered_component.store)
-  {
-    return false;
-  }
-
-  if (!registered_component.owners)
+  if (!registered_component.store || !registered_component.owners)
   {
     return false;
   }
@@ -311,6 +299,14 @@ bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* enti
           dst_owner,
           src_owner,
           sizeof(LDKEntity));
+
+      // Update entity TRANFORM index
+      LDKEntity moved_entity = *(LDKEntity*)src_owner;
+      LDKEntityInfo* moved_info = ldk_entity_get_info(entity_module, moved_entity);
+      if (moved_info && component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+      {
+        moved_info->transform_index = component_index;
+      }
     }
 
     x_array_pop(registered_component.store);
