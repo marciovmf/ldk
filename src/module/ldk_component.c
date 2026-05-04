@@ -300,7 +300,7 @@ bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* enti
           src_owner,
           sizeof(LDKEntity));
 
-      // Update entity TRANFORM index
+      // Update entity TRANSFORM index
       LDKEntity moved_entity = *(LDKEntity*)src_owner;
       LDKEntityInfo* moved_info = ldk_entity_get_info(entity_module, moved_entity);
       if (moved_info && component_type == LDK_COMPONENT_TYPE_TRANSFORM)

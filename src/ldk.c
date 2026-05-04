@@ -257,7 +257,7 @@ char* msg = "Hello, Sailor!";
 XSmallstr text_box1 = {0};
 XSmallstr text_box2 = {0};
 
-LDKUIRect w1 = { 10, 100, 400, 300 };
+LDKUIRect w1 = { 10, 205, 400, 300 };
 LDKUIRect w2 = { 10, 100, 400, 400 };
 LDKUIRect w3 = {0};
 
@@ -270,7 +270,7 @@ typedef enum ConsoleState
 } ConsoleState;
 
 ConsoleState console_state = CONSOLE_IS_OPENED;
-bool theme = true;
+bool theme = false;
 
 #define RGBA_U32(r, g, b) \
   (((u32)(r) & 0xFFu) << 24 | \
