@@ -97,7 +97,8 @@ XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type)
   return entry.owners;
 }
 
-bool ldk_component_entity_remove(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type)
+bool ldk_component_detach(LDKComponentRegistry* registry,
+    LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type)
 {
   if (!registry)
   {
@@ -109,14 +110,12 @@ bool ldk_component_entity_remove(LDKComponentRegistry* registry, LDKEntityRegist
     return false;
   }
 
-  return ldk_entity_component_remove(
-      entity_system,
-      registry,
-      entity,
-      component_type);
+  return ldk_entity_component_remove(entity_system, registry,
+      entity, component_type);
 }
 
-void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity)
+void ldk_component_registry_remove_all(LDKComponentRegistry* registry,
+    LDKEntityRegistry* entity_system, LDKEntity entity)
 {
   // WARNING: removes ALL components, including core ones (Transform).
   // Intended for entity destruction only.
@@ -142,7 +141,7 @@ void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntity
     last = (u32)info->components.component_count - 1;
     component_type = info->components.component_type[last];
 
-    if (!ldk_component_entity_remove(registry, entity_system, entity, component_type))
+    if (!ldk_component_detach(registry, entity_system, entity, component_type))
     {
       break;
     }
@@ -168,10 +167,8 @@ void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32
     return NULL;
   }
 
-  if (!x_hashtable_u32_registered_component_get(
-        module->table,
-        component_type,
-        &registered_component))
+  if (!x_hashtable_u32_registered_component_get(module->table,
+        component_type, &registered_component))
   {
     return NULL;
   }
@@ -186,7 +183,8 @@ void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32
     return NULL;
   }
 
-  if (x_array_count(registered_component.store) != x_array_count(registered_component.owners))
+  if (x_array_count(registered_component.store) !=
+      x_array_count(registered_component.owners))
   {
     return NULL;
   }
@@ -225,10 +223,7 @@ void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 co
     return NULL;
   }
 
-  if (!x_hashtable_u32_registered_component_get(
-        module->table,
-        component_type,
-        &registered_component))
+  if (!x_hashtable_u32_registered_component_get(module->table, component_type, &registered_component))
   {
     return NULL;
   }
@@ -246,7 +241,8 @@ void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 co
   return x_array_get(registered_component.store, component_index);
 }
 
-bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* entity_module, u32 component_type, u32 component_index)
+bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* entity_module,
+    u32 component_type, u32 component_index)
 {
   LDKRegisteredComponent registered_component = {0};
 
@@ -366,8 +362,8 @@ bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDe
   return true;
 }
 
-bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry, LDKEntity entity,
-    u32 component_type, u32 component_index, const void* initial_value)
+bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
+    LDKEntity entity, u32 component_type, u32 component_index, const void* initial_value)
 {
   LDKRegisteredComponent registered_component = {0};
   void* component = NULL;
@@ -411,8 +407,8 @@ bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* ent
   return true;
 }
 
-void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry, LDKEntity entity,
-    u32 component_type, u32 component_index)
+void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
+    LDKEntity entity, u32 component_type, u32 component_index)
 {
   LDKRegisteredComponent registered_component = {0};
   void* component = NULL;

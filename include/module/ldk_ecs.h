@@ -3,7 +3,8 @@
  * @brief  ECS facade module.
  *
  * Thin convenience facade over Entity, Component and System modules.
- * This module does not replace the direct submodule APIs.
+ * This module is prefered to be used on user code while the direct submodule
+ * access is reserved for internal engine use.
  */
 
 #ifndef LDK_ECS_H
@@ -18,16 +19,15 @@
 extern "C" {
 #endif
 
-typedef struct LDKECS
-{
-  LDKEntityRegistry entity;
-  LDKComponentRegistry component;
-  LDKSystemRegistry system;
-} LDKECS;
-
+  typedef struct LDKECS
+  {
+    LDKEntityRegistry entity;
+    LDKComponentRegistry component;
+    LDKSystemRegistry system;
+  } LDKECS;
 
   // ---------------------------------------------------------------------------
-  // lifecycle
+  // ECS lifecycle
   // ---------------------------------------------------------------------------
   LDK_API bool ldk_ecs_initialize(LDKECS* context, u32 entity_page_capacity, u32 entity_initial_pages);
   LDK_API void ldk_ecs_terminate(void);
@@ -46,13 +46,17 @@ typedef struct LDKECS
   LDK_API const void* ldk_ecs_component_get_const(LDKEntity entity, u32 component_type);
   LDK_API bool ldk_ecs_component_remove(LDKEntity entity, u32 component_type);
   LDK_API bool ldk_ecs_component_register(const LDKComponentDesc* desc);
+
+  // ---------------------------------------------------------------------------
+  // System management
+  // ---------------------------------------------------------------------------
   LDK_API bool ldk_ecs_system_register(const LDKSystemDesc* desc);
   LDK_API bool ldk_ecs_system_unregister(u64 id);
 
 
 #ifdef LDK_ENGINE
   // ---------------------------------------------------------------------------
-  // Component management
+  //  Engine internal utility
   // ---------------------------------------------------------------------------
   LDK_API LDKEntityRegistry* ldk_ecs_entity_registry_get(void);
   LDK_API LDKComponentRegistry* ldk_ecs_component_registry_get(void);

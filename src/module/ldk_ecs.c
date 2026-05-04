@@ -4,6 +4,11 @@
 #include <component/ldk_transform.h>
 #include <ldk.h>
 
+
+// ---------------------------------------------------------------------------
+// ECS lifecycle
+// ---------------------------------------------------------------------------
+
 bool ldk_ecs_initialize(LDKECS* context, u32 entity_page_capacity, u32 entity_initial_pages)
 {
   if (!context)
@@ -63,7 +68,12 @@ void ldk_ecs_terminate(void)
   }
 }
 
-LDKEntity ldk_ecs_entoty_create(void)
+
+// ---------------------------------------------------------------------------
+// Entity lifecycle
+// ---------------------------------------------------------------------------
+
+LDKEntity ldk_ecs_entity_create(void)
 {
   LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
   LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
@@ -110,6 +120,11 @@ void ldk_ecs_entity_destroy(LDKEntity entity)
   ldk_entity_destroy(entity_registry, entity);
 }
 
+
+// ---------------------------------------------------------------------------
+// Component management
+// ---------------------------------------------------------------------------
+
 void* ldk_ecs_component_add(LDKEntity entity, u32 component_type, const void* initial_value)
 {
   //We disallow attaching TRANSFORMS via this facade sice it always attach a
@@ -152,7 +167,6 @@ void* ldk_ecs_component_get(LDKEntity entity, u32 component_type)
       component_type);
 }
 
-
 const void* ldk_ecs_component_get_const(LDKEntity entity, u32 component_type)
 {
   return (const void*) ldk_ecs_component_get(entity, component_type);
@@ -193,6 +207,11 @@ bool ldk_ecs_component_register(const LDKComponentDesc* desc)
   return ldk_component_register(component_registry, desc);
 }
 
+
+// ---------------------------------------------------------------------------
+// System management
+// ---------------------------------------------------------------------------
+
 bool ldk_ecs_system_register(const LDKSystemDesc* desc)
 {
   LDKSystemRegistry* system_registry = ldk_ecs_system_registry_get();
@@ -218,45 +237,40 @@ bool ldk_ecs_system_unregister(u64 id)
 }
 
 
+// ---------------------------------------------------------------------------
+//  Engine internal utility
+// ---------------------------------------------------------------------------
+
 #ifdef LDK_ENGINE
+
 LDKEntityRegistry* ldk_ecs_entity_registry_get(void)
 {
   LDKECS* ecs = (LDKECS*)ldk_module_get(LDK_MODULE_ECS);
   return &ecs->entity;
 }
-#endif
 
-#ifdef LDK_ENGINE
 LDKComponentRegistry* ldk_ecs_component_registry_get(void)
 {
   LDKECS* ecs = (LDKECS*)ldk_module_get(LDK_MODULE_ECS);
   return &ecs->component;
 }
-#endif
 
-#ifdef LDK_ENGINE
 LDKSystemRegistry* ldk_ecs_system_registry_get(void)
 {
   LDKECS* ecs = (LDKECS*)ldk_module_get(LDK_MODULE_ECS);
   return &ecs->system;
 }
-#endif
 
-#ifdef LDK_ENGINE
 bool ldk_ecs_system_registry_start(LDKECS* context)
 {
   return ldk_system_registry_start(&context->system);
 }
-#endif
 
-#ifdef LDK_ENGINE
 bool ldk_ecs_system_registry_stop(LDKECS* context)
 {
   return ldk_system_registry_stop(&context->system);
 }
-#endif
 
-#ifdef LDK_ENGINE
 bool ldk_ecs_system_bucket_run(LDKECS* context, LDKSystemBucket bucket, float dt)
 {
   if (!context || !context->system.is_started)
@@ -266,5 +280,5 @@ bool ldk_ecs_system_bucket_run(LDKECS* context, LDKSystemBucket bucket, float dt
 
   return ldk_system_registry_run_bucket(&context->system, bucket, dt);
 }
-#endif
 
+#endif

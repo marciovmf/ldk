@@ -56,7 +56,7 @@ extern "C" {
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type);
-  LDK_API bool ldk_component_entity_remove(LDKComponentRegistry* registry,
+  LDK_API bool ldk_component_detach(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type);
   /**
    * Removes (destroys) ALL components, including core engine components like Transform.

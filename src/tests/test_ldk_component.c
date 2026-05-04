@@ -346,7 +346,7 @@ int test_component_entity_remove_single_component(void)
       &out_index));
   ASSERT_TRUE(out_index == 0);
 
-  ASSERT_TRUE(ldk_component_entity_remove(
+  ASSERT_TRUE(ldk_component_detach(
       &component_registry,
       &entity_registry,
       entity,
@@ -395,7 +395,7 @@ int test_component_remove_calls_destroy_callback(void)
   ASSERT_TRUE(component_a != NULL);
   component_a->value = 55;
 
-  ASSERT_TRUE(ldk_component_entity_remove(
+  ASSERT_TRUE(ldk_component_detach(
       &component_registry,
       &entity_registry,
       entity,
@@ -455,7 +455,7 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
   ASSERT_TRUE(store != NULL);
   ASSERT_TRUE(owners != NULL);
 
-  ASSERT_TRUE(ldk_component_entity_remove(
+  ASSERT_TRUE(ldk_component_detach(
       &component_registry,
       &entity_registry,
       entity_a,

@@ -1,5 +1,7 @@
+#include "module/ldk_component.h"
 #include <ldk_event.h>
 #include <module/ldk_eventqueue.h>
+#include <module/ldk_ecs.h>
 #include <ldk_common.h>
 
 #if defined(LDK_GAME)
@@ -32,11 +34,31 @@ bool on_window_event(const LDKEvent* event, void* state)
   return false;
 }
 
+#define HEALTH_COMPONENT_ID 1
+typedef struct Health
+{
+  u32 hp;
+  u32 hunger;
+  u32 thirsty;
+} Health;
+
 bool game_initialize(LDKGame* game)
 {
   ldk_log_info("Game initialize\n");
+
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(q, on_window_event, LDK_EVENT_TYPE_WINDOW, NULL);
+
+  // Register health component
+  LDKComponentDesc desc = {0};
+  desc.name = "Health";
+  desc.type = HEALTH_COMPONENT_ID;
+  ldk_ecs_component_register(&desc);
+
+  LDKEntity e1 = ldk_ecs_entity_create();
+  Health health = (Health){.hp = 100, .hunger = 0, .thirsty = 0 };
+  ldk_ecs_component_add(e1, HEALTH_COMPONENT_ID, &health);
+
   return true;
 }
 
@@ -48,6 +70,7 @@ bool game_start(LDKGame* game)
 
 void game_update(LDKGame* game, float delta_time)
 {
+
 }
 
 void game_terminate(LDKGame* game)

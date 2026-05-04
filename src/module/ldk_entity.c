@@ -4,6 +4,9 @@
 #include <stdx/stdx_array.h>
 #include <string.h>
 
+
+#ifdef LDK_ENGINE
+
 static void s_entity_ctor(void* user, void* item)
 {
   (void)user;
@@ -469,7 +472,7 @@ bool ldk_entity_component_ref_get(LDKEntityRegistry* module, LDKEntity entity,
   return true;
 }
 
-bool ldk_component_ref_is_valid( LDKEntityRegistry* entity_system, LDKComponentRef ref)
+bool ldk_component_ref_is_valid(LDKEntityRegistry* entity_system, LDKComponentRef ref)
 {
   LDKEntityInfo* info = ldk_entity_info_get(entity_system, ref.entity);
 
@@ -661,8 +664,8 @@ void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentReg
   return component;
 }
 
-void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
-    LDKEntity entity, u32 component_type)
+void* ldk_entity_component_get(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type)
 {
   u32 component_index = 0;
 
@@ -692,8 +695,8 @@ void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentReg
       component_index);
 }
 
-bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
-    LDKEntity entity, u32 component_type)
+bool ldk_entity_component_remove(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type)
 {
   XArray* owners = NULL;
   XArray* store = NULL;
@@ -725,12 +728,7 @@ bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentR
   store = ldk_component_store_get(component_module, component_type);
   owners = ldk_component_owners_get(component_module, component_type);
 
-  if (!store)
-  {
-    return false;
-  }
-
-  if (!owners)
+  if (!store || !owners)
   {
     return false;
   }
@@ -794,7 +792,6 @@ bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentR
       component_type);
 }
 
-#ifdef LDK_ENGINE
 void ldk_entity_internal_flags_set(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
   LDKEntityInfo* info = ldk_entity_info_get(module, entity);
@@ -806,9 +803,7 @@ void ldk_entity_internal_flags_set(LDKEntityRegistry* module, LDKEntity entity, 
 
   info->internal_flags = flags;
 }
-#endif// LDK_ENGINE
 
-#ifdef LDK_ENGINE
 u16 ldk_entity_internal_flags_get(LDKEntityRegistry* module, LDKEntity entity)
 {
   const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
@@ -820,9 +815,7 @@ u16 ldk_entity_internal_flags_get(LDKEntityRegistry* module, LDKEntity entity)
 
   return info->internal_flags;
 }
-#endif// LDK_ENGINE
 
-#ifdef LDK_ENGINE
 void ldk_entity_internal_flags_add(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
   LDKEntityInfo* info = ldk_entity_info_get(module, entity);
@@ -834,5 +827,5 @@ void ldk_entity_internal_flags_add(LDKEntityRegistry* module, LDKEntity entity, 
 
   info->internal_flags |= flags;
 }
-#endif// LDK_ENGINE
 
+#endif// LDK_ENGINE
