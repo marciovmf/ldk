@@ -752,6 +752,8 @@ void ldk_engine_frame(void)
     {
       e->game.update(&e->game, delta_time);
     }
+
+    ldk_scenegraph_update(delta_time); // Update scenegraph
     ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
     ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
   }

@@ -46,7 +46,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
   ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c
   ${INCLUDE_DIR}/module/ldk_ui.h             module/ldk_ui.c
-  ${INCLUDE_DIR}/module/ldk_scenegraph.h module/ldk_scenegraph.c
+  ${INCLUDE_DIR}/module/ldk_scenegraph.h     module/ldk_scenegraph.c
   # components
   ${INCLUDE_DIR}/component/ldk_transform.h  component/ldk_transform.c
   ${INCLUDE_DIR}/component/ldk_camera.h     component/ldk_camera.c

@@ -72,7 +72,8 @@ static bool s_scenegraph_mark_subtree_dirty(LDKEntityRegistry* entity_registry,
 }
 
 static bool s_scenegraph_is_ancestor(LDKEntityRegistry* entity_registry,
-    LDKComponentRegistry* component_registry, LDKEntity entity, LDKEntity possible_ancestor)
+    LDKComponentRegistry* component_registry, LDKEntity entity,
+    LDKEntity possible_ancestor)
 {
   LDKEntity current = entity;
 
@@ -165,8 +166,9 @@ static bool s_scenegraph_unlink_from_parent(LDKEntityRegistry* entity_registry,
   return true;
 }
 
-static bool s_scenegraph_update_subtree(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry,
-    LDKTransform* transform, Mat4 parent_world, bool has_parent, bool parent_dirty)
+static bool s_scenegraph_update_subtree(LDKEntityRegistry* entity_registry,
+    LDKComponentRegistry* component_registry, LDKTransform* transform,
+    Mat4 parent_world, bool has_parent, bool parent_dirty)
 {
   bool local_dirty = false;
   bool world_dirty = false;
@@ -301,43 +303,38 @@ bool ldk_scenegraph_update_entity(LDKEntity entity)
   }
 
   LDKTransform* transform = s_scenegraph_get_transform(
-      entity_registry,
-      component_registry,
-      entity);
+      entity_registry, component_registry, entity);
 
   if (!transform)
   {
     return false;
   }
 
-  if (x_handle_is_null(transform->parent))
+  LDKEntity root = entity;
+  const LDKTransform* current_transform = transform;
+
+  while (!x_handle_is_null(current_transform->parent))
   {
-    return s_scenegraph_update_subtree(
-        entity_registry,
-        component_registry,
-        transform,
-        mat4_identity(),
-        false,
-        false);
+    root = current_transform->parent;
+
+    current_transform = s_scenegraph_get_transform_const(
+        entity_registry, component_registry, root);
+    if (!current_transform)
+    {
+      return false;
+    }
   }
 
-  const LDKTransform* parent_transform = s_scenegraph_get_transform_const(
-      entity_registry,
-      component_registry,
-      transform->parent);
+  LDKTransform* root_transform = s_scenegraph_get_transform(
+      entity_registry, component_registry, root);
 
-  if (!parent_transform)
+  if (!root_transform)
   {
     return false;
   }
 
-  return s_scenegraph_update_subtree(
-      entity_registry,
-      component_registry,
-      transform,
-      parent_transform->world_matrix,
-      true,
-      false);
+  return s_scenegraph_update_subtree(entity_registry, component_registry,
+      root_transform, mat4_identity(), false, false);
 }
 
 bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)

@@ -114,7 +114,7 @@ LDKEntity ldk_ecs_create_entity(void)
   }
 
   // Entities always have a transform component
-  if (!ldk_entity_add_component( entity_registry, component_registry,
+  if (!ldk_entity_add_component(entity_registry, component_registry,
         entity, LDK_COMPONENT_TYPE_TRANSFORM, NULL))
   {
     ldk_entity_destroy(entity_registry, entity);
@@ -145,6 +145,13 @@ void ldk_ecs_destroy_entity(LDKEntity entity)
 
 void* ldk_ecs_add_component(LDKEntity entity, u32 component_type, const void* initial_value)
 {
+  //We disallow attaching TRANSFORMS via this facade sice it always attach a
+  //transform when creating an entity in ldk_ecs_create_entity()
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    return NULL;
+  }
+
   LDKEntityRegistry* entity_registry = s_ecs_entity_registry();
   LDKComponentRegistry* component_registry = s_ecs_component_registry();
 

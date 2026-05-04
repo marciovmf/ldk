@@ -326,12 +326,7 @@ bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDe
   XArray* owners = NULL;
   XArray* store = NULL;
 
-  if (!registry || !registry->table)
-  {
-    return false;
-  }
-
-  if (!desc->type || !desc->entry_size)
+  if (!registry || !registry->table || !desc || !desc->type || !desc->entry_size)
   {
     return false;
   }

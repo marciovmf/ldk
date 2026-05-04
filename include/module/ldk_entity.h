@@ -40,11 +40,16 @@ typedef enum LDKEntityInternalFlags
   LDK_ENTITY_INTERNAL_HAS_LIGHT      = 1 << 4
 } LDKEntityInternalFlags;
 
+/**
+ * IDs of engine owned components.
+ * User components IDs can go from 1 to (UINT32_MAX - N)
+ * where N is the number of components in this enum.
+ */
 typedef enum LDKBuiltinComponentType
 {
-  LDK_COMPONENT_TYPE_TRANSFORM    = 1,
-  LDK_COMPONENT_TYPE_CAMERA       = 2,
-  LDK_COMPONENT_TYPE_MESH_SOURCE  = 3,
+  LDK_COMPONENT_TYPE_TRANSFORM    = UINT32_MAX - 1,
+  LDK_COMPONENT_TYPE_CAMERA       = UINT32_MAX - 2,
+  LDK_COMPONENT_TYPE_MESH_SOURCE  = UINT32_MAX - 3,
 } LDKBuiltinComponentType;
 
 /**
