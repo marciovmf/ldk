@@ -63,7 +63,7 @@ bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type)
   return x_hashtable_u32_registered_component_has(registry->table, type);
 }
 
-XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type)
+XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type)
 {
   LDKRegisteredComponent entry;
 
@@ -80,7 +80,7 @@ XArray* ldk_component_get_store(LDKComponentRegistry* registry, u32 type)
   return entry.store;
 }
 
-XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type)
+XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type)
 {
   LDKRegisteredComponent entry;
 
@@ -97,7 +97,7 @@ XArray* ldk_component_get_owners(LDKComponentRegistry* registry, u32 type)
   return entry.owners;
 }
 
-bool ldk_component_remove_entity(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type)
+bool ldk_component_entity_remove(LDKComponentRegistry* registry, LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type)
 {
   if (!registry)
   {
@@ -109,7 +109,7 @@ bool ldk_component_remove_entity(LDKComponentRegistry* registry, LDKEntityRegist
     return false;
   }
 
-  return ldk_entity_remove_component(
+  return ldk_entity_component_remove(
       entity_system,
       registry,
       entity,
@@ -128,7 +128,7 @@ void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntity
     return;
   }
 
-  info = ldk_entity_get_info(entity_system, entity);
+  info = ldk_entity_info_get(entity_system, entity);
   if (!info)
   {
     return;
@@ -142,7 +142,7 @@ void ldk_component_registry_remove_all(LDKComponentRegistry* registry, LDKEntity
     last = (u32)info->components.component_count - 1;
     component_type = info->components.component_type[last];
 
-    if (!ldk_component_remove_entity(registry, entity_system, entity, component_type))
+    if (!ldk_component_entity_remove(registry, entity_system, entity, component_type))
     {
       break;
     }
@@ -302,7 +302,7 @@ bool ldk_component_destroy(LDKComponentRegistry* module, LDKEntityRegistry* enti
 
       // Update entity TRANSFORM index
       LDKEntity moved_entity = *(LDKEntity*)src_owner;
-      LDKEntityInfo* moved_info = ldk_entity_get_info(entity_module, moved_entity);
+      LDKEntityInfo* moved_info = ldk_entity_info_get(entity_module, moved_entity);
       if (moved_info && component_type == LDK_COMPONENT_TYPE_TRANSFORM)
       {
         moved_info->transform_index = component_index;

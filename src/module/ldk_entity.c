@@ -12,10 +12,10 @@ static void s_entity_ctor(void* user, void* item)
   info->transform_index = LDK_ENTITY_INVALID_COMPONENT_INDEX;
 }
 
-static bool s_entity_add_component_ref(LDKEntityRegistry* module, LDKEntity entity,
+static bool s_entity_component_ref_add(LDKEntityRegistry* module, LDKEntity entity,
     u32 component_type, u32 component_index)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   u32 count = 0;
 
   if (!info)
@@ -23,7 +23,7 @@ static bool s_entity_add_component_ref(LDKEntityRegistry* module, LDKEntity enti
     return false;
   }
 
-  if (ldk_entity_has_component(module, entity, component_type))
+  if (ldk_entity_component_has(module, entity, component_type))
   {
     return false;
   }
@@ -49,10 +49,10 @@ static bool s_entity_add_component_ref(LDKEntityRegistry* module, LDKEntity enti
   return true;
 }
 
-static bool s_entity_update_component_ref(LDKEntityRegistry* module, LDKEntity entity,
+static bool s_entity_component_ref_update(LDKEntityRegistry* module, LDKEntity entity,
     u32 component_type, u32 component_index)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   u32 slot = 0;
 
   if (!info)
@@ -60,7 +60,7 @@ static bool s_entity_update_component_ref(LDKEntityRegistry* module, LDKEntity e
     return false;
   }
 
-  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  if (!ldk_entity_component_find(module, entity, component_type, &slot, NULL))
   {
     return false;
   }
@@ -76,9 +76,9 @@ static bool s_entity_update_component_ref(LDKEntityRegistry* module, LDKEntity e
   return true;
 }
 
-static bool s_entity_remove_component_ref(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
+static bool s_entity_component_ref_remove(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   u32 slot = 0;
   u32 count = 0;
   u32 last = 0;
@@ -88,7 +88,7 @@ static bool s_entity_remove_component_ref(LDKEntityRegistry* module, LDKEntity e
     return false;
   }
 
-  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  if (!ldk_entity_component_find(module, entity, component_type, &slot, NULL))
   {
     return false;
   }
@@ -202,7 +202,7 @@ bool ldk_entity_is_alive(LDKEntityRegistry* module, LDKEntity entity)
   return x_hpool_is_alive(&module->pool, entity) != 0;
 }
 
-LDKEntityInfo* ldk_entity_get_info(LDKEntityRegistry* module, LDKEntity entity)
+LDKEntityInfo* ldk_entity_info_get(LDKEntityRegistry* module, LDKEntity entity)
 {
   if (!module)
   {
@@ -212,7 +212,7 @@ LDKEntityInfo* ldk_entity_get_info(LDKEntityRegistry* module, LDKEntity entity)
   return (LDKEntityInfo*)x_hpool_get(&module->pool, entity);
 }
 
-const LDKEntityInfo* ldk_entity_get_info_const(LDKEntityRegistry* module, LDKEntity entity)
+const LDKEntityInfo* ldk_entity_info_get_const(LDKEntityRegistry* module, LDKEntity entity)
 {
   if (!module)
   {
@@ -232,9 +232,9 @@ u32 ldk_entity_alive_count(LDKEntityRegistry* module)
   return x_hpool_alive_count(&module->pool);
 }
 
-void ldk_entity_set_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_flags_set(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {
@@ -244,9 +244,9 @@ void ldk_entity_set_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags
   info->flags = flags;
 }
 
-u16 ldk_entity_get_flags(LDKEntityRegistry* module, LDKEntity entity)
+u16 ldk_entity_flags_get(LDKEntityRegistry* module, LDKEntity entity)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -256,9 +256,9 @@ u16 ldk_entity_get_flags(LDKEntityRegistry* module, LDKEntity entity)
   return info->flags;
 }
 
-void ldk_entity_add_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_flags_add(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {
@@ -268,9 +268,9 @@ void ldk_entity_add_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags
   info->flags |= flags;
 }
 
-void ldk_entity_remove_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_flags_remove(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {
@@ -280,9 +280,9 @@ void ldk_entity_remove_flags(LDKEntityRegistry* module, LDKEntity entity, u16 fl
   info->flags &= (u16)~flags;
 }
 
-bool ldk_entity_has_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+bool ldk_entity_flags_has(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -292,9 +292,9 @@ bool ldk_entity_has_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags
   return (info->flags & flags) == flags;
 }
 
-void ldk_entity_remove_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_internal_flags_remove(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {
@@ -304,9 +304,9 @@ void ldk_entity_remove_internal_flags(LDKEntityRegistry* module, LDKEntity entit
   info->internal_flags &= (u16)~flags;
 }
 
-bool ldk_entity_has_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+bool ldk_entity_internal_flags_has(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -316,10 +316,10 @@ bool ldk_entity_has_internal_flags(LDKEntityRegistry* module, LDKEntity entity, 
   return (info->internal_flags & flags) == flags;
 }
 
-bool ldk_entity_set_name(LDKEntityRegistry* module, LDKEntity entity, const char* name)
+bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char* name)
 {
 #ifdef _DEBUG
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   size_t len = 0;
 
   if (!info)
@@ -352,10 +352,10 @@ bool ldk_entity_set_name(LDKEntityRegistry* module, LDKEntity entity, const char
 #endif
 }
 
-const char* ldk_entity_get_name(LDKEntityRegistry* module, LDKEntity entity)
+const char* ldk_entity_name_get(LDKEntityRegistry* module, LDKEntity entity)
 {
 #ifdef _DEBUG
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -372,7 +372,7 @@ const char* ldk_entity_get_name(LDKEntityRegistry* module, LDKEntity entity)
 
 u32 ldk_entity_component_count(LDKEntityRegistry* module, LDKEntity entity)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -382,10 +382,10 @@ u32 ldk_entity_component_count(LDKEntityRegistry* module, LDKEntity entity)
   return info->components.component_count;
 }
 
-bool ldk_entity_find_component(LDKEntityRegistry* module, LDKEntity entity, u32 component_type,
+bool ldk_entity_component_find(LDKEntityRegistry* module, LDKEntity entity, u32 component_type,
     u32* out_slot, u32* out_component_index)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
   u32 i = 0;
   u32 count = 0;
 
@@ -417,15 +417,15 @@ bool ldk_entity_find_component(LDKEntityRegistry* module, LDKEntity entity, u32 
   return false;
 }
 
-bool ldk_entity_has_component(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
+bool ldk_entity_component_has(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
 {
-  return ldk_entity_find_component(module, entity, component_type, NULL, NULL);
+  return ldk_entity_component_find(module, entity, component_type, NULL, NULL);
 }
 
-LDKTransform* ldk_entity_get_transform(LDKEntityRegistry* entity_module,
+LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(entity_module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(entity_module, entity);
 
   if (!info || !component_module)
   {
@@ -440,16 +440,16 @@ LDKTransform* ldk_entity_get_transform(LDKEntityRegistry* entity_module,
   return (LDKTransform*)ldk_component_get(component_module, LDK_COMPONENT_TYPE_TRANSFORM, info->transform_index);
 }
 
-const LDKTransform* ldk_entity_get_transform_const(LDKEntityRegistry* entity_module,
+const LDKTransform* ldk_entity_transform_get_const(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity)
 {
-  return (const LDKTransform*)ldk_entity_get_transform(entity_module, component_module, entity);
+  return (const LDKTransform*)ldk_entity_transform_get(entity_module, component_module, entity);
 }
 
-bool ldk_entity_get_component_ref(LDKEntityRegistry* module, LDKEntity entity,
+bool ldk_entity_component_ref_get(LDKEntityRegistry* module, LDKEntity entity,
     u32 component_type, LDKComponentRef* out_ref)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   u32 slot = 0;
 
   if (!info || !out_ref)
@@ -457,7 +457,7 @@ bool ldk_entity_get_component_ref(LDKEntityRegistry* module, LDKEntity entity,
     return false;
   }
 
-  if (!ldk_entity_find_component(module, entity, component_type, &slot, NULL))
+  if (!ldk_entity_component_find(module, entity, component_type, &slot, NULL))
   {
     return false;
   }
@@ -471,7 +471,7 @@ bool ldk_entity_get_component_ref(LDKEntityRegistry* module, LDKEntity entity,
 
 bool ldk_component_ref_is_valid( LDKEntityRegistry* entity_system, LDKComponentRef ref)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(entity_system, ref.entity);
+  LDKEntityInfo* info = ldk_entity_info_get(entity_system, ref.entity);
 
   if (!info)
   {
@@ -489,7 +489,7 @@ bool ldk_component_ref_is_valid( LDKEntityRegistry* entity_system, LDKComponentR
 void* ldk_component_ref_get(LDKEntityRegistry* entity_system,
     struct LDKComponentRegistry* component_registry, LDKComponentRef ref)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(entity_system, ref.entity);
+  LDKEntityInfo* info = ldk_entity_info_get(entity_system, ref.entity);
   XArray* store = NULL;
   u32 component_index = 0;
   u32 component_type = 0;
@@ -511,7 +511,7 @@ void* ldk_component_ref_get(LDKEntityRegistry* entity_system,
 
   component_type = info->components.component_type[ref.slot_index];
   component_index = info->components.component_index[ref.slot_index];
-  store = ldk_component_get_store((LDKComponentRegistry*)component_registry, component_type);
+  store = ldk_component_store_get((LDKComponentRegistry*)component_registry, component_type);
 
   if (!store || component_index >= x_array_count(store))
   {
@@ -554,7 +554,7 @@ void ldk_entity_foreach(LDKEntityRegistry* module, LDKEntityIterFn fn, void* use
   }
 }
 
-void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
+void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
     LDKEntity entity, u32 component_type, const void* initial_value)
 {
   u32 component_index = 0;
@@ -580,7 +580,7 @@ void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentReg
     return NULL;
   }
 
-  if (!s_entity_add_component_ref(
+  if (!s_entity_component_ref_add(
         entity_module,
         entity,
         component_type,
@@ -596,12 +596,12 @@ void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentReg
   }
 
   {
-    XArray* owners = ldk_component_get_owners(component_module, component_type);
+    XArray* owners = ldk_component_owners_get(component_module, component_type);
     LDKEntity* owner = NULL;
 
     if (!owners)
     {
-      s_entity_remove_component_ref(
+      s_entity_component_ref_remove(
           entity_module,
           entity,
           component_type);
@@ -619,7 +619,7 @@ void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentReg
 
     if (!owner)
     {
-      s_entity_remove_component_ref(
+      s_entity_component_ref_remove(
           entity_module,
           entity,
           component_type);
@@ -644,7 +644,7 @@ void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentReg
         component_index,
         initial_value))
   {
-    s_entity_remove_component_ref(
+    s_entity_component_ref_remove(
         entity_module,
         entity,
         component_type);
@@ -661,7 +661,7 @@ void* ldk_entity_add_component(LDKEntityRegistry* entity_module, LDKComponentReg
   return component;
 }
 
-void* ldk_entity_get_component(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
+void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
     LDKEntity entity, u32 component_type)
 {
   u32 component_index = 0;
@@ -676,7 +676,7 @@ void* ldk_entity_get_component(LDKEntityRegistry* entity_module, LDKComponentReg
     return NULL;
   }
 
-  if (!ldk_entity_find_component(
+  if (!ldk_entity_component_find(
         entity_module,
         entity,
         component_type,
@@ -692,7 +692,7 @@ void* ldk_entity_get_component(LDKEntityRegistry* entity_module, LDKComponentReg
       component_index);
 }
 
-bool ldk_entity_remove_component(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
+bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
     LDKEntity entity, u32 component_type)
 {
   XArray* owners = NULL;
@@ -712,7 +712,7 @@ bool ldk_entity_remove_component(LDKEntityRegistry* entity_module, LDKComponentR
     return false;
   }
 
-  if (!ldk_entity_find_component(
+  if (!ldk_entity_component_find(
         entity_module,
         entity,
         component_type,
@@ -722,8 +722,8 @@ bool ldk_entity_remove_component(LDKEntityRegistry* entity_module, LDKComponentR
     return false;
   }
 
-  store = ldk_component_get_store(component_module, component_type);
-  owners = ldk_component_get_owners(component_module, component_type);
+  store = ldk_component_store_get(component_module, component_type);
+  owners = ldk_component_owners_get(component_module, component_type);
 
   if (!store)
   {
@@ -778,7 +778,7 @@ bool ldk_entity_remove_component(LDKEntityRegistry* entity_module, LDKComponentR
 
   if (had_move)
   {
-    if (!s_entity_update_component_ref(
+    if (!s_entity_component_ref_update(
           entity_module,
           moved_entity,
           component_type,
@@ -788,16 +788,16 @@ bool ldk_entity_remove_component(LDKEntityRegistry* entity_module, LDKComponentR
     }
   }
 
-  return s_entity_remove_component_ref(
+  return s_entity_component_ref_remove(
       entity_module,
       entity,
       component_type);
 }
 
 #ifdef LDK_ENGINE
-void ldk_entity_set_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_internal_flags_set(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {
@@ -809,9 +809,9 @@ void ldk_entity_set_internal_flags(LDKEntityRegistry* module, LDKEntity entity, 
 #endif// LDK_ENGINE
 
 #ifdef LDK_ENGINE
-u16 ldk_entity_get_internal_flags(LDKEntityRegistry* module, LDKEntity entity)
+u16 ldk_entity_internal_flags_get(LDKEntityRegistry* module, LDKEntity entity)
 {
-  const LDKEntityInfo* info = ldk_entity_get_info_const(module, entity);
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)
   {
@@ -823,9 +823,9 @@ u16 ldk_entity_get_internal_flags(LDKEntityRegistry* module, LDKEntity entity)
 #endif// LDK_ENGINE
 
 #ifdef LDK_ENGINE
-void ldk_entity_add_internal_flags(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
+void ldk_entity_internal_flags_add(LDKEntityRegistry* module, LDKEntity entity, u16 flags)
 {
-  LDKEntityInfo* info = ldk_entity_get_info(module, entity);
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
 
   if (!info)
   {

@@ -157,11 +157,11 @@ int test_component_register_and_get_store(void)
 
   ASSERT_TRUE(ldk_component_is_registered(&registry, TEST_COMPONENT_A));
 
-  store = ldk_component_get_store(&registry, TEST_COMPONENT_A);
+  store = ldk_component_store_get(&registry, TEST_COMPONENT_A);
   ASSERT_TRUE(store != NULL);
 
   ASSERT_TRUE(!ldk_component_is_registered(&registry, 999));
-  ASSERT_TRUE(ldk_component_get_store(&registry, 999) == NULL);
+  ASSERT_TRUE(ldk_component_store_get(&registry, 999) == NULL);
 
   ldk_component_registry_terminate(&registry);
   return 0;
@@ -195,7 +195,7 @@ int test_component_add_with_null_callbacks_and_initial_value_copies_component(vo
 
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -237,7 +237,7 @@ int test_component_add_calls_attach_callback_after_copying_initial_value(void)
 
   entity = ldk_entity_create(&entity_registry);
 
-  TestComponentA* component_a = (TestComponentA*)ldk_entity_add_component(
+  TestComponentA* component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -282,20 +282,20 @@ int test_component_add_rolls_back_when_attach_fails(void)
   ASSERT_TRUE(ldk_component_register(&component_registry, &component_a_desc));
   entity = ldk_entity_create(&entity_registry);
 
-  TestComponentA* component_a = (TestComponentA*)ldk_entity_add_component(
+  TestComponentA* component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
       TEST_COMPONENT_A,
       NULL);
 
-  store = ldk_component_get_store(&component_registry, TEST_COMPONENT_A);
-  owners = ldk_component_get_owners(&component_registry, TEST_COMPONENT_A);
+  store = ldk_component_store_get(&component_registry, TEST_COMPONENT_A);
+  owners = ldk_component_owners_get(&component_registry, TEST_COMPONENT_A);
 
   ASSERT_TRUE(component_a == NULL);
   ASSERT_TRUE(state.attach_count == 1);
   ASSERT_TRUE(state.destroy_count == 0);
-  ASSERT_TRUE(!ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(!ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_A));
   ASSERT_TRUE(store != NULL);
   ASSERT_TRUE(owners != NULL);
   ASSERT_TRUE(x_array_count(store) == 0);
@@ -306,7 +306,7 @@ int test_component_add_rolls_back_when_attach_fails(void)
   return 0;
 }
 
-int test_component_remove_entity_single_component(void)
+int test_component_entity_remove_single_component(void)
 {
   LDKComponentRegistry component_registry;
   LDKEntityRegistry entity_registry;
@@ -323,7 +323,7 @@ int test_component_remove_entity_single_component(void)
 
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -332,13 +332,13 @@ int test_component_remove_entity_single_component(void)
   ASSERT_TRUE(component_a != NULL);
   component_a->value = 42;
 
-  store = ldk_component_get_store(&component_registry, TEST_COMPONENT_A);
-  owners = ldk_component_get_owners(&component_registry, TEST_COMPONENT_A);
+  store = ldk_component_store_get(&component_registry, TEST_COMPONENT_A);
+  owners = ldk_component_owners_get(&component_registry, TEST_COMPONENT_A);
 
   ASSERT_TRUE(store != NULL);
   ASSERT_TRUE(owners != NULL);
 
-  ASSERT_TRUE(ldk_entity_find_component(
+  ASSERT_TRUE(ldk_entity_component_find(
       &entity_registry,
       entity,
       TEST_COMPONENT_A,
@@ -346,13 +346,13 @@ int test_component_remove_entity_single_component(void)
       &out_index));
   ASSERT_TRUE(out_index == 0);
 
-  ASSERT_TRUE(ldk_component_remove_entity(
+  ASSERT_TRUE(ldk_component_entity_remove(
       &component_registry,
       &entity_registry,
       entity,
       TEST_COMPONENT_A));
 
-  ASSERT_TRUE(!ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(!ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_A));
   ASSERT_TRUE(x_array_count(store) == 0);
   ASSERT_TRUE(x_array_count(owners) == 0);
 
@@ -386,7 +386,7 @@ int test_component_remove_calls_destroy_callback(void)
 
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -395,7 +395,7 @@ int test_component_remove_calls_destroy_callback(void)
   ASSERT_TRUE(component_a != NULL);
   component_a->value = 55;
 
-  ASSERT_TRUE(ldk_component_remove_entity(
+  ASSERT_TRUE(ldk_component_entity_remove(
       &component_registry,
       &entity_registry,
       entity,
@@ -431,7 +431,7 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
   entity_a = ldk_entity_create(&entity_registry);
   entity_b = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity_a,
@@ -440,7 +440,7 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
   ASSERT_TRUE(component_a != NULL);
   component_a->value = 11;
 
-  component_b = (TestComponentA*)ldk_entity_add_component(
+  component_b = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity_b,
@@ -449,13 +449,13 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
   ASSERT_TRUE(component_b != NULL);
   component_b->value = 22;
 
-  store = ldk_component_get_store(&component_registry, TEST_COMPONENT_A);
-  owners = ldk_component_get_owners(&component_registry, TEST_COMPONENT_A);
+  store = ldk_component_store_get(&component_registry, TEST_COMPONENT_A);
+  owners = ldk_component_owners_get(&component_registry, TEST_COMPONENT_A);
 
   ASSERT_TRUE(store != NULL);
   ASSERT_TRUE(owners != NULL);
 
-  ASSERT_TRUE(ldk_component_remove_entity(
+  ASSERT_TRUE(ldk_component_entity_remove(
       &component_registry,
       &entity_registry,
       entity_a,
@@ -473,7 +473,7 @@ int test_component_remove_entity_updates_moved_owner_ref(void)
   ASSERT_TRUE(owner->version == entity_b.version);
   ASSERT_TRUE(stored_component->value == 22);
 
-  ASSERT_TRUE(ldk_entity_find_component(
+  ASSERT_TRUE(ldk_entity_component_find(
       &entity_registry,
       entity_b,
       TEST_COMPONENT_A,
@@ -505,7 +505,7 @@ int test_component_registry_remove_all(void)
 
   entity = ldk_entity_create(&entity_registry);
 
-  component_a = (TestComponentA*)ldk_entity_add_component(
+  component_a = (TestComponentA*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -514,7 +514,7 @@ int test_component_registry_remove_all(void)
   ASSERT_TRUE(component_a != NULL);
   component_a->value = 11;
 
-  component_b = (TestComponentB*)ldk_entity_add_component(
+  component_b = (TestComponentB*)ldk_entity_component_add(
       &entity_registry,
       &component_registry,
       entity,
@@ -523,23 +523,23 @@ int test_component_registry_remove_all(void)
   ASSERT_TRUE(component_b != NULL);
   component_b->value = 22;
 
-  store_a = ldk_component_get_store(&component_registry, TEST_COMPONENT_A);
-  store_b = ldk_component_get_store(&component_registry, TEST_COMPONENT_B);
-  owners_a = ldk_component_get_owners(&component_registry, TEST_COMPONENT_A);
-  owners_b = ldk_component_get_owners(&component_registry, TEST_COMPONENT_B);
+  store_a = ldk_component_store_get(&component_registry, TEST_COMPONENT_A);
+  store_b = ldk_component_store_get(&component_registry, TEST_COMPONENT_B);
+  owners_a = ldk_component_owners_get(&component_registry, TEST_COMPONENT_A);
+  owners_b = ldk_component_owners_get(&component_registry, TEST_COMPONENT_B);
 
   ASSERT_TRUE(store_a != NULL);
   ASSERT_TRUE(store_b != NULL);
   ASSERT_TRUE(owners_a != NULL);
   ASSERT_TRUE(owners_b != NULL);
 
-  ASSERT_TRUE(ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_A));
-  ASSERT_TRUE(ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_B));
+  ASSERT_TRUE(ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_B));
 
   ldk_component_registry_remove_all(&component_registry, &entity_registry, entity);
 
-  ASSERT_TRUE(!ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_A));
-  ASSERT_TRUE(!ldk_entity_has_component(&entity_registry, entity, TEST_COMPONENT_B));
+  ASSERT_TRUE(!ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(!ldk_entity_component_has(&entity_registry, entity, TEST_COMPONENT_B));
   ASSERT_TRUE(x_array_count(store_a) == 0);
   ASSERT_TRUE(x_array_count(store_b) == 0);
   ASSERT_TRUE(x_array_count(owners_a) == 0);
@@ -559,7 +559,7 @@ int main(void)
     X_TEST(test_component_add_with_null_callbacks_and_initial_value_copies_component),
     X_TEST(test_component_add_calls_attach_callback_after_copying_initial_value),
     X_TEST(test_component_add_rolls_back_when_attach_fails),
-    X_TEST(test_component_remove_entity_single_component),
+    X_TEST(test_component_entity_remove_single_component),
     X_TEST(test_component_remove_calls_destroy_callback),
     X_TEST(test_component_remove_entity_updates_moved_owner_ref),
     X_TEST(test_component_registry_remove_all),

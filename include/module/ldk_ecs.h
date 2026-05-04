@@ -26,25 +26,40 @@ typedef struct LDKECS
 } LDKECS;
 
 
+  // ---------------------------------------------------------------------------
+  // lifecycle
+  // ---------------------------------------------------------------------------
   LDK_API bool ldk_ecs_initialize(LDKECS* context, u32 entity_page_capacity, u32 entity_initial_pages);
   LDK_API void ldk_ecs_terminate(void);
-  LDK_API LDKEntity ldk_ecs_create_entity(void);
-  LDK_API void ldk_ecs_destroy_entity(LDKEntity entity);
-  LDK_API void* ldk_ecs_add_component(LDKEntity entity, u32 component_type, const void* initial_value);
-  LDK_API void* ldk_ecs_get_component(LDKEntity entity, u32 component_type);
-  LDK_API const void* ldk_ecs_get_component_const(LDKEntity entity, u32 component_type);
-  LDK_API bool ldk_ecs_remove_component(LDKEntity entity, u32 component_type);
-  LDK_API bool ldk_ecs_register_component(const LDKComponentDesc* desc);
-  LDK_API bool ldk_ecs_register_system(const LDKSystemDesc* desc);
-  LDK_API bool ldk_ecs_unregister_system(u64 id);
 
-  LDK_API LDKEntityRegistry* ldk_ecs_entity_registry(void);
-  LDK_API LDKComponentRegistry* ldk_ecs_component_registry(void);
-  LDK_API LDKSystemRegistry* ldk_ecs_system_registry(void);
+  // ---------------------------------------------------------------------------
+  // Entity lifecycle
+  // ---------------------------------------------------------------------------
+  LDK_API LDKEntity ldk_ecs_entity_create(void);
+  LDK_API void ldk_ecs_entity_destroy(LDKEntity entity);
+
+  // ---------------------------------------------------------------------------
+  // Component management
+  // ---------------------------------------------------------------------------
+  LDK_API void* ldk_ecs_component_add(LDKEntity entity, u32 component_type, const void* initial_value);
+  LDK_API void* ldk_ecs_component_get(LDKEntity entity, u32 component_type);
+  LDK_API const void* ldk_ecs_component_get_const(LDKEntity entity, u32 component_type);
+  LDK_API bool ldk_ecs_component_remove(LDKEntity entity, u32 component_type);
+  LDK_API bool ldk_ecs_component_register(const LDKComponentDesc* desc);
+  LDK_API bool ldk_ecs_system_register(const LDKSystemDesc* desc);
+  LDK_API bool ldk_ecs_system_unregister(u64 id);
+
 
 #ifdef LDK_ENGINE
+  // ---------------------------------------------------------------------------
+  // Component management
+  // ---------------------------------------------------------------------------
+  LDK_API LDKEntityRegistry* ldk_ecs_entity_registry_get(void);
+  LDK_API LDKComponentRegistry* ldk_ecs_component_registry_get(void);
+  LDK_API LDKSystemRegistry* ldk_ecs_system_registry_get(void);
+
   LDK_API bool ldk_ecs_system_registry_start(LDKECS* context);
-  LDK_API bool ldk_ecs_run_system_bucket(LDKECS* context, LDKSystemBucket bucket, float delta_time);
+  LDK_API bool ldk_ecs_system_bucket_run(LDKECS* context, LDKSystemBucket bucket, float delta_time);
   LDK_API bool ldk_ecs_system_registry_stop(LDKECS* context);
 #endif
 
