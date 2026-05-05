@@ -30,7 +30,7 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry, LDKComponen
     return false;
   }
 
-  if (!ldk_entity_has_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
+  if (!ldk_entity_internal_flags_has(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM))
   {
     return false;
   }
@@ -40,7 +40,7 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry, LDKComponen
     *mesh_source = s_mesh_source_make_default();
   }
 
-  ldk_entity_add_internal_flags(
+  ldk_entity_internal_flags_add(
       entity_registry,
       entity,
       LDK_ENTITY_INTERNAL_HAS_RENDERABLE);
@@ -61,7 +61,7 @@ static void s_mesh_source_destroy(LDKEntityRegistry* entity_registry, LDKCompone
     return;
   }
 
-  ldk_entity_remove_internal_flags(
+  ldk_entity_internal_flags_remove(
       entity_registry,
       entity,
       LDK_ENTITY_INTERNAL_HAS_RENDERABLE);

@@ -747,15 +747,15 @@ void ldk_engine_frame(void)
 #endif
 
   { // Update simulation
-    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
+    ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
     if (e->playing)
     {
       e->game.update(&e->game, delta_time);
     }
 
     ldk_scenegraph_update(delta_time); // Update scenegraph
-    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
-    ldk_ecs_run_system_bucket(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
+    ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
+    ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
   }
 
   event.type = LDK_EVENT_TYPE_RENDER_BEFORE;

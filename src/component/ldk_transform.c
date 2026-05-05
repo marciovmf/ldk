@@ -13,12 +13,12 @@ static int s_entity_eq(LDKEntity a, LDKEntity b)
 
 static LDKTransform* s_transform_get_ptr(LDKEntity entity)
 {
-  return (LDKTransform*)ldk_ecs_get_component(entity, LDK_COMPONENT_TYPE_TRANSFORM);
+  return (LDKTransform*)ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_TRANSFORM);
 }
 
 static const LDKTransform* s_transform_get_ptr_const(LDKEntity entity)
 {
-  return (const LDKTransform*)ldk_ecs_get_component_const(entity, LDK_COMPONENT_TYPE_TRANSFORM);
+  return (const LDKTransform*)ldk_ecs_component_get_const(entity, LDK_COMPONENT_TYPE_TRANSFORM);
 }
 
 static bool s_transform_mark_subtree_dirty(LDKEntity entity)
@@ -173,7 +173,7 @@ static bool s_transform_attach(LDKEntityRegistry* entity_registry, LDKComponentR
     *transform = ldk_transform_make_default();
   }
 
-  ldk_entity_add_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
+  ldk_entity_internal_flags_add(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
   return true;
 }
 
@@ -193,7 +193,7 @@ static void s_transform_destroy(LDKEntityRegistry* entity_registry, LDKComponent
 
   s_transform_unlink_from_parent(transform);
   s_transform_orphan_children(transform);
-  ldk_entity_remove_internal_flags(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
+  ldk_entity_internal_flags_remove(entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_TRANSFORM);
 }
 
 LDKTransform ldk_transform_make_default(void)

@@ -694,3 +694,4 @@ bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id)
 {
   return s_system_registry_find_by_id_const(registry, id) != NULL;
 }
+

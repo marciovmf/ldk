@@ -8,28 +8,28 @@ static bool s_entity_eq(LDKEntity a, LDKEntity b)
   return a.index == b.index && a.version == b.version;
 }
 
-static LDKTransform* s_scenegraph_get_transform(LDKEntityRegistry* entity_registry,
+static LDKTransform* s_scenegraph_transform_get(LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry, LDKEntity entity)
 {
-  return ldk_entity_get_transform(
+  return ldk_entity_transform_get(
       entity_registry,
       component_registry,
       entity);
 }
 
-static const LDKTransform* s_scenegraph_get_transform_const(LDKEntityRegistry* entity_registry,
+static const LDKTransform* s_scenegraph_transform_get_const(LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry, LDKEntity entity)
 {
-  return ldk_entity_get_transform_const(
+  return ldk_entity_transform_get_const(
       entity_registry,
       component_registry,
       entity);
 }
 
-static bool s_scenegraph_mark_subtree_dirty(LDKEntityRegistry* entity_registry,
+static bool s_scenegraph_subtree_mark_dirty(LDKEntityRegistry* entity_registry,
     LDKComponentRegistry* component_registry, LDKEntity entity)
 {
-  LDKTransform* transform = s_scenegraph_get_transform(
+  LDKTransform* transform = s_scenegraph_transform_get(
       entity_registry,
       component_registry,
       entity);
@@ -45,7 +45,7 @@ static bool s_scenegraph_mark_subtree_dirty(LDKEntityRegistry* entity_registry,
 
   while (!x_handle_is_null(child))
   {
-    const LDKTransform* child_transform = s_scenegraph_get_transform_const(
+    const LDKTransform* child_transform = s_scenegraph_transform_get_const(
         entity_registry,
         component_registry,
         child);
@@ -57,7 +57,7 @@ static bool s_scenegraph_mark_subtree_dirty(LDKEntityRegistry* entity_registry,
 
     LDKEntity next_child = child_transform->next_sibling;
 
-    if (!s_scenegraph_mark_subtree_dirty(
+    if (!s_scenegraph_subtree_mark_dirty(
           entity_registry,
           component_registry,
           child))
@@ -79,7 +79,7 @@ static bool s_scenegraph_is_ancestor(LDKEntityRegistry* entity_registry,
 
   while (!x_handle_is_null(current))
   {
-    const LDKTransform* transform = s_scenegraph_get_transform_const(
+    const LDKTransform* transform = s_scenegraph_transform_get_const(
         entity_registry,
         component_registry,
         current);
@@ -117,7 +117,7 @@ static bool s_scenegraph_unlink_from_parent(LDKEntityRegistry* entity_registry,
 
   if (x_handle_is_null(child->prev_sibling))
   {
-    LDKTransform* parent_transform = s_scenegraph_get_transform(
+    LDKTransform* parent_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         child->parent);
@@ -131,7 +131,7 @@ static bool s_scenegraph_unlink_from_parent(LDKEntityRegistry* entity_registry,
   }
   else
   {
-    LDKTransform* prev_transform = s_scenegraph_get_transform(
+    LDKTransform* prev_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         child->prev_sibling);
@@ -146,7 +146,7 @@ static bool s_scenegraph_unlink_from_parent(LDKEntityRegistry* entity_registry,
 
   if (!x_handle_is_null(child->next_sibling))
   {
-    LDKTransform* next_transform = s_scenegraph_get_transform(
+    LDKTransform* next_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         child->next_sibling);
@@ -204,7 +204,7 @@ static bool s_scenegraph_update_subtree(LDKEntityRegistry* entity_registry,
 
   while (!x_handle_is_null(child))
   {
-    LDKTransform* child_transform = s_scenegraph_get_transform(
+    LDKTransform* child_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         child);
@@ -235,8 +235,8 @@ static bool s_scenegraph_update_subtree(LDKEntityRegistry* entity_registry,
 
 bool ldk_scenegraph_update(float dt)
 {
-  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry();
-  LDKComponentRegistry* component_registry = ldk_ecs_component_registry();
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
 
   (void)dt;
 
@@ -245,11 +245,11 @@ bool ldk_scenegraph_update(float dt)
     return false;
   }
 
-  XArray* store = ldk_component_get_store(
+  XArray* store = ldk_component_store_get(
       component_registry,
       LDK_COMPONENT_TYPE_TRANSFORM);
 
-  XArray* owners = ldk_component_get_owners(
+  XArray* owners = ldk_component_owners_get(
       component_registry,
       LDK_COMPONENT_TYPE_TRANSFORM);
 
@@ -294,15 +294,15 @@ bool ldk_scenegraph_update(float dt)
 
 bool ldk_scenegraph_update_entity(LDKEntity entity)
 {
-  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry();
-  LDKComponentRegistry* component_registry = ldk_ecs_component_registry();
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
 
   if (!entity_registry || !component_registry)
   {
     return false;
   }
 
-  LDKTransform* transform = s_scenegraph_get_transform(
+  LDKTransform* transform = s_scenegraph_transform_get(
       entity_registry, component_registry, entity);
 
   if (!transform)
@@ -317,7 +317,7 @@ bool ldk_scenegraph_update_entity(LDKEntity entity)
   {
     root = current_transform->parent;
 
-    current_transform = s_scenegraph_get_transform_const(
+    current_transform = s_scenegraph_transform_get_const(
         entity_registry, component_registry, root);
     if (!current_transform)
     {
@@ -325,7 +325,7 @@ bool ldk_scenegraph_update_entity(LDKEntity entity)
     }
   }
 
-  LDKTransform* root_transform = s_scenegraph_get_transform(
+  LDKTransform* root_transform = s_scenegraph_transform_get(
       entity_registry, component_registry, root);
 
   if (!root_transform)
@@ -339,15 +339,15 @@ bool ldk_scenegraph_update_entity(LDKEntity entity)
 
 bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
 {
-  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry();
-  LDKComponentRegistry* component_registry = ldk_ecs_component_registry();
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
 
   if (!entity_registry || !component_registry)
   {
     return false;
   }
 
-  LDKTransform* child_transform = s_scenegraph_get_transform(
+  LDKTransform* child_transform = s_scenegraph_transform_get(
       entity_registry,
       component_registry,
       child_entity);
@@ -364,7 +364,7 @@ bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
       return false;
     }
 
-    LDKTransform* parent_transform = s_scenegraph_get_transform(
+    LDKTransform* parent_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         parent_entity);
@@ -399,7 +399,7 @@ bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
 
   if (!x_handle_is_null(parent_entity))
   {
-    LDKTransform* parent_transform = s_scenegraph_get_transform(
+    LDKTransform* parent_transform = s_scenegraph_transform_get(
         entity_registry,
         component_registry,
         parent_entity);
@@ -415,7 +415,7 @@ bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
 
     if (!x_handle_is_null(parent_transform->first_child))
     {
-      LDKTransform* first_child_transform = s_scenegraph_get_transform(
+      LDKTransform* first_child_transform = s_scenegraph_transform_get(
           entity_registry,
           component_registry,
           parent_transform->first_child);
@@ -431,7 +431,7 @@ bool ldk_scenegraph_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
     parent_transform->first_child = child_entity;
   }
 
-  return s_scenegraph_mark_subtree_dirty(
+  return s_scenegraph_subtree_mark_dirty(
       entity_registry,
       component_registry,
       child_entity);
@@ -444,15 +444,15 @@ bool ldk_scenegraph_detach(LDKEntity entity)
 
 LDKEntity ldk_scenegraph_get_parent(LDKEntity entity)
 {
-  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry();
-  LDKComponentRegistry* component_registry = ldk_ecs_component_registry();
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
 
   if (!entity_registry || !component_registry)
   {
     return x_handle_null();
   }
 
-  const LDKTransform* transform = s_scenegraph_get_transform_const(
+  const LDKTransform* transform = s_scenegraph_transform_get_const(
       entity_registry,
       component_registry,
       entity);
