@@ -46,10 +46,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifndef LDK_DEFAULT_TRANSFORM_COUNT
-#define LDK_DEFAULT_TRANSFORM_COUNT 64
-#endif
-
 // Editor UI defaults
 #ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY
 #define LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY 256
@@ -534,13 +530,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-  // Register transform component
-  LDKComponentDesc transform_component_desc = ldk_transform_component_desc(LDK_DEFAULT_TRANSFORM_COUNT);
-  if(! ldk_component_register(&e->ecs.component, &transform_component_desc))
-  {
-    ldk_log_error("Failed to register component: Transform.");
-    engine_init_failed = true;
-  }
 
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;

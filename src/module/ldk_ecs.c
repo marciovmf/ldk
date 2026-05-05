@@ -1,9 +1,28 @@
+#include "component/ldk_mesh_source.h"
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
 #include <component/ldk_transform.h>
+#include <component/ldk_camera.h>
 #include <ldk.h>
 
+#ifndef LDK_DEFAULT_TRANSFORM_COUNT
+#define LDK_DEFAULT_TRANSFORM_COUNT 64
+#endif
+
+#ifndef LDK_DEFAULT_CAMERA_COUNT
+#define LDK_DEFAULT_CAMERA_COUNT 4
+#endif
+
+#ifndef LDK_DEFAULT_MESHSOURCE_COUNT
+#define LDK_DEFAULT_MESHSOURCE_COUNT 4
+#endif
+
+static LDKEntityRegistry* s_ecs_entity_registry(void)
+{
+  LDKECS* ecs = (LDKECS*)ldk_module_get(LDK_MODULE_ECS);
+  return &ecs->entity;
+}
 
 // ---------------------------------------------------------------------------
 // ECS lifecycle
@@ -42,6 +61,39 @@ bool ldk_ecs_initialize(LDKECS* context, u32 entity_page_capacity, u32 entity_in
     ldk_entity_module_terminate(entity_registry);
     return false;
   }
+
+  bool error = false;
+
+  // Register internal components
+  LDKComponentDesc transform_component_desc = ldk_transform_component_desc(LDK_DEFAULT_TRANSFORM_COUNT);
+  if(! ldk_component_register(&context->component, &transform_component_desc))
+  {
+    ldk_log_error("Failed to register component: Transform.");
+    error = true;
+  }
+
+  LDKComponentDesc camera_component_desc = ldk_camera_component_desc(LDK_DEFAULT_CAMERA_COUNT);
+  if(! ldk_component_register(&context->component, &camera_component_desc))
+  {
+    ldk_log_error("Failed to register component: Camera.");
+    error = true;
+  }
+
+  LDKComponentDesc meshsource_component_desc = ldk_mesh_source_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if(! ldk_component_register(&context->component, &meshsource_component_desc))
+  {
+    ldk_log_error("Failed to register component: MeshSource.");
+    error = true;
+  }
+
+  if (error)
+  {
+    ldk_component_registry_terminate(&context->component);
+    ldk_entity_module_terminate(&context->entity);
+    ldk_system_registry_terminate(&context->system);
+    return false;
+  }
+
 
   return true;
 }
