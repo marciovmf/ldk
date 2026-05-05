@@ -46,6 +46,11 @@ extern "C" {
   LDK_API LDKComponentDesc ldk_camera_component_desc(u32 initial_capacity);
 #endif // LDK_ENGINE
 
+LDK_API bool ldk_camera_look_at(LDKEntity entity, Vec3 target);
+LDK_API bool ldk_camera_get_world_matrix(LDKEntity entity, Mat4* out_world);
+LDK_API bool ldk_camera_get_view_matrix(LDKEntity entity, Mat4* out_view);
+LDK_API bool ldk_camera_get_projection_matrix(LDKEntity entity, float aspect, Mat4* out_projection);
+
 #ifdef __cplusplus
 }
 #endif
