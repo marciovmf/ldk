@@ -555,8 +555,30 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   ldk_rhi_end_frame(renderer->rhi);
 
   renderer->submitted_ui = NULL;
+
+  // reset camera
+  renderer->has_camera = false;
+  renderer->submitted_ui = NULL;
 }
 
+
+// ---------------------------------------------------------------------------
+// Primitive Submission
+// ---------------------------------------------------------------------------
+
+bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection)
+{
+  if (!renderer || !renderer->is_initialized)
+  {
+    return false;
+  }
+
+  renderer->camera_view = view;
+  renderer->camera_projection = projection;
+  renderer->has_camera = true;
+
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Font cache
@@ -810,3 +832,5 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(
       font,
       page_index);
 }
+
+

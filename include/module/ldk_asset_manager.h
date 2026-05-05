@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+typedef XHandle LDKHandle;
+
   typedef enum LDKAssetType
   {
     LDK_ASSET_TYPE_NULL      = 0,
@@ -23,7 +25,7 @@ extern "C" {
 
   typedef struct LDKAssetHandle
   {
-    XHandle h;
+    LDKHandle h;
   } LDKAssetHandle;
 
 
@@ -70,7 +72,7 @@ extern "C" {
 
   typedef struct LDKAssetTextFile
   {
-    XHandle h;
+    LDKHandle h;
   } LDKAssetTextFile;
 
   typedef struct LDKAssetTextFileData
@@ -94,7 +96,7 @@ extern "C" {
 
   typedef struct LDKAssetImage
   {
-    XHandle h;
+    LDKHandle h;
   } LDKAssetImage;
 
   typedef struct LDKAssetImageData
@@ -135,7 +137,7 @@ extern "C" {
 
   typedef struct LDKAssetFont
   {
-    XHandle h;
+    LDKHandle h;
   } LDKAssetFont;
 
   typedef struct LDKAssetFontData
@@ -159,7 +161,7 @@ extern "C" {
 
   typedef struct LDKAssetMesh
   {
-    XHandle h;
+    LDKHandle h;
   } LDKAssetMesh;
 
   typedef struct LDKAssetMeshData

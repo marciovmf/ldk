@@ -754,7 +754,70 @@ void ldk_engine_frame(void)
   ldk_event_queue_broadcast(&e->event_queue);
 
   { // Render scene/game
+  
+    // Collect scene data from game
+    LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
+    LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
 
+    // Main camera
+    LDKCamera* main_camera = NULL;
+    Mat4 camera_view;
+    Mat4 camera_projection;
+    Mat4 camera_;
+    XArray* all_camera = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
+    XArray* camera_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
+
+    u32 camera_count = x_array_count(all_camera);
+    float aspect = (float)window_size.w / (float)window_size.h;
+
+    for (u32 i = 0; i < camera_count; i++)
+    {
+      LDKCamera* camera = x_array_get(all_camera, i);
+      LDKEntity* entity = x_array_get(camera_owners, i);
+      LDK_ASSERT(camera);
+      LDK_ASSERT(entity);
+      if (!camera->enabled || camera->role != LDK_CAMERA_ROLE_MAIN)
+      {
+        continue;
+      }
+      ldk_camera_get_view_matrix(*entity, &camera_view);
+      ldk_camera_get_projection_matrix(*entity, aspect, &camera_projection);
+      ldk_renderer_submit_view(&e->renderer, camera_view, camera_projection);
+      main_camera = camera;
+      break;
+    }
+
+    if (!main_camera)
+    {
+      ldk_log_error("No main camarea found!\n");
+    }
+
+
+    // Mesh sources
+    XArray* all_mesh = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    XArray* mesh_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    u32 mesh_count = x_array_count(all_mesh);
+
+    for (u32 i = 0; i < mesh_count; i++)
+    {
+      LDKMeshSource* mesh = x_array_get(all_mesh, i);
+      LDKEntity* entity = x_array_get(mesh_owners, i);
+
+      if (!mesh || !entity)
+      {
+        continue;
+      }
+
+      Mat4 mesh_world = mat4_identity();
+
+      if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
+      {
+        continue;
+      }
+
+      //ldk_renderer_submit_mesh(&e->renderer, mesh->source_asset, mesh_world);
+    }
+  }
 #ifdef LDK_EDITOR
     /* render editor overlays, gizmos and tool UI here */
     ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);

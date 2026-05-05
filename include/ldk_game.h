@@ -12,11 +12,21 @@
 
 #include <ldk_common.h>
 #include <ldk_argparse.h>
+#include <ldk_event.h>
+#include <ldk_mesh.h>
 #include <ldk_os.h>
-#include <module/ldk_entity.h>
+
+#include <component/ldk_camera.h>
+#include <component/ldk_mesh_source.h>
+#include <component/ldk_transform.h>
+
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
-#include <module/ldk_system.h>
+#include <module/ldk_ecs.h>
+#include <module/ldk_entity.h>
 #include <module/ldk_eventqueue.h>
+#include <module/ldk_eventqueue.h>
+#include <module/ldk_system.h>
 
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_filesystem.h>
