@@ -759,7 +759,7 @@ void ldk_engine_frame(void)
   ldk_event_queue_broadcast(&e->event_queue);
 
   { // Render scene/game
-
+  
     // Collect scene data from game
     LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
     LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
@@ -768,7 +768,6 @@ void ldk_engine_frame(void)
     LDKCamera* main_camera = NULL;
     Mat4 camera_view;
     Mat4 camera_projection;
-    Mat4 camera_;
     XArray* all_camera = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
     XArray* camera_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
 
