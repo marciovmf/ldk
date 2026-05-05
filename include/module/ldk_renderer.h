@@ -13,8 +13,9 @@ extern "C" {
 #endif
 
 #include <ldk_common.h>
-#include "ldk_rhi.h"
-#include "ldk_ui.h"
+#include <module/ldk_rhi.h>
+#include <module/ldk_ui.h>
+#include <module/ldk_asset_manager.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -32,7 +33,6 @@ extern "C" {
 #define LDK_RENDERER_REALLOC(ptr, size) realloc(ptr, size)
 #endif
 
-
   typedef enum LDKShader
   {
     LDK_SHADER_INVALID = 0,
@@ -45,6 +45,12 @@ extern "C" {
     u32 initial_ui_vertex_capacity;
     u32 initial_ui_index_capacity;
   } LDKRendererConfig;
+
+  typedef struct LDKRendererView
+  {
+    Mat4 view;
+    Mat4 projection;
+  } LDKRendererView;
 
   typedef struct LDKRendererFrameDesc
   {
@@ -108,13 +114,26 @@ extern "C" {
     u32 font_page_count;
     u32 font_page_capacity;
 
+    // Current camera
+    Mat4 camera_view;
+    Mat4 camera_projection;
+    bool has_camera;
+
     bool is_initialized;
   } LDKRenderer;
 
-  bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config);
-  void ldk_renderer_terminate(LDKRenderer* renderer);
-  void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data);
-  void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc);
+  LDK_API bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config);
+  LDK_API void ldk_renderer_terminate(LDKRenderer* renderer);
+  LDK_API void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc);
+
+
+  // ---------------------------------------------------------------------------
+  // Primitive Submission
+  // ---------------------------------------------------------------------------
+
+  LDK_API bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection);
+  LDK_API void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data);
+  LDK_API bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKAssetMesh mesh, Mat4 world);
 
   // ---------------------------------------------------------------------------
   // Font cache

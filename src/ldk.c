@@ -31,12 +31,17 @@
 #include <stdx/stdx_io.h>
 
 #include <ldk.h>
-#include <ldk_os.h>
 #include <ldk_game.h>
+#include <ldk_os.h>
+
+#include <component/ldk_camera.h>
+#include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_entity.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 
@@ -755,24 +760,88 @@ void ldk_engine_frame(void)
 
   { // Render scene/game
 
+    // Collect scene data from game
+    LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
+    LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+
+    // Main camera
+    LDKCamera* main_camera = NULL;
+    Mat4 camera_view;
+    Mat4 camera_projection;
+    Mat4 camera_;
+    XArray* all_camera = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
+    XArray* camera_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
+
+    u32 camera_count = x_array_count(all_camera);
+    float aspect = (float)window_size.w / (float)window_size.h;
+
+    for (u32 i = 0; i < camera_count; i++)
+    {
+      LDKCamera* camera = x_array_get(all_camera, i);
+      LDKEntity* entity = x_array_get(camera_owners, i);
+      LDK_ASSERT(camera);
+      LDK_ASSERT(entity);
+      if (!camera->enabled || camera->role != LDK_CAMERA_ROLE_MAIN)
+      {
+        continue;
+      }
+      ldk_camera_get_view_matrix(*entity, &camera_view);
+      ldk_camera_get_projection_matrix(*entity, aspect, &camera_projection);
+      ldk_renderer_submit_view(&e->renderer, camera_view, camera_projection);
+      main_camera = camera;
+      break;
+    }
+
+    if (!main_camera)
+    {
+      ldk_log_error("No main camarea found!\n");
+    }
+
+
+    // Mesh sources
+    XArray* all_mesh = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    XArray* mesh_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    u32 mesh_count = x_array_count(all_mesh);
+
+    for (u32 i = 0; i < mesh_count; i++)
+    {
+      LDKMeshSource* mesh = x_array_get(all_mesh, i);
+      LDKEntity* entity = x_array_get(mesh_owners, i);
+
+      if (!mesh || !entity)
+      {
+        continue;
+      }
+
+      Mat4 mesh_world = mat4_identity();
+
+      if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
+      {
+        continue;
+      }
+
+      //ldk_renderer_submit_mesh(&e->renderer, mesh->source_asset, mesh_world);
+    }
+  }
+
+
 #ifdef LDK_EDITOR
-    /* render editor overlays, gizmos and tool UI here */
-    ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
-    s_draw_editor_ui(&e->editor_ui, delta_time);
-    ldk_ui_end_frame(&e->editor_ui);
-    const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
-    ldk_renderer_submit_ui(&e->renderer, ui_data);
+  /* render editor overlays, gizmos and tool UI here */
+  ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
+  s_draw_editor_ui(&e->editor_ui, delta_time);
+  ldk_ui_end_frame(&e->editor_ui);
+  const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
+  ldk_renderer_submit_ui(&e->renderer, ui_data);
 #endif
 
-    current_ticks = ldk_os_time_ticks_get();
+  current_ticks = ldk_os_time_ticks_get();
 
-    LDKRendererFrameDesc frame_desc;
-    frame_desc.framebuffer_width = window_size.w;
-    frame_desc.framebuffer_height = window_size.h;
-    frame_desc.clear_color = 0xABABABFFu;
-    frame_desc.clear_color_enabled = true;
-    ldk_renderer_render_frame(&e->renderer, &frame_desc);
-  }
+  LDKRendererFrameDesc frame_desc;
+  frame_desc.framebuffer_width = window_size.w;
+  frame_desc.framebuffer_height = window_size.h;
+  frame_desc.clear_color = 0xABABABFFu;
+  frame_desc.clear_color_enabled = true;
+  ldk_renderer_render_frame(&e->renderer, &frame_desc);
 
   event.type = LDK_EVENT_TYPE_RENDER_AFTER;
   event.frame_event.ticks = current_ticks;
