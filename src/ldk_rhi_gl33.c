@@ -158,7 +158,7 @@ LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint
   desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
   desc.code = code;
   desc.code_size = ldk_rhi_gl33_cstr_size(code);
-  return ldk_rhi_create_shader_module(rhi, &desc);
+  return ldk_rhi_shader_module_create(rhi, &desc);
 }
 
 static bool ldk_rhi_gl33_grow(void** data, uint32_t* capacity, uint32_t element_size, uint32_t required_index)
@@ -560,7 +560,7 @@ static void ldk_rhi_gl33_apply_pipeline_state(const LDKRHIGL33PipelineObject* pi
 static void ldk_rhi_gl33_apply_vertex_layout(LDKRHIGL33Backend* backend, const LDKRHIGL33PipelineObject* pipeline)
 {
   glBindVertexArray(pipeline->vao);
-  glBindBuffer(GL_ARRAY_BUFFER, backend->current_vertex_buffer);
+  glBindBuffer(GL_ARRAY_BUFFER, (GLuint) backend->current_vertex_buffer);
 
   for (uint32_t i = 0; i < pipeline->vertex_layout.attribute_count; i++)
   {
@@ -599,7 +599,7 @@ static void ldk_rhi_gl33_shutdown(void* backend_user_data)
   free(backend);
 }
 
-static LDKRHIBuffer ldk_rhi_gl33_create_buffer(void* backend_user_data, const LDKRHIBufferDesc* desc)
+static LDKRHIBuffer ldk_rhi_gl33_buffer_create(void* backend_user_data, const LDKRHIBufferDesc* desc)
 {
   (void)backend_user_data;
   GLuint buffer = 0;
@@ -612,14 +612,14 @@ static LDKRHIBuffer ldk_rhi_gl33_create_buffer(void* backend_user_data, const LD
   return (LDKRHIBuffer)buffer;
 }
 
-static void ldk_rhi_gl33_destroy_buffer(void* backend_user_data, LDKRHIBuffer buffer)
+static void ldk_rhi_gl33_buffer_destroy(void* backend_user_data, LDKRHIBuffer buffer)
 {
   (void)backend_user_data;
   GLuint gl_buffer = (GLuint)buffer;
   glDeleteBuffers(1, &gl_buffer);
 }
 
-static bool ldk_rhi_gl33_update_buffer(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+static bool ldk_rhi_gl33_buffer_update(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
 {
   (void)backend_user_data;
   glBindBuffer(GL_ARRAY_BUFFER, (GLuint)buffer);
@@ -627,7 +627,7 @@ static bool ldk_rhi_gl33_update_buffer(void* backend_user_data, LDKRHIBuffer buf
   return true;
 }
 
-static LDKRHITexture ldk_rhi_gl33_create_texture(void* backend_user_data, const LDKRHITextureDesc* desc)
+static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const LDKRHITextureDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint texture = 0;
@@ -676,7 +676,7 @@ static LDKRHITexture ldk_rhi_gl33_create_texture(void* backend_user_data, const 
   return (LDKRHITexture)texture;
 }
 
-static void ldk_rhi_gl33_destroy_texture(void* backend_user_data, LDKRHITexture texture)
+static void ldk_rhi_gl33_texture_destroy(void* backend_user_data, LDKRHITexture texture)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint gl_texture = (GLuint)texture;
@@ -688,7 +688,7 @@ static void ldk_rhi_gl33_destroy_texture(void* backend_user_data, LDKRHITexture 
   }
 }
 
-static bool ldk_rhi_gl33_update_texture(void* backend_user_data, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size)
+static bool ldk_rhi_gl33_texture_update(void* backend_user_data, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size)
 {
   (void)layer;
   (void)size;
@@ -740,7 +740,7 @@ static void ldk_rhi_gl33_destroy_sampler(void* backend_user_data, LDKRHISampler 
   glDeleteSamplers(1, &gl_sampler);
 }
 
-static LDKRHIShaderModule ldk_rhi_gl33_create_shader_module(void* backend_user_data, const LDKRHIShaderModuleDesc* desc)
+static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_data, const LDKRHIShaderModuleDesc* desc)
 {
   (void)backend_user_data;
   if (desc->code_format != LDK_RHI_SHADER_CODE_FORMAT_GLSL)
@@ -771,14 +771,14 @@ static LDKRHIShaderModule ldk_rhi_gl33_create_shader_module(void* backend_user_d
   return (LDKRHIShaderModule)shader;
 }
 
-static void ldk_rhi_gl33_destroy_shader_module(void* backend_user_data, LDKRHIShaderModule shader_module)
+static void ldk_rhi_gl33_shader_module_destroy(void* backend_user_data, LDKRHIShaderModule shader_module)
 {
   (void)backend_user_data;
   GLuint shader = (GLuint)shader_module;
   glDeleteShader(shader);
 }
 
-static LDKRHIBindingsLayout ldk_rhi_gl33_create_bindings_layout(void* backend_user_data, const LDKRHIBindingsLayoutDesc* desc)
+static LDKRHIBindingsLayout ldk_rhi_gl33_bindings_layout_create(void* backend_user_data, const LDKRHIBindingsLayoutDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   LDKRHIBindingsLayout handle = ldk_rhi_gl33_alloc_bindings_layout(backend);
@@ -799,7 +799,7 @@ static LDKRHIBindingsLayout ldk_rhi_gl33_create_bindings_layout(void* backend_us
   return handle;
 }
 
-static void ldk_rhi_gl33_destroy_bindings_layout(void* backend_user_data, LDKRHIBindingsLayout bindings_layout)
+static void ldk_rhi_gl33_bindings_layout_destroy(void* backend_user_data, LDKRHIBindingsLayout bindings_layout)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (bindings_layout >= backend->bindings_layout_capacity)
@@ -859,7 +859,7 @@ static void ldk_rhi_gl33_apply_program_bindings(LDKRHIGL33Backend* backend, GLui
   glUseProgram(0);
 }
 
-static LDKRHIPipeline ldk_rhi_gl33_create_pipeline(void* backend_user_data, const LDKRHIPipelineDesc* desc)
+static LDKRHIPipeline ldk_rhi_gl33_pipeline_create(void* backend_user_data, const LDKRHIPipelineDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint program = glCreateProgram();
@@ -897,7 +897,7 @@ static LDKRHIPipeline ldk_rhi_gl33_create_pipeline(void* backend_user_data, cons
   return handle;
 }
 
-static void ldk_rhi_gl33_destroy_pipeline(void* backend_user_data, LDKRHIPipeline pipeline)
+static void ldk_rhi_gl33_pipeline_destroy(void* backend_user_data, LDKRHIPipeline pipeline)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (pipeline >= backend->pipeline_capacity)
@@ -916,7 +916,7 @@ static void ldk_rhi_gl33_destroy_pipeline(void* backend_user_data, LDKRHIPipelin
   memset(object, 0, sizeof(*object));
 }
 
-static LDKRHIBindings ldk_rhi_gl33_create_bindings(LDKRHIGL33Backend* backend, const LDKRHIBindingsDesc* desc)
+static LDKRHIBindings ldk_rhi_gl33_bindings_create(LDKRHIGL33Backend* backend, const LDKRHIBindingsDesc* desc)
 {
   if (!desc)
   {
@@ -935,7 +935,7 @@ static LDKRHIBindings ldk_rhi_gl33_create_bindings(LDKRHIGL33Backend* backend, c
 
   LDKRHIGL33BindingsLayoutObject* layout = &backend->bindings_layouts[desc->layout];
 
-  uint32_t index = ldk_rhi_gl33_alloc_bindings(backend);
+  uint32_t index = (uint32_t) ldk_rhi_gl33_alloc_bindings(backend);
 
   if (index == LDK_RHI_INVALID_BINDINGS)
   {
@@ -980,7 +980,7 @@ static LDKRHIBindings ldk_rhi_gl33_create_bindings(LDKRHIGL33Backend* backend, c
   return index;
 }
 
-static void ldk_rhi_gl33_destroy_bindings(void* backend_user_data, LDKRHIBindings bindings)
+static void ldk_rhi_gl33_bindings_destroy(void* backend_user_data, LDKRHIBindings bindings)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (bindings >= backend->bindings_capacity)
@@ -991,17 +991,17 @@ static void ldk_rhi_gl33_destroy_bindings(void* backend_user_data, LDKRHIBinding
   memset(&backend->bindings[bindings], 0, sizeof(backend->bindings[bindings]));
 }
 
-static void ldk_rhi_gl33_begin_frame(void* backend_user_data)
+static void ldk_rhi_gl33_frame_begin(void* backend_user_data)
 {
   (void)backend_user_data;
 }
 
-static void ldk_rhi_gl33_end_frame(void* backend_user_data)
+static void ldk_rhi_gl33_frame_end(void* backend_user_data)
 {
   (void)backend_user_data;
 }
 
-static void ldk_rhi_gl33_begin_pass(void* backend_user_data, const LDKRHIPassDesc* desc)
+static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint fbo = 0;
@@ -1097,7 +1097,7 @@ static void ldk_rhi_gl33_begin_pass(void* backend_user_data, const LDKRHIPassDes
   }
 }
 
-static void ldk_rhi_gl33_end_pass(void* backend_user_data)
+static void ldk_rhi_gl33_pass_end(void* backend_user_data)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (backend->current_fbo != 0)
@@ -1109,7 +1109,7 @@ static void ldk_rhi_gl33_end_pass(void* backend_user_data)
   }
 }
 
-static void ldk_rhi_gl33_bind_pipeline(void* backend_user_data, LDKRHIPipeline pipeline)
+static void ldk_rhi_gl33_pipeline_bind(void* backend_user_data, LDKRHIPipeline pipeline)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (pipeline >= backend->pipeline_capacity)
@@ -1134,7 +1134,7 @@ static void ldk_rhi_gl33_bind_pipeline(void* backend_user_data, LDKRHIPipeline p
   }
 }
 
-static void ldk_rhi_gl33_bind_bindings(void* backend_user_data, LDKRHIBindings bindings)
+static void ldk_rhi_gl33_bindings_bind(void* backend_user_data, LDKRHIBindings bindings)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (bindings >= backend->bindings_capacity)
@@ -1182,7 +1182,7 @@ static void ldk_rhi_gl33_bind_bindings(void* backend_user_data, LDKRHIBindings b
   }
 }
 
-static void ldk_rhi_gl33_bind_vertex_buffer(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset)
+static void ldk_rhi_gl33_vertext_buffer_bind(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   backend->current_vertex_buffer = buffer;
@@ -1198,7 +1198,7 @@ static void ldk_rhi_gl33_bind_vertex_buffer(void* backend_user_data, LDKRHIBuffe
   }
 }
 
-static void ldk_rhi_gl33_bind_index_buffer(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
+static void ldk_rhi_gl33_index_buffer_bind(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   backend->current_index_buffer = buffer;
@@ -1207,14 +1207,14 @@ static void ldk_rhi_gl33_bind_index_buffer(void* backend_user_data, LDKRHIBuffer
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, (GLuint)buffer);
 }
 
-static void ldk_rhi_gl33_set_viewport(void* backend_user_data, const LDKRHIViewport* viewport)
+static void ldk_rhi_gl33_viewport_set(void* backend_user_data, const LDKRHIViewport* viewport)
 {
   (void)backend_user_data;
   glViewport((GLint)viewport->x, (GLint)viewport->y, (GLsizei)viewport->width, (GLsizei)viewport->height);
   glDepthRange(viewport->min_depth, viewport->max_depth);
 }
 
-static void ldk_rhi_gl33_set_scissor(void* backend_user_data, const LDKRHIRect* scissor)
+static void ldk_rhi_gl33_scissor_set(void* backend_user_data, const LDKRHIRect* scissor)
 {
   (void)backend_user_data;
   glEnable(GL_SCISSOR_TEST);
@@ -1278,32 +1278,32 @@ bool ldk_rhi_gl33_initialize(LDKRHIContext* context)
 
   LDKRHIFunctions functions = {0};
   functions.shutdown = ldk_rhi_gl33_shutdown;
-  functions.create_buffer = ldk_rhi_gl33_create_buffer;
-  functions.destroy_buffer = ldk_rhi_gl33_destroy_buffer;
-  functions.update_buffer = ldk_rhi_gl33_update_buffer;
-  functions.create_texture = ldk_rhi_gl33_create_texture;
-  functions.destroy_texture = ldk_rhi_gl33_destroy_texture;
-  functions.update_texture = ldk_rhi_gl33_update_texture;
+  functions.buffer_create = ldk_rhi_gl33_buffer_create;
+  functions.buffer_destroy = ldk_rhi_gl33_buffer_destroy;
+  functions.buffer_update = ldk_rhi_gl33_buffer_update;
+  functions.texture_create = ldk_rhi_gl33_texture_create;
+  functions.texture_destroy = ldk_rhi_gl33_texture_destroy;
+  functions.texture_update = ldk_rhi_gl33_texture_update;
   functions.create_sampler = ldk_rhi_gl33_create_sampler;
   functions.destroy_sampler = ldk_rhi_gl33_destroy_sampler;
-  functions.create_shader_module = ldk_rhi_gl33_create_shader_module;
-  functions.destroy_shader_module = ldk_rhi_gl33_destroy_shader_module;
-  functions.create_bindings_layout = ldk_rhi_gl33_create_bindings_layout;
-  functions.destroy_bindings_layout = ldk_rhi_gl33_destroy_bindings_layout;
-  functions.create_pipeline = ldk_rhi_gl33_create_pipeline;
-  functions.destroy_pipeline = ldk_rhi_gl33_destroy_pipeline;
-  functions.create_bindings = ldk_rhi_gl33_create_bindings;
-  functions.destroy_bindings = ldk_rhi_gl33_destroy_bindings;
-  functions.begin_frame = ldk_rhi_gl33_begin_frame;
-  functions.end_frame = ldk_rhi_gl33_end_frame;
-  functions.begin_pass = ldk_rhi_gl33_begin_pass;
-  functions.end_pass = ldk_rhi_gl33_end_pass;
-  functions.bind_pipeline = ldk_rhi_gl33_bind_pipeline;
-  functions.bind_bindings = ldk_rhi_gl33_bind_bindings;
-  functions.bind_vertex_buffer = ldk_rhi_gl33_bind_vertex_buffer;
-  functions.bind_index_buffer = ldk_rhi_gl33_bind_index_buffer;
-  functions.set_viewport = ldk_rhi_gl33_set_viewport;
-  functions.set_scissor = ldk_rhi_gl33_set_scissor;
+  functions.shader_module_create = ldk_rhi_gl33_shader_module_create;
+  functions.shader_module_destroy = ldk_rhi_gl33_shader_module_destroy;
+  functions.bindings_layout_create = ldk_rhi_gl33_bindings_layout_create;
+  functions.bindings_layout_destroy = ldk_rhi_gl33_bindings_layout_destroy;
+  functions.pipeline_create = ldk_rhi_gl33_pipeline_create;
+  functions.pipeline_destroy = ldk_rhi_gl33_pipeline_destroy;
+  functions.bindings_create = ldk_rhi_gl33_bindings_create;
+  functions.bindings_destroy = ldk_rhi_gl33_bindings_destroy;
+  functions.frame_begin = ldk_rhi_gl33_frame_begin;
+  functions.frame_end = ldk_rhi_gl33_frame_end;
+  functions.pass_begin = ldk_rhi_gl33_pass_begin;
+  functions.pass_end = ldk_rhi_gl33_pass_end;
+  functions.pipeline_bind = ldk_rhi_gl33_pipeline_bind;
+  functions.bindings_bind = ldk_rhi_gl33_bindings_bind;
+  functions.vertex_buffer_bind = ldk_rhi_gl33_vertext_buffer_bind;
+  functions.index_buffer_bind = ldk_rhi_gl33_index_buffer_bind;
+  functions.viewport_set = ldk_rhi_gl33_viewport_set;
+  functions.scissor_set = ldk_rhi_gl33_scissor_set;
   functions.draw = ldk_rhi_gl33_draw;
   functions.draw_indexed = ldk_rhi_gl33_draw_indexed;
 

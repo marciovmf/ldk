@@ -40,7 +40,7 @@ static bool s_renderer_ui_pass_create_shaders(LDKRendererUIPass* renderer)
   renderer->fragment_shader_module = ldk_rhi_create_builtin_shader_module(renderer->rhi, LDK_SHADER_UI_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (renderer->fragment_shader_module == LDK_RHI_INVALID_SHADER_MODULE)
   {
-    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
+    ldk_rhi_shader_module_destroy(renderer->rhi, renderer->vertex_shader_module);
     renderer->vertex_shader_module = LDK_RHI_INVALID_SHADER_MODULE;
     return false;
   }
@@ -48,7 +48,7 @@ static bool s_renderer_ui_pass_create_shaders(LDKRendererUIPass* renderer)
   return true;
 }
 
-static bool s_renderer_ui_pass_create_bindings_layout(LDKRendererUIPass* renderer)
+static bool s_renderer_ui_pass_bindings_create_layout(LDKRendererUIPass* renderer)
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
@@ -60,7 +60,7 @@ static bool s_renderer_ui_pass_create_bindings_layout(LDKRendererUIPass* rendere
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
-  renderer->bindings_layout = ldk_rhi_create_bindings_layout(renderer->rhi, &desc);
+  renderer->bindings_layout = ldk_rhi_bindings_layout_create(renderer->rhi, &desc);
   return renderer->bindings_layout != LDK_RHI_INVALID_BINDINGS_LAYOUT;
 }
 
@@ -98,7 +98,7 @@ static bool s_renderer_ui_pass_create_pipeline(LDKRendererUIPass* renderer)
   desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
   desc.depth_format = LDK_RHI_FORMAT_INVALID;
 
-  renderer->pipeline = ldk_rhi_create_pipeline(renderer->rhi, &desc);
+  renderer->pipeline = ldk_rhi_pipeline_create(renderer->rhi, &desc);
   return renderer->pipeline != LDK_RHI_INVALID_PIPELINE;
 }
 
@@ -118,7 +118,7 @@ static bool s_renderer_ui_pass_create_white_texture(LDKRendererUIPass* renderer)
   texture_desc.initial_data = &pixel;
   texture_desc.initial_data_size = sizeof(pixel);
 
-  renderer->white_texture = ldk_rhi_create_texture(renderer->rhi, &texture_desc);
+  renderer->white_texture = ldk_rhi_texture_create(renderer->rhi, &texture_desc);
   return renderer->white_texture != LDK_RHI_INVALID_TEXTURE;
 }
 
@@ -133,11 +133,11 @@ static bool s_renderer_ui_pass_create_sampler(LDKRendererUIPass* renderer)
   desc.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
   desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
 
-  renderer->sampler = ldk_rhi_create_sampler(renderer->rhi, &desc);
+  renderer->sampler = ldk_rhi_sampler_create(renderer->rhi, &desc);
   return renderer->sampler != LDK_RHI_INVALID_SAMPLER;
 }
 
-static bool s_renderer_ui_pass_create_buffers(LDKRendererUIPass* renderer)
+static bool s_renderer_ui_pass_buffer_creates(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc vertex_desc = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_desc);
@@ -145,7 +145,7 @@ static bool s_renderer_ui_pass_create_buffers(LDKRendererUIPass* renderer)
   vertex_desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   vertex_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  renderer->vertex_buffer = ldk_rhi_create_buffer(renderer->rhi, &vertex_desc);
+  renderer->vertex_buffer = ldk_rhi_buffer_create(renderer->rhi, &vertex_desc);
   if (renderer->vertex_buffer == LDK_RHI_INVALID_BUFFER)
   {
     return false;
@@ -157,7 +157,7 @@ static bool s_renderer_ui_pass_create_buffers(LDKRendererUIPass* renderer)
   index_desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   index_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  renderer->index_buffer = ldk_rhi_create_buffer(renderer->rhi, &index_desc);
+  renderer->index_buffer = ldk_rhi_buffer_create(renderer->rhi, &index_desc);
   if (renderer->index_buffer == LDK_RHI_INVALID_BUFFER)
   {
     return false;
@@ -169,33 +169,33 @@ static bool s_renderer_ui_pass_create_buffers(LDKRendererUIPass* renderer)
   params_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   params_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  renderer->params_buffer = ldk_rhi_create_buffer(renderer->rhi, &params_desc);
+  renderer->params_buffer = ldk_rhi_buffer_create(renderer->rhi, &params_desc);
   return renderer->params_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
 static bool s_renderer_ui_pass_recreate_vertex_buffer(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc desc = {0};
-  ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
+  ldk_rhi_buffer_destroy(renderer->rhi, renderer->vertex_buffer);
   renderer->vertex_buffer = LDK_RHI_INVALID_BUFFER;
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = renderer->vertex_capacity * (u32)sizeof(LDKUIVertex);
   desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
-  renderer->vertex_buffer = ldk_rhi_create_buffer(renderer->rhi, &desc);
+  renderer->vertex_buffer = ldk_rhi_buffer_create(renderer->rhi, &desc);
   return renderer->vertex_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
 static bool s_renderer_ui_pass_recreate_index_buffer(LDKRendererUIPass* renderer)
 {
   LDKRHIBufferDesc desc = {0};
-  ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
+  ldk_rhi_buffer_destroy(renderer->rhi, renderer->index_buffer);
   renderer->index_buffer = LDK_RHI_INVALID_BUFFER;
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = renderer->index_capacity * (u32)sizeof(u32);
   desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
-  renderer->index_buffer = ldk_rhi_create_buffer(renderer->rhi, &desc);
+  renderer->index_buffer = ldk_rhi_buffer_create(renderer->rhi, &desc);
   return renderer->index_buffer != LDK_RHI_INVALID_BUFFER;
 }
 
@@ -247,7 +247,7 @@ static bool s_renderer_ui_pass_initialize(LDKRendererUIPass* renderer, LDKRender
     return false;
   }
 
-  if (!s_renderer_ui_pass_create_bindings_layout(renderer))
+  if (!s_renderer_ui_pass_bindings_create_layout(renderer))
   {
     s_renderer_ui_pass_terminate(renderer);
     return false;
@@ -271,7 +271,7 @@ static bool s_renderer_ui_pass_initialize(LDKRendererUIPass* renderer, LDKRender
     return false;
   }
 
-  if (!s_renderer_ui_pass_create_buffers(renderer))
+  if (!s_renderer_ui_pass_buffer_creates(renderer))
   {
     s_renderer_ui_pass_terminate(renderer);
     return false;
@@ -292,18 +292,18 @@ static void s_renderer_ui_pass_terminate(LDKRendererUIPass* renderer)
   {
     for (u32 i = 0; i < renderer->bindings_cache_count; ++i)
     {
-      ldk_rhi_destroy_bindings(renderer->rhi, renderer->bindings_cache[i].bindings);
+      ldk_rhi_bindings_destroy(renderer->rhi, renderer->bindings_cache[i].bindings);
     }
 
-    ldk_rhi_destroy_buffer(renderer->rhi, renderer->params_buffer);
-    ldk_rhi_destroy_buffer(renderer->rhi, renderer->index_buffer);
-    ldk_rhi_destroy_buffer(renderer->rhi, renderer->vertex_buffer);
+    ldk_rhi_buffer_destroy(renderer->rhi, renderer->params_buffer);
+    ldk_rhi_buffer_destroy(renderer->rhi, renderer->index_buffer);
+    ldk_rhi_buffer_destroy(renderer->rhi, renderer->vertex_buffer);
     ldk_rhi_destroy_sampler(renderer->rhi, renderer->sampler);
-    ldk_rhi_destroy_texture(renderer->rhi, renderer->white_texture);
-    ldk_rhi_destroy_pipeline(renderer->rhi, renderer->pipeline);
-    ldk_rhi_destroy_bindings_layout(renderer->rhi, renderer->bindings_layout);
-    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->fragment_shader_module);
-    ldk_rhi_destroy_shader_module(renderer->rhi, renderer->vertex_shader_module);
+    ldk_rhi_texture_destroy(renderer->rhi, renderer->white_texture);
+    ldk_rhi_pipeline_destroy(renderer->rhi, renderer->pipeline);
+    ldk_rhi_bindings_layout_destroy(renderer->rhi, renderer->bindings_layout);
+    ldk_rhi_shader_module_destroy(renderer->rhi, renderer->fragment_shader_module);
+    ldk_rhi_shader_module_destroy(renderer->rhi, renderer->vertex_shader_module);
   }
 
   LDK_RENDERER_FREE(renderer->bindings_cache);
@@ -323,7 +323,7 @@ static LDKRHIBindings s_renderer_ui_pass_create_draw_bindings(LDKRendererUIPass*
   desc.bindings[1].slot = 1;
   desc.bindings[1].texture = texture;
   desc.bindings[1].sampler = renderer->sampler;
-  return ldk_rhi_create_bindings(renderer->rhi, &desc);
+  return ldk_rhi_bindings_create(renderer->rhi, &desc);
 }
 
 static LDKRHIBindings s_renderer_ui_pass_find_cached_bindings(LDKRendererUIPass* renderer, LDKRHITexture texture)
@@ -433,20 +433,20 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
   pass_desc.viewport.max_depth = 1.0f;
 
   // begin the pass
-  ldk_rhi_begin_pass(renderer->rhi, &pass_desc);
+  ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
 
   // Setup renderer parameters
   LDKRendererUIParams params = {0};
   params.viewport_size[0] = (float)framebuffer_width;
   params.viewport_size[1] = (float)framebuffer_height;
 
-  ldk_rhi_update_buffer(renderer->rhi, renderer->params_buffer, 0, sizeof(params), &params);
-  ldk_rhi_update_buffer(renderer->rhi, renderer->vertex_buffer, 0, render_data->vertex_count * (u32)sizeof(LDKUIVertex), render_data->vertices);
-  ldk_rhi_update_buffer(renderer->rhi, renderer->index_buffer, 0, render_data->index_count * (u32)sizeof(u32), render_data->indices);
+  ldk_rhi_buffer_update(renderer->rhi, renderer->params_buffer, 0, sizeof(params), &params);
+  ldk_rhi_buffer_update(renderer->rhi, renderer->vertex_buffer, 0, render_data->vertex_count * (u32)sizeof(LDKUIVertex), render_data->vertices);
+  ldk_rhi_buffer_update(renderer->rhi, renderer->index_buffer, 0, render_data->index_count * (u32)sizeof(u32), render_data->indices);
 
-  ldk_rhi_bind_pipeline(renderer->rhi, renderer->pipeline);
-  ldk_rhi_bind_vertex_buffer(renderer->rhi, renderer->vertex_buffer, 0);
-  ldk_rhi_bind_index_buffer(renderer->rhi, renderer->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
+  ldk_rhi_pipeline_bind(renderer->rhi, renderer->pipeline);
+  ldk_rhi_vertex_buffer_bind(renderer->rhi, renderer->vertex_buffer, 0);
+  ldk_rhi_index_buffer_bind(renderer->rhi, renderer->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
 
   for (u32 i = 0; i < render_data->command_count; ++i)
   {
@@ -473,8 +473,8 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
     scissor.y = scissor_y;
     scissor.width = scissor_w;
     scissor.height = scissor_h;
-    ldk_rhi_set_scissor(renderer->rhi, &scissor);
-    ldk_rhi_bind_bindings(renderer->rhi, bindings);
+    ldk_rhi_scissor_set(renderer->rhi, &scissor);
+    ldk_rhi_bindings_bind(renderer->rhi, bindings);
 
     LDKRHIDrawIndexedDesc draw_desc = {0};
     draw_desc.index_count = cmd->index_count;
@@ -483,7 +483,7 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
     ldk_rhi_draw_indexed(renderer->rhi, &draw_desc);
   }
 
-  ldk_rhi_end_pass(renderer->rhi);
+  ldk_rhi_pass_end(renderer->rhi);
 }
 
 
@@ -547,12 +547,12 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   }
 
   // All passes goes here
-  ldk_rhi_begin_frame(renderer->rhi);
+  ldk_rhi_frame_begin(renderer->rhi);
   //s_renderer_phong_pass();
   //s_renderer_light_pass();
   //s_renderer_game_ui_pass(&renderer->ui_pass, renderer->submitted_ui, desc);
   s_renderer_ui_pass(&renderer->ui_pass, renderer->submitted_ui, desc); // editor ui for now
-  ldk_rhi_end_frame(renderer->rhi);
+  ldk_rhi_frame_end(renderer->rhi);
 
   renderer->submitted_ui = NULL;
 
@@ -664,7 +664,7 @@ static LDKRHITexture s_renderer_create_font_page_texture(
   desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
   desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
 
-  return ldk_rhi_create_texture(renderer->rhi, &desc);
+  return ldk_rhi_texture_create(renderer->rhi, &desc);
 }
 
 static bool s_renderer_update_font_page_texture(
@@ -692,7 +692,7 @@ static bool s_renderer_update_font_page_texture(
 
   if (entry->width != page->width || entry->height != page->height)
   {
-    ldk_rhi_destroy_texture(renderer->rhi, entry->texture);
+    ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
 
     entry->texture = s_renderer_create_font_page_texture(renderer, page);
     entry->width = page->width;
@@ -701,7 +701,7 @@ static bool s_renderer_update_font_page_texture(
     return entry->texture != LDK_RHI_INVALID_TEXTURE;
   }
 
-  return ldk_rhi_update_texture(
+  return ldk_rhi_texture_update(
       renderer->rhi,
       entry->texture,
       0,
@@ -764,7 +764,7 @@ static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer)
 
       if (entry->texture != LDK_RHI_INVALID_TEXTURE)
       {
-        ldk_rhi_destroy_texture(renderer->rhi, entry->texture);
+        ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
       }
     }
   }

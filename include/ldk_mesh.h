@@ -13,6 +13,7 @@ extern "C" {
     Vec3 position;
     Vec3 normal;
     Vec2 uv;
+    u32 color;
   } LDKMeshVertex;
 
   typedef struct LDKMeshData

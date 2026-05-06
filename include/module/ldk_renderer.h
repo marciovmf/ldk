@@ -16,6 +16,7 @@ extern "C" {
 #include <module/ldk_rhi.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_asset_manager.h>
+#include <ldk_resource.h>
 
 #include <stdbool.h>
 #include <stdint.h>

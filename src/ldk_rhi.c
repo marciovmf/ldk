@@ -1,4 +1,5 @@
 #include <module/ldk_rhi.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,7 +18,7 @@ LDKRHIDeferredDeleteType;
 typedef struct LDKRHIDeferredDelete
 {
   LDKRHIDeferredDeleteType type;
-  uint32_t handle;
+  LDKRHIResource handle;
   uint64_t frame_index;
 }
 LDKRHIDeferredDelete;
@@ -47,17 +48,17 @@ static void ldk_rhi_destroy_deferred_now(LDKRHIContext* context, const LDKRHIDef
   {
     case LDK_RHI_DEFERRED_DELETE_BUFFER:
       {
-        if (context->functions.destroy_buffer != NULL)
+        if (context->functions.buffer_destroy != NULL)
         {
-          context->functions.destroy_buffer(context->backend_user_data, (LDKRHIBuffer)deferred_delete->handle);
+          context->functions.buffer_destroy(context->backend_user_data, (LDKRHIBuffer)deferred_delete->handle);
         }
       } break;
 
     case LDK_RHI_DEFERRED_DELETE_TEXTURE:
       {
-        if (context->functions.destroy_texture != NULL)
+        if (context->functions.texture_destroy != NULL)
         {
-          context->functions.destroy_texture(context->backend_user_data, (LDKRHITexture)deferred_delete->handle);
+          context->functions.texture_destroy(context->backend_user_data, (LDKRHITexture)deferred_delete->handle);
         }
       } break;
 
@@ -71,39 +72,39 @@ static void ldk_rhi_destroy_deferred_now(LDKRHIContext* context, const LDKRHIDef
 
     case LDK_RHI_DEFERRED_DELETE_SHADER_MODULE:
       {
-        if (context->functions.destroy_shader_module != NULL)
+        if (context->functions.shader_module_destroy != NULL)
         {
-          context->functions.destroy_shader_module(context->backend_user_data, (LDKRHIShaderModule)deferred_delete->handle);
+          context->functions.shader_module_destroy(context->backend_user_data, (LDKRHIShaderModule)deferred_delete->handle);
         }
       } break;
 
     case LDK_RHI_DEFERRED_DELETE_BINDINGS_LAYOUT:
       {
-        if (context->functions.destroy_bindings_layout != NULL)
+        if (context->functions.bindings_layout_destroy != NULL)
         {
-          context->functions.destroy_bindings_layout(context->backend_user_data, (LDKRHIBindingsLayout)deferred_delete->handle);
+          context->functions.bindings_layout_destroy(context->backend_user_data, (LDKRHIBindingsLayout)deferred_delete->handle);
         }
       } break;
 
     case LDK_RHI_DEFERRED_DELETE_PIPELINE:
       {
-        if (context->functions.destroy_pipeline != NULL)
+        if (context->functions.pipeline_destroy != NULL)
         {
-          context->functions.destroy_pipeline(context->backend_user_data, (LDKRHIPipeline)deferred_delete->handle);
+          context->functions.pipeline_destroy(context->backend_user_data, (LDKRHIPipeline)deferred_delete->handle);
         }
       } break;
 
     case LDK_RHI_DEFERRED_DELETE_BINDINGS:
       {
-        if (context->functions.destroy_bindings != NULL)
+        if (context->functions.bindings_destroy != NULL)
         {
-          context->functions.destroy_bindings(context->backend_user_data, (LDKRHIBindings)deferred_delete->handle);
+          context->functions.bindings_destroy(context->backend_user_data, (LDKRHIBindings)deferred_delete->handle);
         }
       } break;
   }
 }
 
-static bool ldk_rhi_is_deferred_delete_pending(const LDKRHIContext* context, LDKRHIDeferredDeleteType type, uint32_t handle)
+static bool ldk_rhi_is_deferred_delete_pending(const LDKRHIContext* context, LDKRHIDeferredDeleteType type, LDKRHIResource handle)
 {
   if (context == NULL || handle == 0)
   {
@@ -123,7 +124,7 @@ static bool ldk_rhi_is_deferred_delete_pending(const LDKRHIContext* context, LDK
   return false;
 }
 
-static bool ldk_rhi_enqueue_deferred_delete(LDKRHIContext* context, LDKRHIDeferredDeleteType type, uint32_t handle)
+static bool ldk_rhi_enqueue_deferred_delete(LDKRHIContext* context, LDKRHIDeferredDeleteType type, LDKRHIResource handle)
 {
   if (context == NULL || handle == 0)
   {
@@ -1008,24 +1009,26 @@ bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc)
 }
 
 
-LDKRHIBuffer ldk_rhi_create_buffer(LDKRHIContext* context, const LDKRHIBufferDesc* desc)
+LDKRHIBuffer ldk_rhi_buffer_create(LDKRHIContext* context, const LDKRHIBufferDesc* desc)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer_desc(desc) || context->functions.create_buffer == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer_desc(desc) || context->functions.buffer_create == NULL)
   {
     return LDK_RHI_INVALID_BUFFER;
   }
 
-  return context->functions.create_buffer(context->backend_user_data, desc);
+  return context->functions.buffer_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer)
+void ldk_rhi_buffer_destroy(LDKRHIContext* context, LDKRHIBuffer buffer)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer(buffer) || context->functions.destroy_buffer == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer(buffer) || context->functions.buffer_destroy == NULL)
   {
     return;
   }
 
-  ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer);
+  ldk_rhi_enqueue_deferred_delete(context,
+      LDK_RHI_DEFERRED_DELETE_BUFFER,
+      buffer);
   if (context->bound_vertex_buffer == buffer)
   {
     context->bound_vertex_buffer = LDK_RHI_INVALID_BUFFER;
@@ -1037,31 +1040,31 @@ void ldk_rhi_destroy_buffer(LDKRHIContext* context, LDKRHIBuffer buffer)
   }
 }
 
-bool ldk_rhi_update_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+bool ldk_rhi_buffer_update(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer(buffer) ||
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) ||
-      size == 0 || data == NULL || context->functions.update_buffer == NULL)
+      size == 0 || data == NULL || context->functions.buffer_update == NULL)
   {
     return false;
   }
 
-  return context->functions.update_buffer(context->backend_user_data, buffer, offset, size, data);
+  return context->functions.buffer_update(context->backend_user_data, buffer, offset, size, data);
 }
 
-LDKRHITexture ldk_rhi_create_texture(LDKRHIContext* context, const LDKRHITextureDesc* desc)
+LDKRHITexture ldk_rhi_texture_create(LDKRHIContext* context, const LDKRHITextureDesc* desc)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture_desc(desc) || context->functions.create_texture == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture_desc(desc) || context->functions.texture_create == NULL)
   {
     return LDK_RHI_INVALID_TEXTURE;
   }
 
-  return context->functions.create_texture(context->backend_user_data, desc);
+  return context->functions.texture_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture)
+void ldk_rhi_texture_destroy(LDKRHIContext* context, LDKRHITexture texture)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture(texture) || context->functions.destroy_texture == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture(texture) || context->functions.texture_destroy == NULL)
   {
     return;
   }
@@ -1069,19 +1072,19 @@ void ldk_rhi_destroy_texture(LDKRHIContext* context, LDKRHITexture texture)
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_TEXTURE, texture);
 }
 
-bool ldk_rhi_update_texture(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size)
+bool ldk_rhi_texture_update(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture(texture) ||
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_TEXTURE, texture) ||
-      size == 0 || data == NULL || context->functions.update_texture == NULL)
+      size == 0 || data == NULL || context->functions.texture_update == NULL)
   {
     return false;
   }
 
-  return context->functions.update_texture(context->backend_user_data, texture, mip_level, layer, data, size);
+  return context->functions.texture_update(context->backend_user_data, texture, mip_level, layer, data, size);
 }
 
-LDKRHISampler ldk_rhi_create_sampler(LDKRHIContext* context, const LDKRHISamplerDesc* desc)
+LDKRHISampler ldk_rhi_sampler_create(LDKRHIContext* context, const LDKRHISamplerDesc* desc)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_sampler_desc(desc) || context->functions.create_sampler == NULL)
   {
@@ -1101,19 +1104,19 @@ void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler)
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_SAMPLER, sampler);
 }
 
-LDKRHIShaderModule ldk_rhi_create_shader_module(LDKRHIContext* context, const LDKRHIShaderModuleDesc* desc)
+LDKRHIShaderModule ldk_rhi_shader_module_create(LDKRHIContext* context, const LDKRHIShaderModuleDesc* desc)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module_desc(desc) || context->functions.create_shader_module == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module_desc(desc) || context->functions.shader_module_create == NULL)
   {
     return LDK_RHI_INVALID_SHADER_MODULE;
   }
 
-  return context->functions.create_shader_module(context->backend_user_data, desc);
+  return context->functions.shader_module_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_shader_module(LDKRHIContext* context, LDKRHIShaderModule shader_module)
+void ldk_rhi_shader_module_destroy(LDKRHIContext* context, LDKRHIShaderModule shader_module)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module(shader_module) || context->functions.destroy_shader_module == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module(shader_module) || context->functions.shader_module_destroy == NULL)
   {
     return;
   }
@@ -1121,7 +1124,7 @@ void ldk_rhi_destroy_shader_module(LDKRHIContext* context, LDKRHIShaderModule sh
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_SHADER_MODULE, shader_module);
 }
 
-LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDesc* desc)
+LDKRHIShader ldk_rhi_shader_create(LDKRHIContext* context, const LDKRHIShaderDesc* desc)
 {
   LDKRHIShaderModuleDesc module_desc = {0};
 
@@ -1135,27 +1138,27 @@ LDKRHIShader ldk_rhi_create_shader(LDKRHIContext* context, const LDKRHIShaderDes
   module_desc.code_format = (LDKRHIShaderCodeFormat)desc->source_type;
   module_desc.code = desc->data;
   module_desc.code_size = desc->size;
-  return ldk_rhi_create_shader_module(context, &module_desc);
+  return ldk_rhi_shader_module_create(context, &module_desc);
 }
 
-void ldk_rhi_destroy_shader(LDKRHIContext* context, LDKRHIShader shader)
+void ldk_rhi_shader_destroy(LDKRHIContext* context, LDKRHIShader shader)
 {
-  ldk_rhi_destroy_shader_module(context, shader);
+  ldk_rhi_shader_module_destroy(context, shader);
 }
 
-LDKRHIBindingsLayout ldk_rhi_create_bindings_layout(LDKRHIContext* context, const LDKRHIBindingsLayoutDesc* desc)
+LDKRHIBindingsLayout ldk_rhi_bindings_layout_create(LDKRHIContext* context, const LDKRHIBindingsLayoutDesc* desc)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout_desc(desc) || context->functions.create_bindings_layout == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout_desc(desc) || context->functions.bindings_layout_create == NULL)
   {
     return LDK_RHI_INVALID_BINDINGS_LAYOUT;
   }
 
-  return context->functions.create_bindings_layout(context->backend_user_data, desc);
+  return context->functions.bindings_layout_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_bindings_layout(LDKRHIContext* context, LDKRHIBindingsLayout bindings_layout)
+void ldk_rhi_bindings_layout_destroy(LDKRHIContext* context, LDKRHIBindingsLayout bindings_layout)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout(bindings_layout) || context->functions.destroy_bindings_layout == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout(bindings_layout) || context->functions.bindings_layout_destroy == NULL)
   {
     return;
   }
@@ -1163,23 +1166,23 @@ void ldk_rhi_destroy_bindings_layout(LDKRHIContext* context, LDKRHIBindingsLayou
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_BINDINGS_LAYOUT, bindings_layout);
 }
 
-LDKRHIPipeline ldk_rhi_create_pipeline(LDKRHIContext* context, const LDKRHIPipelineDesc* desc)
+LDKRHIPipeline ldk_rhi_pipeline_create(LDKRHIContext* context, const LDKRHIPipelineDesc* desc)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_pipeline_desc(desc) ||
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_SHADER_MODULE, desc->vertex_shader_module) ||
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_SHADER_MODULE, desc->fragment_shader_module) ||
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS_LAYOUT, desc->bindings_layout) ||
-      context->functions.create_pipeline == NULL)
+      context->functions.pipeline_create == NULL)
   {
     return LDK_RHI_INVALID_PIPELINE;
   }
 
-  return context->functions.create_pipeline(context->backend_user_data, desc);
+  return context->functions.pipeline_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline)
+void ldk_rhi_pipeline_destroy(LDKRHIContext* context, LDKRHIPipeline pipeline)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_pipeline(pipeline) || context->functions.destroy_pipeline == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_pipeline(pipeline) || context->functions.pipeline_destroy == NULL)
   {
     return;
   }
@@ -1192,9 +1195,9 @@ void ldk_rhi_destroy_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline)
   }
 }
 
-LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindingsDesc* desc)
+LDKRHIBindings ldk_rhi_bindings_create(LDKRHIContext* context, const LDKRHIBindingsDesc* desc)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_desc(desc) || context->functions.create_bindings == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_desc(desc) || context->functions.bindings_create == NULL)
   {
     return LDK_RHI_INVALID_BINDINGS;
   }
@@ -1225,12 +1228,12 @@ LDKRHIBindings ldk_rhi_create_bindings(LDKRHIContext* context, const LDKRHIBindi
     }
   }
 
-  return context->functions.create_bindings(context->backend_user_data, desc);
+  return context->functions.bindings_create(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
+void ldk_rhi_bindings_destroy(LDKRHIContext* context, LDKRHIBindings bindings)
 {
-  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings(bindings) || context->functions.destroy_bindings == NULL)
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings(bindings) || context->functions.bindings_destroy == NULL)
   {
     return;
   }
@@ -1242,29 +1245,29 @@ void ldk_rhi_destroy_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
   }
 }
 
-void ldk_rhi_begin_frame(LDKRHIContext* context)
+void ldk_rhi_frame_begin(LDKRHIContext* context)
 {
   if (ldk_rhi_has_backend(context) && !context->frame_active && !context->pass_active)
   {
     ldk_rhi_collect_deferred_deletes(context, false);
     ldk_rhi_reset_bound_state(context);
 
-    if (context->functions.begin_frame != NULL)
+    if (context->functions.frame_begin != NULL)
     {
-      context->functions.begin_frame(context->backend_user_data);
+      context->functions.frame_begin(context->backend_user_data);
     }
 
     context->frame_active = true;
   }
 }
 
-void ldk_rhi_end_frame(LDKRHIContext* context)
+void ldk_rhi_frame_end(LDKRHIContext* context)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && !context->pass_active)
   {
-    if (context->functions.end_frame != NULL)
+    if (context->functions.frame_end != NULL)
     {
-      context->functions.end_frame(context->backend_user_data);
+      context->functions.frame_end(context->backend_user_data);
     }
 
     context->frame_active = false;
@@ -1273,10 +1276,10 @@ void ldk_rhi_end_frame(LDKRHIContext* context)
   }
 }
 
-void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc)
+void ldk_rhi_pass_begin(LDKRHIContext* context, const LDKRHIPassDesc* desc)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && !context->pass_active &&
-      ldk_rhi_is_valid_pass_desc(desc) && context->functions.begin_pass != NULL)
+      ldk_rhi_is_valid_pass_desc(desc) && context->functions.pass_begin != NULL)
   {
     for (uint32_t i = 0; i < desc->color_attachment_count; i++)
     {
@@ -1296,87 +1299,87 @@ void ldk_rhi_begin_pass(LDKRHIContext* context, const LDKRHIPassDesc* desc)
     }
 
     ldk_rhi_reset_bound_state(context);
-    context->functions.begin_pass(context->backend_user_data, desc);
+    context->functions.pass_begin(context->backend_user_data, desc);
     context->pass_active = true;
   }
 }
 
-void ldk_rhi_end_pass(LDKRHIContext* context)
+void ldk_rhi_pass_end(LDKRHIContext* context)
 {
-  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active && context->functions.end_pass != NULL)
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active && context->functions.pass_end != NULL)
   {
-    context->functions.end_pass(context->backend_user_data);
+    context->functions.pass_end(context->backend_user_data);
     context->pass_active = false;
     ldk_rhi_reset_bound_state(context);
   }
 }
 
-void ldk_rhi_bind_pipeline(LDKRHIContext* context, LDKRHIPipeline pipeline)
+void ldk_rhi_pipeline_bind(LDKRHIContext* context, LDKRHIPipeline pipeline)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       pipeline != LDK_RHI_INVALID_PIPELINE &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_PIPELINE, pipeline) &&
-      context->functions.bind_pipeline != NULL)
+      context->functions.pipeline_bind != NULL)
   {
-    context->functions.bind_pipeline(context->backend_user_data, pipeline);
+    context->functions.pipeline_bind(context->backend_user_data, pipeline);
     context->bound_pipeline = pipeline;
     context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
   }
 }
 
-void ldk_rhi_bind_bindings(LDKRHIContext* context, LDKRHIBindings bindings)
+void ldk_rhi_bindings_bind(LDKRHIContext* context, LDKRHIBindings bindings)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
       bindings != LDK_RHI_INVALID_BINDINGS &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS, bindings) &&
-      context->functions.bind_bindings != NULL)
+      context->functions.bindings_bind != NULL)
   {
-    context->functions.bind_bindings(context->backend_user_data, bindings);
+    context->functions.bindings_bind(context->backend_user_data, bindings);
     context->bound_bindings = bindings;
   }
 }
 
-void ldk_rhi_bind_vertex_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset)
+void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       buffer != LDK_RHI_INVALID_BUFFER &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
-      context->functions.bind_vertex_buffer != NULL)
+      context->functions.vertex_buffer_bind != NULL)
   {
-    context->functions.bind_vertex_buffer(context->backend_user_data, buffer, offset);
+    context->functions.vertex_buffer_bind(context->backend_user_data, buffer, offset);
     context->bound_vertex_buffer = buffer;
   }
 }
 
-void ldk_rhi_bind_index_buffer(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
+void ldk_rhi_index_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       buffer != LDK_RHI_INVALID_BUFFER &&
       ldk_rhi_is_valid_index_type(index_type) &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
-      context->functions.bind_index_buffer != NULL)
+      context->functions.index_buffer_bind != NULL)
   {
-    context->functions.bind_index_buffer(context->backend_user_data, buffer, offset, index_type);
+    context->functions.index_buffer_bind(context->backend_user_data, buffer, offset, index_type);
     context->bound_index_buffer = buffer;
   }
 }
 
-void ldk_rhi_set_viewport(LDKRHIContext* context, const LDKRHIViewport* viewport)
+void ldk_rhi_viewport_set(LDKRHIContext* context, const LDKRHIViewport* viewport)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      viewport != NULL && context->functions.set_viewport != NULL)
+      viewport != NULL && context->functions.viewport_set != NULL)
   {
-    context->functions.set_viewport(context->backend_user_data, viewport);
+    context->functions.viewport_set(context->backend_user_data, viewport);
   }
 }
 
-void ldk_rhi_set_scissor(LDKRHIContext* context, const LDKRHIRect* scissor)
+void ldk_rhi_scissor_set(LDKRHIContext* context, const LDKRHIRect* scissor)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      scissor != NULL && context->functions.set_scissor != NULL)
+      scissor != NULL && context->functions.scissor_set != NULL)
   {
-    context->functions.set_scissor(context->backend_user_data, scissor);
+    context->functions.scissor_set(context->backend_user_data, scissor);
   }
 }
 

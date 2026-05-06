@@ -31,6 +31,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
+  ${INCLUDE_DIR}/ldk_resource.h
   ${INCLUDE_DIR}/ldk.h                ldk.c
   ${INCLUDE_DIR}/ldk_geom.h           ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h       ldk_argparse.c
@@ -43,7 +44,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/ldk_eventqueue.h     module/ldk_eventqueue.c
   ${INCLUDE_DIR}/module/ldk_ecs.h            module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h       module/ldk_renderer.c
-  ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c
+  ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c 
   ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c
   ${INCLUDE_DIR}/module/ldk_ui.h             module/ldk_ui.c
   ${INCLUDE_DIR}/module/ldk_scenegraph.h     module/ldk_scenegraph.c
