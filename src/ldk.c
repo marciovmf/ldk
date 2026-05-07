@@ -45,6 +45,8 @@
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 
+#include <inttypes.h>
+
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
 #include <signal.h>
@@ -281,8 +283,36 @@ bool theme = false;
 
 LDKUIPoint scroll_pos = {0};
 
+
+static void s_editor_entity_list_window(LDKUIContext* ui, LDKEntityRegistry* er)
+{
+  static LDKUIRect s_entity_list_rect = {0};
+  s_entity_list_rect.w = ui->viewport.w * 0.2f;
+  s_entity_list_rect.h = ui->viewport.h * 0.8f;
+
+  s_entity_list_rect = ldk_ui_begin_window(ui, "Entities", s_entity_list_rect);
+  LDKEntityIterator it = ldk_entity_iterator_begin(er);
+  LDKEntity e;
+  while (ldk_entity_iterator_next(&it, &e))
+  {
+    LDKEntityInfo* info = ldk_entity_info_get(er, e);
+    u64 id = *((u64*) &e);
+    snprintf((char* const) &info->name, LDK_ENTITY_NAME_MAX_LEN, "0x%08" PRIu64 "(%d)", id, info->components.component_count);
+
+    ldk_ui_label(ui, (const char*) info->name);
+    for(u32 i = 0; i < info->components.component_count; i++)
+    {
+      const char* name = ldk_component_name_get(&g_engine.ecs.component, info->components.component_type[i]);
+      ldk_ui_label(ui, name);
+    }
+  }
+  ldk_entity_iterator_end(&it);
+  ldk_ui_end_window(ui);
+}
+
 void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
 {
+  s_editor_entity_list_window(ui, &g_engine.ecs.entity);
 
   const float step = 1000.0f * delta_time;
   if (console_state == CONSOLE_IS_CLOSING)
@@ -370,6 +400,7 @@ void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
     ldk_ui_end_window(ui);
   }
 #endif
+
 
   if (bool_value)
   {
@@ -759,7 +790,7 @@ void ldk_engine_frame(void)
   ldk_event_queue_broadcast(&e->event_queue);
 
   { // Render scene/game
-  
+
     // Collect scene data from game
     LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
     LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
@@ -819,7 +850,35 @@ void ldk_engine_frame(void)
         continue;
       }
 
-      //ldk_renderer_submit_mesh(&e->renderer, mesh->source_asset, mesh_world);
+      LDKAssetMeshData* mesh_data = ldk_asset_manager_mesh_get(&e->asset_manager, mesh->source_asset);
+      if (mesh_data == NULL)
+      {
+        continue;
+      }
+
+      LDKRendererResourceKey mesh_key = {0};
+      mesh_key.id = (uintptr_t)mesh->source_asset.h.index + 1u;
+      mesh_key.version = mesh->source_asset.h.version;
+
+      LDKRendererMeshDesc mesh_desc = {0};
+      mesh_desc.vertices = mesh_data->mesh.vertices;
+      mesh_desc.vertex_count = mesh_data->mesh.vertex_count;
+      mesh_desc.indices = mesh_data->mesh.indices;
+      mesh_desc.index_count = mesh_data->mesh.index_count;
+
+      LDKRendererMesh renderer_mesh = {0};
+
+      if (mesh->renderer_mesh != 0 && mesh->renderer_version == mesh->version)
+      {
+        renderer_mesh.id = mesh->renderer_mesh;
+      }
+      else
+      {
+        renderer_mesh = ldk_renderer_mesh_get_or_create(&e->renderer, mesh_key, &mesh_desc);
+        mesh->renderer_mesh = renderer_mesh.id;
+        mesh->renderer_version = mesh->version;
+      }
+
     }
   }
 
