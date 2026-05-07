@@ -119,6 +119,45 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "  out_color = tex * v_color;\n"
 "}\n";
 
+
+static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec3 a_position;\n"
+"layout(location = 1) in vec3 a_normal;\n"
+"layout(location = 2) in vec2 a_uv;\n"
+"layout(location = 3) in vec4 a_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  mat4 u_view;\n"
+"  mat4 u_projection;\n"
+"};\n"
+"layout(std140) uniform LDK_UBO_1\n"
+"{\n"
+"  mat4 u_world;\n"
+"};\n"
+"out vec3 v_normal;\n"
+"out vec4 v_color;\n"
+"void main()\n"
+"{\n"
+"  vec4 world_position = u_world * vec4(a_position, 1.0);\n"
+"  v_normal = mat3(u_world) * a_normal;\n"
+"  v_color = a_color;\n"
+"  gl_Position = u_projection * u_view * world_position;\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec3 v_normal;\n"
+"in vec4 v_color;\n"
+"out vec4 out_color;\n"
+"void main()\n"
+"{\n"
+"  vec3 n = normalize(v_normal);\n"
+"  vec3 light_dir = normalize(vec3(0.4, 0.8, 0.3));\n"
+"  float light = max(dot(n, light_dir), 0.0) * 0.75 + 0.25;\n"
+"  out_color = vec4(v_color.rgb * light, v_color.a);\n"
+"}\n";
+
 static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 {
   return (uint32_t)strlen(cstr);
@@ -134,6 +173,16 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
   }
 
   return NULL;

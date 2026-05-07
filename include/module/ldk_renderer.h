@@ -38,7 +38,8 @@ extern "C" {
   typedef enum LDKShader
   {
     LDK_SHADER_INVALID = 0,
-    LDK_SHADER_UI_PASS
+    LDK_SHADER_UI_PASS,
+    LDK_SHADER_MESH_PASS
   } LDKShader;
 
   typedef struct LDKRendererResourceKey
@@ -123,6 +124,19 @@ extern "C" {
     bool is_initialized;
   } LDKRendererUIPass;
 
+  typedef struct LDKRendererMeshPass
+  {
+    LDKRHIContext* rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIBuffer camera_buffer;
+    LDKRHIBuffer object_buffer;
+    LDKRHIBindings bindings;
+    bool is_initialized;
+  } LDKRendererMeshPass;
+
   typedef struct LDKRendererFontPageCacheEntry
   {
     LDKFontInstance* font;
@@ -145,6 +159,7 @@ extern "C" {
   {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
+    LDKRendererMeshPass mesh_pass;
     LDKUIRenderData const* submitted_ui;
 
     LDKRendererMeshResource* meshes;
