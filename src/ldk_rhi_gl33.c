@@ -16,6 +16,11 @@ typedef struct LDKRHIGL33TextureInfo
   uint32_t depth;
 } LDKRHIGL33TextureInfo;
 
+typedef struct LDKRHIGL33BufferInfo
+{
+  GLenum target;
+} LDKRHIGL33BufferInfo;
+
 typedef struct LDKRHIGL33BindingsLayoutEntry
 {
   uint32_t slot;
@@ -64,18 +69,27 @@ typedef struct LDKRHIGL33PipelineObject
 
 typedef struct LDKRHIGL33Backend
 {
+  // texturs
   LDKRHIGL33TextureInfo* textures;
   uint32_t texture_capacity;
 
+  // buffers
+  LDKRHIGL33BufferInfo* buffers;
+  uint32_t buffer_capacity;
+
+  // binding layouts
   LDKRHIGL33BindingsLayoutObject* bindings_layouts;
   uint32_t bindings_layout_capacity;
 
+  // bindings
   LDKRHIGL33BindingsObject* bindings;
   uint32_t bindings_capacity;
 
+  // pipeliens
   LDKRHIGL33PipelineObject* pipelines;
   uint32_t pipeline_capacity;
 
+  // state
   GLuint current_fbo;
   LDKRHIPipeline current_pipeline;
   LDKRHIBuffer current_vertex_buffer;
@@ -642,6 +656,7 @@ static void ldk_rhi_gl33_shutdown(void* backend_user_data)
   }
 
   free(backend->textures);
+  free(backend->buffers);
   free(backend->bindings_layouts);
   free(backend->bindings);
   free(backend->pipelines);
@@ -650,29 +665,65 @@ static void ldk_rhi_gl33_shutdown(void* backend_user_data)
 
 static LDKRHIBuffer ldk_rhi_gl33_buffer_create(void* backend_user_data, const LDKRHIBufferDesc* desc)
 {
-  (void)backend_user_data;
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+
   GLuint buffer = 0;
   GLenum target = ldk_rhi_gl33_buffer_target(desc->usage);
   GLenum usage = ldk_rhi_gl33_buffer_usage(desc->memory_usage);
+
   glGenBuffers(1, &buffer);
   glBindBuffer(target, buffer);
   glBufferData(target, (GLsizeiptr)desc->size, desc->initial_data, usage);
   glBindBuffer(target, 0);
+
+  bool ok = ldk_rhi_gl33_grow(
+      (void**)&backend->buffers,
+      &backend->buffer_capacity,
+      sizeof(backend->buffers[0]),
+      buffer + 1);
+
+  if (!ok)
+  {
+    glDeleteBuffers(1, &buffer);
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  backend->buffers[buffer].target = target;
+
   return (LDKRHIBuffer)buffer;
 }
 
 static void ldk_rhi_gl33_buffer_destroy(void* backend_user_data, LDKRHIBuffer buffer)
 {
-  (void)backend_user_data;
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+
   GLuint gl_buffer = (GLuint)buffer;
   glDeleteBuffers(1, &gl_buffer);
+
+  if (buffer < backend->buffer_capacity)
+  {
+    memset(&backend->buffers[buffer], 0, sizeof(backend->buffers[buffer]));
+  }
 }
 
 static bool ldk_rhi_gl33_buffer_update(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, uint32_t size, const void* data)
 {
-  (void)backend_user_data;
-  glBindBuffer(GL_ARRAY_BUFFER, (GLuint)buffer);
-  glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)offset, (GLsizeiptr)size, data);
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+
+  if (buffer >= backend->buffer_capacity)
+  {
+    return false;
+  }
+
+  GLenum target = backend->buffers[buffer].target;
+  if (target == 0)
+  {
+    return false;
+  }
+
+  glBindBuffer(target, (GLuint)buffer);
+  glBufferSubData(target, (GLintptr)offset, (GLsizeiptr)size, data);
+
   return true;
 }
 

@@ -30,6 +30,7 @@
 
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_filesystem.h>
+#include <stdx/stdx_math.h>
 
 #include <ldk.h>
 

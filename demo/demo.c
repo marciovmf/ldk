@@ -14,6 +14,8 @@
 #endif // LDK_GAME
 
 #include <ldk_game.h>
+#include <component/ldk_camera.h>
+
 
 LDKGame game = {0};
 const char* game_data = NULL;
@@ -40,15 +42,15 @@ bool game_initialize(LDKGame* game)
 
   LDKMeshVertex cube_vertices[] =
   {
-    {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
+    {{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
+    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
+    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
 
-    {{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 0.0f}},
-    {{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 0.0f}},
-    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 1.0f}},
-    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 1.0f}},
+    {{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
+    {{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
+    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
+    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
   };
 
   u32 cube_indices[] =
@@ -82,6 +84,7 @@ bool game_initialize(LDKGame* game)
   camera.far_plane = 100.0f;
   camera.enabled = true;
   ldk_ecs_component_add(camera_entity, LDK_COMPONENT_TYPE_CAMERA, &camera);
+  ldk_camera_look_at(camera_entity, vec3_make(0.0f, 0.0f, -2.0f));
 
   LDKEntity cube_entity = ldk_ecs_entity_create();
 
@@ -92,11 +95,6 @@ bool game_initialize(LDKGame* game)
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);
   ldk_ecs_component_add(cube_entity, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
-
-  return true;
-
-
-
   return true;
 }
 
