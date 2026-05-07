@@ -74,6 +74,8 @@ extern "C" {
   LDK_API void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
       LDKEntity entity, u32 component_type, u32 component_index);
 
+  LDK_API const char* ldk_component_name_get(LDKComponentRegistry* registry, u32 type);
+
 #ifdef __cplusplus
 }
 #endif

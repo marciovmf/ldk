@@ -443,3 +443,21 @@ void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistr
         registered_component.desc.user);
   }
 }
+
+
+const char* ldk_component_name_get(LDKComponentRegistry* registry, u32 type)
+{
+  LDKRegisteredComponent entry;
+
+  if (!registry || !registry->table)
+  {
+    return NULL;
+  }
+
+  if (!x_hashtable_u32_registered_component_get(registry->table, type, &entry))
+  {
+    return NULL;
+  }
+
+  return entry.desc.name;
+}
