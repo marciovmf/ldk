@@ -856,29 +856,29 @@ void ldk_engine_frame(void)
         continue;
       }
 
-      LDKRendererResourceKey mesh_key = {0};
-      mesh_key.id = (uintptr_t)mesh->source_asset.h.index + 1u;
-      mesh_key.version = mesh->source_asset.h.version;
-
       LDKRendererMeshDesc mesh_desc = {0};
       mesh_desc.vertices = mesh_data->mesh.vertices;
       mesh_desc.vertex_count = mesh_data->mesh.vertex_count;
       mesh_desc.indices = mesh_data->mesh.indices;
       mesh_desc.index_count = mesh_data->mesh.index_count;
 
-      LDKRendererMesh renderer_mesh = {0};
-
-      if (mesh->renderer_mesh != 0 && mesh->renderer_version == mesh->version)
+      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
       {
-        renderer_mesh.id = mesh->renderer_mesh;
+        mesh->renderer_mesh = ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
+        mesh->dirty = false;
       }
-      else
+      else if (mesh->dirty)
       {
-        renderer_mesh = ldk_renderer_mesh_get_or_create(&e->renderer, mesh_key, &mesh_desc);
-        mesh->renderer_mesh = renderer_mesh.id;
-        mesh->renderer_version = mesh->version;
+        ldk_renderer_mesh_update(&e->renderer, mesh->renderer_mesh, &mesh_desc);
+        mesh->dirty = false;
       }
 
+      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
+      {
+        continue;
+      }
+
+      ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh, mesh_world);
     }
   }
 

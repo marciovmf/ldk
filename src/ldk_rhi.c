@@ -194,10 +194,10 @@ static void ldk_rhi_reset_bound_state(LDKRHIContext* context)
     return;
   }
 
-  context->bound_pipeline = LDK_RHI_INVALID_PIPELINE;
-  context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
-  context->bound_vertex_buffer = LDK_RHI_INVALID_BUFFER;
-  context->bound_index_buffer = LDK_RHI_INVALID_BUFFER;
+  context->bound_pipeline = LDK_RHI_INVALID_RESOURCE;
+  context->bound_bindings = LDK_RHI_INVALID_RESOURCE;
+  context->bound_vertex_buffer = LDK_RHI_INVALID_RESOURCE;
+  context->bound_index_buffer = LDK_RHI_INVALID_RESOURCE;
 }
 
 static bool ldk_rhi_is_valid_buffer_usage(uint32_t usage)
@@ -575,22 +575,22 @@ void ldk_rhi_terminate(LDKRHIContext* context)
 
 bool ldk_rhi_is_valid_buffer(LDKRHIBuffer buffer)
 {
-  return buffer != LDK_RHI_INVALID_BUFFER;
+  return buffer != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_texture(LDKRHITexture texture)
 {
-  return texture != LDK_RHI_INVALID_TEXTURE;
+  return texture != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler)
 {
-  return sampler != LDK_RHI_INVALID_SAMPLER;
+  return sampler != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module)
 {
-  return shader_module != LDK_RHI_INVALID_SHADER_MODULE;
+  return shader_module != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_shader(LDKRHIShader shader)
@@ -600,17 +600,17 @@ bool ldk_rhi_is_valid_shader(LDKRHIShader shader)
 
 bool ldk_rhi_is_valid_bindings_layout(LDKRHIBindingsLayout bindings_layout)
 {
-  return bindings_layout != LDK_RHI_INVALID_BINDINGS_LAYOUT;
+  return bindings_layout != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_pipeline(LDKRHIPipeline pipeline)
 {
-  return pipeline != LDK_RHI_INVALID_PIPELINE;
+  return pipeline != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_bindings(LDKRHIBindings bindings)
 {
-  return bindings != LDK_RHI_INVALID_BINDINGS;
+  return bindings != LDK_RHI_INVALID_RESOURCE;
 }
 
 bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc)
@@ -948,7 +948,7 @@ bool ldk_rhi_is_valid_pass_desc(const LDKRHIPassDesc* desc)
   {
     const LDKRHIPassColorAttachmentDesc* attachment = &desc->color_attachments[i];
     LDKRHITexture texture = attachment->texture;
-    bool default_backbuffer = desc->color_attachment_count == 1 && texture == LDK_RHI_INVALID_TEXTURE;
+    bool default_backbuffer = desc->color_attachment_count == 1 && texture == LDK_RHI_INVALID_RESOURCE;
 
     if (!default_backbuffer && !ldk_rhi_is_valid_texture(texture))
     {
@@ -1013,7 +1013,7 @@ LDKRHIBuffer ldk_rhi_buffer_create(LDKRHIContext* context, const LDKRHIBufferDes
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_buffer_desc(desc) || context->functions.buffer_create == NULL)
   {
-    return LDK_RHI_INVALID_BUFFER;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.buffer_create(context->backend_user_data, desc);
@@ -1031,12 +1031,12 @@ void ldk_rhi_buffer_destroy(LDKRHIContext* context, LDKRHIBuffer buffer)
       buffer);
   if (context->bound_vertex_buffer == buffer)
   {
-    context->bound_vertex_buffer = LDK_RHI_INVALID_BUFFER;
+    context->bound_vertex_buffer = LDK_RHI_INVALID_RESOURCE;
   }
 
   if (context->bound_index_buffer == buffer)
   {
-    context->bound_index_buffer = LDK_RHI_INVALID_BUFFER;
+    context->bound_index_buffer = LDK_RHI_INVALID_RESOURCE;
   }
 }
 
@@ -1056,7 +1056,7 @@ LDKRHITexture ldk_rhi_texture_create(LDKRHIContext* context, const LDKRHITexture
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture_desc(desc) || context->functions.texture_create == NULL)
   {
-    return LDK_RHI_INVALID_TEXTURE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.texture_create(context->backend_user_data, desc);
@@ -1088,7 +1088,7 @@ LDKRHISampler ldk_rhi_sampler_create(LDKRHIContext* context, const LDKRHISampler
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_sampler_desc(desc) || context->functions.create_sampler == NULL)
   {
-    return LDK_RHI_INVALID_SAMPLER;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.create_sampler(context->backend_user_data, desc);
@@ -1108,7 +1108,7 @@ LDKRHIShaderModule ldk_rhi_shader_module_create(LDKRHIContext* context, const LD
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_shader_module_desc(desc) || context->functions.shader_module_create == NULL)
   {
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.shader_module_create(context->backend_user_data, desc);
@@ -1130,7 +1130,7 @@ LDKRHIShader ldk_rhi_shader_create(LDKRHIContext* context, const LDKRHIShaderDes
 
   if (!ldk_rhi_is_valid_shader_desc(desc))
   {
-    return LDK_RHI_INVALID_SHADER;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   ldk_rhi_shader_module_desc_defaults(&module_desc);
@@ -1150,7 +1150,7 @@ LDKRHIBindingsLayout ldk_rhi_bindings_layout_create(LDKRHIContext* context, cons
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_layout_desc(desc) || context->functions.bindings_layout_create == NULL)
   {
-    return LDK_RHI_INVALID_BINDINGS_LAYOUT;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.bindings_layout_create(context->backend_user_data, desc);
@@ -1174,7 +1174,7 @@ LDKRHIPipeline ldk_rhi_pipeline_create(LDKRHIContext* context, const LDKRHIPipel
       ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS_LAYOUT, desc->bindings_layout) ||
       context->functions.pipeline_create == NULL)
   {
-    return LDK_RHI_INVALID_PIPELINE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return context->functions.pipeline_create(context->backend_user_data, desc);
@@ -1190,8 +1190,8 @@ void ldk_rhi_pipeline_destroy(LDKRHIContext* context, LDKRHIPipeline pipeline)
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_PIPELINE, pipeline);
   if (context->bound_pipeline == pipeline)
   {
-    context->bound_pipeline = LDK_RHI_INVALID_PIPELINE;
-    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+    context->bound_pipeline = LDK_RHI_INVALID_RESOURCE;
+    context->bound_bindings = LDK_RHI_INVALID_RESOURCE;
   }
 }
 
@@ -1199,12 +1199,12 @@ LDKRHIBindings ldk_rhi_bindings_create(LDKRHIContext* context, const LDKRHIBindi
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_bindings_desc(desc) || context->functions.bindings_create == NULL)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   if (ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS_LAYOUT, desc->layout))
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   for (uint32_t i = 0; i < desc->binding_count; i++)
@@ -1212,19 +1212,19 @@ LDKRHIBindings ldk_rhi_bindings_create(LDKRHIContext* context, const LDKRHIBindi
     if (ldk_rhi_is_valid_buffer(desc->bindings[i].buffer) &&
         ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, desc->bindings[i].buffer))
     {
-      return LDK_RHI_INVALID_BINDINGS;
+      return LDK_RHI_INVALID_RESOURCE;
     }
 
     if (ldk_rhi_is_valid_texture(desc->bindings[i].texture) &&
         ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_TEXTURE, desc->bindings[i].texture))
     {
-      return LDK_RHI_INVALID_BINDINGS;
+      return LDK_RHI_INVALID_RESOURCE;
     }
 
     if (ldk_rhi_is_valid_sampler(desc->bindings[i].sampler) &&
         ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_SAMPLER, desc->bindings[i].sampler))
     {
-      return LDK_RHI_INVALID_BINDINGS;
+      return LDK_RHI_INVALID_RESOURCE;
     }
   }
 
@@ -1241,7 +1241,7 @@ void ldk_rhi_bindings_destroy(LDKRHIContext* context, LDKRHIBindings bindings)
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_BINDINGS, bindings);
   if (context->bound_bindings == bindings)
   {
-    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+    context->bound_bindings = LDK_RHI_INVALID_RESOURCE;
   }
 }
 
@@ -1285,7 +1285,7 @@ void ldk_rhi_pass_begin(LDKRHIContext* context, const LDKRHIPassDesc* desc)
     {
       LDKRHITexture texture = desc->color_attachments[i].texture;
 
-      if (texture != LDK_RHI_INVALID_TEXTURE &&
+      if (texture != LDK_RHI_INVALID_RESOURCE &&
           ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_TEXTURE, texture))
       {
         return;
@@ -1317,21 +1317,21 @@ void ldk_rhi_pass_end(LDKRHIContext* context)
 void ldk_rhi_pipeline_bind(LDKRHIContext* context, LDKRHIPipeline pipeline)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      pipeline != LDK_RHI_INVALID_PIPELINE &&
+      pipeline != LDK_RHI_INVALID_RESOURCE &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_PIPELINE, pipeline) &&
       context->functions.pipeline_bind != NULL)
   {
     context->functions.pipeline_bind(context->backend_user_data, pipeline);
     context->bound_pipeline = pipeline;
-    context->bound_bindings = LDK_RHI_INVALID_BINDINGS;
+    context->bound_bindings = LDK_RHI_INVALID_RESOURCE;
   }
 }
 
 void ldk_rhi_bindings_bind(LDKRHIContext* context, LDKRHIBindings bindings)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
-      bindings != LDK_RHI_INVALID_BINDINGS &&
+      context->bound_pipeline != LDK_RHI_INVALID_RESOURCE &&
+      bindings != LDK_RHI_INVALID_RESOURCE &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BINDINGS, bindings) &&
       context->functions.bindings_bind != NULL)
   {
@@ -1343,7 +1343,7 @@ void ldk_rhi_bindings_bind(LDKRHIContext* context, LDKRHIBindings bindings)
 void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      buffer != LDK_RHI_INVALID_BUFFER &&
+      buffer != LDK_RHI_INVALID_RESOURCE &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
       context->functions.vertex_buffer_bind != NULL)
   {
@@ -1355,7 +1355,7 @@ void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uin
 void ldk_rhi_index_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
-      buffer != LDK_RHI_INVALID_BUFFER &&
+      buffer != LDK_RHI_INVALID_RESOURCE &&
       ldk_rhi_is_valid_index_type(index_type) &&
       !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
       context->functions.index_buffer_bind != NULL)
@@ -1387,9 +1387,9 @@ void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       desc != NULL && desc->vertex_count > 0 &&
-      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
-      context->bound_bindings != LDK_RHI_INVALID_BINDINGS &&
-      context->bound_vertex_buffer != LDK_RHI_INVALID_BUFFER &&
+      context->bound_pipeline != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_bindings != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_RESOURCE &&
       context->functions.draw != NULL)
   {
     context->functions.draw(context->backend_user_data, desc);
@@ -1400,10 +1400,10 @@ void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* d
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
       desc != NULL && desc->index_count > 0 &&
-      context->bound_pipeline != LDK_RHI_INVALID_PIPELINE &&
-      context->bound_bindings != LDK_RHI_INVALID_BINDINGS &&
-      context->bound_vertex_buffer != LDK_RHI_INVALID_BUFFER &&
-      context->bound_index_buffer != LDK_RHI_INVALID_BUFFER &&
+      context->bound_pipeline != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_bindings != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_index_buffer != LDK_RHI_INVALID_RESOURCE &&
       context->functions.draw_indexed != NULL)
   {
     context->functions.draw_indexed(context->backend_user_data, desc);

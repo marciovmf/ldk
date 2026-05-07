@@ -192,13 +192,13 @@ LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint
 {
   if (rhi == NULL)
   {
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   char const* code = ldk_rhi_gl33_builtin_shader_source(shader, stage);
   if (code == NULL)
   {
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   LDKRHIShaderModuleDesc desc = {0};
@@ -254,7 +254,7 @@ static LDKRHIBindingsLayout ldk_rhi_gl33_alloc_bindings_layout(LDKRHIGL33Backend
   bool ok = ldk_rhi_gl33_grow((void**)&backend->bindings_layouts, &backend->bindings_layout_capacity, sizeof(backend->bindings_layouts[0]), index + 1);
   if (!ok)
   {
-    return LDK_RHI_INVALID_BINDINGS_LAYOUT;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   backend->bindings_layouts[index].alive = true;
@@ -276,7 +276,7 @@ static LDKRHIBindings ldk_rhi_gl33_alloc_bindings(LDKRHIGL33Backend* backend)
   bool ok = ldk_rhi_gl33_grow((void**)&backend->bindings, &backend->bindings_capacity, sizeof(backend->bindings[0]), index + 1);
   if (!ok)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   backend->bindings[index].alive = true;
@@ -298,7 +298,7 @@ static LDKRHIPipeline ldk_rhi_gl33_alloc_pipeline(LDKRHIGL33Backend* backend)
   bool ok = ldk_rhi_gl33_grow((void**)&backend->pipelines, &backend->pipeline_capacity, sizeof(backend->pipelines[0]), index + 1);
   if (!ok)
   {
-    return LDK_RHI_INVALID_PIPELINE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   backend->pipelines[index].alive = true;
@@ -794,13 +794,13 @@ static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_d
   (void)backend_user_data;
   if (desc->code_format != LDK_RHI_SHADER_CODE_FORMAT_GLSL)
   {
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   GLenum stage = ldk_rhi_gl33_shader_stage(desc->stage);
   if (stage == 0)
   {
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   GLuint shader = glCreateShader(stage);
@@ -814,7 +814,7 @@ static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_d
   if (status != GL_TRUE)
   {
     glDeleteShader(shader);
-    return LDK_RHI_INVALID_SHADER_MODULE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   return (LDKRHIShaderModule)shader;
@@ -831,7 +831,7 @@ static LDKRHIBindingsLayout ldk_rhi_gl33_bindings_layout_create(void* backend_us
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   LDKRHIBindingsLayout handle = ldk_rhi_gl33_alloc_bindings_layout(backend);
-  if (handle == LDK_RHI_INVALID_BINDINGS_LAYOUT)
+  if (handle == LDK_RHI_INVALID_RESOURCE)
   {
     return handle;
   }
@@ -861,7 +861,7 @@ static void ldk_rhi_gl33_bindings_layout_destroy(void* backend_user_data, LDKRHI
 
 static void ldk_rhi_gl33_apply_program_bindings(LDKRHIGL33Backend* backend, GLuint program, LDKRHIBindingsLayout bindings_layout)
 {
-  if (bindings_layout == LDK_RHI_INVALID_BINDINGS_LAYOUT)
+  if (bindings_layout == LDK_RHI_INVALID_RESOURCE)
   {
     return;
   }
@@ -921,13 +921,13 @@ static LDKRHIPipeline ldk_rhi_gl33_pipeline_create(void* backend_user_data, cons
   if (status != GL_TRUE)
   {
     glDeleteProgram(program);
-    return LDK_RHI_INVALID_PIPELINE;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   ldk_rhi_gl33_apply_program_bindings(backend, program, desc->bindings_layout);
 
   LDKRHIPipeline handle = ldk_rhi_gl33_alloc_pipeline(backend);
-  if (handle == LDK_RHI_INVALID_PIPELINE)
+  if (handle == LDK_RHI_INVALID_RESOURCE)
   {
     glDeleteProgram(program);
     return handle;
@@ -969,26 +969,26 @@ static LDKRHIBindings ldk_rhi_gl33_bindings_create(LDKRHIGL33Backend* backend, c
 {
   if (!desc)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   if (desc->binding_count > LDK_RHI_MAX_BINDINGS)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   if (desc->layout >= backend->bindings_layout_capacity || !backend->bindings_layouts[desc->layout].alive)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   LDKRHIGL33BindingsLayoutObject* layout = &backend->bindings_layouts[desc->layout];
 
   uint32_t index = (uint32_t) ldk_rhi_gl33_alloc_bindings(backend);
 
-  if (index == LDK_RHI_INVALID_BINDINGS)
+  if (index == LDK_RHI_INVALID_RESOURCE)
   {
-    return LDK_RHI_INVALID_BINDINGS;
+    return LDK_RHI_INVALID_RESOURCE;
   }
 
   LDKRHIGL33BindingsObject* object = &backend->bindings[index];
@@ -1022,7 +1022,7 @@ static LDKRHIBindings ldk_rhi_gl33_bindings_create(LDKRHIGL33Backend* backend, c
     if (!found)
     {
       memset(object, 0, sizeof(*object));
-      return LDK_RHI_INVALID_BINDINGS;
+      return LDK_RHI_INVALID_RESOURCE;
     }
   }
 
@@ -1056,7 +1056,7 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
   GLuint fbo = 0;
   bool use_default_framebuffer = false;
 
-  if (desc->color_attachment_count == 1 && desc->color_attachments[0].texture == LDK_RHI_INVALID_TEXTURE)
+  if (desc->color_attachment_count == 1 && desc->color_attachments[0].texture == LDK_RHI_INVALID_RESOURCE)
   {
     use_default_framebuffer = true;
   }
@@ -1177,7 +1177,7 @@ static void ldk_rhi_gl33_pipeline_bind(void* backend_user_data, LDKRHIPipeline p
   glBindVertexArray(object->vao);
   ldk_rhi_gl33_apply_pipeline_state(object);
 
-  if (backend->current_vertex_buffer != LDK_RHI_INVALID_BUFFER)
+  if (backend->current_vertex_buffer != LDK_RHI_INVALID_RESOURCE)
   {
     ldk_rhi_gl33_apply_vertex_layout(backend, object);
   }
@@ -1237,7 +1237,7 @@ static void ldk_rhi_gl33_vertext_buffer_bind(void* backend_user_data, LDKRHIBuff
   backend->current_vertex_buffer = buffer;
   backend->current_vertex_buffer_offset = offset;
 
-  if (backend->current_pipeline != LDK_RHI_INVALID_PIPELINE && backend->current_pipeline < backend->pipeline_capacity)
+  if (backend->current_pipeline != LDK_RHI_INVALID_RESOURCE && backend->current_pipeline < backend->pipeline_capacity)
   {
     LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
     if (pipeline->alive)
@@ -1273,7 +1273,7 @@ static void ldk_rhi_gl33_scissor_set(void* backend_user_data, const LDKRHIRect* 
 static void ldk_rhi_gl33_draw(void* backend_user_data, const LDKRHIDrawDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
-  if (backend->current_pipeline == LDK_RHI_INVALID_PIPELINE || backend->current_pipeline >= backend->pipeline_capacity)
+  if (backend->current_pipeline == LDK_RHI_INVALID_RESOURCE || backend->current_pipeline >= backend->pipeline_capacity)
   {
     return;
   }
@@ -1286,7 +1286,7 @@ static void ldk_rhi_gl33_draw(void* backend_user_data, const LDKRHIDrawDesc* des
 static void ldk_rhi_gl33_draw_indexed(void* backend_user_data, const LDKRHIDrawIndexedDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
-  if (backend->current_pipeline == LDK_RHI_INVALID_PIPELINE || backend->current_pipeline >= backend->pipeline_capacity)
+  if (backend->current_pipeline == LDK_RHI_INVALID_RESOURCE || backend->current_pipeline >= backend->pipeline_capacity)
   {
     return;
   }

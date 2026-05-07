@@ -105,23 +105,12 @@ extern "C"
   typedef LDKRHIResource  LDKRHIPipeline;
   typedef LDKRHIResource  LDKRHIBindings;
 
+#define LDK_RHI_INVALID_RESOURCE 0
+
   /* Compatibility alias. Prefer LDKRHIShaderModule in new code. */
   typedef LDKRHIShaderModule LDKRHIShader;
 
   typedef struct LDKRHIContext LDKRHIContext;
-
-  enum
-  {
-    LDK_RHI_INVALID_BUFFER = 0,
-    LDK_RHI_INVALID_TEXTURE = 0,
-    LDK_RHI_INVALID_SAMPLER = 0,
-    LDK_RHI_INVALID_SHADER_MODULE = 0,
-    LDK_RHI_INVALID_SHADER = 0,
-    LDK_RHI_INVALID_BINDINGS_LAYOUT = 0,
-    LDK_RHI_INVALID_PIPELINE = 0,
-    LDK_RHI_INVALID_BINDINGS = 0,
-    LDK_RHI_SHADER_INVALID = 0,
-  };
 
   /* Compatibility aliases. */
 

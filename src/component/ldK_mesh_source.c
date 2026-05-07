@@ -4,15 +4,14 @@
  */
 
 #include <component/ldk_mesh_source.h>
+#include <ldk_resource.h>
 
 static LDKMeshSource s_mesh_source_make_default(void)
 {
   LDKMeshSource mesh_source = {0};
 
   mesh_source.source_asset = ldk_asset_mesh_null();
-  mesh_source.version = 1;
-  mesh_source.renderer_mesh = LDK_RENDERER_MESH_INVALID;
-  mesh_source.renderer_version = 0;
+  mesh_source.renderer_mesh = LDK_RESOURCE_MESH_INVALID;
   return mesh_source;
 }
 
@@ -80,9 +79,8 @@ bool ldk_mesh_source_set_data(LDKMeshSource* mesh_source, LDKAssetMesh asset)
   }
 
   mesh_source->source_asset = asset;
-  mesh_source->version++;
-  mesh_source->renderer_mesh = LDK_RENDERER_MESH_INVALID;
-  mesh_source->renderer_version = 0;
+  mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
+  mesh_source->dirty = true;
   return true;
 }
 

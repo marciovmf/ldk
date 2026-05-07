@@ -42,16 +42,7 @@ extern "C" {
     LDK_SHADER_MESH_PASS
   } LDKShader;
 
-  typedef struct LDKRendererResourceKey
-  {
-    uintptr_t id;
-    u32 version;
-  } LDKRendererResourceKey;
 
-  typedef struct LDKRendererMesh
-  {
-    uintptr_t id;
-  } LDKRendererMesh;
 
   typedef struct LDKRendererMeshDesc
   {
@@ -63,7 +54,6 @@ extern "C" {
 
   typedef struct LDKRendererMeshResource
   {
-    LDKRendererResourceKey key;
     LDKRHIBuffer vertex_buffer;
     LDKRHIBuffer index_buffer;
     u32 vertex_count;
@@ -73,7 +63,7 @@ extern "C" {
 
   typedef struct LDKRendererMeshSubmit
   {
-    LDKRendererMesh mesh;
+    LDKResourceMesh mesh;
     Mat4 world;
   } LDKRendererMeshSubmit;
 
@@ -189,12 +179,11 @@ extern "C" {
   // Renderer resources
   // ---------------------------------------------------------------------------
 
-  LDK_API LDKRendererMesh ldk_renderer_mesh_null(void);
-  LDK_API bool ldk_renderer_mesh_is_valid(LDKRenderer* renderer, LDKRendererMesh mesh);
-  LDK_API LDKRendererMesh ldk_renderer_mesh_create(LDKRenderer* renderer, LDKRendererMeshDesc const* desc);
-  LDK_API LDKRendererMesh ldk_renderer_mesh_get_or_create(LDKRenderer* renderer, LDKRendererResourceKey key, LDKRendererMeshDesc const* desc);
-  LDK_API bool ldk_renderer_mesh_update(LDKRenderer* renderer, LDKRendererMesh mesh, LDKRendererMeshDesc const* desc);
-  LDK_API void ldk_renderer_mesh_destroy(LDKRenderer* renderer, LDKRendererMesh mesh);
+  LDK_API LDKResourceMesh ldk_renderer_mesh_null(void);
+  LDK_API bool ldk_renderer_mesh_is_valid(LDKRenderer* renderer, LDKResourceMesh mesh);
+  LDK_API LDKResourceMesh ldk_renderer_mesh_create(LDKRenderer* renderer, LDKRendererMeshDesc const* desc);
+  LDK_API bool ldk_renderer_mesh_update(LDKRenderer* renderer, LDKResourceMesh mesh, LDKRendererMeshDesc const* desc);
+  LDK_API void ldk_renderer_mesh_destroy(LDKRenderer* renderer, LDKResourceMesh mesh);
 
   // ---------------------------------------------------------------------------
   // Primitive Submission
@@ -202,7 +191,7 @@ extern "C" {
 
   LDK_API bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection);
   LDK_API void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data);
-  LDK_API bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKRendererMesh mesh, Mat4 world);
+  LDK_API bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world);
 
   // ---------------------------------------------------------------------------
   // Font cache

@@ -183,7 +183,7 @@ static LDKRHIPassDesc test_rhi_pass_desc(void)
   ldk_rhi_pass_desc_defaults(&desc);
 
   desc.color_attachment_count = 1;
-  desc.color_attachments[0].texture = LDK_RHI_INVALID_TEXTURE;
+  desc.color_attachments[0].texture = LDK_RHI_INVALID_RESOURCE;
   desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
   desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
 
