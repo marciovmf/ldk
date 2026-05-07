@@ -79,7 +79,7 @@ typedef struct LDKEntityInfo
   u32 transform_index; // Transform is a special component. An entity always have a transform.
   u16 internal_flags;
   u16 flags;
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(LDK_EDITOR)
   u8 name[LDK_ENTITY_NAME_MAX_LEN];
 #endif
 } LDKEntityInfo;
@@ -130,6 +130,18 @@ LDK_API const void* ldk_component_ref_get_const(LDKEntityRegistry* entity_system
 LDK_API void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type, const void* initial_value);
 LDK_API void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
 LDK_API bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
+
+typedef struct LDKEntityIterator
+{
+  LDKEntityRegistry* registry;
+  XHPoolIter iter;
+  LDKEntity current;
+  u8 has_current;
+} LDKEntityIterator;
+
+LDK_API LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry);
+LDK_API bool ldk_entity_iterator_next(LDKEntityIterator* iterator, LDKEntity* out_entity);
+LDK_API void ldk_entity_iterator_end(LDKEntityIterator* iterator);
 
 #ifdef LDK_ENGINE
 LDK_API void ldk_entity_internal_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);

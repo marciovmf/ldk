@@ -828,4 +828,81 @@ void ldk_entity_internal_flags_add(LDKEntityRegistry* module, LDKEntity entity, 
   info->internal_flags |= flags;
 }
 
+LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry)
+{
+  LDKEntityIterator iterator = {0};
+  LDKEntityInfo* info = NULL;
+
+  iterator.registry = registry;
+  iterator.current = x_handle_null();
+  iterator.has_current = 0;
+
+  if (!registry)
+  {
+    return iterator;
+  }
+
+  info = (LDKEntityInfo*)x_hpool_iter_begin(
+      &registry->pool,
+      &iterator.iter,
+      &iterator.current);
+
+  if (info)
+  {
+    iterator.has_current = 1;
+  }
+
+  return iterator;
+}
+
+bool ldk_entity_iterator_next(LDKEntityIterator* iterator, LDKEntity* out_entity)
+{
+  LDKEntityInfo* info = NULL;
+
+  if (!iterator)
+  {
+    return false;
+  }
+
+  if (!out_entity)
+  {
+    return false;
+  }
+
+  if (!iterator->registry)
+  {
+    return false;
+  }
+
+  if (iterator->has_current)
+  {
+    *out_entity = iterator->current;
+    iterator->has_current = 0;
+    return true;
+  }
+
+  info = (LDKEntityInfo*)x_hpool_iter_next(
+      &iterator->registry->pool,
+      &iterator->iter,
+      &iterator->current);
+
+  if (!info)
+  {
+    return false;
+  }
+
+  *out_entity = iterator->current;
+  return true;
+}
+
+void ldk_entity_iterator_end(LDKEntityIterator* iterator)
+{
+  if (!iterator)
+  {
+    return;
+  }
+
+  memset(iterator, 0, sizeof(*iterator));
+}
+
 #endif// LDK_ENGINE
