@@ -43,19 +43,6 @@ extern "C" {
     LDK_SHADER_PRESENT_PASS
   } LDKShader;
 
-  typedef struct LDKRendererTarget
-  {
-    LDKRHITexture color_texture;
-    LDKRHITexture depth_texture;
-
-    i32 width;
-    i32 height;
-
-    LDKRHIFormat color_format;
-    LDKRHIFormat depth_format;
-  }
-  LDKRendererTarget;
-
   typedef struct LDKRendererMeshDesc
   {
     const LDKMeshVertex* vertices;
@@ -156,6 +143,17 @@ extern "C" {
     u32 height;
     LDKRHITexture texture;
   } LDKRendererFontPage;
+
+
+  typedef struct LDKRendererTarget
+  {
+    LDKRHITexture color_texture;
+    LDKRHITexture depth_texture;
+    i32 width;
+    i32 height;
+    LDKRHIFormat color_format;
+    LDKRHIFormat depth_format;
+  } LDKRendererTarget;
 
   typedef struct LDKRenderer
   {

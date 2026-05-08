@@ -1218,7 +1218,20 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
       glDisable(GL_SCISSOR_TEST);
     }
 
+    GLboolean restore_depth_mask = GL_TRUE;
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &restore_depth_mask);
+
+    if ((clear_mask & GL_DEPTH_BUFFER_BIT) != 0)
+    {
+      glDepthMask(GL_TRUE);
+    }
+
     glClear(clear_mask);
+
+    if ((clear_mask & GL_DEPTH_BUFFER_BIT) != 0)
+    {
+      glDepthMask(restore_depth_mask);
+    }
 
     if (restore_scissor)
     {
