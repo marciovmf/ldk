@@ -23,8 +23,8 @@ add_custom_target(print_options ALL
 set(INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../include")
 
 list(APPEND SOURCE
-  # Core
-  ldk_gl.h ldk_gl.c
+  # GL backend
+  ldk_gl.h ldk_gl.c ldk_rhi_gl33.h ldk_rhi_gl33.c 
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h 
   ${INCLUDE_DIR}/ldk_color.h 
@@ -44,7 +44,7 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/module/ldk_eventqueue.h     module/ldk_eventqueue.c
   ${INCLUDE_DIR}/module/ldk_ecs.h            module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h       module/ldk_renderer.c
-  ${INCLUDE_DIR}/module/ldk_rhi.h            ldk_rhi.c ldk_rhi_gl33.h ldk_rhi_gl33.c 
+  ${INCLUDE_DIR}/module/ldk_rhi.h            module/ldk_rhi.c
   ${INCLUDE_DIR}/module/ldk_system.h         module/ldk_system.c
   ${INCLUDE_DIR}/module/ldk_ui.h             module/ldk_ui.c
   ${INCLUDE_DIR}/module/ldk_scenegraph.h     module/ldk_scenegraph.c
