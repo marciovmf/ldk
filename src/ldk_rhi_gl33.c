@@ -91,6 +91,9 @@ typedef struct LDKRHIGL33Backend
 
   // state
   GLuint current_fbo;
+  GLsizei current_framebuffer_width;
+  GLsizei current_framebuffer_height;
+
   LDKRHIPipeline current_pipeline;
   LDKRHIBuffer current_vertex_buffer;
   uint32_t current_vertex_buffer_offset;
@@ -1180,6 +1183,8 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
   if (desc->has_viewport)
   {
     glViewport((GLint)desc->viewport.x, (GLint)desc->viewport.y, (GLsizei)desc->viewport.width, (GLsizei)desc->viewport.height);
+    backend->current_framebuffer_width = (GLsizei) desc->viewport.width;
+    backend->current_framebuffer_height = (GLsizei) desc->viewport.height;
   }
 
   if (desc->has_scissor)
@@ -1360,9 +1365,10 @@ static void ldk_rhi_gl33_viewport_set(void* backend_user_data, const LDKRHIViewp
 
 static void ldk_rhi_gl33_scissor_set(void* backend_user_data, const LDKRHIRect* scissor)
 {
-  (void)backend_user_data;
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   glEnable(GL_SCISSOR_TEST);
-  glScissor(scissor->x, scissor->y, scissor->width, scissor->height);
+  i32 y = backend->current_framebuffer_height - scissor->y - scissor->height;
+  glScissor(scissor->x, y, scissor->width, scissor->height);
 }
 
 static void ldk_rhi_gl33_draw(void* backend_user_data, const LDKRHIDrawDesc* desc)
