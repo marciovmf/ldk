@@ -1,4 +1,3 @@
-#include "ldk.h"
 #include <ldk_common.h>
 #include <module/ldk_renderer.h>
 
@@ -28,10 +27,100 @@ inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
   return result;
 }
 
+static void s_renderer_target_destroy(LDKRenderer* renderer, LDKRendererTarget* target)
+{
+  if (renderer == NULL || renderer->rhi == NULL || target == NULL)
+  {
+    return;
+  }
+
+  if (target->color_texture != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_texture_destroy(renderer->rhi, target->color_texture);
+  }
+
+  if (target->depth_texture != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_texture_destroy(renderer->rhi, target->depth_texture);
+  }
+
+  memset(target, 0, sizeof(*target));
+}
+
+static bool s_renderer_target_create(LDKRenderer* renderer, LDKRendererTarget* target, i32 width, i32 height)
+{
+  if (renderer == NULL || renderer->rhi == NULL || target == NULL)
+  {
+    return false;
+  }
+
+  if (width <= 0 || height <= 0)
+  {
+    return false;
+  }
+
+  target->color_format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  target->depth_format = LDK_RHI_FORMAT_D32_FLOAT;
+
+  LDKRHITextureDesc color_desc = {0};
+  ldk_rhi_texture_desc_defaults(&color_desc);
+  color_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  color_desc.format = target->color_format;
+  color_desc.width = (u32)width;
+  color_desc.height = (u32)height;
+  color_desc.depth = 1;
+  color_desc.mip_count = 1;
+  color_desc.layer_count = 1;
+  color_desc.usage = LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
+
+  target->color_texture = ldk_rhi_texture_create(renderer->rhi, &color_desc);
+  if (target->color_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  LDKRHITextureDesc depth_desc = {0};
+  ldk_rhi_texture_desc_defaults(&depth_desc);
+  depth_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  depth_desc.format = target->depth_format;
+  depth_desc.width = (u32)width;
+  depth_desc.height = (u32)height;
+  depth_desc.depth = 1;
+  depth_desc.mip_count = 1;
+  depth_desc.layer_count = 1;
+  depth_desc.usage = LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL;
+
+  target->depth_texture = ldk_rhi_texture_create(renderer->rhi, &depth_desc);
+  if (target->depth_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_texture_destroy(renderer->rhi, target->color_texture);
+    memset(target, 0, sizeof(*target));
+    return false;
+  }
+
+  target->width = width;
+  target->height = height;
+  return true;
+}
+
+static bool s_renderer_target_ensure(LDKRenderer* renderer, LDKRendererTarget* target, i32 width, i32 height)
+{
+  if (target != NULL &&
+      target->color_texture != LDK_RHI_INVALID_RESOURCE &&
+      target->depth_texture != LDK_RHI_INVALID_RESOURCE &&
+      target->width == width &&
+      target->height == height)
+  {
+    return true;
+  }
+
+  s_renderer_target_destroy(renderer, target);
+  return s_renderer_target_create(renderer, target, width, height);
+}
+
 // ---------------------------------------------------------------------------
 // Internal renderer resources: Mesh
 // ---------------------------------------------------------------------------
-
 
 LDKResourceMesh ldk_renderer_mesh_null(void)
 {
@@ -285,8 +374,6 @@ typedef struct LDKRendererMeshObjectParams
   Mat4 world;
 } LDKRendererMeshObjectParams;
 
-static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
-
 static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
 {
   pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
@@ -331,42 +418,34 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   desc.fragment_shader_module = pass->fragment_shader_module;
   desc.bindings_layout = pass->bindings_layout;
   desc.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
-
-  desc.depth_state.test_enabled = false;
-  desc.depth_state.write_enabled = false;
-  //desc.depth_state.compare_op = LDK_RHI_COMPARE_OP_LESS_EQUAL;
-  //desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
-
   desc.blend_state.enabled = false;
+  desc.depth_state.test_enabled = true;
+  desc.depth_state.write_enabled = true;
+  desc.depth_state.compare_op = LDK_RHI_COMPARE_OP_LESS_EQUAL;
   desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_BACK;
   desc.raster_state.front_face = LDK_RHI_FRONT_FACE_CCW;
   desc.raster_state.scissor_enabled = false;
 
   desc.vertex_layout.stride = sizeof(LDKMeshVertex);
   desc.vertex_layout.attribute_count = 4;
-
   desc.vertex_layout.attributes[0].location = 0;
   desc.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
   desc.vertex_layout.attributes[0].offset = (u32)offsetof(LDKMeshVertex, position);
-
   desc.vertex_layout.attributes[1].location = 1;
   desc.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
   desc.vertex_layout.attributes[1].offset = (u32)offsetof(LDKMeshVertex, normal);
-
   desc.vertex_layout.attributes[2].location = 2;
   desc.vertex_layout.attributes[2].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
   desc.vertex_layout.attributes[2].offset = (u32)offsetof(LDKMeshVertex, uv);
-
   desc.vertex_layout.attributes[3].location = 3;
   desc.vertex_layout.attributes[3].format = LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
   desc.vertex_layout.attributes[3].offset = (u32)offsetof(LDKMeshVertex, color);
-
   desc.color_attachment_count = 1;
   desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
+  desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
 
   pass->pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   return pass->pipeline != LDK_RHI_INVALID_RESOURCE;
-
 }
 
 static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
@@ -397,15 +476,12 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
 {
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
-
   desc.layout = pass->bindings_layout;
   desc.binding_count = 2;
-
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = pass->camera_buffer;
   desc.bindings[0].buffer_offset = 0;
   desc.bindings[0].buffer_size = sizeof(LDKRendererMeshCameraParams);
-
   desc.bindings[1].slot = 1;
   desc.bindings[1].buffer = pass->object_buffer;
   desc.bindings[1].buffer_offset = 0;
@@ -427,35 +503,30 @@ static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass* pass, LDKRender
 
   if (!s_renderer_mesh_pass_create_shaders(pass))
   {
-    ldk_log_error("Failed to create shaders for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_bindings_layout(pass))
   {
-    ldk_log_error("Failed to create bindings layout for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_pipeline(pass))
   {
-    ldk_log_error("Failed to create pipeline for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_buffers(pass))
   {
-    ldk_log_error("Failed to create buffers for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_bindings(pass))
   {
-    ldk_log_error("Failed to create bindings for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
@@ -485,10 +556,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
   memset(pass, 0, sizeof(*pass));
 }
 
-static bool s_renderer_mesh_pass(
-    LDKRenderer* renderer,
-    LDKRendererMeshPass* pass,
-    LDKRendererFrameDesc const* frame_desc)
+static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pass, LDKRendererFrameDesc const* frame_desc)
 {
   if (renderer == NULL || pass == NULL || !pass->is_initialized || frame_desc == NULL)
   {
@@ -505,15 +573,23 @@ static bool s_renderer_mesh_pass(
     return false;
   }
 
+  if (!s_renderer_target_ensure(renderer, &renderer->scene_target, frame_desc->framebuffer_width, frame_desc->framebuffer_height))
+  {
+    return false;
+  }
+
   LDKRHIPassDesc pass_desc;
   ldk_rhi_pass_desc_defaults(&pass_desc);
-
   pass_desc.color_attachment_count = 1;
-  pass_desc.color_attachments[0].texture = LDK_RHI_INVALID_RESOURCE;
-  pass_desc.color_attachments[0].load_op = frame_desc->clear_color_enabled ? LDK_RHI_LOAD_OP_CLEAR : LDK_RHI_LOAD_OP_LOAD;
+  pass_desc.color_attachments[0].texture = renderer->scene_target.color_texture;
+  pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
   pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
   pass_desc.color_attachments[0].clear_color = ldk_renderer_color_from_rgba32(frame_desc->clear_color);
-
+  pass_desc.depth_attachment.valid = true;
+  pass_desc.depth_attachment.texture = renderer->scene_target.depth_texture;
+  pass_desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
+  pass_desc.depth_attachment.depth_store_op = LDK_RHI_STORE_OP_DONT_CARE;
+  pass_desc.depth_attachment.clear_depth = 1.0f;
   pass_desc.has_viewport = true;
   pass_desc.viewport.x = 0.0f;
   pass_desc.viewport.y = 0.0f;
@@ -527,9 +603,7 @@ static bool s_renderer_mesh_pass(
   LDKRendererMeshCameraParams camera_params = {0};
   camera_params.view = renderer->camera_view;
   camera_params.projection = renderer->camera_projection;
-
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0, sizeof(camera_params), &camera_params);
-
   ldk_rhi_pipeline_bind(pass->rhi, pass->pipeline);
   ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
 
@@ -545,7 +619,6 @@ static bool s_renderer_mesh_pass(
 
     LDKRendererMeshObjectParams object_params = {0};
     object_params.world = submit->world;
-
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0, sizeof(object_params), &object_params);
     ldk_rhi_vertex_buffer_bind(pass->rhi, mesh->vertex_buffer, 0);
     ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
@@ -554,7 +627,6 @@ static bool s_renderer_mesh_pass(
     draw_desc.index_count = mesh->index_count;
     draw_desc.first_index = 0;
     draw_desc.vertex_offset = 0;
-
     ldk_rhi_draw_indexed(pass->rhi, &draw_desc);
   }
 
@@ -562,9 +634,8 @@ static bool s_renderer_mesh_pass(
   return true;
 }
 
-
 // ---------------------------------------------------------------------------
-// Internal pass: UI
+// Internal pass: UI / present
 // ---------------------------------------------------------------------------
 
 static bool s_renderer_ui_pass_create_shaders(LDKRendererUIPass* renderer)
@@ -713,9 +784,10 @@ static bool s_renderer_ui_pass_buffer_creates(LDKRendererUIPass* renderer)
 
 static bool s_renderer_ui_pass_recreate_vertex_buffer(LDKRendererUIPass* renderer)
 {
-  LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_destroy(renderer->rhi, renderer->vertex_buffer);
   renderer->vertex_buffer = LDK_RHI_INVALID_RESOURCE;
+
+  LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = renderer->vertex_capacity * (u32)sizeof(LDKUIVertex);
   desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
@@ -726,9 +798,10 @@ static bool s_renderer_ui_pass_recreate_vertex_buffer(LDKRendererUIPass* rendere
 
 static bool s_renderer_ui_pass_recreate_index_buffer(LDKRendererUIPass* renderer)
 {
-  LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_destroy(renderer->rhi, renderer->index_buffer);
   renderer->index_buffer = LDK_RHI_INVALID_RESOURCE;
+
+  LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = renderer->index_capacity * (u32)sizeof(u32);
   desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
@@ -884,6 +957,7 @@ static bool s_renderer_ui_pass_grow_bindings_cache(LDKRendererUIPass* renderer)
   LDKRendererBindingsCacheEntry* new_cache = renderer->bindings_cache == NULL
     ? (LDKRendererBindingsCacheEntry*)LDK_RENDERER_ALLOC(new_size)
     : (LDKRendererBindingsCacheEntry*)LDK_RENDERER_REALLOC(renderer->bindings_cache, new_size);
+
   if (new_cache == NULL)
   {
     return false;
@@ -955,7 +1029,6 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
 
   LDKRHIPassDesc pass_desc;
   ldk_rhi_pass_desc_defaults(&pass_desc);
-
   pass_desc.color_attachment_count = 1;
   pass_desc.color_attachments[0].texture = LDK_RHI_INVALID_RESOURCE;
   pass_desc.color_attachments[0].load_op = frame_desc->clear_color_enabled ? LDK_RHI_LOAD_OP_CLEAR : LDK_RHI_LOAD_OP_LOAD;
@@ -983,18 +1056,13 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
   ldk_rhi_vertex_buffer_bind(renderer->rhi, renderer->vertex_buffer, 0);
   ldk_rhi_index_buffer_bind(renderer->rhi, renderer->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
 
-  for (u32 i = 0; i < render_data->command_count; ++i)
+  for (u32 i = 0; i < render_data->command_count; i++)
   {
-    LDKUIDrawCmd const* cmd = &render_data->commands[i];
-    i32 scissor_x = (i32)cmd->clip_rect.x;
-    i32 scissor_y = framebuffer_height - (i32)(cmd->clip_rect.y + cmd->clip_rect.h);
-    i32 scissor_w = (i32)cmd->clip_rect.w;
-    i32 scissor_h = (i32)cmd->clip_rect.h;
-    LDKRHITexture texture = cmd->texture != 0 ? (LDKRHITexture)cmd->texture : renderer->white_texture;
-
-    if (scissor_w <= 0 || scissor_h <= 0 || cmd->index_count == 0)
+    const LDKUIDrawCmd* cmd = &render_data->commands[i];
+    LDKRHITexture texture = (LDKRHITexture)cmd->texture;
+    if (texture == LDK_RHI_INVALID_RESOURCE)
     {
-      continue;
+      texture = renderer->white_texture;
     }
 
     LDKRHIBindings bindings = s_renderer_ui_pass_get_draw_bindings(renderer, texture);
@@ -1004,12 +1072,20 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
     }
 
     LDKRHIRect scissor = {0};
-    scissor.x = scissor_x;
-    scissor.y = scissor_y;
-    scissor.width = scissor_w;
-    scissor.height = scissor_h;
+    scissor.x = (i32)cmd->clip_rect.x;
+    scissor.y = (i32)cmd->clip_rect.y;
+    scissor.width = (i32)cmd->clip_rect.w;
+    scissor.height = (i32)cmd->clip_rect.h;
     ldk_rhi_scissor_set(renderer->rhi, &scissor);
+
+
+    if (scissor.width <= 0 || scissor.height <= 0)
+    {
+      continue;
+    }
+
     ldk_rhi_bindings_bind(renderer->rhi, bindings);
+    ldk_rhi_scissor_set(renderer->rhi, &scissor);
 
     LDKRHIDrawIndexedDesc draw_desc = {0};
     draw_desc.index_count = cmd->index_count;
@@ -1021,8 +1097,184 @@ static void s_renderer_ui_pass(LDKRendererUIPass* renderer, LDKUIRenderData cons
   ldk_rhi_pass_end(renderer->rhi);
 }
 
+static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRendererFrameDesc* frame_desc)
+{
+  if (renderer == NULL || frame_desc == NULL)
+  {
+    return;
+  }
+
+  if (renderer->scene_target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  i32 width = frame_desc->framebuffer_width;
+  i32 height = frame_desc->framebuffer_height;
+
+  if (width <= 0 || height <= 0)
+  {
+    return;
+  }
+
+  LDKUIVertex vertices[4] =
+  {
+    {0.0f,         0.0f,          0.0f, 0.0f, 0xffffffffu},
+    {(float)width, 0.0f,          1.0f, 0.0f, 0xffffffffu},
+    {(float)width, (float)height, 1.0f, 1.0f, 0xffffffffu},
+    {0.0f,         (float)height, 0.0f, 1.0f, 0xffffffffu},
+  };
+
+  u32 indices[6] =
+  {
+    0, 1, 2,
+    0, 2, 3,
+  };
+
+  LDKUIDrawCmd command = {0};
+  command.texture = (LDKUITextureHandle)renderer->scene_target.color_texture;
+  command.clip_rect.x = 0.0f;
+  command.clip_rect.y = 0.0f;
+  command.clip_rect.w = (float)width;
+  command.clip_rect.h = (float)height;
+  command.index_offset = 0;
+  command.index_count = 6;
+
+  LDKUIRenderData render_data = {0};
+  render_data.vertices = vertices;
+  render_data.vertex_count = 4;
+  render_data.indices = indices;
+  render_data.index_count = 6;
+  render_data.commands = &command;
+  render_data.command_count = 1;
+
+  LDKRendererFrameDesc present_desc = *frame_desc;
+  present_desc.clear_color_enabled = true;
+
+  s_renderer_ui_pass(&renderer->ui_pass, &render_data, &present_desc);
+}
+
 // ---------------------------------------------------------------------------
-// Renderer lifecycle
+// Font cache
+// ---------------------------------------------------------------------------
+
+static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  if (renderer->rhi != NULL)
+  {
+    for (u32 i = 0; i < renderer->font_page_count; i++)
+    {
+      ldk_rhi_texture_destroy(renderer->rhi, renderer->font_pages[i].texture);
+    }
+  }
+
+  LDK_RENDERER_FREE(renderer->font_pages);
+  renderer->font_pages = NULL;
+  renderer->font_page_count = 0;
+  renderer->font_page_capacity = 0;
+}
+
+static bool s_renderer_grow_font_page_cache(LDKRenderer* renderer)
+{
+  u32 new_capacity = renderer->font_page_capacity == 0 ? 32 : renderer->font_page_capacity * 2;
+  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererFontPageCacheEntry);
+  LDKRendererFontPageCacheEntry* new_pages = renderer->font_pages == NULL
+    ? (LDKRendererFontPageCacheEntry*)LDK_RENDERER_ALLOC(new_size)
+    : (LDKRendererFontPageCacheEntry*)LDK_RENDERER_REALLOC(renderer->font_pages, new_size);
+
+  if (new_pages == NULL)
+  {
+    return false;
+  }
+
+  renderer->font_pages = new_pages;
+  renderer->font_page_capacity = new_capacity;
+  return true;
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDKFontInstance* font, u32 page_index)
+{
+  if (renderer == NULL || renderer->rhi == NULL || font == NULL)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  for (u32 i = 0; i < renderer->font_page_count; i++)
+  {
+    LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
+    if (entry->font == font && entry->page_index == page_index)
+    {
+      return (LDKUITextureHandle)entry->texture;
+    }
+  }
+
+  LDKFontPageInfo page = {0};
+  if (!ldk_font_get_page_info(font, page_index, &page))
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  if (page.pixels == NULL || page.width == 0 || page.height == 0)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  LDKRHITextureDesc texture_desc = {0};
+  ldk_rhi_texture_desc_defaults(&texture_desc);
+  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  texture_desc.format = LDK_RHI_FORMAT_R8_UNORM;
+  texture_desc.width = page.width;
+  texture_desc.height = page.height;
+  texture_desc.depth = 1;
+  texture_desc.mip_count = 1;
+  texture_desc.layer_count = 1;
+  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  texture_desc.initial_data = page.pixels;
+  texture_desc.initial_data_size = page.width * page.height;
+  texture_desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
+
+  LDKRHITexture texture = ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+  if (texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  if (renderer->font_page_count == renderer->font_page_capacity)
+  {
+    if (!s_renderer_grow_font_page_cache(renderer))
+    {
+      ldk_rhi_texture_destroy(renderer->rhi, texture);
+      return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+    }
+  }
+
+  LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[renderer->font_page_count];
+  entry->font = font;
+  entry->page_index = page_index;
+  entry->width = page.width;
+  entry->height = page.height;
+  entry->texture = texture;
+  renderer->font_page_count += 1;
+
+  ldk_font_clear_page_dirty(font, page_index);
+  return (LDKUITextureHandle)texture;
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFontInstance* font, u32 page_index)
+{
+  return ldk_renderer_get_font_page_texture((LDKRenderer*)user, font, page_index);
+}
+
+// ---------------------------------------------------------------------------
+// Public renderer API
 // ---------------------------------------------------------------------------
 
 bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config)
@@ -1035,18 +1287,18 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   memset(renderer, 0, sizeof(*renderer));
   renderer->rhi = config->rhi;
 
-  if (!s_renderer_ui_pass_initialize(&renderer->ui_pass, config))
-  {
-    ldk_renderer_terminate(renderer);
-    return false;
-  }
-
   if (!s_renderer_mesh_pass_initialize(&renderer->mesh_pass, config))
   {
     ldk_renderer_terminate(renderer);
     return false;
   }
 
+  if (!s_renderer_ui_pass_initialize(&renderer->ui_pass, config))
+  {
+    ldk_renderer_terminate(renderer);
+    return false;
+  }
+  
   renderer->is_initialized = true;
   return true;
 }
@@ -1058,11 +1310,60 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
     return;
   }
 
-  s_renderer_mesh_pass_terminate(&renderer->mesh_pass);
-  s_renderer_ui_pass_terminate(&renderer->ui_pass);
+  s_renderer_target_destroy(renderer, &renderer->scene_target);
   s_renderer_destroy_font_page_cache(renderer);
   s_renderer_destroy_mesh_resources(renderer);
+  s_renderer_ui_pass_terminate(&renderer->ui_pass);
+  s_renderer_mesh_pass_terminate(&renderer->mesh_pass);
   memset(renderer, 0, sizeof(*renderer));
+}
+
+void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc)
+{
+  if (renderer == NULL || !renderer->is_initialized || desc == NULL || renderer->rhi == NULL)
+  {
+    return;
+  }
+
+  ldk_rhi_frame_begin(renderer->rhi);
+
+  bool rendered_scene = s_renderer_mesh_pass(renderer, &renderer->mesh_pass, desc);
+  if (rendered_scene)
+  {
+    s_renderer_present_scene_pass(renderer, desc);
+  }
+
+
+  if (renderer->submitted_ui != NULL)
+  {
+    LDKRendererFrameDesc ui_desc = *desc;
+    if (rendered_scene)
+    {
+      ui_desc.clear_color_enabled = false;
+    }
+
+    s_renderer_ui_pass(&renderer->ui_pass, renderer->submitted_ui, &ui_desc);
+  }
+
+
+  ldk_rhi_frame_end(renderer->rhi);
+
+  renderer->submitted_mesh_count = 0;
+  renderer->submitted_ui = NULL;
+  renderer->has_camera = false;
+}
+
+bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection)
+{
+  if (renderer == NULL || !renderer->is_initialized)
+  {
+    return false;
+  }
+
+  renderer->camera_view = view;
+  renderer->camera_projection = projection;
+  renderer->has_camera = true;
+  return true;
 }
 
 void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data)
@@ -1073,59 +1374,6 @@ void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render
   }
 
   renderer->submitted_ui = render_data;
-}
-
-void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc)
-{
-  if (renderer == NULL || !renderer->is_initialized || desc == NULL)
-  {
-    return;
-  }
-
-  if (desc->framebuffer_width <= 0 || desc->framebuffer_height <= 0)
-  {
-    renderer->submitted_ui = NULL;
-    renderer->submitted_mesh_count = 0;
-    return;
-  }
-
-  bool rendered_meshes = false;
-
-  ldk_rhi_frame_begin(renderer->rhi);
-
-  rendered_meshes = s_renderer_mesh_pass(renderer, &renderer->mesh_pass, desc);
-
-  LDKRendererFrameDesc ui_desc = *desc;
-  if (rendered_meshes)
-  {
-    ui_desc.clear_color_enabled = false;
-  }
-
-  s_renderer_ui_pass(&renderer->ui_pass, renderer->submitted_ui, &ui_desc);
-
-  ldk_rhi_frame_end(renderer->rhi);
-
-  renderer->submitted_ui = NULL;
-  renderer->submitted_mesh_count = 0;
-  renderer->has_camera = false;
-}
-
-// ---------------------------------------------------------------------------
-// Primitive Submission
-// ---------------------------------------------------------------------------
-
-bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection)
-{
-  if (!renderer || !renderer->is_initialized)
-  {
-    return false;
-  }
-
-  renderer->camera_view = view;
-  renderer->camera_projection = projection;
-  renderer->has_camera = true;
-
-  return true;
 }
 
 bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world)
@@ -1151,261 +1399,6 @@ bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 
   LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[renderer->submitted_mesh_count];
   submit->mesh = mesh;
   submit->world = world;
-
   renderer->submitted_mesh_count += 1;
   return true;
-}
-
-// ---------------------------------------------------------------------------
-// Font cache
-// ---------------------------------------------------------------------------
-
-static LDKRendererFontPageCacheEntry* s_renderer_find_font_page(
-    LDKRenderer* renderer,
-    LDKFontInstance* font,
-    u32 page_index)
-{
-  if (!renderer || !font)
-  {
-    return NULL;
-  }
-
-  for (u32 i = 0; i < renderer->font_page_count; ++i)
-  {
-    LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
-
-    if (entry->font == font && entry->page_index == page_index)
-    {
-      return entry;
-    }
-  }
-
-  return NULL;
-}
-
-static bool s_renderer_grow_font_page_cache(LDKRenderer* renderer)
-{
-  if (!renderer)
-  {
-    return false;
-  }
-
-  u32 new_capacity = renderer->font_page_capacity == 0 ? 16 : renderer->font_page_capacity * 2;
-  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererFontPageCacheEntry);
-
-  LDKRendererFontPageCacheEntry* new_pages = renderer->font_pages == NULL
-    ? (LDKRendererFontPageCacheEntry*)LDK_RENDERER_ALLOC(new_size)
-    : (LDKRendererFontPageCacheEntry*)LDK_RENDERER_REALLOC(renderer->font_pages, new_size);
-
-  if (!new_pages)
-  {
-    return false;
-  }
-
-  renderer->font_pages = new_pages;
-  renderer->font_page_capacity = new_capacity;
-
-  return true;
-}
-
-static LDKRHITexture s_renderer_create_font_page_texture(
-    LDKRenderer* renderer,
-    const LDKFontPageInfo* page)
-{
-  if (!renderer || !renderer->rhi || !page)
-  {
-    return LDK_RHI_INVALID_RESOURCE;
-  }
-
-  if (!page->pixels || page->width == 0 || page->height == 0)
-  {
-    return LDK_RHI_INVALID_RESOURCE;
-  }
-
-  LDKRHITextureDesc desc = {0};
-  ldk_rhi_texture_desc_defaults(&desc);
-
-  desc.type = LDK_RHI_TEXTURE_TYPE_2D;
-  desc.format = LDK_RHI_FORMAT_R8_UNORM;
-  desc.width = page->width;
-  desc.height = page->height;
-  desc.depth = 1;
-  desc.mip_count = 1;
-  desc.layer_count = 1;
-  desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED | LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
-  desc.initial_data = page->pixels;
-  desc.initial_data_size = page->width * page->height;
-
-  desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
-
-  return ldk_rhi_texture_create(renderer->rhi, &desc);
-}
-
-static bool s_renderer_update_font_page_texture(
-    LDKRenderer* renderer,
-    LDKRendererFontPageCacheEntry* entry,
-    const LDKFontPageInfo* page)
-{
-  if (!renderer || !renderer->rhi || !entry || !page)
-  {
-    return false;
-  }
-
-  if (!page->pixels || page->width == 0 || page->height == 0)
-  {
-    return false;
-  }
-
-  if (entry->texture == LDK_RHI_INVALID_RESOURCE)
-  {
-    entry->texture = s_renderer_create_font_page_texture(renderer, page);
-    entry->width = page->width;
-    entry->height = page->height;
-    return entry->texture != LDK_RHI_INVALID_RESOURCE;
-  }
-
-  if (entry->width != page->width || entry->height != page->height)
-  {
-    ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
-
-    entry->texture = s_renderer_create_font_page_texture(renderer, page);
-    entry->width = page->width;
-    entry->height = page->height;
-
-    return entry->texture != LDK_RHI_INVALID_RESOURCE;
-  }
-
-  return ldk_rhi_texture_update(
-      renderer->rhi,
-      entry->texture,
-      0,
-      0,
-      page->pixels,
-      page->width * page->height);
-}
-
-static LDKRendererFontPageCacheEntry* s_renderer_create_font_page_entry(
-    LDKRenderer* renderer,
-    LDKFontInstance* font,
-    const LDKFontPageInfo* page)
-{
-  if (!renderer || !font || !page)
-  {
-    return NULL;
-  }
-
-  if (renderer->font_page_count == renderer->font_page_capacity)
-  {
-    if (!s_renderer_grow_font_page_cache(renderer))
-    {
-      return NULL;
-    }
-  }
-
-  LDKRHITexture texture = s_renderer_create_font_page_texture(renderer, page);
-
-  if (texture == LDK_RHI_INVALID_RESOURCE)
-  {
-    return NULL;
-  }
-
-  LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[renderer->font_page_count];
-  memset(entry, 0, sizeof(*entry));
-
-  entry->font = font;
-  entry->page_index = page->page_index;
-  entry->width = page->width;
-  entry->height = page->height;
-  entry->texture = texture;
-
-  renderer->font_page_count += 1;
-
-  return entry;
-}
-
-static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer)
-{
-  if (!renderer)
-  {
-    return;
-  }
-
-  if (renderer->rhi)
-  {
-    for (u32 i = 0; i < renderer->font_page_count; ++i)
-    {
-      LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
-
-      if (entry->texture != LDK_RHI_INVALID_RESOURCE)
-      {
-        ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
-      }
-    }
-  }
-
-  LDK_RENDERER_FREE(renderer->font_pages);
-
-  renderer->font_pages = NULL;
-  renderer->font_page_count = 0;
-  renderer->font_page_capacity = 0;
-}
-
-LDKUITextureHandle ldk_renderer_get_font_page_texture(
-    LDKRenderer* renderer,
-    LDKFontInstance* font,
-    u32 page_index)
-{
-  if (!renderer || !renderer->is_initialized || !font)
-  {
-    return 0;
-  }
-
-  LDKFontPageInfo page = {0};
-
-  if (!ldk_font_get_page_info(font, page_index, &page))
-  {
-    return 0;
-  }
-
-  LDKRendererFontPageCacheEntry* entry = s_renderer_find_font_page(
-      renderer,
-      font,
-      page_index);
-
-  if (!entry)
-  {
-    entry = s_renderer_create_font_page_entry(renderer, font, &page);
-
-    if (!entry)
-    {
-      return 0;
-    }
-
-    ldk_font_clear_page_dirty(font, page_index);
-    return (LDKUITextureHandle)entry->texture;
-  }
-
-  if (page.dirty)
-  {
-    if (s_renderer_update_font_page_texture(renderer, entry, &page))
-    {
-      ldk_font_clear_page_dirty(font, page_index);
-    }
-  }
-
-  return (LDKUITextureHandle)entry->texture;
-}
-
-LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(
-    void* user,
-    LDKFontInstance* font,
-    u32 page_index)
-{
-  return ldk_renderer_get_font_page_texture(
-      (LDKRenderer*)user,
-      font,
-      page_index);
 }
