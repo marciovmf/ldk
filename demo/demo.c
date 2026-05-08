@@ -107,13 +107,21 @@ u32 cube_indices[] =
   ldk_ecs_component_add(camera_entity, LDK_COMPONENT_TYPE_CAMERA, &camera);
   ldk_camera_look_at(camera_entity, vec3_make(0.0f, 0.0f, -1.0f));
 
-  cube_entity = ldk_ecs_entity_create();
-  ldk_transform_set_local_position(cube_entity, vec3_make(0.0f, 0.0f, -3.0f));
-  ldk_transform_set_local_rotation(cube_entity, quat_axis_angle(vec3_make(0.0f, 1.0f, 1.0f), 10.0f));
+  LDKEntity cube_entity_0 = ldk_ecs_entity_create();
+  ldk_transform_set_local_position(cube_entity_0, vec3_make(0.0f, 0.0f, -3.0f));
+  ldk_transform_set_local_rotation(cube_entity_0, quat_axis_angle(vec3_make(0.0f, 1.0f, 1.0f), 10.0f));
+
+  LDKEntity cube_entity_1 = ldk_ecs_entity_create();
+  ldk_transform_set_parent(cube_entity_1, cube_entity_0);
+  ldk_transform_set_local_position(cube_entity_1, vec3_make(0.0f, 0.0f, 1.2f));
+  ldk_transform_set_local_scale(cube_entity_1, vec3_make(0.4f, 0.4f, 0.4f));
 
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);
-  ldk_ecs_component_add(cube_entity, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
+  ldk_ecs_component_add(cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
+  ldk_ecs_component_add(cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
+
+  cube_entity = cube_entity_0;
 
   return true;
 }
@@ -121,9 +129,9 @@ u32 cube_indices[] =
 void game_update(LDKGame* game, float delta_time)
 {
   static float angle = 0;
-  angle += deg_to_rad(300.0f * delta_time);
+  angle += deg_to_rad(100.0f * delta_time);
 
-  ldk_transform_set_local_rotation(cube_entity, quat_axis_angle(vec3_make(1.0f, 0.0f, 1.0f), angle));
+  ldk_transform_set_local_rotation(cube_entity, quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), angle));
 }
 
 void game_terminate(LDKGame* game)

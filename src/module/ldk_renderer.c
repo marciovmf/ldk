@@ -1,3 +1,4 @@
+#include "ldk.h"
 #include <ldk_common.h>
 #include <module/ldk_renderer.h>
 
@@ -331,9 +332,12 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   desc.bindings_layout = pass->bindings_layout;
   desc.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
 
-  desc.blend_state.enabled = false;
   desc.depth_state.test_enabled = false;
   desc.depth_state.write_enabled = false;
+  //desc.depth_state.compare_op = LDK_RHI_COMPARE_OP_LESS_EQUAL;
+  //desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
+
+  desc.blend_state.enabled = false;
   desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_BACK;
   desc.raster_state.front_face = LDK_RHI_FRONT_FACE_CCW;
   desc.raster_state.scissor_enabled = false;
@@ -359,10 +363,10 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
 
   desc.color_attachment_count = 1;
   desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
-  desc.depth_format = LDK_RHI_FORMAT_INVALID;
 
   pass->pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   return pass->pipeline != LDK_RHI_INVALID_RESOURCE;
+
 }
 
 static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
@@ -423,30 +427,35 @@ static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass* pass, LDKRender
 
   if (!s_renderer_mesh_pass_create_shaders(pass))
   {
+    ldk_log_error("Failed to create shaders for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_bindings_layout(pass))
   {
+    ldk_log_error("Failed to create bindings layout for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_pipeline(pass))
   {
+    ldk_log_error("Failed to create pipeline for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_buffers(pass))
   {
+    ldk_log_error("Failed to create buffers for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }
 
   if (!s_renderer_mesh_pass_create_bindings(pass))
   {
+    ldk_log_error("Failed to create bindings for scene rendering.\n");
     s_renderer_mesh_pass_terminate(pass);
     return false;
   }

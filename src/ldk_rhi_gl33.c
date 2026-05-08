@@ -172,6 +172,27 @@ static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "  out_color = vec4(v_color.rgb * light, v_color.a);\n"
 "}\n";
 
+static char const* LDK_RHI_GL33_PRESENT_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec2 a_position;\n"
+"layout(location = 1) in vec2 a_uv;\n"
+"out vec2 v_uv;\n"
+"void main()\n"
+"{\n"
+"  v_uv = a_uv;\n"
+"  gl_Position = vec4(a_position, 0.0, 1.0);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_PRESENT_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"out vec4 out_color;\n"
+"uniform sampler2D LDK_TEXTURE_0;\n"
+"void main()\n"
+"{\n"
+"  out_color = texture(LDK_TEXTURE_0, v_uv);\n"
+"}\n";
+
 static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 {
   return (uint32_t)strlen(cstr);
@@ -197,6 +218,16 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_MESH_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_PRESENT_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_PRESENT_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_PRESENT_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_PRESENT_PASS_FRAGMENT_SHADER;
   }
 
   return NULL;

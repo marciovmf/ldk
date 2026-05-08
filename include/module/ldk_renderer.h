@@ -39,10 +39,22 @@ extern "C" {
   {
     LDK_SHADER_INVALID = 0,
     LDK_SHADER_UI_PASS,
-    LDK_SHADER_MESH_PASS
+    LDK_SHADER_MESH_PASS,
+    LDK_SHADER_PRESENT_PASS
   } LDKShader;
 
+  typedef struct LDKRendererTarget
+  {
+    LDKRHITexture color_texture;
+    LDKRHITexture depth_texture;
 
+    i32 width;
+    i32 height;
+
+    LDKRHIFormat color_format;
+    LDKRHIFormat depth_format;
+  }
+  LDKRendererTarget;
 
   typedef struct LDKRendererMeshDesc
   {
@@ -151,6 +163,7 @@ extern "C" {
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
     LDKUIRenderData const* submitted_ui;
+    LDKRendererTarget scene_target;
 
     LDKRendererMeshResource* meshes;
     u32 mesh_count;
