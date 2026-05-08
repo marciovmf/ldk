@@ -44,3 +44,4 @@ lib
 bin
 *.log
 project.lua
+debug.cap
