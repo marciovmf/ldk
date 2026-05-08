@@ -45,13 +45,12 @@
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 
-#include <inttypes.h>
-
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 // Editor UI defaults
 #ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY
@@ -637,7 +636,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     // Listen to text events for editor UI
     ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
   }
-
 
   g_engine_initialized = true;
   e->previous_ticks = 0;

@@ -216,10 +216,7 @@ bool ldk_transform_set_local_position(LDKEntity entity, Vec3 position)
 {
   LDKTransform* transform = s_transform_get_ptr(entity);
 
-  if (!transform)
-  {
-    return false;
-  }
+  LDK_ASSERT(transform);
 
   transform->local_position = position;
   return s_transform_mark_subtree_dirty(entity);
