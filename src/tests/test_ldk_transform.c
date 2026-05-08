@@ -1,14 +1,12 @@
 #include <ldk_common.h>
 
-#if defined(LDK_GAME)
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_ARRAY
 #define X_IMPL_MATH
 #define X_IMPL_HPOOL
 #endif
-#endif
 
-#include <stdx/stdx_common.h>
+#include <stdx/stdx_log.h>
 #include <stdx/stdx_math.h>
 #include <component/ldk_transform.h>
 

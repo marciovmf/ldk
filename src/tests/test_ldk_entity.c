@@ -1,14 +1,13 @@
 #include <ldk_common.h>
 
-#if defined(LDK_GAME)
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_ARRAY
 #endif // LDK_SHAREDLIB
-#endif // LDK_GAME
 
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <stdx/stdx_array.h>
+#include <stdx/stdx_log.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>

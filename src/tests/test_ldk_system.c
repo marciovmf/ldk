@@ -1,6 +1,6 @@
-#include <stdx/stdx_common.h>
-
+#include <ldk_common.h>
 #include <module/ldk_system.h>
+#include <stdx/stdx_log.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>

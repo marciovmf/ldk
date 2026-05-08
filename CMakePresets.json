@@ -60,8 +60,8 @@
       "generator": "Ninja", 
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OPTION_ADDRESS_SANITIZER": "ON",
-        "OPTION_LDKSHAREDLIB": "ON",
+        "OPTION_ADDRESS_SANITIZER": "OFF",
+        "OPTION_LDKSHAREDLIB": "OFF",
         "OPTION_BUILD_EDITOR": "ON",
         "OPTION_BUILD_TESTS": "ON"
       }
