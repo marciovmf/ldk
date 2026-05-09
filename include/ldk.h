@@ -49,7 +49,7 @@ extern "C" {
     LDK_MODULE_EVENT,
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
-    LDK_MODULE_UI,
+    LDK_MODULE_EDITOR,
   } LDKModuleType;
 
   struct LDKGame;
@@ -64,9 +64,11 @@ extern "C" {
     XFSPath   asset_root;
     XFSPath   log_file;
     XFSPath   game_dll;
+#ifdef LDK_EDITOR
     XFSPath   editor_font;
-    XSmallstr   editor_theme;
+    XSmallstr editor_theme;
     i32       editor_font_size;
+#endif
     i32       width;
     i32       height;
     bool      fullscreen;

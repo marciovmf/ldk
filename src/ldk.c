@@ -44,34 +44,13 @@
 #include <module/ldk_entity.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
+#include <module/ldk_editor.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
-#include <inttypes.h>
-
-// Editor UI defaults
-#ifndef LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY
-#define LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY 256
-#endif
-
-#ifndef LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY
-#define LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY 1024
-#endif
-
-#ifndef LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY 
-#define LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY 32
-#endif
-
-#ifndef LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY 
-#define LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY 16
-#endif
-
-#ifndef LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY 
-#define LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY 16
-#endif
 
 struct LDKRoot
 {
@@ -83,8 +62,9 @@ struct LDKRoot
   LDKGame               game;
   LDKRHIContext         rhi;
   LDKRenderer           renderer;
-  LDKUIContext          editor_ui;
-  LDKAssetFont          editor_font;
+#ifdef LDK_EDITOR
+  LDKEditor             editor;            
+#endif
   XLogger               logger;
   // Runtime state
   i32                   exit_code;
@@ -144,7 +124,7 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot* e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
-  ldk_ui_terminate(&e->editor_ui);
+  ldk_editor_terminate(&e->editor);
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
   ldk_asset_manager_terminate(&e->asset_manager);
@@ -205,8 +185,7 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
         config_ini_path,
         ini_error.line,
         ini_error.column,
-        ini_error.message ? ini_error.message : "Unknown error"
-        );
+        ini_error.message ? ini_error.message : "Unknown error");
     return false;
   }
 
@@ -225,6 +204,7 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   const char* icon_path = x_ini_get(&ini, "display", "icon_path", "assets/ldk.ico");
   s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path);
 
+
   // section: editor
   x_smallstr_from_cstr(&out_config->title, x_ini_get(&ini, "display", "title", "LDK"));
   x_smallstr_from_cstr(&out_config->editor_theme, x_ini_get(&ini, "editor", "theme", "dark"));
@@ -234,202 +214,6 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
 
   x_ini_free(&ini);
   return true;
-}
-
-static LDKUITextInputState ui_text_input = {0};
-static bool s_on_text_event(const LDKEvent* event, void* state)
-{
-  if (event->text_event.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
-  {
-    if (ui_text_input.codepoint_count < LDK_UI_INPUT_CODEPOINTS_CAPACITY)
-    {
-      ui_text_input.codepoints[ui_text_input.codepoint_count++] = event->text_event.character;
-      return true;
-    }
-  }
-  return false;
-}
-
-float r = 0.0f;
-float g = 0.0f;
-float b = 0.0f;
-bool bool_value = false;
-char* msg = "Hello, Sailor!";
-
-XSmallstr text_box1 = {0};
-XSmallstr text_box2 = {0};
-
-LDKUIRect w1 = { 10, 205, 400, 300 };
-LDKUIRect w2 = { 10, 100, 400, 400 };
-LDKUIRect w3 = {0};
-
-typedef enum ConsoleState
-{
-  CONSOLE_IS_OPENED,
-  CONSOLE_IS_OPENING,
-  CONSOLE_IS_CLOSED,
-  CONSOLE_IS_CLOSING,
-} ConsoleState;
-
-ConsoleState console_state = CONSOLE_IS_OPENED;
-bool theme = false;
-
-#define RGBA_U32(r, g, b) \
-  (((u32)(r) & 0xFFu) << 24 | \
-   ((u32)(g) & 0xFFu) << 16 | \
-   ((u32)(b) & 0xFFu) << 8  | \
-   0xFFu)
-
-LDKUIPoint scroll_pos = {0};
-
-
-static void s_editor_entity_list_window(LDKUIContext* ui, LDKEntityRegistry* er)
-{
-  static LDKUIRect s_entity_list_rect = {0};
-  s_entity_list_rect.w = ui->viewport.w * 0.2f;
-  s_entity_list_rect.h = ui->viewport.h * 0.8f;
-
-  s_entity_list_rect = ldk_ui_begin_window(ui, "Entities", s_entity_list_rect);
-  LDKEntityIterator it = ldk_entity_iterator_begin(er);
-  LDKEntity e;
-  while (ldk_entity_iterator_next(&it, &e))
-  {
-    LDKEntityInfo* info = ldk_entity_info_get(er, e);
-    u64 id = *((u64*) &e);
-    snprintf((char* const) &info->name, LDK_ENTITY_NAME_MAX_LEN, "0x%08" PRIu64 "(%d)", id, info->components.component_count);
-
-    ldk_ui_label(ui, (const char*) info->name);
-    for(u32 i = 0; i < info->components.component_count; i++)
-    {
-      const char* name = ldk_component_name_get(&g_engine.ecs.component, info->components.component_type[i]);
-      ldk_ui_label(ui, name);
-    }
-  }
-  ldk_entity_iterator_end(&it);
-  ldk_ui_end_window(ui);
-}
-
-void s_draw_editor_ui(LDKUIContext* ui, float delta_time)
-{
-  s_editor_entity_list_window(ui, &g_engine.ecs.entity);
-
-  const float step = 1000.0f * delta_time;
-  if (console_state == CONSOLE_IS_CLOSING)
-  {
-    w3.y -= step;
-    if (w3.y < -w3.h)
-    {
-      w3.y = -w3.h;
-      console_state = CONSOLE_IS_CLOSED;
-    }
-  }
-  else if (console_state == CONSOLE_IS_OPENING)
-  {
-    w3.y += step;
-    if (w3.y >= 0.0f)
-    {
-      w3.y = 0.0f;
-      console_state = CONSOLE_IS_OPENED;
-    }
-  }
-
-  {
-    w1 = ldk_ui_begin_window(ui, "Window 1", w1);
-
-    ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_expand_height(ui, true);
-    if (ldk_ui_button(ui, "Toggle Console"))
-    {
-      if (console_state == CONSOLE_IS_OPENED || console_state == CONSOLE_IS_OPENING) {
-        console_state = CONSOLE_IS_CLOSING;
-      }
-      else if (console_state == CONSOLE_IS_CLOSED || console_state == CONSOLE_IS_CLOSING) {
-        console_state = CONSOLE_IS_OPENING;
-      }
-    }
-
-    ldk_ui_set_next_expand_height(ui, true);
-    if (ldk_ui_button(ui, "Theme"))
-    {
-      theme = !theme;
-      ldk_ui_set_theme(ui, theme ? LDK_UI_THEME_DEFAULT_LIGHT : LDK_UI_THEME_DEFAULT_DARK, NULL);
-    }
-
-    ldk_ui_end_horizontal(ui);
-    ldk_ui_set_next_expand_height(ui, true);
-    bool_value = ldk_ui_toggle_button(ui, "Toggle", bool_value);
-
-    ldk_ui_begin_horizontal(ui);
-
-    ldk_ui_begin_vertical(ui);
-    ldk_ui_set_next_expand_height(ui, true);
-    r = ldk_ui_slider(ui, "Slider", r, 0.0f, 255.0f);
-    ldk_ui_set_next_expand_height(ui, true);
-    g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
-    ldk_ui_set_next_expand_height(ui, true);
-    b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
-    ldk_ui_end_vertical(ui);
-
-    ldk_ui_set_next_expand_height(ui, true);
-    ldk_ui_color_view(ui, RGBA_U32(r, g, b));
-    ldk_ui_end_horizontal(ui);
-
-
-    ldk_ui_label(ui, msg);
-    ldk_ui_end_window(ui);
-  }
-#if 0
-  if (bool_value)
-  {
-    w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
-    scroll_pos = ldk_ui_begin_vertical_scroll_area(ui, scroll_pos);
-
-
-    ldk_ui_set_next_expand_height(ui, true);
-    ui->theme.slider_track_height = ldk_ui_slider(ui, "Slider", ui->theme.slider_track_height, 0.0f, 1.0f);
-
-    ldk_ui_set_next_expand_height(ui, true);
-    ui->theme.slider_thumb_width = ldk_ui_slider(ui, "Slider", ui->theme.slider_thumb_width, 0.0f, 1.0f);
-
-    for(u32 i = 0; i < 30; i++)
-    {
-      ldk_ui_button(ui, "Button");
-    }
-    ldk_ui_end_vertical_scroll_area(ui);
-    ldk_ui_end_window(ui);
-  }
-#endif
-
-
-  if (bool_value)
-  {
-    w2 = ldk_ui_begin_window(ui, "Scroll Window", w2);
-    ldk_ui_label(ui, "Box 1");
-    ldk_ui_text_box(ui, text_box1.buf, X_SMALLSTR_MAX_LENGTH);
-
-    ldk_ui_begin_disabled(ui, true);
-    ldk_ui_label(ui, "Box 2");
-    ldk_ui_text_box(ui, text_box2.buf, X_SMALLSTR_MAX_LENGTH);
-    ldk_ui_end_disabled(ui);
-
-    if (ldk_ui_button(ui, "copy"))
-    {
-      memcpy((char*) &text_box2.buf, (char*) &text_box1.buf, strlen(text_box1.buf));
-    }
-    ldk_ui_end_window(ui);
-  }
-
-
-  if (console_state != CONSOLE_IS_CLOSED)
-  { // console
-    w3.w = ui->viewport.w;
-    w3.h = ui->viewport.h / 3;
-    ldk_ui_begin_pane(ui, w3);
-    ldk_ui_label(ui, "This is a console with text\nIt suport multiple lines!\nHello, Sailor!");
-    ldk_ui_end_pane(ui);
-  }
-
-  ui_text_input.codepoint_count = 0;
 }
 
 bool ldk_engine_is_initialized(void)
@@ -461,14 +245,16 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_LOG:
       return &g_engine.logger;
 
-    case LDK_MODULE_UI:
-      return &g_engine.editor_ui;
-
     case LDK_MODULE_RENDERER:
       return &g_engine.renderer;
 
     case LDK_MODULE_ASSET_MANAGER:
       return &g_engine.asset_manager;
+
+#ifdef LDK_EDITOR
+    case LDK_MODULE_EDITOR:
+      return &g_engine.editor;
+#endif
 
     default:
       break;
@@ -565,7 +351,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     engine_init_failed = true;
   }
 
-
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
@@ -577,65 +362,7 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-  // Load UI editor font
-  e->editor_font = ldk_asset_manager_font_load(&e->asset_manager, e->config.editor_font.buf);
-  LDKAssetFontData* editor_font_data = ldk_asset_manager_font_get(&e->asset_manager, e->editor_font);
-  if (!editor_font_data || !editor_font_data->face)
-  {
-    ldk_log_error("Failed to load editor font '%s'.", e->config.editor_font.buf);
-    ldk_engine_terminate();
-    return false;
-  }
 
-  LDKFontAtlasDesc font_atlas_desc = {0};
-  font_atlas_desc.padding = 1;
-  font_atlas_desc.page_width = 256;
-  font_atlas_desc.page_height = 256;
-
-  LDKFontInstance* editor_font = ldk_font_get_instance(
-      editor_font_data->face,
-      (float)e->config.editor_font_size,
-      &font_atlas_desc);
-
-  if (!editor_font)
-  {
-    ldk_log_error("Failed to create editor font instance.");
-    ldk_engine_terminate();
-    return false;
-  }
-
-  { // UI Initialization
-    LDKUIConfig ui_cfg = {0};
-    ui_cfg.frame_arena_size = 1024 * 4;
-    ui_cfg.initial_vertex_capacity = LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY;
-    ui_cfg.initial_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
-    ui_cfg.initial_command_capacity = LDK_DEFATUL_UI_INITIAL_COMMAND_CAPACITY;
-    ui_cfg.initial_window_capacity = LDK_DEFATUL_UI_INITIAL_WINDOW_CAPACITY;
-    ui_cfg.initial_id_stack_capacity = LDK_DEFATUL_UI_INITIAL_STACK_CAPACITY;
-    ui_cfg.font = editor_font;
-
-    if (strncmp(e->config.editor_theme.buf, "light", 5) == 0)
-      ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-    else if (strncmp(e->config.editor_theme.buf, "dark", 4) == 0)
-      ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
-    else
-    {
-      ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.", e->config.editor_theme.buf);
-      ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-    }
-
-    ui_cfg.font_texture_user = &e->renderer;
-    ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
-
-    if (!ldk_ui_initialize(&e->editor_ui, &ui_cfg))
-    {
-      ldk_log_error("Failed to initialize module: UI System.");
-      engine_init_failed = true;
-    }
-
-    // Listen to text events for editor UI
-    ldk_event_handler_add(&e->event_queue, s_on_text_event, LDK_EVENT_TYPE_TEXT, NULL);
-  }
 
   g_engine_initialized = true;
   e->previous_ticks = 0;
@@ -660,6 +387,16 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     ldk_log_error("Failed to start ECS system registry.");
     engine_init_failed = true;
   }
+
+#ifdef LDK_EDITOR
+
+  if (!ldk_editor_initialize(&e->editor, &e->config))
+  {
+    ldk_log_error("Failed to initialize Editor.");
+    engine_init_failed = true;
+  }
+  
+#endif
 
   if (engine_init_failed)
   {
@@ -756,18 +493,6 @@ void ldk_engine_frame(void)
   delta_time = (float) ldk_os_time_ticks_interval_get_milliseconds(e->previous_ticks, current_ticks) / 1000.0f;
   e->previous_ticks = current_ticks;
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
-
-#ifdef LDK_EDITOR
-  /*
-   * Editor mode is always active in editor builds. Scene view, picking, gizmos,
-   * inspectors and other tools should update here even when play mode is off.
-   */
-  LDKMouseState     mouse_state;
-  LDKKeyboardState  kbd_state;
-  LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f, .y = 0.0f, .w = (float) window_size.w, .h = (float) window_size.h};
-  ldk_os_mouse_state_get(&mouse_state);
-  ldk_os_keyboard_state_get(&kbd_state);
-#endif
 
   { // Update simulation
     ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
@@ -882,12 +607,7 @@ void ldk_engine_frame(void)
 
 
 #ifdef LDK_EDITOR
-  /* render editor overlays, gizmos and tool UI here */
-  ldk_ui_begin_frame(&e->editor_ui, &mouse_state, &kbd_state, &ui_text_input, ui_viewport);
-  s_draw_editor_ui(&e->editor_ui, delta_time);
-  ldk_ui_end_frame(&e->editor_ui);
-  const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&e->editor_ui);
-  ldk_renderer_submit_ui(&e->renderer, ui_data);
+  ldk_editor_update(&e->editor, window_size.w, window_size.h, delta_time);
 #endif
 
   current_ticks = ldk_os_time_ticks_get();

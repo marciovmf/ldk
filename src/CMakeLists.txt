@@ -54,11 +54,9 @@ list(APPEND SOURCE
   ${INCLUDE_DIR}/component/ldk_mesh_source.h component/ldk_mesh_source.c
 )
 
-# Use this list when building games
-
-#if (OPTION_BUILD_EDITOR)
-#  #list(APPEND SOURCE ${INCLUDE_DIR}/module/editor.h module/editor.c)
-#endif()
+if (OPTION_BUILD_EDITOR)
+  list(APPEND SOURCE ${INCLUDE_DIR}/module/ldk_editor.h module/ldk_editor.c)
+endif()
 
 if(WIN32)
   # Windows specific sources and libs
