@@ -294,6 +294,12 @@ extern "C"
     LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM
   } LDKRHIVertexFormat;
 
+  typedef enum LDKRHIVertexInputRate
+  {
+    LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX = 0,
+    LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE
+  } LDKRHIVertexInputRate;
+
   typedef enum LDKRHIBindingType
   {
     LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER = 0,
@@ -436,11 +442,13 @@ extern "C"
   } LDKRHIVertexAttributeDesc;
 
 #define LDK_RHI_VERTEX_ATTRIBUTE_MAX 16
+#define LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX 8
 #define LDK_RHI_COLOR_ATTACHMENT_MAX 8
 #define LDK_RHI_BINDING_MAX 16
 
   /* Compatibility max names. */
 #define LDK_RHI_MAX_VERTEX_ATTRIBUTES LDK_RHI_VERTEX_ATTRIBUTE_MAX
+#define LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX
 #define LDK_RHI_MAX_COLOR_ATTACHMENTS LDK_RHI_COLOR_ATTACHMENT_MAX
 #define LDK_RHI_MAX_BINDINGS LDK_RHI_BINDING_MAX
 
@@ -449,6 +457,7 @@ extern "C"
     uint32_t stride;
     uint32_t attribute_count;
     LDKRHIVertexAttributeDesc attributes[LDK_RHI_VERTEX_ATTRIBUTE_MAX];
+    LDKRHIVertexInputRate input_rate;
   } LDKRHIVertexBufferLayoutDesc;
 
   typedef struct LDKRHIBindingLayoutEntry
@@ -474,6 +483,8 @@ extern "C"
     LDKRHIDepthState depth_state;
     LDKRHIRasterState raster_state;
     LDKRHIVertexBufferLayoutDesc vertex_layout;
+    uint32_t vertex_buffer_layout_count;
+    LDKRHIVertexBufferLayoutDesc vertex_buffer_layouts[LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX];
     uint32_t color_attachment_count;
     LDKRHIFormat color_formats[LDK_RHI_COLOR_ATTACHMENT_MAX];
     LDKRHIFormat depth_format;
@@ -543,11 +554,28 @@ extern "C"
     int32_t vertex_offset;
   } LDKRHIDrawIndexedDesc;
 
+  typedef struct LDKRHIDrawIndexedInstancedDesc
+  {
+    uint32_t index_count;
+    uint32_t instance_count;
+    uint32_t first_index;
+    int32_t vertex_offset;
+    uint32_t first_instance;
+  } LDKRHIDrawIndexedInstancedDesc;
+
   typedef struct LDKRHIDrawDesc
   {
     uint32_t vertex_count;
     uint32_t first_vertex;
   } LDKRHIDrawDesc;
+
+  typedef struct LDKRHIDrawInstancedDesc
+  {
+    uint32_t vertex_count;
+    uint32_t instance_count;
+    uint32_t first_vertex;
+    uint32_t first_instance;
+  } LDKRHIDrawInstancedDesc;
 
   typedef struct LDKRHIFunctions
   {
@@ -585,13 +613,16 @@ extern "C"
     void (*pipeline_bind)(void* backend_user_data, LDKRHIPipeline pipeline);
     void (*bindings_bind)(void* backend_user_data, LDKRHIBindings bindings);
     void (*vertex_buffer_bind)(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset);
+    void (*vertex_buffer_bind_at)(void* backend_user_data, uint32_t slot, LDKRHIBuffer buffer, uint32_t offset);
     void (*index_buffer_bind)(void* backend_user_data, LDKRHIBuffer buffer, uint32_t offset, LDKRHIIndexType index_type);
 
     void (*viewport_set)(void* backend_user_data, const LDKRHIViewport* viewport);
     void (*scissor_set)(void* backend_user_data, const LDKRHIRect* scissor);
 
     void (*draw)(void* backend_user_data, const LDKRHIDrawDesc* desc);
+    void (*draw_instanced)(void* backend_user_data, const LDKRHIDrawInstancedDesc* desc);
     void (*draw_indexed)(void* backend_user_data, const LDKRHIDrawIndexedDesc* desc);
+    void (*draw_indexed_instanced)(void* backend_user_data, const LDKRHIDrawIndexedInstancedDesc* desc);
   } LDKRHIFunctions;
 
   struct LDKRHIContext
@@ -608,6 +639,7 @@ extern "C"
     LDKRHIPipeline bound_pipeline;
     LDKRHIBindings bound_bindings;
     LDKRHIBuffer bound_vertex_buffer;
+    LDKRHIBuffer bound_vertex_buffers[LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX];
     LDKRHIBuffer bound_index_buffer;
   };
 
@@ -1013,6 +1045,15 @@ extern "C"
   LDK_API void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
 
   /**
+   * @brief Binds a vertex buffer to a specific vertex buffer slot.
+   * @param context RHI context.
+   * @param slot Vertex buffer slot.
+   * @param buffer Buffer handle.
+   * @param offset Byte offset.
+   */
+  LDK_API void ldk_rhi_vertex_buffer_bind_at(LDKRHIContext* context, uint32_t slot, LDKRHIBuffer buffer, uint32_t offset);
+
+  /**
    * @brief Binds an index buffer.
    * @param context RHI context.
    * @param buffer Buffer handle.
@@ -1044,11 +1085,25 @@ extern "C"
   LDK_API void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
 
   /**
+   * @brief Issues an instanced draw call.
+   * @param context RHI context.
+   * @param desc Draw descriptor.
+   */
+  LDK_API void ldk_rhi_draw_instanced(LDKRHIContext* context, const LDKRHIDrawInstancedDesc* desc);
+
+  /**
    * @brief Issues an indexed draw call.
    * @param context RHI context.
    * @param desc Draw descriptor.
    */
   LDK_API void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
+
+  /**
+   * @brief Issues an indexed instanced draw call.
+   * @param context RHI context.
+   * @param desc Draw descriptor.
+   */
+  LDK_API void ldk_rhi_draw_indexed_instanced(LDKRHIContext* context, const LDKRHIDrawIndexedInstancedDesc* desc);
 
   /**
    * @brief Fills a buffer descriptor with safe default values.
@@ -1460,6 +1515,16 @@ extern "C"
   LDK_API void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset);
 
   /**
+   * @brief Binds a vertex buffer to a specific vertex buffer slot.
+   *
+   * @param context RHI context.
+   * @param slot Vertex buffer slot.
+   * @param buffer Vertex buffer handle.
+   * @param offset Byte offset inside the vertex buffer.
+   */
+  LDK_API void ldk_rhi_vertex_buffer_bind_at(LDKRHIContext* context, uint32_t slot, LDKRHIBuffer buffer, uint32_t offset);
+
+  /**
    * @brief Binds an index buffer, byte offset, and index type for indexed draw calls.
    *
    * @param context RHI context.
@@ -1495,12 +1560,27 @@ extern "C"
   LDK_API void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc);
 
   /**
+   * @brief Issues an instanced draw call.
+   * @param context RHI context.
+   * @param desc Draw descriptor.
+   */
+  LDK_API void ldk_rhi_draw_instanced(LDKRHIContext* context, const LDKRHIDrawInstancedDesc* desc);
+
+  /**
    * @brief Issues an indexed draw call.
    *
    * @param context RHI context.
    * @param desc Pointer to the indexed draw descriptor.
    */
   LDK_API void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc);
+
+  /**
+   * @brief Issues an indexed instanced draw call.
+   *
+   * @param context RHI context.
+   * @param desc Pointer to the indexed instanced draw descriptor.
+   */
+  LDK_API void ldk_rhi_draw_indexed_instanced(LDKRHIContext* context, const LDKRHIDrawIndexedInstancedDesc* desc);
 
 #ifdef __cplusplus
 }

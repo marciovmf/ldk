@@ -197,6 +197,12 @@ static void ldk_rhi_reset_bound_state(LDKRHIContext* context)
   context->bound_pipeline = LDK_RHI_INVALID_RESOURCE;
   context->bound_bindings = LDK_RHI_INVALID_RESOURCE;
   context->bound_vertex_buffer = LDK_RHI_INVALID_RESOURCE;
+
+  for (uint32_t i = 0; i < LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX; i++)
+  {
+    context->bound_vertex_buffers[i] = LDK_RHI_INVALID_RESOURCE;
+  }
+
   context->bound_index_buffer = LDK_RHI_INVALID_RESOURCE;
 }
 
@@ -308,6 +314,11 @@ static bool ldk_rhi_is_valid_color_write_mask(uint32_t mask)
 static bool ldk_rhi_is_valid_vertex_format(LDKRHIVertexFormat format)
 {
   return format >= LDK_RHI_VERTEX_FORMAT_FLOAT && format <= LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
+}
+
+static bool ldk_rhi_is_valid_vertex_input_rate(LDKRHIVertexInputRate input_rate)
+{
+  return input_rate >= LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX && input_rate <= LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE;
 }
 
 static bool ldk_rhi_is_valid_binding_type(LDKRHIBindingType type)
@@ -836,35 +847,106 @@ bool ldk_rhi_is_valid_pipeline_desc(const LDKRHIPipelineDesc* desc)
     return false;
   }
 
-  if (desc->vertex_layout.attribute_count > LDK_RHI_VERTEX_ATTRIBUTE_MAX)
+  if (desc->vertex_buffer_layout_count > LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX)
   {
     return false;
   }
 
-  if (desc->vertex_layout.attribute_count > 0 && desc->vertex_layout.stride == 0)
+  if (desc->vertex_buffer_layout_count == 0)
   {
-    return false;
-  }
-
-  for (uint32_t i = 0; i < desc->vertex_layout.attribute_count; i++)
-  {
-    const LDKRHIVertexAttributeDesc* attribute = &desc->vertex_layout.attributes[i];
-
-    if (attribute->location >= LDK_RHI_VERTEX_ATTRIBUTE_MAX)
+    if (desc->vertex_layout.attribute_count > LDK_RHI_VERTEX_ATTRIBUTE_MAX)
     {
       return false;
     }
 
-    if (!ldk_rhi_is_valid_vertex_format(attribute->format))
+    if (desc->vertex_layout.attribute_count > 0 && desc->vertex_layout.stride == 0)
     {
       return false;
     }
 
-    for (uint32_t j = i + 1; j < desc->vertex_layout.attribute_count; j++)
+    if (!ldk_rhi_is_valid_vertex_input_rate(desc->vertex_layout.input_rate))
     {
-      if (attribute->location == desc->vertex_layout.attributes[j].location)
+      return false;
+    }
+
+    for (uint32_t i = 0; i < desc->vertex_layout.attribute_count; i++)
+    {
+      const LDKRHIVertexAttributeDesc* attribute = &desc->vertex_layout.attributes[i];
+
+      if (attribute->location >= LDK_RHI_VERTEX_ATTRIBUTE_MAX)
       {
         return false;
+      }
+
+      if (!ldk_rhi_is_valid_vertex_format(attribute->format))
+      {
+        return false;
+      }
+
+      for (uint32_t j = i + 1; j < desc->vertex_layout.attribute_count; j++)
+      {
+        if (attribute->location == desc->vertex_layout.attributes[j].location)
+        {
+          return false;
+        }
+      }
+    }
+  }
+  else
+  {
+    for (uint32_t i = 0; i < desc->vertex_buffer_layout_count; i++)
+    {
+      const LDKRHIVertexBufferLayoutDesc* layout = &desc->vertex_buffer_layouts[i];
+
+      if (layout->attribute_count > LDK_RHI_VERTEX_ATTRIBUTE_MAX)
+      {
+        return false;
+      }
+
+      if (layout->attribute_count > 0 && layout->stride == 0)
+      {
+        return false;
+      }
+
+      if (!ldk_rhi_is_valid_vertex_input_rate(layout->input_rate))
+      {
+        return false;
+      }
+
+      for (uint32_t j = 0; j < layout->attribute_count; j++)
+      {
+        const LDKRHIVertexAttributeDesc* attribute = &layout->attributes[j];
+
+        if (attribute->location >= LDK_RHI_VERTEX_ATTRIBUTE_MAX)
+        {
+          return false;
+        }
+
+        if (!ldk_rhi_is_valid_vertex_format(attribute->format))
+        {
+          return false;
+        }
+
+        for (uint32_t k = j + 1; k < layout->attribute_count; k++)
+        {
+          if (attribute->location == layout->attributes[k].location)
+          {
+            return false;
+          }
+        }
+
+        for (uint32_t k = i + 1; k < desc->vertex_buffer_layout_count; k++)
+        {
+          const LDKRHIVertexBufferLayoutDesc* other_layout = &desc->vertex_buffer_layouts[k];
+
+          for (uint32_t l = 0; l < other_layout->attribute_count; l++)
+          {
+            if (attribute->location == other_layout->attributes[l].location)
+            {
+              return false;
+            }
+          }
+        }
       }
     }
   }
@@ -1032,6 +1114,14 @@ void ldk_rhi_buffer_destroy(LDKRHIContext* context, LDKRHIBuffer buffer)
   if (context->bound_vertex_buffer == buffer)
   {
     context->bound_vertex_buffer = LDK_RHI_INVALID_RESOURCE;
+  }
+
+  for (uint32_t i = 0; i < LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX; i++)
+  {
+    if (context->bound_vertex_buffers[i] == buffer)
+    {
+      context->bound_vertex_buffers[i] = LDK_RHI_INVALID_RESOURCE;
+    }
   }
 
   if (context->bound_index_buffer == buffer)
@@ -1342,13 +1432,32 @@ void ldk_rhi_bindings_bind(LDKRHIContext* context, LDKRHIBindings bindings)
 
 void ldk_rhi_vertex_buffer_bind(LDKRHIContext* context, LDKRHIBuffer buffer, uint32_t offset)
 {
+  ldk_rhi_vertex_buffer_bind_at(context, 0, buffer, offset);
+}
+
+void ldk_rhi_vertex_buffer_bind_at(LDKRHIContext* context, uint32_t slot, LDKRHIBuffer buffer, uint32_t offset)
+{
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      slot < LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX &&
       buffer != LDK_RHI_INVALID_RESOURCE &&
-      !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer) &&
-      context->functions.vertex_buffer_bind != NULL)
+      !ldk_rhi_is_deferred_delete_pending(context, LDK_RHI_DEFERRED_DELETE_BUFFER, buffer))
   {
-    context->functions.vertex_buffer_bind(context->backend_user_data, buffer, offset);
-    context->bound_vertex_buffer = buffer;
+    if (context->functions.vertex_buffer_bind_at != NULL)
+    {
+      context->functions.vertex_buffer_bind_at(context->backend_user_data, slot, buffer, offset);
+      context->bound_vertex_buffers[slot] = buffer;
+
+      if (slot == 0)
+      {
+        context->bound_vertex_buffer = buffer;
+      }
+    }
+    else if (slot == 0 && context->functions.vertex_buffer_bind != NULL)
+    {
+      context->functions.vertex_buffer_bind(context->backend_user_data, buffer, offset);
+      context->bound_vertex_buffer = buffer;
+      context->bound_vertex_buffers[0] = buffer;
+    }
   }
 }
 
@@ -1396,6 +1505,19 @@ void ldk_rhi_draw(LDKRHIContext* context, const LDKRHIDrawDesc* desc)
   }
 }
 
+void ldk_rhi_draw_instanced(LDKRHIContext* context, const LDKRHIDrawInstancedDesc* desc)
+{
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      desc != NULL && desc->vertex_count > 0 && desc->instance_count > 0 &&
+      context->bound_pipeline != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_bindings != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_RESOURCE &&
+      context->functions.draw_instanced != NULL)
+  {
+    context->functions.draw_instanced(context->backend_user_data, desc);
+  }
+}
+
 void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* desc)
 {
   if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
@@ -1407,5 +1529,19 @@ void ldk_rhi_draw_indexed(LDKRHIContext* context, const LDKRHIDrawIndexedDesc* d
       context->functions.draw_indexed != NULL)
   {
     context->functions.draw_indexed(context->backend_user_data, desc);
+  }
+}
+
+void ldk_rhi_draw_indexed_instanced(LDKRHIContext* context, const LDKRHIDrawIndexedInstancedDesc* desc)
+{
+  if (ldk_rhi_has_backend(context) && context->frame_active && context->pass_active &&
+      desc != NULL && desc->index_count > 0 && desc->instance_count > 0 &&
+      context->bound_pipeline != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_bindings != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_vertex_buffer != LDK_RHI_INVALID_RESOURCE &&
+      context->bound_index_buffer != LDK_RHI_INVALID_RESOURCE &&
+      context->functions.draw_indexed_instanced != NULL)
+  {
+    context->functions.draw_indexed_instanced(context->backend_user_data, desc);
   }
 }
