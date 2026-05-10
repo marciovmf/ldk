@@ -65,6 +65,8 @@ typedef struct LDKRHIGL33PipelineObject
   LDKRHIDepthState depth_state;
   LDKRHIRasterState raster_state;
   LDKRHIVertexBufferLayoutDesc vertex_layout;
+  uint32_t vertex_buffer_layout_count;
+  LDKRHIVertexBufferLayoutDesc vertex_buffer_layouts[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
 } LDKRHIGL33PipelineObject;
 
 typedef struct LDKRHIGL33Backend
@@ -97,10 +99,36 @@ typedef struct LDKRHIGL33Backend
   LDKRHIPipeline current_pipeline;
   LDKRHIBuffer current_vertex_buffer;
   uint32_t current_vertex_buffer_offset;
+  LDKRHIBuffer current_vertex_buffers[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
+  uint32_t current_vertex_buffer_offsets[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
   LDKRHIBuffer current_index_buffer;
   uint32_t current_index_buffer_offset;
   LDKRHIIndexType current_index_type;
 } LDKRHIGL33Backend;
+
+static void ldk_rhi_gl33_reset_bound_state(LDKRHIGL33Backend* backend)
+{
+  if (backend == NULL)
+  {
+    return;
+  }
+
+  backend->current_pipeline = LDK_RHI_INVALID_RESOURCE;
+  backend->current_vertex_buffer = LDK_RHI_INVALID_RESOURCE;
+  backend->current_vertex_buffer_offset = 0;
+  backend->current_index_buffer = LDK_RHI_INVALID_RESOURCE;
+  backend->current_index_buffer_offset = 0;
+
+  for (uint32_t i = 0; i < LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS; i++)
+  {
+    backend->current_vertex_buffers[i] = LDK_RHI_INVALID_RESOURCE;
+    backend->current_vertex_buffer_offsets[i] = 0;
+  }
+
+  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
 
 static char const* LDK_RHI_GL33_UI_PASS_VERTEX_SHADER =
 "#version 330 core\n"
@@ -143,21 +171,34 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "layout(location = 1) in vec3 a_normal;\n"
 "layout(location = 2) in vec2 a_uv;\n"
 "layout(location = 3) in vec4 a_color;\n"
+"#ifdef LDK_INSTANCED\n"
+"layout(location = 4) in vec4 i_world_0;\n"
+"layout(location = 5) in vec4 i_world_1;\n"
+"layout(location = 6) in vec4 i_world_2;\n"
+"layout(location = 7) in vec4 i_world_3;\n"
+"#endif\n"
 "layout(std140) uniform LDK_UBO_0\n"
 "{\n"
 "  mat4 u_view;\n"
 "  mat4 u_projection;\n"
 "};\n"
+"#ifndef LDK_INSTANCED\n"
 "layout(std140) uniform LDK_UBO_1\n"
 "{\n"
 "  mat4 u_world;\n"
 "};\n"
+"#endif\n"
 "out vec3 v_normal;\n"
 "out vec4 v_color;\n"
 "void main()\n"
 "{\n"
-"  vec4 world_position = u_world * vec4(a_position, 1.0);\n"
-"  v_normal = mat3(u_world) * a_normal;\n"
+"#ifdef LDK_INSTANCED\n"
+"  mat4 world = mat4(i_world_0, i_world_1, i_world_2, i_world_3);\n"
+"#else\n"
+"  mat4 world = u_world;\n"
+"#endif\n"
+"  vec4 world_position = world * vec4(a_position, 1.0);\n"
+"  v_normal = mat3(world) * a_normal;\n"
 "  v_color = a_color;\n"
 "  gl_Position = u_projection * u_view * world_position;\n"
 "}\n";
@@ -223,6 +264,16 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
   }
 
+  if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
+  }
+
   if (shader == LDK_SHADER_PRESENT_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
     return LDK_RHI_GL33_PRESENT_PASS_VERTEX_SHADER;
@@ -235,6 +286,8 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
 
   return NULL;
 }
+
+static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create_with_prefix(void* backend_user_data, const LDKRHIShaderModuleDesc* desc, char const* prefix);
 
 LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint32_t shader, uint32_t stage)
 {
@@ -255,6 +308,12 @@ LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint
   desc.code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
   desc.code = code;
   desc.code_size = ldk_rhi_gl33_cstr_size(code);
+
+  if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return ldk_rhi_gl33_shader_module_create_with_prefix(rhi->backend_user_data, &desc, "#define LDK_INSTANCED\n");
+  }
+
   return ldk_rhi_shader_module_create(rhi, &desc);
 }
 
@@ -657,19 +716,47 @@ static void ldk_rhi_gl33_apply_pipeline_state(const LDKRHIGL33PipelineObject* pi
 static void ldk_rhi_gl33_apply_vertex_layout(LDKRHIGL33Backend* backend, const LDKRHIGL33PipelineObject* pipeline)
 {
   glBindVertexArray(pipeline->vao);
-  glBindBuffer(GL_ARRAY_BUFFER, (GLuint) backend->current_vertex_buffer);
 
-  for (uint32_t i = 0; i < pipeline->vertex_layout.attribute_count; i++)
+  for (uint32_t layout_index = 0; layout_index < pipeline->vertex_buffer_layout_count; layout_index++)
   {
-    LDKRHIVertexAttributeDesc attribute = pipeline->vertex_layout.attributes[i];
-    GLint count = 0;
-    GLenum type = 0;
-    GLboolean normalized = GL_FALSE;
-    ldk_rhi_gl33_vertex_format(attribute.format, &count, &type, &normalized);
-    uintptr_t offset = (uintptr_t)backend->current_vertex_buffer_offset + (uintptr_t)attribute.offset;
-    glEnableVertexAttribArray(attribute.location);
-    glVertexAttribPointer(attribute.location, count, type, normalized, (GLsizei)pipeline->vertex_layout.stride, (const void*)offset);
+    const LDKRHIVertexBufferLayoutDesc* layout = &pipeline->vertex_buffer_layouts[layout_index];
+    LDKRHIBuffer buffer = backend->current_vertex_buffers[layout_index];
+    uint32_t buffer_offset = backend->current_vertex_buffer_offsets[layout_index];
+
+    if (buffer == LDK_RHI_INVALID_RESOURCE)
+    {
+      continue;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)buffer);
+
+    for (uint32_t i = 0; i < layout->attribute_count; i++)
+    {
+      LDKRHIVertexAttributeDesc attribute = layout->attributes[i];
+      GLint count = 0;
+      GLenum type = 0;
+      GLboolean normalized = GL_FALSE;
+      GLuint divisor = layout->input_rate == LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE ? 1u : 0u;
+      ldk_rhi_gl33_vertex_format(attribute.format, &count, &type, &normalized);
+      uintptr_t offset = (uintptr_t)buffer_offset + (uintptr_t)attribute.offset;
+      glEnableVertexAttribArray(attribute.location);
+      glVertexAttribPointer(attribute.location, count, type, normalized, (GLsizei)layout->stride, (const void*)offset);
+      glVertexAttribDivisor(attribute.location, divisor);
+    }
   }
+}
+
+static bool ldk_rhi_gl33_pipeline_vertex_buffers_bound(LDKRHIGL33Backend* backend, const LDKRHIGL33PipelineObject* pipeline)
+{
+  for (uint32_t layout_index = 0; layout_index < pipeline->vertex_buffer_layout_count; layout_index++)
+  {
+    if (backend->current_vertex_buffers[layout_index] == LDK_RHI_INVALID_RESOURCE)
+    {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static void ldk_rhi_gl33_shutdown(void* backend_user_data)
@@ -874,7 +961,7 @@ static void ldk_rhi_gl33_destroy_sampler(void* backend_user_data, LDKRHISampler 
   glDeleteSamplers(1, &gl_sampler);
 }
 
-static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_data, const LDKRHIShaderModuleDesc* desc)
+static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create_with_prefix(void* backend_user_data, const LDKRHIShaderModuleDesc* desc, char const* prefix)
 {
   (void)backend_user_data;
   if (desc->code_format != LDK_RHI_SHADER_CODE_FORMAT_GLSL)
@@ -891,7 +978,43 @@ static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_d
   GLuint shader = glCreateShader(stage);
   const GLchar* source = (const GLchar*)desc->code;
   GLint length = (GLint)desc->code_size;
-  glShaderSource(shader, 1, &source, &length);
+
+  if (prefix != NULL)
+  {
+    char const* version = "#version 330 core\n";
+    uint32_t version_size = ldk_rhi_gl33_cstr_size(version);
+    if (desc->code_size >= version_size && memcmp(desc->code, version, version_size) == 0)
+    {
+      const GLchar* sources[3] = {0};
+      GLint lengths[3] = {0};
+
+      sources[0] = (const GLchar*)desc->code;
+      lengths[0] = (GLint)version_size;
+      sources[1] = (const GLchar*)prefix;
+      lengths[1] = (GLint)ldk_rhi_gl33_cstr_size(prefix);
+      sources[2] = (const GLchar*)desc->code + version_size;
+      lengths[2] = (GLint)(desc->code_size - version_size);
+
+      glShaderSource(shader, 3, sources, lengths);
+    }
+    else
+    {
+      const GLchar* sources[2] = {0};
+      GLint lengths[2] = {0};
+
+      sources[0] = (const GLchar*)prefix;
+      lengths[0] = (GLint)ldk_rhi_gl33_cstr_size(prefix);
+      sources[1] = source;
+      lengths[1] = length;
+
+      glShaderSource(shader, 2, sources, lengths);
+    }
+  }
+  else
+  {
+    glShaderSource(shader, 1, &source, &length);
+  }
+
   glCompileShader(shader);
 
   GLint status = GL_FALSE;
@@ -903,6 +1026,11 @@ static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_d
   }
 
   return (LDKRHIShaderModule)shader;
+}
+
+static LDKRHIShaderModule ldk_rhi_gl33_shader_module_create(void* backend_user_data, const LDKRHIShaderModuleDesc* desc)
+{
+  return ldk_rhi_gl33_shader_module_create_with_prefix(backend_user_data, desc, NULL);
 }
 
 static void ldk_rhi_gl33_shader_module_destroy(void* backend_user_data, LDKRHIShaderModule shader_module)
@@ -1028,6 +1156,19 @@ static LDKRHIPipeline ldk_rhi_gl33_pipeline_create(void* backend_user_data, cons
   pipeline->depth_state = desc->depth_state;
   pipeline->raster_state = desc->raster_state;
   pipeline->vertex_layout = desc->vertex_layout;
+
+  if (desc->vertex_buffer_layout_count > 0)
+  {
+    pipeline->vertex_buffer_layout_count = desc->vertex_buffer_layout_count;
+    memcpy(pipeline->vertex_buffer_layouts, desc->vertex_buffer_layouts, sizeof(LDKRHIVertexBufferLayoutDesc) * desc->vertex_buffer_layout_count);
+  }
+  else if (desc->vertex_layout.attribute_count > 0)
+  {
+    pipeline->vertex_buffer_layout_count = 1;
+    pipeline->vertex_buffer_layouts[0] = desc->vertex_layout;
+    pipeline->vertex_buffer_layouts[0].input_rate = LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX;
+  }
+
   return handle;
 }
 
@@ -1140,6 +1281,8 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint fbo = 0;
   bool use_default_framebuffer = false;
+
+  ldk_rhi_gl33_reset_bound_state(backend);
 
   if (desc->color_attachment_count == 1 && desc->color_attachments[0].texture == LDK_RHI_INVALID_RESOURCE)
   {
@@ -1256,6 +1399,8 @@ static void ldk_rhi_gl33_pass_end(void* backend_user_data)
     glDeleteFramebuffers(1, &fbo);
     backend->current_fbo = 0;
   }
+
+  ldk_rhi_gl33_reset_bound_state(backend);
 }
 
 static void ldk_rhi_gl33_pipeline_bind(void* backend_user_data, LDKRHIPipeline pipeline)
@@ -1276,10 +1421,11 @@ static void ldk_rhi_gl33_pipeline_bind(void* backend_user_data, LDKRHIPipeline p
   glUseProgram(object->program);
   glBindVertexArray(object->vao);
   ldk_rhi_gl33_apply_pipeline_state(object);
+  ldk_rhi_gl33_apply_vertex_layout(backend, object);
 
-  if (backend->current_vertex_buffer != LDK_RHI_INVALID_RESOURCE)
+  if (backend->current_index_buffer != LDK_RHI_INVALID_RESOURCE)
   {
-    ldk_rhi_gl33_apply_vertex_layout(backend, object);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, (GLuint)backend->current_index_buffer);
   }
 }
 
@@ -1336,6 +1482,36 @@ static void ldk_rhi_gl33_vertext_buffer_bind(void* backend_user_data, LDKRHIBuff
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   backend->current_vertex_buffer = buffer;
   backend->current_vertex_buffer_offset = offset;
+  backend->current_vertex_buffers[0] = buffer;
+  backend->current_vertex_buffer_offsets[0] = offset;
+
+  if (backend->current_pipeline != LDK_RHI_INVALID_RESOURCE && backend->current_pipeline < backend->pipeline_capacity)
+  {
+    LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
+    if (pipeline->alive)
+    {
+      ldk_rhi_gl33_apply_vertex_layout(backend, pipeline);
+    }
+  }
+}
+
+static void ldk_rhi_gl33_vertex_buffer_bind_at(void* backend_user_data, uint32_t slot, LDKRHIBuffer buffer, uint32_t offset)
+{
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+
+  if (slot >= LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS)
+  {
+    return;
+  }
+
+  backend->current_vertex_buffers[slot] = buffer;
+  backend->current_vertex_buffer_offsets[slot] = offset;
+
+  if (slot == 0)
+  {
+    backend->current_vertex_buffer = buffer;
+    backend->current_vertex_buffer_offset = offset;
+  }
 
   if (backend->current_pipeline != LDK_RHI_INVALID_RESOURCE && backend->current_pipeline < backend->pipeline_capacity)
   {
@@ -1380,6 +1556,11 @@ static void ldk_rhi_gl33_draw(void* backend_user_data, const LDKRHIDrawDesc* des
   }
 
   LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
+  if (!ldk_rhi_gl33_pipeline_vertex_buffers_bound(backend, pipeline))
+  {
+    return;
+  }
+
   GLenum mode = ldk_rhi_gl33_topology(pipeline->topology);
   glDrawArrays(mode, (GLint)desc->first_vertex, (GLsizei)desc->vertex_count);
 }
@@ -1393,6 +1574,16 @@ static void ldk_rhi_gl33_draw_indexed(void* backend_user_data, const LDKRHIDrawI
   }
 
   LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
+  if (!ldk_rhi_gl33_pipeline_vertex_buffers_bound(backend, pipeline))
+  {
+    return;
+  }
+
+  if (backend->current_index_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
   GLenum mode = ldk_rhi_gl33_topology(pipeline->topology);
   GLenum type = backend->current_index_type == LDK_RHI_INDEX_TYPE_UINT32 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
   uint32_t index_size = backend->current_index_type == LDK_RHI_INDEX_TYPE_UINT32 ? 4u : 2u;
@@ -1405,6 +1596,68 @@ static void ldk_rhi_gl33_draw_indexed(void* backend_user_data, const LDKRHIDrawI
   else
   {
     glDrawElements(mode, (GLsizei)desc->index_count, type, (const void*)index_offset);
+  }
+}
+
+static void ldk_rhi_gl33_draw_instanced(void* backend_user_data, const LDKRHIDrawInstancedDesc* desc)
+{
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+  if (backend->current_pipeline == LDK_RHI_INVALID_RESOURCE || backend->current_pipeline >= backend->pipeline_capacity)
+  {
+    return;
+  }
+
+  if (desc->first_instance != 0)
+  {
+    return;
+  }
+
+  LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
+  if (!ldk_rhi_gl33_pipeline_vertex_buffers_bound(backend, pipeline))
+  {
+    return;
+  }
+
+  GLenum mode = ldk_rhi_gl33_topology(pipeline->topology);
+  glDrawArraysInstanced(mode, (GLint)desc->first_vertex, (GLsizei)desc->vertex_count, (GLsizei)desc->instance_count);
+}
+
+static void ldk_rhi_gl33_draw_indexed_instanced(void* backend_user_data, const LDKRHIDrawIndexedInstancedDesc* desc)
+{
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+  if (backend->current_pipeline == LDK_RHI_INVALID_RESOURCE || backend->current_pipeline >= backend->pipeline_capacity)
+  {
+    return;
+  }
+
+  if (desc->first_instance != 0)
+  {
+    return;
+  }
+
+  LDKRHIGL33PipelineObject* pipeline = &backend->pipelines[backend->current_pipeline];
+  if (!ldk_rhi_gl33_pipeline_vertex_buffers_bound(backend, pipeline))
+  {
+    return;
+  }
+
+  if (backend->current_index_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  GLenum mode = ldk_rhi_gl33_topology(pipeline->topology);
+  GLenum type = backend->current_index_type == LDK_RHI_INDEX_TYPE_UINT32 ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT;
+  uint32_t index_size = backend->current_index_type == LDK_RHI_INDEX_TYPE_UINT32 ? 4u : 2u;
+  uintptr_t index_offset = (uintptr_t)backend->current_index_buffer_offset + ((uintptr_t)desc->first_index * (uintptr_t)index_size);
+
+  if (desc->vertex_offset != 0)
+  {
+    glDrawElementsInstancedBaseVertex(mode, (GLsizei)desc->index_count, type, (const void*)index_offset, (GLsizei)desc->instance_count, desc->vertex_offset);
+  }
+  else
+  {
+    glDrawElementsInstanced(mode, (GLsizei)desc->index_count, type, (const void*)index_offset, (GLsizei)desc->instance_count);
   }
 }
 
@@ -1451,11 +1704,14 @@ bool ldk_rhi_gl33_initialize(LDKRHIContext* context)
   functions.pipeline_bind = ldk_rhi_gl33_pipeline_bind;
   functions.bindings_bind = ldk_rhi_gl33_bindings_bind;
   functions.vertex_buffer_bind = ldk_rhi_gl33_vertext_buffer_bind;
+  functions.vertex_buffer_bind_at = ldk_rhi_gl33_vertex_buffer_bind_at;
   functions.index_buffer_bind = ldk_rhi_gl33_index_buffer_bind;
   functions.viewport_set = ldk_rhi_gl33_viewport_set;
   functions.scissor_set = ldk_rhi_gl33_scissor_set;
   functions.draw = ldk_rhi_gl33_draw;
   functions.draw_indexed = ldk_rhi_gl33_draw_indexed;
+  functions.draw_instanced = ldk_rhi_gl33_draw_instanced;
+  functions.draw_indexed_instanced = ldk_rhi_gl33_draw_indexed_instanced;
 
   bool ok = ldk_rhi_initialize(context, &desc, &functions);
   if (!ok)
