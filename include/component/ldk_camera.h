@@ -31,6 +31,7 @@ extern "C" {
     LDK_CAMERA_ROLE_RENDER_TARGET
   } LDKCameraRole;
 
+  //@component
   typedef struct LDKCamera
   {
     LDKCameraProjection projection;

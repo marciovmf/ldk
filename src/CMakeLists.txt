@@ -55,7 +55,8 @@ list(APPEND SOURCE
 )
 
 if (OPTION_BUILD_EDITOR)
-  list(APPEND SOURCE ${INCLUDE_DIR}/module/ldk_editor.h module/ldk_editor.c)
+  list(APPEND SOURCE
+    ${INCLUDE_DIR}/module/ldk_editor.h module/ldk_editor.c)
 endif()
 
 if(WIN32)
@@ -122,6 +123,20 @@ target_link_libraries(ldk PRIVATE
 target_link_libraries(ldk PUBLIC ${OPENGL_LIBRARY})
 target_include_directories(ldk PUBLIC ${INCLUDE_DIR})
 add_dependencies(ldk print_options)
+
+
+#----------------------------------------------
+# Tools
+#----------------------------------------------
+
+if (OPTION_BUILD_EDITOR)
+
+  add_executable(cmg tools/ldk_component_meta_gen.c)
+  target_include_directories(cmg PUBLIC ${INCLUDE_DIR})
+  target_link_libraries(cmg PRIVATE ldk)
+endif()
+
+
 
 #----------------------------------------------
 # Tests
