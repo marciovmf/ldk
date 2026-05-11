@@ -717,6 +717,12 @@ static void ldk_rhi_gl33_apply_vertex_layout(LDKRHIGL33Backend* backend, const L
 {
   glBindVertexArray(pipeline->vao);
 
+  for (uint32_t i = 0; i < LDK_RHI_MAX_VERTEX_ATTRIBUTES; i++)
+  {
+    glDisableVertexAttribArray(i);
+    glVertexAttribDivisor(i, 0);
+  }
+
   for (uint32_t layout_index = 0; layout_index < pipeline->vertex_buffer_layout_count; layout_index++)
   {
     const LDKRHIVertexBufferLayoutDesc* layout = &pipeline->vertex_buffer_layouts[layout_index];
@@ -738,7 +744,9 @@ static void ldk_rhi_gl33_apply_vertex_layout(LDKRHIGL33Backend* backend, const L
       GLboolean normalized = GL_FALSE;
       GLuint divisor = layout->input_rate == LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE ? 1u : 0u;
       ldk_rhi_gl33_vertex_format(attribute.format, &count, &type, &normalized);
+
       uintptr_t offset = (uintptr_t)buffer_offset + (uintptr_t)attribute.offset;
+
       glEnableVertexAttribArray(attribute.location);
       glVertexAttribPointer(attribute.location, count, type, normalized, (GLsizei)layout->stride, (const void*)offset);
       glVertexAttribDivisor(attribute.location, divisor);
@@ -1599,6 +1607,11 @@ static void ldk_rhi_gl33_draw_indexed(void* backend_user_data, const LDKRHIDrawI
   }
 }
 
+static bool ldk_rhi_gl33_supports_first_instance(uint32_t first_instance)
+{
+  return first_instance == 0;
+}
+
 static void ldk_rhi_gl33_draw_instanced(void* backend_user_data, const LDKRHIDrawInstancedDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
@@ -1607,7 +1620,7 @@ static void ldk_rhi_gl33_draw_instanced(void* backend_user_data, const LDKRHIDra
     return;
   }
 
-  if (desc->first_instance != 0)
+  if (!ldk_rhi_gl33_supports_first_instance(desc->first_instance))
   {
     return;
   }
@@ -1630,7 +1643,7 @@ static void ldk_rhi_gl33_draw_indexed_instanced(void* backend_user_data, const L
     return;
   }
 
-  if (desc->first_instance != 0)
+  if (!ldk_rhi_gl33_supports_first_instance(desc->first_instance))
   {
     return;
   }
