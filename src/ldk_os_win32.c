@@ -1270,6 +1270,26 @@ i32 ldk_os_graphics_vsync_get(void)
 
 
 // ---------------------------------------------------------------------------
+// Shared Library interface
+// ---------------------------------------------------------------------------
+
+LDKLibrary* ldk_os_library_load(const char* path)
+{
+  return (void*) LoadLibrary(path);
+}
+
+bool ldk_os_library_unload(LDKLibrary* library)
+{
+  return FreeLibrary(library);
+}
+
+void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name)
+{
+  return (void*) GetProcAddress(library, name);
+}
+
+
+// ---------------------------------------------------------------------------
 // Mouse
 // ---------------------------------------------------------------------------
 

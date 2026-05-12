@@ -93,10 +93,12 @@ extern "C" {
   LDK_API i32     ldk_os_graphics_vsync_get(void);
 
   // ---------------------------------------------------------------------------
-  // Misc
+  // Shared Library interface
   // ---------------------------------------------------------------------------
-  LDK_API size_t ldk_os_executable_path_get(XFSPath* ldk_path);
-  LDK_API size_t ldk_os_executable_path_file_name_get(XFSPath* ldk_path);
+  typedef void LDKLibrary;
+  LDK_API LDKLibrary* ldk_os_library_load(const char* path);
+  LDK_API bool ldk_os_library_unload(LDKLibrary* library);
+  LDK_API void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name);
 
   // ---------------------------------------------------------------------------
   // Mouse
