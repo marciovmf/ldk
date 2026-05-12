@@ -5,39 +5,13 @@
  *
  * The RHI is the backend-agnostic layer that owns GPU-like resources and draw
  * commands. It knows nothing about engine systems, modules or anything else
- * except buffers, textures, samplers, shaders, pipelines, bindings, passes, and draw calls.
+ * except buffers, textures, samplers, shaders, pipelines, bindings, passes, and
+ * draw calls.
  *
- * typical flow looks like:
- *  - Create resources (meshes, textures)
- *  - Create shaders
- *  - Create pipeline (defines how things render)
- *  - Set bindings (connect textures/buffers)
- *  - Begin a pass (where to render)
- *  - Issue draw calls (render objects)
- *
- * In code, it looks like this:
+ * Typical frame flow:
  *
  * @code
- * LDKRHIContext rhi;
- * LDKRHIContextDesc context_desc;
- * LDKRHIFunctions functions;
- *
- * // Initialize RHI pointers. Probably via some actual rendering API wrapper like Vulkan, GL or whatever
- * ldk_rhi_initialize(&rhi, &context_desc, &functions);
- *
  * ldk_rhi_frame_begin(&rhi);
- *
- * LDKRHIPassDesc pass;
- * ldk_rhi_pass_desc_defaults(&pass);
- * pass.color_attachment_count = 1;
- * pass.color_attachments[0].texture = LDK_RHI_TEXTURE_INVALID;
- * pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
- * pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
- * pass.has_viewport = true;
- * pass.viewport.width = (float)framebuffer_width;
- * pass.viewport.height = (float)framebuffer_height;
- * pass.viewport.min_depth = 0.0f;
- * pass.viewport.max_depth = 1.0f;
  *
  * ldk_rhi_pass_begin(&rhi, &pass);
  * ldk_rhi_pipeline_bind(&rhi, pipeline);
@@ -48,7 +22,282 @@
  * ldk_rhi_pass_end(&rhi);
  *
  * ldk_rhi_frame_end(&rhi);
- * ldk_rhi_terminate(&rhi);
+ * @endcode
+ *
+ * The RHI is stateful during a pass. A draw call uses the currently bound
+ * pipeline, bindings, vertex buffers, and index buffer.
+ *
+ * Common tasks:
+ *
+ * 1. Creating a vertex buffer:
+ *
+ * @code
+ * LDKRHIBufferDesc vertex_buffer_desc;
+ * ldk_rhi_buffer_desc_defaults(&vertex_buffer_desc);
+ * vertex_buffer_desc.size = vertex_data_size;
+ * vertex_buffer_desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX;
+ * vertex_buffer_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
+ * vertex_buffer_desc.initial_data = vertex_data;
+ *
+ * LDKRHIBuffer vertex_buffer = ldk_rhi_buffer_create(&rhi, &vertex_buffer_desc);
+ * @endcode
+ *
+ * 2. Creating an index buffer:
+ *
+ * @code
+ * LDKRHIBufferDesc index_buffer_desc;
+ * ldk_rhi_buffer_desc_defaults(&index_buffer_desc);
+ * index_buffer_desc.size = index_data_size;
+ * index_buffer_desc.usage = LDK_RHI_BUFFER_USAGE_INDEX;
+ * index_buffer_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
+ * index_buffer_desc.initial_data = index_data;
+ *
+ * LDKRHIBuffer index_buffer = ldk_rhi_buffer_create(&rhi, &index_buffer_desc);
+ * @endcode
+ *
+ * 3. Creating a uniform buffer:
+ *
+ * @code
+ * LDKRHIBufferDesc uniform_buffer_desc;
+ * ldk_rhi_buffer_desc_defaults(&uniform_buffer_desc);
+ * uniform_buffer_desc.size = sizeof(MyUniformData);
+ * uniform_buffer_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM;
+ * uniform_buffer_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+ * uniform_buffer_desc.initial_data = &uniform_data;
+ *
+ * LDKRHIBuffer uniform_buffer = ldk_rhi_buffer_create(&rhi, &uniform_buffer_desc);
+ * @endcode
+ *
+ * Uniform buffers can be updated later:
+ *
+ * @code
+ * ldk_rhi_buffer_update(&rhi, uniform_buffer, 0, sizeof(MyUniformData), &uniform_data);
+ * @endcode
+ *
+ * 4. Creating a texture:
+ *
+ * @code
+ * LDKRHITextureDesc texture_desc;
+ * ldk_rhi_texture_desc_defaults(&texture_desc);
+ * texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+ * texture_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+ * texture_desc.width = width;
+ * texture_desc.height = height;
+ * texture_desc.depth = 1;
+ * texture_desc.mip_count = 1;
+ * texture_desc.layer_count = 1;
+ * texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+ * texture_desc.initial_data = pixels;
+ * texture_desc.initial_data_size = pixel_data_size;
+ *
+ * LDKRHITexture texture = ldk_rhi_texture_create(&rhi, &texture_desc);
+ * @endcode
+ *
+ * 5. Creating a render target texture:
+ *
+ * @code
+ * LDKRHITextureDesc color_desc;
+ * ldk_rhi_texture_desc_defaults(&color_desc);
+ * color_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+ * color_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+ * color_desc.width = framebuffer_width;
+ * color_desc.height = framebuffer_height;
+ * color_desc.depth = 1;
+ * color_desc.mip_count = 1;
+ * color_desc.layer_count = 1;
+ * color_desc.usage = LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
+ *
+ * LDKRHITexture color_target = ldk_rhi_texture_create(&rhi, &color_desc);
+ * @endcode
+ *
+ * 6. Creating a depth attachment:
+ *
+ * @code
+ * LDKRHITextureDesc depth_desc;
+ * ldk_rhi_texture_desc_defaults(&depth_desc);
+ * depth_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+ * depth_desc.format = LDK_RHI_FORMAT_D32_FLOAT;
+ * depth_desc.width = framebuffer_width;
+ * depth_desc.height = framebuffer_height;
+ * depth_desc.depth = 1;
+ * depth_desc.mip_count = 1;
+ * depth_desc.layer_count = 1;
+ * depth_desc.usage = LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL;
+ *
+ * LDKRHITexture depth_target = ldk_rhi_texture_create(&rhi, &depth_desc);
+ * @endcode
+ *
+ * 7. Beginning a pass that renders to the default framebuffer:
+ *
+ * @code
+ * LDKRHIPassDesc pass;
+ * ldk_rhi_pass_desc_defaults(&pass);
+ * pass.color_attachment_count = 1;
+ * pass.color_attachments[0].texture = LDK_RHI_INVALID_RESOURCE;
+ * pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+ * pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+ * pass.color_attachments[0].clear_color.r = 0.1f;
+ * pass.color_attachments[0].clear_color.g = 0.1f;
+ * pass.color_attachments[0].clear_color.b = 0.1f;
+ * pass.color_attachments[0].clear_color.a = 1.0f;
+ * pass.has_viewport = true;
+ * pass.viewport.x = 0.0f;
+ * pass.viewport.y = 0.0f;
+ * pass.viewport.width = (float)framebuffer_width;
+ * pass.viewport.height = (float)framebuffer_height;
+ * pass.viewport.min_depth = 0.0f;
+ * pass.viewport.max_depth = 1.0f;
+ *
+ * ldk_rhi_pass_begin(&rhi, &pass);
+ * @endcode
+ *
+ * 8. Beginning a pass that renders to custom attachments:
+ *
+ * @code
+ * LDKRHIPassDesc pass;
+ * ldk_rhi_pass_desc_defaults(&pass);
+ * pass.color_attachment_count = 1;
+ * pass.color_attachments[0].texture = color_target;
+ * pass.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+ * pass.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+ * pass.color_attachments[0].clear_color.r = 0.0f;
+ * pass.color_attachments[0].clear_color.g = 0.0f;
+ * pass.color_attachments[0].clear_color.b = 0.0f;
+ * pass.color_attachments[0].clear_color.a = 1.0f;
+ * pass.depth_attachment.valid = true;
+ * pass.depth_attachment.texture = depth_target;
+ * pass.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
+ * pass.depth_attachment.depth_store_op = LDK_RHI_STORE_OP_STORE;
+ * pass.depth_attachment.clear_depth = 1.0f;
+ * pass.has_viewport = true;
+ * pass.viewport.width = (float)framebuffer_width;
+ * pass.viewport.height = (float)framebuffer_height;
+ * pass.viewport.min_depth = 0.0f;
+ * pass.viewport.max_depth = 1.0f;
+ *
+ * ldk_rhi_pass_begin(&rhi, &pass);
+ * @endcode
+ *
+ * 9. Creating a bindings layout:
+ *
+ * @code
+ * LDKRHIBindingsLayoutDesc layout_desc;
+ * ldk_rhi_bindings_layout_desc_defaults(&layout_desc);
+ * layout_desc.entry_count = 2;
+ * layout_desc.entries[0].slot = 0;
+ * layout_desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+ * layout_desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+ * layout_desc.entries[1].slot = 1;
+ * layout_desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+ * layout_desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+ *
+ * LDKRHIBindingsLayout bindings_layout = ldk_rhi_bindings_layout_create(&rhi, &layout_desc);
+ * @endcode
+ *
+ * 10. Creating bindings:
+ *
+ * @code
+ * LDKRHIBindingsDesc bindings_desc;
+ * ldk_rhi_bindings_desc_defaults(&bindings_desc);
+ * bindings_desc.layout = bindings_layout;
+ * bindings_desc.binding_count = 2;
+ * bindings_desc.bindings[0].slot = 0;
+ * bindings_desc.bindings[0].buffer = uniform_buffer;
+ * bindings_desc.bindings[0].buffer_offset = 0;
+ * bindings_desc.bindings[0].buffer_size = sizeof(MyUniformData);
+ * bindings_desc.bindings[1].slot = 1;
+ * bindings_desc.bindings[1].texture = texture;
+ * bindings_desc.bindings[1].sampler = sampler;
+ *
+ * LDKRHIBindings bindings = ldk_rhi_bindings_create(&rhi, &bindings_desc);
+ * @endcode
+ *
+ * 11. Creating a pipeline:
+ *
+ * @code
+ * LDKRHIPipelineDesc pipeline_desc;
+ * ldk_rhi_pipeline_desc_defaults(&pipeline_desc);
+ * pipeline_desc.vertex_shader_module = vertex_shader;
+ * pipeline_desc.fragment_shader_module = fragment_shader;
+ * pipeline_desc.bindings_layout = bindings_layout;
+ * pipeline_desc.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
+ * pipeline_desc.color_attachment_count = 1;
+ * pipeline_desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
+ * pipeline_desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
+ * pipeline_desc.vertex_layout.stride = sizeof(MyVertex);
+ * pipeline_desc.vertex_layout.attribute_count = 3;
+ * pipeline_desc.vertex_layout.input_rate = LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX;
+ * pipeline_desc.vertex_layout.attributes[0].location = 0;
+ * pipeline_desc.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
+ * pipeline_desc.vertex_layout.attributes[0].offset = offsetof(MyVertex, position);
+ * pipeline_desc.vertex_layout.attributes[1].location = 1;
+ * pipeline_desc.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
+ * pipeline_desc.vertex_layout.attributes[1].offset = offsetof(MyVertex, normal);
+ * pipeline_desc.vertex_layout.attributes[2].location = 2;
+ * pipeline_desc.vertex_layout.attributes[2].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
+ * pipeline_desc.vertex_layout.attributes[2].offset = offsetof(MyVertex, uv);
+ *
+ * LDKRHIPipeline pipeline = ldk_rhi_pipeline_create(&rhi, &pipeline_desc);
+ * @endcode
+ *
+ * 12. Drawing non-indexed geometry:
+ *
+ * @code
+ * ldk_rhi_pipeline_bind(&rhi, pipeline);
+ * ldk_rhi_bindings_bind(&rhi, bindings);
+ * ldk_rhi_vertex_buffer_bind(&rhi, vertex_buffer, 0);
+ *
+ * LDKRHIDrawDesc draw_desc;
+ * draw_desc.vertex_count = vertex_count;
+ * draw_desc.first_vertex = 0;
+ *
+ * ldk_rhi_draw(&rhi, &draw_desc);
+ * @endcode
+ *
+ * 13. Drawing indexed geometry:
+ *
+ * @code
+ * ldk_rhi_pipeline_bind(&rhi, pipeline);
+ * ldk_rhi_bindings_bind(&rhi, bindings);
+ * ldk_rhi_vertex_buffer_bind(&rhi, vertex_buffer, 0);
+ * ldk_rhi_index_buffer_bind(&rhi, index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
+ *
+ * LDKRHIDrawIndexedDesc draw_desc;
+ * draw_desc.index_count = index_count;
+ * draw_desc.first_index = 0;
+ * draw_desc.vertex_offset = 0;
+ *
+ * ldk_rhi_draw_indexed(&rhi, &draw_desc);
+ * @endcode
+ *
+ * 14. Drawing instanced geometry:
+ *
+ * @code
+ * ldk_rhi_pipeline_bind(&rhi, pipeline);
+ * ldk_rhi_bindings_bind(&rhi, bindings);
+ * ldk_rhi_vertex_buffer_bind_at(&rhi, 0, vertex_buffer, 0);
+ * ldk_rhi_vertex_buffer_bind_at(&rhi, 1, instance_buffer, 0);
+ * ldk_rhi_index_buffer_bind(&rhi, index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
+ *
+ * LDKRHIDrawIndexedInstancedDesc draw_desc;
+ * draw_desc.index_count = index_count;
+ * draw_desc.instance_count = instance_count;
+ * draw_desc.first_index = 0;
+ * draw_desc.vertex_offset = 0;
+ * draw_desc.first_instance = 0;
+ *
+ * ldk_rhi_draw_indexed_instanced(&rhi, &draw_desc);
+ * @endcode
+ *
+ * Instanced rendering usually uses multiple vertex buffer layouts in the
+ * pipeline: one layout with LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX and another
+ * layout with LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE.
+ *
+ * 15. Ending a pass and frame:
+ *
+ * @code
+ * ldk_rhi_pass_end(&rhi);
+ * ldk_rhi_frame_end(&rhi);
  * @endcode
  *
  * Binding slots have no semantic meaning inside the RHI. The renderer defines
@@ -60,8 +309,9 @@
  * alpha from red by using swizzle { ONE, ONE, ONE, R }.
  *
  * Because different rendering APIs give things different names, here is how
- * this API call things:
- *  Attachments: Textures bound as outputs in a pass (color/depth targets).
+ * this API calls things:
+ *
+ *  Attachments: Textures bound as outputs in a pass.
  *  Bindings Layout: Defines which resources a pipeline expects and in which slots.
  *  Bindings: Actual resources assigned to those slots.
  *  Blend State: How new pixels combine with existing ones.
@@ -70,19 +320,18 @@
  *  Draw Call: Command that renders geometry using current state.
  *  Indexed Draw Call: Draw call that uses an index buffer to reuse vertices.
  *  Load/Store Ops: Control how attachments are treated before/after a pass.
- *  Pass: Defines where and how rendering happens (targets, clears, viewport).
- *  Pipeline: Preconfigured rendering state (shaders + fixed settings).
+ *  Pass: Defines where and how rendering happens.
+ *  Pipeline: Preconfigured rendering state.
  *  Raster State: Controls culling and polygon rendering rules.
- *  Resources: GPU objects (buffers, textures, pipelines, etc.) referenced by handles.
- *  Samplers: Define how textures are read (filtering, wrapping).
+ *  Resources: GPU objects referenced by handles.
+ *  Samplers: Define how textures are read.
  *  Scissor: Clipping region that discards pixels outside it.
  *  Shader Modules: Compiled shader code for a single stage.
- *  Shaders: GPU programs that process vertices and pixels.
- *  Textures: Image data used as shader input (sampling) or render output.
- *  Topology: How vertices form primitives (triangles, lines, etc.).
+ *  Textures: Image data used as shader input or render output.
+ *  Topology: How vertices form primitives.
  *  Vertex Layout: Describes how vertex data is structured in a buffer.
  *  Viewport: Region of the render target used for drawing.
-*/
+ */
 #ifndef LDK_RHI_H
 #define LDK_RHI_H
 
