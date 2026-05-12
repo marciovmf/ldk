@@ -1607,11 +1607,6 @@ static void ldk_rhi_gl33_draw_indexed(void* backend_user_data, const LDKRHIDrawI
   }
 }
 
-static bool ldk_rhi_gl33_supports_first_instance(uint32_t first_instance)
-{
-  return first_instance == 0;
-}
-
 static void ldk_rhi_gl33_draw_instanced(void* backend_user_data, const LDKRHIDrawInstancedDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
@@ -1620,7 +1615,8 @@ static void ldk_rhi_gl33_draw_instanced(void* backend_user_data, const LDKRHIDra
     return;
   }
 
-  if (!ldk_rhi_gl33_supports_first_instance(desc->first_instance))
+  //NOTE: OpenGL 3.3 does not support base-instance draws.
+  if (desc->first_instance != 0)
   {
     return;
   }
@@ -1643,7 +1639,8 @@ static void ldk_rhi_gl33_draw_indexed_instanced(void* backend_user_data, const L
     return;
   }
 
-  if (!ldk_rhi_gl33_supports_first_instance(desc->first_instance))
+  //NOTE: OpenGL 3.3 does not support base-instance draws.
+  if (desc->first_instance != 0)
   {
     return;
   }
