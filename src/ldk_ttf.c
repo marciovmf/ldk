@@ -1,4 +1,4 @@
-#include "ldk_ttf.h"
+#include <ldk_ttf.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -716,7 +716,116 @@ void ldk_font_clear_page_dirty(LDKFontInstance* instance, u32 page_index)
   instance->pages[page_index].dirty = false;
 }
 
-float ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text)
+LDKSizef ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text)
+{
+  LDKSizef size;
+  float line_width;
+  float line_height;
+  u32 prev_codepoint;
+  u32 codepoint;
+  char const* ptr;
+
+  size.w = 0.0f;
+  size.h = 0.0f;
+
+  line_width = 0.0f;
+  prev_codepoint = 0;
+  codepoint = 0;
+
+  if (instance == NULL || text == NULL)
+  {
+    return size;
+  }
+
+  line_height = ldk_font_get_line_height(instance);
+  size.h = line_height;
+
+  ptr = text;
+
+  while (*ptr)
+  {
+    u32 c = (unsigned char)*ptr;
+
+    if (c == '\n')
+    {
+      if (line_width > size.w)
+      {
+        size.w = line_width;
+      }
+
+      line_width = 0.0f;
+      prev_codepoint = 0;
+      size.h += line_height;
+
+      ptr += 1;
+      continue;
+    }
+
+    if (c == '\r')
+    {
+      ptr += 1;
+      continue;
+    }
+
+    if (c < 0x80)
+    {
+      codepoint = c;
+      ptr += 1;
+    }
+    else if ((c >> 5) == 0x6)
+    {
+      codepoint = ((c & 0x1F) << 6) |
+                  (ptr[1] & 0x3F);
+      ptr += 2;
+    }
+    else if ((c >> 4) == 0xE)
+    {
+      codepoint = ((c & 0x0F) << 12) |
+                  ((ptr[1] & 0x3F) << 6) |
+                  (ptr[2] & 0x3F);
+      ptr += 3;
+    }
+    else if ((c >> 3) == 0x1E)
+    {
+      codepoint = ((c & 0x07) << 18) |
+                  ((ptr[1] & 0x3F) << 12) |
+                  ((ptr[2] & 0x3F) << 6) |
+                  (ptr[3] & 0x3F);
+      ptr += 4;
+    }
+    else
+    {
+      ptr += 1;
+      continue;
+    }
+
+    LDKGlyph const* glyph = ldk_font_get_glyph(instance, codepoint);
+
+    if (glyph == NULL || !glyph->valid)
+    {
+      prev_codepoint = 0;
+      continue;
+    }
+
+    if (prev_codepoint != 0)
+    {
+      line_width += ldk_font_get_kerning(instance, prev_codepoint, codepoint);
+    }
+
+    line_width += (float)glyph->advance_x;
+
+    prev_codepoint = codepoint;
+  }
+
+  if (line_width > size.w)
+  {
+    size.w = line_width;
+  }
+
+  return size;
+}
+
+float __ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text)
 {
   float width = 0.0f;
   u32 prev_codepoint = 0;

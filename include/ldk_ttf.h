@@ -1,5 +1,6 @@
 #ifndef LDK_FONT_H
 #define LDK_FONT_H
+#include <ldk_geom.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,6 +11,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
+  typedef LDKSizef LDKTextSize;
   typedef struct LDKFontFace LDKFontFace;
   typedef struct LDKFontInstance LDKFontInstance;
 
@@ -68,7 +70,7 @@ extern "C" {
   LDK_API u32 ldk_font_get_page_count(LDKFontInstance const* instance);
   LDK_API bool ldk_font_get_page_info(LDKFontInstance const* instance, u32 page_index, LDKFontPageInfo* out_page);
   LDK_API void ldk_font_clear_page_dirty(LDKFontInstance* instance, u32 page_index);
-  LDK_API float ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text);
+  LDK_API LDKTextSize ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text);
   LDK_API float ldk_font_get_line_height(LDKFontInstance* instance);
 
 #ifdef __cplusplus
