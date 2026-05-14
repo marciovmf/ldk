@@ -849,49 +849,130 @@ bool ldk_os_window_fullscreen_get(LDKWindow window)
   return ((LDKWin32Window*)window)->is_fullscreen;
 }
 
+bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
+{
+  HMONITOR hMonitor;
+  MONITORINFOEX monitorInfo;
+  DEVMODE mode;
+  LONG result;
+
+  if (!hWnd)
+  {
+    return false;
+  }
+
+  hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+
+  ZeroMemory(&monitorInfo, sizeof(monitorInfo));
+  monitorInfo.cbSize = sizeof(monitorInfo);
+
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  {
+    return false;
+  }
+
+  printf("monitor device: %s\n", monitorInfo.szDevice);
+
+  ZeroMemory(&mode, sizeof(mode));
+  mode.dmSize = sizeof(mode);
+
+  if (!EnumDisplaySettings(
+          monitorInfo.szDevice,
+          ENUM_CURRENT_SETTINGS,
+          &mode))
+  {
+    return false;
+  }
+
+  result = ChangeDisplaySettingsEx(
+      monitorInfo.szDevice,
+      &mode,
+      NULL,
+      CDS_FULLSCREEN,
+      NULL);
+
+  printf("ChangeDisplaySettingsEx result = %ld\n", result);
+
+  if (result != DISP_CHANGE_SUCCESSFUL)
+  {
+    return false;
+  }
+
+  SetWindowLongPtr(
+      hWnd,
+      GWL_STYLE,
+      GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
+
+  SetWindowPos(
+      hWnd,
+      HWND_TOP,
+      mode.dmPosition.x,
+      mode.dmPosition.y,
+      mode.dmPelsWidth,
+      mode.dmPelsHeight,
+      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+  ShowWindow(hWnd, SW_SHOW);
+
+  return true;
+}
+
+bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
+{
+  HMONITOR hMonitor;
+  MONITORINFOEX monitorInfo;
+  LONG result;
+
+  if (!hWnd)
+  {
+    return false;
+  }
+
+  hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+
+  ZeroMemory(&monitorInfo, sizeof(monitorInfo));
+  monitorInfo.cbSize = sizeof(monitorInfo);
+
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  {
+    result = ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
+  }
+  else
+  {
+    result = ChangeDisplaySettingsEx(
+        monitorInfo.szDevice,
+        NULL,
+        NULL,
+        0,
+        NULL);
+  }
+
+  if (result != DISP_CHANGE_SUCCESSFUL)
+  {
+    return false;
+  }
+
+  ShowWindow(hWnd, SW_RESTORE);
+
+  return true;
+}
+
 bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
 {
   LDKWin32Window* win32Window = ((LDKWin32Window*)window);
   HWND hWnd = win32Window->handle;
 
+  printf("fullscreen set %d, is_fs_now = %d\n", fs, win32Window->is_fullscreen);
+
   if (fs && !win32Window->is_fullscreen) // Enter full screen
   {
-    // Get the monitor's handle
-    HMONITOR hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
-    // Get the monitor's info
-    MONITORINFO monitorInfo = { sizeof(monitorInfo) };
-    GetMonitorInfo(hMonitor, &monitorInfo);
-    // Save the window's current style and position
     win32Window->prev_style = GetWindowLongPtr(hWnd, GWL_STYLE);
-    win32Window->prev_placement = win32Window->prev_placement;
+    win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(hWnd, &win32Window->prev_placement);
 
-    // Set the window style to full screen
-    SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style & ~(WS_CAPTION | WS_THICKFRAME));
-    SetWindowPos(hWnd, NULL,
-        monitorInfo.rcMonitor.left,
-        monitorInfo.rcMonitor.top,
-        monitorInfo.rcMonitor.right,
-        monitorInfo.rcMonitor.bottom,
-        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-
-    // Set the display settings to full screen
-    DEVMODE dmScreenSettings = { 0 };
-    dmScreenSettings.dmSize = sizeof(dmScreenSettings);
-    dmScreenSettings.dmPelsWidth = monitorInfo.rcMonitor.right;
-    dmScreenSettings.dmPelsHeight = monitorInfo.rcMonitor.bottom;
-    dmScreenSettings.dmBitsPerPel = 32;
-    dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-
-    LONG result = ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN);
-    if (result != DISP_CHANGE_SUCCESSFUL)
-    {
-      //debugLogError("Failed to enter fullScreen mode");
-      return false;
-    }
-    // Show the window in full screen mode
-    ShowWindow(hWnd, SW_MAXIMIZE);
-    win32Window->is_fullscreen = true;
+    bool result = s_win32_enter_exclusive_fullscreen(hWnd);
+    win32Window->is_fullscreen = result;
+    return result;
   }
   else if (!fs && win32Window->is_fullscreen) // Exit full screen
   {
@@ -899,9 +980,11 @@ bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
     SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style);
     SetWindowPlacement(hWnd, &win32Window->prev_placement);
     ShowWindow(hWnd, SW_RESTORE);
-    win32Window->is_fullscreen = false;
+    bool result = s_win32_exit_exclusive_fullscreen(hWnd);
+    win32Window->is_fullscreen = !result;
+    return result;
   }
-  return true;
+  return false;
 }
 
 LDKSize ldk_os_window_client_area_size_get(LDKWindow window)
@@ -1035,7 +1118,12 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         e->type                = LDK_EVENT_TYPE_TEXT;
         e->window = window;
         e->text_event.character = (u32) wParam;
-        e->text_event.type      = ((u32) wParam == VK_BACK) ? LDK_TEXT_EVENT_BACKSPACE: LDK_TEXT_EVENT_CHARACTER_INPUT;
+        switch(wParam)
+        {
+          case VK_BACK: e->text_event.type = LDK_TEXT_EVENT_BACKSPACE; break;
+          case VK_RETURN: e->text_event.type = LDK_TEXT_EVENT_RETURN; break;
+          default: e->text_event.type =  LDK_TEXT_EVENT_CHARACTER_INPUT; break;
+        }
       }
       break;
 
