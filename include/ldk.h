@@ -97,6 +97,10 @@ extern "C" {
   LDK_API void  ldk_engine_stop(i32 exit_code);
   LDK_API void  ldk_engine_terminate(void); // finalizes the engine
 
+  LDK_API LDKWindow ldk_main_window(void);
+
+
+
 #ifdef __cplusplus
 }
 #endif

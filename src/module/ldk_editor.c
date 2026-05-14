@@ -1,11 +1,42 @@
-#include "ldk.h"
+#include <ldk.h>
+#include <ldk_os.h>
+#include <ldk_geom.h>
 #include <module/ldk_editor.h>
 #include <module/ldk_eventqueue.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_ui.h>
+#include <stdx/stdx_arena.h>
+#include <stdx/stdx_strbuilder.h>
+#include <stdx/stdx_string.h>
 #include <stdx/stdx_math.h>
 #include <inttypes.h>
+
+#ifdef LDK_EDITOR
+
+void s_run_commnd(LDKUIContext* ui, XStrBuilder* output, const char* cmd)
+{
+  size_t cmd_len = strlen(cmd);
+  if (strncmp(cmd, "cls", cmd_len) == 0)
+  {
+    x_strbuilder_clear(output);
+  }
+  else if (strncmp(cmd, "fullscreen", cmd_len) == 0)
+  {
+    LDKWindow main_window = ldk_main_window();
+    ldk_os_window_fullscreen_set(main_window, true);
+  }
+  else if (strncmp(cmd, "nofullscreen", cmd_len) == 0)
+  {
+    LDKWindow main_window = ldk_main_window();
+    ldk_os_window_fullscreen_set(main_window, false);
+  }
+  else
+  {
+    x_strbuilder_append_format(output, "'%s' is not a know command.\n", cmd);
+  }
+}
 
 static bool s_on_text_event(const LDKEvent* event, void* state)
 {
@@ -48,6 +79,89 @@ static void s_editor_entity_list_window(LDKUIContext* ui, LDKECS* ecs)
   ldk_ui_end_window(ui);
 }
 
+void s_console_toggle(LDKConsole* console)
+{
+  if (console->state == CONSOLE_IS_OPENED || console->state == CONSOLE_IS_OPENING)
+  {
+    console->state = CONSOLE_IS_CLOSING;
+  }
+  else if (console->state == CONSOLE_IS_CLOSED || console->state == CONSOLE_IS_CLOSING)
+  {
+    console->state = CONSOLE_IS_OPENING;
+  }
+}
+
+void s_console_initialize(LDKConsole* console, LDKUIContext* ui)
+{
+  printf("%fx%f\n", ui->viewport.w, ui->viewport.h);
+  console->state = CONSOLE_IS_CLOSED;
+  console->rect.w = ui->viewport.w;
+  console->rect.h = ui->viewport.h / 3;
+  console->rect.x = 0;
+  console->rect.y = -console->rect.h;
+  console->output = x_strbuilder_create();
+  console->scroll_pos = (LDKUIPoint){0.0f, 0.0f};
+  x_strbuilder_append_cstr(console->output, "Hello, Sailor!");
+}
+
+void s_console_draw(LDKConsole* console, LDKUIContext* ui,  LDKKeyboardState* kbd_state, float delta_time)
+{
+  if (console->rect.w <= 0 || console->rect.h <= 0)
+  {
+    s_console_initialize(console, ui);
+  }
+
+  const float step = 600.0f * delta_time;
+
+  if (console->state == CONSOLE_IS_CLOSING)
+  {
+    console->rect.y -= step;
+    if (console->rect.y < -console->rect.h)
+    {
+      console->rect.y = -console->rect.h;
+      console->state = CONSOLE_IS_CLOSED;
+    }
+  }
+  else if (console->state == CONSOLE_IS_OPENING)
+  {
+    console->rect.y += step;
+    if (console->rect.y >= 0.0f)
+    {
+      console->rect.y = 0.0f;
+      console->state = CONSOLE_IS_OPENED;
+    }
+  }
+
+  if (ldk_os_keyboard_key_down(kbd_state, LDK_KEYCODE_F2))
+    s_console_toggle(console);
+
+  if (console->state != CONSOLE_IS_CLOSED)
+  { // console
+    console->rect.w = ui->viewport.w;
+    console->rect.h = ui->viewport.h / 3;
+    ldk_ui_begin_pane(ui, console->rect);
+
+    console->scroll_pos = ldk_ui_begin_vertical_scroll_area(ui, console->scroll_pos);
+
+    ldk_ui_set_next_expand_height(ui, true);
+    ldk_ui_label(ui, x_strbuilder_to_string(console->output));
+    ldk_ui_end_vertical_scroll_area(ui);
+
+    if (ldk_ui_text_box(ui, console->input.buf, X_SMALLSTR_MAX_LENGTH))
+    {
+      i32 len = (i32) strlen(console->input.buf);
+      if (ldk_os_keyboard_key_down(kbd_state, LDK_KEYCODE_RETURN) && (len > 0))
+      {
+        x_strbuilder_append_format(console->output, "%s\n", console->input.buf);
+        s_run_commnd(ui, console->output, console->input.buf);
+        x_smallstr_clear(&console->input);
+      }
+    }
+
+    ldk_ui_end_pane(ui);
+  }
+}
+
 void s_draw_editor_ui(LDKEditor* editor, float delta_time)
 {
   LDKECS* ecs = ldk_module_get(LDK_MODULE_ECS);
@@ -68,15 +182,7 @@ LDKUIRect w1 = { 10, 205, 400, 300 };
 LDKUIRect w2 = { 10, 100, 400, 400 };
 LDKUIRect w3 = {0};
 
-typedef enum ConsoleState
-{
-  CONSOLE_IS_OPENED,
-  CONSOLE_IS_OPENING,
-  CONSOLE_IS_CLOSED,
-  CONSOLE_IS_CLOSING,
-} ConsoleState;
 
-ConsoleState console_state = CONSOLE_IS_OPENED;
 bool theme = false;
 
 #define RGBA_U32(r, g, b) \
@@ -300,6 +406,8 @@ bool ldk_editor_initialize(LDKEditor* editor, LDKConfig* config)
 
   // Listen to text events for editor UI
   ldk_event_handler_add(ldk_module_get(LDK_MODULE_EVENT), s_on_text_event, LDK_EVENT_TYPE_TEXT, editor);
+  s_console_initialize(&editor->console, &editor->ui);
+
   return true;
 }
 
@@ -313,6 +421,7 @@ void ldk_editor_update(LDKEditor* editor, i32 window_width, i32 window_height, f
 
   ldk_ui_begin_frame(&editor->ui, &mouse_state, &kbd_state, &editor->text_input_state, ui_viewport);
   s_draw_editor_ui(editor, delta_time);
+  s_console_draw(&editor->console, &editor->ui, &kbd_state, delta_time);
   ldk_ui_end_frame(&editor->ui);
   const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&editor->ui);
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
@@ -324,3 +433,4 @@ void ldk_editor_terminate(LDKEditor* editor)
   ldk_event_handler_remove(ldk_module_get(LDK_MODULE_EVENT), s_on_text_event);
 }
 
+#endif

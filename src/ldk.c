@@ -9,6 +9,9 @@
 #define X_IMPL_STRING
 #include <stdx/stdx_string.h>
 
+#define X_IMPL_STRBUILDER
+#include <stdx/stdx_string.h>
+
 #define X_IMPL_HASHTABLE
 #include <stdx/stdx_hashtable.h>
 
@@ -688,4 +691,9 @@ i32 ldk_engine_run(void)
 
   ldk_engine_play_stop();
   return e->exit_code;
+}
+
+LDKWindow ldk_main_window(void)
+{
+  return g_engine.window;
 }

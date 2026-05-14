@@ -153,8 +153,7 @@ static LDKUISize s_ui_measure_text(LDKFontInstance* font, char const* text)
     return size;
   }
 
-  size.w = ldk_font_measure_text_cstr(font, text);
-  size.h = ldk_font_get_line_height(font);
+  size  = ldk_font_measure_text_cstr(font, text);
 
   return size;
 }
@@ -1848,7 +1847,13 @@ static void s_ui_emit_text_box(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect cli
 static void s_ui_emit_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   if (item->type == LDK_UI_ITEM_LABEL)
+  {
     s_ui_emit_label(ctx, item, clip_rect);
+#ifdef LDK_UI_DEBUG_DRAW
+    // labes dont get HOT so we need to be specific here
+    s_ui_emit_debug_rect(ctx, item->rect, 0x00ff00ffu);
+#endif
+  }
   else if (item->type == LDK_UI_ITEM_BUTTON)
     s_ui_emit_button(ctx, item, clip_rect);
   else if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
@@ -2368,7 +2373,6 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
 
   ctx->font_texture_user = config->font_texture_user;
   ctx->get_font_page_texture = config->get_font_page_texture;
-
   ldk_ui_set_theme(ctx, config->theme, NULL);
 
   ctx->font = config->font;
@@ -2891,7 +2895,6 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
     ctx->current_layout = ctx->current_layout->parent;
   }
 }
-
 
 bool ldk_ui_begin_pane(LDKUIContext* ctx, LDKUIRect rect)
 {
