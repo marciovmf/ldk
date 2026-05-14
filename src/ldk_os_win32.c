@@ -912,8 +912,6 @@ bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
       mode.dmPelsHeight,
       SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
-  ShowWindow(hWnd, SW_SHOW);
-
   return true;
 }
 
@@ -952,39 +950,65 @@ bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
     return false;
   }
 
-  ShowWindow(hWnd, SW_RESTORE);
-
   return true;
 }
 
 bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
 {
-  LDKWin32Window* win32Window = ((LDKWin32Window*)window);
+  LDKWin32Window* win32Window = (LDKWin32Window*)window;
   HWND hWnd = win32Window->handle;
 
-  printf("fullscreen set %d, is_fs_now = %d\n", fs, win32Window->is_fullscreen);
+  if (fs == win32Window->is_fullscreen)
+  {
+    return true;
+  }
 
-  if (fs && !win32Window->is_fullscreen) // Enter full screen
+  if (fs)
   {
     win32Window->prev_style = GetWindowLongPtr(hWnd, GWL_STYLE);
-    win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
-    GetWindowPlacement(hWnd, &win32Window->prev_placement);
 
-    bool result = s_win32_enter_exclusive_fullscreen(hWnd);
-    win32Window->is_fullscreen = result;
-    return result;
+    win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
+    if (!GetWindowPlacement(hWnd, &win32Window->prev_placement))
+    {
+      return false;
+    }
+
+    if (!s_win32_enter_exclusive_fullscreen(hWnd))
+    {
+      return false;
+    }
+
+    win32Window->is_fullscreen = true;
+    return true;
   }
-  else if (!fs && win32Window->is_fullscreen) // Exit full screen
+
+  if (!s_win32_exit_exclusive_fullscreen(hWnd))
   {
-    // restore window previous style and location
-    SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style);
-    SetWindowPlacement(hWnd, &win32Window->prev_placement);
-    ShowWindow(hWnd, SW_RESTORE);
-    bool result = s_win32_exit_exclusive_fullscreen(hWnd);
-    win32Window->is_fullscreen = !result;
-    return result;
+    return false;
   }
-  return false;
+
+  SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style);
+
+  win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
+  SetWindowPlacement(hWnd, &win32Window->prev_placement);
+
+  SetWindowPos(
+      hWnd,
+      NULL,
+      0,
+      0,
+      0,
+      0,
+      SWP_NOMOVE |
+      SWP_NOSIZE |
+      SWP_NOZORDER |
+      SWP_NOOWNERZORDER |
+      SWP_FRAMECHANGED);
+
+  ShowWindow(hWnd, SW_RESTORE);
+
+  win32Window->is_fullscreen = false;
+  return true;
 }
 
 LDKSize ldk_os_window_client_area_size_get(LDKWindow window)

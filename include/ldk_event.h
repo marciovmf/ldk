@@ -38,7 +38,8 @@ typedef enum
   /* Text Event types */
   LDK_TEXT_EVENT_CHARACTER_INPUT  = 4,
   LDK_TEXT_EVENT_BACKSPACE        = 5,
-  LDK_TEXT_EVENT_DEL              = 6,
+  LDK_TEXT_EVENT_RETURN           = 6,
+  LDK_TEXT_EVENT_DEL              = 7,
 
   /* Mouse event types */
   LDK_MOUSE_EVENT_MOVE            = 7,
