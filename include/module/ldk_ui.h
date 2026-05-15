@@ -70,10 +70,6 @@ extern "C" {
     LDK_UI_COLOR_CONTROL_BORDER_DISABLED,
     LDK_UI_COLOR_BORDER,
     LDK_UI_COLOR_FOCUS,
-    LDK_UI_COLOR_SLIDER_BAR_TRACK,
-    LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED,
-    LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE,
-    LDK_UI_COLOR_SLIDER_BAR_FILL,
     LDK_UI_COLOR_SLIDER_TRACK,
     LDK_UI_COLOR_SLIDER_TRACK_HOVERED,
     LDK_UI_COLOR_SLIDER_TRACK_ACTIVE,
@@ -106,7 +102,6 @@ extern "C" {
     float control_border_size;
     float window_border_size;
     float window_interaction_border_size;
-    float slider_bar_track_height;
     float slider_track_height;
     float slider_thumb_width;
   } LDKUITheme;
@@ -200,13 +195,12 @@ extern "C" {
     LDK_UI_ITEM_LABEL = 1,
     LDK_UI_ITEM_BUTTON = 2,
     LDK_UI_ITEM_TOGGLE_BUTTON = 3,
-    LDK_UI_ITEM_SLIDER_BAR = 4,
+    LDK_UI_ITEM_HORIZONTAL_LINE = 4,
     LDK_UI_ITEM_SLIDER = 5,
     LDK_UI_ITEM_LAYOUT = 6,
     LDK_UI_ITEM_COLOR_VIEW = 7,
     LDK_UI_ITEM_SCROLL_AREA = 8,
     LDK_UI_ITEM_TEXT_BOX = 9,
-    LDK_UI_ITEM_HORIZONTAL_LINE = 10,
   } LDKUIItemType;
 
   typedef enum LDKUITextBoxResult
@@ -429,7 +423,6 @@ extern "C" {
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value);
-  LDK_API float ldk_ui_slider_bar(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API float ldk_ui_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
 

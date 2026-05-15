@@ -90,7 +90,6 @@ typedef enum LDKUIControlVisualState
 
 static void s_ui_render_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect);
 
-
 //----------------------------------------------------------
 // ID and Hashing helpers
 //----------------------------------------------------------
@@ -416,6 +415,44 @@ static bool s_ui_text_insert_bytes(char* buffer, u32 buffer_size, u32* cursor, c
   return true;
 }
 
+/**
+ * Computes the optimal text color for a given background color.
+ * Returns either black or white, whichever provides the greatest
+ * contrast and readability against the specified background.
+ *
+ * @see
+ *  https://developer.mozilla.org/en-US/docs/Web/Accessibility/Guides/Colors_and_Luminance
+ *  https://www.w3.org/TR/WCAG22/?utm_source=chatgpt.com#dfn-contrast-ratio
+ *  https://entropymine.com/imageworsener/srgbformula/
+ */
+static u32 s_ui_text_contrast_for_bg(u32 bg)
+{
+  // Extract sRGB components
+  float r = (float)((bg >> 24) & 0xffu) / 255.0f;
+  float g = (float)((bg >> 16) & 0xffu) / 255.0f;
+  float b = (float)((bg >> 8) & 0xffu) / 255.0f;
+
+  // Convert sRGB to linear space
+  r = (r <= 0.04045f) ? r / 12.92f : powf((r + 0.055f) / 1.055f, 2.4f);
+  g = (g <= 0.04045f) ? g / 12.92f : powf((g + 0.055f) / 1.055f, 2.4f);
+  b = (b <= 0.04045f) ? b / 12.92f : powf((b + 0.055f) / 1.055f, 2.4f);
+
+  // Compute relative luminance
+  float bg_luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+
+  // Compute contrast ratio against black and white
+  // Return the highest contrast text color
+  float white_contrast = (1.0f + 0.05f) / (bg_luminance + 0.05f);
+  float black_contrast = (bg_luminance + 0.05f) / (0.0f + 0.05f);
+
+  if (black_contrast >= white_contrast)
+  {
+    return 0x000000ffu;
+  }
+
+  return 0xffffffffu;
+}
+
 
 //----------------------------------------------------------
 // Keyboard input helpers
@@ -513,13 +550,6 @@ static LDKUISize s_ui_layout_measure_slider_impl(LDKUIContext* ctx, char const* 
   float base_height = LDK_UI_DEFAULT_CONTROL_HEIGHT;
   float track_height = base_height * s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
   float thumb_width = base_height * s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
-
-  if (type == LDK_UI_ITEM_SLIDER_BAR)
-  {
-    track_height = s_ui_maxf(ctx->theme.slider_bar_track_height, 1.0f);
-    thumb_width = 0.0f;
-  }
-
   size.w = s_ui_maxf(140.0f, label_size.w + 80.0f);
   size.h = s_ui_maxf(base_height, s_ui_maxf(track_height, thumb_width));
 
@@ -2204,49 +2234,6 @@ static float s_ui_render_slider_normalized_value(LDKUIItem* item)
   return s_ui_clampf((item->data.slider.value - item->data.slider.min_value) / range, 0.0f, 1.0f);
 }
 
-static void s_ui_render_slider_bar(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
-{
-  float t = s_ui_render_slider_normalized_value(item);
-  LDKUIRect track_rect = item->rect;
-  LDKUIRect fill_rect = item->rect;
-  u32 track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_BAR_TRACK];
-  u32 fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_BAR_FILL];
-  LDKUIControlVisualState state = s_ui_render_control_visual_state(ctx, item);
-  u32 text_color = s_ui_render_control_text_color(ctx, state);
-  u32 border_color = s_ui_render_control_border_color(ctx, state);
-  char value_text[32];
-  LDKUISize text_size;
-
-  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE || state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
-  {
-    track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE];
-  }
-  else if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
-  {
-    track_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED];
-  }
-
-  track_rect = item->rect;
-  fill_rect = track_rect;
-  fill_rect.w = track_rect.w * t;
-
-  s_ui_render_quad(ctx, track_rect, track_color, clip_rect, 0);
-  s_ui_render_quad(ctx, fill_rect, fill_color, clip_rect, 0);
-  s_ui_render_border(ctx, item->rect, ctx->theme.control_border_size, border_color, clip_rect);
-
-  snprintf(value_text, sizeof(value_text), "%.2f", item->data.slider.value);
-
-  text_size = s_ui_text_measure(ctx->font, value_text);
-
-  s_ui_render_text(
-      ctx,
-      value_text,
-      item->rect.x + (item->rect.w - text_size.w) * 0.5f,
-      item->rect.y + (item->rect.h - text_size.h) * 0.5f,
-      text_color,
-      clip_rect);
-}
-
 static void s_ui_render_slider(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
   float t = s_ui_render_slider_normalized_value(item);
@@ -2334,11 +2321,16 @@ static void s_ui_render_scroll_area(LDKUIContext* ctx, LDKUIItem* item, LDKUIRec
 
 static void s_ui_render_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_rect)
 {
-  char const* text = item->data.color_view.label;
+  LDKUIControlVisualState state = s_ui_render_control_visual_state(ctx, item);
+  u32 color = s_ui_render_control_bg_color(ctx, state);
+  u32 text_color =  s_ui_text_contrast_for_bg(item->data.color_view.color);
+  s_ui_render_control_text_color(ctx, state);
+  u32 border_color = s_ui_render_control_border_color(ctx, state);
   LDKUISize text_size;
 
+  const char* text = item->data.color_view.label;
   s_ui_render_quad(ctx, item->rect, item->data.color_view.color, clip_rect, 0);
-
+  s_ui_render_border(ctx, item->rect, ctx->theme.control_border_size, border_color, clip_rect);
   text_size = s_ui_text_measure(ctx->font, text);
 
   s_ui_render_text(
@@ -2346,7 +2338,7 @@ static void s_ui_render_color_view(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect
       text,
       item->rect.x + (item->rect.w - text_size.w) * 0.5f,
       item->rect.y + (item->rect.h - text_size.h) * 0.5f,
-      ctx->theme.colors[LDK_UI_COLOR_TEXT],
+      text_color,
       clip_rect);
 }
 
@@ -2465,8 +2457,6 @@ static void s_ui_render_item(LDKUIContext* ctx, LDKUIItem* item, LDKUIRect clip_
     s_ui_render_button(ctx, item, clip_rect);
   else if (item->type == LDK_UI_ITEM_TOGGLE_BUTTON)
     s_ui_render_toggle_button(ctx, item, clip_rect);
-  else if (item->type == LDK_UI_ITEM_SLIDER_BAR)
-    s_ui_render_slider_bar(ctx, item, clip_rect);
   else if (item->type == LDK_UI_ITEM_SLIDER)
     s_ui_render_slider(ctx, item, clip_rect);
   else if (item->type == LDK_UI_ITEM_SCROLL_AREA)
@@ -2696,23 +2686,23 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
 
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
-    rgba32 text          = (0xd8d8d8ffu);
-    rgba32 text_disabled = (0x707070ffu);
-    rgba32 bg            = (0x333333ffu);
-    rgba32 panel         = (0x252525ffu);
-    rgba32 control       = (0x444444ffu);
-    rgba32 hover         = (0x505050ffu);
-    rgba32 active        = (0x38b8a4ffu);
-    rgba32 active_hover  = (0x43c8b3ffu);
-    rgba32 border        = (0x1c1c1cffu);
-    rgba32 accent        = (0x38b8a4ffu);
-    rgba32 dark_track    = (0x202020ffu);
-    rgba32 title         = (0x3f3f3fffu);
-    rgba32 title_focus   = (0x2a2a2affu);
-    rgba32 scrollbar     = (0x202020ffu);
-    rgba32 thumb         = (0x555555ffu);
-    rgba32 thumb_hover   = (0x666666ffu);
-    rgba32 thumb_active  = (0x38b8a4ffu);
+    rgba32 text          = (0xd8d8d8FFu);
+    rgba32 text_disabled = (0x707070FFu);
+    rgba32 bg            = (0x333333EEu);
+    rgba32 panel         = (0x252525EEu);
+    rgba32 control       = (0x444444FFu);
+    rgba32 hover         = (0x505050FFu);
+    rgba32 active        = (0x38b8a4FFu);
+    rgba32 active_hover  = (0x43c8b3FFu);
+    rgba32 border        = (0x1c1c1cFFu);
+    rgba32 accent        = (0x38b8a4FFu);
+    rgba32 dark_track    = (0x202020FFu);
+    rgba32 title         = (0x3f3f3fFFu);
+    rgba32 title_focus   = (0x2a2a2aFFu);
+    rgba32 scrollbar     = (0x202020FFu);
+    rgba32 thumb         = (0x555555FFu);
+    rgba32 thumb_hover   = (0x666666FFu);
+    rgba32 thumb_active  = (0x38b8a4FFu);
 
     theme->colors[LDK_UI_COLOR_TEXT]                       = text;
     theme->colors[LDK_UI_COLOR_TEXT_DISABLED]              = text_disabled;
@@ -2734,10 +2724,6 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED]    = text_disabled;
     theme->colors[LDK_UI_COLOR_BORDER]                     = border;
     theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = dark_track;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = control;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = dark_track;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = control;
@@ -2752,11 +2738,10 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED]    = thumb_hover;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE]     = thumb_active;
     theme->colors[LDK_UI_COLOR_SEPARATOR]                  = thumb_hover;
-    
+
     theme->control_border_size                             = 1.0f;
     theme->window_border_size                              = 1.0f;
     theme->window_interaction_border_size                  = 8.0f;
-    theme->slider_bar_track_height                         = LDK_UI_DEFAULT_CONTROL_HEIGHT;
     theme->slider_track_height                             = 0.27272728f;
     theme->slider_thumb_width                              = 0.63636363f;
   }
@@ -2800,10 +2785,6 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED]    = text_disabled;
     theme->colors[LDK_UI_COLOR_BORDER]                     = border;
     theme->colors[LDK_UI_COLOR_FOCUS]                      = accent;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK]           = track;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_HOVERED]   = hover;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_TRACK_ACTIVE]    = active;
-    theme->colors[LDK_UI_COLOR_SLIDER_BAR_FILL]            = accent;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK]               = track;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK_HOVERED]       = hover;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE]        = active;
@@ -2821,7 +2802,6 @@ void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom
     theme->control_border_size                             = 1.0f;
     theme->window_border_size                              = 1.0f;
     theme->window_interaction_border_size                  = 8.0f;
-    theme->slider_bar_track_height                         = LDK_UI_DEFAULT_CONTROL_HEIGHT;
     theme->slider_track_height                             = 0.27272728f;
     theme->slider_thumb_width                              = 0.63636363f;
   }
@@ -2983,7 +2963,7 @@ void ldk_ui_begin_vertical(LDKUIContext* ctx)
   item->preferred_height = 0.0f;
 
   item->expand_width = true;
-  item->expand_height = true;
+  item->expand_height = false;
 
   s_ui_submit_item(ctx, item);
 
@@ -3020,7 +3000,7 @@ void ldk_ui_begin_horizontal(LDKUIContext* ctx)
   item->preferred_height = 0.0f;
 
   item->expand_width = true;
-  item->expand_height = true;
+  item->expand_height = false;
 
   s_ui_submit_item(ctx, item);
 
@@ -3409,9 +3389,9 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value)
   return value;
 }
 
-static float s_ui_submit_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value, LDKUIItemType type)
+float ldk_ui_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value)
 {
-  LDKUIItem* item = s_ui_submit_item_create(ctx, type);
+  LDKUIItem* item = s_ui_submit_item_create(ctx, LDK_UI_ITEM_SLIDER);
   LDKUISize size;
 
   if (item == NULL)
@@ -3419,7 +3399,7 @@ static float s_ui_submit_slider(LDKUIContext* ctx, char const* text, float value
     return value;
   }
 
-  size = s_ui_layout_measure_slider_impl(ctx, text, type);
+  size = s_ui_layout_measure_slider_impl(ctx, text, LDK_UI_ITEM_SLIDER);
 
   item->text = text;
   item->preferred_width = size.w;
@@ -3471,16 +3451,6 @@ static float s_ui_submit_slider(LDKUIContext* ctx, char const* text, float value
   s_ui_submit_item(ctx, item);
 
   return value;
-}
-
-float ldk_ui_slider_bar(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value)
-{
-  return s_ui_submit_slider(ctx, text, value, min_value, max_value, LDK_UI_ITEM_SLIDER_BAR);
-}
-
-float ldk_ui_slider(LDKUIContext* ctx, char const* text, float value, float min_value, float max_value)
-{
-  return s_ui_submit_slider(ctx, text, value, min_value, max_value, LDK_UI_ITEM_SLIDER);
 }
 
 void ldk_ui_spacer(LDKUIContext* ctx)
@@ -3541,22 +3511,21 @@ void ldk_ui_color_view(LDKUIContext* ctx, rgba32 color)
   }
 
   snprintf((char*)item->data.color_view.label,
-      sizeof(item->data.color_view.label),
-      "#%x", color);
+      sizeof(item->data.color_view.label), "#%x", color);
 
   size = s_ui_layout_measure_button_impl(ctx->font, item->data.color_view.label);
   item->text = NULL;
-  item->preferred_width = size.w;
-  item->preferred_height = size.h;
-  item->min_width = size.w;
-  item->min_height = size.h;
+  item->preferred_width = 8.0f;
+  item->preferred_height = 8.0f;
+  item->min_width = 8.0f;
+  item->min_height = 8.0f;
   item->expand_width = true;
+  item->expand_height = false;
   item->data.color_view.color = color;
   item->clicked = false;
 
-  if (!item->disabled &&
-      s_ui_interact_item_is_focused(ctx, item) &&
-      s_ui_input_keyboard_accept_pressed(ctx))
+  if (!item->disabled && s_ui_interact_item_is_focused(ctx, item)
+      && s_ui_input_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
   }

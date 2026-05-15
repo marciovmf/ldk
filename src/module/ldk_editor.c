@@ -163,9 +163,19 @@ void s_console_draw(LDKConsole* console, LDKUIContext* ui,  LDKKeyboardState* kb
   }
 }
 
-LDKUIRect w2 = { 10, 100, 400, 400 };
+LDKUIRect w2 = { 10, 200, 400, 400 };
+LDKUIRect w1 = { 210, 305, 400, 600 };
 XSmallstr text_box1 = {0};
 XSmallstr text_box2 = {0};
+bool theme = false;
+float r = 0, g = 0, b = 0;
+
+#define RGBA_U32(r, g, b) \
+  (((u32)(r) & 0xFFu) << 24 | \
+   ((u32)(g) & 0xFFu) << 16 | \
+   ((u32)(b) & 0xFFu) << 8  | \
+   0xFFu)
+
 
 void s_draw_editor_ui(LDKEditor* editor, float delta_time)
 {
@@ -182,12 +192,51 @@ void s_draw_editor_ui(LDKEditor* editor, float delta_time)
     ldk_ui_text_box(&editor->ui, text_box2.buf, X_SMALLSTR_MAX_LENGTH);
     ldk_ui_end_disabled(&editor->ui);
 
+    ldk_ui_horizontal_line(&editor->ui);
     if (ldk_ui_button(&editor->ui, "copy"))
     {
       memcpy((char*) &text_box2.buf, (char*) &text_box1.buf, X_SMALLSTR_MAX_LENGTH);
     }
     ldk_ui_end_window(&editor->ui);
   }
+
+
+  { // Slider bar test
+    LDKUIContext* ui = &editor->ui;
+    w1 = ldk_ui_begin_window(ui, "Window 1", w1);
+
+    ldk_ui_button(ui, "Ddummy");
+    ldk_ui_button(ui, "Ddummy");
+    ldk_ui_button(ui, "Ddummy");
+    if (ldk_ui_button(ui, "Theme"))
+    {
+      theme = !theme;
+      ldk_ui_set_theme(ui, theme ? LDK_UI_THEME_DEFAULT_LIGHT : LDK_UI_THEME_DEFAULT_DARK, NULL);
+    }
+
+    ldk_ui_begin_horizontal(ui);
+      // Left
+      ldk_ui_begin_vertical(ui);
+        r = ldk_ui_slider(ui, "Slider", r, 0.0f, 255.0f);
+        g = ldk_ui_slider(ui, "Slider", g, 0.0f, 255.0f);
+        b = ldk_ui_slider(ui, "Slider", b, 0.0f, 255.0f);
+      ldk_ui_end_vertical(ui);
+
+      // Right
+        ldk_ui_set_next_expand_height(ui, true);
+        ldk_ui_color_view(ui, RGBA_U32(r, g, b));
+        ui->theme.colors[LDK_UI_COLOR_SLIDER_FILL] = RGBA_U32(r, g, b);
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_button(ui, "Ddummy");
+
+    ldk_ui_horizontal_line(ui);
+
+    ldk_ui_label(ui, "Slider Track");
+    ui->theme.slider_thumb_width = ldk_ui_slider(ui, "Slider", ui->theme.slider_thumb_width, 0.0f, 1.0f);
+    ui->theme.slider_track_height = ldk_ui_slider(ui, "Slider", ui->theme.slider_track_height, 0.0f, 1.0f);
+    ldk_ui_end_window(ui);
+  }
+
 }
 
 #if 0
