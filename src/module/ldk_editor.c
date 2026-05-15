@@ -93,7 +93,6 @@ void s_console_toggle(LDKConsole* console)
 
 void s_console_initialize(LDKConsole* console, LDKUIContext* ui)
 {
-  printf("%fx%f\n", ui->viewport.w, ui->viewport.h);
   console->state = CONSOLE_IS_CLOSED;
   console->rect.w = ui->viewport.w;
   console->rect.h = ui->viewport.h / 3;
@@ -135,18 +134,20 @@ void s_console_draw(LDKConsole* console, LDKUIContext* ui,  LDKKeyboardState* kb
   if (ldk_os_keyboard_key_down(kbd_state, LDK_KEYCODE_F2))
     s_console_toggle(console);
 
-  if (console->state != CONSOLE_IS_CLOSED)
+  //if (console->state != CONSOLE_IS_CLOSED)
   { // console
     console->rect.w = ui->viewport.w;
     console->rect.h = ui->viewport.h / 3;
-    ldk_ui_begin_pane(ui, console->rect);
 
+    //ldk_ui_set_next_focus(ui);
+    ldk_ui_begin_pane(ui, console->rect);
     console->scroll_pos = ldk_ui_begin_vertical_scroll_area(ui, console->scroll_pos);
 
     ldk_ui_set_next_expand_height(ui, true);
     ldk_ui_label(ui, x_strbuilder_to_string(console->output));
     ldk_ui_end_vertical_scroll_area(ui);
 
+    //ldk_ui_set_next_focus(ui);
     if (ldk_ui_text_box(ui, console->input.buf, X_SMALLSTR_MAX_LENGTH))
     {
       i32 len = (i32) strlen(console->input.buf);
@@ -162,10 +163,31 @@ void s_console_draw(LDKConsole* console, LDKUIContext* ui,  LDKKeyboardState* kb
   }
 }
 
+LDKUIRect w2 = { 10, 100, 400, 400 };
+XSmallstr text_box1 = {0};
+XSmallstr text_box2 = {0};
+
 void s_draw_editor_ui(LDKEditor* editor, float delta_time)
 {
   LDKECS* ecs = ldk_module_get(LDK_MODULE_ECS);
   s_editor_entity_list_window(&editor->ui, ecs);
+
+  {
+    w2 = ldk_ui_begin_window(&editor->ui, "Scroll Window", w2);
+    ldk_ui_label(&editor->ui, "Box 1");
+    ldk_ui_text_box(&editor->ui, text_box1.buf, X_SMALLSTR_MAX_LENGTH);
+
+    ldk_ui_begin_disabled(&editor->ui, true);
+    ldk_ui_label(&editor->ui, "Box 2");
+    ldk_ui_text_box(&editor->ui, text_box2.buf, X_SMALLSTR_MAX_LENGTH);
+    ldk_ui_end_disabled(&editor->ui);
+
+    if (ldk_ui_button(&editor->ui, "copy"))
+    {
+      memcpy((char*) &text_box2.buf, (char*) &text_box1.buf, X_SMALLSTR_MAX_LENGTH);
+    }
+    ldk_ui_end_window(&editor->ui);
+  }
 }
 
 #if 0

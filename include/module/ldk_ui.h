@@ -87,6 +87,7 @@ extern "C" {
     LDK_UI_COLOR_SCROLLBAR_THUMB,
     LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED,
     LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE,
+    LDK_UI_COLOR_SEPARATOR,
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
 
@@ -205,6 +206,7 @@ extern "C" {
     LDK_UI_ITEM_COLOR_VIEW = 7,
     LDK_UI_ITEM_SCROLL_AREA = 8,
     LDK_UI_ITEM_TEXT_BOX = 9,
+    LDK_UI_ITEM_HORIZONTAL_LINE = 10,
   } LDKUIItemType;
 
   typedef enum LDKUITextBoxResult
@@ -444,6 +446,7 @@ extern "C" {
   LDK_API void ldk_ui_end_horizontal_scroll_area(LDKUIContext* ctx);
 
   LDK_API u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size);
+  LDK_API void ldk_ui_horizontal_line(LDKUIContext* ctx);
 
 #ifdef __cplusplus
 }

@@ -871,46 +871,27 @@ bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
     return false;
   }
 
-  printf("monitor device: %s\n", monitorInfo.szDevice);
-
   ZeroMemory(&mode, sizeof(mode));
   mode.dmSize = sizeof(mode);
 
-  if (!EnumDisplaySettings(
-          monitorInfo.szDevice,
-          ENUM_CURRENT_SETTINGS,
-          &mode))
+  if (!EnumDisplaySettings(monitorInfo.szDevice, ENUM_CURRENT_SETTINGS, &mode))
   {
     return false;
   }
 
-  result = ChangeDisplaySettingsEx(
-      monitorInfo.szDevice,
-      &mode,
-      NULL,
-      CDS_FULLSCREEN,
-      NULL);
-
-  printf("ChangeDisplaySettingsEx result = %ld\n", result);
+  result = ChangeDisplaySettingsEx(monitorInfo.szDevice, &mode,
+      NULL, CDS_FULLSCREEN, NULL);
 
   if (result != DISP_CHANGE_SUCCESSFUL)
   {
+    ldk_log_error("Failed to change '%s' display settings\n", monitorInfo.szDevice);
     return false;
   }
 
-  SetWindowLongPtr(
-      hWnd,
-      GWL_STYLE,
-      GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
+  SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
 
-  SetWindowPos(
-      hWnd,
-      HWND_TOP,
-      mode.dmPosition.x,
-      mode.dmPosition.y,
-      mode.dmPelsWidth,
-      mode.dmPelsHeight,
-      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  SetWindowPos(hWnd, HWND_TOP, mode.dmPosition.x, mode.dmPosition.y, mode.dmPelsWidth,
+      mode.dmPelsHeight, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
   return true;
 }
@@ -937,12 +918,7 @@ bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
   }
   else
   {
-    result = ChangeDisplaySettingsEx(
-        monitorInfo.szDevice,
-        NULL,
-        NULL,
-        0,
-        NULL);
+    result = ChangeDisplaySettingsEx(monitorInfo.szDevice, NULL, NULL, 0, NULL);
   }
 
   if (result != DISP_CHANGE_SUCCESSFUL)
@@ -992,18 +968,8 @@ bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
   win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
   SetWindowPlacement(hWnd, &win32Window->prev_placement);
 
-  SetWindowPos(
-      hWnd,
-      NULL,
-      0,
-      0,
-      0,
-      0,
-      SWP_NOMOVE |
-      SWP_NOSIZE |
-      SWP_NOZORDER |
-      SWP_NOOWNERZORDER |
-      SWP_FRAMECHANGED);
+  SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
   ShowWindow(hWnd, SW_RESTORE);
 
