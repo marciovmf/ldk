@@ -143,6 +143,7 @@ extern "C" {
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
     LDKUILayoutNode* root_layout;
+    LDKUIId focused_id;
   };
 
   X_ARRAY_TYPE_NAMED(LDKUIWindow, ldk_ui_window);
@@ -355,6 +356,7 @@ extern "C" {
     LDKUIId text_box_id;
     LDKUIId dragging_item;
     bool next_disabled;
+    bool next_focus;
     XArray_ldk_ui_bool* disabled_stack;
     u32 root_item_count;
     u32 frame_index;
@@ -401,6 +403,7 @@ extern "C" {
   LDK_API void ldk_ui_set_next_expand_width(LDKUIContext* ctx, bool expand);
   LDK_API void ldk_ui_set_next_expand_height(LDKUIContext* ctx, bool expand);
   LDK_API void ldk_ui_set_next_disabled(LDKUIContext* ctx, bool disabled);
+  //LDK_API void ldk_ui_set_next_focus(LDKUIContext* ctx);
 
   // disabled scope
   LDK_API void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled);

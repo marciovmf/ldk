@@ -679,6 +679,52 @@ static bool s_ui_window_can_interact(LDKUIContext* ctx, LDKUIWindow* window)
   return false;
 }
 
+
+static void s_ui_focus_item(LDKUIContext* ctx, LDKUIItem const* item)
+{
+  if (ctx == NULL || item == NULL || ctx->current_window == NULL)
+  {
+    return;
+  }
+
+  ctx->focused_window = ctx->current_window;
+  ctx->current_window->focused_id = item->id;
+  ctx->focused_id = item->id;
+}
+
+static bool s_ui_item_is_focused(LDKUIContext* ctx, LDKUIItem const* item)
+{
+  if (ctx == NULL || item == NULL || ctx->current_window == NULL)
+  {
+    return false;
+  }
+
+  if (ctx->focused_window != ctx->current_window)
+  {
+    return false;
+  }
+
+  return ctx->current_window->focused_id == item->id;
+}
+
+static void s_ui_clear_item_focus(LDKUIContext* ctx, LDKUIItem const* item)
+{
+  if (ctx == NULL || item == NULL)
+  {
+    return;
+  }
+
+  if (ctx->focused_id == item->id)
+  {
+    ctx->focused_id = 0;
+  }
+
+  if (ctx->current_window != NULL && ctx->current_window->focused_id == item->id)
+  {
+    ctx->current_window->focused_id = 0;
+  }
+}
+
 static bool s_ui_keyboard_accept_pressed(LDKUIContext* ctx)
 {
   if (ctx->keyboard == NULL)
@@ -736,10 +782,7 @@ static void s_ui_clear_item_interaction_if_disabled(LDKUIContext* ctx, LDKUIItem
     ctx->active_id = 0;
   }
 
-  if (ctx->focused_id == item->id)
-  {
-    ctx->focused_id = 0;
-  }
+  s_ui_clear_item_focus(ctx, item);
 }
 
 /**
@@ -787,8 +830,7 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
   if (inside && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     ctx->active_id = id;
-    ctx->focused_id = id;
-    ctx->focused_window = ctx->current_window;
+    s_ui_focus_item(ctx, item);
   }
 
   if (!inside)
@@ -807,8 +849,7 @@ static bool s_ui_widget_submit_pressed(LDKUIContext* ctx, LDKUIItem* item)
   }
 
   ctx->active_id = 0;
-  ctx->focused_id = id;
-  ctx->focused_window = ctx->current_window;
+  s_ui_focus_item(ctx, item);
   return true;
 }
 
@@ -854,8 +895,7 @@ static bool s_ui_widget_submit_slider(LDKUIContext* ctx, LDKUIItem* item, float*
   if (inside && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     ctx->active_id = item->id;
-    ctx->focused_id = item->id;
-    ctx->focused_window = ctx->current_window;
+    s_ui_focus_item(ctx, item);
   }
 
   bool down = ldk_os_mouse_button_is_pressed((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
@@ -965,6 +1005,17 @@ static LDKUIItem* s_ui_item_create(LDKUIContext* ctx, LDKUIItemType type)
   item->id = s_ui_make_id(ctx, (u32)type);
   item->disabled = s_ui_next_item_disabled(ctx);
   ctx->next_disabled = false;
+
+  if (ctx->next_focus)
+  {
+    if (!item->disabled && ctx->current_window != NULL)
+    {
+      ctx->current_window->focused_id = item->id;
+      ctx->focused_id = item->id;
+    }
+
+    ctx->next_focus = false;
+  }
 
   return item;
 }
@@ -2294,7 +2345,7 @@ static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const*
       s_ui_window_bring_to_front(ctx, window);
       window = x_array_ldk_ui_window_back(ctx->windows);
       ctx->focused_window = window;
-      ctx->focused_id = 0;
+      ctx->focused_id = window->focused_id;
     }
   }
 
@@ -2306,7 +2357,7 @@ static bool s_ui_begin_root_container(LDKUIContext* ctx, LDKUIId id, char const*
       ctx->drag_x = (float)cursor.x - rect.x;
       ctx->drag_y = (float)cursor.y - rect.y;
       ctx->focused_window = window;
-      ctx->focused_id = 0;
+      ctx->focused_id = window->focused_id;
     }
   }
 
@@ -2416,6 +2467,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->current_window = NULL;
   ctx->current_layout = NULL;
   ctx->next_disabled = false;
+  ctx->next_focus = false;
 
   s_ui_reset_next_layout(ctx);
 
@@ -3212,8 +3264,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   item->clicked = s_ui_widget_submit_pressed(ctx, item);
 
   if (!item->disabled &&
-      ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
+      s_ui_item_is_focused(ctx, item) &&
       s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
@@ -3247,8 +3298,7 @@ bool ldk_ui_toggle_button(LDKUIContext* ctx, char const* text, bool value)
   item->clicked = s_ui_widget_submit_pressed(ctx, item);
 
   if (!item->disabled &&
-      ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
+      s_ui_item_is_focused(ctx, item) &&
       s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
@@ -3292,8 +3342,7 @@ static float s_ui_slider_submit(LDKUIContext* ctx, char const* text, float value
   item->changed = s_ui_widget_submit_slider(ctx, item, &value, min_value, max_value);
 
   if (!item->disabled &&
-      ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window)
+      s_ui_item_is_focused(ctx, item))
   {
     float step = (max_value - min_value) / 100.0f;
 
@@ -3414,8 +3463,7 @@ void ldk_ui_color_view(LDKUIContext* ctx, rgba32 color)
   item->clicked = false;
 
   if (!item->disabled &&
-      ctx->focused_id == item->id &&
-      ctx->focused_window == ctx->current_window &&
+      s_ui_item_is_focused(ctx, item) &&
       s_ui_keyboard_accept_pressed(ctx))
   {
     item->clicked = true;
@@ -3466,8 +3514,7 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
     if (inside && ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
       ctx->active_id = item->id;
-      ctx->focused_id = item->id;
-      ctx->focused_window = ctx->current_window;
+      s_ui_focus_item(ctx, item);
       ctx->text_box_id = item->id;
       ctx->text_cursor = s_ui_text_box_cursor_from_x(ctx, buffer, state->rect, (float)cursor.x);
       ctx->text_select_start = ctx->text_cursor;
@@ -3480,7 +3527,7 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
     ctx->active_id = 0;
   }
 
-  focused = !item->disabled && ctx->focused_id == item->id && ctx->focused_window == ctx->current_window;
+  focused = !item->disabled && s_ui_item_is_focused(ctx, item);
 
   if (focused && ctx->text_box_id != item->id)
   {
