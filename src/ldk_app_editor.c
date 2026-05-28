@@ -232,11 +232,6 @@ static void s_editor_tool_bar(LDKEditor* editor)
   s_entity_list_rect = ldk_ui_begin_window(ui, "Editor Commands", s_entity_list_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());
 
-  if (ldk_ui_button(ui, "Play"))
-  {
-    s_editor_state_set_play(editor);
-  }
-
   if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
   {
     // Open project
@@ -493,7 +488,6 @@ static void s_editor_state_set_step(LDKEditor* editor)
   LDKGame* game = ldk_game_get();
   editor->editor_state = LDK_EDITOR_STATE_STEPPING;
 }
-
 
 //----------------------------------------------------------
 // Project handling
