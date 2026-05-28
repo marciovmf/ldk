@@ -78,6 +78,9 @@ typedef enum LDKUIWindowResizeEdges
     LDKUIId dragging_window_id;
     LDKUIId resizing_window_id;
     LDKUIId text_box_id;
+    LDKUIId open_popup_id;
+    LDKUIId current_popup_id;
+    u32 popup_open_frame_index;
     // Textbox
     u32 text_cursor;
     u32 text_select_start;
@@ -185,6 +188,117 @@ static LDKUIId s_ui_id_make_in_scope(LDKUIContext* ctx, u32 item_type, u32 item_
 static LDKUIId s_ui_id_make_window(LDKUIContext* ctx, u32 item_index)
 {
   return s_ui_id_make_in_scope(ctx, (u32)LDK_UI_ITEM_WINDOW, item_index);
+}
+
+static LDKUIId s_ui_id_make_popup(char const* id)
+{
+  LDKUIId hash = 2166136261u;
+
+  if (id == NULL)
+  {
+    return 0;
+  }
+
+  hash = s_ui_id_hash_cstr(hash, id);
+
+  if (hash == 0)
+  {
+    hash = 1;
+  }
+
+  return hash;
+}
+
+
+//----------------------------------------------------------
+// Popup auto-size cache
+//----------------------------------------------------------
+
+#define LDK_UI_POPUP_AUTO_CACHE_CAPACITY 32
+
+typedef struct LDKUIPopupAutoCache
+{
+  LDKUIId id;
+  LDKUISize size;
+  LDKUIMark mark;
+  bool active;
+} LDKUIPopupAutoCache;
+
+static LDKUIPopupAutoCache s_ui_popup_auto_cache[LDK_UI_POPUP_AUTO_CACHE_CAPACITY];
+static LDKUIId s_ui_current_auto_popup_id = 0;
+
+static LDKUIPopupAutoCache* s_ui_popup_auto_cache_find(LDKUIId id)
+{
+  if (id == 0)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < LDK_UI_POPUP_AUTO_CACHE_CAPACITY; ++i)
+  {
+    LDKUIPopupAutoCache* cache = &s_ui_popup_auto_cache[i];
+
+    if (cache->id == id)
+    {
+      return cache;
+    }
+  }
+
+  return NULL;
+}
+
+static LDKUIPopupAutoCache* s_ui_popup_auto_cache_get_or_create(LDKUIId id)
+{
+  LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_find(id);
+
+  if (cache != NULL)
+  {
+    return cache;
+  }
+
+  for (u32 i = 0; i < LDK_UI_POPUP_AUTO_CACHE_CAPACITY; ++i)
+  {
+    LDKUIPopupAutoCache* slot = &s_ui_popup_auto_cache[i];
+
+    if (slot->id == 0)
+    {
+      slot->id = id;
+      slot->size = (LDKUISize){1.0f, 1.0f};
+      slot->mark = (LDKUIMark){0};
+      slot->active = false;
+      return slot;
+    }
+  }
+
+  return NULL;
+}
+
+static void s_ui_popup_auto_measure_last_item(LDKUIContext* ctx, float width, float height)
+{
+  if (ctx == NULL || ctx->measure_entries == NULL || s_ui_current_auto_popup_id == 0)
+  {
+    return;
+  }
+
+  if (ctx->last_measure_entry_index == UINT32_MAX)
+  {
+    return;
+  }
+
+  if (ctx->last_measure_entry_index >= x_array_ldk_ui_measure_entry_count(ctx->measure_entries))
+  {
+    return;
+  }
+
+  LDKUIMeasureEntry* entry = x_array_ldk_ui_measure_entry_get(ctx->measure_entries, ctx->last_measure_entry_index);
+
+  if (entry == NULL || entry->layout != ctx->current_layout)
+  {
+    return;
+  }
+
+  entry->rect.w = width;
+  entry->rect.h = height;
 }
 
 //----------------------------------------------------------
@@ -2429,6 +2543,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   ctx->last_bounding_rect = (LDKUIRect){0};
   ctx->last_measure_entry_index = UINT32_MAX;
   ctx->mouse_wheel_consumed = false;
+  ctx->current_popup_id = 0;
 
   hovered = s_ui_window_topmost_at_cursor(ctx);
   ctx->hovered_window_id = hovered != NULL ? hovered->id : 0;
@@ -3107,6 +3222,173 @@ void ldk_ui_end_window(LDKUIContext* ctx)
 }
 
 //----------------------------------------------------------
+// Popups
+//----------------------------------------------------------
+
+void ldk_ui_open_popup(LDKUIContext* ctx, char const* id)
+{
+  LDKUIId popup_id;
+
+  if (ctx == NULL || id == NULL)
+  {
+    return;
+  }
+
+  popup_id = s_ui_id_make_popup(id);
+
+  if (popup_id == 0)
+  {
+    return;
+  }
+
+  ctx->open_popup_id = popup_id;
+  ctx->popup_open_frame_index = ctx->frame_index;
+}
+
+void ldk_ui_close_current_popup(LDKUIContext* ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (ctx->current_popup_id != 0 && ctx->open_popup_id == ctx->current_popup_id)
+  {
+    ctx->open_popup_id = 0;
+    ctx->current_popup_id = 0;
+  }
+}
+
+bool ldk_ui_is_popup_open(LDKUIContext* ctx, char const* id)
+{
+  LDKUIId popup_id;
+
+  if (ctx == NULL || id == NULL)
+  {
+    return false;
+  }
+
+  popup_id = s_ui_id_make_popup(id);
+
+  return popup_id != 0 && ctx->open_popup_id == popup_id;
+}
+
+bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
+{
+  LDKUIId popup_id;
+  LDKPoint cursor;
+  bool mouse_down;
+  bool opened_this_frame;
+
+  if (ctx == NULL || id == NULL)
+  {
+    return false;
+  }
+
+  popup_id = s_ui_id_make_popup(id);
+
+  if (popup_id == 0 || ctx->open_popup_id != popup_id)
+  {
+    return false;
+  }
+
+  cursor = (LDKPoint){0};
+  mouse_down = false;
+  opened_this_frame = ctx->popup_open_frame_index == ctx->frame_index;
+
+  if (ctx->mouse != NULL)
+  {
+    cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    mouse_down = ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
+  }
+
+  if (!opened_this_frame &&
+      mouse_down &&
+      !s_ui_rect_contains(&rect, (float)cursor.x, (float)cursor.y))
+  {
+    ctx->open_popup_id = 0;
+    ctx->current_popup_id = 0;
+    return false;
+  }
+
+  ldk_ui_begin_window(ctx, id, rect, LDK_UI_WINDOW_NONE);
+
+  if (ctx->current_window != NULL && opened_this_frame)
+  {
+    s_ui_window_bring_to_front(ctx, ctx->current_window);
+  }
+
+  ctx->current_popup_id = popup_id;
+
+  return true;
+}
+
+bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIPoint position)
+{
+  if (ctx == NULL || id == NULL)
+  {
+    return false;
+  }
+
+  LDKUIId popup_id = s_ui_id_make_popup(id);
+
+  if (popup_id == 0 || ctx->open_popup_id != popup_id)
+  {
+    return false;
+  }
+
+  LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_get_or_create(popup_id);
+
+  if (cache == NULL)
+  {
+    return false;
+  }
+
+  LDKUIRect rect = {0};
+  rect.x = position.x;
+  rect.y = position.y;
+  rect.w = s_ui_maxf(cache->size.w, 1.0f);
+  rect.h = s_ui_maxf(cache->size.h, 1.0f);
+
+  if (!ldk_ui_begin_popup(ctx, id, rect))
+  {
+    return false;
+  }
+
+  cache->mark = ldk_ui_mark(ctx);
+  cache->active = true;
+  s_ui_current_auto_popup_id = popup_id;
+
+  return true;
+}
+
+void ldk_ui_end_popup(LDKUIContext* ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (s_ui_current_auto_popup_id != 0)
+  {
+    LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_find(s_ui_current_auto_popup_id);
+
+    if (cache != NULL && cache->active)
+    {
+      LDKUIRect content_rect = ldk_ui_measure_from(ctx, cache->mark);
+      cache->size.w = s_ui_maxf(content_rect.w, 1.0f);
+      cache->size.h = s_ui_maxf(content_rect.h, 1.0f);
+      cache->active = false;
+    }
+
+    s_ui_current_auto_popup_id = 0;
+  }
+
+  ctx->current_popup_id = 0;
+  ldk_ui_end_window(ctx);
+}
+
+//----------------------------------------------------------
 // Layout
 //----------------------------------------------------------
 
@@ -3587,6 +3869,8 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
+  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
   u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
@@ -3620,6 +3904,8 @@ bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text)
     return false;
   }
 
+  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
   u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
@@ -3632,7 +3918,8 @@ bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text)
     s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
   }
 
-  float text_x = box.rect.x + (box.rect.w - text_size.w) * 0.5f;
+  //float text_x = box.rect.x + (box.rect.w - text_size.w) * 0.5f;
+  float text_x = box.rect.x + LDK_UI_DEFAULT_SPACING;
   float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
   s_ui_render_text(ctx, text, text_x, text_y, text_color, box.clip);
