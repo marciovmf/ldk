@@ -32,6 +32,84 @@ typedef enum LDKUIWindowResizeEdges
   LDK_UI_WINDOW_RESIZE_BOTTOM = 1 << 3,
 } LDKUIWindowResizeEdges;
 
+
+  typedef struct LDKUIContextInternal
+  {
+    XArena* frame_arena;
+    LDKFontInstance* font;
+    void* font_file;
+    void* font_texture_user;
+    LDKUIGetFontPageTextureFn get_font_page_texture;
+
+    LDKMouseState const* mouse;
+    LDKKeyboardState const* keyboard;
+    LDKUITextInputState const* input_text;
+
+    LDKUIWindow* current_window;
+    LDKUILayout* current_layout;
+
+    XArray_ldk_ui_window* windows;
+    XArray_ldk_ui_id* id_stack;
+    XArray_ldk_ui_vertex* vertices;
+    XArray_ldk_ui_u32* indices;
+    XArray_ldk_ui_draw_cmd* commands;
+    XArray_ldk_ui_bool* disabled_stack;
+    XArray_ldk_ui_hit_candidate* hit_candidates;
+    XArray_ldk_ui_debug_rect* debug_rects;
+    XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
+    XArray_ldk_ui_measure_entry* measure_entries;
+
+    LDKUITheme theme;
+    LDKUIRenderData render_data;
+    LDKUIRect viewport;
+    LDKUIRect last_rect;
+    LDKUIRect last_bounding_rect;
+
+    LDKUIId hovered_window_id;
+    LDKUIId focused_window_id;
+    LDKUIId hot_window_id;
+    LDKUIId hot_id;
+    LDKUIId next_hot_window_id;
+    LDKUIId next_hot_id;
+    LDKUIId active_window_id;
+    LDKUIId active_id;
+    LDKUIId focused_id;
+    LDKUIId last_id;
+    LDKUIId dragging_window_id;
+    LDKUIId resizing_window_id;
+    LDKUIId text_box_id;
+    // Textbox
+    u32 text_cursor;
+    u32 text_select_start;
+    u32 text_select_end;
+
+    u32 resizing_window_edges;
+    u32 hit_order;
+    u32 last_measure_entry_index;
+
+    bool next_disabled;
+    bool next_focus;
+    bool debug_draw;
+    bool has_next_width;
+    bool has_next_height;
+    bool mouse_wheel_consumed;
+    LDKUILayoutSize next_width;
+    LDKUILayoutSize next_height;
+    u32 root_item_count;
+    u32 frame_index;
+    i32 next_z_order;
+    float drag_x;
+    float drag_y;
+    float resize_start_cursor_x;
+    float resize_start_cursor_y;
+    LDKUIRect resize_start_rect;
+
+    float scrollbar_drag_offset_x; 
+    float scrollbar_drag_offset_y; 
+    LDKCursorType cursor_type;
+  }LDKUIContextInternal;
+
+
 #define LDK_UI_SCROLLBAR_THUMB_Y_ID 0x53545931u
 #define LDK_UI_SCROLLBAR_THUMB_X_ID 0x53545831u
 #define LDK_UI_SCROLLBAR_TRACK_Y_ID 0x53545932u
@@ -1323,6 +1401,11 @@ static u32 s_ui_render_control_text_color(LDKUIContext* ctx, LDKUIControlVisualS
 
 static u32 s_ui_render_control_border_color(LDKUIContext* ctx, LDKUIControlVisualState state)
 {
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED];
+  }
+
   if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE || state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
   {
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
@@ -2048,6 +2131,7 @@ typedef struct LDKUIFrameState
   bool released;
   bool clicked;
   bool dragging;
+  bool disabled;
   LDKUIControlVisualState visual_state;
 } LDKUIFrameState;
 
@@ -2057,7 +2141,30 @@ typedef struct LDKUIWidgetBox
   LDKUIId id;
   LDKUIRect rect;
   LDKUIRect clip;
+  bool disabled;
 } LDKUIWidgetBox;
+
+static bool s_ui_take_next_disabled(LDKUIContext* ctx)
+{
+  bool disabled = false;
+
+  if (ctx == NULL)
+  {
+    return false;
+  }
+
+  disabled = ctx->next_disabled;
+  ctx->next_disabled = false;
+
+  bool const* parent_disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
+
+  if (parent_disabled != NULL && *parent_disabled)
+  {
+    disabled = true;
+  }
+
+  return disabled;
+}
 
 /**
  * Resolves a widget's frame rectangle and clip information for the current frame.
@@ -2089,8 +2196,9 @@ static bool s_ui_widget_frame_box(LDKUIContext* ctx, LDKUIWidgetBox* box, LDKUII
   box->rect = s_ui_layout_next_rect(ctx, width, height);
   LDKUIRect parent_clip = s_ui_current_clip_rect(ctx);
   box->clip = s_ui_rect_intersect(&parent_clip, &box->rect);
+  box->disabled = s_ui_take_next_disabled(ctx);
 
-  if (hit_test)
+  if (hit_test && !box->disabled)
   {
     s_ui_add_hit_candidate(ctx, box->id, box->rect, box->clip);
   }
@@ -2109,16 +2217,41 @@ static bool s_ui_widget_frame_box(LDKUIContext* ctx, LDKUIWidgetBox* box, LDKUII
  *     before calling this function.
  */
 static LDKUIFrameState s_ui_frame_state(LDKUIContext* ctx, LDKUIId id,
-    LDKUIRect rect, LDKUIRect clip, bool focusable)
+    LDKUIRect rect, LDKUIRect clip, bool focusable, bool disabled)
 {
   LDKUIFrameState state = {0};
 
   state.id = id;
   state.rect = rect;
   state.clip = clip;
+  state.disabled = disabled;
 
   if (ctx == NULL || ctx->current_window == NULL)
   {
+    return state;
+  }
+
+  if (disabled)
+  {
+    if (ctx->active_window_id == ctx->current_window->id && ctx->active_id == id)
+    {
+      ctx->active_window_id = 0;
+      ctx->active_id = 0;
+    }
+
+    if (ctx->focused_window_id == ctx->current_window->id && ctx->focused_id == id)
+    {
+      ctx->focused_window_id = 0;
+      ctx->focused_id = 0;
+      ctx->current_window->focused_id = 0;
+    }
+
+    if (ctx->text_box_id == id)
+    {
+      ctx->text_box_id = 0;
+    }
+
+    state.visual_state = LDK_UI_CONTROL_VISUAL_STATE_DISABLED;
     return state;
   }
 
@@ -3013,6 +3146,57 @@ void ldk_ui_end_horizontal(LDKUIContext* ctx)
   s_ui_layout_pop(ctx);
 }
 
+
+//----------------------------------------------------------
+// Disabling controls
+//----------------------------------------------------------
+
+void ldk_ui_set_next_disabled(LDKUIContext* ctx, bool disabled)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  ctx->next_disabled = disabled;
+}
+
+void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  bool effective_disabled = disabled;
+  bool const* parent_disabled = x_array_ldk_ui_bool_back(ctx->disabled_stack);
+
+  if (parent_disabled != NULL && *parent_disabled)
+  {
+    effective_disabled = true;
+  }
+
+  x_array_ldk_ui_bool_push(ctx->disabled_stack, effective_disabled);
+}
+
+void ldk_ui_end_disabled(LDKUIContext* ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  u32 count = x_array_ldk_ui_bool_count(ctx->disabled_stack);
+
+  if (count == 0)
+  {
+    return;
+  }
+
+  x_array_ldk_ui_bool_delete_at(ctx->disabled_stack, count - 1);
+}
+
+
 //----------------------------------------------------------
 // Scrollview
 //----------------------------------------------------------
@@ -3403,7 +3587,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true);
+  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
   u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
@@ -3434,7 +3618,7 @@ float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_v
     return value;
   }
 
-  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true);
+  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
   float base_height = s_ui_maxf(box.rect.h, 1.0f);
   float track_height_factor = s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
@@ -3511,7 +3695,7 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
     return result;
   }
 
-  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true);
+  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
   if (frame.pressed && frame.hot)
   {

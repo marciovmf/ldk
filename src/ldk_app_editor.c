@@ -254,7 +254,9 @@ static void s_editor_tool_bar(LDKEditor* editor)
 
   if (editor->project.loaded)
   {
-    if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
+
+    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_PLAYING));
+    //if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
       // Play
       if (ldk_ui_button(ui, "Play"))
@@ -263,7 +265,8 @@ static void s_editor_tool_bar(LDKEditor* editor)
       }
     }
 
-    if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+    //if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PLAYING));
     {
       if (ldk_ui_button(ui, "Pause"))
       {
@@ -271,7 +274,8 @@ static void s_editor_tool_bar(LDKEditor* editor)
       }
     }
 
-    if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_STOPED));
+    //if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
     {
       if (ldk_ui_button(ui, "Stop"))
       {
@@ -279,7 +283,8 @@ static void s_editor_tool_bar(LDKEditor* editor)
       }
     }
 
-    if(editor->editor_state == LDK_EDITOR_STATE_PAUSED)
+    //if(editor->editor_state == LDK_EDITOR_STATE_PAUSED)
+    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
     {
       if (ldk_ui_button(ui, "Step"))
       {
