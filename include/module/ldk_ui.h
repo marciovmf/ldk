@@ -401,14 +401,24 @@ extern "C" {
   LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
   LDK_API LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
 
-  LDK_API void ldk_ui_push_id_u32(LDKUIContext* ctx, uint32_t value);
-  LDK_API void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value);
-  LDK_API void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value);
-  LDK_API void ldk_ui_pop_id(LDKUIContext* ctx);
+//----------------------------------------------------------
+// IDs
+//----------------------------------------------------------
+  LDK_API void ldk_ui_push_id_u32(LDKUIContext* ctx, uint32_t value); // Pushes a u32 ID
+  LDK_API void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value); // Pushes pointer ID
+  LDK_API void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value); // Pushes a string ID
+  LDK_API void ldk_ui_pop_id(LDKUIContext* ctx);  // pops an ID from the ID stack
 
-  LDK_API LDKUILayoutSize ldk_ui_px(float value);
-  LDK_API LDKUILayoutSize ldk_ui_percent(float value);
-  LDK_API LDKUILayoutSize ldk_ui_fill(void);
+//----------------------------------------------------------
+// Size spec
+//----------------------------------------------------------
+  LDK_API LDKUILayoutSize ldk_ui_px(float value); // Specify a size in pixelsx
+  LDK_API LDKUILayoutSize ldk_ui_percent(float value); // Specify a size in percent of the parent
+  LDK_API LDKUILayoutSize ldk_ui_fill(void);  // specify a size equals to 100% of the parent size
+
+//----------------------------------------------------------
+// 
+//----------------------------------------------------------
   LDK_API void ldk_ui_set_next_width(LDKUIContext* ctx, LDKUILayoutSize width);
   LDK_API void ldk_ui_set_next_height(LDKUIContext* ctx, LDKUILayoutSize height);
   LDK_API void ldk_ui_set_next_size(LDKUIContext* ctx, LDKUILayoutSize width, LDKUILayoutSize height);
@@ -418,16 +428,36 @@ extern "C" {
   LDK_API LDKUIMark ldk_ui_mark(LDKUIContext* ctx);
   LDK_API LDKUIRect ldk_ui_measure_from(LDKUIContext* ctx, LDKUIMark mark);
 
+//----------------------------------------------------------
+// Disabling controls
+//----------------------------------------------------------
+  LDK_API void ldk_ui_set_next_disabled(LDKUIContext* ctx, bool disabled);
+  LDK_API void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled);
+  LDK_API void ldk_ui_end_disabled(LDKUIContext* ctx);
+
+//----------------------------------------------------------
+// Windows
+//----------------------------------------------------------
   LDK_API LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags);
   LDK_API void ldk_ui_end_window(LDKUIContext* ctx);
 
+//----------------------------------------------------------
+// Layout
+//----------------------------------------------------------
   LDK_API void ldk_ui_begin_vertical(LDKUIContext* ctx, LDKUILayoutSize width, LDKUILayoutSize height);
   LDK_API void ldk_ui_end_vertical(LDKUIContext* ctx);
   LDK_API void ldk_ui_begin_horizontal(LDKUIContext* ctx, LDKUILayoutSize width, LDKUILayoutSize height);
   LDK_API void ldk_ui_end_horizontal(LDKUIContext* ctx);
 
+//----------------------------------------------------------
+// Scrollview
+//----------------------------------------------------------
   LDK_API LDKUIPoint ldk_ui_begin_scrollview(LDKUIContext* ctx, LDKUIPoint scroll_pos, LDKUIRect content_rect, LDKUIScrollFlags flags);
   LDK_API void ldk_ui_end_scrollview(LDKUIContext* ctx);
+
+//----------------------------------------------------------
+// Widgets
+//----------------------------------------------------------
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
   LDK_API float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_value);
