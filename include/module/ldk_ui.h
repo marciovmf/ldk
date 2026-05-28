@@ -460,6 +460,7 @@ extern "C" {
 //----------------------------------------------------------
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
+  LDK_API bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text);
   LDK_API float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_value);
   LDK_API u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext* ctx);

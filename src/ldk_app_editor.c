@@ -192,6 +192,102 @@ static void s_editor_menu_bar(LDKEditor* editor)
   s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   s_entity_list_rect = ldk_ui_begin_window(ui, "toolbar", s_entity_list_rect, 0);
+  ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());
+
+    if (ldk_ui_button_flat(ui, "File"))
+    {
+    }
+
+    if (ldk_ui_button_flat(ui, "View"))
+    {
+    }
+
+    if (ldk_ui_button_flat(ui, "Scene"))
+    {
+    }
+
+    if (ldk_ui_button_flat(ui, "About"))
+    {
+      ldk_os_dialog_show_ok(editor->window, "About LDK Editor", "LDK Editor v1.0.0.");
+    }
+
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_end_window(ui);
+}
+
+static void s_editor_tool_bar(LDKEditor* editor)
+{
+  LDKUIContext* ui = &editor->ui;
+  static LDKUIRect s_entity_list_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
+  s_entity_list_rect.w = ui->viewport.w;
+  s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  s_entity_list_rect = ldk_ui_begin_window(ui, "Editor Commands", s_entity_list_rect, 0);
+  ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());
+
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    // Open project
+    if (ldk_ui_button_flat(ui, "Open Project"))
+    {
+      XFSPath out = {0};
+      if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk", out.buf, X_SMALLSTR_MAX_LENGTH))
+      {
+        s_editor_state_set_stop(editor);
+        ldk_project_unload(&editor->project);
+        ldk_game_instance_unload();
+
+        if (!s_project_load(editor, out.buf))
+        {
+          ldk_os_dialog_show_error(editor->window, "Failed to load project", out.buf);
+        }
+      }
+    }
+  }
+
+  if (editor->project.loaded)
+  {
+    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_PLAYING));
+    //if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
+    {
+      // Play
+      if (ldk_ui_button_flat(ui, "Play"))
+      {
+        s_editor_state_set_play(editor);
+      }
+    }
+
+    //if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PLAYING));
+    {
+      if (ldk_ui_button(ui, "Pause"))
+      {
+        s_editor_state_set_pause(editor);
+      }
+    }
+
+    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_STOPED));
+    //if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+    {
+      if (ldk_ui_button_flat(ui, "Stop"))
+      {
+        s_editor_state_set_stop(editor);
+      }
+    }
+
+    //if(editor->editor_state == LDK_EDITOR_STATE_PAUSED)
+    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
+    {
+      if (ldk_ui_button_flat(ui, "Step"))
+      {
+        s_editor_state_set_step(editor);
+      }
+    }
+  }
+
+  ldk_ui_end_horizontal(&editor->ui);
+  ldk_ui_end_window(ui);
 }
 
 static void s_editor_entity_list_window(LDKEditor* editor, LDKECS* ecs)
@@ -219,81 +315,6 @@ static void s_editor_entity_list_window(LDKEditor* editor, LDKECS* ecs)
     }
   }
   ldk_entity_iterator_end(&it);
-  ldk_ui_end_window(ui);
-}
-
-static void s_editor_tool_bar(LDKEditor* editor)
-{
-  LDKUIContext* ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
-  s_entity_list_rect.w = ui->viewport.w;
-  s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
-
-  s_entity_list_rect = ldk_ui_begin_window(ui, "Editor Commands", s_entity_list_rect, 0);
-  ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());
-
-  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
-  {
-    // Open project
-    if (ldk_ui_button(ui, "Open Project"))
-    {
-      XFSPath out = {0};
-      if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk", out.buf, X_SMALLSTR_MAX_LENGTH))
-      {
-        s_editor_state_set_stop(editor);
-        ldk_project_unload(&editor->project);
-        ldk_game_instance_unload();
-
-        if (!s_project_load(editor, out.buf))
-        {
-          ldk_os_dialog_show_error(editor->window, "Failed to load project", out.buf);
-        }
-      }
-    }
-  }
-
-  if (editor->project.loaded)
-  {
-
-    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_PLAYING));
-    //if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
-    {
-      // Play
-      if (ldk_ui_button(ui, "Play"))
-      {
-        s_editor_state_set_play(editor);
-      }
-    }
-
-    //if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
-    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PLAYING));
-    {
-      if (ldk_ui_button(ui, "Pause"))
-      {
-        s_editor_state_set_pause(editor);
-      }
-    }
-
-    ldk_ui_set_next_disabled(ui, (editor->editor_state == LDK_EDITOR_STATE_STOPED));
-    //if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
-    {
-      if (ldk_ui_button(ui, "Stop"))
-      {
-        s_editor_state_set_stop(editor);
-      }
-    }
-
-    //if(editor->editor_state == LDK_EDITOR_STATE_PAUSED)
-    ldk_ui_set_next_disabled(ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
-    {
-      if (ldk_ui_button(ui, "Step"))
-      {
-        s_editor_state_set_step(editor);
-      }
-    }
-  }
-
-  ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
 }
 

@@ -3604,6 +3604,42 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
   return frame.clicked;
 }
 
+bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text)
+{
+  if (ctx == NULL || ctx->current_layout == NULL || ctx->current_window == NULL)
+  {
+    return false;
+  }
+
+  LDKUISize text_size = ldk_ttf_measure_text_cstr(ctx->font, text);
+
+  LDKUIWidgetBox box;
+  if (!s_ui_widget_frame_box(ctx, &box, LDK_UI_ITEM_BUTTON, ldk_ui_px(text_size.w + 16.0f), ldk_ui_fill(),
+        ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT), true))
+  {
+    return false;
+  }
+
+  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+
+  u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+
+  if (frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+      frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
+      frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+    s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+  }
+
+  float text_x = box.rect.x + (box.rect.w - text_size.w) * 0.5f;
+  float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
+
+  s_ui_render_text(ctx, text, text_x, text_y, text_color, box.clip);
+
+  return frame.clicked;
+}
+
 float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_value)
 {
   if (ctx == NULL || ctx->current_layout == NULL || ctx->current_window == NULL)
