@@ -1068,7 +1068,7 @@ static void s_ui_render_add_draw_cmd(LDKUIContext* ctx, LDKUITextureHandle textu
   x_array_ldk_ui_draw_cmd_push(commands, cmd);
 }
 
-static void s_ui_render_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
+static void s_ui_render_quad_uv(LDKUIContext* ctx, LDKUIRect rect, LDKUIRect uv, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
   XArray_ldk_ui_vertex* vertices = s_ui_target_vertices(ctx);
   XArray_ldk_ui_u32* indices = s_ui_target_indices(ctx);
@@ -1077,10 +1077,10 @@ static void s_ui_render_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUI
 
   color = LDK_RGBA32(color);
 
-  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x, rect.y, 0.0f, 0.0f, color });
-  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x + rect.w, rect.y, 1.0f, 0.0f, color });
-  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x + rect.w, rect.y + rect.h, 1.0f, 1.0f, color });
-  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x, rect.y + rect.h, 0.0f, 1.0f, color });
+  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x, rect.y, uv.x, uv.y, color });
+  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x + rect.w, rect.y, uv.x + uv.w, uv.y, color });
+  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x + rect.w, rect.y + rect.h, uv.x + uv.w, uv.y + uv.h, color });
+  x_array_ldk_ui_vertex_push(vertices, (LDKUIVertex){ rect.x, rect.y + rect.h, uv.x, uv.y + uv.h, color });
 
   x_array_ldk_ui_u32_push(indices, base_index + 0);
   x_array_ldk_ui_u32_push(indices, base_index + 1);
@@ -1090,6 +1090,12 @@ static void s_ui_render_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUI
   x_array_ldk_ui_u32_push(indices, base_index + 0);
 
   s_ui_render_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
+}
+
+static void s_ui_render_quad(LDKUIContext* ctx, LDKUIRect rect, u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
+{
+  LDKUIRect uv = { 0.0f, 0.0f, 1.0f, 1.0f };
+  s_ui_render_quad_uv(ctx, rect, uv, color, clip_rect, texture);
 }
 
 static void s_ui_render_border(LDKUIContext* ctx, LDKUIRect rect, float size, u32 color, LDKUIRect clip_rect)
@@ -3817,6 +3823,68 @@ void ldk_ui_end_scrollview(LDKUIContext* ctx)
 // Widgets
 //----------------------------------------------------------
 
+void ldk_ui_image(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect uv, LDKUISize size)
+{
+  if (ctx == NULL || ctx->current_layout == NULL || ctx->current_window == NULL)
+  {
+    return;
+  }
+
+  LDKUIWidgetBox box = {0};
+  if (!s_ui_widget_frame_box(
+        ctx,
+        &box,
+        LDK_UI_ITEM_IMAGE,
+        ldk_ui_px(size.w),
+        ldk_ui_px(size.w),
+        ldk_ui_px(size.h),
+        false))
+  {
+    return;
+  }
+
+  s_ui_render_quad_uv(ctx, box.rect, uv, 0xffffffffu, box.clip, texture);
+}
+
+void ldk_ui_icon(LDKUIContext* ctx, LDKUIIcon icon)
+{
+  ldk_ui_image(ctx, icon.texture, icon.uv, icon.size);
+}
+
+bool ldk_ui_icon_button(LDKUIContext* ctx, LDKUIIcon icon)
+{
+  if (ctx == NULL || ctx->current_layout == NULL || ctx->current_window == NULL)
+  {
+    return false;
+  }
+
+  LDKUIWidgetBox box = {0};
+  if (!s_ui_widget_frame_box(
+        ctx,
+        &box,
+        LDK_UI_ITEM_ICON_BUTTON,
+        ldk_ui_px(icon.size.w + 8.0f),
+        ldk_ui_fill(),
+        ldk_ui_px(s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, icon.size.h + 8.0f)),
+        true))
+  {
+    return false;
+  }
+
+  LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+  u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
+  float icon_x = box.rect.x + (box.rect.w - icon.size.w) * 0.5f;
+  float icon_y = box.rect.y + (box.rect.h - icon.size.h) * 0.5f;
+  LDKUIRect icon_rect = { icon_x, icon_y, icon.size.w, icon.size.h };
+
+  s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+  s_ui_render_border(ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  s_ui_render_quad_uv(ctx, icon_rect, icon.uv, 0xffffffffu, box.clip, icon.texture);
+
+  return frame.clicked;
+}
+
 void ldk_ui_label(LDKUIContext* ctx, char const* text)
 {
   if (ctx == NULL || ctx->current_layout == NULL)
@@ -3828,7 +3896,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   float available_w = s_ui_maxf(0.0f, layout->content_rect.x + layout->content_rect.w - layout->cursor.x);
   LDKUISize text_size = s_ui_text_measure_wrapped(ctx->font, text, available_w);
 
-  LDKUIWidgetBox box;
+  LDKUIWidgetBox box = {0};
   if (!s_ui_widget_frame_box(
         ctx,
         &box,
@@ -3862,7 +3930,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
 
   LDKUISize text_size = ldk_ttf_measure_text_cstr(ctx->font, text);
 
-  LDKUIWidgetBox box;
+  LDKUIWidgetBox box = {0};
   if (!s_ui_widget_frame_box(ctx, &box, LDK_UI_ITEM_BUTTON, ldk_ui_px(text_size.w + 16.0f), ldk_ui_fill(),
         ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT), true))
   {
@@ -3934,7 +4002,7 @@ float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_v
     return value;
   }
 
-  LDKUIWidgetBox box;
+  LDKUIWidgetBox box = {0};
   if (!s_ui_widget_frame_box(ctx, &box, LDK_UI_ITEM_SLIDER, ldk_ui_px(140.0f), ldk_ui_fill(),
         ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT), true))
   {
@@ -4011,7 +4079,7 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
   u32 buffer_len = s_ui_text_cstr_len_u32(buffer);
   LDKUISize text_size = ldk_ttf_measure_text_cstr(ctx->font, buffer);
 
-  LDKUIWidgetBox box;
+  LDKUIWidgetBox box = {0};
   if (!s_ui_widget_frame_box(ctx, &box, LDK_UI_ITEM_TEXT_BOX, ldk_ui_px(140.0f), ldk_ui_fill(),
         ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT), true))
   {

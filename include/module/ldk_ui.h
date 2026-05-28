@@ -124,6 +124,13 @@ extern "C" {
     uint32_t command_count;
   } LDKUIRenderData;
 
+  typedef struct LDKUIIcon
+  {
+    LDKUITextureHandle texture;
+    LDKUIRect uv;
+    LDKUISize size;
+  } LDKUIIcon;
+
   typedef struct LDKUIConfig
   {
     u32 frame_arena_size;
@@ -155,6 +162,8 @@ extern "C" {
     LDK_UI_ITEM_LAYOUT_VERTICAL = 6,
     LDK_UI_ITEM_LAYOUT_HORIZONTAL = 7,
     LDK_UI_ITEM_TEXT_BOX = 8,
+    LDK_UI_ITEM_IMAGE = 9,
+    LDK_UI_ITEM_ICON_BUTTON = 10,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -479,6 +488,9 @@ extern "C" {
   //----------------------------------------------------------
   // Widgets
   //----------------------------------------------------------
+  LDK_API void ldk_ui_image(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect uv, LDKUISize size);
+  LDK_API void ldk_ui_icon(LDKUIContext* ctx, LDKUIIcon icon);
+  LDK_API bool ldk_ui_icon_button(LDKUIContext* ctx, LDKUIIcon icon);
   LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
   LDK_API bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text);

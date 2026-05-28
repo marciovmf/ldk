@@ -12,7 +12,6 @@
 #define X_IMPL_FILESYSTEM
 #endif // LDK_SHAREDLIB
 
-
 #include <ldk_game.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_transform.h>

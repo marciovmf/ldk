@@ -386,7 +386,7 @@ LDKGame* ldk_game_get(void)
     return NULL;
 
   return &e->game;
-  
+
 }
 
 bool ldk_engine_is_initialized(void)
@@ -612,7 +612,7 @@ void ldk_engine_frame(void)
   s_broadcast_frame_event(LDK_FRAME_EVENT_UPDATE_BEFORE, current_ticks, delta_time); 
   { // Update simulation
     ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
-    
+
     e->game.update(&e->game, delta_time);
 
     ldk_scenegraph_update(delta_time); // Update scenegraph
@@ -724,7 +724,7 @@ void ldk_engine_frame(void)
     frame_desc.clear_color = 0xABABABFFu;
     frame_desc.clear_color_enabled = true;
     ldk_renderer_render_frame(&e->renderer, &frame_desc);
-  
+
     ldk_os_window_buffers_swap(e->window);
   }
   s_broadcast_frame_event(LDK_FRAME_EVENT_RENDER_AFTER, current_ticks, delta_time); 
