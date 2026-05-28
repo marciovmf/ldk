@@ -1214,7 +1214,7 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDK
   }
 
   LDKFontPageInfo page = {0};
-  if (!ldk_font_get_page_info(font, page_index, &page))
+  if (!ldk_ttf_get_page_info(font, page_index, &page))
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
   }
@@ -1264,7 +1264,7 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDK
   entry->texture = texture;
   renderer->font_page_count += 1;
 
-  ldk_font_clear_page_dirty(font, page_index);
+  ldk_ttf_clear_page_dirty(font, page_index);
   return (LDKUITextureHandle)texture;
 }
 

@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+  //@component
   typedef struct LDKMeshSource
   {
     LDKAssetMesh source_asset;

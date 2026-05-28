@@ -1,94 +1,215 @@
 {
   "version": 3,
   "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 9
+    "major": 4,
+    "minor": 2
   },
   "configurePresets": [
     {
-      "name": "default",
+      "name": "base",
       "hidden": true,
-      "generator": "Ninja", 
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/.build",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "YES"
       }
     },
+
     {
-      "name": "release",
-      "inherits": "default",
-      "description": "Release build",
-      "generator": "Ninja", 
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "OPTION_ADDRESS_SANITIZER": "OFF",
-        "OPTION_LDKSHAREDLIB": "ON",
-        "OPTION_BUILD_EDITOR": "OFF",
-        "OPTION_BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "relwithdebinfo",
-      "inherits": "default",
-      "description": "RelWithDebInfo build",
-      "generator": "Ninja", 
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "OPTION_ADDRESS_SANITIZER": "ON",
-        "OPTION_LDKSHAREDLIB": "ON",
-        "OPTION_BUILD_EDITOR": "ON",
-        "OPTION_BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "minsizerel",
-      "inherits": "default",
-      "description": "MinSizeRel build",
-      "generator": "Ninja", 
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "MinSizeRel",
-        "OPTION_ADDRESS_SANITIZER": "OFF",
-        "OPTION_LDKSHAREDLIB": "OFF",
-        "OPTION_BUILD_EDITOR": "OFF",
-        "OPTION_BUILD_TESTS": "ON"
-      }
-    },
-    {
-      "name": "debug",
-      "inherits": "default",
-      "description": "Debug build",
-      "generator": "Ninja", 
+      "name": "cfg-debug",
+      "hidden": true,
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "OPTION_ADDRESS_SANITIZER": "OFF",
-        "OPTION_LDKSHAREDLIB": "OFF",
-        "OPTION_BUILD_EDITOR": "ON",
-        "OPTION_BUILD_TESTS": "ON"
+        "OPTION_ADDRESS_SANITIZER": "OFF"
       }
     },
     {
-      "name": "debug_no_asan",
-      "inherits": "debug",
-      "description": "Debug build without AddressSanitizer",
-      "generator": "Ninja",
+      "name": "cfg-release",
+      "hidden": true,
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
         "OPTION_ADDRESS_SANITIZER": "OFF"
       }
+    },
+    {
+      "name": "cfg-relwithdebinfo",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "OPTION_ADDRESS_SANITIZER": "ON"
+      }
+    },
+
+    {
+      "name": "mode-all",
+      "hidden": true,
+      "cacheVariables": {
+        "OPTION_LDK_USE_PREBUILT": "OFF",
+        "OPTION_BUILD_EDITOR": "ON",
+        "OPTION_BUILD_TESTS": "ON",
+        "OPTION_BUILD_GAME": "ON",
+        "OPTION_BUILD_GAME_LAUNCHER": "ON",
+        "OPTION_GAME_DIR": "${sourceDir}/demo"
+      }
+    },
+    {
+      "name": "mode-engine",
+      "hidden": true,
+      "cacheVariables": {
+        "OPTION_LDK_USE_PREBUILT": "OFF",
+        "OPTION_BUILD_EDITOR": "ON",
+        "OPTION_BUILD_TESTS": "ON",
+        "OPTION_BUILD_GAME": "OFF",
+        "OPTION_BUILD_GAME_LAUNCHER": "OFF"
+      }
+    },
+    {
+      "name": "mode-game",
+      "hidden": true,
+      "cacheVariables": {
+        "OPTION_LDK_USE_PREBUILT": "ON",
+        "OPTION_LDK_PREBUILT_DIR": "${sourceDir}",
+        "OPTION_BUILD_EDITOR": "OFF",
+        "OPTION_BUILD_TESTS": "OFF",
+        "OPTION_BUILD_GAME": "ON",
+        "OPTION_BUILD_GAME_LAUNCHER": "OFF",
+        "OPTION_GAME_DIR": "${sourceDir}/demo"
+      }
+    },
+    {
+      "name": "mode-launcher",
+      "hidden": true,
+      "cacheVariables": {
+        "OPTION_LDK_USE_PREBUILT": "OFF",
+        "OPTION_BUILD_EDITOR": "OFF",
+        "OPTION_BUILD_TESTS": "OFF",
+        "OPTION_BUILD_GAME": "OFF",
+        "OPTION_BUILD_GAME_LAUNCHER": "ON",
+        "OPTION_GAME_DIR": "${sourceDir}/demo"
+      }
+    },
+
+    {
+      "name": "all-debug",
+      "inherits": ["base", "cfg-debug", "mode-all"],
+      "description": "Build everything: engine/editor/tests/game DLL/game launcher"
+    },
+    {
+      "name": "all-release",
+      "inherits": ["base", "cfg-release", "mode-all"],
+      "description": "Build everything: engine/editor/tests/game DLL/game launcher"
+    },
+    {
+      "name": "all-relwithdebinfo",
+      "inherits": ["base", "cfg-relwithdebinfo", "mode-all"],
+      "description": "Build everything: engine/editor/tests/game DLL/game launcher"
+    },
+
+    {
+      "name": "engine-debug",
+      "inherits": ["base", "cfg-debug", "mode-engine"],
+      "description": "Build LDK editor/dev runtime"
+    },
+    {
+      "name": "engine-release",
+      "inherits": ["base", "cfg-release", "mode-engine"],
+      "description": "Build LDK editor/dev runtime"
+    },
+    {
+      "name": "engine-relwithdebinfo",
+      "inherits": ["base", "cfg-relwithdebinfo", "mode-engine"],
+      "description": "Build LDK editor/dev runtime"
+    },
+
+    {
+      "name": "game-debug",
+      "inherits": ["base", "cfg-debug", "mode-game"],
+      "description": "Build demo game DLL using prebuilt LDK"
+    },
+    {
+      "name": "game-release",
+      "inherits": ["base", "cfg-release", "mode-game"],
+      "description": "Build demo game DLL using prebuilt LDK"
+    },
+    {
+      "name": "game-relwithdebinfo",
+      "inherits": ["base", "cfg-relwithdebinfo", "mode-game"],
+      "description": "Build demo game DLL using prebuilt LDK"
+    },
+
+    {
+      "name": "launcher-debug",
+      "inherits": ["base", "cfg-debug", "mode-launcher"],
+      "description": "Build demo launcher from source"
+    },
+    {
+      "name": "launcher-release",
+      "inherits": ["base", "cfg-release", "mode-launcher"],
+      "description": "Build demo launcher from source"
+    },
+    {
+      "name": "launcher-relwithdebinfo",
+      "inherits": ["base", "cfg-relwithdebinfo", "mode-launcher"],
+      "description": "Build demo launcher from source"
     }
   ],
   "buildPresets": [
     {
-      "name": "debug",
-      "configurePreset": "debug"
+      "name": "all-debug",
+      "configurePreset": "all-debug"
     },
     {
-      "name": "release",
-      "configurePreset": "release"
+      "name": "all-release",
+      "configurePreset": "all-release"
     },
     {
-      "name": "relwithdebinfo",
-      "configurePreset": "relwithdebinfo"
+      "name": "all-relwithdebinfo",
+      "configurePreset": "all-relwithdebinfo"
+    },
+
+    {
+      "name": "engine-debug",
+      "configurePreset": "engine-debug"
+    },
+    {
+      "name": "engine-release",
+      "configurePreset": "engine-release"
+    },
+    {
+      "name": "engine-relwithdebinfo",
+      "configurePreset": "engine-relwithdebinfo"
+    },
+
+    {
+      "name": "game-debug",
+      "configurePreset": "game-debug",
+      "targets": ["game"]
+    },
+    {
+      "name": "game-release",
+      "configurePreset": "game-release",
+      "targets": ["game"]
+    },
+    {
+      "name": "game-relwithdebinfo",
+      "configurePreset": "game-relwithdebinfo",
+      "targets": ["game"]
+    },
+
+    {
+      "name": "launcher-debug",
+      "configurePreset": "launcher-debug",
+      "targets": ["ldk_launcher"]
+    },
+    {
+      "name": "launcher-release",
+      "configurePreset": "launcher-release",
+      "targets": ["ldk_launcher"]
+    },
+    {
+      "name": "launcher-relwithdebinfo",
+      "configurePreset": "launcher-relwithdebinfo",
+      "targets": ["ldk_launcher"]
     }
   ]
-
 }

@@ -27,6 +27,7 @@ extern "C" {
     LDK_TRANSFORM_FLAG_WORLD_DIRTY = 1 << 0,
   } LDKTransformFlags;
 
+  //@component
   typedef struct LDKTransform
   {
     Vec3 local_position;

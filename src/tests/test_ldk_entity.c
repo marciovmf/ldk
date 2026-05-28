@@ -1,9 +1,10 @@
-#include <ldk_common.h>
 
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_ARRAY
+#define X_IMPL_LOG
 #endif // LDK_SHAREDLIB
 
+#include <ldk.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <stdx/stdx_array.h>

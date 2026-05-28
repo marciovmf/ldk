@@ -47,7 +47,7 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
     {
       if (data->face)
       {
-        ldk_font_face_destroy(data->face);
+        ldk_ttf_face_destroy(data->face);
       }
 
       free(data);
@@ -585,7 +585,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
     return result;
   }
 
-  LDKFontFace* face = ldk_font_face_create(data, data_size);
+  LDKFontFace* face = ldk_ttf_face_create(data, data_size);
 
   if (!face)
   {
@@ -596,7 +596,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
 
   if (!font_data)
   {
-    ldk_font_face_destroy(face);
+    ldk_ttf_face_destroy(face);
     return result;
   }
 
@@ -606,7 +606,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
 
   if (x_handle_is_null(h))
   {
-    ldk_font_face_destroy(face);
+    ldk_ttf_face_destroy(face);
     free(font_data);
     return result;
   }
@@ -616,7 +616,7 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
   if (!info)
   {
     x_hpool_free(&manager->pool, h);
-    ldk_font_face_destroy(face);
+    ldk_ttf_face_destroy(face);
     free(font_data);
     return result;
   }

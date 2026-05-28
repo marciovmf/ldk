@@ -1,1 +1,1 @@
-@cmake --preset release --fresh
+@cmake --preset all-release --fresh

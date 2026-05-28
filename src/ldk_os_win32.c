@@ -8,6 +8,7 @@
 #include <string.h>
 #include <windows.h>
 #include <windowsx.h>
+#include <commdlg.h>
 
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_filesystem.h>
@@ -136,6 +137,7 @@ static struct
 static struct 
 {
   LARGE_INTEGER frequency;
+  LDKCursorType cursor_type;
 
   // input state
   LDKKeyboardState  keyboard_state;
@@ -155,7 +157,7 @@ static struct
   HCURSOR default_cursor;
   XInputGetStateFunc xinput_get_state;
   XInputSetStateFunc xinput_set_state;
-} s_oswin32;
+} s_oswin32 = {0};
 
 static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -660,7 +662,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   {
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.style = CS_OWNDC;
-    wc.lpfnWndProc = s_window_proc;
+    wc.lpfnWndProc = (WNDPROC) &s_window_proc;
     wc.hInstance = hInstance;
     wc.hbrBackground = (HBRUSH) GetStockObject(BLACK_BRUSH);
     wc.lpszClassName = ldk_window_class;
@@ -1366,6 +1368,34 @@ void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name)
   return (void*) GetProcAddress(library, name);
 }
 
+// ---------------------------------------------------------------------------
+// System Cursor
+// ---------------------------------------------------------------------------
+
+void ldk_os_cursor_type_set(LDKCursorType type)
+{
+  LPCSTR cursor = IDC_ARROW;
+  switch(type)
+  {
+    case LDK_CURSOR_ARROW: cursor = IDC_ARROW; break;
+    case LDK_CURSOR_TEXT_SELECT: cursor = IDC_IBEAM; break;
+    case LDK_CURSOR_SIZE_NWSE: cursor = IDC_SIZENWSE; break;
+    case LDK_CURSOR_SIZE_NESW: cursor = IDC_SIZENESW; break;
+    case LDK_CURSOR_SIZE_WE: cursor = IDC_SIZEWE; break;
+    case LDK_CURSOR_SIZE_NS: cursor = IDC_SIZENS; break;
+    default: cursor = IDC_ARROW; break;
+  }
+
+  s_oswin32.cursor_type = type;
+  HCURSOR hcursor = LoadCursor(NULL, cursor);
+  SetCursor(hcursor);
+}
+
+LDKCursorType  ldk_os_cursor_type_get()
+{
+  return s_oswin32.cursor_type;
+}
+
 
 // ---------------------------------------------------------------------------
 // Mouse
@@ -1541,3 +1571,97 @@ float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
   return s_oswin32.joystick_state[id].vibration_right;
 }
 
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
+
+bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter,
+  char* out_path, size_t out_path_size)
+{
+  if (! out_path || out_path_size == 0)
+  {
+    return false;
+  }
+
+  out_path[0] = '\0';
+
+  OPENFILENAMEA ofn;
+  memset(&ofn, 0, sizeof(ofn));
+
+  ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.lpstrTitle = title;
+  ofn.lpstrFilter = filter;
+  ofn.lpstrFile = out_path;
+  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.Flags =
+    OFN_PATHMUSTEXIST |
+    OFN_FILEMUSTEXIST |
+    OFN_NOCHANGEDIR |
+    OFN_EXPLORER;
+
+  return GetOpenFileNameA(&ofn) != 0;
+}
+
+bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter,
+  char* out_path, size_t out_path_size)
+{
+  if (! out_path || out_path_size == 0)
+  {
+    return false;
+  }
+
+  out_path[0] = '\0';
+
+  OPENFILENAMEA ofn;
+  memset(&ofn, 0, sizeof(ofn));
+
+  ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.lpstrTitle = title;
+  ofn.lpstrFilter = filter;
+  ofn.lpstrFile = out_path;
+  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.Flags =
+    OFN_PATHMUSTEXIST |
+    OFN_OVERWRITEPROMPT |
+    OFN_NOCHANGEDIR |
+    OFN_EXPLORER;
+
+  return GetSaveFileNameA(&ofn) != 0;
+}
+
+bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(
+    owner ? ((LDKWin32Window*)owner)->handle : NULL,
+    message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+
+  return result == IDYES;
+}
+
+bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(
+    owner ? ((LDKWin32Window*)owner)->handle : NULL,
+    message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2
+  );
+
+  return result == IDOK;
+}
+
+bool ldk_os_dialog_show_ok(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONINFORMATION);
+
+  return result == IDOK;
+}
+
+bool ldk_os_dialog_show_error(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONERROR);
+
+  return result == IDOK;
+}

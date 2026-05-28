@@ -1,0 +1,5 @@
+[.project]
+project_name = demo
+project_cmake_root = workspace
+project_run_root = runtree
+project_cmake_generator = Visual Studio 17 2022

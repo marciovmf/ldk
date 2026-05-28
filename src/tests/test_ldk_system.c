@@ -1,6 +1,11 @@
+#if defined(LDK_SHAREDLIB)
+#define X_IMPL_LOG
+#endif
+
 #include <ldk_common.h>
 #include <module/ldk_system.h>
 #include <stdx/stdx_log.h>
+
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>

@@ -26,8 +26,7 @@ typedef enum
   LDK_EVENT_TYPE_MOUSE_MOVE       = 1 << 5,
   LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
   LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
-  LDK_EVENT_TYPE_RENDER_BEFORE    = 1 << 8,
-  LDK_EVENT_TYPE_RENDER_AFTER     = 1 << 9,
+  LDK_EVENT_TYPE_FRAME            = 1 << 8,
   LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
   /* Keyboard Event types */
@@ -55,6 +54,14 @@ typedef enum
   LDK_WINDOW_EVENT_DEACTIVATE     = 17,
   LDK_WINDOW_EVENT_MINIMIZED      = 18,
   LDK_WINDOW_EVENT_MAXIMIZED      = 19,
+
+  /* Frame event types */
+  LDK_FRAME_EVENT_UPDATE_BEFORE    = 20,
+  LDK_FRAME_EVENT_UPDATE_AFTER     = 21,
+  LDK_FRAME_EVENT_SUBMIT_BEFORE    = 22,
+  LDK_FRAME_EVENT_SUBMIT_AFTER     = 23,
+  LDK_FRAME_EVENT_RENDER_BEFORE    = 24,
+  LDK_FRAME_EVENT_RENDER_AFTER     = 25
 
 } LDKEventType;
 
@@ -103,6 +110,7 @@ typedef struct
 // LDKFrameEvent
 typedef struct
 {
+  LDKEventType type;
   u64 ticks;
   float delta_time;
 } LDKFrameEvent;

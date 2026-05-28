@@ -1,1 +1,1 @@
-@cmake --preset relwithdebinfo --fresh
+@cmake --preset all-relwithdebinfo --fresh
