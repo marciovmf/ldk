@@ -458,7 +458,7 @@ extern "C" {
   LDK_API void ldk_ui_close_current_popup(LDKUIContext* ctx);
   LDK_API bool ldk_ui_is_popup_open(LDKUIContext* ctx, char const* id);
   LDK_API bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect);
-  LDK_API bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIPoint position);
+  LDK_API bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIRect rect);
 
   LDK_API void ldk_ui_end_popup(LDKUIContext* ctx);
 

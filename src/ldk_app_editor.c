@@ -209,11 +209,11 @@ static void s_editor_menu_bar(LDKEditor* editor)
   LDKUIRect theme_button_rect = ldk_ui_last_rect(ui);
   ldk_ui_end_horizontal(ui);
 
-  LDKUIPoint popup_pos;
+  LDKUIRect popup_pos = {0};
   popup_pos.x = file_button_rect.x;
   popup_pos.y = file_button_rect.y + file_button_rect.h;
 
-  if (ldk_ui_begin_popup_auto(ui, "file_menu", popup_pos))
+  if (ldk_ui_begin_popup(ui, "file_menu", popup_pos))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -249,7 +249,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
   
 
-  if (ldk_ui_begin_popup_auto(ui, "edit_menu", popup_pos))
+  if (ldk_ui_begin_popup(ui, "edit_menu", popup_pos))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -271,7 +271,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   popup_pos.x = theme_button_rect.x;
   popup_pos.y = theme_button_rect.y + theme_button_rect.h;
 
-  if (ldk_ui_begin_popup_auto(ui, "theme_menu", popup_pos))
+  if (ldk_ui_begin_popup(ui, "theme_menu", popup_pos))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
     if (ldk_ui_button_flat(ui, "Dark"))

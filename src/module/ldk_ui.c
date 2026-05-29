@@ -3327,7 +3327,7 @@ bool ldk_ui_is_popup_open(LDKUIContext* ctx, char const* id)
   return popup_id != 0 && ctx->open_popup_id == popup_id;
 }
 
-bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
+bool ldk_ui_begin_popup_fixed(LDKUIContext* ctx, char const* id, LDKUIRect rect)
 {
   LDKUIId popup_id;
   LDKPoint cursor;
@@ -3377,7 +3377,7 @@ bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
   return true;
 }
 
-bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIPoint position)
+bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
 {
   if (ctx == NULL || id == NULL)
   {
@@ -3398,13 +3398,11 @@ bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIPoint posit
     return false;
   }
 
-  LDKUIRect rect = {0};
-  rect.x = position.x;
-  rect.y = position.y;
+  LDKUIPoint position = {rect.x, rect.y};
   rect.w = s_ui_maxf(cache->size.w, 1.0f);
   rect.h = s_ui_maxf(cache->size.h, 1.0f);
 
-  if (!ldk_ui_begin_popup(ctx, id, rect))
+  if (!ldk_ui_begin_popup_fixed(ctx, id, rect))
   {
     return false;
   }
