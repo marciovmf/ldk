@@ -33,6 +33,7 @@ extern "C" {
   typedef struct LDKUIHitCandidate LDKUIHitCandidate;
   typedef struct LDKUIDebugRect LDKUIDebugRect;
   typedef struct LDKUIScrollContentCache LDKUIScrollContentCache;
+  typedef struct LDKUIAutoWindowCache LDKUIAutoWindowCache;
   typedef struct LDKUIContext LDKUIContext;
 
   typedef enum LDKUIColorSlot
@@ -253,6 +254,16 @@ extern "C" {
     bool has_scroll;
   };
 
+  struct LDKUIAutoWindowCache
+  {
+    LDKUIId id;
+    LDKUISize size;
+    LDKUISize min_size;
+    u32 measure_index;
+    u32 last_frame_touched;
+    bool active;
+  };
+
   struct LDKUILayout
   {
     LDKUIId id;
@@ -314,6 +325,7 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIHitCandidate, ldk_ui_hit_candidate);
   X_ARRAY_TYPE_NAMED(LDKUIDebugRect, ldk_ui_debug_rect);
   X_ARRAY_TYPE_NAMED(LDKUIScrollContentCache, ldk_ui_scroll_content_cache);
+  X_ARRAY_TYPE_NAMED(LDKUIAutoWindowCache, ldk_ui_auto_window_cache);
   X_ARRAY_TYPE_NAMED(LDKUIMeasureEntry, ldk_ui_measure_entry);
 
   struct LDKUIContext
@@ -340,6 +352,8 @@ extern "C" {
     XArray_ldk_ui_hit_candidate* hit_candidates;
     XArray_ldk_ui_debug_rect* debug_rects;
     XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
+    XArray_ldk_ui_auto_window_cache* auto_window_cache;
+    XArray_ldk_ui_id* auto_window_stack;
     XArray_ldk_ui_measure_entry* measure_entries;
 
     LDKUITheme theme;
@@ -457,9 +471,8 @@ extern "C" {
   LDK_API void ldk_ui_open_popup(LDKUIContext* ctx, char const* id);
   LDK_API void ldk_ui_close_current_popup(LDKUIContext* ctx);
   LDK_API bool ldk_ui_is_popup_open(LDKUIContext* ctx, char const* id);
+  LDK_API bool ldk_ui_begin_popup_fixed(LDKUIContext* ctx, char const* id, LDKUIRect rect);
   LDK_API bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect);
-  LDK_API bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIRect rect);
-
   LDK_API void ldk_ui_end_popup(LDKUIContext* ctx);
 
 

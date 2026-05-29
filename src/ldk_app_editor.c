@@ -87,6 +87,15 @@ static LDKEditor* s_editor_instance(void)
   return &editor;
 }
 
+static inline void s_editor_command_quit(LDKEditor * editor)
+{
+  if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?", "Are you sure you want to quit the editor ?"))
+  {
+    ldk_log_info("Closing game window\n");
+    ldk_engine_stop(0);
+  }
+}
+
 //----------------------------------------------------------
 // Event Handlers
 //----------------------------------------------------------
@@ -169,12 +178,7 @@ static bool on_event_window(const LDKEvent* event, void* state)
 
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
-    if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?", "Are you sure you want to quit the editor ?"))
-    {
-      ldk_log_info("Closing game window\n");
-      ldk_engine_stop(0);
-    }
-    
+    s_editor_command_quit(editor);
     return true; // Do not propagate this message further
   }
   return false;
@@ -209,9 +213,10 @@ static void s_editor_menu_bar(LDKEditor* editor)
   LDKUIRect theme_button_rect = ldk_ui_last_rect(ui);
   ldk_ui_end_horizontal(ui);
 
-  LDKUIRect popup_pos = {0};
-  popup_pos.x = file_button_rect.x;
-  popup_pos.y = file_button_rect.y + file_button_rect.h;
+  LDKUIRect popup_pos = {
+   file_button_rect.x,
+   file_button_rect.y + file_button_rect.h,
+   120, 10};
 
   if (ldk_ui_begin_popup(ui, "file_menu", popup_pos))
   {
@@ -241,13 +246,18 @@ static void s_editor_menu_bar(LDKEditor* editor)
       ldk_ui_close_current_popup(ui);
     }
 
+    if (ldk_ui_button_flat(ui, "Exit"))
+    {
+      s_editor_command_quit(editor);
+    }
+
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
     ldk_ui_end_popup(ui);
   }
 
   popup_pos.x = edit_button_rect.x;
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
-  
+
 
   if (ldk_ui_begin_popup(ui, "edit_menu", popup_pos))
   {
