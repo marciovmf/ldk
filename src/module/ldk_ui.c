@@ -57,6 +57,8 @@ typedef enum LDKUIWindowResizeEdges
     XArray_ldk_ui_hit_candidate* hit_candidates;
     XArray_ldk_ui_debug_rect* debug_rects;
     XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
+    XArray_ldk_ui_auto_window_cache* auto_window_cache;
+    XArray_ldk_ui_id* auto_window_stack;
     XArray_ldk_ui_measure_entry* measure_entries;
 
     LDKUITheme theme;
@@ -209,36 +211,46 @@ static LDKUIId s_ui_id_make_popup(char const* id)
   return hash;
 }
 
-
-//----------------------------------------------------------
-// Popup auto-size cache
-//----------------------------------------------------------
-
-#define LDK_UI_POPUP_AUTO_CACHE_CAPACITY 32
-
-typedef struct LDKUIPopupAutoCache
-{
-  LDKUIId id;
-  LDKUISize size;
-  LDKUIMark mark;
-  bool active;
-} LDKUIPopupAutoCache;
-
-static LDKUIPopupAutoCache s_ui_popup_auto_cache[LDK_UI_POPUP_AUTO_CACHE_CAPACITY];
-static LDKUIId s_ui_current_auto_popup_id = 0;
-
-static LDKUIPopupAutoCache* s_ui_popup_auto_cache_find(LDKUIId id)
+static LDKUIId s_ui_id_make_auto_window(LDKUIId id)
 {
   if (id == 0)
+  {
+    return 0;
+  }
+
+  return s_ui_id_hash_u32(id, 0x41574e31u);
+}
+
+static LDKUIId s_ui_id_make_auto_popup(LDKUIId id)
+{
+  if (id == 0)
+  {
+    return 0;
+  }
+
+  return s_ui_id_hash_u32(id, 0x41504f31u);
+}
+
+//----------------------------------------------------------
+// Auto-size window cache
+//----------------------------------------------------------
+
+static LDKUIAutoWindowCache* s_ui_auto_window_cache_find(LDKUIContext* ctx, LDKUIId id)
+{
+  u32 count = 0;
+
+  if (ctx == NULL || ctx->auto_window_cache == NULL || id == 0)
   {
     return NULL;
   }
 
-  for (u32 i = 0; i < LDK_UI_POPUP_AUTO_CACHE_CAPACITY; ++i)
-  {
-    LDKUIPopupAutoCache* cache = &s_ui_popup_auto_cache[i];
+  count = x_array_ldk_ui_auto_window_cache_count(ctx->auto_window_cache);
 
-    if (cache->id == id)
+  for (u32 i = 0; i < count; ++i)
+  {
+    LDKUIAutoWindowCache* cache = x_array_ldk_ui_auto_window_cache_get(ctx->auto_window_cache, i);
+
+    if (cache != NULL && cache->id == id)
     {
       return cache;
     }
@@ -247,58 +259,129 @@ static LDKUIPopupAutoCache* s_ui_popup_auto_cache_find(LDKUIId id)
   return NULL;
 }
 
-static LDKUIPopupAutoCache* s_ui_popup_auto_cache_get_or_create(LDKUIId id)
+static LDKUIAutoWindowCache* s_ui_auto_window_cache_get_or_create(LDKUIContext* ctx, LDKUIId id)
 {
-  LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_find(id);
+  LDKUIAutoWindowCache* cache;
+  LDKUIAutoWindowCache new_cache;
+
+  if (ctx == NULL || ctx->auto_window_cache == NULL || id == 0)
+  {
+    return NULL;
+  }
+
+  cache = s_ui_auto_window_cache_find(ctx, id);
 
   if (cache != NULL)
   {
+    cache->last_frame_touched = ctx->frame_index;
     return cache;
   }
 
-  for (u32 i = 0; i < LDK_UI_POPUP_AUTO_CACHE_CAPACITY; ++i)
-  {
-    LDKUIPopupAutoCache* slot = &s_ui_popup_auto_cache[i];
+  memset(&new_cache, 0, sizeof(new_cache));
+  new_cache.id = id;
+  new_cache.size = (LDKUISize){1.0f, 1.0f};
+  new_cache.min_size = (LDKUISize){1.0f, 1.0f};
+  new_cache.measure_index = UINT32_MAX;
+  new_cache.last_frame_touched = ctx->frame_index;
 
-    if (slot->id == 0)
-    {
-      slot->id = id;
-      slot->size = (LDKUISize){1.0f, 1.0f};
-      slot->mark = (LDKUIMark){0};
-      slot->active = false;
-      return slot;
-    }
-  }
+  x_array_ldk_ui_auto_window_cache_push(ctx->auto_window_cache, new_cache);
 
-  return NULL;
+  return x_array_ldk_ui_auto_window_cache_back(ctx->auto_window_cache);
 }
 
-static void s_ui_popup_auto_measure_last_item(LDKUIContext* ctx, float width, float height)
+static void s_ui_auto_window_cache_gc(LDKUIContext* ctx)
 {
-  if (ctx == NULL || ctx->measure_entries == NULL || s_ui_current_auto_popup_id == 0)
+  u32 i = 0;
+
+  if (ctx == NULL || ctx->auto_window_cache == NULL)
   {
     return;
   }
 
-  if (ctx->last_measure_entry_index == UINT32_MAX)
+  while (i < x_array_ldk_ui_auto_window_cache_count(ctx->auto_window_cache))
+  {
+    LDKUIAutoWindowCache* cache = x_array_ldk_ui_auto_window_cache_get(ctx->auto_window_cache, i);
+
+    if (cache == NULL)
+    {
+      i += 1;
+      continue;
+    }
+
+    if (ctx->frame_index - cache->last_frame_touched > 2)
+    {
+      x_array_ldk_ui_auto_window_cache_delete_at(ctx->auto_window_cache, i);
+      continue;
+    }
+
+    i += 1;
+  }
+}
+
+static void s_ui_auto_window_stack_push(LDKUIContext* ctx, LDKUIId id)
+{
+  if (ctx == NULL || ctx->auto_window_stack == NULL || id == 0)
   {
     return;
   }
 
-  if (ctx->last_measure_entry_index >= x_array_ldk_ui_measure_entry_count(ctx->measure_entries))
+  x_array_ldk_ui_id_push(ctx->auto_window_stack, id);
+}
+
+static LDKUIAutoWindowCache* s_ui_auto_window_stack_top(LDKUIContext* ctx)
+{
+  LDKUIId* id;
+  u32 count = 0;
+
+  if (ctx == NULL || ctx->auto_window_stack == NULL)
+  {
+    return NULL;
+  }
+
+  count = x_array_ldk_ui_id_count(ctx->auto_window_stack);
+
+  if (count == 0)
+  {
+    return NULL;
+  }
+
+  id = x_array_ldk_ui_id_get(ctx->auto_window_stack, count - 1);
+
+  if (id == NULL)
+  {
+    return NULL;
+  }
+
+  return s_ui_auto_window_cache_find(ctx, *id);
+}
+
+static void s_ui_auto_window_stack_pop(LDKUIContext* ctx)
+{
+  u32 count = 0;
+
+  if (ctx == NULL || ctx->auto_window_stack == NULL)
   {
     return;
   }
 
-  LDKUIMeasureEntry* entry = x_array_ldk_ui_measure_entry_get(ctx->measure_entries, ctx->last_measure_entry_index);
+  count = x_array_ldk_ui_id_count(ctx->auto_window_stack);
 
-  if (entry == NULL || entry->layout != ctx->current_layout)
+  if (count == 0)
   {
     return;
   }
 
-  entry->rect.w = width;
-  entry->rect.h = height;
+  x_array_ldk_ui_id_delete_at(ctx->auto_window_stack, count - 1);
+}
+
+static bool s_ui_auto_measure_is_active(LDKUIContext* ctx)
+{
+  if (ctx == NULL || ctx->auto_window_stack == NULL)
+  {
+    return false;
+  }
+
+  return x_array_ldk_ui_id_count(ctx->auto_window_stack) > 0;
 }
 
 //----------------------------------------------------------
@@ -1828,6 +1911,68 @@ static void s_ui_measure_entry_union_at(LDKUIContext* ctx, u32 index, LDKUIRect 
   entry->rect = s_ui_rect_union_bounds(entry->rect, rect);
 }
 
+static LDKUIRect s_ui_measure_from_index(LDKUIContext* ctx, u32 measure_index)
+{
+  LDKUIRect rect = {0};
+  u32 count = 0;
+
+  if (ctx == NULL || ctx->measure_entries == NULL || measure_index == UINT32_MAX)
+  {
+    return rect;
+  }
+
+  count = x_array_ldk_ui_measure_entry_count(ctx->measure_entries);
+
+  if (measure_index > count)
+  {
+    return rect;
+  }
+
+  for (u32 i = measure_index; i < count; ++i)
+  {
+    LDKUIMeasureEntry* entry = x_array_ldk_ui_measure_entry_get(ctx->measure_entries, i);
+
+    if (entry == NULL)
+    {
+      continue;
+    }
+
+    rect = s_ui_rect_union_bounds(rect, entry->rect);
+  }
+
+  return rect;
+}
+
+static void s_ui_auto_measure_last_item(LDKUIContext* ctx, float width, float height)
+{
+  LDKUIMeasureEntry* entry;
+
+  if (ctx == NULL || ctx->measure_entries == NULL || !s_ui_auto_measure_is_active(ctx))
+  {
+    return;
+  }
+
+  if (ctx->last_measure_entry_index == UINT32_MAX)
+  {
+    return;
+  }
+
+  if (ctx->last_measure_entry_index >= x_array_ldk_ui_measure_entry_count(ctx->measure_entries))
+  {
+    return;
+  }
+
+  entry = x_array_ldk_ui_measure_entry_get(ctx->measure_entries, ctx->last_measure_entry_index);
+
+  if (entry == NULL || entry->layout != ctx->current_layout)
+  {
+    return;
+  }
+
+  entry->rect.w = width;
+  entry->rect.h = height;
+}
+
 
 LDKUILayoutSize ldk_ui_px(float value)
 {
@@ -2459,6 +2604,8 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
   ctx->hit_candidates = x_array_ldk_ui_hit_candidate_create(128);
   ctx->debug_rects = x_array_ldk_ui_debug_rect_create(256);
   ctx->scroll_content_cache = x_array_ldk_ui_scroll_content_cache_create(64);
+  ctx->auto_window_cache = x_array_ldk_ui_auto_window_cache_create(64);
+  ctx->auto_window_stack = x_array_ldk_ui_id_create(16);
   ctx->measure_entries = x_array_ldk_ui_measure_entry_create(256);
 
   ctx->font_texture_user = config->font_texture_user;
@@ -2482,6 +2629,8 @@ bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config)
     ctx->hit_candidates != NULL &&
     ctx->debug_rects != NULL &&
     ctx->scroll_content_cache != NULL &&
+    ctx->auto_window_cache != NULL &&
+    ctx->auto_window_stack != NULL &&
     ctx->measure_entries != NULL;
 }
 
@@ -2513,6 +2662,8 @@ void ldk_ui_terminate(LDKUIContext* ctx)
   x_array_destroy(ctx->hit_candidates);
   x_array_destroy(ctx->debug_rects);
   x_array_destroy(ctx->scroll_content_cache);
+  x_array_destroy(ctx->auto_window_cache);
+  x_array_destroy(ctx->auto_window_stack);
   x_array_destroy(ctx->measure_entries);
   x_arena_destroy(ctx->frame_arena);
 
@@ -2557,6 +2708,7 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   x_arena_reset_keep_head(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);
   x_array_ldk_ui_bool_clear(ctx->disabled_stack);
+  x_array_ldk_ui_id_clear(ctx->auto_window_stack);
   x_array_ldk_ui_vertex_clear(ctx->vertices);
   x_array_ldk_ui_u32_clear(ctx->indices);
   x_array_ldk_ui_draw_cmd_clear(ctx->commands);
@@ -2702,6 +2854,7 @@ void ldk_ui_end_frame(LDKUIContext* ctx)
 
   s_ui_submit_windows_in_z_order(ctx);
   s_ui_scroll_content_cache_gc(ctx);
+  s_ui_auto_window_cache_gc(ctx);
   s_ui_windows_gc(ctx);
 
   ctx->render_data.vertices = x_array_ldk_ui_vertex_data_const(ctx->vertices);
@@ -3024,7 +3177,7 @@ static u32 s_ui_window_border_color(LDKUIContext* ctx, LDKUIWindow const* window
 // Windows
 //----------------------------------------------------------
 
-LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
+LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
 {
   LDKUIId id;
   LDKUIWindow* window;
@@ -3212,11 +3365,91 @@ LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect re
   return out_rect;
 }
 
+static LDKUIRect s_ui_begin_window_auto(LDKUIContext* ctx, LDKUIId auto_id, char const* title, LDKUIRect rect, u32 flags)
+{
+  LDKUIRect input_rect = rect;
+  LDKUIAutoWindowCache* cache;
+  LDKUIRect out_rect;
+
+  if (ctx == NULL || auto_id == 0)
+  {
+    return rect;
+  }
+
+  cache = s_ui_auto_window_cache_get_or_create(ctx, auto_id);
+
+  if (cache != NULL)
+  {
+    rect.w = s_ui_maxf(cache->size.w, input_rect.w);
+    rect.h = s_ui_maxf(cache->size.h, input_rect.h);
+  }
+
+  out_rect = ldk_ui_begin_window_fixed(ctx, title, rect, flags);
+
+  if (cache != NULL)
+  {
+    cache->measure_index = x_array_ldk_ui_measure_entry_count(ctx->measure_entries);
+    cache->active = true;
+    cache->min_size.w = input_rect.w;
+    cache->min_size.h = input_rect.h;
+
+    if (out_rect.w != rect.w || out_rect.h != rect.h)
+    {
+      cache->min_size.w = out_rect.w;
+      cache->min_size.h = out_rect.h;
+    }
+
+    s_ui_auto_window_stack_push(ctx, auto_id);
+  }
+
+  return out_rect;
+}
+
+LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
+{
+  LDKUIId id;
+  LDKUIId auto_id;
+
+  if (ctx == NULL)
+  {
+    return rect;
+  }
+
+  id = s_ui_id_make_window(ctx, ctx->root_item_count);
+  auto_id = s_ui_id_make_auto_window(id);
+
+  return s_ui_begin_window_auto(ctx, auto_id, title, rect, flags);
+}
+
 void ldk_ui_end_window(LDKUIContext* ctx)
 {
+  LDKUIAutoWindowCache* cache;
+
   if (ctx == NULL)
   {
     return;
+  }
+
+  cache = s_ui_auto_window_stack_top(ctx);
+
+  if (cache != NULL && cache->active)
+  {
+    LDKUIRect content_rect = s_ui_measure_from_index(ctx, cache->measure_index);
+    float title_h = 0.0f;
+    float title_w = 0.0f;
+
+    if (ctx->current_window != NULL && (ctx->current_window->flags & LDK_UI_WINDOW_TITLE_BAR) != 0)
+    {
+      LDKUISize title_size = ldk_ttf_measure_text_cstr(ctx->font, ctx->current_window->title);
+      title_h = LDK_UI_TITLE_BAR_HEIGHT;
+      title_w = title_size.w + 12.0f;
+    }
+
+    cache->size.w = s_ui_maxf(s_ui_maxf(content_rect.w, title_w), s_ui_maxf(cache->min_size.w, 1.0f));
+    cache->size.h = s_ui_maxf(content_rect.h + title_h, s_ui_maxf(cache->min_size.h, 1.0f));
+    cache->active = false;
+
+    s_ui_auto_window_stack_pop(ctx);
   }
 
   while (ctx->current_layout != NULL)
@@ -3279,7 +3512,7 @@ bool ldk_ui_is_popup_open(LDKUIContext* ctx, char const* id)
   return popup_id != 0 && ctx->open_popup_id == popup_id;
 }
 
-bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
+bool ldk_ui_begin_popup_fixed(LDKUIContext* ctx, char const* id, LDKUIRect rect)
 {
   LDKUIId popup_id;
   LDKPoint cursor;
@@ -3317,7 +3550,7 @@ bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
     return false;
   }
 
-  ldk_ui_begin_window(ctx, id, rect, LDK_UI_WINDOW_NONE);
+  ldk_ui_begin_window_fixed(ctx, id, rect, LDK_UI_WINDOW_NONE);
 
   if (ctx->current_window != NULL && opened_this_frame)
   {
@@ -3329,41 +3562,63 @@ bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
   return true;
 }
 
-bool ldk_ui_begin_popup_auto(LDKUIContext* ctx, char const* id, LDKUIPoint position)
+bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
 {
+  LDKUIId popup_id;
+  LDKUIId auto_id;
+  LDKUIAutoWindowCache* cache;
+  LDKPoint cursor;
+  bool mouse_down;
+  bool opened_this_frame;
+
   if (ctx == NULL || id == NULL)
   {
     return false;
   }
 
-  LDKUIId popup_id = s_ui_id_make_popup(id);
+  popup_id = s_ui_id_make_popup(id);
 
   if (popup_id == 0 || ctx->open_popup_id != popup_id)
   {
     return false;
   }
 
-  LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_get_or_create(popup_id);
+  auto_id = s_ui_id_make_auto_popup(popup_id);
+  cache = s_ui_auto_window_cache_get_or_create(ctx, auto_id);
 
-  if (cache == NULL)
+  if (cache != NULL)
   {
+    rect.w = s_ui_maxf(cache->size.w, rect.w);
+    rect.h = s_ui_maxf(cache->size.h, rect.h);
+  }
+
+  cursor = (LDKPoint){0};
+  mouse_down = false;
+  opened_this_frame = ctx->popup_open_frame_index == ctx->frame_index;
+
+  if (ctx->mouse != NULL)
+  {
+    cursor = ldk_os_mouse_cursor((LDKMouseState*)ctx->mouse);
+    mouse_down = ldk_os_mouse_button_down((LDKMouseState*)ctx->mouse, LDK_MOUSE_BUTTON_LEFT);
+  }
+
+  if (!opened_this_frame &&
+      mouse_down &&
+      !s_ui_rect_contains(&rect, (float)cursor.x, (float)cursor.y))
+  {
+    ctx->open_popup_id = 0;
+    ctx->current_popup_id = 0;
     return false;
   }
 
-  LDKUIRect rect = {0};
-  rect.x = position.x;
-  rect.y = position.y;
-  rect.w = s_ui_maxf(cache->size.w, 1.0f);
-  rect.h = s_ui_maxf(cache->size.h, 1.0f);
+  s_ui_begin_window_auto(ctx, auto_id, id, rect, LDK_UI_WINDOW_NONE);
 
-  if (!ldk_ui_begin_popup(ctx, id, rect))
+  if (ctx->current_window != NULL && opened_this_frame)
   {
-    return false;
+    s_ui_window_bring_to_front(ctx, ctx->current_window);
   }
 
-  cache->mark = ldk_ui_mark(ctx);
-  cache->active = true;
-  s_ui_current_auto_popup_id = popup_id;
+  ctx->current_popup_id = popup_id;
 
   return true;
 }
@@ -3373,21 +3628,6 @@ void ldk_ui_end_popup(LDKUIContext* ctx)
   if (ctx == NULL)
   {
     return;
-  }
-
-  if (s_ui_current_auto_popup_id != 0)
-  {
-    LDKUIPopupAutoCache* cache = s_ui_popup_auto_cache_find(s_ui_current_auto_popup_id);
-
-    if (cache != NULL && cache->active)
-    {
-      LDKUIRect content_rect = ldk_ui_measure_from(ctx, cache->mark);
-      cache->size.w = s_ui_maxf(content_rect.w, 1.0f);
-      cache->size.h = s_ui_maxf(content_rect.h, 1.0f);
-      cache->active = false;
-    }
-
-    s_ui_current_auto_popup_id = 0;
   }
 
   ctx->current_popup_id = 0;
@@ -3909,6 +4149,8 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
     return;
   }
 
+  s_ui_auto_measure_last_item(ctx, text_size.w + 4.0f, s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h));
+
   float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
   s_ui_render_text_wrapped(
@@ -3937,7 +4179,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  s_ui_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -3972,7 +4214,7 @@ bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  s_ui_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -4008,6 +4250,8 @@ float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_v
   {
     return value;
   }
+
+  s_ui_auto_measure_last_item(ctx, 140.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -4085,6 +4329,8 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
   {
     return result;
   }
+
+  s_ui_auto_measure_last_item(ctx, s_ui_maxf(140.0f, text_size.w + 12.0f), LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
