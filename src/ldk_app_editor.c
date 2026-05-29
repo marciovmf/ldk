@@ -196,7 +196,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   s_toolbar_rect.w = ui->viewport.w;
   s_toolbar_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
-  s_toolbar_rect = ldk_ui_begin_window(ui, "toolbar", s_toolbar_rect, 0);
+  s_toolbar_rect = ldk_ui_begin_window_fixed(ui, "toolbar", s_toolbar_rect, 0);
 
   ldk_ui_begin_horizontal(ui, ldk_ui_fill(), ldk_ui_px(24.0f));
   if (ldk_ui_button_flat(ui, "File")) { ldk_ui_open_popup(ui, "file_menu"); }
@@ -302,7 +302,7 @@ static void s_editor_tool_bar(LDKEditor* editor)
   s_entity_list_rect.w = ui->viewport.w;
   s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
-  s_entity_list_rect = ldk_ui_begin_window(ui, "Editor Commands", s_entity_list_rect, 0);
+  s_entity_list_rect = ldk_ui_begin_window_fixed(ui, "Editor Commands", s_entity_list_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());
 
   if (editor->project.loaded)
@@ -352,9 +352,7 @@ static void s_editor_tool_bar(LDKEditor* editor)
 static void s_editor_entity_list_window(LDKEditor* editor, LDKECS* ecs)
 {
   LDKUIContext* ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = { 10, 90, 0, 0};
-  s_entity_list_rect.w = 200;
-  s_entity_list_rect.h = ui->viewport.h * 0.8f;
+  static LDKUIRect s_entity_list_rect = { 10, 90, 100, 100};
 
   s_entity_list_rect = ldk_ui_begin_window(ui, "Entities",
       s_entity_list_rect, LDK_UI_WINDOW_TOOL);

@@ -211,10 +211,11 @@ static LDKUIId s_ui_id_make_popup(char const* id)
 
 
 //----------------------------------------------------------
-// Popup auto-size cache
+// Auto-size caches
 //----------------------------------------------------------
 
 #define LDK_UI_POPUP_AUTO_CACHE_CAPACITY 32
+#define LDK_UI_WINDOW_AUTO_CACHE_CAPACITY 32
 
 typedef struct LDKUIPopupAutoCache
 {
@@ -224,8 +225,18 @@ typedef struct LDKUIPopupAutoCache
   bool active;
 } LDKUIPopupAutoCache;
 
+typedef struct LDKUIWindowAutoCache
+{
+  LDKUIId id;
+  LDKUISize size;
+  LDKUIMark mark;
+  bool active;
+} LDKUIWindowAutoCache;
+
 static LDKUIPopupAutoCache s_ui_popup_auto_cache[LDK_UI_POPUP_AUTO_CACHE_CAPACITY];
+static LDKUIWindowAutoCache s_ui_window_auto_cache[LDK_UI_WINDOW_AUTO_CACHE_CAPACITY];
 static LDKUIId s_ui_current_auto_popup_id = 0;
+static LDKUIId s_ui_current_auto_window_id = 0;
 
 static LDKUIPopupAutoCache* s_ui_popup_auto_cache_find(LDKUIId id)
 {
@@ -273,9 +284,60 @@ static LDKUIPopupAutoCache* s_ui_popup_auto_cache_get_or_create(LDKUIId id)
   return NULL;
 }
 
-static void s_ui_popup_auto_measure_last_item(LDKUIContext* ctx, float width, float height)
+static LDKUIWindowAutoCache* s_ui_window_auto_cache_find(LDKUIId id)
 {
-  if (ctx == NULL || ctx->measure_entries == NULL || s_ui_current_auto_popup_id == 0)
+  if (id == 0)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < LDK_UI_WINDOW_AUTO_CACHE_CAPACITY; ++i)
+  {
+    LDKUIWindowAutoCache* cache = &s_ui_window_auto_cache[i];
+
+    if (cache->id == id)
+    {
+      return cache;
+    }
+  }
+
+  return NULL;
+}
+
+static LDKUIWindowAutoCache* s_ui_window_auto_cache_get_or_create(LDKUIId id)
+{
+  LDKUIWindowAutoCache* cache = s_ui_window_auto_cache_find(id);
+
+  if (cache != NULL)
+  {
+    return cache;
+  }
+
+  for (u32 i = 0; i < LDK_UI_WINDOW_AUTO_CACHE_CAPACITY; ++i)
+  {
+    LDKUIWindowAutoCache* slot = &s_ui_window_auto_cache[i];
+
+    if (slot->id == 0)
+    {
+      slot->id = id;
+      slot->size = (LDKUISize){1.0f, 1.0f};
+      slot->mark = (LDKUIMark){0};
+      slot->active = false;
+      return slot;
+    }
+  }
+
+  return NULL;
+}
+
+static bool s_ui_auto_measure_is_active(void)
+{
+  return s_ui_current_auto_popup_id != 0 || s_ui_current_auto_window_id != 0;
+}
+
+static void s_ui_auto_measure_last_item(LDKUIContext* ctx, float width, float height)
+{
+  if (ctx == NULL || ctx->measure_entries == NULL || !s_ui_auto_measure_is_active())
   {
     return;
   }
@@ -3018,7 +3080,7 @@ static u32 s_ui_window_border_color(LDKUIContext* ctx, LDKUIWindow const* window
 // Windows
 //----------------------------------------------------------
 
-LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
+LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
 {
   LDKUIId id;
   LDKUIWindow* window;
@@ -3206,11 +3268,74 @@ LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect re
   return out_rect;
 }
 
+LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags)
+{
+  if (ctx == NULL)
+  {
+    return rect;
+  }
+
+  LDKUIRect input_rect = rect;
+  LDKUIId id = s_ui_id_make_window(ctx, ctx->root_item_count);
+  LDKUIWindowAutoCache* cache = s_ui_window_auto_cache_get_or_create(id);
+
+  if (cache != NULL)
+  {
+    rect.w = s_ui_maxf(cache->size.w, input_rect.w);
+    rect.h = s_ui_maxf(cache->size.h, input_rect.h);
+  }
+
+  LDKUIRect out_rect = ldk_ui_begin_window_fixed(ctx, title, rect, flags);
+
+  if (cache != NULL)
+  {
+    cache->mark = ldk_ui_mark(ctx);
+    cache->active = true;
+
+    /*
+     * The current window rect is the real minimum for this frame.
+     * This matters for user-resized auto windows: manual resize must
+     * not be overwritten by the measured fit size next frame.
+     */
+    cache->size.w = s_ui_maxf(cache->size.w, out_rect.w);
+    cache->size.h = s_ui_maxf(cache->size.h, out_rect.h);
+
+    s_ui_current_auto_window_id = id;
+  }
+
+  return out_rect;
+}
+
 void ldk_ui_end_window(LDKUIContext* ctx)
 {
   if (ctx == NULL)
   {
     return;
+  }
+
+  if (s_ui_current_auto_window_id != 0)
+  {
+    LDKUIWindowAutoCache* cache = s_ui_window_auto_cache_find(s_ui_current_auto_window_id);
+
+    if (cache != NULL && cache->active)
+    {
+      LDKUIRect content_rect = ldk_ui_measure_from(ctx, cache->mark);
+      float title_h = 0.0f;
+      float title_w = 0.0f;
+
+      if (ctx->current_window != NULL && (ctx->current_window->flags & LDK_UI_WINDOW_TITLE_BAR) != 0)
+      {
+        LDKUISize title_size = ldk_ttf_measure_text_cstr(ctx->font, ctx->current_window->title);
+        title_h = LDK_UI_TITLE_BAR_HEIGHT;
+        title_w = title_size.w + 12.0f;
+      }
+
+      cache->size.w = s_ui_maxf(s_ui_maxf(content_rect.w, title_w), 1.0f);
+      cache->size.h = s_ui_maxf(content_rect.h + title_h, 1.0f);
+      cache->active = false;
+    }
+
+    s_ui_current_auto_window_id = 0;
   }
 
   while (ctx->current_layout != NULL)
@@ -3311,7 +3436,7 @@ bool ldk_ui_begin_popup(LDKUIContext* ctx, char const* id, LDKUIRect rect)
     return false;
   }
 
-  ldk_ui_begin_window(ctx, id, rect, LDK_UI_WINDOW_NONE);
+  ldk_ui_begin_window_fixed(ctx, id, rect, LDK_UI_WINDOW_NONE);
 
   if (ctx->current_window != NULL && opened_this_frame)
   {
@@ -3827,6 +3952,7 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   LDKUILayout* layout = ctx->current_layout;
   float available_w = s_ui_maxf(0.0f, layout->content_rect.x + layout->content_rect.w - layout->cursor.x);
   LDKUISize text_size = s_ui_text_measure_wrapped(ctx->font, text, available_w);
+  LDKUISize natural_text_size = ldk_ttf_measure_text_cstr(ctx->font, text);
 
   LDKUIWidgetBox box;
   if (!s_ui_widget_frame_box(
@@ -3840,6 +3966,8 @@ void ldk_ui_label(LDKUIContext* ctx, char const* text)
   {
     return;
   }
+
+  s_ui_auto_measure_last_item(ctx, natural_text_size.w + 4.0f, s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, natural_text_size.h));
 
   float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
@@ -3869,7 +3997,7 @@ bool ldk_ui_button(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  s_ui_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -3904,7 +4032,7 @@ bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text)
     return false;
   }
 
-  s_ui_popup_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  s_ui_auto_measure_last_item(ctx, text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -3940,6 +4068,8 @@ float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_v
   {
     return value;
   }
+
+  s_ui_auto_measure_last_item(ctx, 140.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
@@ -4017,6 +4147,8 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
   {
     return result;
   }
+
+  s_ui_auto_measure_last_item(ctx, 140.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   LDKUIFrameState frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 

@@ -447,6 +447,7 @@ extern "C" {
   //----------------------------------------------------------
   // Windows
   //----------------------------------------------------------
+  LDK_API LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags);
   LDK_API LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags);
   LDK_API void ldk_ui_end_window(LDKUIContext* ctx);
 
