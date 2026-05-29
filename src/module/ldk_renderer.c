@@ -8,6 +8,7 @@ static void s_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
 static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
 static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
+static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
 
 typedef struct LDKRendererUIParams
 {
@@ -127,7 +128,8 @@ LDKResourceMesh ldk_renderer_mesh_null(void)
   return LDK_RESOURCE_MESH_INVALID;
 }
 
-static LDKRendererMeshResource* s_renderer_mesh_get_resource(LDKRenderer* renderer, LDKResourceMesh mesh)
+static LDKRendererMeshResource* s_renderer_mesh_get_resource(
+    LDKRenderer* renderer, LDKResourceMesh mesh)
 {
   if (renderer == NULL || mesh.id == LDK_RHI_INVALID_RESOURCE)
   {
@@ -197,10 +199,8 @@ static bool s_renderer_mesh_desc_is_valid(LDKRendererMeshDesc const* desc)
   return true;
 }
 
-static bool s_renderer_mesh_resource_create_buffers(
-    LDKRenderer* renderer,
-    LDKRendererMeshResource* resource,
-    LDKRendererMeshDesc const* desc)
+static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
+    LDKRendererMeshResource* resource, LDKRendererMeshDesc const* desc)
 {
   LDKRHIBufferDesc vertex_desc = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_desc);
@@ -1154,6 +1154,287 @@ static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRender
   s_renderer_ui_pass(&renderer->ui_pass, &render_data, &present_desc);
 }
 
+
+// ---------------------------------------------------------------------------
+// Internal renderer resources: Mesh
+// ---------------------------------------------------------------------------
+// Internal renderer resources: Texture
+// ---------------------------------------------------------------------------
+
+static LDKRendererTextureResource* s_renderer_texture_get_resource(
+    LDKRenderer* renderer,
+    LDKResourceTexture texture)
+{
+  if (renderer == NULL || texture.id == LDK_RHI_INVALID_RESOURCE)
+  {
+    return NULL;
+  }
+
+  u32 index = (u32)(texture.id - 1u);
+  if (index >= renderer->texture_count)
+  {
+    return NULL;
+  }
+
+  LDKRendererTextureResource* resource = &renderer->textures[index];
+  if (!resource->alive)
+  {
+    return NULL;
+  }
+
+  return resource;
+}
+
+static bool s_renderer_grow_texture_cache(LDKRenderer* renderer)
+{
+  u32 new_capacity = renderer->texture_capacity == 0 ? 64 : renderer->texture_capacity * 2;
+  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererTextureResource);
+  LDKRendererTextureResource* new_textures = renderer->textures == NULL
+    ? (LDKRendererTextureResource*)LDK_RENDERER_ALLOC(new_size)
+    : (LDKRendererTextureResource*)LDK_RENDERER_REALLOC(renderer->textures, new_size);
+
+  if (new_textures == NULL)
+  {
+    return false;
+  }
+
+  memset(
+      new_textures + renderer->texture_capacity,
+      0,
+      (size_t)(new_capacity - renderer->texture_capacity) * sizeof(LDKRendererTextureResource));
+
+  renderer->textures = new_textures;
+  renderer->texture_capacity = new_capacity;
+  return true;
+}
+
+static LDKRHIFormat s_renderer_texture_format_from_desc(LDKRendererTextureDesc const* desc)
+{
+  if (desc == NULL)
+  {
+    return LDK_RHI_FORMAT_INVALID;
+  }
+
+  if (desc->channel_count == 1)
+  {
+    return LDK_RHI_FORMAT_R8_UNORM;
+  }
+
+  if (desc->channel_count == 2)
+  {
+    return LDK_RHI_FORMAT_RG8_UNORM;
+  }
+
+  if (desc->channel_count == 4)
+  {
+    if ((desc->flags & LDK_RENDERER_TEXTURE_FLAG_SRGB) != 0)
+    {
+      return LDK_RHI_FORMAT_RGBA8_SRGB;
+    }
+
+    return LDK_RHI_FORMAT_RGBA8_UNORM;
+  }
+
+  return LDK_RHI_FORMAT_INVALID;
+}
+
+static bool s_renderer_texture_desc_is_valid(LDKRendererTextureDesc const* desc)
+{
+  if (desc == NULL)
+  {
+    return false;
+  }
+
+  if (desc->width == 0 || desc->height == 0)
+  {
+    return false;
+  }
+
+  if (desc->pixels == NULL && desc->byte_count != 0)
+  {
+    return false;
+  }
+
+  if (desc->byte_count > UINT32_MAX)
+  {
+    return false;
+  }
+
+  return s_renderer_texture_format_from_desc(desc) != LDK_RHI_FORMAT_INVALID;
+}
+
+static bool s_renderer_texture_resource_create_rhi_texture(
+    LDKRenderer* renderer,
+    LDKRendererTextureResource* resource,
+    LDKRendererTextureDesc const* desc)
+{
+  LDKRHIFormat format = s_renderer_texture_format_from_desc(desc);
+  if (format == LDK_RHI_FORMAT_INVALID)
+  {
+    return false;
+  }
+
+  LDKRHITextureDesc rhi_desc = {0};
+  ldk_rhi_texture_desc_defaults(&rhi_desc);
+  rhi_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  rhi_desc.format = format;
+  rhi_desc.width = desc->width;
+  rhi_desc.height = desc->height;
+  rhi_desc.depth = 1;
+  rhi_desc.mip_count = 1;
+  rhi_desc.layer_count = 1;
+  rhi_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  rhi_desc.initial_data = desc->pixels;
+  rhi_desc.initial_data_size = (u32)desc->byte_count;
+
+  if ((desc->flags & LDK_RENDERER_TEXTURE_FLAG_RENDERABLE) != 0)
+  {
+    rhi_desc.usage |= LDK_RHI_TEXTURE_USAGE_RENDER_TARGET;
+  }
+
+  resource->texture = ldk_rhi_texture_create(renderer->rhi, &rhi_desc);
+  if (resource->texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  resource->width = desc->width;
+  resource->height = desc->height;
+  resource->channel_count = desc->channel_count;
+  resource->format = format;
+  resource->flags = desc->flags;
+  return true;
+}
+
+LDKResourceTexture ldk_renderer_texture_null(void)
+{
+  return LDK_RESOURCE_TEXTURE_INVALID;
+}
+
+bool ldk_renderer_texture_is_valid(LDKRenderer* renderer, LDKResourceTexture texture)
+{
+  return s_renderer_texture_get_resource(renderer, texture) != NULL;
+}
+
+LDKResourceTexture ldk_renderer_texture_create(LDKRenderer* renderer,
+    LDKRendererTextureDesc const* desc)
+{
+  LDKResourceTexture invalid = ldk_renderer_texture_null();
+
+  if (renderer == NULL || !renderer->is_initialized || !s_renderer_texture_desc_is_valid(desc))
+  {
+    return invalid;
+  }
+
+  if (renderer->texture_count == renderer->texture_capacity)
+  {
+    if (!s_renderer_grow_texture_cache(renderer))
+    {
+      return invalid;
+    }
+  }
+
+  u32 index = renderer->texture_count;
+  LDKRendererTextureResource* resource = &renderer->textures[index];
+  memset(resource, 0, sizeof(*resource));
+
+  if (!s_renderer_texture_resource_create_rhi_texture(renderer, resource, desc))
+  {
+    memset(resource, 0, sizeof(*resource));
+    return invalid;
+  }
+
+  resource->alive = true;
+  renderer->texture_count += 1;
+
+  LDKResourceTexture texture = {0};
+  texture.id = (LDKRHITexture)(index + 1u);
+  return texture;
+}
+
+bool ldk_renderer_texture_update(LDKRenderer* renderer,
+    LDKResourceTexture texture, void const* pixels, u64 byte_count)
+{
+  if (renderer == NULL || renderer->rhi == NULL)
+  {
+    return false;
+  }
+
+  if (pixels == NULL || byte_count == 0 || byte_count > UINT32_MAX)
+  {
+    return false;
+  }
+
+  LDKRendererTextureResource* resource = s_renderer_texture_get_resource(renderer, texture);
+  if (resource == NULL)
+  {
+    return false;
+  }
+
+  return ldk_rhi_texture_update(renderer->rhi, resource->texture, 0, 0, pixels, (u32)byte_count);
+}
+
+LDKResourceTexture ldk_renderer_texture_create_from_image(LDKRenderer* renderer,
+    LDKImage const* image, u32 flags)
+{
+  LDKImageInfo info = {0};
+
+  if (!ldk_image_get_info(image, &info))
+  {
+    return ldk_renderer_texture_null();
+  }
+
+  LDKRendererTextureDesc desc = {0};
+  desc.width = info.width;
+  desc.height = info.height;
+  desc.channel_count = info.channel_count;
+  desc.flags = flags;
+  desc.pixels = info.pixels;
+  desc.byte_count = info.byte_count;
+
+  return ldk_renderer_texture_create(renderer, &desc);
+}
+
+void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture texture)
+{
+  if (renderer == NULL || renderer->rhi == NULL)
+  {
+    return;
+  }
+
+  LDKRendererTextureResource* resource = s_renderer_texture_get_resource(renderer, texture);
+  if (resource == NULL)
+  {
+    return;
+  }
+
+  ldk_rhi_texture_destroy(renderer->rhi, resource->texture);
+  memset(resource, 0, sizeof(*resource));
+}
+
+static void s_renderer_destroy_texture_resources(LDKRenderer* renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  if (renderer->rhi != NULL)
+  {
+    for (u32 i = 0; i < renderer->texture_count; i++)
+    {
+      LDKResourceTexture texture = {0};
+      texture.id = (LDKRHITexture)(i + 1u);
+      ldk_renderer_texture_destroy(renderer, texture);
+    }
+  }
+
+  LDK_RENDERER_FREE(renderer->textures);
+  renderer->textures = NULL;
+  renderer->texture_count = 0;
+  renderer->texture_capacity = 0;
+}
+
 // ---------------------------------------------------------------------------
 // Font cache
 // ---------------------------------------------------------------------------
@@ -1298,7 +1579,7 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
     ldk_renderer_terminate(renderer);
     return false;
   }
-  
+
   renderer->is_initialized = true;
   return true;
 }
@@ -1312,6 +1593,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
 
   s_renderer_target_destroy(renderer, &renderer->scene_target);
   s_renderer_destroy_font_page_cache(renderer);
+  s_renderer_destroy_texture_resources(renderer);
   s_renderer_destroy_mesh_resources(renderer);
   s_renderer_ui_pass_terminate(&renderer->ui_pass);
   s_renderer_mesh_pass_terminate(&renderer->mesh_pass);

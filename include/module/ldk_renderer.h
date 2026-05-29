@@ -16,6 +16,7 @@ extern "C" {
 #include <ldk_mesh.h>
 #include <ldk_resource.h>
 #include <ldk_ttf.h>
+#include <ldk_image.h>
 #include <module/ldk_rhi.h>
 #include <module/ldk_ui.h>
 
@@ -145,7 +146,6 @@ extern "C" {
     LDKRHITexture texture;
   } LDKRendererFontPage;
 
-
   typedef struct LDKRendererTarget
   {
     LDKRHITexture color_texture;
@@ -156,6 +156,34 @@ extern "C" {
     LDKRHIFormat depth_format;
   } LDKRendererTarget;
 
+  typedef enum LDKRendererTextureFlag
+  {
+    LDK_RENDERER_TEXTURE_FLAG_NONE       = 0,
+    LDK_RENDERER_TEXTURE_FLAG_SRGB       = 1 << 0,
+    LDK_RENDERER_TEXTURE_FLAG_RENDERABLE = 1 << 1
+  } LDKRendererTextureFlag;
+
+  typedef struct LDKRendererTextureDesc
+  {
+    u32 width;
+    u32 height;
+    u32 channel_count;
+    u32 flags;
+    void const* pixels;
+    u64 byte_count;
+  } LDKRendererTextureDesc;
+
+  typedef struct LDKRendererTextureResource
+  {
+    LDKRHITexture texture;
+    u32 width;
+    u32 height;
+    u32 channel_count;
+    LDKRHIFormat format;
+    u32 flags;
+    bool alive;
+  } LDKRendererTextureResource;
+
   typedef struct LDKRenderer
   {
     LDKRHIContext* rhi;
@@ -164,18 +192,27 @@ extern "C" {
     LDKUIRenderData const* submitted_ui;
     LDKRendererTarget scene_target;
 
+    // Mesh cache
     LDKRendererMeshResource* meshes;
     u32 mesh_count;
     u32 mesh_capacity;
 
-    LDKRendererMeshSubmit* submitted_meshes;
-    u32 submitted_mesh_count;
-    u32 submitted_mesh_capacity;
+    // Texture cache
+    LDKRendererTextureResource* textures;
+    u32 texture_count;
+    u32 texture_capacity;
 
+    // Font atlas cache
     LDKRendererFontPageCacheEntry* font_pages;
     u32 font_page_count;
     u32 font_page_capacity;
 
+    // Submitted meshes
+    LDKRendererMeshSubmit* submitted_meshes;
+    u32 submitted_mesh_count;
+    u32 submitted_mesh_capacity;
+
+    // global state
     Mat4 camera_view;
     Mat4 camera_projection;
     bool has_camera;
@@ -188,9 +225,8 @@ extern "C" {
   LDK_API void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const* desc);
 
   // ---------------------------------------------------------------------------
-  // Renderer resources
+  // Mesh Resource
   // ---------------------------------------------------------------------------
-
   LDK_API LDKResourceMesh ldk_renderer_mesh_null(void);
   LDK_API bool ldk_renderer_mesh_is_valid(LDKRenderer* renderer, LDKResourceMesh mesh);
   LDK_API LDKResourceMesh ldk_renderer_mesh_create(LDKRenderer* renderer, LDKRendererMeshDesc const* desc);
@@ -198,18 +234,28 @@ extern "C" {
   LDK_API void ldk_renderer_mesh_destroy(LDKRenderer* renderer, LDKResourceMesh mesh);
 
   // ---------------------------------------------------------------------------
-  // Primitive Submission
+  // Texture Resource
   // ---------------------------------------------------------------------------
+  LDK_API LDKResourceTexture ldk_renderer_texture_null(void);
+  LDK_API bool ldk_renderer_texture_is_valid(LDKRenderer* renderer, LDKResourceTexture texture);
+  LDK_API LDKResourceTexture ldk_renderer_texture_create(LDKRenderer* renderer, LDKRendererTextureDesc const* desc);
+  LDK_API bool ldk_renderer_texture_update(LDKRenderer* renderer, LDKResourceTexture texture, void const* pixels, u64 byte_count);
+  LDK_API void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture texture);
+  LDK_API LDKResourceTexture ldk_renderer_texture_create_from_image(LDKRenderer* renderer, LDKImage const* image, u32 flags);
 
+  // ---------------------------------------------------------------------------
+  // Font cache Resources
+  // ---------------------------------------------------------------------------
+  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDKFontInstance* font, u32 page_index);
+  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFontInstance* font, u32 page_index);
+
+  // ---------------------------------------------------------------------------
+  // Primitive Submission
+  // --------------------------------------------------------------------
   LDK_API bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection);
   LDK_API void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render_data);
   LDK_API bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world);
 
-  // ---------------------------------------------------------------------------
-  // Font cache
-  // ---------------------------------------------------------------------------
-  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDKFontInstance* font, u32 page_index);
-  LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFontInstance* font, u32 page_index);
 
 #ifdef __cplusplus
 }
