@@ -33,84 +33,13 @@ typedef enum LDKUIWindowResizeEdges
 } LDKUIWindowResizeEdges;
 
 
-  typedef struct LDKUIContextInternal
-  {
-    XArena* frame_arena;
-    LDKFontInstance* font;
-    void* font_file;
-    void* font_texture_user;
-    LDKUIGetFontPageTextureFn get_font_page_texture;
-
-    LDKMouseState const* mouse;
-    LDKKeyboardState const* keyboard;
-    LDKUITextInputState const* input_text;
-
-    LDKUIWindow* current_window;
-    LDKUILayout* current_layout;
-
-    XArray_ldk_ui_window* windows;
-    XArray_ldk_ui_id* id_stack;
-    XArray_ldk_ui_vertex* vertices;
-    XArray_ldk_ui_u32* indices;
-    XArray_ldk_ui_draw_cmd* commands;
-    XArray_ldk_ui_bool* disabled_stack;
-    XArray_ldk_ui_hit_candidate* hit_candidates;
-    XArray_ldk_ui_debug_rect* debug_rects;
-    XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
-    XArray_ldk_ui_measure_entry* measure_entries;
-
-    LDKUITheme theme;
-    LDKUIRenderData render_data;
-    LDKUIRect viewport;
-    LDKUIRect last_rect;
-    LDKUIRect last_bounding_rect;
-
-    LDKUIId hovered_window_id;
-    LDKUIId focused_window_id;
-    LDKUIId hot_window_id;
-    LDKUIId hot_id;
-    LDKUIId next_hot_window_id;
-    LDKUIId next_hot_id;
-    LDKUIId active_window_id;
-    LDKUIId active_id;
-    LDKUIId focused_id;
-    LDKUIId last_id;
-    LDKUIId dragging_window_id;
-    LDKUIId resizing_window_id;
-    LDKUIId text_box_id;
-    LDKUIId open_popup_id;
-    LDKUIId current_popup_id;
-    u32 popup_open_frame_index;
-    // Textbox
-    u32 text_cursor;
-    u32 text_select_start;
-    u32 text_select_end;
-
-    u32 resizing_window_edges;
-    u32 hit_order;
-    u32 last_measure_entry_index;
-
-    bool next_disabled;
-    bool next_focus;
-    bool debug_draw;
-    bool has_next_width;
-    bool has_next_height;
-    bool mouse_wheel_consumed;
-    LDKUILayoutSize next_width;
-    LDKUILayoutSize next_height;
-    u32 root_item_count;
-    u32 frame_index;
-    i32 next_z_order;
-    float drag_x;
-    float drag_y;
-    float resize_start_cursor_x;
-    float resize_start_cursor_y;
-    LDKUIRect resize_start_rect;
-
-    float scrollbar_drag_offset_x; 
-    float scrollbar_drag_offset_y; 
-    LDKCursorType cursor_type;
-  }LDKUIContextInternal;
+typedef struct LDKUIAutoWindowCache
+{
+  LDKUIId id;
+  LDKUISize size;
+  LDKUIMark mark;
+  bool active;
+} LDKUIAutoWindowCache;
 
 
 #define LDK_UI_SCROLLBAR_THUMB_Y_ID 0x53545931u
