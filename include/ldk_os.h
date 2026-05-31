@@ -52,6 +52,8 @@ extern "C" {
     LDK_WINDOW_FLAG_MINIMIZED           = 1 << 3,
     LDK_WINDOW_FLAG_NORESIZE            = 1 << 4,
     LDK_WINDOW_FLAG_HIDDEN              = 1 << 5,
+    LDK_WINDOW_FLAG_CENTERED            = 1 << 6,
+    LDK_WINDOW_FLAG_NOTITLEBAR          = 1 << 7,
   } LDKWindowFlags;
 
   LDK_API bool      ldk_os_events_poll(LDKEvent* event);
@@ -70,6 +72,16 @@ extern "C" {
   LDK_API LDKSize   ldk_os_window_size_get(LDKWindow window);
   LDK_API void      ldk_os_window_title_set(LDKWindow window, const char* title);
   LDK_API size_t    ldk_os_window_title_get(LDKWindow window, XSmallstr* outTitle);
+
+  /**
+   * If a window was created with LDK_WINDOW_FLAG_NOTITLEBAR, this function sets
+   * the area where the mouse cursor can drag to mode the window. The default
+   * value is the whole window.
+   * If the window does not have the LDK_WINDOW_FLAG_NOTITLEBAR flag, this
+   * function does nothing. 
+   */
+  LDK_API void      ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect);
+
   LDK_API bool      ldk_os_window_icon_set(LDKWindow window, const char* iconPath);
   /**
    * Show or hide a window.

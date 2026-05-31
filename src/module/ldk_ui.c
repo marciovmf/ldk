@@ -2717,10 +2717,6 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   x_array_ldk_ui_measure_entry_clear(ctx->measure_entries);
 
   s_ui_windows_clear_frame_buffers(ctx);
-
-  // set cursor type based on previous frame checks
-  ldk_os_cursor_type_set(ctx->cursor_type);
-  ctx->cursor_type = LDK_CURSOR_ARROW;
 }
 
 static void s_ui_append_window_draw_data(LDKUIContext* ctx, LDKUIWindow* window)
@@ -3248,29 +3244,29 @@ LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIR
 
   // change cursor based on resize_edge
   //if (resize_edges)
-  {
-    if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_LEFT) ||
-        (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_RIGHT)))
-    {
-      ctx->cursor_type = LDK_CURSOR_SIZE_NWSE;
-    }
+  //{
+  //  if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_LEFT) ||
+  //      (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_RIGHT)))
+  //  {
+  //    ctx->cursor_type = LDK_CURSOR_SIZE_NWSE;
+  //  }
 
-    if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_RIGHT) ||
-        (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_LEFT)))
-    {
-      ctx->cursor_type = LDK_CURSOR_SIZE_NESW;
-    }
+  //  else if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_RIGHT) ||
+  //      (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_LEFT)))
+  //  {
+  //    ctx->cursor_type = LDK_CURSOR_SIZE_NESW;
+  //  }
 
-    else if ((resize_edges == LDK_UI_WINDOW_RESIZE_TOP) || (resize_edges == LDK_UI_WINDOW_RESIZE_BOTTOM))
-    {
-      ctx->cursor_type = LDK_CURSOR_SIZE_NS;
-    }
-    else if ((resize_edges == LDK_UI_WINDOW_RESIZE_LEFT) || (resize_edges == LDK_UI_WINDOW_RESIZE_RIGHT))
-    {
-      ctx->cursor_type = LDK_CURSOR_SIZE_WE;
-    }
-  }
-
+  //  else if ((resize_edges == LDK_UI_WINDOW_RESIZE_TOP) || (resize_edges == LDK_UI_WINDOW_RESIZE_BOTTOM))
+  //  {
+  //    ctx->cursor_type = LDK_CURSOR_SIZE_NS;
+  //  }
+  //  else if ((resize_edges == LDK_UI_WINDOW_RESIZE_LEFT) || (resize_edges == LDK_UI_WINDOW_RESIZE_RIGHT))
+  //  {
+  //    ctx->cursor_type = LDK_CURSOR_SIZE_WE;
+  //  }
+  //  ldk_os_cursor_type_set(ctx->cursor_type);
+  //}
 
   if (inside_window && mouse_down)
   {
@@ -4565,10 +4561,10 @@ u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size)
     }
   }
 
-  if (frame.active)
-  {
-    ctx->cursor_type = LDK_CURSOR_TEXT_SELECT;
-  }
+  //if (frame.active)
+  //{
+  //  ctx->cursor_type = LDK_CURSOR_TEXT_SELECT;
+  //}
 
   text_size = ldk_ttf_measure_text_cstr(ctx->font, buffer);
 

@@ -502,7 +502,7 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
     return false;
   }
 
-  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN);
+  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN | LDK_WINDOW_FLAG_CENTERED | LDK_WINDOW_FLAG_NOTITLEBAR);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
   ldk_os_graphics_context_make_current(e->window, e->graphics);
 

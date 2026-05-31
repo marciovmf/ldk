@@ -203,6 +203,8 @@ static void s_editor_menu_bar(LDKEditor* editor)
   s_toolbar_rect = ldk_ui_begin_window_fixed(ui, "toolbar", s_toolbar_rect, 0);
 
   ldk_ui_begin_horizontal(ui, ldk_ui_fill(), ldk_ui_px(24.0f));
+  LDKUIMark mark = ldk_ui_mark(ui);
+
   if (ldk_ui_button_flat(ui, "File")) { ldk_ui_open_popup(ui, "file_menu"); }
   LDKUIRect file_button_rect = ldk_ui_last_rect(ui);
 
@@ -211,7 +213,13 @@ static void s_editor_menu_bar(LDKEditor* editor)
 
   if (ldk_ui_button_flat(ui, "Theme")) { ldk_ui_open_popup(ui, "theme_menu"); }
   LDKUIRect theme_button_rect = ldk_ui_last_rect(ui);
+  i32 menu_width = ldk_ui_measure_from(ui, mark).w;
+
   ldk_ui_end_horizontal(ui);
+
+  LDKRect r = ldk_rect(menu_width, 0, s_toolbar_rect.w - menu_width, s_toolbar_rect.h);
+  ldk_os_window_draggable_area_set(editor->window, r);
+  //printf("%d,%d,%d,%d\n", r.x, r.y, r.w, r.h);
 
   LDKUIRect popup_pos = {
    file_button_rect.x,
@@ -362,7 +370,7 @@ static void s_editor_tool_bar(LDKEditor* editor)
 static void s_editor_entity_list_window(LDKEditor* editor, LDKECS* ecs)
 {
   LDKUIContext* ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = { 10, 90, 100, 100};
+  static LDKUIRect s_entity_list_rect = { 10, 60, 100, 100};
 
   s_entity_list_rect = ldk_ui_begin_window(ui, "Entities",
       s_entity_list_rect, LDK_UI_WINDOW_TOOL);
@@ -407,6 +415,7 @@ static void s_editor_update(LDKEditor* editor, i32 window_width, i32 window_heig
   const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&editor->ui);
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
   editor->text_input_state.codepoint_count = 0;
+  //ldk_os_window_draggable_area_set(editor->window,  ldk_rect(0, 0, window_width, LDK_UI_DEFAULT_CONTROL_HEIGHT));
 }
 
 //----------------------------------------------------------
