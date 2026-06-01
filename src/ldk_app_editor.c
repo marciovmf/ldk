@@ -1,6 +1,6 @@
 #include <ldk_common.h>
 #include <module/ldk_ecs.h>
-#include "ui_atlas.h"
+#include "ldk_editor_atlas.h"
 
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
@@ -325,7 +325,7 @@ static void s_editor_tool_bar(LDKEditor* editor)
   LDKUIContext* ui = &editor->ui;
   static LDKUIRect s_entity_list_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
   s_entity_list_rect.w = ui->viewport.w;
-  s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT * 2;
+  s_entity_list_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT * 1.4;
 
   s_entity_list_rect = ldk_ui_begin_window_fixed(ui, "Editor Commands", s_entity_list_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui, ldk_ui_fill(), ldk_ui_fill());

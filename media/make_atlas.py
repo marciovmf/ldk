@@ -6,14 +6,11 @@ import re
 from pathlib import Path
 from PIL import Image
 
-
 SPACING = 2
-
 
 def next_power_of_two(value):
     if value <= 1:
         return 1
-
     return 1 << (value - 1).bit_length()
 
 
@@ -122,17 +119,11 @@ def generate_header(
         f.write(f"#define {guard}\n\n")
 
         f.write("#include <stdint.h>\n\n")
+        f.write("#include <ldk_geom.h>\n\n")
+        f.write(f"typedef LDKRectf {rect_type};\n\n")
 
         f.write(f"#define {atlas_width_name} {atlas_w}u\n")
         f.write(f"#define {atlas_height_name} {atlas_h}u\n\n")
-
-        f.write(f"typedef struct {rect_type}\n")
-        f.write("{\n")
-        f.write("  float x;\n")
-        f.write("  float y;\n")
-        f.write("  float w;\n")
-        f.write("  float h;\n")
-        f.write(f"}} {rect_type};\n\n")
 
         f.write(f"typedef enum {enum_type}\n")
         f.write("{\n")

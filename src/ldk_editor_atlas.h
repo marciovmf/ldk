@@ -2,21 +2,17 @@
  * This file is auto generated. Do not edit manually.
  * Icon rects use pixel coordinates with origin at the top left.
  */
-#ifndef LDK_EDITOR_ASSET_H
-#define LDK_EDITOR_ASSET_H
+#ifndef UI_ATLAS_H
+#define UI_ATLAS_H
 
 #include <stdint.h>
 
+#include <ldk_geom.h>
+
+typedef LDKRectf LDKEditorIconRect;
+
 #define LDK_EDITOR_ICON_ATLAS_WIDTH 128u
 #define LDK_EDITOR_ICON_ATLAS_HEIGHT 128u
-
-typedef struct LDKEditorIconRect
-{
-  uint16_t x;
-  uint16_t y;
-  uint16_t w;
-  uint16_t h;
-} LDKEditorIconRect;
 
 typedef enum LDKEditorIcon
 {
@@ -44,24 +40,24 @@ typedef enum LDKEditorIcon
 
 static const LDKEditorIconRect ldk_editor_icon_rects[LDK_EDITOR_ICON_COUNT] =
 {
-  { 0, 0, 24, 24 }, /* button_pause.png */
-  { 26, 0, 24, 24 }, /* button_play.png */
-  { 52, 0, 24, 24 }, /* button_skip.png */
-  { 78, 0, 24, 24 }, /* button_stop.png */
-  { 0, 26, 24, 24 }, /* checkbox_checked.png */
-  { 26, 26, 24, 24 }, /* checkbox_indeterminate.png */
-  { 52, 26, 24, 24 }, /* checkbox_unchecked.png */
-  { 78, 26, 24, 24 }, /* chev_down.png */
-  { 0, 52, 24, 24 }, /* chev_right.png */
-  { 26, 52, 24, 24 }, /* error.png */
-  { 52, 52, 24, 24 }, /* file.png */
-  { 78, 52, 24, 24 }, /* folder.png */
-  { 0, 78, 24, 24 }, /* hierarchy.png */
-  { 26, 78, 24, 24 }, /* info.png */
-  { 52, 78, 24, 24 }, /* joystick.png */
-  { 78, 78, 24, 24 }, /* radio_button_checked.png */
-  { 0, 104, 24, 24 }, /* radio_button_unchecked.png */
-  { 26, 104, 24, 24 }, /* warning.png */
+  { 0.0, 0.0, 0.1875, 0.1875 }, /* button_pause.png */
+  { 0.203125, 0.0, 0.1875, 0.1875 }, /* button_play.png */
+  { 0.40625, 0.0, 0.1875, 0.1875 }, /* button_skip.png */
+  { 0.609375, 0.0, 0.1875, 0.1875 }, /* button_stop.png */
+  { 0.0, 0.203125, 0.1875, 0.1875 }, /* checkbox_checked.png */
+  { 0.203125, 0.203125, 0.1875, 0.1875 }, /* checkbox_indeterminate.png */
+  { 0.40625, 0.203125, 0.1875, 0.1875 }, /* checkbox_unchecked.png */
+  { 0.609375, 0.203125, 0.1875, 0.1875 }, /* chev_down.png */
+  { 0.0, 0.40625, 0.1875, 0.1875 }, /* chev_right.png */
+  { 0.203125, 0.40625, 0.1875, 0.1875 }, /* error.png */
+  { 0.40625, 0.40625, 0.1875, 0.1875 }, /* file.png */
+  { 0.609375, 0.40625, 0.1875, 0.1875 }, /* folder.png */
+  { 0.0, 0.609375, 0.1875, 0.1875 }, /* hierarchy.png */
+  { 0.203125, 0.609375, 0.1875, 0.1875 }, /* info.png */
+  { 0.40625, 0.609375, 0.1875, 0.1875 }, /* joystick.png */
+  { 0.609375, 0.609375, 0.1875, 0.1875 }, /* radio_button_checked.png */
+  { 0.0, 0.8125, 0.1875, 0.1875 }, /* radio_button_unchecked.png */
+  { 0.203125, 0.8125, 0.1875, 0.1875 }, /* warning.png */
 };
 
 static const unsigned char ldk_editor_icon_atlas_png[] =
@@ -250,4 +246,4 @@ static const unsigned char ldk_editor_icon_atlas_png[] =
 
 static const unsigned int ldk_editor_icon_atlas_png_size = sizeof(ldk_editor_icon_atlas_png);
 
-#endif /* LDK_EDITOR_ASSET_H */
+#endif /* UI_ATLAS_H */
