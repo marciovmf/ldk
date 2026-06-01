@@ -127,7 +127,7 @@ extern "C" {
 
   typedef struct LDKUIIcon
   {
-    LDKUITextureHandle texture;
+    uintptr_t texture; // raw texture resource
     LDKUIRect uv;
     LDKUISize size;
   } LDKUIIcon;

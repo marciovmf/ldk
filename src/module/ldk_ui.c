@@ -33,86 +33,86 @@ typedef enum LDKUIWindowResizeEdges
 } LDKUIWindowResizeEdges;
 
 
-  typedef struct LDKUIContextInternal
-  {
-    XArena* frame_arena;
-    LDKFontInstance* font;
-    void* font_file;
-    void* font_texture_user;
-    LDKUIGetFontPageTextureFn get_font_page_texture;
+typedef struct LDKUIContextInternal
+{
+  XArena* frame_arena;
+  LDKFontInstance* font;
+  void* font_file;
+  void* font_texture_user;
+  LDKUIGetFontPageTextureFn get_font_page_texture;
 
-    LDKMouseState const* mouse;
-    LDKKeyboardState const* keyboard;
-    LDKUITextInputState const* input_text;
+  LDKMouseState const* mouse;
+  LDKKeyboardState const* keyboard;
+  LDKUITextInputState const* input_text;
 
-    LDKUIWindow* current_window;
-    LDKUILayout* current_layout;
+  LDKUIWindow* current_window;
+  LDKUILayout* current_layout;
 
-    XArray_ldk_ui_window* windows;
-    XArray_ldk_ui_id* id_stack;
-    XArray_ldk_ui_vertex* vertices;
-    XArray_ldk_ui_u32* indices;
-    XArray_ldk_ui_draw_cmd* commands;
-    XArray_ldk_ui_bool* disabled_stack;
-    XArray_ldk_ui_hit_candidate* hit_candidates;
-    XArray_ldk_ui_debug_rect* debug_rects;
-    XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
-    XArray_ldk_ui_auto_window_cache* auto_window_cache;
-    XArray_ldk_ui_id* auto_window_stack;
-    XArray_ldk_ui_measure_entry* measure_entries;
+  XArray_ldk_ui_window* windows;
+  XArray_ldk_ui_id* id_stack;
+  XArray_ldk_ui_vertex* vertices;
+  XArray_ldk_ui_u32* indices;
+  XArray_ldk_ui_draw_cmd* commands;
+  XArray_ldk_ui_bool* disabled_stack;
+  XArray_ldk_ui_hit_candidate* hit_candidates;
+  XArray_ldk_ui_debug_rect* debug_rects;
+  XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
+  XArray_ldk_ui_auto_window_cache* auto_window_cache;
+  XArray_ldk_ui_id* auto_window_stack;
+  XArray_ldk_ui_measure_entry* measure_entries;
 
-    LDKUITheme theme;
-    LDKUIRenderData render_data;
-    LDKUIRect viewport;
-    LDKUIRect last_rect;
-    LDKUIRect last_bounding_rect;
+  LDKUITheme theme;
+  LDKUIRenderData render_data;
+  LDKUIRect viewport;
+  LDKUIRect last_rect;
+  LDKUIRect last_bounding_rect;
 
-    LDKUIId hovered_window_id;
-    LDKUIId focused_window_id;
-    LDKUIId hot_window_id;
-    LDKUIId hot_id;
-    LDKUIId next_hot_window_id;
-    LDKUIId next_hot_id;
-    LDKUIId active_window_id;
-    LDKUIId active_id;
-    LDKUIId focused_id;
-    LDKUIId last_id;
-    LDKUIId dragging_window_id;
-    LDKUIId resizing_window_id;
-    LDKUIId text_box_id;
-    LDKUIId open_popup_id;
-    LDKUIId current_popup_id;
-    u32 popup_open_frame_index;
-    // Textbox
-    u32 text_cursor;
-    u32 text_select_start;
-    u32 text_select_end;
+  LDKUIId hovered_window_id;
+  LDKUIId focused_window_id;
+  LDKUIId hot_window_id;
+  LDKUIId hot_id;
+  LDKUIId next_hot_window_id;
+  LDKUIId next_hot_id;
+  LDKUIId active_window_id;
+  LDKUIId active_id;
+  LDKUIId focused_id;
+  LDKUIId last_id;
+  LDKUIId dragging_window_id;
+  LDKUIId resizing_window_id;
+  LDKUIId text_box_id;
+  LDKUIId open_popup_id;
+  LDKUIId current_popup_id;
+  u32 popup_open_frame_index;
+  // Textbox
+  u32 text_cursor;
+  u32 text_select_start;
+  u32 text_select_end;
 
-    u32 resizing_window_edges;
-    u32 hit_order;
-    u32 last_measure_entry_index;
+  u32 resizing_window_edges;
+  u32 hit_order;
+  u32 last_measure_entry_index;
 
-    bool next_disabled;
-    bool next_focus;
-    bool debug_draw;
-    bool has_next_width;
-    bool has_next_height;
-    bool mouse_wheel_consumed;
-    LDKUILayoutSize next_width;
-    LDKUILayoutSize next_height;
-    u32 root_item_count;
-    u32 frame_index;
-    i32 next_z_order;
-    float drag_x;
-    float drag_y;
-    float resize_start_cursor_x;
-    float resize_start_cursor_y;
-    LDKUIRect resize_start_rect;
+  bool next_disabled;
+  bool next_focus;
+  bool debug_draw;
+  bool has_next_width;
+  bool has_next_height;
+  bool mouse_wheel_consumed;
+  LDKUILayoutSize next_width;
+  LDKUILayoutSize next_height;
+  u32 root_item_count;
+  u32 frame_index;
+  i32 next_z_order;
+  float drag_x;
+  float drag_y;
+  float resize_start_cursor_x;
+  float resize_start_cursor_y;
+  LDKUIRect resize_start_rect;
 
-    float scrollbar_drag_offset_x; 
-    float scrollbar_drag_offset_y; 
-    LDKCursorType cursor_type;
-  }LDKUIContextInternal;
+  float scrollbar_drag_offset_x; 
+  float scrollbar_drag_offset_y; 
+  LDKCursorType cursor_type;
+}LDKUIContextInternal;
 
 
 #define LDK_UI_SCROLLBAR_THUMB_Y_ID 0x53545931u
@@ -2717,6 +2717,9 @@ void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboa
   x_array_ldk_ui_measure_entry_clear(ctx->measure_entries);
 
   s_ui_windows_clear_frame_buffers(ctx);
+
+  ldk_os_cursor_type_set(ctx->cursor_type);
+  ctx->cursor_type = LDK_CURSOR_ARROW;
 }
 
 static void s_ui_append_window_draw_data(LDKUIContext* ctx, LDKUIWindow* window)
@@ -3243,30 +3246,29 @@ LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIR
   resize_edges = s_ui_window_resize_edges_at_cursor(ctx, window, cursor);
 
   // change cursor based on resize_edge
-  //if (resize_edges)
-  //{
-  //  if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_LEFT) ||
-  //      (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_RIGHT)))
-  //  {
-  //    ctx->cursor_type = LDK_CURSOR_SIZE_NWSE;
-  //  }
+  if (resize_edges)
+  {
+    if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_LEFT) ||
+        (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_RIGHT)))
+    {
+      ctx->cursor_type = LDK_CURSOR_SIZE_NWSE;
+    }
 
-  //  else if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_RIGHT) ||
-  //      (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_LEFT)))
-  //  {
-  //    ctx->cursor_type = LDK_CURSOR_SIZE_NESW;
-  //  }
+    else if (resize_edges == (LDK_UI_WINDOW_RESIZE_TOP | LDK_UI_WINDOW_RESIZE_RIGHT) ||
+        (resize_edges == (LDK_UI_WINDOW_RESIZE_BOTTOM | LDK_UI_WINDOW_RESIZE_LEFT)))
+    {
+      ctx->cursor_type = LDK_CURSOR_SIZE_NESW;
+    }
 
-  //  else if ((resize_edges == LDK_UI_WINDOW_RESIZE_TOP) || (resize_edges == LDK_UI_WINDOW_RESIZE_BOTTOM))
-  //  {
-  //    ctx->cursor_type = LDK_CURSOR_SIZE_NS;
-  //  }
-  //  else if ((resize_edges == LDK_UI_WINDOW_RESIZE_LEFT) || (resize_edges == LDK_UI_WINDOW_RESIZE_RIGHT))
-  //  {
-  //    ctx->cursor_type = LDK_CURSOR_SIZE_WE;
-  //  }
-  //  ldk_os_cursor_type_set(ctx->cursor_type);
-  //}
+    else if ((resize_edges == LDK_UI_WINDOW_RESIZE_TOP) || (resize_edges == LDK_UI_WINDOW_RESIZE_BOTTOM))
+    {
+      ctx->cursor_type = LDK_CURSOR_SIZE_NS;
+    }
+    else if ((resize_edges == LDK_UI_WINDOW_RESIZE_LEFT) || (resize_edges == LDK_UI_WINDOW_RESIZE_RIGHT))
+    {
+      ctx->cursor_type = LDK_CURSOR_SIZE_WE;
+    }
+  }
 
   if (inside_window && mouse_down)
   {
@@ -4112,11 +4114,14 @@ bool ldk_ui_icon_button(LDKUIContext* ctx, LDKUIIcon icon)
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
   float icon_x = box.rect.x + (box.rect.w - icon.size.w) * 0.5f;
   float icon_y = box.rect.y + (box.rect.h - icon.size.h) * 0.5f;
-  LDKUIRect icon_rect = { icon_x, icon_y, icon.size.w, icon.size.h };
+  LDKUIRect icon_rect = { icon_x , icon_y, icon.size.w, icon.size.h };
 
   s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
   s_ui_render_border(ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
-  s_ui_render_quad_uv(ctx, icon_rect, icon.uv, 0xffffffffu, box.clip, icon.texture);
+
+  rgba32 enabled_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED];
+  s_ui_render_quad_uv(ctx, icon_rect, icon.uv, frame.disabled ? enabled_color: 0xffffffffu, 
+      box.clip, icon.texture);
 
   return frame.clicked;
 }

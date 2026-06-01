@@ -656,7 +656,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   //const DWORD style_bare = WS_POPUP  | WS_SIZEBOX | WS_THICKFRAME;
   const DWORD style_bare = WS_POPUP;
   const DWORD style_default = WS_OVERLAPPEDWINDOW;
-  DWORD windowStyle = (flags * LDK_WINDOW_FLAG_NOTITLEBAR) ? style_bare : style_default;
+  DWORD windowStyle = (flags & LDK_WINDOW_FLAG_NOTITLEBAR) ? style_bare : style_default;
 
   // Calculate total window size
   RECT clientArea = {(LONG)0,(LONG)0, (LONG)width, (LONG)height};
@@ -721,6 +721,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   window->is_fullscreen = false;
   window->close_flag = false;
   window->drag_rect = ldk_rect(0, 0, windowWidth, windowHeight);
+  window->activation_flags = flags;
 
   bool isOpenGL = s_graphics_api_is_opengl(s_graphicsAPIInfo .api);
   if(isOpenGL)
@@ -1151,22 +1152,22 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             return result;
           }
         }
-        //else if (result == HTTOP || result == HTBOTTOM)
-        //{
-        //  ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NS);
-        //}
-        //else if (result == HTLEFT || result == HTRIGHT)
-        //{
-        //  ldk_os_cursor_type_set(LDK_CURSOR_SIZE_WE);
-        //}
-        //else if (result == HTBOTTOMLEFT || result == HTTOPRIGHT)
-        //{
-        //  ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-        //}
-        //else if (result == HTTOPLEFT || result == HTBOTTOMRIGHT)
-        //{
-        //  ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-        //}
+        else if (result == HTTOP || result == HTBOTTOM)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NS);
+        }
+        else if (result == HTLEFT || result == HTRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_WE);
+        }
+        else if (result == HTBOTTOMLEFT || result == HTTOPRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
+        }
+        else if (result == HTTOPLEFT || result == HTBOTTOMRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
+        }
         return result;
       }
       break;

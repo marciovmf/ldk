@@ -128,10 +128,10 @@ def generate_header(
 
         f.write(f"typedef struct {rect_type}\n")
         f.write("{\n")
-        f.write("  uint16_t x;\n")
-        f.write("  uint16_t y;\n")
-        f.write("  uint16_t w;\n")
-        f.write("  uint16_t h;\n")
+        f.write("  float x;\n")
+        f.write("  float y;\n")
+        f.write("  float w;\n")
+        f.write("  float h;\n")
         f.write(f"}} {rect_type};\n\n")
 
         f.write(f"typedef enum {enum_type}\n")
@@ -148,10 +148,10 @@ def generate_header(
         f.write("{\n")
 
         for icon in icons:
-            x = icon["x"]
-            y = icon["y"]
-            w = icon["w"]
-            h = icon["h"]
+            x = icon["x"] / atlas_w; 
+            y = icon["y"] / atlas_h;
+            w = icon["w"] / atlas_w;
+            h = icon["h"] / atlas_h;
             f.write(f"  {{ {x}, {y}, {w}, {h} }}, /* {icon['file']} */\n")
 
         f.write("};\n\n")

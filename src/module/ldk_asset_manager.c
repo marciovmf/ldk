@@ -147,7 +147,6 @@ LDKAssetHandle ldk_asset_handle_null(void)
   return s_asset_handle_from_x(x_handle_null());
 }
 
-
 bool ldk_asset_handle_is_alive(LDKAssetManager* manager, LDKAssetHandle asset)
 {
   if (!manager)

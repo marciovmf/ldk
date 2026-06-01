@@ -384,6 +384,24 @@ extern "C" {
       LDKResourceTexture texture);
 
   /**
+   * @brief Resolve a renderer texture resource to a UI draw texture handle.
+   *
+   * The returned handle is a frame-local draw token suitable for UI draw
+   * commands. The UI system must treat it as opaque and must not store it as a
+   * persistent engine resource.
+   *
+   * The renderer owns the original texture resource. If the resource is invalid
+   * or no longer alive, this function returns an invalid UI texture handle.
+   *
+   * @param renderer Renderer that owns the texture resource.
+   * @param texture Texture resource handle to resolve.
+   * @return UI texture handle for draw commands, or an invalid handle on failure.
+   */
+  LDK_API LDKUITextureHandle ldk_renderer_texture_ui_handle(
+      LDKRenderer* renderer,
+      LDKResourceTexture texture);
+
+  /**
    * @brief Create a renderer-owned texture resource.
    *
    * The renderer translates the high-level texture description into the

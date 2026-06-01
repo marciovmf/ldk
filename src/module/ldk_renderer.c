@@ -1316,6 +1316,18 @@ bool ldk_renderer_texture_is_valid(LDKRenderer* renderer, LDKResourceTexture tex
   return s_renderer_texture_get_resource(renderer, texture) != NULL;
 }
 
+LDKUITextureHandle ldk_renderer_texture_ui_handle(LDKRenderer* renderer,
+    LDKResourceTexture texture)
+{
+  LDKRendererTextureResource* resource = s_renderer_texture_get_resource(renderer, texture);
+  if (resource == NULL)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  return (LDKUITextureHandle)resource->texture;
+}
+
 LDKResourceTexture ldk_renderer_texture_create(LDKRenderer* renderer,
     LDKRendererTextureDesc const* desc)
 {

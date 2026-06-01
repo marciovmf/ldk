@@ -104,29 +104,22 @@ typedef XHandle LDKHandle;
     LDKImage* image;
   } LDKAssetImageData;
 
-  LDKAssetImage ldk_asset_image_null(void);
-
-
+  LDK_API LDKAssetImage ldk_asset_image_null(void);
   LDK_API bool ldk_asset_manager_image_is_alive(LDKAssetManager* manager, LDKAssetImage asset);
-
   LDK_API LDKAssetImage ldk_asset_manager_image_create(
       LDKAssetManager* manager,
       u32 width,
       u32 height,
       const void* pixels);
-
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
       const char* path);
-
   LDK_API void ldk_asset_manager_image_unload(
       LDKAssetManager* manager,
       LDKAssetImage asset);
-
   LDK_API LDKAssetImageData* ldk_asset_manager_image_get(
       LDKAssetManager* manager,
       LDKAssetImage asset);
-
   LDK_API const LDKAssetImageData* ldk_asset_manager_image_get_const(
       LDKAssetManager* manager,
       LDKAssetImage asset);
