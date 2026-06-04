@@ -41,6 +41,7 @@
 *.dwo
 lib
 .build
+build
 bin
 *.log
 project.lua
@@ -48,3 +49,7 @@ debug.cap
 demo/.ldk
 demo/solution
 demo/workspace
+
+# emacs files
+*~
+\#*\#
