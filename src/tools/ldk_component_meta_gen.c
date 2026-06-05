@@ -811,10 +811,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   return true;
 }
 
-bool ldk_meta_generate_header(
-    const char** input_files,
-    u32 input_file_count,
-    const char* output_header_path)
+bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
+                              const char* output_header_path)
 {
   LDKMetaState state;
   u32 i = 0;
@@ -843,6 +841,19 @@ bool ldk_meta_generate_header(
     ok = false;
   }
 
+  // print components found
+  printf("Found %d components\n", state.component_count);
+  for (u32 i = 0; i < state.component_count; i++)
+  {
+    LDKMetaComponent* meta = &state.components[i];
+
+    printf("\t0x%X '%s'\n", state.components[i].type_id,
+           (const char*)&meta->type_name[0]);
+    
+  }
+  
+         
+  
   if (ok && !ldk_meta_write_header(&state, output_header_path))
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
@@ -872,6 +883,6 @@ int main(i32 argc, const char** argv)
 
   const u32 num_files = argc - 2;
   const char** files = &argv[2];
-  return ldk_meta_generate_header(files, num_files, argv[1]);
+  bool success = ldk_meta_generate_header(files, num_files, argv[1]);
+  return success ? 0 : 1;
 }
-

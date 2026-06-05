@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
+
 project("ldk")
 
 find_package(OpenGL REQUIRED)
@@ -120,11 +121,40 @@ function(ldk_engine_target_defaults TARGET_NAME)
   )
 endfunction()
 
+set(HEADER_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated"
+)
+
+# ----------------------------------------------------------------------------
+# Collect full path of all .h files in the folder specified by DIR.
+# ----------------------------------------------------------------------------
+function(ldk_collect_headers_from_dir OUT_VAR DIR)
+  if(NOT IS_ABSOLUTE "${DIR}")
+    get_filename_component(DIR "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}" ABSOLUTE)
+  endif()
+
+  file(GLOB headers_in_dir CONFIGURE_DEPENDS
+    LIST_DIRECTORIES false
+    "${DIR}/*.h"
+  )
+
+  set(${OUT_VAR} "${headers_in_dir}" PARENT_SCOPE)
+endfunction()
+
+
 function(ldk_game_build)
   set(options)
   set(oneValueArgs TARGET TYPE ENGINE_TARGET OUTPUT_DIR)
-  set(multiValueArgs SOURCES INCLUDE_DIRS DEFINITIONS LIBRARIES)
-
+  set(multiValueArgs
+    SOURCES
+    INCLUDE_DIRS
+    DEFINITIONS
+    LIBRARIES
+    COMPONENT_DIRS
+  )
+  
   cmake_parse_arguments(
     GAME
     "${options}"
@@ -156,6 +186,68 @@ function(ldk_game_build)
   add_library(${GAME_TARGET} ${GAME_TYPE}
     ${GAME_SOURCES}
   )
+
+  if (${GAME_TYPE} STREQUAL "SHARED")
+    add_dependencies(${GAME_TARGET} cmg) # make sure the tools are built
+  endif()
+
+  # ------------------------------------------------------------
+  # Component metadata generation
+  # ------------------------------------------------------------
+
+  if (GAME_COMPONENT_DIRS)
+    set(GAME_COMPONENT_HEADERS "")
+    
+    foreach(component_dir IN LISTS GAME_COMPONENT_DIRS)
+      ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
+      list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
+    endforeach()
+
+    list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
+
+
+    set(GAME_METADATA_DIR "${GAME_OUTPUT_DIR}/generated/")
+    set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/ldk_component_metadata.h")
+
+    if (NOT DEFINED LDK_CMG_TOOL)
+      set(LDK_CMG_TOOL "${LDK_OUTPUT_DIR}/cmg.exe")
+    endif()
+
+    add_custom_command(
+      OUTPUT "${GAME_METADATA_HEADER}"
+
+      COMMAND ${CMAKE_COMMAND} -E echo "make_directory = ${GAME_METADATA_DIR}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
+      COMMAND "${LDK_CMG_TOOL}" "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
+      DEPENDS
+        "${LDK_CMG_TOOL}"
+        ${GAME_COMPONENT_HEADERS}
+
+      COMMAND_EXPAND_LISTS
+      VERBATIM
+      COMMENT "Generating component metadata for ${GAME_TARGET}"
+    )
+
+    add_custom_target(${GAME_TARGET}_metadata
+      DEPENDS "${GAME_METADATA_HEADER}"
+    )
+
+    add_dependencies(${GAME_TARGET}
+      ${GAME_TARGET}_metadata
+    )
+
+    target_include_directories(${GAME_TARGET} PRIVATE
+      "${GAME_METADATA_DIR}"
+    )
+
+    target_sources(${GAME_TARGET} PRIVATE
+      "${GAME_METADATA_HEADER}"
+    )
+  endif()
+
+  # ------------------------------------------------------------
+  # Normal game target setup
+  # ------------------------------------------------------------
 
   ldk_target_defaults(${GAME_TARGET})
 
@@ -335,6 +427,17 @@ else()
   add_dependencies(ldk print_options)
 endif()
 
+# --- CMG TOOL ---------------------------------------------------------------
+
+# component meta generator tool
+add_executable(cmg src/tools/ldk_component_meta_gen.c)
+ldk_target_defaults(cmg)
+target_include_directories(cmg PRIVATE ${INCLUDE_DIR})
+ldk_target_output_dirs(cmg
+  RUNTIME "${LDK_OUTPUT_DIR}"
+  LIBRARY "${LDK_OUTPUT_DIR}"
+  ARCHIVE "${LDK_LIBRARY_DIR}"
+)
 
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)
@@ -343,6 +446,7 @@ if (OPTION_BUILD_EDITOR)
   endif()
 
   add_executable(ldk_editor src/ldk_app_editor.c)
+  add_dependencies(ldk_editor cmg) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
 
   target_include_directories(ldk_editor PRIVATE
@@ -363,18 +467,6 @@ if (OPTION_BUILD_EDITOR)
     LIBRARY "${LDK_OUTPUT_DIR}"
     ARCHIVE "${LDK_LIBRARY_DIR}"
   )
-
-  # component meta generator tool
-
-  add_executable(cmg src/tools/ldk_component_meta_gen.c)
-  ldk_target_defaults(cmg)
-  target_include_directories(cmg PRIVATE ${INCLUDE_DIR})
-  ldk_target_output_dirs(cmg
-    RUNTIME "${LDK_OUTPUT_DIR}"
-    LIBRARY "${LDK_OUTPUT_DIR}"
-    ARCHIVE "${LDK_LIBRARY_DIR}"
-  )
-
 endif()
 
 # --- GAME CONFIG ------------------------------------------------------------
@@ -400,15 +492,19 @@ if (OPTION_BUILD_GAME)
     set(LDK_GAME_TARGET_NAME game_shared)
   endif()
 
+  list(APPEND LDK_GAME_COMPONENT_DIRS
+  "${INCLUDE_DIR}/component")
+  
   ldk_game_build(
     TARGET ${LDK_GAME_TARGET_NAME}
     TYPE SHARED
     ENGINE_TARGET ldk
     SOURCES ${LDK_GAME_SOURCES}
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
+    COMPONENT_DIRS ${ENGINE_COMPONENT_DIR} ${LDK_GAME_COMPONENT_DIRS}
     DEFINITIONS
-      ${LDK_GAME_DEFINITIONS}
-      LDK_GAME_DLL
+    ${LDK_GAME_DEFINITIONS}
+    LDK_GAME_DLL
     LIBRARIES ${LDK_GAME_LIBRARIES}
     OUTPUT_DIR "${OPTION_GAME_DIR}/.ldk/$<CONFIG>"
   )
