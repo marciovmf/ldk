@@ -363,6 +363,18 @@ if (OPTION_BUILD_EDITOR)
     LIBRARY "${LDK_OUTPUT_DIR}"
     ARCHIVE "${LDK_LIBRARY_DIR}"
   )
+
+  # component meta generator tool
+
+  add_executable(cmg src/tools/ldk_component_meta_gen.c)
+  ldk_target_defaults(cmg)
+  target_include_directories(cmg PRIVATE ${INCLUDE_DIR})
+  ldk_target_output_dirs(cmg
+    RUNTIME "${LDK_OUTPUT_DIR}"
+    LIBRARY "${LDK_OUTPUT_DIR}"
+    ARCHIVE "${LDK_LIBRARY_DIR}"
+  )
+
 endif()
 
 # --- GAME CONFIG ------------------------------------------------------------

@@ -858,13 +858,15 @@ bool ldk_meta_generate_header(
 
 void show_usage()
 {
+  printf("usage\ncmg output_file <files>\n");
+  printf("<files> is a list of .h files");
 }
 
 int main(i32 argc, const char** argv)
 {
   if (argc < 3)
   {
-    printf("usage\ncmg output_file [header_files]\n");
+    show_usage();
     return 1;
   }
 
