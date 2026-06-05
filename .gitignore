@@ -37,10 +37,15 @@
 *.out
 *.app
 
+#emacs files
+\#*\#
+*~
+
 # debug information files
 *.dwo
 lib
 .build
+build
 bin
 *.log
 project.lua
