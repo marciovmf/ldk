@@ -15,7 +15,7 @@ void ldk_event_push(LDKEventQueue* queue, LDKEvent* event)
   u32 index = queue->numEvents++;
   if (index >= LDK_EVENT_QUEUE_SIZE)
   {
-    ldk_log_error("Failed to push event to the event queue because the maximum number of events (%d) was reached.", LDK_EVENT_QUEUE_SIZE);
+    ldk_log_error("Failed to push event to the event queue because the maximum number of events (%d) was reached.\n", LDK_EVENT_QUEUE_SIZE);
     return;
   }
   memcpy((void*) &queue->events[index], event, sizeof(LDKEvent));
@@ -31,7 +31,7 @@ void ldk_event_handler_add(LDKEventQueue* queue, LDKEventHandler handler, LDKEve
   i32 index = queue->numHandlers++;
   if (index >= LDK_EVENT_HANDLERS_MAX)
   {
-    ldk_log_error("Failed to register event handler because the maximum number of handelrs (%d) was reached.", LDK_EVENT_HANDLERS_MAX);
+    ldk_log_error("Failed to register event handler because the maximum number of handelrs (%d) was reached.\n", LDK_EVENT_HANDLERS_MAX);
     return;
   }
 

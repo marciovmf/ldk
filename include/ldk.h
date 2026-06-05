@@ -13,6 +13,7 @@
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_string.h>
+#include <stdx/stdx_ini.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,7 +50,6 @@ extern "C" {
     LDK_MODULE_EVENT,
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
-    LDK_MODULE_EDITOR,
   } LDKModuleType;
 
   struct LDKGame;
@@ -64,38 +64,49 @@ extern "C" {
     XFSPath   asset_root;
     XFSPath   log_file;
     XFSPath   game_dll;
-#ifdef LDK_EDITOR
-    XFSPath   editor_font;
-    XSmallstr editor_theme;
-    i32       editor_font_size;
-#endif
     i32       width;
     i32       height;
+    i32       initial_ui_index_capacity;
+    i32       initial_ui_vertex_capacity;
     bool      fullscreen;
   } LDKConfig;
 
-  LDK_API bool  ldk_engine_initialize(const LDKGame* game, const char* config_ini_path);
-  LDK_API bool  ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* config);
+  LDK_API bool  ldk_engine_initialize(const char* config_ini_path);
+  LDK_API bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* config_ini_path);
+  LDK_API bool  ldk_engine_initialize_with_config(const LDKConfig* config);
   LDK_API bool  ldk_engine_is_initialized(void); // Checks if the engine was initialized
-  LDK_API bool  ldk_engine_is_playing(void);
-  /*
-   * Starts runtime simulation. In editor builds the scene may already be visible
-   * and editable before play starts; play mode only enables game/runtime logic.
-   */
-  LDK_API bool  ldk_engine_play_start(void);
-  /*
-   * Stops runtime simulation and returns to editor-only preview state.
-   */
-  LDK_API void  ldk_engine_play_stop(void);
-  /*
-   * Advances one engine frame. This always drives editor/view rendering and only
-   * calls game.update while play mode is active.
-   */
   LDK_API void  ldk_engine_frame(void);
   LDK_API void* ldk_module_get(LDKModuleType module_type); // Returns the context pointer of a given engine module
   LDK_API i32   ldk_engine_run(void);
-  LDK_API void  ldk_engine_stop(i32 exit_code);
+
+#ifndef LDK_MONOLITHIC
+  LDK_API LDKGame* ldk_game_get(void);
+  LDK_API bool ldk_game_instance_load_static(void);
+#endif
   LDK_API void  ldk_engine_terminate(void); // finalizes the engine
+  LDK_API void  ldk_engine_stop(i32 exit_code);
+
+
+LDK_API bool ldk_game_instance_load_from_shared_lib(const char* path);
+LDK_API bool ldk_game_instance_initialize(void);
+LDK_API bool ldk_game_instance_start(void);
+LDK_API void ldk_game_instance_terminate(void);
+LDK_API bool ldk_game_instance_unload(void);
+LDK_API LDKGame* ldk_game_get(void);
+
+LDK_API LDKWindow ldk_engine_main_window_get(void);
+
+  LDK_API LDKWindow ldk_main_window(void);
+
+
+
+  LDK_API LDKWindow ldk_main_window(void);
+
+
+
+  LDK_API LDKWindow ldk_main_window(void);
+
+
 
 #ifdef __cplusplus
 }

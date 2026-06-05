@@ -1,7 +1,7 @@
+#include <ldk_common.h>
 
-#include "stdx/stdx_math.h"
-#if defined(LDK_GAME)
 #if defined(LDK_SHAREDLIB)
+#define X_IMPL_MATH
 #define X_IMPL_ARRAY
 #define X_IMPL_STRING
 #define X_IMPL_FILESYSTEM
@@ -11,11 +11,11 @@
 #define X_IMPL_MATH
 #define X_IMPL_FILESYSTEM
 #endif // LDK_SHAREDLIB
-#endif // LDK_GAME
 
 #include <ldk_game.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
+#include <stdx/stdx_math.h>
 
 LDKGame game = {0};
 typedef struct GameData
@@ -23,8 +23,6 @@ typedef struct GameData
   LDKEntity cube_entity_0; 
   LDKEntity cube_entity_1; 
 }GameData;
-
-
 
 bool on_window_event(const LDKEvent* event, void* state)
 {
@@ -40,7 +38,7 @@ bool on_window_event(const LDKEvent* event, void* state)
 
 bool game_initialize(LDKGame* game)
 {
-  ldk_log_info("Game initialize\n");
+  ldk_log_info("Game initialize!!\n");
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(q, on_window_event, LDK_EVENT_TYPE_WINDOW, NULL);
   return true;
@@ -150,33 +148,5 @@ void game_terminate(LDKGame* game)
 void game_stop(LDKGame* game)
 {
   ldk_log_info("Game stop\n");
-}
-
-i32 run_game(const char* ini_file_path)
-{
-  GameData data;
-  game.user_data = (void*) &data;
-  game.initialize = game_initialize;
-  game.start = game_start;
-  game.update = game_update;
-  game.stop = game_stop;
-  game.terminate = game_terminate;
-
-  if (!ldk_engine_initialize(&game, ini_file_path))
-  {
-    return 1;
-  }
-
-  ldk_engine_run();
-  ldk_engine_terminate();
-  return 0;
-}
-
-int main(i32 argc, char** argv)
-{
-  if (argc != 2)
-    return 1;
-
-  return run_game(argv[1]);
 }
 

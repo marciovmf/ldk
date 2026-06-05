@@ -44,6 +44,7 @@
 #define LDK_API
 #endif
 
+
 #if defined(X_OS_WINDOWS)
 #define  LDK_OS_WINDOWS
 #elif defined(X_OS_LINUX)

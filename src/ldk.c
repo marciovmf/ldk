@@ -9,6 +9,9 @@
 #define X_IMPL_STRING
 #include <stdx/stdx_string.h>
 
+#define X_IMPL_STRBUILDER
+#include <stdx/stdx_strbuilder.h>
+
 #define X_IMPL_HASHTABLE
 #include <stdx/stdx_hashtable.h>
 
@@ -34,17 +37,18 @@
 #include <ldk_game.h>
 #include <ldk_os.h>
 
+#include <ldk_event.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
 
+#include <module/ldk_system.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
-#include <module/ldk_editor.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
@@ -62,15 +66,9 @@ struct LDKRoot
   LDKGame               game;
   LDKRHIContext         rhi;
   LDKRenderer           renderer;
-#ifdef LDK_EDITOR
-  LDKEditor             editor;            
-#endif
   XLogger               logger;
-  // Runtime state
   i32                   exit_code;
   bool                  running;
-  bool                  playing;
-  bool                  game_initialized;
   LDKWindow             window;
   LDKGCtx               graphics;
   u64                   previous_ticks;
@@ -124,7 +122,7 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot* e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
-  ldk_editor_terminate(&e->editor);
+
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
   ldk_asset_manager_terminate(&e->asset_manager);
@@ -159,17 +157,133 @@ static bool s_config_resolve_path(XFSPath* out_path, const XFSPath* base_path, c
   return true;
 }
 
-static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini_path)
+static inline void s_broadcast_frame_event(LDKEventType type, float ticks, float delta_time)
 {
-  XIni ini;
-  XIniError ini_error;
+  LDKRoot* e = &g_engine;
+  LDKEvent event = (LDKEvent){
+    .type = LDK_EVENT_TYPE_FRAME,
+    .frame_event.type = type,
+    .frame_event.ticks = ticks,
+    .frame_event.delta_time = delta_time
+  };
 
+  ldk_event_push(&e->event_queue, &event);
+  ldk_event_queue_broadcast(&e->event_queue);
+}
+
+void s_game_instance_init_default(LDKGame* game)
+{
+  if (game == NULL)
+  {
+    return;
+  }
+
+  game->lib = NULL;
+  game->initialized = false;
+  game->user_data = NULL;
+  game->initialize = s_stub_game_initialize;
+  game->start = s_stub_game_start;
+  game->update = s_stub_game_update;
+  game->stop = s_stub_game_stop;
+  game->terminate = s_stub_game_terminate;
+}
+
+#ifdef LDK_MONOLITHIC
+bool ldk_game_instance_load_static(void)
+{
+  X_ASSERT(g_engine_initialized);
+  LDKGame* game = &g_engine.game;
+
+  if (game->initialized)
+  {
+    return false;
+  }
+
+  s_game_instance_init_default(game);
+
+  game->lib = NULL;
+  game->initialize = game_initialize;
+  game->start = game_start;
+  game->update = game_update;
+  game->stop = game_stop;
+  game->terminate = game_terminate;
+
+  return true;
+}
+#endif
+
+bool ldk_game_instance_load_from_shared_lib(const char* path)
+{
+  LDKGame* game = &g_engine.game;
+  LDKLibrary* lib;
+  void* func_ptr;
+
+  X_ASSERT(g_engine_initialized);
+
+  if (path == NULL || path[0] == 0)
+  {
+    return false;
+  }
+
+  if (game->initialized)
+  {
+    return false;
+  }
+
+  if (game->lib)
+  {
+    return false;
+  }
+
+  lib = ldk_os_library_load(path);
+  if (lib == NULL)
+  {
+    ldk_log_error("Failed to load '%s'\n", path);
+    return false;
+  }
+
+  s_game_instance_init_default(game);
+
+  game->lib = lib;
+
+  func_ptr = ldk_os_library_fuction_ptr_get(lib, LDK_GAME_INITIALIZE_FUNC_NAME);
+  if (func_ptr)
+  {
+    game->initialize = (LDKGameInitializeFunc) func_ptr;
+  }
+
+  func_ptr = ldk_os_library_fuction_ptr_get(lib, LDK_GAME_START_FUNC_NAME);
+  if (func_ptr)
+  {
+    game->start = (LDKGameStartFunc) func_ptr;
+  }
+
+  func_ptr = ldk_os_library_fuction_ptr_get(lib, LDK_GAME_UPDATE_FUNC_NAME);
+  if (func_ptr)
+  {
+    game->update = (LDKGameUpdateFunc) func_ptr;
+  }
+
+  func_ptr = ldk_os_library_fuction_ptr_get(lib, LDK_GAME_STOP_FUNC_NAME);
+  if (func_ptr)
+  {
+    game->stop = (LDKGameStopFunc) func_ptr;
+  }
+
+  func_ptr = ldk_os_library_fuction_ptr_get(lib, LDK_GAME_TERMINATE_FUNC_NAME);
+  if (func_ptr)
+  {
+    game->terminate = (LDKGameTerminateFunc) func_ptr;
+  }
+
+  return true;
+}
+
+bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* config_ini_path)
+{
   X_ASSERT(out_config != NULL);
-  X_ASSERT(config_ini_path != NULL);
 
   memset(out_config, 0, sizeof(*out_config));
-  memset(&ini, 0, sizeof(ini));
-  memset(&ini_error, 0, sizeof(ini_error));
 
   x_fs_path_set(&out_config->config_file_path, config_ini_path);
   x_fs_path_normalize(&out_config->config_file_path);
@@ -177,43 +291,102 @@ static bool s_config_load_from_ini(LDKConfig* out_config, const char* config_ini
   x_fs_path_dirname(&out_config->config_file_path, &out_config->runtree_path);
   x_fs_path_normalize(&out_config->runtree_path);
 
-  if (!x_ini_load_file(config_ini_path, &ini, &ini_error))
-  {
-    x_log_error(
-        &g_engine.logger,
-        "Failed to load ini '%s' at %d:%d: %s",
-        config_ini_path,
-        ini_error.line,
-        ini_error.column,
-        ini_error.message ? ini_error.message : "Unknown error");
-    return false;
-  }
+  XFSPath config_dir;
+  const char* project_run_root;
+
+  x_fs_path_dirname(&out_config->config_file_path, &config_dir);
+  x_fs_path_normalize(&config_dir);
 
   // scetion: general
-  const char* asset_root = x_ini_get(&ini, "general", "asset_root", "assets");
-  const char* log_file = x_ini_get(&ini, "general", "log_file", "ldk.log");
-  const char* game_dll = x_ini_get(&ini, "general", "game_dll", "");
+  out_config->initial_ui_index_capacity = x_ini_get_i32(ini, "general", "initial_ui_index_capacity", 256);
+  out_config->initial_ui_vertex_capacity = x_ini_get_i32(ini, "general", "initial_ui_vertex_capacity", 256);
+  const char* asset_root = x_ini_get(ini, "general", "asset_root", "assets");
+  const char* log_file = x_ini_get(ini, "general", "log_file", "ldk.log");
+  const char* game_dll = x_ini_get(ini, "general", "game_dll", "");
+
   s_config_resolve_path(&out_config->asset_root, &out_config->runtree_path, asset_root);
   s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, log_file);
   s_config_resolve_path(&out_config->game_dll, &out_config->runtree_path, game_dll);
 
   // scetion: display
-  out_config->width = x_ini_get_i32(&ini, "display", "width", 800);
-  out_config->height = x_ini_get_i32(&ini, "display", "height", 600);
-  out_config->fullscreen = x_ini_get_bool(&ini, "display", "fullscreen", false);
-  const char* icon_path = x_ini_get(&ini, "display", "icon_path", "assets/ldk.ico");
+  out_config->width = x_ini_get_i32(ini, "display", "width", 800);
+  out_config->height = x_ini_get_i32(ini, "display", "height", 600);
+  out_config->fullscreen = x_ini_get_bool(ini, "display", "fullscreen", false);
+  const char* icon_path = x_ini_get(ini, "display", "icon_path", "assets/ldk.ico");
   s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path);
 
 
-  // section: editor
-  x_smallstr_from_cstr(&out_config->title, x_ini_get(&ini, "display", "title", "LDK"));
-  x_smallstr_from_cstr(&out_config->editor_theme, x_ini_get(&ini, "editor", "theme", "dark"));
-  const char* editor_font = x_ini_get(&ini, "editor", "font", "InterDisplay-Regular.ttf");
-  s_config_resolve_path(&out_config->editor_font, &out_config->runtree_path, editor_font);
-  out_config->editor_font_size = x_ini_get_i32(&ini, "editor", "font_size", 12);
-
-  x_ini_free(&ini);
   return true;
+}
+
+bool ldk_game_instance_initialize(void)
+{
+  LDKRoot* e = &g_engine;
+
+  X_ASSERT(g_engine_initialized);
+
+  if (e->game.initialized)
+  {
+    return true;
+  }
+
+  ldk_ecs_system_registry_stop(&e->ecs);
+
+  e->game.initialized = e->game.initialize(&e->game);
+
+  if (!ldk_ecs_system_registry_start(&e->ecs))
+  {
+    e->game.initialized = false;
+    return false;
+  }
+
+  return e->game.initialized;
+}
+
+void ldk_game_instance_terminate(void)
+{
+  LDKRoot* e = &g_engine;
+
+  X_ASSERT(g_engine_initialized);
+
+  if (!e->game.initialized)
+  {
+    return;
+  }
+
+  e->game.terminate(&e->game);
+  e->game.initialized = false;
+}
+
+bool ldk_game_instance_unload(void)
+{
+  LDKRoot* e = &g_engine;
+  bool result = true;
+
+  X_ASSERT(g_engine_initialized);
+
+  if (e->game.initialized)
+  {
+    ldk_game_instance_terminate();
+  }
+
+  if (e->game.lib)
+  {
+    result = ldk_os_library_unload(e->game.lib);
+  }
+
+  s_game_instance_init_default(&e->game);
+  return result;
+}
+
+LDKGame* ldk_game_get(void)
+{
+  LDKRoot* e = &g_engine;
+  if (!e->game.initialized)
+    return NULL;
+
+  return &e->game;
+
 }
 
 bool ldk_engine_is_initialized(void)
@@ -221,19 +394,18 @@ bool ldk_engine_is_initialized(void)
   return g_engine_initialized;
 }
 
-bool ldk_engine_is_playing(void)
+bool ldk_game_instance_start(void)
 {
-  if (!g_engine_initialized)
-  {
-    return false;
-  }
-
-  return g_engine.playing;
+  LDK_ASSERT(g_engine_initialized);
+  LDKRoot* e = &g_engine;
+  return e->game.start(&e->game);
 }
 
 void* ldk_module_get(LDKModuleType module_type)
 {
-  X_ASSERT(g_engine_initialized);
+
+  X_ASSERT(g_engine_initialized || module_type == LDK_MODULE_LOG);
+
   switch (module_type)
   {
     case LDK_MODULE_ECS:
@@ -251,11 +423,6 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_ASSET_MANAGER:
       return &g_engine.asset_manager;
 
-#ifdef LDK_EDITOR
-    case LDK_MODULE_EDITOR:
-      return &g_engine.editor;
-#endif
-
     default:
       break;
   }
@@ -263,21 +430,39 @@ void* ldk_module_get(LDKModuleType module_type)
   return NULL;
 }
 
-bool ldk_engine_initialize(const LDKGame* game, const char* config_ini_path)
+bool ldk_engine_initialize(const char* config_ini_path)
 {
-  LDKConfig config;
-
   X_ASSERT(config_ini_path != NULL);
+  LDKConfig config;
+  XIni ini;
+  XIniError ini_error;
+  memset(&ini, 0, sizeof(ini));
+  memset(&ini_error, 0, sizeof(ini_error));
 
-  if (!s_config_load_from_ini(&config, config_ini_path))
+  if (!x_ini_load_file(config_ini_path, &ini, &ini_error))
+  {
+    x_log_error(
+        &g_engine.logger,
+        "Failed to load config file '%s'. Syntax error at %d:%d: %s",
+        config_ini_path,
+        ini_error.line,
+        ini_error.column,
+        ini_error.message ? ini_error.message : "Unknown error");
+    return false;
+  }
+
+  if (!ldk_engine_config_from_ini(&config, &ini, config_ini_path))
   {
     return false;
   }
 
-  return ldk_engine_initialize_with_config(game, &config);
+  x_fs_path_set(&config.config_file_path, config_ini_path);
+  x_fs_path_normalize(&config.config_file_path);
+
+  return ldk_engine_initialize_with_config(&config);
 }
 
-bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* config)
+bool ldk_engine_initialize_with_config(const LDKConfig* config)
 {
   LDKRoot* e = &g_engine;
   bool engine_init_failed = false;
@@ -298,18 +483,6 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   memset(e, 0, sizeof(*e));
   e->config = *config;
-
-  if (game != NULL)
-  {
-    e->game = *game;
-  }
-
-  // Asssign stub functions for unregistered game callbacks
-  if (!e->game.initialize) e->game.initialize = s_stub_game_initialize;
-  if (!e->game.start) e->game.start = s_stub_game_start;
-  if (!e->game.update) e->game.update = s_stub_game_update;
-  if (!e->game.stop) e->game.stop = s_stub_game_stop;
-  if (!e->game.terminate) e->game.terminate = s_stub_game_terminate;
 
   x_log_init(&e->logger, XLOG_OUTPUT_BOTH, XLOG_LEVEL_DEBUG, x_fs_path_cstr(&e->config.log_file));
   x_log_info(&e->logger, "========= LDK v%d.%d.%d =========\n", LDK_VERSION_MAJOR, LDK_VERSION_MINOR, LDK_VERSION_PATCH);
@@ -353,8 +526,8 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
 
   LDKRendererConfig renderer_config;
   renderer_config.rhi = &e->rhi;
-  renderer_config.initial_ui_index_capacity = LDK_DEFATUL_UI_INITIAL_INDEX_CAPACITY;
-  renderer_config.initial_ui_vertex_capacity = LDK_DEFATUL_UI_INITIAL_VERTEX_CAPACITY;
+  renderer_config.initial_ui_index_capacity = config->initial_ui_index_capacity;
+  renderer_config.initial_ui_vertex_capacity = config->initial_ui_vertex_capacity;
   if (!ldk_renderer_initialize(&e->renderer, &renderer_config))
   {
     ldk_log_error("Failed to initialize module: UI Renderer.");
@@ -362,41 +535,19 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
     return false;
   }
 
-
-
   g_engine_initialized = true;
   e->previous_ticks = 0;
   e->running = true;
-  e->playing = false;
-  e->game_initialized = false;
+  s_game_instance_init_default(&e->game);
 
-  LDK_ASSERT(!e->game_initialized);
+  LDK_ASSERT(!e->game.initialized);
   LDK_ASSERT(!e->ecs.system.is_started);
-
-  // Initialize game
-  if (!e->game.initialize(&e->game))
-  {
-    ldk_log_error("Failed to initialize game module.");
-    engine_init_failed = true;
-  }
-
-  e->game_initialized = true;
 
   if (!ldk_ecs_system_registry_start(&e->ecs))
   {
     ldk_log_error("Failed to start ECS system registry.");
     engine_init_failed = true;
   }
-
-#ifdef LDK_EDITOR
-
-  if (!ldk_editor_initialize(&e->editor, &e->config))
-  {
-    ldk_log_error("Failed to initialize Editor.");
-    engine_init_failed = true;
-  }
-  
-#endif
 
   if (engine_init_failed)
   {
@@ -408,46 +559,10 @@ bool ldk_engine_initialize_with_config(const LDKGame* game, const LDKConfig* con
   return true;
 }
 
-/*
- * Play mode enables runtime simulation on top of the currently loaded editor
- * state. The editor scene is expected to be the source of truth; later we can
- * build a dedicated runtime copy here without changing the public contract.
- */
-bool ldk_engine_play_start(void)
+LDKWindow ldk_engine_main_window_get(void)
 {
-  LDKRoot* e = &g_engine;
-
-  X_ASSERT(g_engine_initialized);
-
-  if (e->playing)
-  {
-    return true;
-  }
-
-  if (!e->game.start(&e->game))
-  {
-    return false;
-  }
-
-  e->playing = true;
-  e->previous_ticks = ldk_os_time_ticks_get();
-  return true;
-}
-
-void ldk_engine_play_stop(void)
-{
-  LDKRoot* e = &g_engine;
-
-  X_ASSERT(g_engine_initialized);
-
-  if (!e->playing)
-  {
-    return;
-  }
-
-  e->game.stop(&e->game);
-  e->playing = false;
-  e->previous_ticks = 0;
+  LDK_ASSERT(g_engine_initialized);
+  return g_engine.window;
 }
 
 void ldk_engine_stop(i32 exit_code)
@@ -494,25 +609,20 @@ void ldk_engine_frame(void)
   e->previous_ticks = current_ticks;
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
 
+  s_broadcast_frame_event(LDK_FRAME_EVENT_UPDATE_BEFORE, current_ticks, delta_time); 
   { // Update simulation
     ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
-    if (e->playing)
-    {
-      e->game.update(&e->game, delta_time);
-    }
+
+    e->game.update(&e->game, delta_time);
 
     ldk_scenegraph_update(delta_time); // Update scenegraph
     ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
     ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
   }
+  s_broadcast_frame_event(LDK_FRAME_EVENT_UPDATE_AFTER, current_ticks, delta_time); 
 
-  event.type = LDK_EVENT_TYPE_RENDER_BEFORE;
-  event.frame_event.ticks = current_ticks;
-  event.frame_event.delta_time = delta_time;
-  ldk_event_push(&e->event_queue, &event);
-  ldk_event_queue_broadcast(&e->event_queue);
-
-  { // Render scene/game
+  s_broadcast_frame_event(LDK_FRAME_EVENT_SUBMIT_BEFORE, current_ticks, delta_time); 
+  { // Submit scene
 
     // Collect scene data from game
     LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
@@ -545,11 +655,10 @@ void ldk_engine_frame(void)
       break;
     }
 
-    if (!main_camera)
+    if (!main_camera && e->game.initialized)
     {
-      ldk_log_error("No main camarea found!\n");
+      ldk_log_error("No main camera found!\n");
     }
-
 
     // Mesh sources
     XArray* all_mesh = ldk_component_store_get(component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
@@ -604,28 +713,21 @@ void ldk_engine_frame(void)
       ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh, mesh_world);
     }
   }
+  s_broadcast_frame_event(LDK_FRAME_EVENT_SUBMIT_AFTER, current_ticks, delta_time); 
 
+  s_broadcast_frame_event(LDK_FRAME_EVENT_RENDER_BEFORE, current_ticks, delta_time); 
+  { // Render scene
+    current_ticks = ldk_os_time_ticks_get();
+    LDKRendererFrameDesc frame_desc;
+    frame_desc.framebuffer_width = window_size.w;
+    frame_desc.framebuffer_height = window_size.h;
+    frame_desc.clear_color = 0xABABABFFu;
+    frame_desc.clear_color_enabled = true;
+    ldk_renderer_render_frame(&e->renderer, &frame_desc);
 
-#ifdef LDK_EDITOR
-  ldk_editor_update(&e->editor, window_size.w, window_size.h, delta_time);
-#endif
-
-  current_ticks = ldk_os_time_ticks_get();
-
-  LDKRendererFrameDesc frame_desc;
-  frame_desc.framebuffer_width = window_size.w;
-  frame_desc.framebuffer_height = window_size.h;
-  frame_desc.clear_color = 0xABABABFFu;
-  frame_desc.clear_color_enabled = true;
-  ldk_renderer_render_frame(&e->renderer, &frame_desc);
-
-  event.type = LDK_EVENT_TYPE_RENDER_AFTER;
-  event.frame_event.ticks = current_ticks;
-  event.frame_event.delta_time = delta_time;
-  ldk_event_push(&e->event_queue, &event);
-  ldk_event_queue_broadcast(&e->event_queue);
-
-  ldk_os_window_buffers_swap(e->window);
+    ldk_os_window_buffers_swap(e->window);
+  }
+  s_broadcast_frame_event(LDK_FRAME_EVENT_RENDER_AFTER, current_ticks, delta_time); 
 }
 
 void ldk_engine_terminate(void)
@@ -637,19 +739,10 @@ void ldk_engine_terminate(void)
     return;
   }
 
-  // Stop game
-  ldk_engine_play_stop();
-  if (e->game_initialized)
-  {
-    e->game.terminate(&e->game);
-  }
+  ldk_game_instance_unload();
 
-  e->game_initialized = false;
-
-  // Stop engine modules
   s_terminate_all_modules(e);
 
-  // Cleanup
   memset(e, 0, sizeof(*e));
   g_engine_initialized = false;
   g_handling_signal = 0;
@@ -657,24 +750,16 @@ void ldk_engine_terminate(void)
   g_last_signal = 0;
 }
 
-/*
- * Standalone convenience path:
- * Editor hosts are expected to drive frames explicitly and toggle play mode
- * with ldk_engine_play_start/stop.
- */
 i32 ldk_engine_run(void)
 {
   LDKRoot* e = &g_engine;
+
   X_ASSERT(g_engine_initialized);
+
   e->running = true;
+
   ldk_os_window_show(e->window, true);
   ldk_os_window_fullscreen_set(e->window, e->config.fullscreen);
-
-  if (!ldk_engine_play_start())
-  {
-    e->exit_code = 1;
-    return e->exit_code;
-  }
 
   while (e->running)
   {
@@ -686,6 +771,10 @@ i32 ldk_engine_run(void)
     }
   }
 
-  ldk_engine_play_stop();
   return e->exit_code;
+}
+
+LDKWindow ldk_main_window(void)
+{
+  return g_engine.window;
 }

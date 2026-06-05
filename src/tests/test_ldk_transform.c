@@ -1,10 +1,12 @@
-#include <ldk_common.h>
-
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_ARRAY
 #define X_IMPL_MATH
+#define X_IMPL_LOG
 #define X_IMPL_HPOOL
 #endif
+
+#include <ldk_common.h>
+#include <ldk.h>
 
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_math.h>

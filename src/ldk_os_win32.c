@@ -8,6 +8,7 @@
 #include <string.h>
 #include <windows.h>
 #include <windowsx.h>
+#include <commdlg.h>
 
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_filesystem.h>
@@ -136,6 +137,7 @@ static struct
 static struct 
 {
   LARGE_INTEGER frequency;
+  LDKCursorType cursor_type;
 
   // input state
   LDKKeyboardState  keyboard_state;
@@ -155,7 +157,7 @@ static struct
   HCURSOR default_cursor;
   XInputGetStateFunc xinput_get_state;
   XInputSetStateFunc xinput_set_state;
-} s_oswin32;
+} s_oswin32 = {0};
 
 static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -660,7 +662,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   {
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.style = CS_OWNDC;
-    wc.lpfnWndProc = s_window_proc;
+    wc.lpfnWndProc = (WNDPROC) &s_window_proc;
     wc.hInstance = hInstance;
     wc.hbrBackground = (HBRUSH) GetStockObject(BLACK_BRUSH);
     wc.lpszClassName = ldk_window_class;
@@ -849,58 +851,131 @@ bool ldk_os_window_fullscreen_get(LDKWindow window)
   return ((LDKWin32Window*)window)->is_fullscreen;
 }
 
+bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
+{
+  HMONITOR hMonitor;
+  MONITORINFOEX monitorInfo;
+  DEVMODE mode;
+  LONG result;
+
+  if (!hWnd)
+  {
+    return false;
+  }
+
+  hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+
+  ZeroMemory(&monitorInfo, sizeof(monitorInfo));
+  monitorInfo.cbSize = sizeof(monitorInfo);
+
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  {
+    return false;
+  }
+
+  ZeroMemory(&mode, sizeof(mode));
+  mode.dmSize = sizeof(mode);
+
+  if (!EnumDisplaySettings(monitorInfo.szDevice, ENUM_CURRENT_SETTINGS, &mode))
+  {
+    return false;
+  }
+
+  result = ChangeDisplaySettingsEx(monitorInfo.szDevice, &mode,
+      NULL, CDS_FULLSCREEN, NULL);
+
+  if (result != DISP_CHANGE_SUCCESSFUL)
+  {
+    ldk_log_error("Failed to change '%s' display settings\n", monitorInfo.szDevice);
+    return false;
+  }
+
+  SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
+
+  SetWindowPos(hWnd, HWND_TOP, mode.dmPosition.x, mode.dmPosition.y, mode.dmPelsWidth,
+      mode.dmPelsHeight, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+  return true;
+}
+
+bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
+{
+  HMONITOR hMonitor;
+  MONITORINFOEX monitorInfo;
+  LONG result;
+
+  if (!hWnd)
+  {
+    return false;
+  }
+
+  hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+
+  ZeroMemory(&monitorInfo, sizeof(monitorInfo));
+  monitorInfo.cbSize = sizeof(monitorInfo);
+
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  {
+    result = ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
+  }
+  else
+  {
+    result = ChangeDisplaySettingsEx(monitorInfo.szDevice, NULL, NULL, 0, NULL);
+  }
+
+  if (result != DISP_CHANGE_SUCCESSFUL)
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
 {
-  LDKWin32Window* win32Window = ((LDKWin32Window*)window);
+  LDKWin32Window* win32Window = (LDKWin32Window*)window;
   HWND hWnd = win32Window->handle;
 
-  if (fs && !win32Window->is_fullscreen) // Enter full screen
+  if (fs == win32Window->is_fullscreen)
   {
-    // Get the monitor's handle
-    HMONITOR hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
-    // Get the monitor's info
-    MONITORINFO monitorInfo = { sizeof(monitorInfo) };
-    GetMonitorInfo(hMonitor, &monitorInfo);
-    // Save the window's current style and position
+    return true;
+  }
+
+  if (fs)
+  {
     win32Window->prev_style = GetWindowLongPtr(hWnd, GWL_STYLE);
-    win32Window->prev_placement = win32Window->prev_placement;
-    GetWindowPlacement(hWnd, &win32Window->prev_placement);
 
-    // Set the window style to full screen
-    SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style & ~(WS_CAPTION | WS_THICKFRAME));
-    SetWindowPos(hWnd, NULL,
-        monitorInfo.rcMonitor.left,
-        monitorInfo.rcMonitor.top,
-        monitorInfo.rcMonitor.right,
-        monitorInfo.rcMonitor.bottom,
-        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-
-    // Set the display settings to full screen
-    DEVMODE dmScreenSettings = { 0 };
-    dmScreenSettings.dmSize = sizeof(dmScreenSettings);
-    dmScreenSettings.dmPelsWidth = monitorInfo.rcMonitor.right;
-    dmScreenSettings.dmPelsHeight = monitorInfo.rcMonitor.bottom;
-    dmScreenSettings.dmBitsPerPel = 32;
-    dmScreenSettings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
-
-    LONG result = ChangeDisplaySettings(&dmScreenSettings, CDS_FULLSCREEN);
-    if (result != DISP_CHANGE_SUCCESSFUL)
+    win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
+    if (!GetWindowPlacement(hWnd, &win32Window->prev_placement))
     {
-      //debugLogError("Failed to enter fullScreen mode");
       return false;
     }
-    // Show the window in full screen mode
-    ShowWindow(hWnd, SW_MAXIMIZE);
+
+    if (!s_win32_enter_exclusive_fullscreen(hWnd))
+    {
+      return false;
+    }
+
     win32Window->is_fullscreen = true;
+    return true;
   }
-  else if (!fs && win32Window->is_fullscreen) // Exit full screen
+
+  if (!s_win32_exit_exclusive_fullscreen(hWnd))
   {
-    // restore window previous style and location
-    SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style);
-    SetWindowPlacement(hWnd, &win32Window->prev_placement);
-    ShowWindow(hWnd, SW_RESTORE);
-    win32Window->is_fullscreen = false;
+    return false;
   }
+
+  SetWindowLongPtr(hWnd, GWL_STYLE, win32Window->prev_style);
+
+  win32Window->prev_placement.length = sizeof(WINDOWPLACEMENT);
+  SetWindowPlacement(hWnd, &win32Window->prev_placement);
+
+  SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+  ShowWindow(hWnd, SW_RESTORE);
+
+  win32Window->is_fullscreen = false;
   return true;
 }
 
@@ -1035,7 +1110,12 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         e->type                = LDK_EVENT_TYPE_TEXT;
         e->window = window;
         e->text_event.character = (u32) wParam;
-        e->text_event.type      = ((u32) wParam == VK_BACK) ? LDK_TEXT_EVENT_BACKSPACE: LDK_TEXT_EVENT_CHARACTER_INPUT;
+        switch(wParam)
+        {
+          case VK_BACK: e->text_event.type = LDK_TEXT_EVENT_BACKSPACE; break;
+          case VK_RETURN: e->text_event.type = LDK_TEXT_EVENT_RETURN; break;
+          default: e->text_event.type =  LDK_TEXT_EVENT_CHARACTER_INPUT; break;
+        }
       }
       break;
 
@@ -1270,6 +1350,54 @@ i32 ldk_os_graphics_vsync_get(void)
 
 
 // ---------------------------------------------------------------------------
+// Shared Library interface
+// ---------------------------------------------------------------------------
+
+LDKLibrary* ldk_os_library_load(const char* path)
+{
+  return (void*) LoadLibrary(path);
+}
+
+bool ldk_os_library_unload(LDKLibrary* library)
+{
+  return FreeLibrary(library);
+}
+
+void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name)
+{
+  return (void*) GetProcAddress(library, name);
+}
+
+// ---------------------------------------------------------------------------
+// System Cursor
+// ---------------------------------------------------------------------------
+
+void ldk_os_cursor_type_set(LDKCursorType type)
+{
+  LPCSTR cursor = IDC_ARROW;
+  switch(type)
+  {
+    case LDK_CURSOR_ARROW: cursor = IDC_ARROW; break;
+    case LDK_CURSOR_TEXT_SELECT: cursor = IDC_IBEAM; break;
+    case LDK_CURSOR_SIZE_NWSE: cursor = IDC_SIZENWSE; break;
+    case LDK_CURSOR_SIZE_NESW: cursor = IDC_SIZENESW; break;
+    case LDK_CURSOR_SIZE_WE: cursor = IDC_SIZEWE; break;
+    case LDK_CURSOR_SIZE_NS: cursor = IDC_SIZENS; break;
+    default: cursor = IDC_ARROW; break;
+  }
+
+  s_oswin32.cursor_type = type;
+  HCURSOR hcursor = LoadCursor(NULL, cursor);
+  SetCursor(hcursor);
+}
+
+LDKCursorType  ldk_os_cursor_type_get()
+{
+  return s_oswin32.cursor_type;
+}
+
+
+// ---------------------------------------------------------------------------
 // Mouse
 // ---------------------------------------------------------------------------
 
@@ -1443,3 +1571,97 @@ float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
   return s_oswin32.joystick_state[id].vibration_right;
 }
 
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
+
+bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter,
+  char* out_path, size_t out_path_size)
+{
+  if (! out_path || out_path_size == 0)
+  {
+    return false;
+  }
+
+  out_path[0] = '\0';
+
+  OPENFILENAMEA ofn;
+  memset(&ofn, 0, sizeof(ofn));
+
+  ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.lpstrTitle = title;
+  ofn.lpstrFilter = filter;
+  ofn.lpstrFile = out_path;
+  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.Flags =
+    OFN_PATHMUSTEXIST |
+    OFN_FILEMUSTEXIST |
+    OFN_NOCHANGEDIR |
+    OFN_EXPLORER;
+
+  return GetOpenFileNameA(&ofn) != 0;
+}
+
+bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter,
+  char* out_path, size_t out_path_size)
+{
+  if (! out_path || out_path_size == 0)
+  {
+    return false;
+  }
+
+  out_path[0] = '\0';
+
+  OPENFILENAMEA ofn;
+  memset(&ofn, 0, sizeof(ofn));
+
+  ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.lpstrTitle = title;
+  ofn.lpstrFilter = filter;
+  ofn.lpstrFile = out_path;
+  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.Flags =
+    OFN_PATHMUSTEXIST |
+    OFN_OVERWRITEPROMPT |
+    OFN_NOCHANGEDIR |
+    OFN_EXPLORER;
+
+  return GetSaveFileNameA(&ofn) != 0;
+}
+
+bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(
+    owner ? ((LDKWin32Window*)owner)->handle : NULL,
+    message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+
+  return result == IDYES;
+}
+
+bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(
+    owner ? ((LDKWin32Window*)owner)->handle : NULL,
+    message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2
+  );
+
+  return result == IDOK;
+}
+
+bool ldk_os_dialog_show_ok(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONINFORMATION);
+
+  return result == IDOK;
+}
+
+bool ldk_os_dialog_show_error(LDKWindow owner, const char* title, const char* message)
+{
+  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONERROR);
+
+  return result == IDOK;
+}

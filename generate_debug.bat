@@ -1,1 +1,1 @@
-@cmake --preset debug --fresh
+@cmake --preset all-debug --fresh

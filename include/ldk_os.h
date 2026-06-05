@@ -93,10 +93,12 @@ extern "C" {
   LDK_API i32     ldk_os_graphics_vsync_get(void);
 
   // ---------------------------------------------------------------------------
-  // Misc
+  // Shared Library interface
   // ---------------------------------------------------------------------------
-  LDK_API size_t ldk_os_executable_path_get(XFSPath* ldk_path);
-  LDK_API size_t ldk_os_executable_path_file_name_get(XFSPath* ldk_path);
+  typedef void LDKLibrary;
+  LDK_API LDKLibrary* ldk_os_library_load(const char* path);
+  LDK_API bool ldk_os_library_unload(LDKLibrary* library);
+  LDK_API void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name);
 
   // ---------------------------------------------------------------------------
   // Mouse
@@ -113,6 +115,20 @@ extern "C" {
     LDK_MOUSE_PRESSED_BIT     = 1,
     LDK_MOUSE_MAX_BUTTONS     = 5
   } LDKMouseButton;
+
+
+  typedef enum
+  {
+    LDK_CURSOR_ARROW = 0,
+    LDK_CURSOR_TEXT_SELECT = 1,
+    LDK_CURSOR_SIZE_NWSE = 2,
+    LDK_CURSOR_SIZE_NESW = 3,
+    LDK_CURSOR_SIZE_WE = 4,
+    LDK_CURSOR_SIZE_NS = 5,
+  } LDKCursorType;
+
+  LDK_API void ldk_os_cursor_type_set(LDKCursorType type);
+  LDK_API LDKCursorType  ldk_os_cursor_type_get();
 
   // LDKMouseState
   typedef struct 
@@ -352,7 +368,6 @@ extern "C" {
     float vibration_right;
   } LDKJoystickState;
 
-
   LDK_API void ldk_os_joystick_state_get(LDKJoystickState* outState, LDKJoystickID id);
   LDK_API bool ldk_os_joystick_button_is_pressed(LDKJoystickState* state, LDKJoystickButton key);
   LDK_API bool ldk_os_joystick_button_down(LDKJoystickState* state, LDKJoystickButton key);
@@ -366,6 +381,25 @@ extern "C" {
 
   LDK_API float ldk_os_joystick_vibration_left_get(LDKJoystickID id);
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
+
+  // ---------------------------------------------------------------------------
+  // Dialogs
+  // ---------------------------------------------------------------------------
+  typedef enum
+  {
+    LDK_OS_DIALOG_RESULT_NONE = 0,
+    LDK_OS_DIALOG_RESULT_OK,
+    LDK_OS_DIALOG_RESULT_CANCEL,
+    LDK_OS_DIALOG_RESULT_YES,
+    LDK_OS_DIALOG_RESULT_NO,
+  } LDKOSDialogResult;
+
+  LDK_API bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter, char* out_path, size_t out_path_size);
+  LDK_API bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter, char* out_path, size_t out_path_size);
+  LDK_API bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message);
+  LDK_API bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message);
+  LDK_API bool ldk_os_dialog_show_ok(LDKWindow owner, const char* title, const char* message);
+  LDK_API bool ldk_os_dialog_show_error(LDKWindow owner, const char* title, const char* message);
 
 #ifdef __cplusplus
 }

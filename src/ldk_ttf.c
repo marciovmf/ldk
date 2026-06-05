@@ -1,4 +1,4 @@
-#include "ldk_ttf.h"
+#include <ldk_ttf.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +59,7 @@ struct LDKFontFace
   u32 instance_capacity;
 };
 
-static bool ldk_font_grow_array(void** ptr, u32* capacity, u32 count, size_t stride)
+static bool ldk_ttf_grow_array(void** ptr, u32* capacity, u32 count, size_t stride)
 {
   void* new_ptr = NULL;
   u32 new_capacity = 0;
@@ -94,7 +94,7 @@ static bool ldk_font_grow_array(void** ptr, u32* capacity, u32 count, size_t str
   return true;
 }
 
-static u32 ldk_font_round_to_u32(float value)
+static u32 ldk_ttf_round_to_u32(float value)
 {
   if (value <= 0.0f)
   {
@@ -104,7 +104,7 @@ static u32 ldk_font_round_to_u32(float value)
   return (u32)(value + 0.5f);
 }
 
-static i16 ldk_font_round_to_i16(float value)
+static i16 ldk_ttf_round_to_i16(float value)
 {
   if (value >= 32767.0f)
   {
@@ -124,7 +124,7 @@ static i16 ldk_font_round_to_i16(float value)
   return (i16)(value - 0.5f);
 }
 
-static LDKFontGlyphEntry* ldk_font_find_glyph_entry(LDKFontInstance const* instance, u32 codepoint)
+static LDKFontGlyphEntry* ldk_ttf_find_glyph_entry(LDKFontInstance const* instance, u32 codepoint)
 {
   u32 i = 0;
 
@@ -144,7 +144,7 @@ static LDKFontGlyphEntry* ldk_font_find_glyph_entry(LDKFontInstance const* insta
   return NULL;
 }
 
-static bool ldk_font_append_page(LDKFontInstance* instance)
+static bool ldk_ttf_append_page(LDKFontInstance* instance)
 {
   LDKFontPage* page = NULL;
   size_t pixel_count = 0;
@@ -154,7 +154,7 @@ static bool ldk_font_append_page(LDKFontInstance* instance)
     return false;
   }
 
-  if (!ldk_font_grow_array((void**)&instance->pages, &instance->page_capacity, instance->page_count, sizeof(LDKFontPage)))
+  if (!ldk_ttf_grow_array((void**)&instance->pages, &instance->page_capacity, instance->page_count, sizeof(LDKFontPage)))
   {
     return false;
   }
@@ -179,7 +179,7 @@ static bool ldk_font_append_page(LDKFontInstance* instance)
   return true;
 }
 
-static bool ldk_font_page_pack_rect(LDKFontPage* page, u16 padding, u16 w, u16 h, u16* out_x, u16* out_y)
+static bool ldk_ttf_page_pack_rect(LDKFontPage* page, u16 padding, u16 w, u16 h, u16* out_x, u16* out_y)
 {
   u32 padded_w = (u32)w + (u32)padding;
   u32 padded_h = (u32)h + (u32)padding;
@@ -220,7 +220,7 @@ static bool ldk_font_page_pack_rect(LDKFontPage* page, u16 padding, u16 w, u16 h
   return true;
 }
 
-static bool ldk_font_store_bitmap(LDKFontPage* page, u16 dst_x, u16 dst_y, int w, int h, u8 const* src)
+static bool ldk_ttf_store_bitmap(LDKFontPage* page, u16 dst_x, u16 dst_y, int w, int h, u8 const* src)
 {
   int row = 0;
 
@@ -244,7 +244,7 @@ static bool ldk_font_store_bitmap(LDKFontPage* page, u16 dst_x, u16 dst_y, int w
   return true;
 }
 
-static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, LDKGlyph* out_glyph)
+static bool ldk_ttf_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, LDKGlyph* out_glyph)
 {
   int glyph_index = 0;
   int advance_width = 0;
@@ -287,7 +287,7 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
 
   if (instance->page_count == 0)
   {
-    if (!ldk_font_append_page(instance))
+    if (!ldk_ttf_append_page(instance))
     {
       if (bitmap != NULL)
       {
@@ -302,7 +302,7 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
   {
     page = &instance->pages[page_index];
 
-    if (ldk_font_page_pack_rect(page, instance->atlas_desc.padding, (u16)ldk_font_round_to_u32((float)width), (u16)ldk_font_round_to_u32((float)height), &packed_x, &packed_y))
+    if (ldk_ttf_page_pack_rect(page, instance->atlas_desc.padding, (u16)ldk_ttf_round_to_u32((float)width), (u16)ldk_ttf_round_to_u32((float)height), &packed_x, &packed_y))
     {
       break;
     }
@@ -310,7 +310,7 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
 
   if (page_index == instance->page_count)
   {
-    if (!ldk_font_append_page(instance))
+    if (!ldk_ttf_append_page(instance))
     {
       if (bitmap != NULL)
       {
@@ -322,7 +322,7 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
 
     page = &instance->pages[instance->page_count - 1u];
 
-    if (!ldk_font_page_pack_rect(page, instance->atlas_desc.padding, (u16)ldk_font_round_to_u32((float)width), (u16)ldk_font_round_to_u32((float)height), &packed_x, &packed_y))
+    if (!ldk_ttf_page_pack_rect(page, instance->atlas_desc.padding, (u16)ldk_ttf_round_to_u32((float)width), (u16)ldk_ttf_round_to_u32((float)height), &packed_x, &packed_y))
     {
       if (bitmap != NULL)
       {
@@ -335,7 +335,7 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
     page_index = instance->page_count - 1u;
   }
 
-  if (!ldk_font_store_bitmap(page, packed_x, packed_y, width, height, bitmap))
+  if (!ldk_ttf_store_bitmap(page, packed_x, packed_y, width, height, bitmap))
   {
     if (bitmap != NULL)
     {
@@ -353,87 +353,57 @@ static bool ldk_font_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, L
   glyph.page_index = (u16)page_index;
   glyph.atlas_x0 = packed_x;
   glyph.atlas_y0 = packed_y;
-  glyph.atlas_x1 = (u16)((u32)packed_x + (u32)ldk_font_round_to_u32((float)width));
-  glyph.atlas_y1 = (u16)((u32)packed_y + (u32)ldk_font_round_to_u32((float)height));
-  glyph.offset_x = ldk_font_round_to_i16((float)x0);
-  glyph.offset_y = ldk_font_round_to_i16((float)y0);
-  glyph.advance_x = ldk_font_round_to_i16((float)advance_width * instance->scale);
+  glyph.atlas_x1 = (u16)((u32)packed_x + (u32)ldk_ttf_round_to_u32((float)width));
+  glyph.atlas_y1 = (u16)((u32)packed_y + (u32)ldk_ttf_round_to_u32((float)height));
+  glyph.offset_x = ldk_ttf_round_to_i16((float)x0);
+  glyph.offset_y = ldk_ttf_round_to_i16((float)y0);
+  glyph.advance_x = ldk_ttf_round_to_i16((float)advance_width * instance->scale);
   glyph.valid = true;
 
   *out_glyph = glyph;
   return true;
 }
 
-bool ldk_font_utf8_decode(char const** cursor, u32* out_codepoint)
+bool ldk_ttf_utf8_consume_codepoint(char const** cursor, u32* out_codepoint)
 {
-  u8 const* text = NULL;
-  u32 codepoint = 0;
+  char const* ptr = NULL;
+  char const* end = NULL;
+  size_t consumed = 0;
+  int32_t decoded = 0;
 
   if (cursor == NULL || *cursor == NULL || out_codepoint == NULL)
   {
     return false;
   }
 
-  text = (u8 const*)*cursor;
+  ptr = *cursor;
 
-  if (*text == 0)
+  if (*ptr == '\0')
   {
     return false;
   }
 
-  if ((*text & 0x80u) == 0)
+  end = ptr + strlen(ptr);
+  decoded = x_utf8_decode(ptr, end, &consumed);
+
+  if (decoded < 0)
   {
-    codepoint = *text;
-    text += 1;
-  }
-  else if ((*text & 0xE0u) == 0xC0u)
-  {
-    if (text[1] == 0)
+    if (consumed == 0)
     {
-      return false;
+      consumed = 1;
     }
 
-    codepoint = ((u32)(text[0] & 0x1Fu) << 6) |
-                ((u32)(text[1] & 0x3Fu));
-    text += 2;
-  }
-  else if ((*text & 0xF0u) == 0xE0u)
-  {
-    if (text[1] == 0 || text[2] == 0)
-    {
-      return false;
-    }
-
-    codepoint = ((u32)(text[0] & 0x0Fu) << 12) |
-                ((u32)(text[1] & 0x3Fu) << 6) |
-                ((u32)(text[2] & 0x3Fu));
-    text += 3;
-  }
-  else if ((*text & 0xF8u) == 0xF0u)
-  {
-    if (text[1] == 0 || text[2] == 0 || text[3] == 0)
-    {
-      return false;
-    }
-
-    codepoint = ((u32)(text[0] & 0x07u) << 18) |
-                ((u32)(text[1] & 0x3Fu) << 12) |
-                ((u32)(text[2] & 0x3Fu) << 6) |
-                ((u32)(text[3] & 0x3Fu));
-    text += 4;
-  }
-  else
-  {
-    codepoint = 0xFFFDu;
-    text += 1;
+    *cursor = ptr + consumed;
+    *out_codepoint = 0xFFFDu;
+    return true;
   }
 
-  *cursor = (char const*)text;
-  *out_codepoint = codepoint;
+  *cursor = ptr + consumed;
+  *out_codepoint = (u32)decoded;
   return true;
 }
 
-LDKFontFace* ldk_font_face_create(void const* data, u32 data_size)
+LDKFontFace* ldk_ttf_face_create(void const* data, u32 data_size)
 {
   LDKFontFace* face = NULL;
 
@@ -471,7 +441,7 @@ LDKFontFace* ldk_font_face_create(void const* data, u32 data_size)
   return face;
 }
 
-void ldk_font_face_destroy(LDKFontFace* face)
+void ldk_ttf_face_destroy(LDKFontFace* face)
 {
   u32 i = 0;
 
@@ -505,7 +475,7 @@ void ldk_font_face_destroy(LDKFontFace* face)
   LDK_FONT_FREE(face);
 }
 
-LDKFontInstance* ldk_font_get_instance(LDKFontFace* face, float pixel_height, LDKFontAtlasDesc const* atlas_desc)
+LDKFontInstance* ldk_ttf_get_instance(LDKFontFace* face, float pixel_height, LDKFontAtlasDesc const* atlas_desc)
 {
   u32 i = 0;
   LDKFontInstance* instance = NULL;
@@ -565,7 +535,7 @@ LDKFontInstance* ldk_font_get_instance(LDKFontFace* face, float pixel_height, LD
   instance->metrics.line_gap = (float)line_gap * instance->scale;
   instance->metrics.line_height = instance->metrics.ascent - instance->metrics.descent + instance->metrics.line_gap;
 
-  if (!ldk_font_grow_array((void**)&face->instances, &face->instance_capacity, face->instance_count, sizeof(LDKFontInstance*)))
+  if (!ldk_ttf_grow_array((void**)&face->instances, &face->instance_capacity, face->instance_count, sizeof(LDKFontInstance*)))
   {
     LDK_FONT_FREE(instance);
     return NULL;
@@ -577,7 +547,7 @@ LDKFontInstance* ldk_font_get_instance(LDKFontFace* face, float pixel_height, LD
   return instance;
 }
 
-float ldk_font_get_pixel_height(LDKFontInstance const* instance)
+float ldk_ttf_get_pixel_height(LDKFontInstance const* instance)
 {
   if (instance == NULL)
   {
@@ -587,7 +557,7 @@ float ldk_font_get_pixel_height(LDKFontInstance const* instance)
   return instance->pixel_height;
 }
 
-LDKFontMetrics ldk_font_get_metrics(LDKFontInstance const* instance)
+LDKFontMetrics ldk_ttf_get_metrics(LDKFontInstance const* instance)
 {
   LDKFontMetrics metrics;
 
@@ -601,7 +571,7 @@ LDKFontMetrics ldk_font_get_metrics(LDKFontInstance const* instance)
   return instance->metrics;
 }
 
-LDKGlyph const* ldk_font_get_glyph(LDKFontInstance* instance, u32 codepoint)
+LDKGlyph const* ldk_ttf_get_glyph(LDKFontInstance* instance, u32 codepoint)
 {
   LDKFontGlyphEntry* entry = NULL;
 
@@ -610,14 +580,14 @@ LDKGlyph const* ldk_font_get_glyph(LDKFontInstance* instance, u32 codepoint)
     return NULL;
   }
 
-  entry = ldk_font_find_glyph_entry(instance, codepoint);
+  entry = ldk_ttf_find_glyph_entry(instance, codepoint);
 
   if (entry != NULL)
   {
     return &entry->glyph;
   }
 
-  if (!ldk_font_grow_array((void**)&instance->glyphs, &instance->glyph_capacity, instance->glyph_count, sizeof(LDKFontGlyphEntry)))
+  if (!ldk_ttf_grow_array((void**)&instance->glyphs, &instance->glyph_capacity, instance->glyph_count, sizeof(LDKFontGlyphEntry)))
   {
     return NULL;
   }
@@ -625,7 +595,7 @@ LDKGlyph const* ldk_font_get_glyph(LDKFontInstance* instance, u32 codepoint)
   entry = &instance->glyphs[instance->glyph_count];
   memset(entry, 0, sizeof(*entry));
 
-  if (!ldk_font_rasterize_glyph(instance, codepoint, &entry->glyph))
+  if (!ldk_ttf_rasterize_glyph(instance, codepoint, &entry->glyph))
   {
     return NULL;
   }
@@ -634,7 +604,7 @@ LDKGlyph const* ldk_font_get_glyph(LDKFontInstance* instance, u32 codepoint)
   return &entry->glyph;
 }
 
-float ldk_font_get_kerning(LDKFontInstance const* instance, u32 left_codepoint, u32 right_codepoint)
+float ldk_ttf_get_kerning(LDKFontInstance const* instance, u32 left_codepoint, u32 right_codepoint)
 {
   int kern = 0;
 
@@ -647,7 +617,7 @@ float ldk_font_get_kerning(LDKFontInstance const* instance, u32 left_codepoint, 
   return (float)kern * instance->scale;
 }
 
-bool ldk_font_preload_range(LDKFontInstance* instance, u32 first_codepoint, u32 last_codepoint)
+bool ldk_ttf_preload_range(LDKFontInstance* instance, u32 first_codepoint, u32 last_codepoint)
 {
   u32 codepoint = 0;
 
@@ -658,7 +628,7 @@ bool ldk_font_preload_range(LDKFontInstance* instance, u32 first_codepoint, u32 
 
   for (codepoint = first_codepoint; codepoint <= last_codepoint; ++codepoint)
   {
-    if (ldk_font_get_glyph(instance, codepoint) == NULL)
+    if (ldk_ttf_get_glyph(instance, codepoint) == NULL)
     {
       return false;
     }
@@ -672,12 +642,12 @@ bool ldk_font_preload_range(LDKFontInstance* instance, u32 first_codepoint, u32 
   return true;
 }
 
-bool ldk_font_preload_basic_ascii(LDKFontInstance* instance)
+bool ldk_ttf_preload_basic_ascii(LDKFontInstance* instance)
 {
-  return ldk_font_preload_range(instance, 32u, 126u);
+  return ldk_ttf_preload_range(instance, 32u, 126u);
 }
 
-u32 ldk_font_get_page_count(LDKFontInstance const* instance)
+u32 ldk_ttf_get_page_count(LDKFontInstance const* instance)
 {
   if (instance == NULL)
   {
@@ -687,7 +657,7 @@ u32 ldk_font_get_page_count(LDKFontInstance const* instance)
   return instance->page_count;
 }
 
-bool ldk_font_get_page_info(LDKFontInstance const* instance, u32 page_index, LDKFontPageInfo* out_page)
+bool ldk_ttf_get_page_info(LDKFontInstance const* instance, u32 page_index, LDKFontPageInfo* out_page)
 {
   LDKFontPage const* page = NULL;
 
@@ -706,7 +676,7 @@ bool ldk_font_get_page_info(LDKFontInstance const* instance, u32 page_index, LDK
   return true;
 }
 
-void ldk_font_clear_page_dirty(LDKFontInstance* instance, u32 page_index)
+void ldk_ttf_clear_page_dirty(LDKFontInstance* instance, u32 page_index)
 {
   if (instance == NULL || page_index >= instance->page_count)
   {
@@ -716,60 +686,292 @@ void ldk_font_clear_page_dirty(LDKFontInstance* instance, u32 page_index)
   instance->pages[page_index].dirty = false;
 }
 
-float ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text)
+static bool ldk_ttf_codepoint_is_word_space(u32 codepoint)
 {
-  float width = 0.0f;
-  u32 prev_codepoint = 0;
-  u32 codepoint = 0;
-  char const* ptr;
+  return codepoint == ' ' || codepoint == '\t' || codepoint == '\r';
+}
 
-  if (instance == NULL || text == NULL)
+static float ldk_ttf_codepoint_advance(LDKFontInstance* instance, u32 previous_codepoint, u32 codepoint)
+{
+  LDKGlyph const* glyph = NULL;
+  float advance = 0.0f;
+
+  if (instance == NULL)
   {
     return 0.0f;
   }
 
-  ptr = text;
+  glyph = ldk_ttf_get_glyph(instance, codepoint);
 
-  while (*ptr)
+  if (glyph == NULL || !glyph->valid)
   {
-    // --- UTF-8 decode ---
-    u32 c = (unsigned char)*ptr;
+    return 0.0f;
+  }
 
-    if (c < 0x80)
+  if (previous_codepoint != 0)
+  {
+    advance += ldk_ttf_get_kerning(instance, previous_codepoint, codepoint);
+  }
+
+  advance += (float)glyph->advance_x;
+
+  return advance;
+}
+
+static char const* ldk_ttf_skip_word_spaces(char const* cursor)
+{
+  char const* it = cursor;
+
+  if (it == NULL)
+  {
+    return NULL;
+  }
+
+  while (*it == ' ' || *it == '\t' || *it == '\r')
+  {
+    it += 1;
+  }
+
+  return it;
+}
+
+static bool ldk_ttf_wrapped_next_line(LDKFontInstance* instance, char const* start, float max_width,
+    char const** out_next, float* out_width)
+{
+  char const* line_start = start;
+  char const* cursor = NULL;
+  char const* last_break_next = NULL;
+  float width = 0.0f;
+  float line_end_width = 0.0f;
+  float last_break_width = 0.0f;
+  u32 previous_codepoint = 0;
+  bool has_visible_codepoint = false;
+
+  if (out_next != NULL)
+  {
+    *out_next = start;
+  }
+
+  if (out_width != NULL)
+  {
+    *out_width = 0.0f;
+  }
+
+  if (instance == NULL || start == NULL || *start == '\0')
+  {
+    return false;
+  }
+
+  line_start = ldk_ttf_skip_word_spaces(start);
+  cursor = line_start;
+
+  if (*cursor == '\n')
+  {
+    if (out_next != NULL)
     {
-      codepoint = c;
-      ptr += 1;
+      *out_next = cursor + 1;
     }
-    else if ((c >> 5) == 0x6)
+
+    return true;
+  }
+
+  while (*cursor != '\0')
+  {
+    char const* before = cursor;
+    u32 codepoint = 0;
+
+    if (!ldk_ttf_utf8_consume_codepoint(&cursor, &codepoint))
     {
-      codepoint = ((c & 0x1F) << 6) |
-                  (ptr[1] & 0x3F);
-      ptr += 2;
+      break;
     }
-    else if ((c >> 4) == 0xE)
+
+    if (codepoint == '\n')
     {
-      codepoint = ((c & 0x0F) << 12) |
-                  ((ptr[1] & 0x3F) << 6) |
-                  (ptr[2] & 0x3F);
-      ptr += 3;
+      if (out_next != NULL)
+      {
+        *out_next = cursor;
+      }
+
+      if (out_width != NULL)
+      {
+        *out_width = line_end_width;
+      }
+
+      return true;
     }
-    else if ((c >> 3) == 0x1E)
+
+    if (ldk_ttf_codepoint_is_word_space(codepoint))
     {
-      codepoint = ((c & 0x07) << 18) |
-                  ((ptr[1] & 0x3F) << 12) |
-                  ((ptr[2] & 0x3F) << 6) |
-                  (ptr[3] & 0x3F);
-      ptr += 4;
-    }
-    else
-    {
-      // invalid byte, skip
-      ptr += 1;
+      if (has_visible_codepoint)
+      {
+        last_break_next = ldk_ttf_skip_word_spaces(cursor);
+        last_break_width = line_end_width;
+      }
+
+      width += ldk_ttf_codepoint_advance(instance, previous_codepoint, codepoint);
+      previous_codepoint = codepoint;
       continue;
     }
 
-    // --- glyph lookup ---
-    LDKGlyph const* glyph = ldk_font_get_glyph(instance, codepoint);
+    float advance = ldk_ttf_codepoint_advance(instance, previous_codepoint, codepoint);
+
+    if (has_visible_codepoint && width + advance > max_width)
+    {
+      if (last_break_next != NULL && last_break_next > line_start)
+      {
+        if (out_next != NULL)
+        {
+          *out_next = last_break_next;
+        }
+
+        if (out_width != NULL)
+        {
+          *out_width = last_break_width;
+        }
+
+        return true;
+      }
+
+      if (out_next != NULL)
+      {
+        *out_next = before;
+      }
+
+      if (out_width != NULL)
+      {
+        *out_width = line_end_width;
+      }
+
+      return true;
+    }
+
+    width += advance;
+    previous_codepoint = codepoint;
+    line_end_width = width;
+    has_visible_codepoint = true;
+  }
+
+  if (out_next != NULL)
+  {
+    *out_next = cursor;
+  }
+
+  if (out_width != NULL)
+  {
+    *out_width = line_end_width;
+  }
+
+  return true;
+}
+
+LDKSizef ldk_ttf_measure_text_cstr_wrapped(LDKFontInstance* instance, char const* text, float max_width)
+{
+  LDKSizef size;
+
+  size.w = 0.0f;
+  size.h = 0.0f;
+
+  if (instance == NULL || text == NULL)
+  {
+    return size;
+  }
+
+  if (max_width <= 0.0f)
+  {
+    return ldk_ttf_measure_text_cstr(instance, text);
+  }
+
+  float line_height = ldk_ttf_get_line_height(instance);
+  char const* cursor = text;
+
+  while (cursor != NULL && *cursor != '\0')
+  {
+    char const* next = NULL;
+    float line_width = 0.0f;
+
+    if (!ldk_ttf_wrapped_next_line(instance, cursor, max_width, &next, &line_width))
+    {
+      break;
+    }
+
+    if (line_width > size.w)
+    {
+      size.w = line_width;
+    }
+
+    size.h += line_height;
+
+    if (next == NULL || next <= cursor)
+    {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  if (size.h == 0.0f)
+  {
+    size.h = line_height;
+  }
+
+  return size;
+}
+
+LDKSizef ldk_ttf_measure_text_cstr(LDKFontInstance* instance, char const* text)
+{
+  return ldk_ttf_measure_text_cstrn(instance, text, 0);
+}
+
+LDKTextSize ldk_ttf_measure_text_cstrn(LDKFontInstance* instance, char const* text, u32 byte_count)
+{
+  LDKSizef size = {0};
+
+  float line_width = 0.0f;
+  u32 prev_codepoint = 0;
+  u32 codepoint = 0;
+
+  if (instance == NULL || text == NULL)
+  {
+    return size;
+  }
+
+  float line_height = ldk_ttf_get_line_height(instance);
+  size.h = line_height;
+
+  // Note, when byte_count is 0, the function keeps goint until it finds a null character
+  // Otherwise the function stops at byte_count bytes after text
+  char const* ptr = text;
+  char const* end = ptr + byte_count;
+  while (*ptr)
+  {
+    if (byte_count > 0 && ptr >= end)
+      break;
+
+    if (!ldk_ttf_utf8_consume_codepoint(&ptr, &codepoint))
+    {
+      break;
+    }
+
+    if (codepoint == '\n')
+    {
+      if (line_width > size.w)
+      {
+        size.w = line_width;
+      }
+
+      line_width = 0.0f;
+      prev_codepoint = 0;
+      size.h += line_height;
+
+      continue;
+    }
+
+    if (codepoint == '\r')
+    {
+      continue;
+    }
+
+    LDKGlyph const* glyph = ldk_ttf_get_glyph(instance, codepoint);
 
     if (glyph == NULL || !glyph->valid)
     {
@@ -777,22 +979,24 @@ float ldk_font_measure_text_cstr(LDKFontInstance* instance, char const* text)
       continue;
     }
 
-    // --- kerning ---
     if (prev_codepoint != 0)
     {
-      width += ldk_font_get_kerning(instance, prev_codepoint, codepoint);
+      line_width += ldk_ttf_get_kerning(instance, prev_codepoint, codepoint);
     }
 
-    // --- advance ---
-    width += (float)glyph->advance_x;
-
+    line_width += (float)glyph->advance_x;
     prev_codepoint = codepoint;
   }
 
-  return width;
+  if (line_width > size.w)
+  {
+    size.w = line_width;
+  }
+
+  return size;
 }
 
-float ldk_font_get_line_height(LDKFontInstance* instance)
+float ldk_ttf_get_line_height(LDKFontInstance* instance)
 {
   if (instance == NULL)
   {
