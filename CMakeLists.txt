@@ -188,7 +188,7 @@ function(ldk_game_build)
   )
 
   if (${GAME_TYPE} STREQUAL "SHARED")
-    add_dependencies(${GAME_TARGET} cmg) # make sure the tools are built
+    add_dependencies(${GAME_TARGET} comet) # make sure the tools are built
   endif()
 
   # ------------------------------------------------------------
@@ -205,27 +205,24 @@ function(ldk_game_build)
 
     list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
 
-
     set(GAME_METADATA_DIR "${GAME_OUTPUT_DIR}/generated/")
     set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/ldk_component_metadata.h")
 
-    if (NOT DEFINED LDK_CMG_TOOL)
-      set(LDK_CMG_TOOL "${LDK_OUTPUT_DIR}/cmg.exe")
+    if (NOT DEFINED LDK_COMET_TOOL)
+      set(LDK_COMET_TOOL "${LDK_OUTPUT_DIR}/comet.exe")
     endif()
 
     add_custom_command(
       OUTPUT "${GAME_METADATA_HEADER}"
-
-      COMMAND ${CMAKE_COMMAND} -E echo "make_directory = ${GAME_METADATA_DIR}"
       COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
-      COMMAND "${LDK_CMG_TOOL}" "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
+      COMMAND "${LDK_COMET_TOOL}" "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
       DEPENDS
-        "${LDK_CMG_TOOL}"
+        "${LDK_COMET_TOOL}"
         ${GAME_COMPONENT_HEADERS}
 
       COMMAND_EXPAND_LISTS
       VERBATIM
-      COMMENT "Generating component metadata for ${GAME_TARGET}"
+      COMMENT "Running component metadata extraction tool..."
     )
 
     add_custom_target(${GAME_TARGET}_metadata
@@ -427,13 +424,13 @@ else()
   add_dependencies(ldk print_options)
 endif()
 
-# --- CMG TOOL ---------------------------------------------------------------
+# --- COMET TOOL ---------------------------------------------------------------
 
 # component meta generator tool
-add_executable(cmg src/tools/ldk_component_meta_gen.c)
-ldk_target_defaults(cmg)
-target_include_directories(cmg PRIVATE ${INCLUDE_DIR})
-ldk_target_output_dirs(cmg
+add_executable(comet src/tools/ldk_tool_comet.c)
+ldk_target_defaults(comet)
+target_include_directories(comet PRIVATE ${INCLUDE_DIR})
+ldk_target_output_dirs(comet
   RUNTIME "${LDK_OUTPUT_DIR}"
   LIBRARY "${LDK_OUTPUT_DIR}"
   ARCHIVE "${LDK_LIBRARY_DIR}"
@@ -446,7 +443,7 @@ if (OPTION_BUILD_EDITOR)
   endif()
 
   add_executable(ldk_editor src/ldk_app_editor.c)
-  add_dependencies(ldk_editor cmg) # make sure the tools are built
+  add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
 
   target_include_directories(ldk_editor PRIVATE

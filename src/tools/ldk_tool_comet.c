@@ -1,4 +1,8 @@
 #include <ldk_common.h>
+
+#define X_IMPL_TIME
+#include <stdx/stdx_time.h>
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -842,14 +846,13 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   }
 
   // print components found
-  printf("Found %d components\n", state.component_count);
   for (u32 i = 0; i < state.component_count; i++)
   {
     LDKMetaComponent* meta = &state.components[i];
-
-    printf("\t0x%X '%s'\n", state.components[i].type_id,
-           (const char*)&meta->type_name[0]);
-    
+    printf(" Component %d/%d - %s : 0x%X\n",
+           (i+1), state.component_count,
+           (const char*)&meta->type_name[0],
+           state.components[i].type_id);
   }
   
          
@@ -883,6 +886,19 @@ int main(i32 argc, const char** argv)
 
   const u32 num_files = argc - 2;
   const char** files = &argv[2];
+  XTimer timer;
+
+  x_timer_start(&timer);
   bool success = ldk_meta_generate_header(files, num_files, argv[1]);
-  return success ? 0 : 1;
+  XTime elapsed = x_timer_elapsed(&timer);
+  double milliseconds = x_time_milliseconds(elapsed);
+
+  if (success)
+  {
+    printf("Component metadata extraction finished in %f milliseconds\n", milliseconds);
+    return 0;
+  }
+
+  fprintf(stderr, "Metadata extraction failed.\n");
+  return 1;
 }
