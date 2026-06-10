@@ -276,7 +276,28 @@ bool ldk_game_instance_load_from_shared_lib(const char* path)
     game->terminate = (LDKGameTerminateFunc) func_ptr;
   }
 
-  return true;
+  // Mandatory metadata functions
+  game->metadata_count = (LDKGameComponentMetadataCountFunc)
+    ldk_os_library_fuction_ptr_get(lib, LDK_GAME_COMPONENT_METADATA_COUNT_NAME);
+
+  game->metadata_get = (LDKGameComponentMetadataGetFunc) 
+    ldk_os_library_fuction_ptr_get(lib, LDK_GAME_COMPONENT_METADATA_GET_NAME);
+
+  bool status = true;
+  
+  if (!game->metadata_get)
+  {
+    ldk_log_error("Game module does not export LDK_GAME_COMPONENT_METADATA_GET_NAME\n");
+    status = false;
+  }
+
+  if (!game->metadata_count)
+  {
+    ldk_log_error("Game module does not export LDK_GAME_COMPONENT_METADATA_COUNT_NAME\n");
+    status = false;
+  }
+  
+  return status;
 }
 
 bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* config_ini_path)

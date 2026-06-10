@@ -76,11 +76,11 @@ typedef const LDKComponentMeta* (*LDKGameComponentMetadataGetFunc)();
 #endif
 
 #ifndef LDK_GAME_COMPONENT_METADATA_COUNT_NAME
-#define COMPONENT_METADATA_COUNT_NAME "game_component_metadata_count"
+#define LDK_GAME_COMPONENT_METADATA_COUNT_NAME "game_component_metadata_count"
 #endif
 
 #ifndef LDK_GAME_COMPONENT_METADATA_GET_NAME
-#define COMPONENT_METADATA_GET_NAME "game_component_metadata_get"
+#define LDK_GAME_COMPONENT_METADATA_GET_NAME "game_component_metadata_get"
 #endif
 
 typedef struct LDKGame

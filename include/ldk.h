@@ -93,19 +93,10 @@ LDK_API bool ldk_game_instance_start(void);
 LDK_API void ldk_game_instance_terminate(void);
 LDK_API bool ldk_game_instance_unload(void);
 LDK_API LDKGame* ldk_game_get(void);
-
 LDK_API LDKWindow ldk_engine_main_window_get(void);
-
-  LDK_API LDKWindow ldk_main_window(void);
-
-
-
-  LDK_API LDKWindow ldk_main_window(void);
-
-
-
-  LDK_API LDKWindow ldk_main_window(void);
-
+LDK_API LDKWindow ldk_main_window(void);
+LDK_API LDKWindow ldk_main_window(void);
+LDK_API LDKWindow ldk_main_window(void);
 
 
 #ifdef __cplusplus
