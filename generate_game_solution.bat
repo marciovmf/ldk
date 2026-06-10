@@ -1,6 +1,6 @@
 cmake -S C:\work\ldk ^
   -B C:\work\ldk\demo\solution\ ^
-  -G "Visual Studio 17 2022" ^
+  -G "Visual Studio 18 2026" ^
   -A x64 ^
   -DOPTION_LDK_USE_PREBUILT=ON ^
   -DOPTION_LDK_PREBUILT_DIR=C:\work\ldk ^

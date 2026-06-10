@@ -4023,6 +4023,7 @@ void ldk_ui_end_scrollview(LDKUIContext* ctx)
   {
     LDKUIScrollContentCache* cache = s_ui_scroll_content_cache_get_or_create(ctx, layout->id);
 
+
     if (cache != NULL)
     {
       cache->scroll = layout->scroll;

@@ -44,6 +44,11 @@
 #define LDK_API
 #endif
 
+#if defined(LDK_MONOLITHIC)
+  #define LDK_GAME_API
+#else
+  #define LDK_GAME_API X_PLAT_EXPORT
+#endif
 
 #if defined(X_OS_WINDOWS)
 #define  LDK_OS_WINDOWS

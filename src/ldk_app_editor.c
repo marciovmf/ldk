@@ -1,5 +1,4 @@
 #include <ldk_common.h>
-#include <module/ldk_ecs.h>
 
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
@@ -20,6 +19,8 @@
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_ecs.h>
+#include <editor/ldk_component_metadata.h>
 
 #include <inttypes.h> // for PRIu64 
 
@@ -708,6 +709,11 @@ static i32 s_editor_main(const char* project_file_path)
     s_project_load(editor, project_file_path);
   }
 
+  // TEST START
+  //LDK_ASSERT(ldk_component_meta_generated_count() == 3);
+  // TEST END
+
+  
   i32 exit_code = ldk_engine_run();
   s_editor_terminate(editor);
   ldk_engine_terminate();

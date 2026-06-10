@@ -11,9 +11,9 @@ option(OPTION_BUILD_TESTS                 "Build and run tests" OFF)
 option(OPTION_BUILD_EDITOR                "Build the editor executable" OFF)
 option(OPTION_BUILD_GAME                  "Build the game as a DLL. Requires OPTION_GAME_DIR to be set." OFF)
 option(OPTION_BUILD_GAME_LAUNCHER         "Build the game launcher executable. Requires OPTION_GAME_DIR to be set." OFF)
-option(OPTION_GAME_DIR                    "Game project root folder" "")
+set(OPTION_GAME_DIR                    "" CACHE PATH "Game project root folder")
 option(OPTION_LDK_USE_PREBUILT            "Use prebuilt LDK instead of building engine" OFF)
-option(OPTION_LDK_PREBUILT_DIR            "Prebuilt LDK root folder" "")
+set(OPTION_LDK_PREBUILT_DIR            "" CACHE PATH "Prebuilt LDK root folder")
 
 if (OPTION_ADDRESS_SANITIZER)
   add_compile_options(-fsanitize=address)
@@ -187,9 +187,20 @@ function(ldk_game_build)
     ${GAME_SOURCES}
   )
 
-  if (${GAME_TYPE} STREQUAL "SHARED")
+  if ("${GAME_TYPE}" STREQUAL "SHARED")
     add_dependencies(${GAME_TARGET} comet) # make sure the tools are built
   endif()
+
+  ldk_target_defaults(${GAME_TARGET})
+
+  if (GAME_OUTPUT_DIR)
+    set(GAME_TARGET_OUTPUT_DIR "${GAME_OUTPUT_DIR}")
+  else()
+    set(GAME_TARGET_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/${GAME_TARGET}")
+  endif()
+
+  set(GAME_METADATA_DIR "${GAME_TARGET_OUTPUT_DIR}/generated")
+  set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/generated_component_metadata.h")
 
   # ------------------------------------------------------------
   # Component metadata generation
@@ -205,21 +216,13 @@ function(ldk_game_build)
 
     list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
 
-    set(GAME_METADATA_DIR "${GAME_OUTPUT_DIR}/generated/")
-    set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/ldk_component_metadata.h")
-
-    if (NOT DEFINED LDK_COMET_TOOL)
-      set(LDK_COMET_TOOL "${LDK_OUTPUT_DIR}/comet.exe")
-    endif()
-
     add_custom_command(
       OUTPUT "${GAME_METADATA_HEADER}"
       COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
-      COMMAND "${LDK_COMET_TOOL}" "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
+      COMMAND $<TARGET_FILE:comet> "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
       DEPENDS
-        "${LDK_COMET_TOOL}"
+        comet
         ${GAME_COMPONENT_HEADERS}
-
       COMMAND_EXPAND_LISTS
       VERBATIM
       COMMENT "Running component metadata extraction tool..."
@@ -232,24 +235,15 @@ function(ldk_game_build)
     add_dependencies(${GAME_TARGET}
       ${GAME_TARGET}_metadata
     )
-
-    target_include_directories(${GAME_TARGET} PRIVATE
-      "${GAME_METADATA_DIR}"
-    )
-
-    target_sources(${GAME_TARGET} PRIVATE
-      "${GAME_METADATA_HEADER}"
-    )
   endif()
 
   # ------------------------------------------------------------
   # Normal game target setup
   # ------------------------------------------------------------
 
-  ldk_target_defaults(${GAME_TARGET})
-
   target_include_directories(${GAME_TARGET} PRIVATE
-    ${INCLUDE_DIR}
+    "${INCLUDE_DIR}"
+    "${GAME_METADATA_DIR}"
     ${GAME_INCLUDE_DIRS}
   )
 
@@ -276,6 +270,8 @@ function(ldk_game_build)
     )
   endif()
 endfunction()
+
+
 
 function(ldk_test_build)
   set(options "")
@@ -491,12 +487,15 @@ if (OPTION_BUILD_GAME)
 
   list(APPEND LDK_GAME_COMPONENT_DIRS
   "${INCLUDE_DIR}/component")
+
+  # Includes game metadata source
+  list(APPEND LDK_GAME_SOURCES )
   
   ldk_game_build(
     TARGET ${LDK_GAME_TARGET_NAME}
     TYPE SHARED
     ENGINE_TARGET ldk
-    SOURCES ${LDK_GAME_SOURCES}
+    SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     COMPONENT_DIRS ${ENGINE_COMPONENT_DIR} ${LDK_GAME_COMPONENT_DIRS}
     DEFINITIONS

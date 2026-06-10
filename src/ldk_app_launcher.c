@@ -42,4 +42,3 @@ int main(i32 argc, char** argv)
   char* ini_file_path = argv[1];
   return s_run_game(ini_file_path);
 }
-

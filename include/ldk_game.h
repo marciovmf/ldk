@@ -33,15 +33,10 @@
 #include <stdx/stdx_math.h>
 
 #include <ldk.h>
+#include <editor/ldk_component_metadata.h>
 
 #if defined(LDK_GAME_STATIC) && (LDK_EDITOR)
 #error "Incompatible defines: LDK_GAME_STATIC and LDK_EDITOR"
-#endif
-
-#if defined(LDK_MONOLITHIC)
-  #define LDK_GAME_API
-#else
-  #define LDK_GAME_API X_PLAT_EXPORT
 #endif
 
 LDK_GAME_API bool game_initialize(struct LDKGame* game);
@@ -49,14 +44,16 @@ LDK_GAME_API bool game_start(struct LDKGame* game);
 LDK_GAME_API void game_update(struct LDKGame* game, float delta_time);
 LDK_GAME_API void game_stop(struct LDKGame* game);
 LDK_GAME_API void game_terminate(struct LDKGame* game);
-
+LDK_GAME_API u32 game_component_metadata_count(void);
+LDK_GAME_API const LDKComponentMeta* game_component_metadata_get(u32 index);
 
 typedef bool (*LDKGameInitializeFunc)(struct LDKGame* game);
 typedef bool (*LDKGameStartFunc)(struct LDKGame* game);
 typedef void (*LDKGameUpdateFunc)(struct LDKGame* game, float delta_time);
 typedef void (*LDKGameStopFunc)(struct LDKGame* game);
 typedef void (*LDKGameTerminateFunc)(struct LDKGame* game);
-
+typedef u32 (*LDKGameComponentMetadataCountFunc)();
+typedef const LDKComponentMeta* (*LDKGameComponentMetadataGetFunc)();
 
 #ifndef LDK_GAME_INITIALIZE_FUNC_NAME
 #define LDK_GAME_INITIALIZE_FUNC_NAME "game_initialize"
@@ -78,6 +75,14 @@ typedef void (*LDKGameTerminateFunc)(struct LDKGame* game);
 #define LDK_GAME_TERMINATE_FUNC_NAME "game_terminate"
 #endif
 
+#ifndef LDK_GAME_COMPONENT_METADATA_COUNT_NAME
+#define COMPONENT_METADATA_COUNT_NAME "game_component_metadata_count"
+#endif
+
+#ifndef LDK_GAME_COMPONENT_METADATA_GET_NAME
+#define COMPONENT_METADATA_GET_NAME "game_component_metadata_get"
+#endif
+
 typedef struct LDKGame
 {
   bool initialized;
@@ -88,6 +93,9 @@ typedef struct LDKGame
   LDKGameUpdateFunc     update;
   LDKGameStopFunc       stop;
   LDKGameTerminateFunc  terminate;
+  LDKGameComponentMetadataCountFunc metadata_count;
+  LDKGameComponentMetadataGetFunc metadata_get;
+
 } LDKGame;
 
 #endif //LDK_GAME_H
