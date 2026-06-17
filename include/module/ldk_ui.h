@@ -165,6 +165,7 @@ extern "C" {
     LDK_UI_ITEM_TEXT_BOX = 8,
     LDK_UI_ITEM_IMAGE = 9,
     LDK_UI_ITEM_ICON_BUTTON = 10,
+    LDK_UI_ITEM_PANEL = 11,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -192,6 +193,24 @@ extern "C" {
     LDK_UI_WINDOW_TOOL       = LDK_UI_WINDOW_DRAGGABLE | LDK_UI_WINDOW_RESIZABLE | LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_TITLE_BAR
   } LDKUIWindowFlags;
 
+  typedef enum LDKUIPanelFlags
+  {
+    LDK_UI_PANEL_NONE = 0,
+    LDK_UI_PANEL_OPEN_CLOSE = 1 << 0,
+    LDK_UI_PANEL_HORIZONTAL_LAYOUT = 1 << 1,
+  } LDKUIPanelFlags;
+
+  typedef struct LDKUIPanelState
+  {
+    bool content_layout_pushed;
+    LDKUILayout* parent_layout;
+    float content_start_x;
+    float content_start_y;
+  } LDKUIPanelState;
+
+  X_ARRAY_TYPE_NAMED(LDKUIPanelState, ldk_ui_panel_state);
+
+  
   typedef enum LDKUIControlVisualState
   {
     LDK_UI_CONTROL_VISUAL_STATE_IDLE = 0,
@@ -207,8 +226,8 @@ extern "C" {
     LDK_UI_SCROLL_HORIZONTAL = 1 << 1,
     LDK_UI_SCROLL_IF_NEEDED  = 1 << 2,
     LDK_UI_SCROLL_BOTH =
-      LDK_UI_SCROLL_VERTICAL |
-      LDK_UI_SCROLL_HORIZONTAL
+    LDK_UI_SCROLL_VERTICAL |
+    LDK_UI_SCROLL_HORIZONTAL
   } LDKUIScrollFlags;
 
   typedef struct LDKUITextInputState
@@ -358,6 +377,7 @@ extern "C" {
     XArray_ldk_ui_u32* indices;
     XArray_ldk_ui_draw_cmd* commands;
     XArray_ldk_ui_bool* disabled_stack;
+    XArray_ldk_ui_panel_state* panel_stack;
     XArray_ldk_ui_hit_candidate* hit_candidates;
     XArray_ldk_ui_debug_rect* debug_rects;
     XArray_ldk_ui_scroll_content_cache* scroll_content_cache;
@@ -410,6 +430,7 @@ extern "C" {
     u32 root_item_count;
     u32 frame_index;
     i32 next_z_order;
+    float delta_time;
     float drag_x;
     float drag_y;
     float resize_start_cursor_x;
@@ -426,7 +447,7 @@ extern "C" {
 
   LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
 
-  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUITextInputState const* text_input, LDKUIRect viewport);
+  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, float delta, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUITextInputState const* text_input, LDKUIRect viewport);
   LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
   LDK_API LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
 
@@ -498,6 +519,12 @@ extern "C" {
   //----------------------------------------------------------
   LDK_API LDKUIPoint ldk_ui_begin_scrollview(LDKUIContext* ctx, LDKUIPoint scroll_pos, LDKUIRect content_rect, LDKUIScrollFlags flags);
   LDK_API void ldk_ui_end_scrollview(LDKUIContext* ctx);
+
+  //----------------------------------------------------------
+  // Panels
+  //----------------------------------------------------------
+  LDK_API bool ldk_ui_panel_begin(LDKUIContext* ctx, char const* title, bool open, u32 flags);
+  LDK_API void ldk_ui_panel_end(LDKUIContext* ctx);
 
   //----------------------------------------------------------
   // Widgets

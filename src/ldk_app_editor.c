@@ -1,4 +1,5 @@
 #include <ldk_common.h>
+#include <stdbool.h>
 
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
@@ -65,7 +66,6 @@ typedef struct LDKEditor
   LDKEditorState        editor_state;
   XFSPath               engine_runtree;
   LDKGameUpdateFunc     original_game_update_fn;
-
   // config
   XFSPath               editor_font;
   XSmallstr             editor_theme;
@@ -386,12 +386,46 @@ static void s_editor_entity_list_window(LDKEditor* editor, LDKECS* ecs)
   ldk_ui_end_window(ui);
 }
 
+static void s_editor_treeview_test(LDKEditor* editor)
+{
+  LDKUIContext* ui = &editor->ui;
+  static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
+
+  s_entity_list_rect = ldk_ui_begin_window_fixed(ui, "Treeview test", 
+      s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+
+  static bool b_a = false;
+  static bool b_b = false;
+  
+    b_a = ldk_ui_panel_begin(ui, "Transform1", b_a, LDK_UI_PANEL_OPEN_CLOSE);
+    if (b_a)
+    {
+      ldk_ui_label(ui, "Position");
+      ldk_ui_label(ui, "Rotation");
+      ldk_ui_label(ui, "Scale");
+    }
+    ldk_ui_panel_end(ui);
+
+    b_b = ldk_ui_panel_begin(ui, "Transform2", b_b, LDK_UI_PANEL_OPEN_CLOSE);
+    if (b_b)
+    {
+      ldk_ui_label(ui, "Position");
+      ldk_ui_label(ui, "Rotation");
+      ldk_ui_label(ui, "Scale");
+    }
+    ldk_ui_panel_end(ui);
+
+  ldk_ui_end_window(ui);
+}
+
 static void s_draw_editor_ui(LDKEditor* editor, float delta_time)
 {
   LDKECS* ecs = ldk_module_get(LDK_MODULE_ECS);
   s_editor_menu_bar(editor);
   s_editor_tool_bar(editor);
   s_editor_entity_list_window(editor, ecs);
+  s_editor_treeview_test(editor);
+  
 }
 
 static void s_editor_update(LDKEditor* editor, i32 window_width, i32 window_height, float delta_time)
@@ -402,12 +436,47 @@ static void s_editor_update(LDKEditor* editor, i32 window_width, i32 window_heig
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
 
-  ldk_ui_begin_frame(&editor->ui, &mouse_state, &kbd_state, &editor->text_input_state, ui_viewport);
+  ldk_ui_begin_frame(&editor->ui, delta_time,  &mouse_state, &kbd_state, &editor->text_input_state, ui_viewport);
   s_draw_editor_ui(editor, delta_time);
   ldk_ui_end_frame(&editor->ui);
   const LDKUIRenderData* ui_data = ldk_ui_get_render_data(&editor->ui);
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
   editor->text_input_state.codepoint_count = 0;
+
+
+  #if 0
+  LDKGame* game = ldk_game_get();
+  const u32 num_components = game->metadata_count();
+  for (u32 i = 0; i < num_components; i++)
+  {
+    const LDKComponentMeta *component = game->metadata_get(i);
+    printf("Component '%s' %x\n", component->name, component->type);
+    for (u32 j = 0; j < component->field_count; j++)
+    {
+      const LDKComponentFieldMeta* field = &component->fields[j];
+      const char* type_name;
+      switch(field->type)
+      {
+      case LDK_FIELD_BOOL: type_name = "bool"; break;
+      case LDK_FIELD_FLOAT: type_name = "float"; break;
+      case LDK_FIELD_I32: type_name = "i32"; break;
+      case LDK_FIELD_U32: type_name = "u32"; break;
+      case LDK_FIELD_VEC2: type_name = "vec2"; break;
+      case LDK_FIELD_VEC3: type_name = "vec3"; break;
+      case LDK_FIELD_VEC4: type_name = "vec4"; break;
+      case LDK_FIELD_QUAT: type_name = "quat"; break;
+      case LDK_FIELD_MAT4: type_name = "mat4"; break;
+      case LDK_FIELD_ENUM: type_name = "enum"; break;
+      case LDK_FIELD_ASSET_MESH: type_name = "AssetMesh"; break;
+      case LDK_FIELD_RESOURCE_MESH: type_name = "ResourceMesh"; break;
+      default: type_name = "<Unknown>"; break;
+      }
+
+      printf(" %s %s (offset = %x)\n", type_name, field->name, field->offset);
+    }
+    
+  }
+  #endif
 }
 
 //----------------------------------------------------------
@@ -423,9 +492,9 @@ static bool s_editor_config_load_from_ini(LDKEditor* editor, XIni* ini, LDKConfi
   const char* EDITOR = ".editor";
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   x_smallstr_from_cstr(&editor->editor_theme,
-      x_ini_get(ini, EDITOR, "theme", "dark"));
+                       x_ini_get(ini, EDITOR, "theme", "dark"));
   x_fs_path(&editor->editor_font, config->runtree_path,
-      x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+            x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
 
   editor->initialized = true;
   return true;
@@ -454,7 +523,7 @@ static bool s_editor_load_resources(LDKEditor* editor, LDKConfig* config)
   font_atlas_desc.page_height = 256;
 
   editor->font_instance = ldk_ttf_get_instance(editor_font_data->face,
-      (float)editor->editor_font_size, &font_atlas_desc);
+                                               (float)editor->editor_font_size, &font_atlas_desc);
 
   if (!editor->font_instance)
   {
@@ -659,11 +728,11 @@ static i32 s_editor_main(const char* project_file_path)
   if (!x_ini_load_file(editor_ini_path.buf, &ini, &ini_error))
   {
     ldk_log_error(
-        "Failed to load config file '%s'. Syntax error at %d:%d: %s",
-        editor_ini_path.buf,
-        ini_error.line,
-        ini_error.column,
-        ini_error.message ? ini_error.message : "Unknown error");
+      "Failed to load config file '%s'. Syntax error at %d:%d: %s",
+      editor_ini_path.buf,
+      ini_error.line,
+      ini_error.column,
+      ini_error.message ? ini_error.message : "Unknown error");
     return false;
   }
 
@@ -709,11 +778,6 @@ static i32 s_editor_main(const char* project_file_path)
     s_project_load(editor, project_file_path);
   }
 
-  // TEST START
-  //LDK_ASSERT(ldk_component_meta_generated_count() == 3);
-  // TEST END
-
-  
   i32 exit_code = ldk_engine_run();
   s_editor_terminate(editor);
   ldk_engine_terminate();
