@@ -392,13 +392,39 @@ static void s_editor_treeview_test(LDKEditor* editor)
   static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
 
   s_entity_list_rect = ldk_ui_begin_window_fixed(ui, "Treeview test", 
-      s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+                                                 s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static bool b_a = false;
   static bool b_b = false;
+  static bool b_c = false;
+  static bool b_d = false;
+  static bool b_e = false;
   
-    b_a = ldk_ui_panel_begin(ui, "Transform1", b_a, LDK_UI_PANEL_OPEN_CLOSE);
-    if (b_a)
+  b_a = ldk_ui_panel_begin(ui, "Transform1", b_a, LDK_UI_PANEL_OPEN_CLOSE);
+  if (b_a)
+  {
+    ldk_ui_label(ui, "Position");
+    ldk_ui_label(ui, "Rotation");
+    ldk_ui_label(ui, "Scale");
+  }
+  ldk_ui_panel_end(ui);
+
+  b_b = ldk_ui_panel_begin(ui, "Transform2", b_b, LDK_UI_PANEL_OPEN_CLOSE);
+  if (b_b)
+  {
+
+    b_d = ldk_ui_panel_begin(ui, "Transform2", b_d, LDK_UI_PANEL_OPEN_CLOSE);
+    if (b_d)
+    {
+      ldk_ui_label(ui, "Position");
+      ldk_ui_label(ui, "Rotation");
+      ldk_ui_label(ui, "Scale");
+
+    }
+    ldk_ui_panel_end(ui);
+
+    b_e = ldk_ui_panel_begin(ui, "Transform2", b_e, LDK_UI_PANEL_OPEN_CLOSE);
+    if (b_e)
     {
       ldk_ui_label(ui, "Position");
       ldk_ui_label(ui, "Rotation");
@@ -406,14 +432,17 @@ static void s_editor_treeview_test(LDKEditor* editor)
     }
     ldk_ui_panel_end(ui);
 
-    b_b = ldk_ui_panel_begin(ui, "Transform2", b_b, LDK_UI_PANEL_OPEN_CLOSE);
-    if (b_b)
-    {
-      ldk_ui_label(ui, "Position");
-      ldk_ui_label(ui, "Rotation");
-      ldk_ui_label(ui, "Scale");
-    }
-    ldk_ui_panel_end(ui);
+  }
+  ldk_ui_panel_end(ui);
+
+  b_c = ldk_ui_panel_begin(ui, "Transform2", b_c, LDK_UI_PANEL_OPEN_CLOSE);
+  if (b_c)
+  {
+    ldk_ui_label(ui, "Position");
+    ldk_ui_label(ui, "Rotation");
+    ldk_ui_label(ui, "Scale");
+  }
+  ldk_ui_panel_end(ui);
 
   ldk_ui_end_window(ui);
 }
@@ -444,7 +473,7 @@ static void s_editor_update(LDKEditor* editor, i32 window_width, i32 window_heig
   editor->text_input_state.codepoint_count = 0;
 
 
-  #if 0
+#if 0
   LDKGame* game = ldk_game_get();
   const u32 num_components = game->metadata_count();
   for (u32 i = 0; i < num_components; i++)
@@ -476,7 +505,7 @@ static void s_editor_update(LDKEditor* editor, i32 window_width, i32 window_heig
     }
     
   }
-  #endif
+#endif
 }
 
 //----------------------------------------------------------

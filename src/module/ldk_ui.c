@@ -4152,7 +4152,14 @@ bool ldk_ui_panel_begin(LDKUIContext* ctx, char const* title, bool open, u32 fla
       content_rect.h = s_ui_maxf(
         0.0f,
         parent_layout->content_rect.y + parent_layout->content_rect.h - content_rect.y);
+
+      content_rect.x += LDK_UI_PANEL_INDENT;
+      content_rect.w = s_ui_maxf(0.0f, content_rect.w - LDK_UI_PANEL_INDENT);
+
+      state.content_start_x = content_rect.x;
+      state.content_start_y = content_rect.y;
     }
+
     else
     {
       content_rect.x = parent_layout->cursor.x;

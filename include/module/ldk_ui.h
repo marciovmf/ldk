@@ -18,7 +18,13 @@ extern "C" {
 #define LDK_UI_INPUT_CODEPOINTS_CAPACITY 16
 #endif
 
+#ifndef LDK_UI_DEFAULT_CONTROL_HEIGHT  
 #define LDK_UI_DEFAULT_CONTROL_HEIGHT 22.0f
+#endif
+
+#ifndef LDK_UI_PANEL_INDENT 
+#define LDK_UI_PANEL_INDENT 16.0f
+#endif
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
