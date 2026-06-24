@@ -1,0 +1,27 @@
+# .clang-format
+BasedOnStyle: LLVM
+Language: Cpp
+
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ColumnLimit: 80
+
+BreakBeforeBraces: Allman
+
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+
+IndentCaseLabels: false
+
+PointerAlignment: Right
+DerivePointerAlignment: false
+
+AlignAfterOpenBracket: false
+BinPackArguments: true
+BinPackParameters: true
+
+SortIncludes: Never

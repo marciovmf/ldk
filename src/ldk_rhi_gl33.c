@@ -160,6 +160,7 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "uniform sampler2D LDK_TEXTURE_1;\n"
 "void main()\n"
 "{\n"
+//"  vec4 tex = texture(LDK_TEXTURE_1, uv_flipped);\n"
 "  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
 "  out_color = tex * v_color;\n"
 "}\n";

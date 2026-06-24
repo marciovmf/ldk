@@ -53,3 +53,7 @@ debug.cap
 demo/.ldk
 demo/solution
 demo/workspace
+
+# emacs files
+*~
+\#*\#

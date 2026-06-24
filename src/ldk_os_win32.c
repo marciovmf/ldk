@@ -1,5 +1,6 @@
 #include <ldk.h>
 #include <ldk_os.h>
+#include "ldk_geom.h"
 #include "ldk_gl.h"
 
 #include <stdbool.h>
@@ -96,12 +97,12 @@ typedef struct
 {
   bool close_flag;
   bool is_fullscreen;
-  bool cursor_changed;
   LDKWindowFlags activation_flags; // if window is created hidden, set this on show
   HWND handle;
   HDC dc;
   LONG_PTR prev_style;
   WINDOWPLACEMENT prev_placement;
+  LDKRect drag_rect;
 } LDKWin32Window;
 
 typedef struct 
@@ -651,9 +652,15 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   HINSTANCE hInstance = GetModuleHandleA(NULL);
   WNDCLASSEXA wc = {0};
 
+                            
+  //const DWORD style_bare = WS_POPUP  | WS_SIZEBOX | WS_THICKFRAME;
+  const DWORD style_bare = WS_POPUP;
+  const DWORD style_default = WS_OVERLAPPEDWINDOW;
+  DWORD windowStyle = (flags & LDK_WINDOW_FLAG_NOTITLEBAR) ? style_bare : style_default;
+
   // Calculate total window size
   RECT clientArea = {(LONG)0,(LONG)0, (LONG)width, (LONG)height};
-  if (!AdjustWindowRect(&clientArea, WS_OVERLAPPEDWINDOW, FALSE))
+  if (!AdjustWindowRect(&clientArea, windowStyle, FALSE))
   {
     ldk_log_error("Could not calculate window size", 0);
   }
@@ -675,22 +682,25 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
     }
   }
 
-  DWORD windowStyle = WS_OVERLAPPEDWINDOW;
   if (flags & LDK_WINDOW_FLAG_NORESIZE)
     windowStyle &= ~WS_SIZEBOX;
 
   u32 windowWidth = clientArea.right - clientArea.left;
   u32 windowHeight = clientArea.bottom - clientArea.top;
-  HWND window_handle = CreateWindowExA(
-      0,
-      ldk_window_class,
-      title, 
-      windowStyle,
-      CW_USEDEFAULT, CW_USEDEFAULT,
-      windowWidth, windowHeight,
-      NULL, NULL,
-      hInstance,
-      NULL);
+  u32 position_x = CW_USEDEFAULT;
+  u32 position_y = CW_USEDEFAULT;
+
+  if (flags * LDK_WINDOW_FLAG_CENTERED)
+  {
+    RECT desktop_rect;
+    GetClientRect(GetDesktopWindow(), &desktop_rect);
+    position_x = desktop_rect.right / 2 - width / 2;
+    position_y = desktop_rect.bottom / 2 - height / 2;
+  }
+
+  HWND window_handle = CreateWindowExA(0, ldk_window_class, title, 
+      windowStyle, position_x, position_y, windowWidth, windowHeight,
+      NULL, NULL, hInstance, NULL);
 
   if (! window_handle)
   {
@@ -710,6 +720,8 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   window->dc = GetDC(window_handle);
   window->is_fullscreen = false;
   window->close_flag = false;
+  window->drag_rect = ldk_rect(0, 0, windowWidth, windowHeight);
+  window->activation_flags = flags;
 
   bool isOpenGL = s_graphics_api_is_opengl(s_graphicsAPIInfo .api);
   if(isOpenGL)
@@ -1068,6 +1080,13 @@ bool ldk_os_window_show(LDKWindow window, bool show)
   return ShowWindow(window_handle , show ? SW_RESTORE : SW_HIDE);
 }
 
+void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect)
+{
+  LDKWin32Window* w = (LDKWin32Window*) window;
+  w->drag_rect = rect;
+}
+
+
 static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   bool is_mouse_button_down_event = false;
@@ -1082,13 +1101,73 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       {
         // Get the default behaviour but set the arrow cursor if it's in the client area
         LRESULT result = DefWindowProc(hwnd, uMsg, wParam, lParam);
-        if(result == HTCLIENT && window->cursor_changed)
+        if (result == HTCLIENT)
         {
-          window->cursor_changed = false;
-          SetCursor(s_oswin32.default_cursor);
+          if (window->activation_flags & LDK_WINDOW_FLAG_NOTITLEBAR)
+          {
+            POINT p;
+            p.x = GET_X_LPARAM(lParam);
+            p.y = GET_Y_LPARAM(lParam);
+
+            ScreenToClient(hwnd, &p);
+
+            RECT r;
+            GetClientRect(hwnd, &r);
+
+            const int border = 8;
+
+            bool left   = p.x >= r.left  && p.x <  r.left + border;
+            bool right  = p.x <  r.right && p.x >= r.right - border;
+            bool top    = p.y >= r.top   && p.y <  r.top + border;
+            bool bottom = p.y <  r.bottom && p.y >= r.bottom - border;
+
+            if (top && left)
+              return HTTOPLEFT;
+            else if (top && right)
+              return HTTOPRIGHT;
+            else if (bottom && left)
+              return HTBOTTOMLEFT;
+            else if (bottom && right)
+              return HTBOTTOMRIGHT;
+            else if (left)
+              return HTLEFT;
+            else if (right)
+              return HTRIGHT;
+            else if (top)
+              return HTTOP;
+            else if (bottom)
+              return HTBOTTOM;
+
+            if (ldk_rect_contains(&window->drag_rect, p.x, p.y))
+            {
+              printf("NCHITTEST: %d,%d,%d,%d\n",
+                  window->drag_rect.x,
+                  window->drag_rect.y,
+                  window->drag_rect.w,
+                  window->drag_rect.h);
+              return HTCAPTION;
+            }
+
+            //ldk_os_cursor_type_set(LDK_CURSOR_ARROW);
+            return result;
+          }
         }
-        else
-          window->cursor_changed = true;
+        else if (result == HTTOP || result == HTBOTTOM)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NS);
+        }
+        else if (result == HTLEFT || result == HTRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_WE);
+        }
+        else if (result == HTBOTTOMLEFT || result == HTTOPRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
+        }
+        else if (result == HTTOPLEFT || result == HTBOTTOMRIGHT)
+        {
+          ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
+        }
         return result;
       }
       break;
@@ -1576,7 +1655,7 @@ float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
 // ---------------------------------------------------------------------------
 
 bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter,
-  char* out_path, size_t out_path_size)
+    char* out_path, size_t out_path_size)
 {
   if (! out_path || out_path_size == 0)
   {
@@ -1604,7 +1683,7 @@ bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char
 }
 
 bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter,
-  char* out_path, size_t out_path_size)
+    char* out_path, size_t out_path_size)
 {
   if (! out_path || out_path_size == 0)
   {
@@ -1634,8 +1713,8 @@ bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char
 bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message)
 {
   int result = MessageBoxA(
-    owner ? ((LDKWin32Window*)owner)->handle : NULL,
-    message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+      owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
 
   return result == IDYES;
 }
@@ -1643,9 +1722,9 @@ bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* m
 bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message)
 {
   int result = MessageBoxA(
-    owner ? ((LDKWin32Window*)owner)->handle : NULL,
-    message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2
-  );
+      owner ? ((LDKWin32Window*)owner)->handle : NULL,
+      message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2
+      );
 
   return result == IDOK;
 }
