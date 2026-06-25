@@ -464,6 +464,43 @@ static void s_editor_menu_bar(LDKEditor* editor)
 }
 #endif
 
+static void s_test_popup(LDKEditor *editor)
+{
+  LDKUIContext *ctx = &editor->ui;
+  LDKUIId popup_id = 0x1001u;
+
+  ldk_ui_begin_vertical(ctx);
+
+  ldk_ui_set_next_size(ctx, ldk_ui_px(120.0f), ldk_ui_px(22.0f));
+
+  if (ldk_ui_button(ctx, "Open popup"))
+  {
+    ldk_ui_open_popup(ctx, popup_id);
+  }
+
+  LDKUIRect button_rect = ldk_ui_last_rect(ctx);
+
+  LDKUIRect popup_rect = ldk_ui_rect(
+      button_rect.x, button_rect.y + button_rect.h + 4.0f, 180.0f, 96.0f);
+
+  if (ldk_ui_begin_popup(ctx, popup_id, popup_rect))
+  {
+    ldk_ui_set_next_height(ctx, ldk_ui_px(22.0f));
+    ldk_ui_label(ctx, "Popup content");
+
+    ldk_ui_set_next_height(ctx, ldk_ui_px(22.0f));
+
+    if (ldk_ui_button_flat(ctx, "Close"))
+    {
+      ldk_ui_close_popup(ctx, popup_id);
+    }
+
+    ldk_ui_end_popup(ctx);
+  }
+
+  ldk_ui_end(ctx);
+}
+
 static void s_editor_tool_bar(LDKEditor *editor)
 {
   LDKUIContext *ui = &editor->ui;
@@ -571,10 +608,11 @@ static void s_draw_editor_ui(LDKEditor *editor, float delta_time)
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
   // s_editor_menu_bar(editor);
   s_editor_tool_bar(editor);
-  // s_editor_entity_list_window(editor, ecs);
-  s_editor_test_a(editor);
-  s_editor_test_b(editor);
-  s_editor_test_treeview(editor);
+  //s_editor_entity_list_window(editor, ecs);
+   s_editor_test_a(editor);
+   s_editor_test_b(editor);
+   s_editor_test_treeview(editor);
+   s_test_popup(editor);
 }
 
 static void s_editor_update(
@@ -596,8 +634,6 @@ static void s_editor_update(
   const LDKUIRenderData *ui_data = ldk_ui_get_render_data(&editor->ui);
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
   editor->text_input_state.codepoint_count = 0;
-  // ldk_os_window_draggable_area_set(editor->window,  ldk_rect(0, 0,
-  // window_width, LDK_UI_DEFAULT_CONTROL_HEIGHT));
 }
 
 //----------------------------------------------------------

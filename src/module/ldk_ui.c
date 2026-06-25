@@ -27,6 +27,11 @@ static void s_ui_windows_refresh_z_order(LDKUIContext *ctx);
 static void s_ui_append_window_draw_data(
     LDKUIContext *ctx, LDKUIWindow *window);
 static void s_ui_submit_windows_in_z_order(LDKUIContext *ctx);
+static void s_ui_append_draw_data(LDKUIContext *ctx,
+    XArray_ldk_ui_vertex *vertices, XArray_ldk_ui_u32 *indices,
+    XArray_ldk_ui_draw_cmd *commands);
+static void s_ui_submit_popup_draw_data(LDKUIContext *ctx);
+static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx);
 static void s_ui_window_cache_gc(LDKUIContext *ctx);
 
 static LDKUIId s_ui_id_hash_u32(LDKUIId hash, u32 value)
@@ -520,8 +525,23 @@ static bool s_ui_input_keyboard_right_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
+static bool s_ui_rendering_popup(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->popup_stack == NULL)
+  {
+    return false;
+  }
+
+  return !x_array_ldk_ui_popup_stack_entry_is_empty(ctx->popup_stack);
+}
+
 static XArray_ldk_ui_vertex *s_ui_target_vertices(LDKUIContext *ctx)
 {
+  if (s_ui_rendering_popup(ctx) && ctx->popup_vertices != NULL)
+  {
+    return ctx->popup_vertices;
+  }
+
   if (ctx != NULL && ctx->current_window != NULL &&
       ctx->current_window->vertices != NULL)
   {
@@ -533,6 +553,11 @@ static XArray_ldk_ui_vertex *s_ui_target_vertices(LDKUIContext *ctx)
 
 static XArray_ldk_ui_u32 *s_ui_target_indices(LDKUIContext *ctx)
 {
+  if (s_ui_rendering_popup(ctx) && ctx->popup_indices != NULL)
+  {
+    return ctx->popup_indices;
+  }
+
   if (ctx != NULL && ctx->current_window != NULL &&
       ctx->current_window->indices != NULL)
   {
@@ -544,6 +569,11 @@ static XArray_ldk_ui_u32 *s_ui_target_indices(LDKUIContext *ctx)
 
 static XArray_ldk_ui_draw_cmd *s_ui_target_commands(LDKUIContext *ctx)
 {
+  if (s_ui_rendering_popup(ctx) && ctx->popup_commands != NULL)
+  {
+    return ctx->popup_commands;
+  }
+
   if (ctx != NULL && ctx->current_window != NULL &&
       ctx->current_window->commands != NULL)
   {
@@ -1218,8 +1248,11 @@ static void s_ui_add_hit_candidate(
     return;
   }
 
-  candidate.window_id =
-      ctx->current_window != NULL ? ctx->current_window->id : 0;
+  candidate.layer = s_ui_rendering_popup(ctx) ? LDK_UI_HIT_LAYER_POPUP
+                                              : LDK_UI_HIT_LAYER_NORMAL;
+  candidate.window_id = candidate.layer == LDK_UI_HIT_LAYER_POPUP ? 0
+                        : ctx->current_window != NULL ? ctx->current_window->id
+                                                      : 0;
   candidate.item_id = item_id;
   candidate.rect = rect;
   candidate.clip_rect = clip_rect;
@@ -1229,12 +1262,111 @@ static void s_ui_add_hit_candidate(
   x_array_ldk_ui_hit_candidate_push(ctx->hit_candidates, candidate);
 }
 
+static bool s_ui_has_popup_frame_entries(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->popup_frame_entries == NULL)
+  {
+    return false;
+  }
+
+  return !x_array_ldk_ui_popup_frame_entry_is_empty(ctx->popup_frame_entries);
+}
+
+static bool s_ui_cursor_inside_any_popup(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->mouse == NULL || ctx->popup_frame_entries == NULL)
+  {
+    return false;
+  }
+
+  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ctx->mouse);
+
+  for (u32 i = x_array_ldk_ui_popup_frame_entry_count(ctx->popup_frame_entries);
+      i > 0; --i)
+  {
+    LDKUIPopupFrameEntry *entry =
+        x_array_ldk_ui_popup_frame_entry_get(ctx->popup_frame_entries, i - 1);
+
+    if (entry == NULL)
+    {
+      continue;
+    }
+
+    if (s_ui_rect_contains(&entry->rect, (float)cursor.x, (float)cursor.y))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static void s_ui_clear_popup_frame_draw_data(LDKUIContext *ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (ctx->popup_vertices != NULL)
+  {
+    x_array_ldk_ui_vertex_clear(ctx->popup_vertices);
+  }
+
+  if (ctx->popup_indices != NULL)
+  {
+    x_array_ldk_ui_u32_clear(ctx->popup_indices);
+  }
+
+  if (ctx->popup_commands != NULL)
+  {
+    x_array_ldk_ui_draw_cmd_clear(ctx->popup_commands);
+  }
+
+  if (ctx->popup_frame_entries != NULL)
+  {
+    x_array_ldk_ui_popup_frame_entry_clear(ctx->popup_frame_entries);
+  }
+}
+
+static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->mouse == NULL || ctx->open_popups == NULL)
+  {
+    return;
+  }
+
+  if (x_array_ldk_ui_id_is_empty(ctx->open_popups))
+  {
+    return;
+  }
+
+  if (!ldk_os_mouse_button_down(
+          (LDKMouseState *)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    return;
+  }
+
+  if (s_ui_cursor_inside_any_popup(ctx))
+  {
+    return;
+  }
+
+  ldk_ui_close_all_popups(ctx);
+  s_ui_clear_popup_frame_draw_data(ctx);
+
+  ctx->next_hot_id = 0;
+  ctx->hot_id = 0;
+  ctx->active_id = 0;
+}
+
 static void s_ui_resolve_hot_item(LDKUIContext *ctx)
 {
   LDKPoint cursor;
   LDKUIHitCandidate *best_candidate = NULL;
   LDKUIId top_window_id;
   u32 count;
+  bool has_popup_frame_entries;
 
   if (ctx == NULL || ctx->mouse == NULL)
   {
@@ -1243,6 +1375,17 @@ static void s_ui_resolve_hot_item(LDKUIContext *ctx)
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState *)ctx->mouse);
+  has_popup_frame_entries = s_ui_has_popup_frame_entries(ctx);
+
+  if (has_popup_frame_entries)
+  {
+    if (!s_ui_cursor_inside_any_popup(ctx))
+    {
+      ctx->next_hot_id = 0;
+      return;
+    }
+  }
+
   top_window_id =
       s_ui_topmost_window_id_at_point(ctx, (float)cursor.x, (float)cursor.y);
   count = x_array_ldk_ui_hit_candidate_count(ctx->hit_candidates);
@@ -1257,16 +1400,24 @@ static void s_ui_resolve_hot_item(LDKUIContext *ctx)
       continue;
     }
 
-    if (top_window_id != 0)
+    if (has_popup_frame_entries && candidate->layer != LDK_UI_HIT_LAYER_POPUP)
     {
-      if (candidate->window_id != top_window_id)
+      continue;
+    }
+
+    if (candidate->layer != LDK_UI_HIT_LAYER_POPUP)
+    {
+      if (top_window_id != 0)
+      {
+        if (candidate->window_id != top_window_id)
+        {
+          continue;
+        }
+      }
+      else if (candidate->window_id != 0)
       {
         continue;
       }
-    }
-    else if (candidate->window_id != 0)
-    {
-      continue;
     }
 
     if (!s_ui_rect_contains(&candidate->rect, (float)cursor.x, (float)cursor.y))
@@ -1280,7 +1431,9 @@ static void s_ui_resolve_hot_item(LDKUIContext *ctx)
       continue;
     }
 
-    if (best_candidate == NULL || candidate->order > best_candidate->order)
+    if (best_candidate == NULL || candidate->layer > best_candidate->layer ||
+        (candidate->layer == best_candidate->layer &&
+            candidate->order > best_candidate->order))
     {
       best_candidate = candidate;
     }
@@ -1430,6 +1583,12 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
   ctx->indices = x_array_ldk_ui_u32_create(config->initial_index_capacity);
   ctx->commands =
       x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
+  ctx->popup_vertices =
+      x_array_ldk_ui_vertex_create(config->initial_vertex_capacity);
+  ctx->popup_indices =
+      x_array_ldk_ui_u32_create(config->initial_index_capacity);
+  ctx->popup_commands =
+      x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->disabled_stack = x_array_ldk_ui_bool_create(8);
   ctx->hit_candidates = x_array_ldk_ui_hit_candidate_create(128);
   ctx->layout_stack =
@@ -1449,6 +1608,11 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
       x_array_ldk_ui_scrollview_cache_create(LDK_UI_SCROLLVIEW_CACHE_CAPACITY);
   ctx->area_stack =
       x_array_ldk_ui_area_stack_entry_create(LDK_UI_AREA_STACK_CAPACITY);
+  ctx->open_popups = x_array_ldk_ui_id_create(LDK_UI_POPUP_STACK_CAPACITY);
+  ctx->popup_stack =
+      x_array_ldk_ui_popup_stack_entry_create(LDK_UI_POPUP_STACK_CAPACITY);
+  ctx->popup_frame_entries =
+      x_array_ldk_ui_popup_frame_entry_create(LDK_UI_POPUP_STACK_CAPACITY);
 
   ctx->font_texture_user = config->font_texture_user;
   ctx->get_font_page_texture = config->get_font_page_texture;
@@ -1463,8 +1627,11 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
 
   return ctx->frame_arena != NULL && ctx->id_stack != NULL &&
          ctx->vertices != NULL && ctx->indices != NULL &&
-         ctx->commands != NULL && ctx->disabled_stack != NULL &&
-         ctx->hit_candidates != NULL && ctx->layout_stack != NULL &&
+         ctx->commands != NULL && ctx->popup_vertices != NULL &&
+         ctx->popup_indices != NULL && ctx->popup_commands != NULL &&
+         ctx->disabled_stack != NULL && ctx->hit_candidates != NULL &&
+         ctx->layout_stack != NULL && ctx->open_popups != NULL &&
+         ctx->popup_stack != NULL && ctx->popup_frame_entries != NULL &&
          ctx->windows != NULL && ctx->window_stack != NULL &&
          ctx->measure_entries != NULL && ctx->layout_items != NULL &&
          ctx->layout_item_cache != NULL && ctx->scrollview_stack != NULL &&
@@ -1486,9 +1653,15 @@ void ldk_ui_terminate(LDKUIContext *ctx)
   x_array_destroy(ctx->vertices);
   x_array_destroy(ctx->indices);
   x_array_destroy(ctx->commands);
+  x_array_destroy(ctx->popup_vertices);
+  x_array_destroy(ctx->popup_indices);
+  x_array_destroy(ctx->popup_commands);
   x_array_destroy(ctx->disabled_stack);
   x_array_destroy(ctx->hit_candidates);
   x_array_destroy(ctx->layout_stack);
+  x_array_destroy(ctx->open_popups);
+  x_array_destroy(ctx->popup_stack);
+  x_array_destroy(ctx->popup_frame_entries);
   x_array_destroy(ctx->windows);
   x_array_destroy(ctx->window_stack);
   x_array_destroy(ctx->measure_entries);
@@ -1533,12 +1706,76 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   x_array_ldk_ui_vertex_clear(ctx->vertices);
   x_array_ldk_ui_u32_clear(ctx->indices);
   x_array_ldk_ui_draw_cmd_clear(ctx->commands);
+  x_array_ldk_ui_vertex_clear(ctx->popup_vertices);
+  x_array_ldk_ui_u32_clear(ctx->popup_indices);
+  x_array_ldk_ui_draw_cmd_clear(ctx->popup_commands);
   x_array_ldk_ui_hit_candidate_clear(ctx->hit_candidates);
+  x_array_ldk_ui_popup_stack_entry_clear(ctx->popup_stack);
+  x_array_ldk_ui_popup_frame_entry_clear(ctx->popup_frame_entries);
 
   s_ui_windows_clear_frame_buffers(ctx);
 
   ldk_os_cursor_type_set(ctx->cursor_type);
   ctx->cursor_type = LDK_CURSOR_ARROW;
+}
+
+static void s_ui_append_draw_data(LDKUIContext *ctx,
+    XArray_ldk_ui_vertex *vertices, XArray_ldk_ui_u32 *indices,
+    XArray_ldk_ui_draw_cmd *commands)
+{
+  if (ctx == NULL || vertices == NULL || indices == NULL || commands == NULL)
+  {
+    return;
+  }
+
+  u32 vertex_base = x_array_ldk_ui_vertex_count(ctx->vertices);
+  u32 index_base = x_array_ldk_ui_u32_count(ctx->indices);
+  u32 vertex_count = x_array_ldk_ui_vertex_count(vertices);
+  u32 index_count = x_array_ldk_ui_u32_count(indices);
+  u32 command_count = x_array_ldk_ui_draw_cmd_count(commands);
+
+  for (u32 i = 0; i < vertex_count; ++i)
+  {
+    LDKUIVertex *vertex = x_array_ldk_ui_vertex_get(vertices, i);
+
+    if (vertex != NULL)
+    {
+      x_array_ldk_ui_vertex_push(ctx->vertices, *vertex);
+    }
+  }
+
+  for (u32 i = 0; i < index_count; ++i)
+  {
+    u32 *index = x_array_ldk_ui_u32_get(indices, i);
+
+    if (index != NULL)
+    {
+      x_array_ldk_ui_u32_push(ctx->indices, *index + vertex_base);
+    }
+  }
+
+  for (u32 i = 0; i < command_count; ++i)
+  {
+    LDKUIDrawCmd *cmd = x_array_ldk_ui_draw_cmd_get(commands, i);
+
+    if (cmd != NULL)
+    {
+      LDKUIDrawCmd adjusted = *cmd;
+      adjusted.index_offset += index_base;
+      x_array_ldk_ui_draw_cmd_push(ctx->commands, adjusted);
+    }
+  }
+}
+
+static void s_ui_submit_popup_draw_data(LDKUIContext *ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  s_ui_append_draw_data(
+      ctx, ctx->popup_vertices, ctx->popup_indices, ctx->popup_commands);
 }
 
 void ldk_ui_end_frame(LDKUIContext *ctx)
@@ -1549,6 +1786,7 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   }
 
   s_ui_resolve_hot_item(ctx);
+  s_ui_close_popups_on_outside_click(ctx);
 
   if (ctx->mouse != NULL)
   {
@@ -1563,6 +1801,7 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   }
 
   s_ui_submit_windows_in_z_order(ctx);
+  s_ui_submit_popup_draw_data(ctx);
   s_ui_window_cache_gc(ctx);
 
   ctx->render_data.vertices = x_array_ldk_ui_vertex_data_const(ctx->vertices);
@@ -2528,3 +2767,4 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
 #include "ui/ldk_ui_window.inl"
 #include "ui/ldk_ui_scrollview.inl"
 #include "ui/ldk_ui_treenode.inl"
+#include "ui/ldk_ui_popup.inl"

@@ -2,7 +2,8 @@
 #define LDK_UI_H
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #include <ldk_common.h>
@@ -47,7 +48,7 @@ extern "C" {
 #endif
 
 #ifndef LDK_UI_SCROLLVIEW_STACK_CAPACITY
-#define LDK_UI_SCROLLVIEW_STACK_CAPACITY 16 
+#define LDK_UI_SCROLLVIEW_STACK_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_SCROLLVIEW_CACHE_CAPACITY
@@ -62,6 +63,10 @@ extern "C" {
 #define LDK_UI_AREA_STACK_CAPACITY 64
 #endif
 
+#ifndef LDK_UI_POPUP_STACK_CAPACITY
+#define LDK_UI_POPUP_STACK_CAPACITY 16
+#endif
+
 #ifndef LDK_UI_MIN_WINDOW_WIDTH
 #define LDK_UI_MIN_WINDOW_WIDTH 64.0f
 #endif
@@ -74,17 +79,18 @@ extern "C" {
 #define LDK_UI_TITLE_BAR_HEIGHT 24.0f
 #endif
 
-#ifndef LDK_UI_DEFAULT_SPACING 
+#ifndef LDK_UI_DEFAULT_SPACING
 #define LDK_UI_DEFAULT_SPACING 4.0f
 #endif
 
-#ifndef LDK_UI_DEFAULT_PADDING 
+#ifndef LDK_UI_DEFAULT_PADDING
 #define LDK_UI_DEFAULT_PADDING 4.0f
 #endif
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
-  typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(void* user, LDKFontInstance* font, u32 page_index);
+  typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(
+      void *user, LDKFontInstance *font, u32 page_index);
   typedef u32 LDKUIColor;
   typedef LDKPointf LDKUIPoint;
   typedef LDKSizef LDKUISize;
@@ -96,6 +102,8 @@ extern "C" {
   typedef struct LDKUIScrollViewCache LDKUIScrollViewCache;
   typedef struct LDKUIScrollViewStackEntry LDKUIScrollViewStackEntry;
   typedef struct LDKUIAreaStackEntry LDKUIAreaStackEntry;
+  typedef struct LDKUIPopupStackEntry LDKUIPopupStackEntry;
+  typedef struct LDKUIPopupFrameEntry LDKUIPopupFrameEntry;
   typedef struct LDKUIHitCandidate LDKUIHitCandidate;
   typedef struct LDKUIContext LDKUIContext;
 
@@ -180,18 +188,17 @@ extern "C" {
 
   typedef struct LDKUIRenderData
   {
-    LDKUIVertex const* vertices;
+    LDKUIVertex const *vertices;
     u32 vertex_count;
-    u32 const* indices;
+    u32 const *indices;
     u32 index_count;
-    LDKUIDrawCmd const* commands;
+    LDKUIDrawCmd const *commands;
     uint32_t command_count;
   } LDKUIRenderData;
 
-
   typedef struct LDKUIIcon
   {
-    uintptr_t texture; // raw texture resource
+    uintptr_t texture;
     LDKUIRect uv;
     LDKUISize size;
   } LDKUIIcon;
@@ -244,12 +251,9 @@ extern "C" {
     LDK_UI_WINDOW_NO_BG = 1 << 4,
     LDK_UI_WINDOW_CLOSE_BUTTON = 1 << 5,
     LDK_UI_WINDOW_NO_PADDING = 1 << 6,
-    LDK_UI_WINDOW_TOOL =
-    LDK_UI_WINDOW_CLOSE_BUTTON |
-    LDK_UI_WINDOW_TITLE_BAR |
-    LDK_UI_WINDOW_DRAGGABLE |
-    LDK_UI_WINDOW_RESIZABLE |
-    LDK_UI_WINDOW_BORDER,
+    LDK_UI_WINDOW_TOOL = LDK_UI_WINDOW_CLOSE_BUTTON | LDK_UI_WINDOW_TITLE_BAR |
+                         LDK_UI_WINDOW_DRAGGABLE | LDK_UI_WINDOW_RESIZABLE |
+                         LDK_UI_WINDOW_BORDER,
   } LDKUIWindowFlags;
 
   typedef enum LDKUIScrollViewFlags
@@ -263,19 +267,19 @@ extern "C" {
   typedef enum LDKTreeNodeFlags
   {
     LDK_UI_TREE_NODE_NONE = 0,
-    LDK_UI_TREE_NODE_LEAF     = 1 << 0,
+    LDK_UI_TREE_NODE_LEAF = 1 << 0,
     LDK_UI_TREE_NODE_SELECTED = 1 << 1
   } LDKTreeNodeFlags;
 
   typedef struct LDKUIMark
   {
-    LDKUILayout* layout;
+    LDKUILayout *layout;
     u32 measure_index;
   } LDKUIMark;
 
   typedef struct LDKUIMeasureEntry
   {
-    LDKUILayout* layout;
+    LDKUILayout *layout;
     LDKUIRect rect;
   } LDKUIMeasureEntry;
 
@@ -323,7 +327,7 @@ extern "C" {
   struct LDKUIScrollViewStackEntry
   {
     LDKUIId id;
-    LDKUILayout* layout;
+    LDKUILayout *layout;
     LDKUIMark mark;
     LDKUIRect rect;
     LDKUIRect view_rect;
@@ -352,7 +356,7 @@ extern "C" {
     LDKUISize requested_size_override;
     bool skip_parent_item_min_size_update;
     bool disable_main_axis_expand;
-    LDKUILayout* parent;
+    LDKUILayout *parent;
   };
 
   struct LDKUIWindow
@@ -366,16 +370,16 @@ extern "C" {
     i32 z_order;
     u32 last_frame_seen;
     LDKUIId focused_id;
-    XArray_ldk_ui_vertex* vertices;
-    XArray_ldk_ui_u32* indices;
-    XArray_ldk_ui_draw_cmd* commands;
+    XArray_ldk_ui_vertex *vertices;
+    XArray_ldk_ui_u32 *indices;
+    XArray_ldk_ui_draw_cmd *commands;
     bool close_requested;
   };
 
   struct LDKUIWindowStackEntry
   {
-    LDKUIWindow* window;
-    LDKUIWindow* previous_window;
+    LDKUIWindow *window;
+    LDKUIWindow *previous_window;
     LDKUIRect previous_clip_rect;
     u32 layout_stack_count;
   };
@@ -388,8 +392,8 @@ extern "C" {
     u32 initial_command_capacity;
     u32 initial_window_capacity;
     u32 initial_id_stack_capacity;
-    LDKFontInstance* font;
-    void* font_texture_user;
+    LDKFontInstance *font;
+    void *font_texture_user;
     LDKUIGetFontPageTextureFn get_font_page_texture;
     LDKUIThemeType theme;
     u32 font_size;
@@ -418,15 +422,22 @@ extern "C" {
     LDK_UI_TEXT_BOX_CANCELED = 1 << 2,
   } LDKUITextBoxResult;
 
+  typedef enum LDKUIHitLayer
+  {
+    LDK_UI_HIT_LAYER_NORMAL = 0,
+    LDK_UI_HIT_LAYER_POPUP = 1,
+  } LDKUIHitLayer;
+
   struct LDKUIHitCandidate
   {
     LDKUIId window_id;
     LDKUIId item_id;
     LDKUIRect rect;
     LDKUIRect clip_rect;
+    LDKUIHitLayer layer;
     u32 order;
   };
- 
+
   X_ARRAY_TYPE_NAMED(LDKUIHitCandidate, ldk_ui_hit_candidate);
 
   typedef struct LDKUIAreaStackEntry
@@ -434,7 +445,21 @@ extern "C" {
     bool expanded;
     bool opened_layout;
   } LDKUIAreaStackEntry;
-  
+
+  struct LDKUIPopupStackEntry
+  {
+    LDKUIId id;
+    LDKUIRect rect;
+    LDKUIRect previous_clip_rect;
+    LDKUILayout *previous_layout;
+  };
+
+  struct LDKUIPopupFrameEntry
+  {
+    LDKUIId id;
+    LDKUIRect rect;
+  };
+
   X_ARRAY_TYPE_NAMED(LDKUILayout, ldk_ui_layout);
   X_ARRAY_TYPE_NAMED(LDKUIWindow, ldk_ui_window);
   X_ARRAY_TYPE_NAMED(LDKUIWindowStackEntry, ldk_ui_window_stack_entry);
@@ -444,46 +469,53 @@ extern "C" {
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewStackEntry, ldk_ui_scrollview_stack_entry);
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewCache, ldk_ui_scrollview_cache);
   X_ARRAY_TYPE_NAMED(LDKUIAreaStackEntry, ldk_ui_area_stack_entry);
-  
+  X_ARRAY_TYPE_NAMED(LDKUIPopupStackEntry, ldk_ui_popup_stack_entry);
+  X_ARRAY_TYPE_NAMED(LDKUIPopupFrameEntry, ldk_ui_popup_frame_entry);
+
   struct LDKUIContext
   {
-    XArena* frame_arena;
-    LDKFontInstance* font;
-    void* font_file;
-    void* font_texture_user;
+    XArena *frame_arena;
+    LDKFontInstance *font;
+    void *font_file;
+    void *font_texture_user;
     LDKUIGetFontPageTextureFn get_font_page_texture;
 
-    LDKMouseState const* mouse;
-    LDKKeyboardState const* keyboard;
-    LDKUITextInputState const* input_text;
+    LDKMouseState const *mouse;
+    LDKKeyboardState const *keyboard;
+    LDKUITextInputState const *input_text;
 
-    XArray_ldk_ui_id* id_stack;
-    XArray_ldk_ui_vertex* vertices;
-    XArray_ldk_ui_u32* indices;
-    XArray_ldk_ui_draw_cmd* commands;
-    XArray_ldk_ui_bool* disabled_stack;
-    XArray_ldk_ui_hit_candidate* hit_candidates;
+    XArray_ldk_ui_id *id_stack;
+    XArray_ldk_ui_vertex *vertices;
+    XArray_ldk_ui_u32 *indices;
+    XArray_ldk_ui_draw_cmd *commands;
+    XArray_ldk_ui_vertex *popup_vertices;
+    XArray_ldk_ui_u32 *popup_indices;
+    XArray_ldk_ui_draw_cmd *popup_commands;
+    XArray_ldk_ui_bool *disabled_stack;
+    XArray_ldk_ui_hit_candidate *hit_candidates;
 
-
-    XArray_ldk_ui_layout* layout_stack;
+    XArray_ldk_ui_layout *layout_stack;
     u32 layout_frame_index;
-    LDKUILayout* current_layout;
+    LDKUILayout *current_layout;
 
-    XArray_ldk_ui_window* windows;
+    XArray_ldk_ui_window *windows;
     u32 window_frame_index;
-    LDKUIWindow* current_window;
-    XArray_ldk_ui_window_stack_entry* window_stack;
+    LDKUIWindow *current_window;
+    XArray_ldk_ui_window_stack_entry *window_stack;
 
-    XArray_ldk_ui_measure_entry* measure_entries;
+    XArray_ldk_ui_measure_entry *measure_entries;
     u32 last_measure_entry_index;
 
-    XArray_ldk_ui_layout_item* layout_items;
-    XArray_ldk_ui_layout_item_cache* layout_item_cache;
+    XArray_ldk_ui_layout_item *layout_items;
+    XArray_ldk_ui_layout_item_cache *layout_item_cache;
 
-    XArray_ldk_ui_scrollview_stack_entry* scrollview_stack;
-    XArray_ldk_ui_scrollview_cache* scrollview_cache;
+    XArray_ldk_ui_scrollview_stack_entry *scrollview_stack;
+    XArray_ldk_ui_scrollview_cache *scrollview_cache;
 
-    XArray_ldk_ui_area_stack_entry* area_stack;
+    XArray_ldk_ui_area_stack_entry *area_stack;
+    XArray_ldk_ui_id *open_popups;
+    XArray_ldk_ui_popup_stack_entry *popup_stack;
+    XArray_ldk_ui_popup_frame_entry *popup_frame_entries;
 
     LDKUILayoutSize next_width;
     LDKUILayoutSize next_height;
@@ -538,34 +570,41 @@ extern "C" {
     LDKCursorType cursor_type;
   };
 
-  LDK_API bool ldk_ui_initialize(LDKUIContext* ctx, LDKUIConfig const* config);
-  LDK_API void ldk_ui_terminate(LDKUIContext* ctx);
+  LDK_API bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config);
+  LDK_API void ldk_ui_terminate(LDKUIContext *ctx);
 
-  LDK_API void ldk_ui_set_theme(LDKUIContext* ctx, LDKUIThemeType type, LDKUITheme* custom);
+  LDK_API void ldk_ui_set_theme(
+      LDKUIContext *ctx, LDKUIThemeType type, LDKUITheme *custom);
 
-  LDK_API void ldk_ui_begin_frame(LDKUIContext* ctx, float delta, LDKMouseState const* mouse, LDKKeyboardState const* keyboard, LDKUITextInputState const* text_input, LDKUIRect viewport);
-  LDK_API void ldk_ui_end_frame(LDKUIContext* ctx);
-  LDK_API LDKUIRenderData const* ldk_ui_get_render_data(LDKUIContext const* ctx);
+  LDK_API void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
+      LDKMouseState const *mouse, LDKKeyboardState const *keyboard,
+      LDKUITextInputState const *text_input, LDKUIRect viewport);
+  LDK_API void ldk_ui_end_frame(LDKUIContext *ctx);
+  LDK_API LDKUIRenderData const *ldk_ui_get_render_data(
+      LDKUIContext const *ctx);
 
-  LDK_API void ldk_ui_push_id_u32(LDKUIContext* ctx, uint32_t value);
-  LDK_API void ldk_ui_push_id_ptr(LDKUIContext* ctx, void const* value);
-  LDK_API void ldk_ui_push_id_cstr(LDKUIContext* ctx, char const* value);
-  LDK_API void ldk_ui_pop_id(LDKUIContext* ctx);
+  LDK_API void ldk_ui_push_id_u32(LDKUIContext *ctx, uint32_t value);
+  LDK_API void ldk_ui_push_id_ptr(LDKUIContext *ctx, void const *value);
+  LDK_API void ldk_ui_push_id_cstr(LDKUIContext *ctx, char const *value);
+  LDK_API void ldk_ui_pop_id(LDKUIContext *ctx);
 
-  LDK_API void ldk_ui_set_next_disabled(LDKUIContext* ctx, bool disabled);
-  LDK_API void ldk_ui_begin_disabled(LDKUIContext* ctx, bool disabled);
-  LDK_API void ldk_ui_end_disabled(LDKUIContext* ctx);
+  LDK_API void ldk_ui_set_next_disabled(LDKUIContext *ctx, bool disabled);
+  LDK_API void ldk_ui_begin_disabled(LDKUIContext *ctx, bool disabled);
+  LDK_API void ldk_ui_end_disabled(LDKUIContext *ctx);
 
   LDK_API LDKUIRect ldk_ui_rect(float x, float y, float w, float h);
 
   //----------------------------------------------------------
   // Windows
   //----------------------------------------------------------
-  LDK_API LDKUIRect ldk_ui_begin_window_fixed(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags);
-  LDK_API LDKUIRect ldk_ui_begin_window(LDKUIContext* ctx, char const* title, LDKUIRect rect, u32 flags);
-  LDK_API bool ldk_ui_begin_window_open(LDKUIContext* ctx, char const* title, LDKUIRect* rect, bool* open, u32 flags);
-  LDK_API bool ldk_ui_window_close_requested(LDKUIContext* ctx);
-  LDK_API void ldk_ui_end_window(LDKUIContext* ctx);
+  LDK_API LDKUIRect ldk_ui_begin_window_fixed(
+      LDKUIContext *ctx, char const *title, LDKUIRect rect, u32 flags);
+  LDK_API LDKUIRect ldk_ui_begin_window(
+      LDKUIContext *ctx, char const *title, LDKUIRect rect, u32 flags);
+  LDK_API bool ldk_ui_begin_window_open(LDKUIContext *ctx, char const *title,
+      LDKUIRect *rect, bool *open, u32 flags);
+  LDK_API bool ldk_ui_window_close_requested(LDKUIContext *ctx);
+  LDK_API void ldk_ui_end_window(LDKUIContext *ctx);
 
   //----------------------------------------------------------
   // Layout size hints
@@ -574,67 +613,98 @@ extern "C" {
   LDK_API LDKUILayoutSize ldk_ui_percent(float value);
   LDK_API LDKUILayoutSize ldk_ui_fill(void);
 
-  LDK_API void ldk_ui_set_next_width(LDKUIContext* ctx, LDKUILayoutSize width);
-  LDK_API void ldk_ui_set_next_height(LDKUIContext* ctx, LDKUILayoutSize height);
-  LDK_API void ldk_ui_set_next_size(LDKUIContext* ctx, LDKUILayoutSize width, LDKUILayoutSize height);
-  LDK_API void ldk_ui_set_next_min_size(LDKUIContext* ctx, float width, float height);
-  LDK_API void ldk_ui_set_next_weight(LDKUIContext* ctx, float weight);
+  LDK_API void ldk_ui_set_next_width(LDKUIContext *ctx, LDKUILayoutSize width);
+  LDK_API void ldk_ui_set_next_height(
+      LDKUIContext *ctx, LDKUILayoutSize height);
+  LDK_API void ldk_ui_set_next_size(
+      LDKUIContext *ctx, LDKUILayoutSize width, LDKUILayoutSize height);
+  LDK_API void ldk_ui_set_next_min_size(
+      LDKUIContext *ctx, float width, float height);
+  LDK_API void ldk_ui_set_next_weight(LDKUIContext *ctx, float weight);
 
-  LDK_API LDKUIRect ldk_ui_last_rect(LDKUIContext* ctx);
-  LDK_API LDKUIRect ldk_ui_last_bounding_rect(LDKUIContext* ctx);
-  LDK_API LDKUIMark ldk_ui_mark(LDKUIContext* ctx);
-  LDK_API LDKUIRect ldk_ui_measure_from(LDKUIContext* ctx, LDKUIMark mark);
+  LDK_API LDKUIRect ldk_ui_last_rect(LDKUIContext *ctx);
+  LDK_API LDKUIRect ldk_ui_last_bounding_rect(LDKUIContext *ctx);
+  LDK_API LDKUIMark ldk_ui_mark(LDKUIContext *ctx);
+  LDK_API LDKUIRect ldk_ui_measure_from(LDKUIContext *ctx, LDKUIMark mark);
 
   //----------------------------------------------------------
   // Layout
   //----------------------------------------------------------
-  LDK_API void ldk_ui_begin_vertical(LDKUIContext* ctx);
-  LDK_API void ldk_ui_begin_horizontal(LDKUIContext* ctx);
-  LDK_API void ldk_ui_end(LDKUIContext* ctx);
-  LDK_API void ldk_ui_end_vertical(LDKUIContext* ctx);
-  LDK_API void ldk_ui_end_horizontal(LDKUIContext* ctx);
+  LDK_API void ldk_ui_begin_vertical(LDKUIContext *ctx);
+  LDK_API void ldk_ui_begin_horizontal(LDKUIContext *ctx);
+  LDK_API void ldk_ui_end(LDKUIContext *ctx);
+  LDK_API void ldk_ui_end_vertical(LDKUIContext *ctx);
+  LDK_API void ldk_ui_end_horizontal(LDKUIContext *ctx);
 
   //----------------------------------------------------------
   // Scroll views
   //----------------------------------------------------------
-  LDK_API LDKUIPoint ldk_ui_begin_scrollview(LDKUIContext* ctx, LDKUIPoint scroll, u32 flags);
-  LDK_API void ldk_ui_end_scrollview(LDKUIContext* ctx);
+  LDK_API LDKUIPoint ldk_ui_begin_scrollview(
+      LDKUIContext *ctx, LDKUIPoint scroll, u32 flags);
+  LDK_API void ldk_ui_end_scrollview(LDKUIContext *ctx);
 
   //----------------------------------------------------------
   // Areas
   //----------------------------------------------------------
-  LDK_API bool ldk_ui_begin_area(LDKUIContext* ctx, char const* title, bool expanded);
-  LDK_API void ldk_ui_end_area(LDKUIContext* ctx);
+  LDK_API bool ldk_ui_begin_area(
+      LDKUIContext *ctx, char const *title, bool expanded);
+  LDK_API void ldk_ui_end_area(LDKUIContext *ctx);
+
+  //----------------------------------------------------------
+  // Popups
+  //----------------------------------------------------------
+  LDK_API void ldk_ui_open_popup(LDKUIContext *ctx, LDKUIId id);
+  LDK_API void ldk_ui_close_popup(LDKUIContext *ctx, LDKUIId id);
+  LDK_API void ldk_ui_close_current_popup(LDKUIContext *ctx);
+  LDK_API void ldk_ui_close_all_popups(LDKUIContext *ctx);
+  LDK_API bool ldk_ui_popup_is_open(LDKUIContext *ctx, LDKUIId id);
+  LDK_API bool ldk_ui_begin_popup(
+      LDKUIContext *ctx, LDKUIId id, LDKUIRect rect);
+  LDK_API void ldk_ui_end_popup(LDKUIContext *ctx);
 
   //----------------------------------------------------------
   // Layout widget wrappers
   //----------------------------------------------------------
-  LDK_API void ldk_ui_image(LDKUIContext* ctx, LDKUITextureHandle texture, LDKUIRect uv, LDKUISize size);
-  LDK_API void ldk_ui_icon(LDKUIContext* ctx, LDKUIIcon icon);
-  LDK_API bool ldk_ui_icon_button(LDKUIContext* ctx, LDKUIIcon icon);
-  LDK_API void ldk_ui_label(LDKUIContext* ctx, char const* text);
-  LDK_API bool ldk_ui_button(LDKUIContext* ctx, char const* text);
-  LDK_API bool ldk_ui_toggle(LDKUIContext* ctx, bool value);
-  LDK_API bool ldk_ui_button_flat(LDKUIContext* ctx, char const* text);
-  LDK_API float ldk_ui_slider(LDKUIContext* ctx, float value, float min_value, float max_value);
-  LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title, bool expanded, u32 depth, u32 flags);
-  LDK_API u32 ldk_ui_text_box(LDKUIContext* ctx, char* buffer, u32 buffer_size);
-  LDK_API void ldk_ui_horizontal_line(LDKUIContext* ctx);
-  LDK_API void ldk_ui_spacer(LDKUIContext* ctx);
+  LDK_API void ldk_ui_image(LDKUIContext *ctx, LDKUITextureHandle texture,
+      LDKUIRect uv, LDKUISize size);
+  LDK_API void ldk_ui_icon(LDKUIContext *ctx, LDKUIIcon icon);
+  LDK_API bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon);
+  LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
+  LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
+  LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
+  LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
+  LDK_API float ldk_ui_slider(
+      LDKUIContext *ctx, float value, float min_value, float max_value);
+  LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
+      bool expanded, u32 depth, u32 flags);
+  LDK_API u32 ldk_ui_text_box(LDKUIContext *ctx, char *buffer, u32 buffer_size);
+  LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
+  LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
 
   //----------------------------------------------------------
   // Base widgets
   //----------------------------------------------------------
-  LDK_API void ldk_ui_widget_panel(LDKUIContext* ctx, LDKUIId id, LDKUIRect rect);
-  LDK_API void ldk_ui_widget_label(LDKUIContext* ctx, LDKUIId id, char const* text, LDKUIRect rect);
-  LDK_API void ldk_ui_widget_image(LDKUIContext* ctx, LDKUIId id, LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
-  LDK_API bool ldk_ui_widget_button(LDKUIContext* ctx, LDKUIId id, char const* text, LDKUIRect rect);
-  LDK_API bool ldk_ui_widget_button_flat(LDKUIContext* ctx, LDKUIId id, char const* text, LDKUIRect rect);
-  LDK_API bool ldk_ui_widget_toggle(LDKUIContext* ctx, LDKUIId id, bool value, LDKUIRect rect);
-  LDK_API float ldk_ui_widget_slider(LDKUIContext* ctx, LDKUIId id, float value, float min_value, float max_value, LDKUIRect rect);
-  LDK_API float ldk_ui_widget_scrollbar_vertical(LDKUIContext* ctx, LDKUIId id, float scroll, float visible_size, float content_size, LDKUIRect rect);
-  LDK_API float ldk_ui_widget_scrollbar_horizontal(LDKUIContext* ctx, LDKUIId id, float scroll, float visible_size, float content_size, LDKUIRect rect);
-  LDK_API u32 ldk_ui_widget_text_box(LDKUIContext* ctx, LDKUIId id, char* buffer, u32 buffer_size, LDKUIRect rect);
+  LDK_API void ldk_ui_widget_panel(
+      LDKUIContext *ctx, LDKUIId id, LDKUIRect rect);
+  LDK_API void ldk_ui_widget_label(
+      LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
+      LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_button(
+      LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_button_flat(
+      LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_toggle(
+      LDKUIContext *ctx, LDKUIId id, bool value, LDKUIRect rect);
+  LDK_API float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
+      float min_value, float max_value, LDKUIRect rect);
+  LDK_API float ldk_ui_widget_scrollbar_vertical(LDKUIContext *ctx, LDKUIId id,
+      float scroll, float visible_size, float content_size, LDKUIRect rect);
+  LDK_API float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx,
+      LDKUIId id, float scroll, float visible_size, float content_size,
+      LDKUIRect rect);
+  LDK_API u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id,
+      char *buffer, u32 buffer_size, LDKUIRect rect);
 
 #ifdef __cplusplus
 }
