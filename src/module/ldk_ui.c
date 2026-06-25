@@ -494,11 +494,11 @@ static bool s_ui_input_keyboard_accept_pressed(LDKUIContext *ctx)
     return true;
   }
 
-  if (ldk_os_keyboard_key_down(
-          (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SPACE))
-  {
-    return true;
-  }
+  //if (ldk_os_keyboard_key_down(
+  //        (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SPACE))
+  //{
+  //  return true;
+  //}
 
   return false;
 }
@@ -523,6 +523,17 @@ static bool s_ui_input_keyboard_right_pressed(LDKUIContext *ctx)
 
   return ldk_os_keyboard_key_down(
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_RIGHT);
+}
+
+static void s_ui_input_cursor_blink_reset(LDKUIContext *ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  ctx->text_cursor_blink_timer = 0.0f;
+  ctx->text_cursor_blink_visible = true;
 }
 
 static bool s_ui_rendering_popup(LDKUIContext *ctx)
@@ -1685,6 +1696,27 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   }
 
   ctx->delta_time = delta;
+
+  if (ctx->theme.text_cursor_blink &&
+      ctx->theme.text_cursor_blink_interval > 0.0f)
+  {
+    float blink_interval = ctx->theme.text_cursor_blink_interval;
+    ctx->text_cursor_blink_timer += delta;
+
+    while (ctx->text_cursor_blink_timer >= blink_interval)
+    {
+      ctx->text_cursor_blink_timer -= blink_interval;
+    }
+
+    ctx->text_cursor_blink_visible =
+        ctx->text_cursor_blink_timer < blink_interval * 0.5f;
+  }
+  else
+  {
+    ctx->text_cursor_blink_timer = 0.0f;
+    ctx->text_cursor_blink_visible = true;
+  }
+
   ctx->frame_index += 1;
   ctx->mouse = mouse;
   ctx->keyboard = keyboard;
@@ -1946,6 +1978,10 @@ void ldk_ui_set_theme(
   theme->window_interaction_border_size = 4.0f;
   theme->slider_track_height = 0.27272728f;
   theme->slider_thumb_width = 0.63636363f;
+  theme->text_cursor_blink = true;
+  theme->text_cursor_blink_interval = 1.0f;
+  theme->text_cursor_width = 1.0f;
+  theme->text_cursor_padding_y = 4.0f;
 }
 
 void ldk_ui_push_id_u32(LDKUIContext *ctx, u32 value)
@@ -2453,8 +2489,14 @@ float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx, LDKUIId id,
       ctx, id, scroll, visible_size, content_size, rect, true);
 }
 
-u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
-    u32 buffer_size, LDKUIRect rect)
+typedef enum LDKUIInputVisualMode
+{
+  LDK_UI_INPUT_VISUAL_BOX = 0,
+  LDK_UI_INPUT_VISUAL_LABEL = 1,
+} LDKUIInputVisualMode;
+
+static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
+    u32 buffer_size, LDKUIRect rect, LDKUIInputVisualMode visual_mode)
 {
   u32 result = LDK_UI_INPUT_BOX_NONE;
   LDKUIWidgetBox box = {0};
@@ -2467,6 +2509,9 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
   float padding_x;
   float text_x;
   float text_y;
+  u32 previous_text_cursor;
+  u32 previous_text_select_start;
+  u32 previous_text_select_end;
 
   if (buffer == NULL || buffer_size == 0)
   {
@@ -2484,6 +2529,10 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
   text_size = s_ui_widget_text_size(ctx, buffer);
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
+  previous_text_cursor = ctx->text_cursor;
+  previous_text_select_start = ctx->text_select_start;
+  previous_text_select_end = ctx->text_select_end;
+
   if (frame.pressed && frame.hot)
   {
     ctx->input_box_id = box.id;
@@ -2491,6 +2540,7 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
         s_ui_input_box_cursor_from_x(ctx, buffer, box.rect, frame.cursor.x);
     ctx->text_select_start = ctx->text_cursor;
     ctx->text_select_end = ctx->text_cursor;
+    s_ui_input_cursor_blink_reset(ctx);
   }
 
   if (frame.focused && ctx->input_box_id != box.id)
@@ -2499,6 +2549,7 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
     ctx->text_cursor = buffer_len;
     ctx->text_select_start = buffer_len;
     ctx->text_select_end = buffer_len;
+    s_ui_input_cursor_blink_reset(ctx);
   }
 
   if (frame.focused)
@@ -2725,15 +2776,26 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
     ctx->cursor_type = LDK_CURSOR_TEXT_SELECT;
   }
 
+  if (ctx->text_cursor != previous_text_cursor ||
+      ctx->text_select_start != previous_text_select_start ||
+      ctx->text_select_end != previous_text_select_end ||
+      (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+  {
+    s_ui_input_cursor_blink_reset(ctx);
+  }
+
   text_size = s_ui_widget_text_size(ctx, buffer);
 
   bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   border = s_ui_render_control_border_color(ctx, frame.visual_state);
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
-  s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
-  s_ui_render_border(
-      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  if (visual_mode == LDK_UI_INPUT_VISUAL_BOX)
+  {
+    s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+    s_ui_render_border(
+        ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  }
 
   padding_x = 6.0f;
   text_x = box.rect.x + padding_x;
@@ -2748,18 +2810,51 @@ u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   s_ui_render_text(ctx, buffer, text_x, text_y, text_color, box.clip);
 
-  if (frame.focused)
+  if (frame.focused &&
+      (!ctx->theme.text_cursor_blink || ctx->text_cursor_blink_visible))
   {
     LDKTextSize cursor_text_size =
         ldk_ttf_measure_text_cstrn(ctx->font, buffer, ctx->text_cursor);
     float cursor_x = text_x + cursor_text_size.w;
-    LDKUIRect cursor_rect = {
-        cursor_x, box.rect.y + 4.0f, 1.0f, box.rect.h - 8.0f};
+    float cursor_width = ctx->theme.text_cursor_width;
+    float cursor_padding_y = ctx->theme.text_cursor_padding_y;
+
+    if (cursor_width <= 0.0f)
+    {
+      cursor_width = 1.0f;
+    }
+
+    if (cursor_padding_y < 0.0f)
+    {
+      cursor_padding_y = 0.0f;
+    }
+
+    if (cursor_padding_y * 2.0f > box.rect.h)
+    {
+      cursor_padding_y = box.rect.h * 0.5f;
+    }
+
+    LDKUIRect cursor_rect = {cursor_x, box.rect.y + cursor_padding_y,
+        cursor_width, box.rect.h - cursor_padding_y * 2.0f};
     s_ui_render_quad(
         ctx, cursor_rect, ctx->theme.colors[LDK_UI_COLOR_FOCUS], box.clip, 0);
   }
 
   return result;
+}
+
+u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
+    u32 buffer_size, LDKUIRect rect)
+{
+  return s_ui_widget_input(
+      ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_BOX);
+}
+
+u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id, char *buffer,
+    u32 buffer_size, LDKUIRect rect)
+{
+  return s_ui_widget_input(
+      ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_LABEL);
 }
 
 #include "ui/ldk_ui_layout.inl"

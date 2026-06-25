@@ -154,6 +154,10 @@ extern "C"
     float window_interaction_border_size;
     float slider_track_height;
     float slider_thumb_width;
+    bool text_cursor_blink;
+    float text_cursor_blink_interval;
+    float text_cursor_width;
+    float text_cursor_padding_y;
   } LDKUITheme;
 
   typedef struct LDKUIVertex
@@ -414,13 +418,13 @@ extern "C"
     u32 codepoint_count;
   } LDKUITextInputState;
 
-  typedef enum LDKUITextBoxResult
+  typedef enum LDKUIInputBoxResult
   {
     LDK_UI_INPUT_BOX_NONE = 0,
     LDK_UI_INPUT_BOX_CHANGED = 1 << 0,
     LDK_UI_INPUT_BOX_COMMITTED = 1 << 1,
     LDK_UI_INPUT_BOX_CANCELED = 1 << 2,
-  } LDKUITextBoxResult;
+  } LDKUIInputBoxResult;
 
   typedef enum LDKUIHitLayer
   {
@@ -550,6 +554,8 @@ extern "C"
     u32 text_cursor;
     u32 text_select_start;
     u32 text_select_end;
+    float text_cursor_blink_timer;
+    bool text_cursor_blink_visible;
 
     u32 hit_order;
     u32 frame_index;
@@ -678,6 +684,8 @@ extern "C"
   LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
       bool expanded, u32 depth, u32 flags);
   LDK_API u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size);
+  LDK_API u32 ldk_ui_input_label(
+      LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
   LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
 
@@ -704,6 +712,8 @@ extern "C"
       LDKUIId id, float scroll, float visible_size, float content_size,
       LDKUIRect rect);
   LDK_API u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id,
+      char *buffer, u32 buffer_size, LDKUIRect rect);
+  LDK_API u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
 
 #ifdef __cplusplus

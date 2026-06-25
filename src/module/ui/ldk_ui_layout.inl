@@ -1460,6 +1460,27 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   return ldk_ui_widget_input_box(ctx, id, buffer, buffer_size, rect);
 }
 
+u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
+{
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+  LDKUISize min_size;
+
+  min_size.w = 140.0f;
+  min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  request =
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+
+  return ldk_ui_widget_input_label(ctx, id, buffer, buffer_size, rect);
+}
+
 void ldk_ui_horizontal_line(LDKUIContext *ctx)
 {
   LDKUILayoutRequest request;
