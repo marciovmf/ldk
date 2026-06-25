@@ -333,6 +333,22 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
+static void s_editor_console(LDKEditor *editor)
+{
+  static XSmallstr input = {0};
+  LDKUIContext *ui = &editor->ui;
+  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
+  s_entity_list_rect = ldk_ui_begin_window_fixed(
+      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+  static LDKUIPoint scroll = {0};
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  ldk_ui_label(ui, "This is a\nmulti line\nlabel!");
+  ldk_ui_input_box(ui, input.buf, X_SMALLSTR_MAX_LENGTH);
+  ldk_ui_end_scrollview(ui);
+  ldk_ui_end_window(ui);
+}
+
 //----------------------------------------------------------
 // Editor Udpate
 //----------------------------------------------------------
@@ -612,6 +628,7 @@ static void s_draw_editor_ui(LDKEditor *editor, float delta_time)
    s_editor_test_a(editor);
    s_editor_test_b(editor);
    s_editor_test_treeview(editor);
+   s_editor_console(editor);
    s_test_popup(editor);
 }
 

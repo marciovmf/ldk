@@ -329,7 +329,7 @@ static u32 s_ui_text_cstr_len_u32(char const *text)
   return (u32)len;
 }
 
-static u32 s_ui_text_box_cursor_from_x(
+static u32 s_ui_input_box_cursor_from_x(
     LDKUIContext *ctx, char const *text, LDKUIRect rect, float x)
 {
   float padding_x = 6.0f;
@@ -1491,9 +1491,9 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
       ctx->focused_id = 0;
     }
 
-    if (ctx->text_box_id == id)
+    if (ctx->input_box_id == id)
     {
-      ctx->text_box_id = 0;
+      ctx->input_box_id = 0;
     }
 
     state.visual_state = LDK_UI_CONTROL_VISUAL_STATE_DISABLED;
@@ -2453,10 +2453,10 @@ float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx, LDKUIId id,
       ctx, id, scroll, visible_size, content_size, rect, true);
 }
 
-u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
+u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
     u32 buffer_size, LDKUIRect rect)
 {
-  u32 result = LDK_UI_TEXT_BOX_NONE;
+  u32 result = LDK_UI_INPUT_BOX_NONE;
   LDKUIWidgetBox box = {0};
   LDKUIFrameState frame;
   u32 buffer_len;
@@ -2486,16 +2486,16 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   if (frame.pressed && frame.hot)
   {
-    ctx->text_box_id = box.id;
+    ctx->input_box_id = box.id;
     ctx->text_cursor =
-        s_ui_text_box_cursor_from_x(ctx, buffer, box.rect, frame.cursor.x);
+        s_ui_input_box_cursor_from_x(ctx, buffer, box.rect, frame.cursor.x);
     ctx->text_select_start = ctx->text_cursor;
     ctx->text_select_end = ctx->text_cursor;
   }
 
-  if (frame.focused && ctx->text_box_id != box.id)
+  if (frame.focused && ctx->input_box_id != box.id)
   {
-    ctx->text_box_id = box.id;
+    ctx->input_box_id = box.id;
     ctx->text_cursor = buffer_len;
     ctx->text_select_start = buffer_len;
     ctx->text_select_end = buffer_len;
@@ -2591,7 +2591,7 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
           ctx->text_cursor = start;
           ctx->text_select_start = start;
           ctx->text_select_end = start;
-          result |= LDK_UI_TEXT_BOX_CHANGED;
+          result |= LDK_UI_INPUT_BOX_CHANGED;
         }
       }
       else if (ctx->text_cursor < buffer_len)
@@ -2602,7 +2602,7 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
         {
           ctx->text_select_start = ctx->text_cursor;
           ctx->text_select_end = ctx->text_cursor;
-          result |= LDK_UI_TEXT_BOX_CHANGED;
+          result |= LDK_UI_INPUT_BOX_CHANGED;
         }
       }
 
@@ -2643,7 +2643,7 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
           ctx->text_cursor = start;
           ctx->text_select_start = start;
           ctx->text_select_end = start;
-          result |= LDK_UI_TEXT_BOX_CHANGED;
+          result |= LDK_UI_INPUT_BOX_CHANGED;
         }
       }
       else if (ctx->text_cursor > 0)
@@ -2655,7 +2655,7 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
           ctx->text_cursor = start;
           ctx->text_select_start = start;
           ctx->text_select_end = start;
-          result |= LDK_UI_TEXT_BOX_CHANGED;
+          result |= LDK_UI_INPUT_BOX_CHANGED;
         }
       }
 
@@ -2702,21 +2702,21 @@ u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
           ctx->text_select_start = ctx->text_cursor;
           ctx->text_select_end = ctx->text_cursor;
           buffer_len = s_ui_text_cstr_len_u32(buffer);
-          result |= LDK_UI_TEXT_BOX_CHANGED;
+          result |= LDK_UI_INPUT_BOX_CHANGED;
         }
       }
     }
 
     if (s_ui_input_keyboard_accept_pressed(ctx))
     {
-      result |= LDK_UI_TEXT_BOX_COMMITTED;
+      result |= LDK_UI_INPUT_BOX_COMMITTED;
     }
 
     if (ctx->keyboard != NULL &&
         ldk_os_keyboard_key_down(
             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_ESCAPE))
     {
-      result |= LDK_UI_TEXT_BOX_CANCELED;
+      result |= LDK_UI_INPUT_BOX_CANCELED;
     }
   }
 

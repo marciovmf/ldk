@@ -218,13 +218,13 @@ extern "C"
     LDK_UI_ITEM_SCROLLVIEW = 5,
     LDK_UI_ITEM_LAYOUT_VERTICAL = 6,
     LDK_UI_ITEM_LAYOUT_HORIZONTAL = 7,
-    LDK_UI_ITEM_TEXT_BOX = 8,
+    LDK_UI_ITEM_INPUT_BOX = 8,
     LDK_UI_ITEM_IMAGE = 9,
     LDK_UI_ITEM_ICON_BUTTON = 10,
     LDK_UI_ITEM_PANEL = 11,
     LDK_UI_ITEM_SPACER = 12,
     LDK_UI_ITEM_TOGGLE = 13,
-    LDK_UI_ITEM_SEPARATOR = 13,
+    LDK_UI_ITEM_SEPARATOR = 14,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -416,10 +416,10 @@ extern "C"
 
   typedef enum LDKUITextBoxResult
   {
-    LDK_UI_TEXT_BOX_NONE = 0,
-    LDK_UI_TEXT_BOX_CHANGED = 1 << 0,
-    LDK_UI_TEXT_BOX_COMMITTED = 1 << 1,
-    LDK_UI_TEXT_BOX_CANCELED = 1 << 2,
+    LDK_UI_INPUT_BOX_NONE = 0,
+    LDK_UI_INPUT_BOX_CHANGED = 1 << 0,
+    LDK_UI_INPUT_BOX_COMMITTED = 1 << 1,
+    LDK_UI_INPUT_BOX_CANCELED = 1 << 2,
   } LDKUITextBoxResult;
 
   typedef enum LDKUIHitLayer
@@ -539,7 +539,7 @@ extern "C"
     LDKUIId active_id;
     LDKUIId focused_id;
     LDKUIId last_id;
-    LDKUIId text_box_id;
+    LDKUIId input_box_id;
 
     LDKUIId hovered_window_id;
     LDKUIId focused_window_id;
@@ -677,7 +677,7 @@ extern "C"
       LDKUIContext *ctx, float value, float min_value, float max_value);
   LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
       bool expanded, u32 depth, u32 flags);
-  LDK_API u32 ldk_ui_text_box(LDKUIContext *ctx, char *buffer, u32 buffer_size);
+  LDK_API u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
   LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
 
@@ -703,7 +703,7 @@ extern "C"
   LDK_API float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx,
       LDKUIId id, float scroll, float visible_size, float content_size,
       LDKUIRect rect);
-  LDK_API u32 ldk_ui_widget_text_box(LDKUIContext *ctx, LDKUIId id,
+  LDK_API u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
 
 #ifdef __cplusplus

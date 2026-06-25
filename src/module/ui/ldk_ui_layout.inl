@@ -1419,8 +1419,7 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
   return ldk_ui_widget_button_flat(ctx, id, text, rect);
 }
 
-float ldk_ui_slider(
-    LDKUIContext *ctx, float value, float min_value, float max_value)
+float ldk_ui_slider(LDKUIContext *ctx, float value, float min_value, float max_value)
 {
   LDKUILayoutRequest request;
   LDKUIRect rect;
@@ -1440,7 +1439,7 @@ float ldk_ui_slider(
   return ldk_ui_widget_slider(ctx, id, value, min_value, max_value, rect);
 }
 
-u32 ldk_ui_text_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
+u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
 {
   LDKUILayoutRequest request;
   LDKUIRect rect;
@@ -1451,14 +1450,14 @@ u32 ldk_ui_text_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_TEXT_BOX, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
-    return LDK_UI_TEXT_BOX_NONE;
+    return LDK_UI_INPUT_BOX_NONE;
   }
 
-  return ldk_ui_widget_text_box(ctx, id, buffer, buffer_size, rect);
+  return ldk_ui_widget_input_box(ctx, id, buffer, buffer_size, rect);
 }
 
 void ldk_ui_horizontal_line(LDKUIContext *ctx)
