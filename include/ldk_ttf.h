@@ -66,6 +66,15 @@ extern "C" {
   LDK_API bool ldk_ttf_utf8_consume_codepoint(char const** cursor, u32* out_codepoint);
 
   /**
+   * @brief Consumes one UTF-8 codepoint within a bounded byte range and advances the input cursor.
+   * @param cursor Pointer to the current UTF-8 string position. Updated to the next byte after the decoded sequence.
+   * @param end Exclusive end pointer for the UTF-8 byte range.
+   * @param out_codepoint Destination for the decoded Unicode codepoint.
+   * @return true if a codepoint was consumed, false if input is invalid, the cursor is at the string terminator, or the cursor reached end.
+   */
+  LDK_API bool ldk_ttf_utf8_consume_codepoint_range(char const** cursor, char const* end, u32* out_codepoint);
+
+  /**
    * @brief Creates a font face from TrueType font data.
    * @param data Source font file data.
    * @param data_size Size of the source font data in bytes.
@@ -174,10 +183,10 @@ extern "C" {
   LDK_API LDKTextSize ldk_ttf_measure_text_cstr(LDKFontInstance* instance, char const* text);
 
   /**
-   * @brief Measures a UTF-8 string with an optional byte limit.
+   * @brief Measures a UTF-8 string with a byte limit.
    * @param instance Font instance.
    * @param text UTF-8 string.
-   * @param byte_count Maximum number of bytes to read. If 0, reads until the string terminator.
+   * @param byte_count Maximum number of bytes to read. If 0, measures an empty string.
    * @return Text size in pixels.
    */
   LDK_API LDKTextSize ldk_ttf_measure_text_cstrn(LDKFontInstance* instance, char const* text, u32 byte_count);

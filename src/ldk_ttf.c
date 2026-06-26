@@ -364,12 +364,59 @@ static bool ldk_ttf_rasterize_glyph(LDKFontInstance* instance, u32 codepoint, LD
   return true;
 }
 
+bool ldk_ttf_utf8_consume_codepoint_range(char const** cursor, char const* end, u32* out_codepoint)
+{
+  char const* ptr = NULL;
+  size_t remaining = 0;
+  size_t consumed = 0;
+  int32_t decoded = 0;
+
+  if (cursor == NULL || *cursor == NULL || end == NULL || out_codepoint == NULL)
+  {
+    return false;
+  }
+
+  ptr = *cursor;
+
+  if (ptr >= end || *ptr == '\0')
+  {
+    return false;
+  }
+
+  remaining = (size_t)(end - ptr);
+  decoded = x_utf8_decode(ptr, end, &consumed);
+
+  if (decoded < 0)
+  {
+    if (consumed == 0)
+    {
+      consumed = 1;
+    }
+
+    if (consumed > remaining)
+    {
+      consumed = remaining;
+    }
+
+    *cursor = ptr + consumed;
+    *out_codepoint = 0xFFFDu;
+    return true;
+  }
+
+  if (consumed == 0 || consumed > remaining)
+  {
+    return false;
+  }
+
+  *cursor = ptr + consumed;
+  *out_codepoint = (u32)decoded;
+  return true;
+}
+
 bool ldk_ttf_utf8_consume_codepoint(char const** cursor, u32* out_codepoint)
 {
   char const* ptr = NULL;
   char const* end = NULL;
-  size_t consumed = 0;
-  int32_t decoded = 0;
 
   if (cursor == NULL || *cursor == NULL || out_codepoint == NULL)
   {
@@ -384,23 +431,7 @@ bool ldk_ttf_utf8_consume_codepoint(char const** cursor, u32* out_codepoint)
   }
 
   end = ptr + strlen(ptr);
-  decoded = x_utf8_decode(ptr, end, &consumed);
-
-  if (decoded < 0)
-  {
-    if (consumed == 0)
-    {
-      consumed = 1;
-    }
-
-    *cursor = ptr + consumed;
-    *out_codepoint = 0xFFFDu;
-    return true;
-  }
-
-  *cursor = ptr + consumed;
-  *out_codepoint = (u32)decoded;
-  return true;
+  return ldk_ttf_utf8_consume_codepoint_range(cursor, end, out_codepoint);
 }
 
 LDKFontFace* ldk_ttf_face_create(void const* data, u32 data_size)
@@ -917,9 +948,14 @@ LDKSizef ldk_ttf_measure_text_cstr_wrapped(LDKFontInstance* instance, char const
   return size;
 }
 
-LDKSizef ldk_ttf_measure_text_cstr(LDKFontInstance* instance, char const* text)
+LDKTextSize ldk_ttf_measure_text_cstr(LDKFontInstance* instance, char const* text)
 {
-  return ldk_ttf_measure_text_cstrn(instance, text, 0);
+  if (text == NULL)
+  {
+    return (LDKTextSize){0};
+  }
+
+  return ldk_ttf_measure_text_cstrn(instance, text, (u32)strlen(text));
 }
 
 LDKTextSize ldk_ttf_measure_text_cstrn(LDKFontInstance* instance, char const* text, u32 byte_count)
@@ -938,16 +974,12 @@ LDKTextSize ldk_ttf_measure_text_cstrn(LDKFontInstance* instance, char const* te
   float line_height = ldk_ttf_get_line_height(instance);
   size.h = line_height;
 
-  // Note, when byte_count is 0, the function keeps goint until it finds a null character
-  // Otherwise the function stops at byte_count bytes after text
   char const* ptr = text;
   char const* end = ptr + byte_count;
-  while (*ptr)
-  {
-    if (byte_count > 0 && ptr >= end)
-      break;
 
-    if (!ldk_ttf_utf8_consume_codepoint(&ptr, &codepoint))
+  while (*ptr != '\0' && ptr < end)
+  {
+    if (!ldk_ttf_utf8_consume_codepoint_range(&ptr, end, &codepoint))
     {
       break;
     }
