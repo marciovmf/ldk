@@ -104,6 +104,7 @@ extern "C"
   typedef struct LDKUIAreaStackEntry LDKUIAreaStackEntry;
   typedef struct LDKUIPopupStackEntry LDKUIPopupStackEntry;
   typedef struct LDKUIPopupFrameEntry LDKUIPopupFrameEntry;
+  typedef struct LDKUIPopupCache LDKUIPopupCache;
   typedef struct LDKUIHitCandidate LDKUIHitCandidate;
   typedef struct LDKUIContext LDKUIContext;
 
@@ -456,12 +457,22 @@ extern "C"
     LDKUIRect rect;
     LDKUIRect previous_clip_rect;
     LDKUILayout *previous_layout;
+    u32 measure_entry_index;
   };
 
   struct LDKUIPopupFrameEntry
   {
     LDKUIId id;
     LDKUIRect rect;
+  };
+
+  struct LDKUIPopupCache
+  {
+    LDKUIId id;
+    LDKUIPoint position;
+    LDKUIRect rect;
+    u32 last_frame_touched;
+    bool has_rect;
   };
 
   X_ARRAY_TYPE_NAMED(LDKUILayout, ldk_ui_layout);
@@ -475,6 +486,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIAreaStackEntry, ldk_ui_area_stack_entry);
   X_ARRAY_TYPE_NAMED(LDKUIPopupStackEntry, ldk_ui_popup_stack_entry);
   X_ARRAY_TYPE_NAMED(LDKUIPopupFrameEntry, ldk_ui_popup_frame_entry);
+  X_ARRAY_TYPE_NAMED(LDKUIPopupCache, ldk_ui_popup_cache);
 
   struct LDKUIContext
   {
@@ -520,6 +532,7 @@ extern "C"
     XArray_ldk_ui_id *open_popups;
     XArray_ldk_ui_popup_stack_entry *popup_stack;
     XArray_ldk_ui_popup_frame_entry *popup_frame_entries;
+    XArray_ldk_ui_popup_cache *popup_cache;
 
     LDKUILayoutSize next_width;
     LDKUILayoutSize next_height;
@@ -660,12 +673,13 @@ extern "C"
   // Popups
   //----------------------------------------------------------
   LDK_API void ldk_ui_open_popup(LDKUIContext *ctx, LDKUIId id);
+  LDK_API void ldk_ui_open_popup_at(
+      LDKUIContext *ctx, LDKUIId id, LDKUIPoint position);
   LDK_API void ldk_ui_close_popup(LDKUIContext *ctx, LDKUIId id);
   LDK_API void ldk_ui_close_current_popup(LDKUIContext *ctx);
   LDK_API void ldk_ui_close_all_popups(LDKUIContext *ctx);
   LDK_API bool ldk_ui_popup_is_open(LDKUIContext *ctx, LDKUIId id);
-  LDK_API bool ldk_ui_begin_popup(
-      LDKUIContext *ctx, LDKUIId id, LDKUIRect rect);
+  LDK_API bool ldk_ui_begin_popup(LDKUIContext *ctx, LDKUIId id);
   LDK_API void ldk_ui_end_popup(LDKUIContext *ctx);
 
   //----------------------------------------------------------
