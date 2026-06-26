@@ -346,8 +346,8 @@ static u32 s_ui_input_box_cursor_from_x(
 
   while (cursor <= len)
   {
-    LDKTextSize text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
-    // float cursor_x = ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
+    LDKTextSize text_size =
+        ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
     float cursor_x = text_size.w;
     float distance = fabsf(cursor_x - local_x);
 
@@ -366,6 +366,57 @@ static u32 s_ui_input_box_cursor_from_x(
   }
 
   return best;
+}
+
+
+static u32 s_ui_input_text_cursor_prev(char const *text, u32 cursor)
+{
+  u32 len = s_ui_text_cstr_len_u32(text);
+  u32 previous;
+
+  if (text == NULL || cursor == 0)
+  {
+    return 0;
+  }
+
+  if (cursor > len)
+  {
+    cursor = len;
+  }
+
+  previous = x_utf8_prev(text, cursor);
+
+  if (previous >= cursor || previous > len)
+  {
+    return 0;
+  }
+
+  return previous;
+}
+
+static u32 s_ui_input_text_cursor_next(char const *text, u32 cursor)
+{
+  u32 len = s_ui_text_cstr_len_u32(text);
+  u32 next;
+
+  if (text == NULL)
+  {
+    return 0;
+  }
+
+  if (cursor >= len)
+  {
+    return len;
+  }
+
+  next = x_utf8_next(text, cursor);
+
+  if (next <= cursor || next > len)
+  {
+    return len;
+  }
+
+  return next;
 }
 
 static bool s_ui_text_delete_range(
@@ -481,26 +532,16 @@ static bool s_ui_input_keyboard_end_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_END);
 }
 
-static bool s_ui_input_keyboard_accept_pressed(LDKUIContext *ctx)
+
+static bool s_ui_input_keyboard_enter_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
   {
     return false;
   }
 
-  if (ldk_os_keyboard_key_down(
-          (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_ENTER))
-  {
-    return true;
-  }
-
-  //if (ldk_os_keyboard_key_down(
-  //        (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SPACE))
-  //{
-  //  return true;
-  //}
-
-  return false;
+  return ldk_os_keyboard_key_down(
+      (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_ENTER);
 }
 
 static bool s_ui_input_keyboard_left_pressed(LDKUIContext *ctx)
@@ -704,11 +745,11 @@ static void s_ui_render_text_highlight(LDKUIContext *ctx, char const *text,
     end = temp;
   }
 
-  LDKTextSize text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, start);
+  LDKTextSize text_size =
+      ldk_ttf_measure_text_cstrn(ctx->font, text, start);
   float x0 = text_x + text_size.w;
 
   text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, end);
-  // text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, start);
   float x1 = text_x + text_size.w;
 
   LDKUIRect highlight_rect;
@@ -1624,6 +1665,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
       x_array_ldk_ui_popup_stack_entry_create(LDK_UI_POPUP_STACK_CAPACITY);
   ctx->popup_frame_entries =
       x_array_ldk_ui_popup_frame_entry_create(LDK_UI_POPUP_STACK_CAPACITY);
+  ctx->popup_cache =
+      x_array_ldk_ui_popup_cache_create(LDK_UI_POPUP_STACK_CAPACITY);
 
   ctx->font_texture_user = config->font_texture_user;
   ctx->get_font_page_texture = config->get_font_page_texture;
@@ -1643,6 +1686,7 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
          ctx->disabled_stack != NULL && ctx->hit_candidates != NULL &&
          ctx->layout_stack != NULL && ctx->open_popups != NULL &&
          ctx->popup_stack != NULL && ctx->popup_frame_entries != NULL &&
+         ctx->popup_cache != NULL &&
          ctx->windows != NULL && ctx->window_stack != NULL &&
          ctx->measure_entries != NULL && ctx->layout_items != NULL &&
          ctx->layout_item_cache != NULL && ctx->scrollview_stack != NULL &&
@@ -1673,6 +1717,7 @@ void ldk_ui_terminate(LDKUIContext *ctx)
   x_array_destroy(ctx->open_popups);
   x_array_destroy(ctx->popup_stack);
   x_array_destroy(ctx->popup_frame_entries);
+  x_array_destroy(ctx->popup_cache);
   x_array_destroy(ctx->windows);
   x_array_destroy(ctx->window_stack);
   x_array_destroy(ctx->measure_entries);
@@ -2571,39 +2616,56 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
       ctx->text_select_end = buffer_len;
     }
 
-    if (s_ui_input_keyboard_left_pressed(ctx))
+    bool move_left = s_ui_input_keyboard_left_pressed(ctx);
+    bool move_right = s_ui_input_keyboard_right_pressed(ctx);
+    bool move_home = s_ui_input_keyboard_home_pressed(ctx);
+    bool move_end = s_ui_input_keyboard_end_pressed(ctx);
+
+    if (move_left || move_right || move_home || move_end)
     {
-      ctx->text_cursor = x_utf8_prev(buffer, ctx->text_cursor);
+      bool has_selection = ctx->text_select_start != ctx->text_select_end;
+      u32 selection_start = ctx->text_select_start;
+      u32 selection_end = ctx->text_select_end;
 
-      if (shift)
+      if (selection_start > selection_end)
       {
-        ctx->text_select_end = ctx->text_cursor;
+        u32 temp = selection_start;
+        selection_start = selection_end;
+        selection_end = temp;
       }
-      else
-      {
-        ctx->text_select_start = ctx->text_cursor;
-        ctx->text_select_end = ctx->text_cursor;
-      }
-    }
 
-    if (s_ui_input_keyboard_right_pressed(ctx))
-    {
-      ctx->text_cursor = x_utf8_next(buffer, ctx->text_cursor);
-
-      if (shift)
+      if (move_left)
       {
-        ctx->text_select_end = ctx->text_cursor;
+        if (has_selection && !shift)
+        {
+          ctx->text_cursor = selection_start;
+        }
+        else
+        {
+          ctx->text_cursor =
+              s_ui_input_text_cursor_prev(buffer, ctx->text_cursor);
+        }
       }
-      else
+      else if (move_right)
       {
-        ctx->text_select_start = ctx->text_cursor;
-        ctx->text_select_end = ctx->text_cursor;
+        if (has_selection && !shift)
+        {
+          ctx->text_cursor = selection_end;
+        }
+        else
+        {
+          ctx->text_cursor =
+              s_ui_input_text_cursor_next(buffer, ctx->text_cursor);
+        }
       }
-    }
-
-    if (s_ui_input_keyboard_home_pressed(ctx))
-    {
-      ctx->text_cursor = 0;
+      else if (move_home)
+      {
+        ctx->text_cursor = 0;
+      }
+      else if (move_end)
+      {
+        ctx->text_cursor = buffer_len;
+      }
 
       if (shift)
       {
@@ -2647,7 +2709,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
       }
       else if (ctx->text_cursor < buffer_len)
       {
-        u32 end = x_utf8_next(buffer, ctx->text_cursor);
+        u32 end = s_ui_input_text_cursor_next(buffer, ctx->text_cursor);
 
         if (s_ui_text_delete_range(buffer, buffer_len, ctx->text_cursor, end))
         {
@@ -2658,21 +2720,6 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
       }
 
       buffer_len = s_ui_text_cstr_len_u32(buffer);
-    }
-
-    if (s_ui_input_keyboard_end_pressed(ctx))
-    {
-      ctx->text_cursor = buffer_len;
-
-      if (shift)
-      {
-        ctx->text_select_end = ctx->text_cursor;
-      }
-      else
-      {
-        ctx->text_select_start = ctx->text_cursor;
-        ctx->text_select_end = ctx->text_cursor;
-      }
     }
 
     if (s_ui_input_keyboard_backspace_pressed(ctx))
@@ -2699,7 +2746,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
       }
       else if (ctx->text_cursor > 0)
       {
-        u32 start = x_utf8_prev(buffer, ctx->text_cursor);
+        u32 start = s_ui_input_text_cursor_prev(buffer, ctx->text_cursor);
 
         if (s_ui_text_delete_range(buffer, buffer_len, start, ctx->text_cursor))
         {
@@ -2758,7 +2805,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
       }
     }
 
-    if (s_ui_input_keyboard_accept_pressed(ctx))
+    if (s_ui_input_keyboard_enter_pressed(ctx))
     {
       result |= LDK_UI_INPUT_BOX_COMMITTED;
     }
