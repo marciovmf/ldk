@@ -364,8 +364,6 @@ static void s_editor_console(LDKEditor *editor)
     scroll.y += 10000.0f;
   }
   ldk_ui_end_window(ui);
-
-  printf("console scroll %f, %f\n", scroll.x, scroll.y);
 }
 
 //----------------------------------------------------------
@@ -414,7 +412,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   LDKUIRect popup_pos =
     {file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
 
-  ldk_ui_begin_popup(ui, MENU_ID_FILE, popup_pos);
+  ldk_ui_begin_popup(ui, MENU_ID_FILE);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -452,7 +450,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   popup_pos.x = edit_button_rect.x;
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_EDIT, popup_pos);
+  ldk_ui_begin_popup(ui, MENU_ID_EDIT);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -473,7 +471,7 @@ static void s_editor_menu_bar(LDKEditor* editor)
   popup_pos.x = theme_button_rect.x;
   popup_pos.y = theme_button_rect.y + theme_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_THEME, popup_pos);
+  ldk_ui_begin_popup(ui, MENU_ID_THEME);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
     if (ldk_ui_button_flat(ui, "Dark"))
@@ -510,7 +508,7 @@ static void s_test_popup(LDKEditor *editor)
   LDKUIRect popup_rect = ldk_ui_rect(
     button_rect.x, button_rect.y + button_rect.h + 4.0f, 180.0f, 96.0f);
 
-  if (ldk_ui_begin_popup(ctx, popup_id, popup_rect))
+  if (ldk_ui_begin_popup(ctx, popup_id))
   {
     ldk_ui_set_next_height(ctx, ldk_ui_px(22.0f));
     ldk_ui_label(ctx, "Popup content");
