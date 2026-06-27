@@ -242,6 +242,7 @@ static void s_editor_test_treeview(LDKEditor *editor)
       ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF);
       ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
       ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
+        
 
       s_child_open[i] = ldk_ui_tree_node(ui, "Nested", s_child_open[i], 1, 0);
 
@@ -283,12 +284,7 @@ static void s_editor_test_a(LDKEditor *editor)
 
 static void s_editor_test_b(LDKEditor *editor)
 {
-  LDKUIIcon icon;
-  icon.size = ldk_sizef(12, 12);
-  icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
-
+  static bool check = false;
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
@@ -304,6 +300,7 @@ static void s_editor_test_b(LDKEditor *editor)
   {
     ldk_ui_label(ui, "Hello, Sailor!");
     ldk_ui_button(ui, "Click me");
+    check = ldk_ui_toggle(ui, check);
   }
   ldk_ui_end_area(ui);
 
@@ -363,6 +360,7 @@ static void s_editor_console(LDKEditor *editor)
     // scroll down
     scroll.y += 10000.0f;
   }
+
   ldk_ui_end_window(ui);
 }
 
@@ -772,11 +770,31 @@ static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
   ui_cfg.font_texture_user = renderer;
   ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
 
+
   if (!ldk_ui_initialize(&editor->ui, &ui_cfg))
   {
     ldk_log_error("Failed to initialize module: UI System.");
     return false;
   }
+
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(24, 24);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
+  
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
 
   return true;
 }

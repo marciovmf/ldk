@@ -703,6 +703,37 @@ static void s_ui_render_quad(LDKUIContext *ctx, LDKUIRect rect, u32 color,
   s_ui_render_quad_uv(ctx, rect, uv, color, clip_rect, texture);
 }
 
+static bool s_ui_icon_valid(LDKUIIcon icon)
+{
+  return icon.texture != 0 && icon.uv.w > 0.0f && icon.uv.h > 0.0f &&
+         icon.size.w > 0.0f && icon.size.h > 0.0f;
+}
+
+static LDKUIIcon s_ui_theme_icon(
+    LDKUIContext *ctx, LDKUIThemeIconSlot slot)
+{
+  LDKUIIcon icon = {0};
+
+  if (ctx == NULL || slot < 0 || slot >= LDK_UI_THEME_ICON_COUNT)
+  {
+    return icon;
+  }
+
+  return ctx->theme.icons[slot];
+}
+
+static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon,
+    LDKUIRect rect, u32 color, LDKUIRect clip_rect)
+{
+  if (!s_ui_icon_valid(icon))
+  {
+    return;
+  }
+
+  s_ui_render_quad_uv(
+      ctx, rect, icon.uv, color, clip_rect, (LDKUITextureHandle)icon.texture);
+}
+
 static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,
     u32 color, LDKUIRect clip_rect)
 {
@@ -1917,6 +1948,8 @@ void ldk_ui_set_theme(
     return;
   }
 
+  memset(theme->icons, 0, sizeof(theme->icons));
+
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
     rgba32 text = 0xd8d8d8FFu;
@@ -2316,6 +2349,7 @@ bool ldk_ui_widget_toggle(
   LDKUIFrameState frame;
   u32 bg;
   u32 border;
+  u32 text_color;
   float check_size;
   LDKUIRect check_rect;
 
@@ -2333,12 +2367,26 @@ bool ldk_ui_widget_toggle(
 
   bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   border = s_ui_render_control_border_color(ctx, frame.visual_state);
+  text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
   s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
   s_ui_render_border(
       ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
 
-  if (value)
+  LDKUIIcon toggle_icon = s_ui_theme_icon(ctx,
+      value ? LDK_UI_THEME_ICON_TOGGLE_CHECKED
+            : LDK_UI_THEME_ICON_TOGGLE_UNCHECKED);
+
+  if (s_ui_icon_valid(toggle_icon))
+  {
+    check_rect.w = s_ui_minf(toggle_icon.size.w, box.rect.w);
+    check_rect.h = s_ui_minf(toggle_icon.size.h, box.rect.h);
+    check_rect.x = box.rect.x + (box.rect.w - check_rect.w) * 0.5f;
+    check_rect.y = box.rect.y + (box.rect.h - check_rect.h) * 0.5f;
+
+    s_ui_render_icon(ctx, toggle_icon, check_rect, text_color, box.clip);
+  }
+  else if (value)
   {
     check_size = s_ui_maxf(0.0f, s_ui_minf(box.rect.w, box.rect.h) - 8.0f);
     check_rect.x = box.rect.x + (box.rect.w - check_size) * 0.5f;
@@ -2346,8 +2394,7 @@ bool ldk_ui_widget_toggle(
     check_rect.w = check_size;
     check_rect.h = check_size;
 
-    s_ui_render_quad(ctx, check_rect,
-        ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE], box.clip, 0);
+    s_ui_render_quad(ctx, check_rect, text_color, box.clip, 0);
   }
 
   return value;

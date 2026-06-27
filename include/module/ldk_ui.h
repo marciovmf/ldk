@@ -147,9 +147,26 @@ extern "C"
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
 
+  typedef struct LDKUIIcon
+  {
+    uintptr_t texture;
+    LDKUIRect uv;
+    LDKUISize size;
+  } LDKUIIcon;
+
+  typedef enum LDKUIThemeIconSlot
+  {
+    LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED,
+    LDK_UI_THEME_ICON_TREE_NODE_EXPANDED,
+    LDK_UI_THEME_ICON_TOGGLE_UNCHECKED,
+    LDK_UI_THEME_ICON_TOGGLE_CHECKED,
+    LDK_UI_THEME_ICON_COUNT,
+  } LDKUIThemeIconSlot;
+
   typedef struct LDKUITheme
   {
     rgba32 colors[LDK_UI_COLOR_COUNT];
+    LDKUIIcon icons[LDK_UI_THEME_ICON_COUNT];
     float control_border_size;
     float window_border_size;
     float window_interaction_border_size;
@@ -200,13 +217,6 @@ extern "C"
     LDKUIDrawCmd const *commands;
     uint32_t command_count;
   } LDKUIRenderData;
-
-  typedef struct LDKUIIcon
-  {
-    uintptr_t texture;
-    LDKUIRect uv;
-    LDKUISize size;
-  } LDKUIIcon;
 
   typedef enum LDKUILayoutDirection
   {
