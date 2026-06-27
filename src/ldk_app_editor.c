@@ -106,6 +106,28 @@ static inline void s_editor_command_quit(LDKEditor *editor)
   }
 }
 
+static void s_theme_icons_set(LDKEditor* editor, LDKUITheme* theme)
+{
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(24, 24);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
+  
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
+}
+
 //----------------------------------------------------------
 // Event Handlers
 //----------------------------------------------------------
@@ -471,15 +493,20 @@ static void s_editor_menu_bar(LDKEditor* editor)
 
   ldk_ui_begin_popup(ui, MENU_ID_THEME);
   {
+    LDKUITheme theme;
     LDKUIMark mark = ldk_ui_mark(ui);
     if (ldk_ui_button_flat(ui, "Dark"))
     {
-      ldk_ui_set_theme(ui, LDK_UI_THEME_DEFAULT_DARK, NULL);
+      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme);
+      s_theme_icons_set(editor, &theme);
+      ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
     if (ldk_ui_button_flat(ui, "Light"))
     {
-      ldk_ui_set_theme(ui, LDK_UI_THEME_DEFAULT_LIGHT, NULL);
+      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_LIGHT, &theme);
+      s_theme_icons_set(editor, &theme);
+      ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -770,32 +797,13 @@ static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
   ui_cfg.font_texture_user = renderer;
   ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
 
-
   if (!ldk_ui_initialize(&editor->ui, &ui_cfg))
   {
     ldk_log_error("Failed to initialize module: UI System.");
     return false;
   }
 
-  LDKUIIcon icon = {0};
-  icon.size = ldk_sizef(24, 24);
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
-  
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
-
+  s_theme_icons_set(editor, &editor->ui.theme); // set theme icons
   return true;
 }
 

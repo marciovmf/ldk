@@ -1703,7 +1703,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
   ctx->get_font_page_texture = config->get_font_page_texture;
   ctx->font = config->font;
 
-  ldk_ui_set_theme(ctx, config->theme, NULL);
+  // We just get theme straight into the actual ctx->theme
+  ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &ctx->theme); 
 
   if (ctx->font != NULL)
   {
@@ -1930,25 +1931,23 @@ LDKUIRenderData const *ldk_ui_get_render_data(LDKUIContext const *ctx)
   return &ctx->render_data;
 }
 
-void ldk_ui_set_theme(
-    LDKUIContext *ctx, LDKUIThemeType type, LDKUITheme *custom)
+bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme)
 {
-  LDKUITheme *theme;
-
-  if (ctx == NULL)
+  if (ctx == NULL || theme == NULL)
   {
-    return;
+    return false;
   }
 
-  theme = &ctx->theme;
+  ctx->theme = *theme;
+  return true;
+}
 
-  if (type == LDK_UI_THEME_CUSTOM && custom != NULL)
-  {
-    memcpy(&ctx->theme, custom, sizeof(*custom));
-    return;
-  }
+bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme* theme)
+{
+  if (theme == NULL)
+    return false;
 
-  memset(theme->icons, 0, sizeof(theme->icons));
+  memset(theme, 0, sizeof(LDKUITheme));
 
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
@@ -2000,7 +1999,7 @@ void ldk_ui_set_theme(
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] = text;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] = active_hover;
   }
-  else
+  else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
   {
     rgba32 text = 0x202020ffu;
     rgba32 text_disabled = 0xa0a0a0ffu;
@@ -2050,6 +2049,10 @@ void ldk_ui_set_theme(
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] = text;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] = active_hover;
   }
+  else
+  {
+    return false;
+  }
 
   theme->control_border_size = 1.0f;
   theme->window_border_size = 3.0f;
@@ -2060,6 +2063,7 @@ void ldk_ui_set_theme(
   theme->text_cursor_blink_interval = 1.0f;
   theme->text_cursor_width = 1.0f;
   theme->text_cursor_padding_y = 4.0f;
+  return true;
 }
 
 void ldk_ui_push_id_u32(LDKUIContext *ctx, u32 value)

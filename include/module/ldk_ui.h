@@ -602,8 +602,8 @@ extern "C"
   LDK_API bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config);
   LDK_API void ldk_ui_terminate(LDKUIContext *ctx);
 
-  LDK_API void ldk_ui_set_theme(
-      LDKUIContext *ctx, LDKUIThemeType type, LDKUITheme *custom);
+  LDK_API bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme* theme);
+  LDK_API bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme);
 
   LDK_API void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
       LDKMouseState const *mouse, LDKKeyboardState const *keyboard,
