@@ -33,11 +33,8 @@ typedef XHandle LDKHandle;
   {
     LDKAssetType type;
     void* data;
-
-#ifdef LDK_DEBUG
     XFSPath asset_path;
     u64 load_timestamp;
-#endif
   } LDKAssetInfo;
 
   typedef bool (*LDKAssetIterFn)(LDKAssetHandle asset, LDKAssetInfo* info, void* user);
@@ -174,4 +171,4 @@ typedef XHandle LDKHandle;
 }
 #endif
 
-#endif
+#endif //LDK_ASSET_MANAGER_H

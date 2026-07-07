@@ -54,6 +54,17 @@ extern "C" {
   LDK_API bool ldk_ecs_system_unregister(u64 id);
 
 
+  // ---------------------------------------------------------------------------
+  // Entity iteraction
+  // ---------------------------------------------------------------------------
+  typedef bool (*LDKECSEntityIterFn)(LDKEntity entity, void* user);
+
+  LDK_API bool ldk_ecs_entity_foreach(LDKECSEntityIterFn fn, void* user);
+  LDK_API u32 ldk_ecs_entity_component_count(LDKEntity entity);
+  LDK_API bool ldk_ecs_entity_component_type_at(LDKEntity entity, u32 component_index, u32* out_component_type);
+  LDK_API const char* ldk_ecs_entity_name_get(LDKEntity entity);
+  LDK_API bool ldk_ecs_entity_name_set(LDKEntity entity, const char* name);
+
 #ifdef LDK_ENGINE
   // ---------------------------------------------------------------------------
   //  Engine internal utility

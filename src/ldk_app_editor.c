@@ -1,6 +1,4 @@
 #include <ldk_common.h>
-#include <module/ldk_ecs.h>
-#include "ldk_editor_atlas.h"
 
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
@@ -17,14 +15,24 @@
 #define X_IMPL_INI
 #include <stdx/stdx_ini.h>
 
+#define X_IMPL_TML
+#include <stdx/stdx_tml.h>
+
+#define X_IMPL_HPOOL
+#include <stdx/stdx_hpool.h>
+
 #include <ldk_game.h>
 #include <ldk_event.h>
 #include <ldk_os.h>
 #include <ldk_image.h>
+#include <ldk_scene.h>
 #include <ldk_project.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_ecs.h>
+#include <editor/ldk_editor_scene.h>
+#include "ldk_editor_atlas.h"
 
 #include <inttypes.h> // for PRIu64
 
@@ -113,19 +121,19 @@ static void s_theme_icons_set(LDKEditor* editor, LDKUITheme* theme)
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
+  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
   
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
+  theme->icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
+  theme->icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
 }
 
 //----------------------------------------------------------
@@ -286,6 +294,29 @@ static void s_editor_test_treeview(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
+static void s_editor_save_scene(LDKEditor *editor)
+{
+  LDKGame *game = ldk_game_get();
+  LDKSceneResult result;
+  const char *path = "scene.tml";
+
+  (void)editor;
+
+  if (!game)
+  {
+    ldk_log_error("Failed to save scene: game is not available.");
+    return;
+  }
+
+  if (!ldk_editor_scene_save_tml_file(path, game, &result))
+  {
+    ldk_log_error("Failed to save scene: %s", result.error);
+    return;
+  }
+
+  ldk_log_info("Saved scene: %s", path);
+}
+
 static void s_editor_test_a(LDKEditor *editor)
 {
   LDKUIContext *ui = &editor->ui;
@@ -295,6 +326,7 @@ static void s_editor_test_a(LDKEditor *editor)
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
   for (u32 i = 0; i < 10; i++)
   {
     ldk_ui_button(ui, "btn");
@@ -554,7 +586,8 @@ static void s_test_popup(LDKEditor *editor)
 static void s_editor_tool_bar(LDKEditor *editor)
 {
   LDKUIContext *ui = &editor->ui;
-  static LDKUIRect toolbar_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
+   static LDKUIRect toolbar_rect = {
+    0, LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f, 0, 0};
   toolbar_rect.w = ui->viewport.w;
   toolbar_rect.h =
     LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
@@ -627,42 +660,95 @@ static void s_editor_tool_bar(LDKEditor *editor)
 static void s_editor_entity_list_window(LDKEditor *editor, LDKECS *ecs)
 {
   LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {10, 60, 100, 100};
+  static LDKUIRect s_entity_list_rect = {10, 60, 220, 260};
+  static LDKUIPoint scroll = {0};
+
+  enum
+  {
+    MAX_TRACKED_ENTITY_TREE_NODES = 1024
+  };
+
+  static bool s_entity_open[MAX_TRACKED_ENTITY_TREE_NODES] = {0};
 
   s_entity_list_rect = ldk_ui_begin_window(
-    ui, "Entities", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "Entities", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "save"))
+  {
+    s_editor_save_scene(editor);
+  }
+
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
   LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
   LDKEntity e;
+  u32 entity_index = 0;
 
   while (ldk_entity_iterator_next(&it, &e))
   {
     LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, e);
     u64 id = *((u64 *)&e);
-    snprintf((char *const)&info->name, LDK_ENTITY_NAME_MAX_LEN,
-             "0x%08" PRIu64 "(%d)", id, info->components.component_count);
 
-    ldk_ui_label(ui, (const char *)info->name);
-    for (u32 i = 0; i < info->components.component_count; i++)
+    snprintf((char *const)&info->name,
+             LDK_ENTITY_NAME_MAX_LEN,
+             "0x%08" PRIu64 " (%d)",
+             id,
+             info->components.component_count);
+
+    ldk_ui_push_id_u32(ui, (u32)e.index);
+
+    bool open = false;
+    bool *open_state = NULL;
+
+    if (entity_index < MAX_TRACKED_ENTITY_TREE_NODES)
     {
-      const char *name = ldk_component_name_get(
-        &ecs->component, info->components.component_type[i]);
-      ldk_ui_label(ui, name);
+      open_state = &s_entity_open[entity_index];
+      open = *open_state;
     }
+
+    open = ldk_ui_tree_node(ui, (const char *)info->name, open, 0, 0);
+
+    if (open_state)
+    {
+      *open_state = open;
+    }
+
+    if (open)
+    {
+      for (u32 i = 0; i < info->components.component_count; i++)
+      {
+        const char *name = ldk_component_name_get(
+            &ecs->component, info->components.component_type[i]);
+
+        ldk_ui_push_id_u32(ui, i);
+        ldk_ui_tree_node(ui, name, false, 1, LDK_UI_TREE_NODE_LEAF);
+        ldk_ui_pop_id(ui);
+      }
+    }
+
+    ldk_ui_pop_id(ui);
+    entity_index += 1;
   }
+
   ldk_entity_iterator_end(&it);
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
   ldk_ui_end_window(ui);
 }
 
 static void s_draw_editor_ui(LDKEditor *editor, float delta_time)
 {
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  //s_editor_tool_bar(editor);
-  //s_editor_entity_list_window(editor, ecs);
+  s_editor_menu_bar(editor);
+  s_editor_tool_bar(editor);
+  s_editor_entity_list_window(editor, ecs);
   s_editor_test_a(editor);
   s_editor_test_b(editor);
   s_editor_test_treeview(editor);
   s_editor_console(editor);
-  s_editor_menu_bar(editor);
 }
 
 static void s_editor_update(LDKEditor *editor, i32 window_width,

@@ -52,8 +52,8 @@ typedef bool (*LDKGameStartFunc)(struct LDKGame* game);
 typedef void (*LDKGameUpdateFunc)(struct LDKGame* game, float delta_time);
 typedef void (*LDKGameStopFunc)(struct LDKGame* game);
 typedef void (*LDKGameTerminateFunc)(struct LDKGame* game);
-typedef u32 (*LDKGameComponentMetadataCountFunc)();
-typedef const LDKComponentMeta* (*LDKGameComponentMetadataGetFunc)();
+typedef u32 (*LDKGameComponentMetadataCountFunc)(void);
+typedef const LDKComponentMeta* (*LDKGameComponentMetadataGetFunc)(u32 index);
 
 #ifndef LDK_GAME_INITIALIZE_FUNC_NAME
 #define LDK_GAME_INITIALIZE_FUNC_NAME "game_initialize"
@@ -99,4 +99,3 @@ typedef struct LDKGame
 } LDKGame;
 
 #endif //LDK_GAME_H
-
