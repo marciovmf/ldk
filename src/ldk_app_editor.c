@@ -1,6 +1,3 @@
-#include <ldk_common.h>
-#include <module/ldk_ecs.h>
-#include "ldk_editor_atlas.h"
 
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
@@ -17,6 +14,12 @@
 #define X_IMPL_INI
 #include <stdx/stdx_ini.h>
 
+#define X_IMPL_ARRAY
+#include <stdx/stdx_array.h>
+
+#include <ldk_common.h>
+#include <module/ldk_ecs.h>
+#include "ldk_editor_atlas.h"
 #include <ldk_game.h>
 #include <ldk_event.h>
 #include <ldk_os.h>
@@ -261,7 +264,11 @@ static void s_editor_test_treeview(LDKEditor *editor)
         ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
     if (s_root_open[i])
     {
-      ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF);
+      if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
+      {
+        ldk_log_info("Clicked!");
+      }
+
       ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
       ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
         
@@ -386,6 +393,463 @@ static void s_editor_console(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
+static void s_editor_project_explorer(LDKEditor *editor, const char *root_path)
+{
+  enum
+  {
+    PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
+    PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
+    PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
+  };
+
+  typedef struct ProjectExplorerNode
+  {
+    XFSPath path;
+    XSmallstr name;
+    u32 depth;
+    bool root;
+  } ProjectExplorerNode;
+
+  typedef struct ProjectExplorerEntry
+  {
+    XFSPath path;
+    XSmallstr name;
+    size_t size;
+    time_t last_modified;
+  } ProjectExplorerEntry;
+
+  static LDKUIRect s_window_rect = {10.0f, 60.0f, 640.0f, 420.0f};
+  static LDKUIPoint s_tree_scroll = {0};
+  static LDKUIPoint s_file_scroll = {0};
+  static XFSPath s_root = {0};
+  static XFSPath s_selected_directory = {0};
+  static XFSPath s_selected_file = {0};
+  static XArray *s_expanded_paths = NULL;
+  static XArray *s_stack = NULL;
+  static XArray *s_dirs = NULL;
+  static XArray *s_files = NULL;
+  static bool s_root_expanded = true;
+  static float s_icon_size = 48.0f;
+
+  LDKUIContext *ui = &editor->ui;
+
+  LDKUIIcon file_icon = {0};
+  file_icon.size = ldk_sizef(s_icon_size, s_icon_size);
+  file_icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  file_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
+
+  LDKUIIcon folder_icon = file_icon;
+  folder_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER];
+
+  LDKUIIcon tree_folder_icon = folder_icon;
+  tree_folder_icon.size =
+      ldk_sizef(PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
+
+  s_window_rect = ldk_ui_begin_window(
+      ui, "Project Explorer", s_window_rect, LDK_UI_WINDOW_TOOL);
+
+  if (s_expanded_paths == NULL)
+  {
+    s_expanded_paths =
+        x_array_create(sizeof(XFSPath), PROJECT_EXPLORER_INITIAL_CAPACITY);
+    s_stack = x_array_create(
+        sizeof(ProjectExplorerNode), PROJECT_EXPLORER_INITIAL_CAPACITY);
+    s_dirs = x_array_create(
+        sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+    s_files = x_array_create(
+        sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (s_expanded_paths == NULL || s_stack == NULL || s_dirs == NULL ||
+      s_files == NULL)
+  {
+    ldk_ui_label(ui, "Project explorer allocation failed.");
+    ldk_ui_end_window(ui);
+    return;
+  }
+
+  if (root_path == NULL)
+  {
+    ldk_ui_label(ui, "No project root.");
+    ldk_ui_end_window(ui);
+    return;
+  }
+
+  XFSPath root = {0};
+  x_fs_path_set(&root, root_path);
+  x_fs_path_normalize(&root);
+
+  if (!x_fs_path_is_directory(&root))
+  {
+    ldk_ui_label(ui, "No project root.");
+    ldk_ui_end_window(ui);
+    return;
+  }
+
+  if (s_root.length == 0 || x_fs_path_compare(&s_root, &root) != 0)
+  {
+    s_root = root;
+    s_selected_directory = root;
+    memset(&s_selected_file, 0, sizeof(s_selected_file));
+    x_array_clear(s_expanded_paths);
+    s_root_expanded = true;
+  }
+
+  ldk_ui_begin_horizontal(ui);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
+  s_tree_scroll = ldk_ui_begin_scrollview(
+      ui, s_tree_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  x_array_clear(s_stack);
+
+  ProjectExplorerNode root_node = {0};
+  root_node.path = root;
+  x_fs_path_basename(&root, &root_node.name);
+  if (root_node.name.length == 0)
+  {
+    x_smallstr_from_cstr(&root_node.name, x_fs_path_cstr(&root));
+  }
+  root_node.depth = 0;
+  root_node.root = true;
+  x_array_add(s_stack, &root_node);
+
+  while (x_array_count(s_stack) > 0)
+  {
+    u32 stack_index = x_array_count(s_stack) - 1;
+    ProjectExplorerNode *node_ptr = x_array_get(s_stack, stack_index);
+    ProjectExplorerNode node = *node_ptr;
+    bool expanded = false;
+    bool was_expanded = false;
+    i32 expanded_index = -1;
+    x_array_delete_at(s_stack, stack_index);
+
+    if (node.root)
+    {
+      expanded = s_root_expanded;
+      was_expanded = s_root_expanded;
+    }
+    else
+    {
+      for (u32 i = 0; i < x_array_count(s_expanded_paths); i++)
+      {
+        XFSPath *expanded_path = x_array_get(s_expanded_paths, i);
+        if (x_fs_path_compare(expanded_path, &node.path) == 0)
+        {
+          expanded = true;
+          was_expanded = true;
+          expanded_index = (i32)i;
+          break;
+        }
+      }
+    }
+
+    u32 flags = 0;
+    if (x_fs_path_compare(&s_selected_directory, &node.path) == 0)
+    {
+      flags |= LDK_UI_TREE_NODE_SELECTED;
+    }
+
+    ldk_ui_begin_horizontal(ui);
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    bool icon_clicked = ldk_ui_icon_button(ui, tree_folder_icon);
+
+    bool node_expanded =
+        ldk_ui_tree_node(ui, node.name.buf, expanded, node.depth, flags);
+
+    ldk_ui_end_horizontal(ui);
+
+    expanded = icon_clicked ? !was_expanded : node_expanded;
+
+    if (expanded != was_expanded)
+    {
+      s_selected_directory = node.path;
+      memset(&s_selected_file, 0, sizeof(s_selected_file));
+
+      if (node.root)
+      {
+        s_root_expanded = expanded;
+      }
+      else if (expanded && expanded_index < 0)
+      {
+        x_array_add(s_expanded_paths, &node.path);
+      }
+      else if (!expanded && expanded_index >= 0)
+      {
+        x_array_delete_at(s_expanded_paths, (u32)expanded_index);
+      }
+    }
+
+    if (!expanded)
+    {
+      continue;
+    }
+
+    x_array_clear(s_dirs);
+
+    XFSDireEntry fs_entry = {0};
+    XFSDireHandle *dir =
+        x_fs_find_first_file(x_fs_path_cstr(&node.path), &fs_entry);
+
+    while (dir != NULL)
+    {
+      if (strcmp(fs_entry.name, ".") != 0 && strcmp(fs_entry.name, "..") != 0 &&
+          fs_entry.is_directory)
+      {
+        ProjectExplorerEntry entry = {0};
+        entry.path = node.path;
+        x_fs_path_join(&entry.path, fs_entry.name);
+        x_smallstr_from_cstr(&entry.name, fs_entry.name);
+        entry.size = fs_entry.size;
+;
+        entry.last_modified = fs_entry.last_modified;
+
+        u32 insert_index = x_array_count(s_dirs);
+        for (u32 i = 0; i < x_array_count(s_dirs); i++)
+        {
+          ProjectExplorerEntry *it = x_array_get(s_dirs, i);
+          if (strcmp(it->name.buf, entry.name.buf) > 0)
+          {
+            insert_index = i;
+            break;
+          }
+        }
+
+        x_array_insert(s_dirs, &entry, insert_index);
+      }
+
+      if (!x_fs_find_next_file(dir, &fs_entry))
+      {
+        break;
+      }
+    }
+
+    if (dir != NULL)
+    {
+      x_fs_find_close(dir);
+    }
+
+    for (u32 i = x_array_count(s_dirs); i > 0; i--)
+    {
+      ProjectExplorerEntry *entry = x_array_get(s_dirs, i - 1);
+      ProjectExplorerNode child = {0};
+      child.path = entry->path;
+      child.name = entry->name;
+      child.depth = node.depth + 1;
+      child.root = false;
+      x_array_add(s_stack, &child);
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+
+  ldk_ui_begin_vertical(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+
+  XFSPath relative_selected_directory = {0};
+  if (x_fs_path_relative_to(&s_root, &s_selected_directory,
+          &relative_selected_directory) > 0)
+  {
+    ldk_ui_label(ui, relative_selected_directory.buf);
+  }
+  else
+  {
+    ldk_ui_label(ui, s_selected_directory.buf);
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  s_icon_size = ldk_ui_slider(ui, s_icon_size, PROJECT_EXPLORER_MIN_ICON_SIZE, 72.0f);
+
+  s_file_scroll = ldk_ui_begin_scrollview(
+      ui, s_file_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  x_array_clear(s_dirs);
+  x_array_clear(s_files);
+
+  XFSDireEntry fs_entry = {0};
+  XFSDireHandle *dir =
+      x_fs_find_first_file(x_fs_path_cstr(&s_selected_directory), &fs_entry);
+
+  while (dir != NULL)
+  {
+    if (strcmp(fs_entry.name, ".") != 0 && strcmp(fs_entry.name, "..") != 0)
+    {
+      ProjectExplorerEntry entry = {0};
+      entry.path = s_selected_directory;
+      x_fs_path_join(&entry.path, fs_entry.name);
+      x_smallstr_from_cstr(&entry.name, fs_entry.name);
+      entry.size = fs_entry.size;
+      entry.last_modified = fs_entry.last_modified;
+
+      XArray *target = fs_entry.is_directory ? s_dirs : s_files;
+      u32 insert_index = x_array_count(target);
+
+      for (u32 i = 0; i < x_array_count(target); i++)
+      {
+        ProjectExplorerEntry *it = x_array_get(target, i);
+        if (strcmp(it->name.buf, entry.name.buf) > 0)
+        {
+          insert_index = i;
+          break;
+        }
+      }
+
+      x_array_insert(target, &entry, insert_index);
+    }
+
+    if (!x_fs_find_next_file(dir, &fs_entry))
+    {
+      break;
+    }
+  }
+
+  if (dir != NULL)
+  {
+    x_fs_find_close(dir);
+  }
+
+  u32 total_count = x_array_count(s_dirs) + x_array_count(s_files);
+  bool compact_mode = s_icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
+
+  if (compact_mode)
+  {
+    for (u32 entry_i = 0; entry_i < total_count; entry_i++)
+    {
+      bool is_directory = entry_i < x_array_count(s_dirs);
+      u32 entry_index = is_directory
+                            ? entry_i
+                            : entry_i - x_array_count(s_dirs);
+      ProjectExplorerEntry *entry =
+          x_array_get(is_directory ? s_dirs : s_files, entry_index);
+
+      ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+      ldk_ui_begin_horizontal(ui);
+
+      ldk_ui_set_next_weight(ui, 0.0f);
+      bool icon_clicked =
+          ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+
+      bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+
+      ldk_ui_end_horizontal(ui);
+
+      if (icon_clicked || label_clicked)
+      {
+        if (is_directory)
+        {
+          s_selected_directory = entry->path;
+          memset(&s_selected_file, 0, sizeof(s_selected_file));
+
+          bool already_expanded = false;
+          for (u32 i = 0; i < x_array_count(s_expanded_paths); i++)
+          {
+            XFSPath *expanded_path = x_array_get(s_expanded_paths, i);
+            if (x_fs_path_compare(expanded_path, &entry->path) == 0)
+            {
+              already_expanded = true;
+              break;
+            }
+          }
+
+          if (!already_expanded)
+          {
+            x_array_add(s_expanded_paths, &entry->path);
+          }
+        }
+        else
+        {
+          s_selected_file = entry->path;
+        }
+      }
+    }
+  }
+  else
+  {
+    float tile_w = s_icon_size + 32.0f;
+    float tile_h = s_icon_size + LDK_UI_DEFAULT_CONTROL_HEIGHT + 12.0f;
+    float available_w = ui->current_layout != NULL
+                            ? ui->current_layout->content_rect.w
+                            : tile_w;
+    u32 column_count = (u32)(available_w / tile_w);
+    if (column_count == 0)
+    {
+      column_count = 1;
+    }
+
+    u32 tile_index = 0;
+
+    while (tile_index < total_count)
+    {
+      ldk_ui_set_next_height(ui, ldk_ui_px(tile_h));
+      ldk_ui_begin_horizontal(ui);
+
+      for (u32 column = 0; column < column_count && tile_index < total_count;
+           column++, tile_index++)
+      {
+        bool is_directory = tile_index < x_array_count(s_dirs);
+        u32 entry_index = is_directory
+                              ? tile_index
+                              : tile_index - x_array_count(s_dirs);
+        ProjectExplorerEntry *entry =
+            x_array_get(is_directory ? s_dirs : s_files, entry_index);
+
+        ldk_ui_set_next_size(ui, ldk_ui_px(tile_w), ldk_ui_px(tile_h));
+        ldk_ui_begin_vertical(ui);
+
+        ldk_ui_set_next_size(ui, ldk_ui_px(s_icon_size), ldk_ui_px(s_icon_size));
+        bool icon_clicked =
+            ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+
+        ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+        bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+
+        ldk_ui_end_vertical(ui);
+
+        if (icon_clicked || label_clicked)
+        {
+          if (is_directory)
+          {
+            s_selected_directory = entry->path;
+            memset(&s_selected_file, 0, sizeof(s_selected_file));
+
+            bool already_expanded = false;
+            for (u32 i = 0; i < x_array_count(s_expanded_paths); i++)
+            {
+              XFSPath *expanded_path = x_array_get(s_expanded_paths, i);
+              if (x_fs_path_compare(expanded_path, &entry->path) == 0)
+              {
+                already_expanded = true;
+                break;
+              }
+            }
+
+            if (!already_expanded)
+            {
+              x_array_add(s_expanded_paths, &entry->path);
+            }
+          }
+          else
+          {
+            s_selected_file = entry->path;
+          }
+        }
+      }
+
+      ldk_ui_spacer(ui);
+      ldk_ui_end_horizontal(ui);
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+  ldk_ui_end_vertical(ui);
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_end_window(ui);
+}
 //----------------------------------------------------------
 // Editor Udpate
 //----------------------------------------------------------
@@ -663,6 +1127,7 @@ static void s_draw_editor_ui(LDKEditor *editor, float delta_time)
   s_editor_test_treeview(editor);
   s_editor_console(editor);
   s_editor_menu_bar(editor);
+  s_editor_project_explorer(editor, "c:\\work\\ldk");
 }
 
 static void s_editor_update(LDKEditor *editor, i32 window_width,

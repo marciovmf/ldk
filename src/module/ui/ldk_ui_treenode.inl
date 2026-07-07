@@ -103,9 +103,12 @@ bool ldk_ui_tree_node(
 
   s_ui_render_text(ctx, safe_title, text_x, text_y, text_color, box.clip);
 
-  if (!leaf && frame.clicked)
+  if (frame.clicked)
   {
-    expanded = !expanded;
+    if (leaf)
+      expanded = true;
+    else
+      expanded = !expanded;
   }
 
   return expanded;
