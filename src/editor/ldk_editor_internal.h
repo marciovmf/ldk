@@ -1,0 +1,69 @@
+#ifndef LDK_EDITOR_INTERNAL
+#define LDK_EDITOR_INTERNAL
+
+#include <ldk_common.h>
+#include <ldk_game.h>
+#include <ldk_project.h>
+#include <module/ldk_ui.h>
+#include <module/ldk_asset_manager.h>
+#include <module/ldk_renderer.h>
+#include <editor/ldk_editor.h>
+#include "ldk_editor_atlas.h"
+
+#include <stdx/stdx_array.h>
+
+typedef enum LDKEditorState
+{
+  LDK_EDITOR_STATE_STOPED = 0,
+  LDK_EDITOR_STATE_PAUSED = 1,
+  LDK_EDITOR_STATE_STEPPING = 2,
+  LDK_EDITOR_STATE_PLAYING = 3
+} LDKEditorState;
+
+#ifndef LDK_EDITOR_COMMAND_MAX_LENGTH 
+#define LDK_EDITOR_COMMAND_MAX_LENGTH 32
+#endif
+
+#ifndef LDK_EDITOR_COMMAND_INITIAL_CAPACITY 
+#define LDK_EDITOR_COMMAND_INITIAL_CAPACITY  16
+#endif
+
+typedef struct LDKEditorCommand
+{
+  char name[LDK_EDITOR_COMMAND_MAX_LENGTH];
+  u32 hash;
+  LDKEditorCommandFn cmd_func;
+  XSmallstr help;
+} LDKEditorCommand;
+
+typedef struct LDKEditorContext
+{
+  LDKWindow window;
+  LDKUIContext ui;
+  LDKAssetFont font;
+  LDKFontInstance *font_instance;
+  LDKRenderer *renderer;
+  XArray* commands;
+
+  LDKUITextInputState text_input_state;
+  LDKProject project;
+  bool initialized;
+  LDKEditorState editor_state;
+  XFSPath engine_runtree;
+  LDKGameUpdateFunc original_game_update_fn;
+
+  LDKResourceTexture ui_atlas;
+
+  // config
+  XFSPath editor_font;
+  XSmallstr editor_theme;
+  i32 editor_font_size;
+} LDKEditorContext;
+
+
+void ldk_editor_internal_menubar_show(LDKEditorContext* editor);
+void ldk_editor_internal_toolbar_show(LDKEditorContext* editor);
+void ldk_editor_internal_theme_icons_set(LDKEditorContext* editor, LDKUITheme* theme);
+void ldk_editor_internal_register_commands(LDKEditorContext* editor);
+
+#endif  //LDK_EDITOR_INTERNAL

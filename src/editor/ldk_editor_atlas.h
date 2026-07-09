@@ -2,8 +2,8 @@
  * This file is auto generated. Do not edit manually.
  * Icon rects use pixel coordinates with origin at the top left.
  */
-#ifndef UI_ATLAS_H
-#define UI_ATLAS_H
+#ifndef LDK_EDITOR_UI_ATLAS_H
+#define LDK_EDITOR_UI_ATLAS_H
 
 #include <stdint.h>
 
@@ -246,4 +246,4 @@ static const unsigned char ldk_editor_icon_atlas_png[] =
 
 static const unsigned int ldk_editor_icon_atlas_png_size = sizeof(ldk_editor_icon_atlas_png);
 
-#endif /* UI_ATLAS_H */
+#endif /* LDK_EDITOR_UI_ATLAS_H */

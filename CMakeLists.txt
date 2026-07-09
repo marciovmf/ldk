@@ -438,7 +438,11 @@ if (OPTION_BUILD_EDITOR)
     message(FATAL_ERROR "OPTION_BUILD_EDITOR cannot use OPTION_LDK_USE_PREBUILT. Build the editor with the engine sources.")
   endif()
 
-  add_executable(ldk_editor src/ldk_app_editor.c)
+  add_executable(ldk_editor src/ldk_app_editor.c
+    include/editor/ldk_editor.h
+    src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_cmd.c
+  )
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
 
