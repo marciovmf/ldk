@@ -1293,7 +1293,7 @@ void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   }
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 0.0f, false);
+    s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1319,7 +1319,7 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, icon.size.h);
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+    s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1338,7 +1338,7 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   saved_last_id = ctx->last_id;
 
   ldk_ui_widget_image(
-      ctx, s_ui_id_hash_u32(id, 0x49434f4eu), icon.texture, icon.uv, icon_rect);
+    ctx, s_ui_id_hash_u32(id, 0x49434f4eu), icon.texture, icon.uv, icon_rect);
 
   ctx->last_rect = saved_last_rect;
   ctx->last_bounding_rect = saved_last_bounding_rect;
@@ -1487,7 +1487,7 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1508,7 +1508,7 @@ u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1529,7 +1529,7 @@ void ldk_ui_horizontal_line(LDKUIContext *ctx)
   min_size.h = 1.0f;
 
   request =
-      s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
+    s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1546,7 +1546,7 @@ void ldk_ui_spacer(LDKUIContext *ctx)
   LDKUIId id;
 
   request = s_ui_layout_request_make(
-      LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
+    LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
