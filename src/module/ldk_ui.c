@@ -719,8 +719,8 @@ static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
   return ctx->theme.icons[slot];
 }
 
-static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
-    u32 color, LDKUIRect clip_rect)
+static void s_ui_render_icon(
+  LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect, LDKUIRect clip_rect)
 {
   if (!s_ui_icon_valid(icon))
   {
@@ -728,7 +728,7 @@ static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
   }
 
   s_ui_render_quad_uv(
-      ctx, rect, icon.uv, color, clip_rect, (LDKUITextureHandle)icon.texture);
+      ctx, rect, icon.uv, icon.color, clip_rect, (LDKUITextureHandle)icon.texture);
 }
 
 static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,
@@ -1085,7 +1085,7 @@ static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
     icon_rect.w = icon.size.w;
     icon_rect.h = icon.size.h;
 
-    s_ui_render_icon(ctx, icon, icon_rect, color, clip);
+    s_ui_render_icon(ctx, icon, icon_rect, clip);
 
     text_x = icon_rect.x + icon_rect.w + LDK_UI_DEFAULT_SPACING;
   }
@@ -2442,7 +2442,7 @@ bool ldk_ui_widget_toggle(
     check_rect.x = box.rect.x + (box.rect.w - check_rect.w) * 0.5f;
     check_rect.y = box.rect.y + (box.rect.h - check_rect.h) * 0.5f;
 
-    s_ui_render_icon(ctx, toggle_icon, check_rect, text_color, box.clip);
+    s_ui_render_icon(ctx, toggle_icon, check_rect, box.clip);
   }
   else if (value)
   {

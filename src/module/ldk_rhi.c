@@ -1184,7 +1184,7 @@ LDKRHISampler ldk_rhi_sampler_create(LDKRHIContext* context, const LDKRHISampler
   return context->functions.create_sampler(context->backend_user_data, desc);
 }
 
-void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler)
+void ldk_rhi_sampler_destroy(LDKRHIContext* context, LDKRHISampler sampler)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_sampler(sampler) || context->functions.destroy_sampler == NULL)
   {

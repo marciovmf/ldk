@@ -1167,7 +1167,7 @@ extern "C"
    * @param context RHI context.
    * @param sampler Sampler handle.
    */
-  LDK_API void ldk_rhi_destroy_sampler(LDKRHIContext* context, LDKRHISampler sampler);
+  LDK_API void ldk_rhi_sampler_destroy(LDKRHIContext* context, LDKRHISampler sampler);
 
   /**
    * @brief Creates a shader module.

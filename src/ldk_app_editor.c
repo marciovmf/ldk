@@ -429,8 +429,20 @@ static bool s_editor_config_load_from_ini(
     ldk_log_error("Failed to load editor atas '%s'\n", atlas_path.buf);
     return false;
   }
-  LDKResourceTexture texture_atlas = ldk_renderer_texture_create_from_image(
-      ldk_module_get(LDK_MODULE_RENDERER), image_atlas, 0);
+
+LDKRendererTextureOptions options = {0};
+ldk_renderer_texture_options_defaults(&options);
+options.generate_mipmaps = true;
+options.min_filter = LDK_RHI_FILTER_LINEAR;
+options.mag_filter = LDK_RHI_FILTER_LINEAR;
+options.mip_filter = LDK_RHI_FILTER_LINEAR;
+
+options.wrap_u = LDK_RHI_WRAP_REPEAT;
+options.wrap_v = LDK_RHI_WRAP_REPEAT;
+
+LDKResourceTexture texture_atlas =
+  ldk_renderer_texture_create_from_image(
+    ldk_module_get(LDK_MODULE_RENDERER), image_atlas, &options);
 
   if (ldk_renderer_texture_null().id == texture_atlas.id)
   {
