@@ -1266,6 +1266,43 @@ void ldk_ui_icon(LDKUIContext *ctx, LDKUIIcon icon)
   ldk_ui_image(ctx, icon.texture, icon.uv, icon.size);
 }
 
+void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
+{
+  LDKUISize text_size;
+  LDKUISize min_size;
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+  float spacing;
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  spacing = LDK_UI_DEFAULT_SPACING;
+  text_size = s_ui_layout_text_size(ctx, text);
+
+  min_size.w = text_size.w;
+  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h);
+
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.w += icon.size.w + spacing;
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
+
+  request =
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 0.0f, false);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return;
+  }
+
+  ldk_ui_widget_icon_label(ctx, id, icon, text, rect);
+}
+
 bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
 {
   LDKUILayoutRequest request;

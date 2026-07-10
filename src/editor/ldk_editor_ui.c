@@ -479,10 +479,23 @@ static void s_editor_console(LDKEditorContext *editor)
     sb = x_strbuilder_create();
   }
 
+    LDKUIIcon icon;
+    icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+    icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
     ui, "Console", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+
+
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
+    ldk_ui_icon_label(ui, icon, "This is a warning.");
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
+    ldk_ui_icon_label(ui, icon, "This is an error.");
+  
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
     ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
