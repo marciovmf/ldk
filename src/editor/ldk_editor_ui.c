@@ -2,7 +2,7 @@
 #include <stdx/stdx_strbuilder.h>
 #include <inttypes.h> // for PRIu64
 
-
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
 #define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
 #define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
@@ -10,6 +10,7 @@
 //------------------------------------------------------------
 // Project Explorer
 //------------------------------------------------------------
+
 
 static void s_editor_project_explorer(
     LDKEditorContext *editor, const char *root_path)
@@ -58,6 +59,7 @@ static void s_editor_project_explorer(
   file_icon.texture =
       ldk_renderer_texture_ui_handle(peditor->renderer, peditor->ui_atlas);
   file_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
+  file_icon.color = LDK_EDITOR_COLOR_FILE;
 
   LDKUIIcon folder_icon = file_icon;
   folder_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER];

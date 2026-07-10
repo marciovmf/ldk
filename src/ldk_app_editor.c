@@ -89,6 +89,7 @@ void ldk_editor_internal_theme_icons_set(
     LDKEditorContext *editor, LDKUITheme *theme)
 {
   LDKUIIcon icon = {0};
+  icon.color = 0xFFFFFFFF;
   icon.size = ldk_sizef(24, 24);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);

@@ -1333,16 +1333,10 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   icon_rect.w = icon.size.w;
   icon_rect.h = icon.size.h;
 
-  saved_last_rect = ctx->last_rect;
-  saved_last_bounding_rect = ctx->last_bounding_rect;
-  saved_last_id = ctx->last_id;
+  LDKUIRect clip_rect = s_ui_current_clip_rect(ctx);
+  clip_rect = s_ui_rect_intersect(&clip_rect, &icon_rect);
 
-  ldk_ui_widget_image(
-    ctx, s_ui_id_hash_u32(id, 0x49434f4eu), icon.texture, icon.uv, icon_rect);
-
-  ctx->last_rect = saved_last_rect;
-  ctx->last_bounding_rect = saved_last_bounding_rect;
-  ctx->last_id = saved_last_id;
+  s_ui_render_icon(ctx, icon, icon_rect, clip_rect);
 
   return clicked;
 }
