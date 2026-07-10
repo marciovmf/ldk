@@ -1,5 +1,3 @@
-#include <ldk_common.h>
-
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
 
@@ -15,12 +13,19 @@
 #define X_IMPL_INI
 #include <stdx/stdx_ini.h>
 
+#define X_IMPL_ARRAY
+#include <stdx/stdx_array.h>
+
 #define X_IMPL_TML
 #include <stdx/stdx_tml.h>
 
 #define X_IMPL_HPOOL
 #include <stdx/stdx_hpool.h>
 
+#include <ldk_common.h>
+#include <module/ldk_ecs.h>
+
+#include <ldk_common.h>
 #include <ldk_game.h>
 #include <ldk_event.h>
 #include <ldk_os.h>
@@ -30,11 +35,7 @@
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
-#include <module/ldk_ecs.h>
-#include <editor/ldk_editor_scene.h>
-#include "ldk_editor_atlas.h"
-
-#include <inttypes.h> // for PRIu64
+#include "editor/ldk_editor_internal.h"
 
 #ifndef LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY
 #define LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY 256
@@ -56,55 +57,25 @@
 #define LDK_DEFAULT_UI_INITIAL_STACK_CAPACITY 16
 #endif
 
-typedef enum LDKEditorState
-{
-  LDK_EDITOR_STATE_STOPED = 0,
-  LDK_EDITOR_STATE_PAUSED = 1,
-  LDK_EDITOR_STATE_STEPPING = 2,
-  LDK_EDITOR_STATE_PLAYING = 3
-} LDKEditorState;
-
-typedef struct LDKEditor
-{
-  LDKWindow window;
-  LDKUIContext ui;
-  LDKAssetFont font;
-  LDKFontInstance *font_instance;
-  LDKRenderer *renderer;
-
-  LDKUITextInputState text_input_state;
-  LDKProject project;
-  bool initialized;
-  LDKEditorState editor_state;
-  XFSPath engine_runtree;
-  LDKGameUpdateFunc original_game_update_fn;
-
-  LDKResourceTexture ui_atlas;
-
-  // config
-  XFSPath editor_font;
-  XSmallstr editor_theme;
-  i32 editor_font_size;
-} LDKEditor;
-
-static void s_editor_update(
-    LDKEditor *editor, i32 window_width, i32 window_height, float delta_time);
-static bool s_editor_state_set_play(LDKEditor *editor);
-static void s_editor_state_set_stop(LDKEditor *editor);
-static void s_editor_state_set_pause(LDKEditor *editor);
-static void s_editor_state_set_step(LDKEditor *editor);
-static bool s_project_load(LDKEditor *editor, const char *project_file_path);
+static void s_editor_update(LDKEditorContext *editor, i32 window_width,
+    i32 window_height, float delta_time);
+static bool s_editor_state_set_play(LDKEditorContext *editor);
+static void s_editor_state_set_stop(LDKEditorContext *editor);
+static void s_editor_state_set_pause(LDKEditorContext *editor);
+static void s_editor_state_set_step(LDKEditorContext *editor);
+static bool s_project_load(
+    LDKEditorContext *editor, const char *project_file_path);
 
 /**
  * Tiny function to return a static editor instance.
  */
-static LDKEditor *s_editor_instance(void)
+static LDKEditorContext *s_editor_instance(void)
 {
-  static LDKEditor editor = {0};
+  static LDKEditorContext editor = {0};
   return &editor;
 }
 
-static inline void s_editor_command_quit(LDKEditor *editor)
+static inline void s_editor_command_quit(LDKEditorContext *editor)
 {
   if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
           "Are you sure you want to quit the editor ?"))
@@ -114,15 +85,17 @@ static inline void s_editor_command_quit(LDKEditor *editor)
   }
 }
 
-static void s_theme_icons_set(LDKEditor* editor, LDKUITheme* theme)
+void ldk_editor_internal_theme_icons_set(
+    LDKEditorContext *editor, LDKUITheme *theme)
 {
   LDKUIIcon icon = {0};
   icon.size = ldk_sizef(24, 24);
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
-  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
-  
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
+
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
   theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
 
@@ -142,7 +115,7 @@ static void s_theme_icons_set(LDKEditor* editor, LDKUITheme* theme)
 
 static bool on_event_keyboard(const LDKEvent *event, void *state)
 {
-  LDKEditor *editor = (LDKEditor *)state;
+  LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
   {
     if (event->keyboard_event.ctrl_is_down &&
@@ -190,7 +163,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
 
 static bool on_event_text(const LDKEvent *event, void *state)
 {
-  LDKEditor *editor = (LDKEditor *)state;
+  LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->text_event.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
   {
     if (editor->text_input_state.codepoint_count <
@@ -207,7 +180,7 @@ static bool on_event_text(const LDKEvent *event, void *state)
 
 static bool on_event_frame(const LDKEvent *event, void *state)
 {
-  LDKEditor *editor = (LDKEditor *)state;
+  LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->type != LDK_EVENT_TYPE_FRAME ||
       event->frame_event.type != LDK_FRAME_EVENT_SUBMIT_AFTER)
     return false;
@@ -221,7 +194,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
 
 static bool on_event_window(const LDKEvent *event, void *state)
 {
-  LDKEditor *editor = (LDKEditor *)state;
+  LDKEditorContext *editor = (LDKEditorContext *)state;
 
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
@@ -235,7 +208,7 @@ static bool on_event_window(const LDKEvent *event, void *state)
  *  Test functions
  */
 
-static void s_editor_test_treeview(LDKEditor *editor)
+static void s_editor_test_treeview(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
@@ -269,10 +242,13 @@ static void s_editor_test_treeview(LDKEditor *editor)
         ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
     if (s_root_open[i])
     {
-      ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF);
+      if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
+      {
+        ldk_log_info("Clicked!");
+      }
+
       ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
       ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
-        
 
       s_child_open[i] = ldk_ui_tree_node(ui, "Nested", s_child_open[i], 1, 0);
 
@@ -319,7 +295,7 @@ static void s_editor_save_scene(LDKEditor *editor)
 
 static void s_editor_test_a(LDKEditor *editor)
 {
-  LDKUIContext *ui = &editor->ui;
+  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
       ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
@@ -339,7 +315,7 @@ static void s_editor_test_a(LDKEditor *editor)
 static void s_editor_test_b(LDKEditor *editor)
 {
   static bool check = false;
-  LDKUIContext *ui = &editor->ui;
+  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
   static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
       ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
@@ -386,385 +362,36 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
-static void s_editor_console(LDKEditor *editor)
-{
-  static XStrBuilder* sb = NULL;
-  static XSmallstr input = {0};
-
-  if (sb == NULL)
-  {
-    sb = x_strbuilder_create();
-  }
-
-  LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
-  s_entity_list_rect = ldk_ui_begin_window_fixed(
-    ui, "Console", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-  static LDKUIPoint scroll = {0};
-  scroll = ldk_ui_begin_scrollview(
-    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-  ldk_ui_label(ui, x_strbuilder_to_string(sb));
-  ldk_ui_end_scrollview(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_input_box(ui, input.buf, X_SMALLSTR_MAX_LENGTH) & LDK_UI_INPUT_BOX_COMMITTED)
-  {
-    x_strbuilder_append_format(sb, "%s\n", input.buf);
-    x_smallstr_clear(&input);
-    // scroll down
-    scroll.y += 10000.0f;
-  }
-
-  ldk_ui_end_window(ui);
-}
-
 //----------------------------------------------------------
 // Editor Udpate
 //----------------------------------------------------------
 
-static void s_editor_menu_bar(LDKEditor* editor)
-{
-  LDKUIContext* ui = &editor->ui;
-
-  static LDKUIRect s_toolbar_rect = {0, 0, 0, 0};
-  static LDKUIRect s_file_popup_rect = {0, 0, 1024, 1024};
-  static LDKUIRect s_edit_popup_rect = {0, 0, 1024, 1024};
-  static LDKUIRect s_theme_popup_rect = {0, 0, 1024, 1024};
-
-  const LDKUIId MENU_ID_FILE = 10;
-  const LDKUIId MENU_ID_EDIT = 11;
-  const LDKUIId MENU_ID_THEME = 12;
-
-  s_toolbar_rect.w = ui->viewport.w;
-  s_toolbar_rect.h = 
-    LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
-
-  s_toolbar_rect = ldk_ui_begin_window(ui, "toolbar", s_toolbar_rect, 0);
-
-  ldk_ui_begin_horizontal(ui);
-  LDKUIMark mark = ldk_ui_mark(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "File")) { ldk_ui_open_popup(ui, MENU_ID_FILE); }
-  LDKUIRect file_button_rect = ldk_ui_last_rect(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Edit")) { ldk_ui_open_popup(ui, MENU_ID_EDIT); }
-  LDKUIRect edit_button_rect = ldk_ui_last_rect(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Theme")) { ldk_ui_open_popup(ui, MENU_ID_THEME); }
-  LDKUIRect theme_button_rect = ldk_ui_last_rect(ui);
-  i32 menu_width = ldk_ui_measure_from(ui, mark).w;
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_horizontal(ui);
-  ldk_ui_horizontal_line(ui);
-    
-  LDKUIRect popup_pos =
-    {file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
-
-  ldk_ui_begin_popup(ui, MENU_ID_FILE);
-  {
-    LDKUIMark mark = ldk_ui_mark(ui);
-
-    if (ldk_ui_button_flat(ui, "New"))
-    {
-      ldk_ui_close_current_popup(ui);
-    }
-
-    if (ldk_ui_button_flat(ui, "Open"))
-    {
-      XFSPath out = {0};
-      if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk", out.buf, X_SMALLSTR_MAX_LENGTH))
-      {
-        s_editor_state_set_stop(editor);
-        ldk_project_unload(&editor->project);
-        ldk_game_instance_unload();
-
-        if (!s_project_load(editor, out.buf))
-        {
-          ldk_os_dialog_show_error(editor->window, "Failed to load project", out.buf);
-        }
-      }
-
-      ldk_ui_close_current_popup(ui);
-    }
-
-    if (ldk_ui_button_flat(ui, "Exit"))
-    {
-      s_editor_command_quit(editor);
-    }
-    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
-  }
-  ldk_ui_end_popup(ui);
-
-  popup_pos.x = edit_button_rect.x;
-  popup_pos.y = edit_button_rect.y + edit_button_rect.h;
-
-  ldk_ui_begin_popup(ui, MENU_ID_EDIT);
-  {
-    LDKUIMark mark = ldk_ui_mark(ui);
-
-    if (ldk_ui_button_flat(ui, "Undo"))
-    {
-      ldk_ui_close_current_popup(ui);
-    }
-
-    if (ldk_ui_button_flat(ui, "Redo"))
-    {
-      ldk_ui_close_current_popup(ui);
-    }
-
-    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
-  }
-  ldk_ui_end_popup(ui);
-
-  popup_pos.x = theme_button_rect.x;
-  popup_pos.y = theme_button_rect.y + theme_button_rect.h;
-
-  ldk_ui_begin_popup(ui, MENU_ID_THEME);
-  {
-    LDKUITheme theme;
-    LDKUIMark mark = ldk_ui_mark(ui);
-    if (ldk_ui_button_flat(ui, "Dark"))
-    {
-      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme);
-      s_theme_icons_set(editor, &theme);
-      ldk_ui_theme_set(ui, &theme);
-      ldk_ui_close_current_popup(ui);
-    }
-    if (ldk_ui_button_flat(ui, "Light"))
-    {
-      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_LIGHT, &theme);
-      s_theme_icons_set(editor, &theme);
-      ldk_ui_theme_set(ui, &theme);
-      ldk_ui_close_current_popup(ui);
-    }
-
-    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
-  }
-  ldk_ui_end_popup(ui);
-
-  ldk_ui_end_window(ui);
-}
-
-static void s_test_popup(LDKEditor *editor)
-{
-  LDKUIContext *ctx = &editor->ui;
-  LDKUIId popup_id = 0x1001u;
-
-  ldk_ui_begin_vertical(ctx);
-  ldk_ui_set_next_size(ctx, ldk_ui_px(120.0f), ldk_ui_px(22.0f));
-  if (ldk_ui_button(ctx, "Open popup"))
-  {
-    ldk_ui_open_popup(ctx, popup_id);
-  }
-  LDKUIRect button_rect = ldk_ui_last_rect(ctx);
-
-  LDKUIRect popup_rect = ldk_ui_rect(
-    button_rect.x, button_rect.y + button_rect.h + 4.0f, 180.0f, 96.0f);
-
-  if (ldk_ui_begin_popup(ctx, popup_id))
-  {
-    ldk_ui_set_next_height(ctx, ldk_ui_px(22.0f));
-    ldk_ui_label(ctx, "Popup content");
-
-    ldk_ui_set_next_height(ctx, ldk_ui_px(22.0f));
-
-    if (ldk_ui_button_flat(ctx, "Close"))
-    {
-      ldk_ui_close_popup(ctx, popup_id);
-    }
-
-    ldk_ui_end_popup(ctx);
-  }
-
-  ldk_ui_end(ctx);
-}
-
-static void s_editor_tool_bar(LDKEditor *editor)
-{
-  LDKUIContext *ui = &editor->ui;
-   static LDKUIRect toolbar_rect = {
-    0, LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f, 0, 0};
-  toolbar_rect.w = ui->viewport.w;
-  toolbar_rect.h =
-    LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
-
-  toolbar_rect =
-    ldk_ui_begin_window_fixed(ui, "Editor Commands", toolbar_rect, 0);
-  ldk_ui_begin_horizontal(&editor->ui);
-  ldk_ui_spacer(ui);
-
-  {
-    LDKUIIcon icon;
-    icon.size =
-      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-    icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-
-    // Play/Stop button
-    if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
-    {
-      // Play
-      bool can_play = editor->project.loaded;
-      ldk_ui_set_next_disabled(ui, !can_play);
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
-
-      ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
-      {
-        s_editor_state_set_play(editor);
-      }
-    }
-    else
-    {
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
-      ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
-      {
-        s_editor_state_set_stop(editor);
-      }
-    }
-
-    { // Pause button
-      bool can_pause = (editor->editor_state == LDK_EDITOR_STATE_PLAYING);
-      ldk_ui_set_next_disabled(ui, !can_pause);
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PAUSE];
-      ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
-      {
-        s_editor_state_set_pause(editor);
-      }
-    }
-
-    { // Skip button
-      bool can_skip = (editor->editor_state != LDK_EDITOR_STATE_PLAYING);
-      ldk_ui_set_next_disabled(
-        ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP];
-      ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
-      {
-        s_editor_state_set_step(editor);
-      }
-    }
-  }
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_horizontal(&editor->ui);
-  ldk_ui_end_window(ui);
-}
-
-static void s_editor_entity_list_window(LDKEditor *editor, LDKECS *ecs)
-{
-  LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {10, 60, 220, 260};
-  static LDKUIPoint scroll = {0};
-
-  enum
-  {
-    MAX_TRACKED_ENTITY_TREE_NODES = 1024
-  };
-
-  static bool s_entity_open[MAX_TRACKED_ENTITY_TREE_NODES] = {0};
-
-  s_entity_list_rect = ldk_ui_begin_window(
-      ui, "Entities", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button(ui, "save"))
-  {
-    s_editor_save_scene(editor);
-  }
-
-  scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
-  LDKEntity e;
-  u32 entity_index = 0;
-
-  while (ldk_entity_iterator_next(&it, &e))
-  {
-    LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, e);
-    u64 id = *((u64 *)&e);
-
-    snprintf((char *const)&info->name,
-             LDK_ENTITY_NAME_MAX_LEN,
-             "0x%08" PRIu64 " (%d)",
-             id,
-             info->components.component_count);
-
-    ldk_ui_push_id_u32(ui, (u32)e.index);
-
-    bool open = false;
-    bool *open_state = NULL;
-
-    if (entity_index < MAX_TRACKED_ENTITY_TREE_NODES)
-    {
-      open_state = &s_entity_open[entity_index];
-      open = *open_state;
-    }
-
-    open = ldk_ui_tree_node(ui, (const char *)info->name, open, 0, 0);
-
-    if (open_state)
-    {
-      *open_state = open;
-    }
-
-    if (open)
-    {
-      for (u32 i = 0; i < info->components.component_count; i++)
-      {
-        const char *name = ldk_component_name_get(
-            &ecs->component, info->components.component_type[i]);
-
-        ldk_ui_push_id_u32(ui, i);
-        ldk_ui_tree_node(ui, name, false, 1, LDK_UI_TREE_NODE_LEAF);
-        ldk_ui_pop_id(ui);
-      }
-    }
-
-    ldk_ui_pop_id(ui);
-    entity_index += 1;
-  }
-
-  ldk_entity_iterator_end(&it);
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
-  ldk_ui_end_window(ui);
-}
-
-static void s_draw_editor_ui(LDKEditor *editor, float delta_time)
+static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  s_editor_menu_bar(editor);
-  s_editor_tool_bar(editor);
-  s_editor_entity_list_window(editor, ecs);
-  s_editor_test_a(editor);
+  ldk_editor_internal_toolbar_show((LDKEditor *)editor);
+  ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
   s_editor_test_b(editor);
   s_editor_test_treeview(editor);
-  s_editor_console(editor);
+  ldk_editor_internal_menubar_show(editor);
+  ldk_editor_console_show(editor);
+  ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
 }
 
-static void s_editor_update(LDKEditor *editor, i32 window_width,
-                            i32 window_height, float delta_time)
+static void s_editor_update(LDKEditorContext *editor, i32 window_width,
+    i32 window_height, float delta_time)
 {
   LDKMouseState mouse_state;
   LDKKeyboardState kbd_state;
   LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f,
-                                      .y = 0.0f,
-                                      .w = (float)window_width,
-                                      .h = (float)window_height};
+      .y = 0.0f,
+      .w = (float)window_width,
+      .h = (float)window_height};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
-                     &editor->text_input_state, ui_viewport);
+      &editor->text_input_state, ui_viewport);
   s_draw_editor_ui(editor, delta_time);
   ldk_ui_end_frame(&editor->ui);
   const LDKUIRenderData *ui_data = ldk_ui_get_render_data(&editor->ui);
@@ -777,7 +404,7 @@ static void s_editor_update(LDKEditor *editor, i32 window_width,
 //----------------------------------------------------------
 
 static bool s_editor_config_load_from_ini(
-  LDKEditor *editor, XIni *ini, LDKConfig *config)
+    LDKEditorContext *editor, XIni *ini, LDKConfig *config)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->renderer);
@@ -787,28 +414,28 @@ static bool s_editor_config_load_from_ini(
   const char *EDITOR = ".editor";
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   x_smallstr_from_cstr(
-    &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
+      &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
   x_fs_path(&editor->editor_font, config->runtree_path,
-            x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+      x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
 
   // load a te texture atlas
   XFSPath atlas_path;
 
   x_fs_path(&atlas_path, config->runtree_path, "assets", "ui_atlas.png");
   LDKImage *image_atlas = ldk_image_create_from_memory(
-    ldk_editor_icon_atlas_png, ldk_editor_icon_atlas_png_size);
+      ldk_editor_icon_atlas_png, ldk_editor_icon_atlas_png_size);
   if (image_atlas == NULL)
   {
     ldk_log_error("Failed to load editor atas '%s'\n", atlas_path.buf);
     return false;
   }
   LDKResourceTexture texture_atlas = ldk_renderer_texture_create_from_image(
-    ldk_module_get(LDK_MODULE_RENDERER), image_atlas, 0);
+      ldk_module_get(LDK_MODULE_RENDERER), image_atlas, 0);
 
   if (ldk_renderer_texture_null().id == texture_atlas.id)
   {
     ldk_log_error(
-      "Failed to create texture from image atas '%s'\n", atlas_path.buf);
+        "Failed to create texture from image atas '%s'\n", atlas_path.buf);
     return false;
   }
 
@@ -817,7 +444,7 @@ static bool s_editor_config_load_from_ini(
   return true;
 }
 
-static bool s_editor_load_resources(LDKEditor *editor, LDKConfig *config)
+static bool s_editor_load_resources(LDKEditorContext *editor, LDKConfig *config)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -827,13 +454,13 @@ static bool s_editor_load_resources(LDKEditor *editor, LDKConfig *config)
 
   // Load UI editor font
   editor->font =
-    ldk_asset_manager_font_load(asset_manager, editor->editor_font.buf);
+      ldk_asset_manager_font_load(asset_manager, editor->editor_font.buf);
   LDKAssetFontData *editor_font_data =
-    ldk_asset_manager_font_get(asset_manager, editor->font);
+      ldk_asset_manager_font_get(asset_manager, editor->font);
   if (!editor_font_data || !editor_font_data->face)
   {
     ldk_log_error(
-      "Failed to load editor font '%s'.\n", editor->editor_font.buf);
+        "Failed to load editor font '%s'.\n", editor->editor_font.buf);
     return false;
   }
 
@@ -843,7 +470,7 @@ static bool s_editor_load_resources(LDKEditor *editor, LDKConfig *config)
   font_atlas_desc.page_height = 256;
 
   editor->font_instance = ldk_ttf_get_instance(editor_font_data->face,
-                                               (float)editor->editor_font_size, &font_atlas_desc);
+      (float)editor->editor_font_size, &font_atlas_desc);
 
   if (!editor->font_instance)
   {
@@ -854,7 +481,8 @@ static bool s_editor_load_resources(LDKEditor *editor, LDKConfig *config)
   return true;
 }
 
-static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
+static bool s_editor_gui_initialize(
+    LDKEditorContext *editor, LDKRenderer *renderer)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -876,7 +504,7 @@ static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
   else
   {
     ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.",
-                    editor->editor_theme.buf);
+        editor->editor_theme.buf);
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
@@ -889,7 +517,8 @@ static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
     return false;
   }
 
-  s_theme_icons_set(editor, &editor->ui.theme); // set theme icons
+  ldk_editor_internal_theme_icons_set(
+      editor, &editor->ui.theme); // set theme icons
   return true;
 }
 
@@ -904,7 +533,7 @@ static bool s_editor_gui_initialize(LDKEditor *editor, LDKRenderer *renderer)
  */
 static inline void s_game_update(LDKGame *game, float delta_time)
 {
-  LDKEditor *editor = s_editor_instance();
+  LDKEditorContext *editor = s_editor_instance();
 
   if (editor->editor_state == LDK_EDITOR_STATE_STEPPING)
   {
@@ -919,7 +548,7 @@ static inline void s_game_update(LDKGame *game, float delta_time)
 /**
  * Change Editor mode to PLAY
  */
-static bool s_editor_state_set_play(LDKEditor *editor)
+static bool s_editor_state_set_play(LDKEditorContext *editor)
 {
   if (!editor->project.loaded)
     return false;
@@ -946,7 +575,7 @@ static bool s_editor_state_set_play(LDKEditor *editor)
 /**
  * Change Editor mode to STOP
  */
-static void s_editor_state_set_stop(LDKEditor *editor)
+static void s_editor_state_set_stop(LDKEditorContext *editor)
 {
   if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
     return;
@@ -956,7 +585,7 @@ static void s_editor_state_set_stop(LDKEditor *editor)
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
 }
 
-static void s_editor_state_set_pause(LDKEditor *editor)
+static void s_editor_state_set_pause(LDKEditorContext *editor)
 {
   if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
     return;
@@ -965,7 +594,7 @@ static void s_editor_state_set_pause(LDKEditor *editor)
   editor->editor_state = LDK_EDITOR_STATE_PAUSED;
 }
 
-static void s_editor_state_set_step(LDKEditor *editor)
+static void s_editor_state_set_step(LDKEditorContext *editor)
 {
   if (editor->editor_state != LDK_EDITOR_STATE_PAUSED)
     return;
@@ -978,7 +607,8 @@ static void s_editor_state_set_step(LDKEditor *editor)
 // Project handling
 //----------------------------------------------------------
 
-static bool s_project_load(LDKEditor *editor, const char *project_file_path)
+static bool s_project_load(
+    LDKEditorContext *editor, const char *project_file_path)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -993,7 +623,7 @@ static bool s_project_load(LDKEditor *editor, const char *project_file_path)
     return false;
 
   if (!ldk_game_instance_load_from_shared_lib(
-        editor->project.game_dll_path.buf))
+          editor->project.game_dll_path.buf))
     return false;
 
   if (!ldk_game_instance_initialize())
@@ -1012,13 +642,13 @@ static bool s_project_load(LDKEditor *editor, const char *project_file_path)
 
   XSmallstr title = {0};
   x_smallstr_format(
-    &title, "LDK Editor - %s - %s", editor->project.name, project_file_path);
+      &title, "LDK Editor - %s - %s", editor->project.name, project_file_path);
   ldk_os_window_title_set(editor->window, title.buf);
 
   return true;
 }
 
-static void s_editor_terminate(LDKEditor *editor)
+static void s_editor_terminate(LDKEditorContext *editor)
 {
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_remove(eq, on_event_text);
@@ -1028,12 +658,53 @@ static void s_editor_terminate(LDKEditor *editor)
 }
 
 //----------------------------------------------------------
+// Public API
+//----------------------------------------------------------
+
+LDKEditor *ldk_editor_get()
+{
+  return (LDKEditor *)s_editor_instance();
+}
+
+void ldk_editor_state_set_play(LDKEditor *editor)
+{
+  s_editor_state_set_play((LDKEditorContext *)editor);
+}
+
+void ldk_editor_state_set_stop(LDKEditor *editor)
+{
+  s_editor_state_set_stop((LDKEditorContext *)editor);
+}
+
+void ldk_editor_state_set_pause(LDKEditor *editor)
+{
+  s_editor_state_set_pause((LDKEditorContext *)editor);
+}
+
+void ldk_editor_state_play_one_frame(LDKEditor *editor)
+{
+  s_editor_state_set_step((LDKEditorContext *)editor);
+}
+
+bool ldk_editor_project_load(LDKEditor *editor, const char *project_path)
+{
+  return s_project_load((LDKEditorContext *)editor, project_path);
+}
+
+void ldk_editor_quit(LDKEditor *editor)
+{
+  s_editor_command_quit((LDKEditorContext *)editor);
+}
+
+//----------------------------------------------------------
 // Entrypoint
 //----------------------------------------------------------
 
 static i32 s_editor_main(const char *project_file_path)
 {
-  LDKEditor *editor = s_editor_instance();
+  LDKEditorContext *editor = s_editor_instance();
+  ldk_editor_internal_register_commands(editor);
+
   XIni ini;
   XIniError ini_error;
   LDKConfig config;
@@ -1051,8 +722,8 @@ static i32 s_editor_main(const char *project_file_path)
   if (!x_ini_load_file(editor_ini_path.buf, &ini, &ini_error))
   {
     ldk_log_error("Failed to load config file '%s'. Syntax error at %d:%d: %s",
-                  editor_ini_path.buf, ini_error.line, ini_error.column,
-                  ini_error.message ? ini_error.message : "Unknown error");
+        editor_ini_path.buf, ini_error.line, ini_error.column,
+        ini_error.message ? ini_error.message : "Unknown error");
     return false;
   }
 
@@ -1066,13 +737,13 @@ static i32 s_editor_main(const char *project_file_path)
   // Listen to text events for editor UI
   LDKEventQueue *module_event = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(
-    module_event, on_event_text, LDK_EVENT_TYPE_TEXT, editor);
+      module_event, on_event_text, LDK_EVENT_TYPE_TEXT, editor);
   ldk_event_handler_add(
-    module_event, on_event_keyboard, LDK_EVENT_TYPE_KEYBOARD, editor);
+      module_event, on_event_keyboard, LDK_EVENT_TYPE_KEYBOARD, editor);
   ldk_event_handler_add(
-    module_event, on_event_frame, LDK_EVENT_TYPE_FRAME, editor);
+      module_event, on_event_frame, LDK_EVENT_TYPE_FRAME, editor);
   ldk_event_handler_add(
-    module_event, on_event_window, LDK_EVENT_TYPE_WINDOW, editor);
+      module_event, on_event_window, LDK_EVENT_TYPE_WINDOW, editor);
 
   editor->window = ldk_engine_main_window_get();
   editor->renderer = ldk_module_get(LDK_MODULE_RENDERER);

@@ -20,6 +20,7 @@
 #define s_ui_rect_contains ldk_rectf_contains
 #define s_ui_rect_intersect ldk_rectf_intersect
 
+static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text);
 static void s_ui_windows_destroy_all(LDKUIContext *ctx);
 static void s_ui_windows_clear_frame_buffers(LDKUIContext *ctx);
 static void s_ui_window_destroy_buffers(LDKUIWindow *window);
@@ -346,8 +347,7 @@ static u32 s_ui_input_box_cursor_from_x(
 
   while (cursor <= len)
   {
-    LDKTextSize text_size =
-        ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
+    LDKTextSize text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
     float cursor_x = text_size.w;
     float distance = fabsf(cursor_x - local_x);
 
@@ -367,7 +367,6 @@ static u32 s_ui_input_box_cursor_from_x(
 
   return best;
 }
-
 
 static u32 s_ui_input_text_cursor_prev(char const *text, u32 cursor)
 {
@@ -531,7 +530,6 @@ static bool s_ui_input_keyboard_end_pressed(LDKUIContext *ctx)
   return ldk_os_keyboard_key_down(
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_END);
 }
-
 
 static bool s_ui_input_keyboard_enter_pressed(LDKUIContext *ctx)
 {
@@ -709,8 +707,7 @@ static bool s_ui_icon_valid(LDKUIIcon icon)
          icon.size.w > 0.0f && icon.size.h > 0.0f;
 }
 
-static LDKUIIcon s_ui_theme_icon(
-    LDKUIContext *ctx, LDKUIThemeIconSlot slot)
+static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
 {
   LDKUIIcon icon = {0};
 
@@ -722,8 +719,8 @@ static LDKUIIcon s_ui_theme_icon(
   return ctx->theme.icons[slot];
 }
 
-static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon,
-    LDKUIRect rect, u32 color, LDKUIRect clip_rect)
+static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
+    u32 color, LDKUIRect clip_rect)
 {
   if (!s_ui_icon_valid(icon))
   {
@@ -776,8 +773,7 @@ static void s_ui_render_text_highlight(LDKUIContext *ctx, char const *text,
     end = temp;
   }
 
-  LDKTextSize text_size =
-      ldk_ttf_measure_text_cstrn(ctx->font, text, start);
+  LDKTextSize text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, start);
   float x0 = text_x + text_size.w;
 
   text_size = ldk_ttf_measure_text_cstrn(ctx->font, text, end);
@@ -1061,6 +1057,42 @@ static void s_ui_render_text_wrapped(LDKUIContext *ctx, char const *text,
 
     cursor = next;
   }
+}
+
+static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
+    char const *text, LDKUIRect rect, u32 color, LDKUIRect clip)
+{
+  LDKUIRect icon_rect;
+  float text_x;
+  float text_w;
+
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  text_x = rect.x;
+
+  if (s_ui_icon_valid(icon))
+  {
+    icon_rect.x = rect.x;
+    icon_rect.y = rect.y + (rect.h - icon.size.h) * 0.5f;
+    icon_rect.w = icon.size.w;
+    icon_rect.h = icon.size.h;
+
+    s_ui_render_icon(ctx, icon, icon_rect, color, clip);
+
+    text_x = icon_rect.x + icon_rect.w + LDK_UI_DEFAULT_SPACING;
+  }
+
+  text_w = s_ui_maxf(0.0f, rect.x + rect.w - text_x);
+
+  s_ui_render_text_wrapped(ctx, text, text_x, rect.y, text_w, color, clip);
 }
 
 static u32 s_ui_render_control_bg_color(
@@ -1704,7 +1736,7 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
   ctx->font = config->font;
 
   // We just get theme straight into the actual ctx->theme
-  ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &ctx->theme); 
+  ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &ctx->theme);
 
   if (ctx->font != NULL)
   {
@@ -1718,11 +1750,11 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
          ctx->disabled_stack != NULL && ctx->hit_candidates != NULL &&
          ctx->layout_stack != NULL && ctx->open_popups != NULL &&
          ctx->popup_stack != NULL && ctx->popup_frame_entries != NULL &&
-         ctx->popup_cache != NULL &&
-         ctx->windows != NULL && ctx->window_stack != NULL &&
-         ctx->measure_entries != NULL && ctx->layout_items != NULL &&
-         ctx->layout_item_cache != NULL && ctx->scrollview_stack != NULL &&
-         ctx->scrollview_cache != NULL && ctx->area_stack != NULL;
+         ctx->popup_cache != NULL && ctx->windows != NULL &&
+         ctx->window_stack != NULL && ctx->measure_entries != NULL &&
+         ctx->layout_items != NULL && ctx->layout_item_cache != NULL &&
+         ctx->scrollview_stack != NULL && ctx->scrollview_cache != NULL &&
+         ctx->area_stack != NULL;
 }
 
 void ldk_ui_terminate(LDKUIContext *ctx)
@@ -1942,7 +1974,7 @@ bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme)
   return true;
 }
 
-bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme* theme)
+bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 {
   if (theme == NULL)
     return false;
@@ -2265,6 +2297,28 @@ void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
   s_ui_render_quad_uv(ctx, box.rect, uv, 0xffffffffu, box.clip, texture);
 }
 
+void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
+    char const *text, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  u32 text_color;
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
+  {
+    return;
+  }
+
+  text_color = box.disabled ? ctx->theme.colors[LDK_UI_COLOR_TEXT_DISABLED]
+                            : ctx->theme.colors[LDK_UI_COLOR_TEXT];
+
+  s_ui_render_icon_label(ctx, icon, text, box.rect, text_color, box.clip);
+}
+
 bool ldk_ui_widget_button(
     LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect)
 {
@@ -2377,9 +2431,9 @@ bool ldk_ui_widget_toggle(
   s_ui_render_border(
       ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
 
-  LDKUIIcon toggle_icon = s_ui_theme_icon(ctx,
-      value ? LDK_UI_THEME_ICON_TOGGLE_CHECKED
-            : LDK_UI_THEME_ICON_TOGGLE_UNCHECKED);
+  LDKUIIcon toggle_icon =
+      s_ui_theme_icon(ctx, value ? LDK_UI_THEME_ICON_TOGGLE_CHECKED
+                                 : LDK_UI_THEME_ICON_TOGGLE_UNCHECKED);
 
   if (s_ui_icon_valid(toggle_icon))
   {

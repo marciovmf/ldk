@@ -240,6 +240,7 @@ extern "C"
     LDK_UI_ITEM_SPACER = 12,
     LDK_UI_ITEM_TOGGLE = 13,
     LDK_UI_ITEM_SEPARATOR = 14,
+    LDK_UI_ITEM_ICON_LABEL = 15,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -285,6 +286,13 @@ extern "C"
     LDK_UI_TREE_NODE_LEAF = 1 << 0,
     LDK_UI_TREE_NODE_SELECTED = 1 << 1
   } LDKTreeNodeFlags;
+
+  typedef enum LDKTreeNodeResult
+  {
+    LDK_UI_TREE_NODE_RESULT_NONE = 0,
+    LDK_UI_TREE_NODE_RESULT_CLICKED = 1 << 0,
+    LDK_UI_TREE_NODE_RESULT_TOGGLED = 1 << 1,
+  } LDKTreeNodeResult;
 
   typedef struct LDKUIMark
   {
@@ -602,7 +610,7 @@ extern "C"
   LDK_API bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config);
   LDK_API void ldk_ui_terminate(LDKUIContext *ctx);
 
-  LDK_API bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme* theme);
+  LDK_API bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme);
   LDK_API bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme);
 
   LDK_API void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
@@ -700,14 +708,19 @@ extern "C"
   LDK_API void ldk_ui_icon(LDKUIContext *ctx, LDKUIIcon icon);
   LDK_API bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon);
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
+  LDK_API void ldk_ui_icon_label(
+      LDKUIContext *ctx, LDKUIIcon icon, char const *text);
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
   LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
   LDK_API float ldk_ui_slider(
       LDKUIContext *ctx, float value, float min_value, float max_value);
+  LDK_API u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title,
+      LDKUIIcon icon, bool expanded, u32 depth, u32 flags);
   LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
       bool expanded, u32 depth, u32 flags);
-  LDK_API u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size);
+  LDK_API u32 ldk_ui_input_box(
+      LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API u32 ldk_ui_input_label(
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
@@ -720,6 +733,8 @@ extern "C"
       LDKUIContext *ctx, LDKUIId id, LDKUIRect rect);
   LDK_API void ldk_ui_widget_label(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  LDK_API void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id,
+      LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button(
