@@ -356,12 +356,7 @@ extern "C"
 
 #define LDK_RHI_INVALID_RESOURCE 0
 
-  /* Compatibility alias. Prefer LDKRHIShaderModule in new code. */
-  typedef LDKRHIShaderModule LDKRHIShader;
-
   typedef struct LDKRHIContext LDKRHIContext;
-
-  /* Compatibility aliases. */
 
   typedef enum LDKRHIBackendType
   {
@@ -464,13 +459,6 @@ extern "C"
     LDK_RHI_SHADER_CODE_FORMAT_DXIL,
     LDK_RHI_SHADER_CODE_FORMAT_MSL
   } LDKRHIShaderCodeFormat;
-
-  /* Compatibility name. */
-  typedef enum LDKRHIShaderSourceType
-  {
-    LDK_RHI_SHADER_SOURCE_TEXT = LDK_RHI_SHADER_CODE_FORMAT_GLSL,
-    LDK_RHI_SHADER_SOURCE_BINARY = LDK_RHI_SHADER_CODE_FORMAT_SPIRV
-  } LDKRHIShaderSourceType;
 
   typedef enum LDKRHIPrimitiveTopology
   {
@@ -648,15 +636,6 @@ extern "C"
     const char* entry_point;
   } LDKRHIShaderModuleDesc;
 
-  /* Compatibility desc. */
-  typedef struct LDKRHIShaderDesc
-  {
-    uint32_t stage;
-    LDKRHIShaderSourceType source_type;
-    const void* data;
-    uint32_t size;
-  } LDKRHIShaderDesc;
-
   typedef struct LDKRHIBlendState
   {
     bool enabled;
@@ -694,12 +673,6 @@ extern "C"
 #define LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX 8
 #define LDK_RHI_COLOR_ATTACHMENT_MAX 8
 #define LDK_RHI_BINDING_MAX 16
-
-  /* Compatibility max names. */
-#define LDK_RHI_MAX_VERTEX_ATTRIBUTES LDK_RHI_VERTEX_ATTRIBUTE_MAX
-#define LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX
-#define LDK_RHI_MAX_COLOR_ATTACHMENTS LDK_RHI_COLOR_ATTACHMENT_MAX
-#define LDK_RHI_MAX_BINDINGS LDK_RHI_BINDING_MAX
 
   typedef struct LDKRHIVertexBufferLayoutDesc
   {
@@ -917,12 +890,6 @@ extern "C"
   LDK_API void ldk_rhi_shader_module_desc_defaults(LDKRHIShaderModuleDesc* desc);
 
   /**
-   * @brief Initializes a shader descriptor with default values.
-   * @param desc Pointer to the descriptor to initialize.
-   */
-  LDK_API void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
-
-  /**
    * @brief Initializes a blend state with default values.
    * @param state Pointer to the state to initialize.
    */
@@ -1008,13 +975,6 @@ extern "C"
   LDK_API bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module);
 
   /**
-   * @brief Checks if a shader handle is valid.
-   * @param shader Shader handle.
-   * @return true if valid, false otherwise.
-   */
-  LDK_API bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
-
-  /**
    * @brief Checks if a bindings layout handle is valid.
    * @param bindings_layout Bindings layout handle.
    * @return true if valid, false otherwise.
@@ -1062,13 +1022,6 @@ extern "C"
    * @return true if valid, false otherwise.
    */
   LDK_API bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc);
-
-  /**
-   * @brief Validates a shader descriptor.
-   * @param desc Descriptor to validate.
-   * @return true if valid, false otherwise.
-   */
-  LDK_API bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Validates a bindings layout descriptor.
@@ -1184,21 +1137,6 @@ extern "C"
    * @param shader_module Shader module handle.
    */
   LDK_API void ldk_rhi_shader_module_destroy(LDKRHIContext* context, LDKRHIShaderModule shader_module);
-
-  /**
-   * @brief Creates a shader object.
-   * @param context RHI context.
-   * @param desc Shader descriptor.
-   * @return A valid shader handle on success, or an invalid handle on failure.
-   */
-  LDK_API LDKRHIShader ldk_rhi_shader_creat(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
-
-  /**
-   * @brief Destroys a shader object.
-   * @param context RHI context.
-   * @param shader Shader handle.
-   */
-  LDK_API void ldk_rhi_shader_destroy(LDKRHIContext* context, LDKRHIShader shader);
 
   /**
    * @brief Creates a bindings layout.
@@ -1376,13 +1314,6 @@ extern "C"
   LDK_API void ldk_rhi_sampler_desc_defaults(LDKRHISamplerDesc* desc);
 
   /**
-   * @brief Fills a shader descriptor with safe default values.
-   *
-   * @param desc Pointer to the shader descriptor to initialize.
-   */
-  LDK_API void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc);
-
-  /**
    * @brief Fills a blend state with default disabled blending.
    *
    * @param state Pointer to the blend state to initialize.
@@ -1471,15 +1402,6 @@ extern "C"
   LDK_API bool ldk_rhi_is_valid_sampler(LDKRHISampler sampler);
 
   /**
-   * @brief Checks whether a shader handle is valid.
-   *
-   * @param shader Shader handle to check.
-   *
-   * @return true if the handle is not invalid, false otherwise.
-   */
-  LDK_API bool ldk_rhi_is_valid_shader(LDKRHIShader shader);
-
-  /**
    * @brief Checks whether a pipeline handle is valid.
    *
    * @param pipeline Pipeline handle to check.
@@ -1523,15 +1445,6 @@ extern "C"
    * @return true if the descriptor is valid, false otherwise.
    */
   LDK_API bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc);
-
-  /**
-   * @brief Validates a shader descriptor before shader creation.
-   *
-   * @param desc Pointer to the shader descriptor to validate.
-   *
-   * @return true if the descriptor is valid, false otherwise.
-   */
-  LDK_API bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc);
 
   /**
    * @brief Validates a pipeline descriptor before pipeline creation.
@@ -1648,26 +1561,6 @@ extern "C"
    * @param sampler Sampler handle to destroy.
    */
   LDK_API void ldk_rhi_sampler_destroy(LDKRHIContext* context, LDKRHISampler sampler);
-
-  /**
-   * @brief Creates a shader object from source or binary data.
-   *
-   * @param context RHI context.
-   * @param desc Pointer to the shader descriptor.
-   *
-   * @return A valid shader handle on success, or LDK_RHI_SHADER_INVALID on failure.
-   */
-  LDK_API LDKRHIShader ldk_rhi_shader_create(LDKRHIContext* context, const LDKRHIShaderDesc* desc);
-
-  /**
-   * @brief Destroys a shader object.
-   *
-   * Passing an invalid handle has no effect.
-   *
-   * @param context RHI context.
-   * @param shader Shader handle to destroy.
-   */
-  LDK_API void ldk_rhi_shader_destroy(LDKRHIContext* context, LDKRHIShader shader);
 
   /**
    * @brief Creates an immutable graphics pipeline.

@@ -32,7 +32,7 @@ typedef struct LDKRHIGL33BindingsLayoutObject
 {
   bool alive;
   uint32_t entry_count;
-  LDKRHIGL33BindingsLayoutEntry entries[LDK_RHI_MAX_BINDINGS];
+  LDKRHIGL33BindingsLayoutEntry entries[LDK_RHI_BINDING_MAX];
 } LDKRHIGL33BindingsLayoutObject;
 
 typedef struct LDKRHIGL33BindingObject
@@ -52,7 +52,7 @@ typedef struct LDKRHIGL33BindingsObject
   bool alive;
   LDKRHIBindingsLayout layout;
   uint32_t binding_count;
-  LDKRHIGL33BindingObject bindings[LDK_RHI_MAX_BINDINGS];
+  LDKRHIGL33BindingObject bindings[LDK_RHI_BINDING_MAX];
 } LDKRHIGL33BindingsObject;
 
 typedef struct LDKRHIGL33PipelineObject
@@ -66,7 +66,7 @@ typedef struct LDKRHIGL33PipelineObject
   LDKRHIRasterState raster_state;
   LDKRHIVertexBufferLayoutDesc vertex_layout;
   uint32_t vertex_buffer_layout_count;
-  LDKRHIVertexBufferLayoutDesc vertex_buffer_layouts[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
+  LDKRHIVertexBufferLayoutDesc vertex_buffer_layouts[LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX];
 } LDKRHIGL33PipelineObject;
 
 typedef struct LDKRHIGL33Backend
@@ -99,8 +99,8 @@ typedef struct LDKRHIGL33Backend
   LDKRHIPipeline current_pipeline;
   LDKRHIBuffer current_vertex_buffer;
   uint32_t current_vertex_buffer_offset;
-  LDKRHIBuffer current_vertex_buffers[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
-  uint32_t current_vertex_buffer_offsets[LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS];
+  LDKRHIBuffer current_vertex_buffers[LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX];
+  uint32_t current_vertex_buffer_offsets[LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX];
   LDKRHIBuffer current_index_buffer;
   uint32_t current_index_buffer_offset;
   LDKRHIIndexType current_index_type;
@@ -119,7 +119,7 @@ static void ldk_rhi_gl33_reset_bound_state(LDKRHIGL33Backend* backend)
   backend->current_index_buffer = LDK_RHI_INVALID_RESOURCE;
   backend->current_index_buffer_offset = 0;
 
-  for (uint32_t i = 0; i < LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS; i++)
+  for (uint32_t i = 0; i < LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX; i++)
   {
     backend->current_vertex_buffers[i] = LDK_RHI_INVALID_RESOURCE;
     backend->current_vertex_buffer_offsets[i] = 0;
@@ -718,7 +718,7 @@ static void ldk_rhi_gl33_apply_vertex_layout(LDKRHIGL33Backend* backend, const L
 {
   glBindVertexArray(pipeline->vao);
 
-  for (uint32_t i = 0; i < LDK_RHI_MAX_VERTEX_ATTRIBUTES; i++)
+  for (uint32_t i = 0; i < LDK_RHI_VERTEX_ATTRIBUTE_MAX; i++)
   {
     glDisableVertexAttribArray(i);
     glVertexAttribDivisor(i, 0);
@@ -1207,7 +1207,7 @@ static LDKRHIBindings ldk_rhi_gl33_bindings_create(LDKRHIGL33Backend* backend, c
     return LDK_RHI_INVALID_RESOURCE;
   }
 
-  if (desc->binding_count > LDK_RHI_MAX_BINDINGS)
+  if (desc->binding_count > LDK_RHI_BINDING_MAX)
   {
     return LDK_RHI_INVALID_RESOURCE;
   }
@@ -1307,7 +1307,7 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
     glGenFramebuffers(1, &fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-    GLenum draw_buffers[LDK_RHI_MAX_COLOR_ATTACHMENTS];
+    GLenum draw_buffers[LDK_RHI_COLOR_ATTACHMENT_MAX];
     for (uint32_t i = 0; i < desc->color_attachment_count; i++)
     {
       GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
@@ -1508,7 +1508,7 @@ static void ldk_rhi_gl33_vertex_buffer_bind_at(void* backend_user_data, uint32_t
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
 
-  if (slot >= LDK_RHI_MAX_VERTEX_BUFFER_LAYOUTS)
+  if (slot >= LDK_RHI_VERTEX_BUFFER_LAYOUT_MAX)
   {
     return;
   }
