@@ -70,7 +70,7 @@ static void s_editor_project_explorer(
       PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
 
   s_window_rect = ldk_ui_begin_window(
-      ui, "Project Explorer", s_window_rect, LDK_UI_WINDOW_TOOL);
+      ui, "PROJECT EXPLORER", s_window_rect, LDK_UI_WINDOW_TOOL);
 
   if (s_expanded_paths == NULL)
   {
@@ -500,7 +500,7 @@ static void s_editor_console(LDKEditorContext *editor)
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "Console", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "CONSOLE", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
@@ -549,7 +549,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   s_toolbar_rect.h =
       LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
 
-  s_toolbar_rect = ldk_ui_begin_window(ui, "toolbar", s_toolbar_rect, 0);
+  s_toolbar_rect = ldk_ui_begin_window(ui, "TOOLBAR", s_toolbar_rect, 0);
 
   ldk_ui_begin_horizontal(ui);
   LDKUIMark mark = ldk_ui_mark(ui);
@@ -683,7 +683,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
 
   toolbar_rect =
-      ldk_ui_begin_window_fixed(ui, "Editor Commands", toolbar_rect, 0);
+      ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
   ldk_ui_spacer(ui);
 
@@ -757,7 +757,7 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   static LDKUIRect s_entity_list_rect = {10, 60, 100, 100};
 
   s_entity_list_rect = ldk_ui_begin_window(
-      ui, "Entities", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "ENTITIES", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
   LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
   LDKEntity e;
 
