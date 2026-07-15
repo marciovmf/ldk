@@ -302,12 +302,9 @@ LDKAssetTextFile ldk_asset_manager_text_file_create(LDKAssetManager* manager, co
 
   info->type = LDK_ASSET_TYPE_TEXT_FILE;
   info->data = data;
-
-#ifdef LDK_DEBUG
   info->asset_path.buf[0] = 0;
   info->asset_path.length = 0;
   info->load_timestamp = (u64)time(NULL);
-#endif
 
   return s_asset_text_file_from_x(h);
 }

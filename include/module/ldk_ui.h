@@ -152,6 +152,7 @@ extern "C"
     uintptr_t texture;
     LDKUIRect uv;
     LDKUISize size;
+    rgba32 color;
   } LDKUIIcon;
 
   typedef enum LDKUIThemeIconSlot

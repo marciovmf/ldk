@@ -335,6 +335,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_ttf.h          src/ldk_ttf.c
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
+  ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
@@ -442,6 +443,7 @@ if (OPTION_BUILD_EDITOR)
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_cmd.c
+    src/editor/ldk_editor_scene.c
   )
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
@@ -455,9 +457,7 @@ if (OPTION_BUILD_EDITOR)
     LDK_EDITOR
   )
 
-  target_link_libraries(ldk_editor PRIVATE
-    ldk
-  )
+  target_link_libraries(ldk_editor PRIVATE ldk)
 
   ldk_target_output_dirs(ldk_editor
     RUNTIME "${LDK_OUTPUT_DIR}"

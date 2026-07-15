@@ -728,7 +728,7 @@ static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
   }
 
   s_ui_render_quad_uv(
-      ctx, rect, icon.uv, color, clip_rect, (LDKUITextureHandle)icon.texture);
+      ctx, rect, icon.uv, icon.color, clip_rect, (LDKUITextureHandle)icon.texture);
 }
 
 static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,

@@ -92,6 +92,7 @@ extern "C" {
   typedef struct LDKRendererBindingsCacheEntry
   {
     LDKRHITexture texture;
+    LDKRHISampler sampler;
     LDKRHIBindings bindings;
   } LDKRendererBindingsCacheEntry;
 
@@ -163,6 +164,18 @@ extern "C" {
     LDK_RENDERER_TEXTURE_FLAG_RENDERABLE = 1 << 1
   } LDKRendererTextureFlag;
 
+  typedef struct LDKRendererTextureOptions
+  {
+    u32 flags;
+    bool generate_mipmaps;
+    LDKRHIFilter min_filter;
+    LDKRHIFilter mag_filter;
+    LDKRHIFilter mip_filter;
+    LDKRHIWrap wrap_u;
+    LDKRHIWrap wrap_v;
+    LDKRHIWrap wrap_w;
+  } LDKRendererTextureOptions;
+
   typedef struct LDKRendererTextureDesc
   {
     u32 width;
@@ -171,11 +184,13 @@ extern "C" {
     u32 flags;
     void const* pixels;
     u64 byte_count;
+    LDKRendererTextureOptions const* options;
   } LDKRendererTextureDesc;
 
   typedef struct LDKRendererTextureResource
   {
     LDKRHITexture texture;
+    LDKRHISampler sampler;
     u32 width;
     u32 height;
     u32 channel_count;
@@ -359,6 +374,17 @@ extern "C" {
   // Texture Resource
   // ---------------------------------------------------------------------------
   /**
+   * @brief Initialize renderer texture options with default values.
+   *
+   * Defaults preserve the renderer's existing texture behavior: nearest filtering,
+   * clamp-to-edge wrapping, and no generated mipmaps.
+   *
+   * @param options Texture options to initialize.
+   */
+  LDK_API void ldk_renderer_texture_options_defaults(
+      LDKRendererTextureOptions* options);
+
+  /**
    * @brief Return an invalid texture resource handle.
    *
    * This is the renderer texture equivalent of a null handle. It can be used
@@ -458,22 +484,21 @@ extern "C" {
       LDKRenderer* renderer,
       LDKResourceTexture texture);
 
+
   /**
-   * @brief Create a renderer texture resource from an image.
+   * @brief Create a renderer texture resource from an image with explicit options.
    *
-   * This is a convenience wrapper around ldk_renderer_texture_create(). The image
-   * provides the source width, height, channel count, pixel pointer, and byte
-   * count. The created texture does not depend on the image after creation.
+   * Passing NULL for options uses ldk_renderer_texture_options_defaults().
    *
    * @param renderer Renderer that will own the texture resource.
    * @param image Source CPU-side image.
-   * @param flags Texture creation flags.
+   * @param options Explicit texture sampling and mipmap options, or NULL.
    * @return Texture resource handle, or an invalid handle on failure.
    */
   LDK_API LDKResourceTexture ldk_renderer_texture_create_from_image(
       LDKRenderer* renderer,
       LDKImage const* image,
-      u32 flags);
+      LDKRendererTextureOptions const* options);
 
   // ---------------------------------------------------------------------------
   // Font cache Resources
