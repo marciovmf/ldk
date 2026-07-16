@@ -719,8 +719,8 @@ static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
   return ctx->theme.icons[slot];
 }
 
-static void s_ui_render_icon(
-  LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect, LDKUIRect clip_rect)
+static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
+    u32 color, LDKUIRect clip_rect)
 {
   if (!s_ui_icon_valid(icon))
   {
@@ -1085,7 +1085,7 @@ static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
     icon_rect.w = icon.size.w;
     icon_rect.h = icon.size.h;
 
-    s_ui_render_icon(ctx, icon, icon_rect, clip);
+    s_ui_render_icon(ctx, icon, icon_rect, color, clip);
 
     text_x = icon_rect.x + icon_rect.w + LDK_UI_DEFAULT_SPACING;
   }
@@ -2097,8 +2097,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     return false;
   }
 
-  theme->control_border_size = 1.0f;
-  theme->window_border_size = 3.0f;
+  theme->control_border_size = 0.35f;
+  theme->window_border_size = 0.4f;
   theme->window_interaction_border_size = 4.0f;
   theme->slider_track_height = 0.27272728f;
   theme->slider_thumb_width = 0.63636363f;
@@ -2453,7 +2453,7 @@ bool ldk_ui_widget_toggle(
     check_rect.x = box.rect.x + (box.rect.w - check_rect.w) * 0.5f;
     check_rect.y = box.rect.y + (box.rect.h - check_rect.h) * 0.5f;
 
-    s_ui_render_icon(ctx, toggle_icon, check_rect, box.clip);
+    s_ui_render_icon(ctx, toggle_icon, check_rect, toggle_icon.color, box.clip);
   }
   else if (value)
   {

@@ -449,16 +449,6 @@ void ldk_rhi_shader_module_desc_defaults(LDKRHIShaderModuleDesc* desc)
   desc->code_format = LDK_RHI_SHADER_CODE_FORMAT_GLSL;
 }
 
-void ldk_rhi_shader_desc_defaults(LDKRHIShaderDesc* desc)
-{
-  if (desc == NULL)
-  {
-    return;
-  }
-
-  memset(desc, 0, sizeof(*desc));
-  desc->source_type = LDK_RHI_SHADER_SOURCE_TEXT;
-}
 
 void ldk_rhi_blend_state_defaults(LDKRHIBlendState* state)
 {
@@ -604,11 +594,6 @@ bool ldk_rhi_is_valid_shader_module(LDKRHIShaderModule shader_module)
   return shader_module != LDK_RHI_INVALID_RESOURCE;
 }
 
-bool ldk_rhi_is_valid_shader(LDKRHIShader shader)
-{
-  return ldk_rhi_is_valid_shader_module(shader);
-}
-
 bool ldk_rhi_is_valid_bindings_layout(LDKRHIBindingsLayout bindings_layout)
 {
   return bindings_layout != LDK_RHI_INVALID_RESOURCE;
@@ -737,30 +722,6 @@ bool ldk_rhi_is_valid_shader_module_desc(const LDKRHIShaderModuleDesc* desc)
   return true;
 }
 
-bool ldk_rhi_is_valid_shader_desc(const LDKRHIShaderDesc* desc)
-{
-  if (desc == NULL)
-  {
-    return false;
-  }
-
-  if (!ldk_rhi_is_valid_shader_stage_single(desc->stage))
-  {
-    return false;
-  }
-
-  if (desc->source_type < LDK_RHI_SHADER_SOURCE_TEXT || desc->source_type > LDK_RHI_SHADER_SOURCE_BINARY)
-  {
-    return false;
-  }
-
-  if (desc->data == NULL || desc->size == 0)
-  {
-    return false;
-  }
-
-  return true;
-}
 
 bool ldk_rhi_is_valid_bindings_layout_desc(const LDKRHIBindingsLayoutDesc* desc)
 {
@@ -1212,28 +1173,6 @@ void ldk_rhi_shader_module_destroy(LDKRHIContext* context, LDKRHIShaderModule sh
   }
 
   ldk_rhi_enqueue_deferred_delete(context, LDK_RHI_DEFERRED_DELETE_SHADER_MODULE, shader_module);
-}
-
-LDKRHIShader ldk_rhi_shader_create(LDKRHIContext* context, const LDKRHIShaderDesc* desc)
-{
-  LDKRHIShaderModuleDesc module_desc = {0};
-
-  if (!ldk_rhi_is_valid_shader_desc(desc))
-  {
-    return LDK_RHI_INVALID_RESOURCE;
-  }
-
-  ldk_rhi_shader_module_desc_defaults(&module_desc);
-  module_desc.stage = desc->stage;
-  module_desc.code_format = (LDKRHIShaderCodeFormat)desc->source_type;
-  module_desc.code = desc->data;
-  module_desc.code_size = desc->size;
-  return ldk_rhi_shader_module_create(context, &module_desc);
-}
-
-void ldk_rhi_shader_destroy(LDKRHIContext* context, LDKRHIShader shader)
-{
-  ldk_rhi_shader_module_destroy(context, shader);
 }
 
 LDKRHIBindingsLayout ldk_rhi_bindings_layout_create(LDKRHIContext* context, const LDKRHIBindingsLayoutDesc* desc)

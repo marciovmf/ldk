@@ -1336,7 +1336,7 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   LDKUIRect clip_rect = s_ui_current_clip_rect(ctx);
   clip_rect = s_ui_rect_intersect(&clip_rect, &icon_rect);
 
-  s_ui_render_icon(ctx, icon, icon_rect, clip_rect);
+  s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip_rect);
 
   return clicked;
 }

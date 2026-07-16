@@ -387,19 +387,19 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
-                            i32 window_height, float delta_time)
+    i32 window_height, float delta_time)
 {
   LDKMouseState mouse_state;
   LDKKeyboardState kbd_state;
   LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f,
-                                      .y = 0.0f,
-                                      .w = (float)window_width,
-                                      .h = (float)window_height};
+      .y = 0.0f,
+      .w = (float)window_width,
+      .h = (float)window_height};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
-                     &editor->text_input_state, ui_viewport);
+      &editor->text_input_state, ui_viewport);
   s_draw_editor_ui(editor, delta_time);
   ldk_ui_end_frame(&editor->ui);
   const LDKUIRenderData *ui_data = ldk_ui_get_render_data(&editor->ui);
@@ -412,7 +412,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 //----------------------------------------------------------
 
 static bool s_editor_config_load_from_ini(
-  LDKEditorContext *editor, XIni *ini, LDKConfig *config)
+    LDKEditorContext *editor, XIni *ini, LDKConfig *config)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->renderer);
@@ -422,16 +422,16 @@ static bool s_editor_config_load_from_ini(
   const char *EDITOR = ".editor";
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   x_smallstr_from_cstr(
-    &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
+      &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
   x_fs_path(&editor->editor_font, config->runtree_path,
-            x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+      x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
 
   // load a te texture atlas
   XFSPath atlas_path;
 
   x_fs_path(&atlas_path, config->runtree_path, "assets", "ui_atlas.png");
   LDKImage *image_atlas = ldk_image_create_from_memory(
-    ldk_editor_icon_atlas_png, ldk_editor_icon_atlas_png_size);
+      ldk_editor_icon_atlas_png, ldk_editor_icon_atlas_png_size);
   if (image_atlas == NULL)
   {
     ldk_log_error("Failed to load editor atas '%s'\n", atlas_path.buf);
@@ -455,7 +455,7 @@ static bool s_editor_config_load_from_ini(
   if (ldk_renderer_texture_null().id == texture_atlas.id)
   {
     ldk_log_error(
-      "Failed to create texture from image atas '%s'\n", atlas_path.buf);
+        "Failed to create texture from image atas '%s'\n", atlas_path.buf);
     return false;
   }
 
@@ -474,13 +474,13 @@ static bool s_editor_load_resources(LDKEditorContext *editor, LDKConfig *config)
 
   // Load UI editor font
   editor->font =
-    ldk_asset_manager_font_load(asset_manager, editor->editor_font.buf);
+      ldk_asset_manager_font_load(asset_manager, editor->editor_font.buf);
   LDKAssetFontData *editor_font_data =
-    ldk_asset_manager_font_get(asset_manager, editor->font);
+      ldk_asset_manager_font_get(asset_manager, editor->font);
   if (!editor_font_data || !editor_font_data->face)
   {
     ldk_log_error(
-      "Failed to load editor font '%s'.\n", editor->editor_font.buf);
+        "Failed to load editor font '%s'.\n", editor->editor_font.buf);
     return false;
   }
 
@@ -490,7 +490,7 @@ static bool s_editor_load_resources(LDKEditorContext *editor, LDKConfig *config)
   font_atlas_desc.page_height = 256;
 
   editor->font_instance = ldk_ttf_get_instance(editor_font_data->face,
-                                               (float)editor->editor_font_size, &font_atlas_desc);
+      (float)editor->editor_font_size, &font_atlas_desc);
 
   if (!editor->font_instance)
   {
@@ -502,7 +502,7 @@ static bool s_editor_load_resources(LDKEditorContext *editor, LDKConfig *config)
 }
 
 static bool s_editor_gui_initialize(
-  LDKEditorContext *editor, LDKRenderer *renderer)
+    LDKEditorContext *editor, LDKRenderer *renderer)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -524,7 +524,7 @@ static bool s_editor_gui_initialize(
   else
   {
     ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.",
-                    editor->editor_theme.buf);
+        editor->editor_theme.buf);
     ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
   }
 
@@ -538,7 +538,7 @@ static bool s_editor_gui_initialize(
   }
 
   ldk_editor_internal_theme_icons_set(
-    editor, &editor->ui.theme); // set theme icons
+      editor, &editor->ui.theme); // set theme icons
   return true;
 }
 
@@ -628,7 +628,7 @@ static void s_editor_state_set_step(LDKEditorContext *editor)
 //----------------------------------------------------------
 
 static bool s_project_load(
-  LDKEditorContext *editor, const char *project_file_path)
+    LDKEditorContext *editor, const char *project_file_path)
 {
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -643,7 +643,7 @@ static bool s_project_load(
     return false;
 
   if (!ldk_game_instance_load_from_shared_lib(
-        editor->project.game_dll_path.buf))
+          editor->project.game_dll_path.buf))
     return false;
 
   if (!ldk_game_instance_initialize())
@@ -662,7 +662,7 @@ static bool s_project_load(
 
   XSmallstr title = {0};
   x_smallstr_format(
-    &title, "LDK Editor - %s - %s", editor->project.name, project_file_path);
+      &title, "LDK Editor - %s - %s", editor->project.name, project_file_path);
   ldk_os_window_title_set(editor->window, title.buf);
 
   return true;
@@ -742,8 +742,8 @@ static i32 s_editor_main(const char *project_file_path)
   if (!x_ini_load_file(editor_ini_path.buf, &ini, &ini_error))
   {
     ldk_log_error("Failed to load config file '%s'. Syntax error at %d:%d: %s",
-                  editor_ini_path.buf, ini_error.line, ini_error.column,
-                  ini_error.message ? ini_error.message : "Unknown error");
+        editor_ini_path.buf, ini_error.line, ini_error.column,
+        ini_error.message ? ini_error.message : "Unknown error");
     return false;
   }
 
@@ -757,13 +757,13 @@ static i32 s_editor_main(const char *project_file_path)
   // Listen to text events for editor UI
   LDKEventQueue *module_event = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(
-    module_event, on_event_text, LDK_EVENT_TYPE_TEXT, editor);
+      module_event, on_event_text, LDK_EVENT_TYPE_TEXT, editor);
   ldk_event_handler_add(
-    module_event, on_event_keyboard, LDK_EVENT_TYPE_KEYBOARD, editor);
+      module_event, on_event_keyboard, LDK_EVENT_TYPE_KEYBOARD, editor);
   ldk_event_handler_add(
-    module_event, on_event_frame, LDK_EVENT_TYPE_FRAME, editor);
+      module_event, on_event_frame, LDK_EVENT_TYPE_FRAME, editor);
   ldk_event_handler_add(
-    module_event, on_event_window, LDK_EVENT_TYPE_WINDOW, editor);
+      module_event, on_event_window, LDK_EVENT_TYPE_WINDOW, editor);
 
   editor->window = ldk_engine_main_window_get();
   editor->renderer = ldk_module_get(LDK_MODULE_RENDERER);
