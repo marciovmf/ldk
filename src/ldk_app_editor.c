@@ -98,6 +98,9 @@ void ldk_editor_internal_theme_icons_set(
   editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
   theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
