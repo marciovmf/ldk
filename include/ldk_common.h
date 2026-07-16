@@ -12,6 +12,7 @@
 #ifndef LDK_COMMON_H
 #define LDK_COMMON_H
 
+#include <stddef.h>
 #include <stdx/stdx_common.h>
 
 #define LDK_VERSION_MAJOR 0

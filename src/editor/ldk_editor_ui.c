@@ -11,7 +11,6 @@
 // Project Explorer
 //------------------------------------------------------------
 
-
 static void s_editor_project_explorer(
     LDKEditorContext *editor, const char *root_path)
 {
@@ -110,7 +109,7 @@ static void s_editor_project_explorer(
     return;
   }
 
-  if (s_root.length == 0 || x_fs_path_compare(&s_root, &root) != 0)
+  if (s_root.length == 0 || x_fs_path_compare(&s_root, &root) != 0)
   {
     s_root = root;
     s_selected_directory = root;
@@ -483,14 +482,10 @@ static void s_editor_project_explorer(
 
 static void s_editor_console(LDKEditorContext *editor)
 {
-  static XStrBuilder *sb = NULL;
+  LDK_ASSERT(editor);
+  LDK_ASSERT(editor->console_sb);
+
   static XSmallstr input = {0};
-
-  if (sb == NULL)
-  {
-    sb = x_strbuilder_create();
-  }
-
   LDKUIIcon icon;
   icon.size =
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
@@ -509,16 +504,16 @@ static void s_editor_console(LDKEditorContext *editor)
   icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
   ldk_ui_icon_label(ui, icon, "This is a warning.");
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
-  icon.color = LDK_EDITOR_COLOR_ICON_ERROR; 
+  icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
   ldk_ui_icon_label(ui, icon, "This is an error.");
-  ldk_ui_label(ui, x_strbuilder_to_string(sb));
+  ldk_ui_label(ui, x_strbuilder_to_string(editor->console_sb));
   ldk_ui_end_scrollview(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_input_box(ui, input.buf, X_SMALLSTR_MAX_LENGTH) &
       LDK_UI_INPUT_BOX_COMMITTED)
   {
-    x_strbuilder_append_format(sb, "%s\n", input.buf);
+    x_strbuilder_append_format(editor->console_sb, "%s\n", input.buf);
     ldk_editor_command_run(editor, input.buf);
     x_smallstr_clear(&input);
     // scroll down
@@ -794,6 +789,24 @@ void ldk_editor_internal_toolbar_show(LDKEditorContext *editor)
   s_editor_tool_bar(editor);
 }
 
+void ldk_editor_internal_log_error(LDKEditorContext *editor, const char *msg)
+{
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldk_log_error(msg);
+}
+
+void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char *msg)
+{
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldk_log_warning(msg);
+}
+
+void ldk_editor_internal_log_info(LDKEditorContext *editor, const char *msg)
+{
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldk_log_info(msg);
+}
+
 //------------------------------------------------------------
 // Public
 //------------------------------------------------------------
@@ -812,3 +825,4 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
+

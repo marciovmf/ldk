@@ -1051,11 +1051,11 @@ size_t ldk_os_window_title_get(LDKWindow window, XSmallstr* outTitle)
 {
   size_t length = GetWindowTextLengthA(window);
 
-  if (length >= X_FS_PAHT_MAX_LENGTH)
+  if (length >= X_FS_PATH_MAX_LENGTH)
     return length;
 
   HWND window_handle = ((LDKWin32Window*)window)->handle;
-  GetWindowTextA(window_handle, (char*) &outTitle->buf, X_FS_PAHT_MAX_LENGTH);
+  GetWindowTextA(window_handle, (char*) &outTitle->buf, X_FS_PATH_MAX_LENGTH);
   return 0;
 }
 
