@@ -763,7 +763,7 @@ static void s_ui_window_draw_title_bar(LDKUIContext *ctx, LDKUIWindow *window)
 
   s_ui_render_quad(ctx, window->title_bar_rect, title_bg, window->rect, 0);
   s_ui_render_text(ctx, window->title, text_x, text_y,
-      ctx->theme.colors[LDK_UI_COLOR_TEXT], text_clip);
+      ctx->theme.colors[LDK_UI_COLOR_TITLE], text_clip);
 }
 
 static bool s_ui_window_draw_close_button(

@@ -11,6 +11,7 @@
 #include "ldk_editor_atlas.h"
 
 #include <stdx/stdx_array.h>
+#include <stdx/stdx_strbuilder.h>
 
 typedef enum LDKEditorState
 {
@@ -20,12 +21,12 @@ typedef enum LDKEditorState
   LDK_EDITOR_STATE_PLAYING = 3
 } LDKEditorState;
 
-#ifndef LDK_EDITOR_COMMAND_MAX_LENGTH 
+#ifndef LDK_EDITOR_COMMAND_MAX_LENGTH
 #define LDK_EDITOR_COMMAND_MAX_LENGTH 32
 #endif
 
-#ifndef LDK_EDITOR_COMMAND_INITIAL_CAPACITY 
-#define LDK_EDITOR_COMMAND_INITIAL_CAPACITY  16
+#ifndef LDK_EDITOR_COMMAND_INITIAL_CAPACITY
+#define LDK_EDITOR_COMMAND_INITIAL_CAPACITY 16
 #endif
 
 typedef struct LDKEditorCommand
@@ -43,7 +44,7 @@ typedef struct LDKEditorContext
   LDKAssetFont font;
   LDKFontInstance *font_instance;
   LDKRenderer *renderer;
-  XArray* commands;
+  XArray *commands;
 
   LDKUITextInputState text_input_state;
   LDKProject project;
@@ -51,8 +52,10 @@ typedef struct LDKEditorContext
   LDKEditorState editor_state;
   XFSPath engine_runtree;
   LDKGameUpdateFunc original_game_update_fn;
-
   LDKResourceTexture ui_atlas;
+
+  // Console output string builder
+  XStrBuilder *console_sb;
 
   // config
   XFSPath editor_font;
@@ -60,10 +63,17 @@ typedef struct LDKEditorContext
   i32 editor_font_size;
 } LDKEditorContext;
 
+void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
+void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
+void ldk_editor_internal_theme_icons_set(
+    LDKEditorContext *editor, LDKUITheme *theme);
+void ldk_editor_internal_register_commands(LDKEditorContext *editor);
+void ldk_editor_internal_confirm_quit(LDKEditorContext *editor);
+bool ldk_editor_internal_show_open_project_dialog(
+    LDKEditorContext *editor, XFSPath *project_path_out);
 
-void ldk_editor_internal_menubar_show(LDKEditorContext* editor);
-void ldk_editor_internal_toolbar_show(LDKEditorContext* editor);
-void ldk_editor_internal_theme_icons_set(LDKEditorContext* editor, LDKUITheme* theme);
-void ldk_editor_internal_register_commands(LDKEditorContext* editor);
+void ldk_editor_internal_log_error(LDKEditorContext *editor, const char* msg);
+void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char* msg);
+void ldk_editor_internal_log_info(LDKEditorContext  *editor, const char* msg);
 
-#endif  //LDK_EDITOR_INTERNAL
+#endif // LDK_EDITOR_INTERNAL

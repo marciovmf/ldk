@@ -1983,18 +1983,26 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
-    rgba32 text = 0xd8d8d8FFu;
-    rgba32 text_disabled = 0x707070FFu;
-    rgba32 bg = 0x333333EEu;
-    rgba32 panel = 0x252525EEu;
-    rgba32 control = 0x444444FFu;
-    rgba32 hover = 0x505050FFu;
-    rgba32 active = 0x38b8a4FFu;
-    rgba32 active_hover = 0x43c8b3FFu;
-    rgba32 border = 0x1c1c1cFFu;
-    rgba32 accent = 0x38b8a4FFu;
-    rgba32 title = 0x3f3f3fFFu;
-    rgba32 title_focus = 0x2a2a2aFFu;
+    rgba32 text          = 0xd8d8d8FFu;
+    rgba32 text_disabled = 0x777777FFu;
+
+    rgba32 bg            = 0x2b2b2bFFu;
+    rgba32 panel         = 0x2b2b2bFFu;
+
+    rgba32 control       = 0x343434FFu;
+    rgba32 hover         = 0x3c3c3cFFu;
+
+    rgba32 active        = 0x38b8a4FFu;
+    rgba32 active_hover  = 0x43c8b3FFu;
+
+    rgba32 border        = 0x2b2b2bFFu;
+    rgba32 separator     = 0x3a3a3aFFu;
+
+    rgba32 title_bg      = 0x2b2b2bFFu;
+    rgba32 title         = 0x7BBBC2FFu;
+    rgba32 title_focus   = 0x303030FFu;
+
+    rgba32 accent        = 0x38b8a4FFu;
 
     theme->colors[LDK_UI_COLOR_TEXT] = text;
     theme->colors[LDK_UI_COLOR_TEXT_DISABLED] = text_disabled;
@@ -2016,7 +2024,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED] = text_disabled;
     theme->colors[LDK_UI_COLOR_BORDER] = border;
     theme->colors[LDK_UI_COLOR_FOCUS] = accent;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR] = title;
+    theme->colors[LDK_UI_COLOR_TITLE] = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR] = title_bg;
     theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED] = title_focus;
     theme->colors[LDK_UI_COLOR_SEPARATOR] = hover;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK] = control;
@@ -2043,7 +2052,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     rgba32 active_hover = 0xb4b4b4ffu;
     rgba32 border = 0xa0a0a0ffu;
     rgba32 accent = 0x4f8cc9ffu;
-    rgba32 title = 0xdcdcdcffu;
+    rgba32 title = 0x000000FFu;
+    rgba32 title_bg = 0xdcdcdcffu;
     rgba32 title_focus = 0xbfcfffffu;
 
     theme->colors[LDK_UI_COLOR_TEXT] = text;
@@ -2066,7 +2076,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED] = text_disabled;
     theme->colors[LDK_UI_COLOR_BORDER] = border;
     theme->colors[LDK_UI_COLOR_FOCUS] = accent;
-    theme->colors[LDK_UI_COLOR_TITLE_BAR] = title;
+    theme->colors[LDK_UI_COLOR_TITLE] = title;
+    theme->colors[LDK_UI_COLOR_TITLE_BAR] = title_bg;
     theme->colors[LDK_UI_COLOR_TITLE_BAR_FOCUSED] = title_focus;
     theme->colors[LDK_UI_COLOR_SEPARATOR] = hover;
     theme->colors[LDK_UI_COLOR_SLIDER_TRACK] = control;
@@ -2086,8 +2097,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     return false;
   }
 
-  theme->control_border_size = 1.0f;
-  theme->window_border_size = 3.0f;
+  theme->control_border_size = 0.35f;
+  theme->window_border_size = 0.4f;
   theme->window_interaction_border_size = 4.0f;
   theme->slider_track_height = 0.27272728f;
   theme->slider_thumb_width = 0.63636363f;
@@ -2442,7 +2453,7 @@ bool ldk_ui_widget_toggle(
     check_rect.x = box.rect.x + (box.rect.w - check_rect.w) * 0.5f;
     check_rect.y = box.rect.y + (box.rect.h - check_rect.h) * 0.5f;
 
-    s_ui_render_icon(ctx, toggle_icon, check_rect, text_color, box.clip);
+    s_ui_render_icon(ctx, toggle_icon, check_rect, toggle_icon.color, box.clip);
   }
   else if (value)
   {
