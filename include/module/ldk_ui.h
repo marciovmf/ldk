@@ -137,6 +137,7 @@ extern "C"
     LDK_UI_COLOR_SLIDER_THUMB,
     LDK_UI_COLOR_SLIDER_THUMB_HOVERED,
     LDK_UI_COLOR_SLIDER_THUMB_ACTIVE,
+    LDK_UI_COLOR_TITLE,
     LDK_UI_COLOR_TITLE_BAR,
     LDK_UI_COLOR_TITLE_BAR_FOCUSED,
     LDK_UI_COLOR_SCROLLBAR_TRACK,
@@ -152,6 +153,7 @@ extern "C"
     uintptr_t texture;
     LDKUIRect uv;
     LDKUISize size;
+    rgba32 color;
   } LDKUIIcon;
 
   typedef enum LDKUIThemeIconSlot

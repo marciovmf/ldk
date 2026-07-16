@@ -115,7 +115,7 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
       icon_rect.w = chevron_icon.size.w;
       icon_rect.h = chevron_icon.size.h;
 
-      s_ui_render_icon(ctx, chevron_icon, icon_rect, text_color, box.clip);
+      s_ui_render_icon(ctx, chevron_icon, icon_rect, chevron_icon.color, box.clip);
     }
     else
     {

@@ -14,6 +14,7 @@ typedef struct LDKRHIGL33TextureInfo
   uint32_t width;
   uint32_t height;
   uint32_t depth;
+  uint32_t mip_count;
 } LDKRHIGL33TextureInfo;
 
 typedef struct LDKRHIGL33BufferInfo
@@ -538,6 +539,22 @@ static GLenum ldk_rhi_gl33_filter(LDKRHIFilter filter)
   return GL_LINEAR;
 }
 
+static GLenum ldk_rhi_gl33_min_filter(
+    LDKRHIFilter min_filter,
+    LDKRHIFilter mip_filter)
+{
+  if (min_filter == LDK_RHI_FILTER_NEAREST)
+  {
+    return mip_filter == LDK_RHI_FILTER_NEAREST
+      ? GL_NEAREST_MIPMAP_NEAREST
+      : GL_NEAREST_MIPMAP_LINEAR;
+  }
+
+  return mip_filter == LDK_RHI_FILTER_NEAREST
+    ? GL_LINEAR_MIPMAP_NEAREST
+    : GL_LINEAR_MIPMAP_LINEAR;
+}
+
 static GLenum ldk_rhi_gl33_wrap(LDKRHIWrap wrap)
 {
   if (wrap == LDK_RHI_WRAP_REPEAT)
@@ -872,6 +889,7 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
   glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, (GLint)(desc->mip_count - 1));
 
   glTexParameteri(target, GL_TEXTURE_SWIZZLE_R, ldk_rhi_gl33_swizzle(desc->swizzle_r, GL_RED));
   glTexParameteri(target, GL_TEXTURE_SWIZZLE_G, ldk_rhi_gl33_swizzle(desc->swizzle_g, GL_GREEN));
@@ -900,6 +918,7 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
     backend->textures[texture].width = desc->width;
     backend->textures[texture].height = desc->height;
     backend->textures[texture].depth = desc->depth;
+    backend->textures[texture].mip_count = desc->mip_count;
   }
 
   glBindTexture(target, 0);
@@ -947,6 +966,12 @@ static bool ldk_rhi_gl33_texture_update(void* backend_user_data, LDKRHITexture t
     glTexSubImage3D(info.target, (GLint)mip_level, 0, 0, 0, (GLsizei)info.width, (GLsizei)info.height, (GLsizei)info.depth, external_format, external_type, data);
   }
 
+  if (mip_level == 0 && info.mip_count > 1)
+  {
+    glGenerateMipmap(info.target);
+  }
+
+  glBindTexture(info.target, 0);
   return true;
 }
 
@@ -955,7 +980,10 @@ static LDKRHISampler ldk_rhi_gl33_create_sampler(void* backend_user_data, const 
   (void)backend_user_data;
   GLuint sampler = 0;
   glGenSamplers(1, &sampler);
-  glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, ldk_rhi_gl33_filter(desc->min_filter));
+  glSamplerParameteri(
+      sampler,
+      GL_TEXTURE_MIN_FILTER,
+      ldk_rhi_gl33_min_filter(desc->min_filter, desc->mip_filter));
   glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, ldk_rhi_gl33_filter(desc->mag_filter));
   glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, ldk_rhi_gl33_wrap(desc->wrap_u));
   glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, ldk_rhi_gl33_wrap(desc->wrap_v));

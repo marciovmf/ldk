@@ -24,6 +24,64 @@ static LDKEntityRegistry* s_ecs_entity_registry(void)
   return &ecs->entity;
 }
 
+typedef struct LDKECSEntityForeachContext
+{
+  bool (*fn)(LDKEntity entity, void* user);
+  void* user;
+} LDKECSEntityForeachContext;
+
+typedef struct LDKECSComponentTypeAtContext
+{
+  LDKEntity entity;
+  u32 component_index;
+  u32* out_component_type;
+  bool found;
+} LDKECSComponentTypeAtContext;
+
+static bool s_ecs_entity_foreach_adapter(
+    LDKEntity entity, LDKEntityInfo* info, void* user)
+{
+  LDKECSEntityForeachContext* context =
+      (LDKECSEntityForeachContext*)user;
+
+  (void)info;
+
+  if (!context || !context->fn)
+  {
+    return false;
+  }
+
+  return context->fn(entity, context->user);
+}
+
+static bool s_ecs_entity_component_type_at_adapter(
+    LDKEntity entity, LDKEntityInfo* info, void* user)
+{
+  LDKECSComponentTypeAtContext* context =
+      (LDKECSComponentTypeAtContext*)user;
+
+  if (!context || !info)
+  {
+    return false;
+  }
+
+  if (entity.index != context->entity.index ||
+      entity.version != context->entity.version)
+  {
+    return true;
+  }
+
+  if (context->component_index >= info->components.component_count)
+  {
+    return false;
+  }
+
+  *context->out_component_type =
+      info->components.component_type[context->component_index];
+  context->found = true;
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // ECS lifecycle
 // ---------------------------------------------------------------------------
@@ -222,6 +280,86 @@ void* ldk_ecs_component_get(LDKEntity entity, u32 component_type)
 const void* ldk_ecs_component_get_const(LDKEntity entity, u32 component_type)
 {
   return (const void*) ldk_ecs_component_get(entity, component_type);
+}
+
+bool ldk_ecs_entity_foreach(
+    bool (*fn)(LDKEntity entity, void* user), void* user)
+{
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKECSEntityForeachContext context;
+
+  if (!entity_registry || !fn)
+  {
+    return false;
+  }
+
+  context.fn = fn;
+  context.user = user;
+
+  ldk_entity_foreach(entity_registry, s_ecs_entity_foreach_adapter, &context);
+  return true;
+}
+
+u32 ldk_ecs_entity_component_count(LDKEntity entity)
+{
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+
+  if (!entity_registry)
+  {
+    return 0;
+  }
+
+  return ldk_entity_component_count(entity_registry, entity);
+}
+
+bool ldk_ecs_entity_component_type_at(
+    LDKEntity entity, u32 component_index, u32* out_component_type)
+{
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKECSComponentTypeAtContext context;
+
+  if (out_component_type)
+  {
+    *out_component_type = 0;
+  }
+
+  if (!entity_registry || !out_component_type)
+  {
+    return false;
+  }
+
+  context.entity = entity;
+  context.component_index = component_index;
+  context.out_component_type = out_component_type;
+  context.found = false;
+
+  ldk_entity_foreach(
+      entity_registry, s_ecs_entity_component_type_at_adapter, &context);
+  return context.found;
+}
+
+const char* ldk_ecs_entity_name_get(LDKEntity entity)
+{
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+
+  if (!entity_registry)
+  {
+    return NULL;
+  }
+
+  return ldk_entity_name_get(entity_registry, entity);
+}
+
+bool ldk_ecs_entity_name_set(LDKEntity entity, const char* name)
+{
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+
+  if (!entity_registry)
+  {
+    return false;
+  }
+
+  return ldk_entity_name_set(entity_registry, entity, name);
 }
 
 bool ldk_ecs_component_remove(LDKEntity entity, u32 component_type)
