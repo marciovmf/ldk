@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "ldk_project.h"
 #include "stdx/stdx_strbuilder.h"
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_string.h>
@@ -177,6 +178,15 @@ static bool s_editor_command_project(XSlice args)
   return loaded;
 }
 
+static bool s_editor_command_projnew(XSlice args)
+{
+  LDKProjectCreateDesc desc;
+  desc.project_name = "test_project";
+  desc.project_root_path = "c:\\work\\my_ldk_project";
+  desc.cmake_generator = "Visual Studio 17 2022";
+  return ldk_project_create(&desc);
+}
+
 //------------------------------------------------------------
 // Internal
 //------------------------------------------------------------
@@ -190,6 +200,8 @@ void ldk_editor_internal_register_commands(LDKEditorContext *editor)
   ldk_editor_command_register(editor, "help",
                               "Shows help information for a given command.", s_editor_command_help);
 
+  ldk_editor_command_register(
+    editor, "projnew", "Creates a new project.", s_editor_command_projnew);
   ldk_editor_command_register(
     editor, "play", "Enter Play mode.", s_editor_command_play);
   ldk_editor_command_register(

@@ -249,17 +249,12 @@ static void s_project_append_game_ini_text(XStrBuilder* builder, const char* pro
 
 static void s_project_append_game_cmake_text(XStrBuilder* builder)
 {
-  x_strbuilder_append(builder, "set(LDK_GAME_SOURCES\n");
-  x_strbuilder_append(builder, "  \"${OPTION_GAME_DIR}/src/game.c\"\n");
-  x_strbuilder_append(builder, ")\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "set(LDK_GAME_INCLUDE_DIRS\n");
-  x_strbuilder_append(builder, "  \"${OPTION_GAME_DIR}/src\"\n");
-  x_strbuilder_append(builder, ")\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "set(LDK_GAME_DEFINITIONS)\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "set(LDK_GAME_LIBRARIES)\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_SOURCES\n  \"${CMAKE_CURRENT_LIST_DIR}/src/game.c\"\n)\n\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_INCLUDE_DIRS\n  \"${CMAKE_CURRENT_LIST_DIR}/src\"\n)\n\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_DEFINITIONS\n  \"LDK_GAME\"\n)\n\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_LIBRARIES\n  \"\"\n)\n\n");
+  x_strbuilder_append(builder, "# Where to look for game components\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_COMPONENT_DIRS\n  \"${OPTION_GAME_DIR}\\components\"\n)\n\n");
 }
 
 static void s_project_append_game_c_text(XStrBuilder* builder)

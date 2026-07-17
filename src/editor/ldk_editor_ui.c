@@ -868,4 +868,3 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
-
