@@ -57,6 +57,9 @@ typedef struct LDKEditorContext
   // Console output string builder
   XStrBuilder *console_sb;
 
+  //
+  bool create_project_window_show;
+
   // config
   XFSPath editor_font;
   XSmallstr editor_theme;
@@ -67,6 +70,7 @@ void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
 void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
 void ldk_editor_internal_theme_icons_set(
     LDKEditorContext *editor, LDKUITheme *theme);
+void ldk_editor_internal_project_create_show(LDKEditorContext *editor);
 void ldk_editor_internal_register_commands(LDKEditorContext *editor);
 void ldk_editor_internal_confirm_quit(LDKEditorContext *editor);
 bool ldk_editor_internal_show_open_project_dialog(

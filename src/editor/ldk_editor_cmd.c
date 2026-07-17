@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "ldk_os.h"
 #include "ldk_project.h"
 #include "stdx/stdx_strbuilder.h"
 #include <stdx/stdx_array.h>
@@ -180,11 +181,15 @@ static bool s_editor_command_project(XSlice args)
 
 static bool s_editor_command_projnew(XSlice args)
 {
-  LDKProjectCreateDesc desc;
-  desc.project_name = "test_project";
-  desc.project_root_path = "c:\\work\\my_ldk_project";
-  desc.cmake_generator = "Visual Studio 17 2022";
-  return ldk_project_create(&desc);
+  LDKEditorContext* editor = (LDKEditorContext*) ldk_editor_get();
+  editor->create_project_window_show = true;
+    
+  //LDKProjectCreateDesc desc;
+  //desc.project_name = "test_project";
+  //desc.project_root_path = "c:\\work\\my_ldk_project";
+  //desc.cmake_generator = "Visual Studio 17 2022";
+  //return ldk_project_create(&desc);
+  return true;
 }
 
 //------------------------------------------------------------
