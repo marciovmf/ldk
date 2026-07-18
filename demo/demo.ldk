@@ -3,3 +3,13 @@ project_name = demo
 project_cmake_root = workspace
 project_run_root = runtree
 project_cmake_generator = Visual Studio 17 2022
+
+[general]
+asset_root = "assets"
+log_file = "ldk.log"
+
+[display]
+title = "My Awesome Game"
+width = 1280
+height = 720
+fullscreen = false

@@ -503,6 +503,9 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
   ldk_editor_internal_menubar_show(editor);
   ldk_editor_console_show(editor);
   ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
+
+  if (editor->create_project_window_show)
+    ldk_editor_internal_project_create_show((LDKEditorContext*)ldk_editor_get());
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
