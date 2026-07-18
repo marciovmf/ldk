@@ -931,6 +931,7 @@ static i32 s_editor_main(const char *project_file_path)
 
   editor->window = ldk_engine_main_window_get();
   editor->renderer = ldk_module_get(LDK_MODULE_RENDERER);
+  
   // Initialize editor
   if (!s_editor_config_load_from_ini(editor, &ini, &config))
   {
@@ -938,7 +939,6 @@ static i32 s_editor_main(const char *project_file_path)
     ldk_engine_terminate();
     return 1;
   }
-
   x_ini_free(&ini);
 
   // Load editor resources
@@ -955,6 +955,8 @@ static i32 s_editor_main(const char *project_file_path)
   }
 
   s_editor_set_title(editor);
+  XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
+  ldk_log_info("CMake path is %s\n", cmake_path.buf);
 
   // If a project file was passed, load that project
   if (project_file_path)
