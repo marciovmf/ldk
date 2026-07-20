@@ -6,6 +6,7 @@
 #include <stdx/stdx_ini.h>
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_strbuilder.h>
+#include <stdx/stdx_string.h>
 
 #include <ctype.h>
 #include <stdio.h>
@@ -171,40 +172,34 @@ static bool s_copy_runtime_sections(FILE* in_file, FILE* out_file)
   return wrote_any_line;
 }
 
-static bool s_project_create_required_dirs(
-    const XFSPath* project_root_path,
-    const XFSPath* cache_path,
-    const XFSPath* workspace_path,
-    const XFSPath* src_path,
-    const XFSPath* runtree_path,
-    const XFSPath* assets_path)
+static bool s_project_create_required_dirs(LDKProject *project)
 {
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(project_root_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->project_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(cache_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->cache_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(workspace_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->cmake_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(src_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->source_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(runtree_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->run_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(assets_path)))
+  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->assets_path)))
   {
     return false;
   }
@@ -214,21 +209,28 @@ static bool s_project_create_required_dirs(
 
 static void s_project_append_project_file_text(
     XStrBuilder* builder,
-    const char* project_name,
-    const char* cmake_generator)
+    LDKProject* project)
 {
   x_strbuilder_append(builder, "[.project]\n");
-  x_strbuilder_append_format(builder, "project_name = \"%s\"\n", project_name);
+  x_strbuilder_append_format(builder, "project_name = \"%s\"\n", project->name.buf);
   x_strbuilder_append(builder, "project_cmake_root = \"workspace\"\n");
   x_strbuilder_append(builder, "project_run_root = \"runtree\"\n");
-  x_strbuilder_append_format(builder, "project_cmake_generator = \"%s\"\n", cmake_generator);
+  x_strbuilder_append_format(builder, "project_cmake_generator = \"%s\"\n", project->cmake_generator.buf);
+
+  x_strbuilder_append_cstr(builder, "project_source_root_path = \".\"\n");
+  x_strbuilder_append_cstr(builder, "project_assets_path = \"runtree/assets\"\n");
+  x_strbuilder_append_cstr(builder, "project_runtime_ini_path = \"runtree/game.ini\"\n");
+  x_strbuilder_append_cstr(builder, "project_cache_path = \".ldk\"\n");
+  x_strbuilder_append_cstr(builder, "project_game_dll_path = \".ldk/Debug/game_shared.dll\"\n");
+  x_strbuilder_append_cstr(builder, "project_workspace_path = \"workspace\"\n");
+  
   x_strbuilder_append(builder, "\n");
   x_strbuilder_append(builder, "[general]\n");
   x_strbuilder_append(builder, "asset_root = \"assets\"\n");
   x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
   x_strbuilder_append(builder, "\n");
   x_strbuilder_append(builder, "[display]\n");
-  x_strbuilder_append_format(builder, "title = \"%s\"\n", project_name);
+  x_strbuilder_append_format(builder, "title = \"%s\"\n", project->name.buf);
   x_strbuilder_append(builder, "width = 1280\n");
   x_strbuilder_append(builder, "height = 720\n");
   x_strbuilder_append(builder, "fullscreen = false\n");
@@ -291,12 +293,7 @@ static void s_project_append_game_c_text(XStrBuilder* builder)
 }
 
 static bool s_project_create_files(
-    const XFSPath* project_file_path,
-    const XFSPath* game_ini_path,
-    const XFSPath* game_cmake_path,
-    const XFSPath* game_c_path,
-    const char* project_name,
-    const char* cmake_generator)
+  LDKProject *project, const XFSPath* game_c_path)
 {
   XStrBuilder* project_text;
   XStrBuilder* game_ini_text;
@@ -318,14 +315,14 @@ static bool s_project_create_files(
     return false;
   }
 
-  s_project_append_project_file_text(project_text, project_name, cmake_generator);
-  s_project_append_game_ini_text(game_ini_text, project_name);
+  s_project_append_project_file_text(project_text, project);
+  s_project_append_game_ini_text(game_ini_text, project->name.buf);
   s_project_append_game_cmake_text(game_cmake_text);
   s_project_append_game_c_text(game_c_text);
 
-  result = s_builder_write_text(project_file_path, project_text)
-    && s_builder_write_text(game_ini_path, game_ini_text)
-    && s_builder_write_text(game_cmake_path, game_cmake_text);
+  result = s_builder_write_text(&project->project_file_path, project_text)
+    && s_builder_write_text(&project->runtime_ini_path, game_ini_text)
+    && s_builder_write_text(&project->game_cmake_path, game_cmake_text);
 
   if (result && !x_fs_path_is_file(game_c_path))
   {
@@ -342,15 +339,7 @@ static bool s_project_create_files(
 
 bool ldk_project_create(const LDKProjectCreateDesc* desc)
 {
-  XFSPath project_root_path;
-  XFSPath project_file_path;
-  XFSPath cache_path;
-  XFSPath workspace_path;
-  XFSPath src_path;
-  XFSPath runtree_path;
-  XFSPath assets_path;
-  XFSPath game_ini_path;
-  XFSPath game_cmake_path;
+  LDKProject project = {0};
   XFSPath game_c_path;
   const char* project_name;
   const char* cmake_generator;
@@ -363,51 +352,42 @@ bool ldk_project_create(const LDKProjectCreateDesc* desc)
   project_name = s_string_is_empty(desc->project_name) ? "Game" : desc->project_name;
   cmake_generator = s_string_is_empty(desc->cmake_generator) ? LDK_PROJECT_DEFAULT_CMAKE_GENERATOR : desc->cmake_generator;
 
-  x_fs_path_set(&project_root_path, desc->project_root_path);
-  x_fs_path_normalize(&project_root_path);
+  x_smallstr_from_cstr(&project.name, project_name);
+  x_smallstr_from_cstr(&project.cmake_generator, cmake_generator);
 
-  x_fs_path(&cache_path, x_fs_path_cstr(&project_root_path), ".ldk");
-  x_fs_path(&workspace_path, x_fs_path_cstr(&project_root_path), "workspace");
-  x_fs_path(&src_path, x_fs_path_cstr(&project_root_path), "src");
-  x_fs_path(&runtree_path, x_fs_path_cstr(&project_root_path), "runtree");
-  x_fs_path(&assets_path, x_fs_path_cstr(&runtree_path), "assets");
+  x_fs_path_set(&project.project_root_path, desc->project_root_path);
+  x_fs_path_normalize(&project.project_root_path);
 
-  x_fs_path_normalize(&cache_path);
-  x_fs_path_normalize(&workspace_path);
-  x_fs_path_normalize(&src_path);
-  x_fs_path_normalize(&runtree_path);
-  x_fs_path_normalize(&assets_path);
+  x_fs_path(&project.cache_path, x_fs_path_cstr(&project.project_root_path), ".ldk");
+  x_fs_path(&project.cmake_root_path, x_fs_path_cstr(&project.project_root_path), "workspace");
+  x_fs_path(&project.source_root_path, x_fs_path_cstr(&project.project_root_path), "src");
+  x_fs_path(&project.run_root_path, x_fs_path_cstr(&project.project_root_path), "runtree");
+  x_fs_path(&project.assets_path, x_fs_path_cstr(&project.run_root_path), "assets");
 
-  if (!s_project_create_required_dirs(
-        &project_root_path,
-        &cache_path,
-        &workspace_path,
-        &src_path,
-        &runtree_path,
-        &assets_path))
+  x_fs_path_normalize(&project.cache_path);
+  x_fs_path_normalize(&project.cmake_root_path);
+  x_fs_path_normalize(&project.source_root_path);
+  x_fs_path_normalize(&project.run_root_path);
+  x_fs_path_normalize(&project.assets_path);
+
+  if (!s_project_create_required_dirs(&project))
   {
     return false;
   }
 
-  x_fs_path(&project_file_path, x_fs_path_cstr(&project_root_path), project_name);
-  x_fs_path_change_extension(&project_file_path, "ldk");
+  x_fs_path(&project.project_file_path, x_fs_path_cstr(&project.project_root_path), project_name);
+  x_fs_path_change_extension(&project.project_file_path, "ldk");
 
-  x_fs_path(&game_ini_path, x_fs_path_cstr(&runtree_path), "game.ini");
-  x_fs_path(&game_cmake_path, x_fs_path_cstr(&project_root_path), "ldk_game.cmake");
-  x_fs_path(&game_c_path, x_fs_path_cstr(&src_path), "game.c");
+  x_fs_path(&project.runtime_ini_path, x_fs_path_cstr(&project.run_root_path), "game.ini");
+  x_fs_path(&project.game_cmake_path, x_fs_path_cstr(&project.project_root_path), "ldk_game.cmake");
+  x_fs_path(&game_c_path, x_fs_path_cstr(&project.source_root_path), "game.c");
 
-  x_fs_path_normalize(&project_file_path);
-  x_fs_path_normalize(&game_ini_path);
-  x_fs_path_normalize(&game_cmake_path);
+  x_fs_path_normalize(&project.project_file_path);
+  x_fs_path_normalize(&project.runtime_ini_path);
+  x_fs_path_normalize(&project.game_cmake_path);
   x_fs_path_normalize(&game_c_path);
 
-  return s_project_create_files(
-      &project_file_path,
-      &game_ini_path,
-      &game_cmake_path,
-      &game_c_path,
-      project_name,
-      cmake_generator);
+  return s_project_create_files(&project, &game_c_path);
 }
 
 bool ldk_project_load(LDKProject* project, const char* project_file_path)

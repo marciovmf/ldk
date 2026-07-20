@@ -176,27 +176,6 @@ static bool s_editor_cmake_version_is_supported(const char *cmake_path)
   return major > 3 || (major == 3 && minor >= 16);
 }
 
-static bool s_editor_cmake_find_on_path(XFSPath *cmake_path)
-{
-  FILE *process = _popen("where cmake.exe 2>NUL", "r");
-  if (!process)
-    return false;
-
-  char path[X_SMALLSTR_MAX_LENGTH];
-  bool path_found = fgets(path, sizeof(path), process) != NULL;
-
-  i32 exit_code = _pclose(process);
-  if (!path_found || exit_code != 0)
-    return false;
-
-  path[strcspn(path, "\r\n")] = 0;
-
-  x_fs_path_set(cmake_path, path);
-  x_fs_path_normalize(cmake_path);
-
-  return x_fs_path_is_file(cmake_path);
-}
-
 /**
  * Returns the path to a supported CMake executable.
  *
@@ -207,7 +186,7 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
 {
   XFSPath cmake_path = {0};
 
-  if (s_editor_cmake_find_on_path(&cmake_path) &&
+  if (x_fs_executable_find("cmake", &cmake_path) &&
       s_editor_cmake_version_is_supported(cmake_path.buf))
   {
     return cmake_path;
