@@ -108,7 +108,7 @@ void ldk_editor_internal_theme_icons_set(
   editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
   theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
@@ -267,8 +267,8 @@ static bool on_event_text(const LDKEvent *event, void *state)
         LDK_UI_INPUT_CODEPOINTS_CAPACITY)
     {
       editor->text_input_state
-          .codepoints[editor->text_input_state.codepoint_count++] =
-          event->text_event.character;
+        .codepoints[editor->text_input_state.codepoint_count++] =
+        event->text_event.character;
       return true;
     }
   }
@@ -322,30 +322,30 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
   static bool s_root_open[10] = {0};
   static bool s_child_open[10] = {0};
   static char const *s_root_labels[10] = {
-      "Root 0",
-      "Root 1",
-      "Root 2",
-      "Root 3",
-      "Root 4",
-      "Root 5",
-      "Root 6",
-      "Root 7",
-      "Root 8",
-      "Root 9",
+    "Root 0",
+    "Root 1",
+    "Root 2",
+    "Root 3",
+    "Root 4",
+    "Root 5",
+    "Root 6",
+    "Root 7",
+    "Root 8",
+    "Root 9",
   };
 
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
   for (u32 i = 0; i < 10; i++)
   {
     ldk_ui_push_id_u32(ui, i);
 
     s_root_open[i] =
-        ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
+      ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
     if (s_root_open[i])
     {
       if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
@@ -361,9 +361,9 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
       if (s_child_open[i])
       {
         ldk_ui_tree_node(
-            ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
+          ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
         ldk_ui_tree_node(
-            ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
+          ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
         ldk_ui_tree_node(ui, "Nested Scale", false, 2, LDK_UI_TREE_NODE_LEAF);
       }
     }
@@ -401,10 +401,10 @@ static void s_editor_save_scene(LDKEditor *editor)
 
 static void s_editor_test_a(LDKEditor *editor)
 {
-  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
+  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
@@ -421,14 +421,14 @@ static void s_editor_test_a(LDKEditor *editor)
 static void s_editor_test_b(LDKEditor *editor)
 {
   static bool check = false;
-  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
+  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
   static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
   static bool open_a = true;
   open_a = ldk_ui_begin_area(ui, "Transform", open_a);
@@ -872,11 +872,10 @@ static i32 s_editor_main(const char *project_file_path)
 
   if (!x_ini_load_file(editor_ini_path.buf, &ini, &ini_error))
   {
-    ldk_log_error("Failed to load config file '%s'. "
-                  "Syntax error at %d:%d: %s",
+    ldk_log_error("Failed to load config file '%s'. Syntax error at %d:%d: %s",
         editor_ini_path.buf, ini_error.line, ini_error.column,
         ini_error.message ? ini_error.message : "Unknown error");
-    return 1;
+    return false;
   }
 
   /*
