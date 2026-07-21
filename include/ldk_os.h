@@ -407,6 +407,7 @@ extern "C" {
   } LDKOSDialogResult;
 
   LDK_API bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter, char* out_path, size_t out_path_size);
+  LDK_API bool ldk_os_dialog_show_open_folder(LDKWindow owner, const char* title, const char* filter, char* out_path, size_t out_path_size);
   LDK_API bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter, char* out_path, size_t out_path_size);
   LDK_API bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message);
   LDK_API bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message);

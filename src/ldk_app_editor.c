@@ -75,10 +75,20 @@ static LDKEditorContext *s_editor_instance(void)
   return &editor;
 }
 
-static inline void s_editor_confirm_quit(LDKEditorContext *editor)
+void ldk_editor_internal_confirm_quit(LDKEditorContext *editor)
 {
-  if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
-          "Are you sure you want to quit the editor ?"))
+  bool close = false;
+
+  if (!editor->project.loaded)
+    close = true;
+
+  else if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
+               "Are you sure you want to quit the editor ?"))
+  {
+    close = true;
+  }
+
+  if (close)
   {
     ldk_log_info("Closing game window\n");
     ldk_engine_stop(0);
@@ -113,24 +123,101 @@ void ldk_editor_internal_theme_icons_set(
   theme->icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
 }
 
-
-bool s_editor_show_open_project_dialog(LDKEditorContext *editor, XFSPath* project_path_out)
+bool ldk_editor_internal_show_open_project_dialog(
+    LDKEditorContext *editor, XFSPath *project_path_out)
 {
-  if (ldk_os_dialog_show_open_file(editor->window, "Open Project",
-                                   "*.ldk", project_path_out->buf, X_SMALLSTR_MAX_LENGTH))
+  XFSPath out;
+  if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
+          out.buf, X_SMALLSTR_MAX_LENGTH))
   {
     s_editor_state_set_stop(editor);
     ldk_project_unload(&editor->project);
     ldk_game_instance_unload();
 
-    if (!s_project_load(editor, project_path_out->buf))
+    if (!s_project_load(editor, out.buf))
     {
-      ldk_os_dialog_show_ok(
-        editor->window, "Failed to load project", project_path_out->buf);
+      ldk_os_dialog_show_ok(editor->window, "Failed to load project", out.buf);
       return false;
     }
   }
+
+  if (project_path_out)
+  {
+    strncpy(project_path_out->buf, out.buf, X_FS_PATH_MAX_LENGTH);
+    project_path_out->length = out.length;
+  }
+
   return true;
+}
+
+static bool s_editor_cmake_version_is_supported(const char *cmake_path)
+{
+  char command[X_SMALLSTR_MAX_LENGTH + 32];
+  char version_text[128];
+  i32 major;
+  i32 minor;
+
+  snprintf(command, sizeof(command), "\"%s\" --version", cmake_path);
+
+  FILE *process = _popen(command, "r");
+  if (!process)
+    return false;
+
+  bool output_read = fgets(
+      version_text, sizeof(version_text), process) != NULL;
+
+  i32 exit_code = _pclose(process);
+  if (!output_read || exit_code != 0)
+    return false;
+
+  if (sscanf(version_text, "cmake version %d.%d", &major, &minor) != 2)
+    return false;
+
+  return major > 3 || (major == 3 && minor >= 16);
+}
+
+/**
+ * Returns the path to a supported CMake executable.
+ *
+ * An empty path is returned if CMake cannot be found or the user cancels
+ * the file dialog.
+ */
+static XFSPath s_editor_cmake_path_get(LDKWindow owner)
+{
+  XFSPath cmake_path = {0};
+
+  if (x_fs_executable_find("cmake", &cmake_path) &&
+      s_editor_cmake_version_is_supported(cmake_path.buf))
+  {
+    return cmake_path;
+  }
+
+  while (true)
+  {
+    char selected_path[X_SMALLSTR_MAX_LENGTH] = {0};
+
+    bool selected = ldk_os_dialog_show_open_file(owner,
+        "Locate CMake 3.16 or newer",
+        "CMake executable\0cmake.exe\0\0",
+        selected_path,
+        sizeof(selected_path));
+
+    if (!selected)
+      return (XFSPath){0};
+
+    x_fs_path_set(&cmake_path, selected_path);
+    x_fs_path_normalize(&cmake_path);
+
+    if (x_fs_path_is_file(&cmake_path) &&
+        s_editor_cmake_version_is_supported(cmake_path.buf))
+    {
+      return cmake_path;
+    }
+
+    ldk_os_dialog_show_error(owner,
+        "Unsupported CMake",
+        "The selected executable is not CMake 3.16 or newer.");
+  }
 }
 
 //----------------------------------------------------------
@@ -148,7 +235,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       // CTRL+SHIFT+P
       if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
       {
-        s_editor_state_set_stop(editor);
+        ldk_editor_state_set_stop(editor);
         return true;
       }
     }
@@ -164,8 +251,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       // CTRL+O
       if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
       {
-        XFSPath out = {0};
-        s_editor_show_open_project_dialog(editor, &out);
+        ldk_editor_internal_show_open_project_dialog(editor, NULL);
       }
     }
   }
@@ -209,10 +295,19 @@ static bool on_event_window(const LDKEvent *event, void *state)
 
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
-    s_editor_confirm_quit(editor);
+    ldk_editor_internal_confirm_quit(editor);
     return true; // Do not propagate this message further
   }
   return false;
+}
+
+static void s_editor_set_title(LDKEditorContext *editor)
+{
+  XSmallstr title;
+  x_smallstr_format(&title, "LDK Engine v%d.%d.%d - %s", LDK_VERSION_MAJOR,
+      LDK_VERSION_MINOR, LDK_VERSION_PATCH,
+      editor->project.loaded ? editor->project.name.buf : "<NO PROJECT>");
+  ldk_os_window_title_set(editor->window, title.buf);
 }
 
 /*
@@ -312,7 +407,7 @@ static void s_editor_test_a(LDKEditor *editor)
     ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
-    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
   for (u32 i = 0; i < 10; i++)
   {
@@ -387,6 +482,9 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
   ldk_editor_internal_menubar_show(editor);
   ldk_editor_console_show(editor);
   ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
+
+  if (editor->create_project_window_show)
+    ldk_editor_internal_project_create_show((LDKEditorContext*)ldk_editor_get());
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
@@ -451,8 +549,7 @@ static bool s_editor_config_load_from_ini(
   options.wrap_u = LDK_RHI_WRAP_REPEAT;
   options.wrap_v = LDK_RHI_WRAP_REPEAT;
 
-  LDKResourceTexture texture_atlas =
-    ldk_renderer_texture_create_from_image(
+  LDKResourceTexture texture_atlas = ldk_renderer_texture_create_from_image(
       ldk_module_get(LDK_MODULE_RENDERER), image_atlas, &options);
 
   if (ldk_renderer_texture_null().id == texture_atlas.id)
@@ -508,7 +605,6 @@ static bool s_editor_gui_initialize(
     LDKEditorContext *editor, LDKRenderer *renderer)
 {
   LDK_ASSERT(editor);
-  LDK_ASSERT(editor->initialized);
 
   // Editor UI Initialization
   LDKUIConfig ui_cfg = {0};
@@ -662,12 +758,7 @@ static bool s_project_load(
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   editor->original_game_update_fn = game->update;
   game->update = s_game_update;
-
-  XSmallstr title = {0};
-  x_smallstr_format(
-      &title, "LDK Editor - %s - %s", editor->project.name, project_file_path);
-  ldk_os_window_title_set(editor->window, title.buf);
-
+  s_editor_set_title(editor);
   return true;
 }
 
@@ -716,7 +807,7 @@ bool ldk_editor_project_load(LDKEditor *editor, const char *project_path)
 
 void ldk_editor_quit(LDKEditor *editor)
 {
-  s_editor_confirm_quit((LDKEditorContext *)editor);
+  ldk_editor_internal_confirm_quit((LDKEditorContext *)editor);
 }
 
 //----------------------------------------------------------
@@ -726,21 +817,58 @@ void ldk_editor_quit(LDKEditor *editor)
 static i32 s_editor_main(const char *project_file_path)
 {
   LDKEditorContext *editor = s_editor_instance();
+  editor->console_sb = x_strbuilder_create();
+
   ldk_editor_internal_register_commands(editor);
 
-  XIni ini;
-  XIniError ini_error;
+  XIni ini = {0};
+  XIniError ini_error = {0};
   LDKConfig config;
+  XFSPath default_editor_ini_path;
+  XFSPath editor_config_directory;
   XFSPath editor_ini_path;
 
-  memset(&ini, 0, sizeof(ini));
-  memset(&ini_error, 0, sizeof(ini_error));
-
-  // Load editor.ini from engine runtree
+  /*
+   * Locate the default editor.ini in the engine runtree.
+   */
   x_fs_path_from_executable(&editor->engine_runtree);
   x_fs_path_dirname(&editor->engine_runtree, &editor->engine_runtree);
   x_fs_path_join(&editor->engine_runtree, "..", "..", "runtree");
-  x_fs_path(&editor_ini_path, &editor->engine_runtree, "editor.ini");
+  x_fs_path_normalize(&editor->engine_runtree);
+
+  x_fs_path(&default_editor_ini_path, &editor->engine_runtree, "editor.ini");
+
+  /*
+   * Create %APPDATA%/ldk/editor.ini from the default configuration
+   * when no user configuration exists yet.
+   */
+  const char *appdata = getenv("APPDATA");
+  if (!appdata || !appdata[0])
+  {
+    ldk_log_error("The APPDATA environment variable is not defined.\n");
+    return 1;
+  }
+
+  x_fs_path(&editor_config_directory, appdata, "ldk");
+  x_fs_path(&editor_ini_path, &editor_config_directory, "editor.ini");
+
+  if (!x_fs_path_exists(&editor_ini_path))
+  {
+    if (!x_fs_directory_create_recursive(editor_config_directory.buf))
+    {
+      ldk_log_error("Failed to create editor configuration directory '%s'.\n",
+          editor_config_directory.buf);
+      return 1;
+    }
+
+    if (!x_fs_file_copy(default_editor_ini_path.buf, editor_ini_path.buf))
+    {
+      ldk_log_error("Failed to copy default editor configuration from "
+                    "'%s' to '%s'.\n",
+          default_editor_ini_path.buf, editor_ini_path.buf);
+      return 1;
+    }
+  }
 
   if (!x_ini_load_file(editor_ini_path.buf, &ini, &ini_error))
   {
@@ -750,12 +878,23 @@ static i32 s_editor_main(const char *project_file_path)
     return false;
   }
 
-  if (!ldk_engine_config_from_ini(&config, &ini, editor_ini_path.buf))
+  /*
+   * Resolve relative engine paths against the engine runtree rather than
+   * %APPDATA%/ldk, since the copied configuration still refers to engine
+   * resources such as assets/.
+   */
+  if (!ldk_engine_config_from_ini(&config, &ini, default_editor_ini_path.buf))
+  {
+    x_ini_free(&ini);
     return 1;
+  }
 
   // Initialize engine. Must be initialized before editor and projects
   if (!ldk_engine_initialize_with_config(&config))
+  {
+    x_ini_free(&ini);
     return 1;
+  }
 
   // Listen to text events for editor UI
   LDKEventQueue *module_event = ldk_module_get(LDK_MODULE_EVENT);
@@ -770,13 +909,15 @@ static i32 s_editor_main(const char *project_file_path)
 
   editor->window = ldk_engine_main_window_get();
   editor->renderer = ldk_module_get(LDK_MODULE_RENDERER);
-
+  
   // Initialize editor
   if (!s_editor_config_load_from_ini(editor, &ini, &config))
   {
+    x_ini_free(&ini);
     ldk_engine_terminate();
     return 1;
   }
+  x_ini_free(&ini);
 
   // Load editor resources
   if (!s_editor_load_resources(editor, &config))
@@ -791,7 +932,11 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
 
-  // If a project file was passed, loat that project
+  s_editor_set_title(editor);
+  XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
+  ldk_log_info("CMake path is %s\n", cmake_path.buf);
+
+  // If a project file was passed, load that project
   if (project_file_path)
   {
     s_project_load(editor, project_file_path);

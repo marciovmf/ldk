@@ -3,6 +3,7 @@
 #include "ldk_geom.h"
 #include "ldk_gl.h"
 
+
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <commdlg.h>
+#include <shlobj.h>
 
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_filesystem.h>
@@ -1051,11 +1053,11 @@ size_t ldk_os_window_title_get(LDKWindow window, XSmallstr* outTitle)
 {
   size_t length = GetWindowTextLengthA(window);
 
-  if (length >= X_FS_PAHT_MAX_LENGTH)
+  if (length >= X_FS_PATH_MAX_LENGTH)
     return length;
 
   HWND window_handle = ((LDKWin32Window*)window)->handle;
-  GetWindowTextA(window_handle, (char*) &outTitle->buf, X_FS_PAHT_MAX_LENGTH);
+  GetWindowTextA(window_handle, (char*) &outTitle->buf, X_FS_PATH_MAX_LENGTH);
   return 0;
 }
 
@@ -1680,6 +1682,53 @@ bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char
     OFN_EXPLORER;
 
   return GetOpenFileNameA(&ofn) != 0;
+}
+
+bool ldk_os_dialog_show_open_folder(
+    LDKWindow owner,
+    const char* title,
+    const char* filter,
+    char* out_path,
+    size_t out_path_size)
+{
+    (void)filter;
+
+    if (!out_path || out_path_size == 0)
+        return false;
+
+    out_path[0] = '\0';
+
+    char selected_path[MAX_PATH] = {};
+
+    BROWSEINFOA info = {};
+    info.hwndOwner =
+        owner ? ((LDKWin32Window*)owner)->handle : NULL;
+    info.pszDisplayName = selected_path;
+    info.lpszTitle = title;
+    info.ulFlags =
+        BIF_RETURNONLYFSDIRS |
+        BIF_NEWDIALOGSTYLE;
+
+    PIDLIST_ABSOLUTE item = SHBrowseForFolderA(&info);
+
+    if (!item)
+        return false;
+
+    bool result = false;
+
+    if (SHGetPathFromIDListA(item, selected_path))
+    {
+        size_t length = strlen(selected_path);
+
+        if (length + 1 <= out_path_size)
+        {
+            memcpy(out_path, selected_path, length + 1);
+            result = true;
+        }
+    }
+
+    CoTaskMemFree(item);
+    return result;
 }
 
 bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter,
