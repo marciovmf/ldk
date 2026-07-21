@@ -848,8 +848,6 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
   static LDKUIRect s_window_rect = {0};
   static bool s_window_initialized = false;
 
-  const LDKUIId PROJECT_TYPE_POPUP_ID = 0x43505459; // "CPTY"
-
   LDKUIContext *ui = &editor->ui;
 
   if (!s_window_initialized)
@@ -891,33 +889,10 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
     ldk_ui_label(ui, "Project type");
 
-    if (ldk_ui_button(ui, s_project_types[s_project_type]))
-    {
-      if (ldk_ui_popup_is_open(ui, PROJECT_TYPE_POPUP_ID))
-      {
-        ldk_ui_close_popup(ui, PROJECT_TYPE_POPUP_ID);
-      }
-      else
-      {
-        ldk_ui_open_popup(ui, PROJECT_TYPE_POPUP_ID);
-      }
-    }
+    s_project_type = ldk_ui_combo_box(
+        ui, s_project_types, PROJECT_TYPE_COUNT, s_project_type);
   }
   ldk_ui_end_horizontal(ui);
-
-  if (ldk_ui_begin_popup(ui, PROJECT_TYPE_POPUP_ID))
-  {
-    for (u32 i = 0; i < PROJECT_TYPE_COUNT; i++)
-    {
-      if (ldk_ui_button_flat(ui, s_project_types[i]))
-      {
-        s_project_type = i;
-        ldk_ui_close_current_popup(ui);
-      }
-    }
-
-    ldk_ui_end_popup(ui);
-  }
 
   //----------------------------------------------------------------------
   // Project path
@@ -936,7 +911,8 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
     ldk_ui_set_next_width(ui, ldk_ui_px(32.0f));
     if (ldk_ui_button(ui, "..."))
     {
-      ldk_os_dialog_show_open_folder(NULL, "Project Location", "", s_project_path.buf, (u32)sizeof(s_project_path.buf));
+      ldk_os_dialog_show_open_folder(editor->window, "Project Location", "",
+          s_project_path.buf, (u32)sizeof(s_project_path.buf));
     }
   }
   ldk_ui_end_horizontal(ui);
@@ -958,18 +934,22 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
     {
       editor->create_project_window_show = false;
 
-      LDKProjectCreateDesc desc;
+      LDKProjectCreateDesc desc = {0};
       desc.project_name = s_project_name.buf;
       desc.project_root_path = s_project_path.buf;
       desc.cmake_generator = "Visual Studio 18 2026";
+
       bool success = ldk_project_create(&desc);
+
       if (success)
+      {
         ldk_editor_internal_log_info(editor, "Project Created.");
+      }
       else
       {
         ldk_editor_internal_log_error(editor, "Failed to create project.");
-        ldk_os_dialog_show_error(
-          editor->window, "Failed to create project", s_project_name.buf);
+        ldk_os_dialog_show_error(editor->window, "Failed to create project",
+            s_project_name.buf);
       }
     }
 
@@ -978,7 +958,6 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
     {
       editor->create_project_window_show = false;
       x_smallstr_clear(&s_project_path);
-
     }
   }
   ldk_ui_end_horizontal(ui);

@@ -1293,7 +1293,7 @@ void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   }
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 1.0f, false);
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1319,7 +1319,7 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, icon.size.h);
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1339,6 +1339,94 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
   s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip_rect);
 
   return clicked;
+}
+
+u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
+    u32 item_count, u32 selected_index)
+{
+  const LDKUIId POPUP_TAG = 0x434F4D42u; // "COMB"
+
+  if (ctx == NULL || items == NULL || item_count == 0)
+  {
+    return selected_index;
+  }
+
+  if (selected_index >= item_count)
+  {
+    selected_index = 0;
+  }
+
+  const char *selected_text =
+      items[selected_index] != NULL ? items[selected_index] : "";
+
+  LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
+
+  LDKUISize min_size = {
+      text_size.w + 16.0f,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT,
+  };
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
+
+  LDKUIRect rect;
+  LDKUIId id;
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return selected_index;
+  }
+
+  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+
+  if (ldk_ui_widget_button(ctx, id, selected_text, rect))
+  {
+    if (ldk_ui_popup_is_open(ctx, popup_id))
+    {
+      ldk_ui_close_popup(ctx, popup_id);
+    }
+    else
+    {
+      LDKUIPoint popup_position = {
+          rect.x,
+          rect.y + rect.h,
+      };
+
+      ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+    }
+  }
+
+  if (ldk_ui_begin_popup(ctx, popup_id))
+  {
+    for (u32 i = 0; i < item_count; ++i)
+    {
+      const char *item_text = items[i] != NULL ? items[i] : "";
+
+      /*
+       * Make the popup at least as wide as the combo box.
+       * The popup layout will still measure its final height.
+       */
+      ldk_ui_set_next_width(ctx, ldk_ui_px(rect.w));
+
+      if (ldk_ui_button_flat(ctx, item_text))
+      {
+        selected_index = i;
+        ldk_ui_close_current_popup(ctx);
+      }
+    }
+
+    ldk_ui_end_popup(ctx);
+
+    /*
+     * ldk_ui_end_popup() changes the last-item information to the popup.
+     * Restore the combo box as the last submitted widget.
+     */
+    ctx->last_rect = rect;
+    ctx->last_bounding_rect = rect;
+    ctx->last_id = id;
+  }
+
+  return selected_index;
 }
 
 void ldk_ui_label(LDKUIContext *ctx, char const *text)
@@ -1450,7 +1538,8 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
   return ldk_ui_widget_button_flat(ctx, id, text, rect);
 }
 
-float ldk_ui_slider(LDKUIContext *ctx, float value, float min_value, float max_value)
+float ldk_ui_slider(
+    LDKUIContext *ctx, float value, float min_value, float max_value)
 {
   LDKUILayoutRequest request;
   LDKUIRect rect;
@@ -1481,7 +1570,7 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1502,7 +1591,7 @@ u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1523,7 +1612,7 @@ void ldk_ui_horizontal_line(LDKUIContext *ctx)
   min_size.h = 1.0f;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
+      s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1540,7 +1629,7 @@ void ldk_ui_spacer(LDKUIContext *ctx)
   LDKUIId id;
 
   request = s_ui_layout_request_make(
-    LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
+      LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {

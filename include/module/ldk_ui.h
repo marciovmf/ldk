@@ -243,6 +243,7 @@ extern "C"
     LDK_UI_ITEM_TOGGLE = 13,
     LDK_UI_ITEM_SEPARATOR = 14,
     LDK_UI_ITEM_ICON_LABEL = 15,
+    LDK_UI_ITEM_COMBO_BOX = 16,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -715,6 +716,8 @@ extern "C"
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
   LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
+  LDK_API u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
+      u32 item_count, u32 selected_index);
   LDK_API float ldk_ui_slider(
       LDKUIContext *ctx, float value, float min_value, float max_value);
   LDK_API u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title,
