@@ -1549,15 +1549,24 @@ static float s_ui_tab_bar_item_width(
     return width;
   }
 
-  if (item->label != NULL)
+  bool has_icon = s_ui_icon_valid(item->icon);
+  bool has_label = item->label != NULL && item->label[0] != '\0';
+
+  if (has_icon)
   {
-    LDKUISize text_size = s_ui_widget_text_size(ctx, item->label);
-    width += text_size.w;
+    width += item->icon.size.w;
   }
 
-  if (s_ui_icon_valid(item->icon))
+  if (has_label)
   {
-    width += item->icon.size.w + LDK_UI_DEFAULT_SPACING;
+    LDKUISize text_size = s_ui_widget_text_size(ctx, item->label);
+
+    if (has_icon)
+    {
+      width += LDK_UI_DEFAULT_SPACING;
+    }
+
+    width += text_size.w;
   }
 
   return width;
@@ -1597,10 +1606,19 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     result.active_index = 0;
   }
 
+  LDKUIIcon menu_icon = s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_MORE_VERT);
+
+  float menu_button_width = LDK_UI_DEFAULT_SPACING;
+
+  if (s_ui_icon_valid(menu_icon))
+  {
+    menu_button_width += menu_icon.size.w / 2; // This is a hack since I know the actual icon size and I know the vertical 3 dots are actually thin.
+  }
+
   u32 draw_active_index = result.active_index;
   float bar_height =
       LDK_UI_TAB_BAR_TAB_HEIGHT + LDK_UI_TAB_BAR_LINE_THICKNESS;
-  float total_width = LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH + LDK_UI_TAB_BAR_SPACING;
+  float total_width = menu_button_width + LDK_UI_TAB_BAR_SPACING;
 
   for (u32 i = 0; i < item_count; ++i)
   {
@@ -1639,28 +1657,23 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   LDKUIRect menu_button_rect;
   menu_button_rect.x = bar_rect.x;
   menu_button_rect.y = bar_rect.y;
-  menu_button_rect.w = s_ui_minf(LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH, bar_rect.w);
+  menu_button_rect.w = s_ui_minf(menu_button_width, bar_rect.w);
   menu_button_rect.h = LDK_UI_TAB_BAR_TAB_HEIGHT;
 
   LDKUIId menu_button_id = s_ui_id_hash_u32(bar_id, 0x5441424du);
   LDKUIId popup_id = s_ui_id_hash_u32(bar_id, 0x54414250u);
 
+  if (ldk_ui_widget_icon_button(
+          ctx, menu_button_id, menu_icon, "", menu_button_rect))
+  {
+    LDKUIPoint popup_position;
+    popup_position.x = menu_button_rect.x;
+    popup_position.y = menu_button_rect.y + menu_button_rect.h;
 
-LDKUIIcon menu_icon =
-    s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_MORE_VERT);
+    ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+  }
 
-if (ldk_ui_widget_icon_button(
-        ctx, menu_button_id, menu_icon, "", menu_button_rect))
-{
-  LDKUIPoint popup_position;
-  popup_position.x = menu_button_rect.x;
-  popup_position.y = menu_button_rect.y + menu_button_rect.h;
-
-  ldk_ui_open_popup_at(ctx, popup_id, popup_position);
-}
-
-  float tabs_x =
-      bar_rect.x + LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH + LDK_UI_TAB_BAR_SPACING;
+  float tabs_x = bar_rect.x + menu_button_width + LDK_UI_TAB_BAR_SPACING;
   float bar_right = bar_rect.x + bar_rect.w;
   LDKUIRect active_rect = {0};
   bool active_rect_visible = false;
@@ -1780,7 +1793,9 @@ if (ldk_ui_widget_icon_button(
         ldk_ui_set_next_disabled(ctx, true);
       }
 
-      if (ldk_ui_button(ctx, items[i].label))
+      char const *label = items[i].label != NULL ? items[i].label : "";
+
+      if (ldk_ui_button_flat(ctx, label))
       {
         if (result.active_index != i)
         {

@@ -344,12 +344,18 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
     ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static u32 s_active_tab = 0;
-  LDKUIIcon no_icon = {0};
+  LDKUIIcon icon = {0};
+  icon.color = 0xFFFFFFFF;
+  icon.size = ldk_sizef(24, 24);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
+
 
   LDKUITabBarItem tabs[] = {
-    {1, no_icon, "Primitives"},
-    {2, no_icon, "Canvas"},
-    {3, no_icon, "BG/FG draw lists"},
+    {1, icon, "Primitives"},
+    {2, icon, "Canvas"},
+    {3, icon, "BG/FG draw lists"},
   };
 
   LDKUITabBarResult tab_result = ldk_ui_tab_bar(ui, tabs, 3, s_active_tab);
