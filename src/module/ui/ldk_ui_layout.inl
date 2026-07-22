@@ -1591,16 +1591,12 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   u32 draw_active_index = result.active_index;
 
   float tab_height = 24.0f;
-  float total_width = 0.0f;
+  float menu_button_width = 24.0f;
+  float total_width = menu_button_width;
 
   for (u32 i = 0; i < item_count; ++i)
   {
     total_width += s_ui_tab_bar_item_width(ctx, items[i].label);
-
-    if (i + 1 < item_count)
-    {
-      total_width -= 1.0f;
-    }
   }
 
   LDKUISize min_size;
@@ -1636,12 +1632,33 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   s_ui_render_quad(
       ctx, separator, ctx->theme.colors[LDK_UI_COLOR_SEPARATOR], bar_clip, 0);
 
-  /*
-   * First pass: render inactive tabs.
-   * draw_active_index must remain stable during rendering.
-   */
-  float cursor_x = bar_rect.x;
+  LDKUIRect menu_button_rect;
+  menu_button_rect.x = bar_rect.x;
+  menu_button_rect.y = bar_rect.y;
+  menu_button_rect.w = s_ui_minf(menu_button_width, bar_rect.w);
+  menu_button_rect.h = tab_height;
+
+  LDKUIId menu_button_id = s_ui_id_hash_u32(bar_id, 0x5441424du);
+  LDKUIId popup_id = s_ui_id_hash_u32(bar_id, 0x54414250u);
+
+  if (ldk_ui_widget_button(ctx, menu_button_id, "v", menu_button_rect))
+  {
+    LDKUIPoint popup_position;
+    popup_position.x = menu_button_rect.x;
+    popup_position.y = menu_button_rect.y + menu_button_rect.h;
+
+    ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+  }
+
+  float tabs_x = bar_rect.x + menu_button_width;
   float bar_right = bar_rect.x + bar_rect.w;
+
+  /*
+   * First pass: draw inactive tabs.
+   * The active tab is skipped here and drawn in the second pass so it appears
+   * visually on top.
+   */
+  float cursor_x = tabs_x;
 
   for (u32 i = 0; i < item_count; ++i)
   {
@@ -1669,14 +1686,14 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
       }
     }
 
-    cursor_x += tab_width - 1.0f;
+    cursor_x += tab_width;
   }
 
   /*
-   * Second pass: render the originally active tab last.
-   * If another tab was clicked this frame, it becomes active next frame.
+   * Second pass: draw the originally active tab last.
+   * If another tab was clicked this frame, that tab becomes active next frame.
    */
-  cursor_x = bar_rect.x;
+  cursor_x = tabs_x;
 
   for (u32 i = 0; i < item_count; ++i)
   {
@@ -1706,7 +1723,35 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
       break;
     }
 
-    cursor_x += tab_width - 1.0f;
+    cursor_x += tab_width;
+  }
+
+  if (ldk_ui_begin_popup(ctx, popup_id))
+  {
+    for (u32 i = 0; i < item_count; ++i)
+    {
+      ldk_ui_push_id_u32(ctx, items[i].id != 0 ? items[i].id : i + 1);
+
+      if (i == result.active_index)
+      {
+        ldk_ui_set_next_disabled(ctx, true);
+      }
+
+      if (ldk_ui_button(ctx, items[i].label))
+      {
+        if (result.active_index != i)
+        {
+          result.active_index = i;
+          result.changed = i != draw_active_index;
+        }
+
+        ldk_ui_close_current_popup(ctx);
+      }
+
+      ldk_ui_pop_id(ctx);
+    }
+
+    ldk_ui_end_popup(ctx);
   }
 
   ctx->last_id = bar_id;

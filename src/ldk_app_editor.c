@@ -362,46 +362,43 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
   }
   else if (s_active_tab == 2)
   {
-    ldk_ui_label(ui, "BG/FG draw lists tab");
-  }
-  
+    scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  scroll = ldk_ui_begin_scrollview(
-    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  for (u32 i = 0; i < 10; i++)
-  {
-    ldk_ui_push_id_u32(ui, i);
-
-    s_root_open[i] =
-      ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
-    if (s_root_open[i])
+    for (u32 i = 0; i < 10; i++)
     {
-      if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
+      ldk_ui_push_id_u32(ui, i);
+
+      s_root_open[i] =
+        ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
+      if (s_root_open[i])
       {
-        ldk_log_info("Clicked!");
+        if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
+        {
+          ldk_log_info("Clicked!");
+        }
+
+        ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
+        ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
+
+        s_child_open[i] = ldk_ui_tree_node(ui, "Nested", s_child_open[i], 1, 0);
+
+        if (s_child_open[i])
+        {
+          ldk_ui_tree_node(
+            ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
+          ldk_ui_tree_node(
+            ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
+          ldk_ui_tree_node(ui, "Nested Scale", false, 2, LDK_UI_TREE_NODE_LEAF);
+        }
       }
 
-      ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
-      ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
-
-      s_child_open[i] = ldk_ui_tree_node(ui, "Nested", s_child_open[i], 1, 0);
-
-      if (s_child_open[i])
-      {
-        ldk_ui_tree_node(
-          ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
-        ldk_ui_tree_node(
-          ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
-        ldk_ui_tree_node(ui, "Nested Scale", false, 2, LDK_UI_TREE_NODE_LEAF);
-      }
+      ldk_ui_pop_id(ui);
     }
 
-    ldk_ui_pop_id(ui);
+    ldk_ui_spacer(ui);
+    ldk_ui_end_scrollview(ui);
   }
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
   ldk_ui_end_window(ui);
 }
 
