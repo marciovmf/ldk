@@ -2411,6 +2411,117 @@ bool ldk_ui_widget_button_flat(
   return frame.clicked;
 }
 
+static void s_ui_render_tab_shape(LDKUIContext *ctx, LDKUIRect rect,
+    float slope, u32 color, LDKUIRect clip_rect)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (rect.w <= 0.0f || rect.h <= 0.0f)
+  {
+    return;
+  }
+
+  slope = s_ui_clampf(slope, 0.0f, rect.w * 0.5f);
+
+  XArray_ldk_ui_vertex *vertices = s_ui_target_vertices(ctx);
+  XArray_ldk_ui_u32 *indices = s_ui_target_indices(ctx);
+
+  if (vertices == NULL || indices == NULL)
+  {
+    return;
+  }
+
+  u32 index_offset = x_array_ldk_ui_u32_count(indices);
+  u32 base_index = x_array_ldk_ui_vertex_count(vertices);
+
+  color = LDK_RGBA32(color);
+
+  float x0 = rect.x;
+  float x1 = rect.x + slope;
+  float x2 = rect.x + rect.w - slope;
+  float x3 = rect.x + rect.w;
+  float y0 = rect.y;
+  float y1 = rect.y + rect.h;
+
+  x_array_ldk_ui_vertex_push(
+      vertices, (LDKUIVertex){x0, y1, 0.0f, 0.0f, color});
+  x_array_ldk_ui_vertex_push(
+      vertices, (LDKUIVertex){x1, y0, 0.0f, 0.0f, color});
+  x_array_ldk_ui_vertex_push(
+      vertices, (LDKUIVertex){x2, y0, 0.0f, 0.0f, color});
+  x_array_ldk_ui_vertex_push(
+      vertices, (LDKUIVertex){x3, y1, 0.0f, 0.0f, color});
+
+  x_array_ldk_ui_u32_push(indices, base_index + 0);
+  x_array_ldk_ui_u32_push(indices, base_index + 1);
+  x_array_ldk_ui_u32_push(indices, base_index + 2);
+  x_array_ldk_ui_u32_push(indices, base_index + 2);
+  x_array_ldk_ui_u32_push(indices, base_index + 3);
+  x_array_ldk_ui_u32_push(indices, base_index + 0);
+
+  s_ui_render_add_draw_cmd(ctx, 0, clip_rect, index_offset, 6);
+}
+
+bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, char const *text,
+    LDKUIRect rect, bool active)
+{
+  LDKUIWidgetBox box = {0};
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  LDKUIFrameState frame =
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+
+  u32 bg = active ? ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]
+                  : ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+  u32 border = active ? ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE]
+                      : ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
+  u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+
+  if (!active && frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
+  {
+    bg = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+    border = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
+  }
+  else if (active &&
+           frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    bg = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
+    border = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED];
+  }
+
+  float slope = 6.0f;
+
+  LDKUIRect border_rect = box.rect;
+  s_ui_render_tab_shape(ctx, border_rect, slope, border, box.clip);
+
+  LDKUIRect fill_rect;
+  fill_rect.x = box.rect.x + 1.0f;
+  fill_rect.y = box.rect.y + 1.0f;
+  fill_rect.w = s_ui_maxf(0.0f, box.rect.w - 2.0f);
+  fill_rect.h = s_ui_maxf(0.0f, box.rect.h - 1.0f);
+  s_ui_render_tab_shape(ctx, fill_rect, slope, bg, box.clip);
+
+  LDKUISize text_size = s_ui_widget_text_size(ctx, text);
+  float text_x = box.rect.x + slope + LDK_UI_DEFAULT_SPACING;
+  float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
+
+  s_ui_render_text(ctx, text, text_x, text_y, text_color, box.clip);
+
+  return frame.clicked;
+}
+
 bool ldk_ui_widget_toggle(
     LDKUIContext *ctx, LDKUIId id, bool value, LDKUIRect rect)
 {

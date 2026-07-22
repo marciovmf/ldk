@@ -1538,6 +1538,184 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
   return ldk_ui_widget_button_flat(ctx, id, text, rect);
 }
 
+static float s_ui_tab_bar_item_width(LDKUIContext *ctx, char const *text)
+{
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
+  float width = text_size.w + 28.0f;
+
+  width = s_ui_maxf(width, 72.0f);
+  width = s_ui_minf(width, 180.0f);
+
+  return width;
+}
+
+static LDKUIId s_ui_tab_bar_item_id(
+    LDKUIId bar_id, LDKUITabBarItem const *item, u32 index)
+{
+  LDKUIId id = bar_id;
+
+  if (item != NULL && item->id != 0)
+  {
+    id = s_ui_id_hash_u32(id, item->id);
+  }
+  else
+  {
+    id = s_ui_id_hash_u32(id, index + 1);
+  }
+
+  return id;
+}
+
+LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
+    LDKUITabBarItem const *items, u32 item_count, u32 active_index)
+{
+  LDKUITabBarResult result = {0};
+  result.active_index = active_index;
+  result.changed = false;
+
+  if (ctx == NULL || items == NULL || item_count == 0)
+  {
+    return result;
+  }
+
+  if (result.active_index >= item_count)
+  {
+    result.active_index = 0;
+  }
+
+  u32 draw_active_index = result.active_index;
+
+  float tab_height = 24.0f;
+  float total_width = 0.0f;
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    total_width += s_ui_tab_bar_item_width(ctx, items[i].label);
+
+    if (i + 1 < item_count)
+    {
+      total_width -= 1.0f;
+    }
+  }
+
+  LDKUISize min_size;
+  min_size.w = total_width;
+  min_size.h = tab_height;
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_TAB_BAR, min_size, 0.0f, false);
+
+  request.has_height = true;
+  request.height = ldk_ui_px(tab_height);
+
+  LDKUIRect bar_rect;
+  LDKUIId bar_id;
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &bar_rect, &bar_id))
+  {
+    return result;
+  }
+
+  LDKUIRect parent_clip = s_ui_current_clip_rect(ctx);
+  LDKUIRect bar_clip = s_ui_rect_intersect(&parent_clip, &bar_rect);
+
+  s_ui_render_quad(
+      ctx, bar_rect, ctx->theme.colors[LDK_UI_COLOR_PANEL_BG], bar_clip, 0);
+
+  LDKUIRect separator;
+  separator.x = bar_rect.x;
+  separator.y = bar_rect.y + bar_rect.h - 1.0f;
+  separator.w = bar_rect.w;
+  separator.h = 1.0f;
+
+  s_ui_render_quad(
+      ctx, separator, ctx->theme.colors[LDK_UI_COLOR_SEPARATOR], bar_clip, 0);
+
+  /*
+   * First pass: render inactive tabs.
+   * draw_active_index must remain stable during rendering.
+   */
+  float cursor_x = bar_rect.x;
+  float bar_right = bar_rect.x + bar_rect.w;
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    float tab_width = s_ui_tab_bar_item_width(ctx, items[i].label);
+
+    if (cursor_x >= bar_right)
+    {
+      break;
+    }
+
+    LDKUIRect tab_rect;
+    tab_rect.x = cursor_x;
+    tab_rect.y = bar_rect.y;
+    tab_rect.w = s_ui_minf(tab_width, bar_right - cursor_x);
+    tab_rect.h = tab_height;
+
+    if (i != draw_active_index)
+    {
+      LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+
+      if (ldk_ui_widget_tab(ctx, tab_id, items[i].label, tab_rect, false))
+      {
+        result.active_index = i;
+        result.changed = i != draw_active_index;
+      }
+    }
+
+    cursor_x += tab_width - 1.0f;
+  }
+
+  /*
+   * Second pass: render the originally active tab last.
+   * If another tab was clicked this frame, it becomes active next frame.
+   */
+  cursor_x = bar_rect.x;
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    float tab_width = s_ui_tab_bar_item_width(ctx, items[i].label);
+
+    if (cursor_x >= bar_right)
+    {
+      break;
+    }
+
+    if (i == draw_active_index)
+    {
+      LDKUIRect tab_rect;
+      tab_rect.x = cursor_x;
+      tab_rect.y = bar_rect.y;
+      tab_rect.w = s_ui_minf(tab_width, bar_right - cursor_x);
+      tab_rect.h = tab_height;
+
+      LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+
+      if (ldk_ui_widget_tab(ctx, tab_id, items[i].label, tab_rect, true))
+      {
+        result.active_index = i;
+        result.changed = false;
+      }
+
+      break;
+    }
+
+    cursor_x += tab_width - 1.0f;
+  }
+
+  ctx->last_id = bar_id;
+  ctx->last_rect = bar_rect;
+  ctx->last_bounding_rect = bar_rect;
+
+  return result;
+}
+
 float ldk_ui_slider(
     LDKUIContext *ctx, float value, float min_value, float max_value)
 {

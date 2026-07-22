@@ -244,6 +244,7 @@ extern "C"
     LDK_UI_ITEM_SEPARATOR = 14,
     LDK_UI_ITEM_ICON_LABEL = 15,
     LDK_UI_ITEM_COMBO_BOX = 16,
+    LDK_UI_ITEM_TAB_BAR = 17,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -496,6 +497,19 @@ extern "C"
     bool has_rect;
   };
 
+  typedef struct LDKUITabBarItem
+  {
+    LDKUIId id;
+    char const *label;
+  } LDKUITabBarItem;
+
+  typedef struct LDKUITabBarResult
+  {
+    u32 active_index;
+    bool changed;
+  } LDKUITabBarResult;
+
+
   X_ARRAY_TYPE_NAMED(LDKUILayout, ldk_ui_layout);
   X_ARRAY_TYPE_NAMED(LDKUIWindow, ldk_ui_window);
   X_ARRAY_TYPE_NAMED(LDKUIWindowStackEntry, ldk_ui_window_stack_entry);
@@ -730,6 +744,8 @@ extern "C"
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
   LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
+  LDK_API LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
+      LDKUITabBarItem const *items, u32 item_count, u32 active_index);
 
   //----------------------------------------------------------
   // Base widgets
@@ -759,6 +775,8 @@ extern "C"
       char *buffer, u32 buffer_size, LDKUIRect rect);
   LDK_API u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id,
+      char const *text, LDKUIRect rect, bool active);
 
 #ifdef __cplusplus
 }

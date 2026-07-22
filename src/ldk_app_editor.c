@@ -337,6 +337,35 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
   s_entity_list_rect = ldk_ui_begin_window_fixed(
     ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
+  static u32 s_active_tab = 0;
+
+  LDKUITabBarItem tabs[] = {
+    {1, "Primitives"},
+    {2, "Canvas"},
+    {3, "BG/FG draw lists"},
+  };
+
+  LDKUITabBarResult tab_result = ldk_ui_tab_bar(ui, tabs, 3, s_active_tab);
+
+  if (tab_result.changed)
+  {
+    s_active_tab = tab_result.active_index;
+  }
+
+  if (s_active_tab == 0)
+  {
+    ldk_ui_label(ui, "Primitives tab");
+  }
+  else if (s_active_tab == 1)
+  {
+    ldk_ui_label(ui, "Canvas tab");
+  }
+  else if (s_active_tab == 2)
+  {
+    ldk_ui_label(ui, "BG/FG draw lists tab");
+  }
+  
+
   scroll = ldk_ui_begin_scrollview(
     ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
