@@ -372,7 +372,7 @@ static void s_project_explorer_entries_draw(
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked =
-        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon, NULL);
       bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
 
       ldk_ui_end_horizontal(ui);
@@ -418,7 +418,7 @@ static void s_project_explorer_entries_draw(
       ldk_ui_set_next_size(
         ui, ldk_ui_px(state->icon_size), ldk_ui_px(state->icon_size));
       bool icon_clicked =
-        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon, NULL);
 
       ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
       bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
@@ -742,7 +742,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
 
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
+      if (ldk_ui_icon_button(ui, icon, NULL))
       {
         ldk_editor_state_set_play(editor);
       }
@@ -751,7 +751,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     {
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
+      if (ldk_ui_icon_button(ui, icon, NULL))
       {
         ldk_editor_state_set_stop(editor);
       }
@@ -762,7 +762,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       ldk_ui_set_next_disabled(ui, !can_pause);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PAUSE];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
+      if (ldk_ui_icon_button(ui, icon, NULL))
       {
         ldk_editor_state_set_pause(editor);
       }
@@ -774,7 +774,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
           ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon))
+      if (ldk_ui_icon_button(ui, icon, NULL))
       {
         ldk_editor_state_play_one_frame(editor);
       }

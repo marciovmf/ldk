@@ -2437,8 +2437,46 @@ bool ldk_ui_widget_button_flat(
   return frame.clicked;
 }
 
-bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, char const *text,
-    LDKUIRect rect, bool active)
+bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
+    char const *text, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  LDKUIFrameState frame =
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+
+  u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+  u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
+  u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+
+  s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+  s_ui_render_border(
+      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+
+  LDKUIRect content_rect;
+  content_rect.x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;
+  content_rect.y = box.rect.y;
+  content_rect.w =
+      s_ui_maxf(0.0f, box.rect.w - LDK_UI_DEFAULT_SPACING * 4.0f);
+  content_rect.h = box.rect.h;
+
+  s_ui_render_icon_label(ctx, icon, text, content_rect, text_color, box.clip);
+
+  return frame.clicked;
+}
+
+bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
+    char const *text, LDKUIRect rect, bool active)
 {
   LDKUIWidgetBox box = {0};
 
@@ -2477,11 +2515,14 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, char const *text,
         ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
   }
 
-  LDKUISize text_size = s_ui_widget_text_size(ctx, text);
-  float text_x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;
-  float text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
+  LDKUIRect content_rect;
+  content_rect.x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;
+  content_rect.y = box.rect.y;
+  content_rect.w =
+      s_ui_maxf(0.0f, box.rect.w - LDK_UI_DEFAULT_SPACING * 4.0f);
+  content_rect.h = box.rect.h;
 
-  s_ui_render_text(ctx, text, text_x, text_y, text_color, box.clip);
+  s_ui_render_icon_label(ctx, icon, text, content_rect, text_color, box.clip);
 
   return frame.clicked;
 }

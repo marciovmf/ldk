@@ -1303,42 +1303,43 @@ void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   ldk_ui_widget_icon_label(ctx, id, icon, text, rect);
 }
 
-bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
+bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
 {
-  LDKUILayoutRequest request;
-  LDKUIRect rect;
-  LDKUIRect icon_rect;
-  LDKUIRect saved_last_rect;
-  LDKUIRect saved_last_bounding_rect;
-  LDKUIId saved_last_id;
-  LDKUIId id;
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
+
   LDKUISize min_size;
-  bool clicked;
+  min_size.w = LDK_UI_DEFAULT_SPACING * 4.0f + text_size.w;
+  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h);
 
-  min_size.w = icon.size.w;
-  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, icon.size.h);
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.w += icon.size.w;
 
-  request =
+    if (text[0] != '\0')
+    {
+      min_size.w += LDK_UI_DEFAULT_SPACING;
+    }
+
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
+
+  LDKUILayoutRequest request =
       s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+
+  LDKUIRect rect;
+  LDKUIId id;
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
     return false;
   }
 
-  clicked = ldk_ui_widget_button(ctx, id, "", rect);
-
-  icon_rect.x = rect.x + (rect.w - icon.size.w) * 0.5f;
-  icon_rect.y = rect.y + (rect.h - icon.size.h) * 0.5f;
-  icon_rect.w = icon.size.w;
-  icon_rect.h = icon.size.h;
-
-  LDKUIRect clip_rect = s_ui_current_clip_rect(ctx);
-  clip_rect = s_ui_rect_intersect(&clip_rect, &icon_rect);
-
-  s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip_rect);
-
-  return clicked;
+  return ldk_ui_widget_icon_button(ctx, id, icon, text, rect);
 }
 
 u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
@@ -1538,18 +1539,26 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
   return ldk_ui_widget_button_flat(ctx, id, text, rect);
 }
 
-static float s_ui_tab_bar_item_width(LDKUIContext *ctx, char const *text)
+static float s_ui_tab_bar_item_width(
+    LDKUIContext *ctx, LDKUITabBarItem const *item)
 {
-  if (text == NULL)
+  float width = LDK_UI_DEFAULT_SPACING * 4.0f;
+
+  if (ctx == NULL || item == NULL)
   {
-    text = "";
+    return width;
   }
 
-  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
-  float width = text_size.w + 28.0f;
+  if (item->label != NULL)
+  {
+    LDKUISize text_size = s_ui_widget_text_size(ctx, item->label);
+    width += text_size.w;
+  }
 
-  width = s_ui_maxf(width, 72.0f);
-  width = s_ui_minf(width, 180.0f);
+  if (s_ui_icon_valid(item->icon))
+  {
+    width += item->icon.size.w + LDK_UI_DEFAULT_SPACING;
+  }
 
   return width;
 }
@@ -1595,7 +1604,7 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
 
   for (u32 i = 0; i < item_count; ++i)
   {
-    total_width += s_ui_tab_bar_item_width(ctx, items[i].label);
+    total_width += s_ui_tab_bar_item_width(ctx, &items[i]);
 
     if (i + 1 < item_count)
     {
@@ -1636,14 +1645,19 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   LDKUIId menu_button_id = s_ui_id_hash_u32(bar_id, 0x5441424du);
   LDKUIId popup_id = s_ui_id_hash_u32(bar_id, 0x54414250u);
 
-  if (ldk_ui_widget_button(ctx, menu_button_id, "v", menu_button_rect))
-  {
-    LDKUIPoint popup_position;
-    popup_position.x = menu_button_rect.x;
-    popup_position.y = menu_button_rect.y + menu_button_rect.h;
 
-    ldk_ui_open_popup_at(ctx, popup_id, popup_position);
-  }
+LDKUIIcon menu_icon =
+    s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_MORE_VERT);
+
+if (ldk_ui_widget_icon_button(
+        ctx, menu_button_id, menu_icon, "", menu_button_rect))
+{
+  LDKUIPoint popup_position;
+  popup_position.x = menu_button_rect.x;
+  popup_position.y = menu_button_rect.y + menu_button_rect.h;
+
+  ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+}
 
   float tabs_x =
       bar_rect.x + LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH + LDK_UI_TAB_BAR_SPACING;
@@ -1655,7 +1669,7 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
 
   for (u32 i = 0; i < item_count; ++i)
   {
-    float tab_width = s_ui_tab_bar_item_width(ctx, items[i].label);
+    float tab_width = s_ui_tab_bar_item_width(ctx, &items[i]);
 
     if (cursor_x >= bar_right)
     {
@@ -1677,7 +1691,8 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     {
       LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
 
-      if (ldk_ui_widget_tab(ctx, tab_id, items[i].label, tab_rect, false))
+      if (ldk_ui_widget_tab(
+              ctx, tab_id, items[i].icon, items[i].label, tab_rect, false))
       {
         result.active_index = i;
         result.changed = i != draw_active_index;
@@ -1692,7 +1707,8 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     LDKUITabBarItem const *item = &items[draw_active_index];
     LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, item, draw_active_index);
 
-    if (ldk_ui_widget_tab(ctx, tab_id, item->label, active_rect, true))
+    if (ldk_ui_widget_tab(
+            ctx, tab_id, item->icon, item->label, active_rect, true))
     {
       result.active_index = draw_active_index;
       result.changed = false;
@@ -1725,8 +1741,7 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
 
     if (border_size > 0.0f)
     {
-      u32 active_border =
-          ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER];
+      u32 active_border = ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER];
 
       LDKUIRect top_border;
       top_border.x = active_rect.x;

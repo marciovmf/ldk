@@ -121,6 +121,12 @@ void ldk_editor_internal_theme_icons_set(
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
   theme->icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_HORIZ];
+  theme->icons[LDK_UI_THEME_ICON_MORE_HORIZ] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_VERT];
+  theme->icons[LDK_UI_THEME_ICON_MORE_VERT] = icon;
 }
 
 bool ldk_editor_internal_show_open_project_dialog(
@@ -338,11 +344,12 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
     ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static u32 s_active_tab = 0;
+  LDKUIIcon no_icon = {0};
 
   LDKUITabBarItem tabs[] = {
-    {1, "Primitives"},
-    {2, "Canvas"},
-    {3, "BG/FG draw lists"},
+    {1, no_icon, "Primitives"},
+    {2, no_icon, "Canvas"},
+    {3, no_icon, "BG/FG draw lists"},
   };
 
   LDKUITabBarResult tab_result = ldk_ui_tab_bar(ui, tabs, 3, s_active_tab);

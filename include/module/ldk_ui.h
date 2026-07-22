@@ -90,8 +90,8 @@ extern "C"
 #ifndef LDK_UI_TAB_BAR_TAB_HEIGHT
 #define LDK_UI_TAB_BAR_TAB_HEIGHT 24.0f
 #endif
-  
-#ifndef LDK_UI_TAB_BAR_HEIGHT 
+
+#ifndef LDK_UI_TAB_BAR_HEIGHT
 #define LDK_UI_TAB_BAR_HEIGHT 24.0f
 #endif
 
@@ -102,11 +102,10 @@ extern "C"
 #ifndef LDK_UI_TAB_BAR_SPACING
 #define LDK_UI_TAB_BAR_SPACING 2.0f
 #endif
-  
+
 #ifndef LDK_UI_TAB_BAR_LINE_THICKNESS
 #define LDK_UI_TAB_BAR_LINE_THICKNESS 1.2f
 #endif
-  
 
   typedef uint32_t LDKUIId;
   typedef uintptr_t LDKUITextureHandle;
@@ -180,7 +179,7 @@ extern "C"
     LDK_UI_COLOR_TAB_ACTIVE_BG,
     LDK_UI_COLOR_TAB_ACTIVE_TEXT,
     LDK_UI_COLOR_TAB_ACTIVE_BORDER,
-    
+
     LDK_UI_COLOR_SEPARATOR,
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
@@ -199,6 +198,8 @@ extern "C"
     LDK_UI_THEME_ICON_TREE_NODE_EXPANDED,
     LDK_UI_THEME_ICON_TOGGLE_UNCHECKED,
     LDK_UI_THEME_ICON_TOGGLE_CHECKED,
+    LDK_UI_THEME_ICON_MORE_HORIZ,
+    LDK_UI_THEME_ICON_MORE_VERT,
     LDK_UI_THEME_ICON_COUNT,
   } LDKUIThemeIconSlot;
 
@@ -537,6 +538,7 @@ extern "C"
   typedef struct LDKUITabBarItem
   {
     LDKUIId id;
+    LDKUIIcon icon;
     char const *label;
   } LDKUITabBarItem;
 
@@ -545,7 +547,6 @@ extern "C"
     u32 active_index;
     bool changed;
   } LDKUITabBarResult;
-
 
   X_ARRAY_TYPE_NAMED(LDKUILayout, ldk_ui_layout);
   X_ARRAY_TYPE_NAMED(LDKUIWindow, ldk_ui_window);
@@ -760,7 +761,8 @@ extern "C"
   LDK_API void ldk_ui_image(LDKUIContext *ctx, LDKUITextureHandle texture,
       LDKUIRect uv, LDKUISize size);
   LDK_API void ldk_ui_icon(LDKUIContext *ctx, LDKUIIcon icon);
-  LDK_API bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon);
+  LDK_API bool ldk_ui_icon_button(
+      LDKUIContext *ctx, LDKUIIcon icon, char const *text);
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
   LDK_API void ldk_ui_icon_label(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
@@ -797,6 +799,8 @@ extern "C"
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
+      LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button_flat(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_toggle(
@@ -812,7 +816,7 @@ extern "C"
       char *buffer, u32 buffer_size, LDKUIRect rect);
   LDK_API u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
-  LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id,
+  LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       char const *text, LDKUIRect rect, bool active);
 
 #ifdef __cplusplus
