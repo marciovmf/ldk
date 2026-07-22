@@ -127,6 +127,9 @@ void ldk_editor_internal_theme_icons_set(
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_VERT];
   theme->icons[LDK_UI_THEME_ICON_MORE_VERT] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_EJECT];
+  theme->icons[LDK_UI_THEME_ICON_EJECT] = icon;
 }
 
 bool ldk_editor_internal_show_open_project_dialog(
@@ -507,20 +510,31 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
+
+
+/* POC implementation. */
+#include "editor/ldk_editor_dock.c"
+
+
 //----------------------------------------------------------
 // Editor Udpate
 //----------------------------------------------------------
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
-  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  //LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  //ldk_editor_internal_toolbar_show((LDKEditor *)editor);
+  //ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
+  //s_editor_test_b(editor);
+  //s_editor_test_treeview(editor);
+  //ldk_editor_internal_menubar_show(editor);
+  //ldk_editor_console_show(editor);
+  //ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
+
   ldk_editor_internal_toolbar_show((LDKEditor *)editor);
-  ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
-  s_editor_test_b(editor);
-  s_editor_test_treeview(editor);
+  ldk_editor_dock_update(editor);
   ldk_editor_internal_menubar_show(editor);
-  ldk_editor_console_show(editor);
-  ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
+  
 
   if (editor->create_project_window_show)
     ldk_editor_internal_project_create_show((LDKEditorContext*)ldk_editor_get());
@@ -971,6 +985,9 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
 
+
+  ldk_editor_dock_init(editor);
+  
   s_editor_set_title(editor);
   XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
   ldk_log_info("CMake path is %s\n", cmake_path.buf);
