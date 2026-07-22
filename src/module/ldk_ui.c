@@ -2039,6 +2039,19 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB] = hover;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] = text;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] = active_hover;
+    theme->colors[LDK_UI_COLOR_TAB_BAR_BG] = panel;
+    theme->colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR] = accent;
+    theme->colors[LDK_UI_COLOR_TAB_BG] = control;
+    theme->colors[LDK_UI_COLOR_TAB_BG_HOVERED] = hover;
+    theme->colors[LDK_UI_COLOR_TAB_TEXT] = text;
+    theme->colors[LDK_UI_COLOR_TAB_TEXT_HOVERED] = text;
+    theme->colors[LDK_UI_COLOR_TAB_BORDER] = border;
+    theme->colors[LDK_UI_COLOR_TAB_BORDER_HOVERED] = border;
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BG] = panel;
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_TEXT] = text;
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER] = accent;
+
+    
   }
   else if (type == LDK_UI_THEME_DEFAULT_LIGHT)
   {
@@ -2091,6 +2104,19 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB] = hover;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] = text;
     theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] = active_hover;
+    theme->colors[LDK_UI_COLOR_TAB_BAR_BG] = panel;
+    theme->colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR] = hover;
+
+    theme->colors[LDK_UI_COLOR_TAB_BG] = control;
+    theme->colors[LDK_UI_COLOR_TAB_BG_HOVERED] = hover;
+    theme->colors[LDK_UI_COLOR_TAB_TEXT] = text;
+    theme->colors[LDK_UI_COLOR_TAB_TEXT_HOVERED] = text;
+    theme->colors[LDK_UI_COLOR_TAB_BORDER] = border;
+    theme->colors[LDK_UI_COLOR_TAB_BORDER_HOVERED] = border;
+
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BG] = panel;
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_TEXT] = text;
+    theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER] = accent;
   }
   else
   {
@@ -2429,27 +2455,27 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, char const *text,
   LDKUIFrameState frame =
       s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
 
-  u32 bg = active ? ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]
-                  : ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
-  u32 border = active ? ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE]
-                      : ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
-  u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+  u32 bg = active ? ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BG]
+                  : ctx->theme.colors[LDK_UI_COLOR_TAB_BG];
+  u32 border = active ? ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER]
+                      : ctx->theme.colors[LDK_UI_COLOR_TAB_BORDER];
+  u32 text_color = active ? ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_TEXT]
+                          : ctx->theme.colors[LDK_UI_COLOR_TAB_TEXT];
 
   if (!active && frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
   {
-    bg = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
-    border = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
-  }
-  else if (active &&
-           frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
-  {
-    bg = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
-    border = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED];
+    bg = ctx->theme.colors[LDK_UI_COLOR_TAB_BG_HOVERED];
+    border = ctx->theme.colors[LDK_UI_COLOR_TAB_BORDER_HOVERED];
+    text_color = ctx->theme.colors[LDK_UI_COLOR_TAB_TEXT_HOVERED];
   }
 
   s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
-  s_ui_render_border(
-      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+
+  if (!active)
+  {
+    s_ui_render_border(
+        ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  }
 
   LDKUISize text_size = s_ui_widget_text_size(ctx, text);
   float text_x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;

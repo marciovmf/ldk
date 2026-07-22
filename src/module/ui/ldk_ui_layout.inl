@@ -1589,25 +1589,29 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   }
 
   u32 draw_active_index = result.active_index;
-
-  float tab_height = 24.0f;
-  float menu_button_width = 24.0f;
-  float total_width = menu_button_width;
+  float bar_height =
+      LDK_UI_TAB_BAR_TAB_HEIGHT + LDK_UI_TAB_BAR_LINE_THICKNESS;
+  float total_width = LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH + LDK_UI_TAB_BAR_SPACING;
 
   for (u32 i = 0; i < item_count; ++i)
   {
     total_width += s_ui_tab_bar_item_width(ctx, items[i].label);
+
+    if (i + 1 < item_count)
+    {
+      total_width += LDK_UI_TAB_BAR_SPACING;
+    }
   }
 
   LDKUISize min_size;
   min_size.w = total_width;
-  min_size.h = tab_height;
+  min_size.h = bar_height;
 
   LDKUILayoutRequest request =
       s_ui_layout_request_make(LDK_UI_ITEM_TAB_BAR, min_size, 0.0f, false);
 
   request.has_height = true;
-  request.height = ldk_ui_px(tab_height);
+  request.height = ldk_ui_px(bar_height);
 
   LDKUIRect bar_rect;
   LDKUIId bar_id;
@@ -1621,22 +1625,13 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   LDKUIRect bar_clip = s_ui_rect_intersect(&parent_clip, &bar_rect);
 
   s_ui_render_quad(
-      ctx, bar_rect, ctx->theme.colors[LDK_UI_COLOR_PANEL_BG], bar_clip, 0);
-
-  LDKUIRect separator;
-  separator.x = bar_rect.x;
-  separator.y = bar_rect.y + bar_rect.h - 1.0f;
-  separator.w = bar_rect.w;
-  separator.h = 1.0f;
-
-  s_ui_render_quad(
-      ctx, separator, ctx->theme.colors[LDK_UI_COLOR_SEPARATOR], bar_clip, 0);
+      ctx, bar_rect, ctx->theme.colors[LDK_UI_COLOR_TAB_BAR_BG], bar_clip, 0);
 
   LDKUIRect menu_button_rect;
   menu_button_rect.x = bar_rect.x;
   menu_button_rect.y = bar_rect.y;
-  menu_button_rect.w = s_ui_minf(menu_button_width, bar_rect.w);
-  menu_button_rect.h = tab_height;
+  menu_button_rect.w = s_ui_minf(LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH, bar_rect.w);
+  menu_button_rect.h = LDK_UI_TAB_BAR_TAB_HEIGHT;
 
   LDKUIId menu_button_id = s_ui_id_hash_u32(bar_id, 0x5441424du);
   LDKUIId popup_id = s_ui_id_hash_u32(bar_id, 0x54414250u);
@@ -1650,14 +1645,12 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     ldk_ui_open_popup_at(ctx, popup_id, popup_position);
   }
 
-  float tabs_x = bar_rect.x + menu_button_width;
+  float tabs_x =
+      bar_rect.x + LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH + LDK_UI_TAB_BAR_SPACING;
   float bar_right = bar_rect.x + bar_rect.w;
+  LDKUIRect active_rect = {0};
+  bool active_rect_visible = false;
 
-  /*
-   * First pass: draw inactive tabs.
-   * The active tab is skipped here and drawn in the second pass so it appears
-   * visually on top.
-   */
   float cursor_x = tabs_x;
 
   for (u32 i = 0; i < item_count; ++i)
@@ -1673,9 +1666,14 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     tab_rect.x = cursor_x;
     tab_rect.y = bar_rect.y;
     tab_rect.w = s_ui_minf(tab_width, bar_right - cursor_x);
-    tab_rect.h = tab_height;
+    tab_rect.h = LDK_UI_TAB_BAR_TAB_HEIGHT;
 
-    if (i != draw_active_index)
+    if (i == draw_active_index)
+    {
+      active_rect = tab_rect;
+      active_rect_visible = true;
+    }
+    else
     {
       LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
 
@@ -1686,44 +1684,74 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
       }
     }
 
-    cursor_x += tab_width;
+    cursor_x += tab_width + LDK_UI_TAB_BAR_SPACING;
   }
 
-  /*
-   * Second pass: draw the originally active tab last.
-   * If another tab was clicked this frame, that tab becomes active next frame.
-   */
-  cursor_x = tabs_x;
-
-  for (u32 i = 0; i < item_count; ++i)
+  if (active_rect_visible)
   {
-    float tab_width = s_ui_tab_bar_item_width(ctx, items[i].label);
+    LDKUITabBarItem const *item = &items[draw_active_index];
+    LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, item, draw_active_index);
 
-    if (cursor_x >= bar_right)
+    if (ldk_ui_widget_tab(ctx, tab_id, item->label, active_rect, true))
     {
-      break;
+      result.active_index = draw_active_index;
+      result.changed = false;
     }
+  }
 
-    if (i == draw_active_index)
+  float line_y = bar_rect.y + LDK_UI_TAB_BAR_TAB_HEIGHT;
+
+  LDKUIRect separator;
+  separator.x = bar_rect.x;
+  separator.y = line_y;
+  separator.w = bar_rect.w;
+  separator.h = LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+  s_ui_render_quad(ctx, separator,
+      ctx->theme.colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR], bar_clip, 0);
+
+  if (active_rect_visible)
+  {
+    LDKUIRect active_gap;
+    active_gap.x = active_rect.x;
+    active_gap.y = line_y;
+    active_gap.w = active_rect.w;
+    active_gap.h = LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+    s_ui_render_quad(ctx, active_gap,
+        ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BG], bar_clip, 0);
+
+    float border_size = ctx->theme.control_border_size;
+
+    if (border_size > 0.0f)
     {
-      LDKUIRect tab_rect;
-      tab_rect.x = cursor_x;
-      tab_rect.y = bar_rect.y;
-      tab_rect.w = s_ui_minf(tab_width, bar_right - cursor_x);
-      tab_rect.h = tab_height;
+      u32 active_border =
+          ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER];
 
-      LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+      LDKUIRect top_border;
+      top_border.x = active_rect.x;
+      top_border.y = active_rect.y;
+      top_border.w = active_rect.w;
+      top_border.h = border_size;
 
-      if (ldk_ui_widget_tab(ctx, tab_id, items[i].label, tab_rect, true))
-      {
-        result.active_index = i;
-        result.changed = false;
-      }
+      s_ui_render_quad(ctx, top_border, active_border, bar_clip, 0);
 
-      break;
+      LDKUIRect left_border;
+      left_border.x = active_rect.x;
+      left_border.y = active_rect.y;
+      left_border.w = border_size;
+      left_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+      s_ui_render_quad(ctx, left_border, active_border, bar_clip, 0);
+
+      LDKUIRect right_border;
+      right_border.x = active_rect.x + active_rect.w - border_size;
+      right_border.y = active_rect.y;
+      right_border.w = border_size;
+      right_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+      s_ui_render_quad(ctx, right_border, active_border, bar_clip, 0);
     }
-
-    cursor_x += tab_width;
   }
 
   if (ldk_ui_begin_popup(ctx, popup_id))
