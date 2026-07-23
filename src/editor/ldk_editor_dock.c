@@ -40,6 +40,9 @@
 
 #define LDK_EDITOR_DOCK_INVALID_NODE (-1)
 
+#define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
+#define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
+
 typedef enum LDKEditorDockWindowId
 {
   LDK_EDITOR_DOCK_WINDOW_PROJECT_EXPLORER = 0,
@@ -1390,6 +1393,24 @@ static LDKUIRect s_editor_dock_target_rect_local(
   return center;
 }
 
+static const LDKEditorIcon s_editor_dock_target_icon(LDKEditorDockTarget target)
+{
+  switch (target)
+  {
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP: return LDK_EDITOR_ICON_DOCK_TOP;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:  return LDK_EDITOR_ICON_DOCK_LEFT;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT: return LDK_EDITOR_ICON_DOCK_RIGHT;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM: return LDK_EDITOR_ICON_DOCK_BOTTOM;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP: return LDK_EDITOR_ICON_DOCK_TOP;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT: return LDK_EDITOR_ICON_DOCK_LEFT;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER: return LDK_EDITOR_ICON_DOCK_CENTER;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT: return LDK_EDITOR_ICON_DOCK_RIGHT;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM: return LDK_EDITOR_ICON_DOCK_BOTTOM;
+  default: return -1;
+  }
+}
+
+
 static const char *s_editor_dock_target_label(LDKEditorDockTarget target)
 {
   switch (target)
@@ -1540,6 +1561,12 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
     LDK_UI_WINDOW_NO_BG | LDK_UI_WINDOW_NO_PADDING);
   dock->target_overlay_window_id = ui->last_id;
 
+  LDKUIIcon icon = {0};
+  icon.color = 0xFFFFFFFF;
+  icon.size = ldk_sizef(24, 24);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
   for (u32 i = 0;
        i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
        ++i)
@@ -1549,13 +1576,16 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
     LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
     if (target == dock->drag.target)
     {
-      ldk_ui_widget_button(ui, id, s_editor_dock_target_label(target), rect);
+      icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_HOVER;
+      icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
     }
     else
     {
-      ldk_ui_widget_button_flat(
-        ui, id, s_editor_dock_target_label(target), rect);
+      icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+      icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
     }
+
+      ldk_ui_widget_icon_label(ui, id, icon, "", rect);
   }
 
   if (dock->drag.target_leaf != LDK_EDITOR_DOCK_INVALID_NODE)
@@ -1570,13 +1600,16 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
       LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
       if (target == dock->drag.target)
       {
-        ldk_ui_widget_button(ui, id, s_editor_dock_target_label(target), rect);
+        icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_HOVER;
+        icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
       }
       else
       {
-        ldk_ui_widget_button_flat(
-          ui, id, s_editor_dock_target_label(target), rect);
+        icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+        icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
       }
+
+      ldk_ui_widget_icon_label(ui, id, icon, "", rect);
     }
   }
 

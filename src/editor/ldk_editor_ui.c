@@ -719,7 +719,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   static LDKUIRect toolbar_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
   toolbar_rect.w = ui->viewport.w;
   toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
+      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 4.0f;
 
   toolbar_rect =
       ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
