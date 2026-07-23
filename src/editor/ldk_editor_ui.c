@@ -586,7 +586,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
   s_toolbar_rect.w = ui->viewport.w;
   s_toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
+    LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING;// * 2.0f;
 
   s_toolbar_rect = ldk_ui_begin_window(ui, "TOOLBAR", s_toolbar_rect, 0);
 
