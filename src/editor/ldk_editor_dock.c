@@ -10,10 +10,6 @@
 #define LDK_EDITOR_DOCK_NODE_CAPACITY 32
 #endif
 
-#ifndef LDK_EDITOR_DOCK_TAB_HEIGHT
-#define LDK_EDITOR_DOCK_TAB_HEIGHT 28.0f
-#endif
-
 #ifndef LDK_EDITOR_DOCK_SPLIT_GAP
 #define LDK_EDITOR_DOCK_SPLIT_GAP 0.0f
 #endif
@@ -85,10 +81,8 @@ typedef struct LDKEditorDockWindow
 {
   const char *title;
   LDKUIRect floating_rect;
-  LDKUIRect tab_rect;
   LDKUIId ui_window_id;
   i32 leaf;
-  bool tab_rect_valid;
 } LDKEditorDockWindow;
 
 typedef struct LDKEditorDockLeaf
@@ -96,6 +90,8 @@ typedef struct LDKEditorDockLeaf
   u32 windows[LDK_EDITOR_DOCK_WINDOW_COUNT];
   u32 window_count;
   u32 active_window;
+  LDKUIRect tab_bar_rect;
+  bool tab_bar_rect_valid;
 } LDKEditorDockLeaf;
 
 typedef struct LDKEditorDockSplit
@@ -1074,35 +1070,6 @@ static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
   }
 }
 
-static float s_editor_dock_tab_width(
-  LDKUIContext *ui, const LDKUITabBarItem *item)
-{
-  float width = LDK_UI_DEFAULT_SPACING * 4.0f;
-  bool has_icon = item != NULL && item->icon.texture != 0;
-  bool has_label =
-    item != NULL && item->label != NULL && item->label[0] != '\0';
-
-  if (has_icon)
-  {
-    width += item->icon.size.w;
-  }
-
-  if (has_label)
-  {
-    LDKTextSize text_size =
-      ldk_ttf_measure_text_cstr(ui->font, item->label);
-
-    if (has_icon)
-    {
-      width += LDK_UI_DEFAULT_SPACING;
-    }
-
-    width += text_size.w;
-  }
-
-  return width;
-}
-
 static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   LDKEditorContext *editor, i32 leaf_index)
 {
@@ -1119,12 +1086,11 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   }
 
   LDKUIContext *ui = &editor->ui;
-  LDKEditorDockWindow *active = &dock->windows[leaf->active_window];
   char window_title[32];
   snprintf(window_title, sizeof(window_title), "Dock Leaf %d", leaf_index);
   ldk_ui_begin_window_fixed(ui, window_title, node->rect,
     LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING);
-  active->ui_window_id = ui->last_id;
+  LDKUIId dock_window_id = ui->last_id;
 
   LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_WINDOW_COUNT] = {0};
   u32 active_index = 0;
@@ -1146,47 +1112,15 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
 
   LDKUITabBarResult tab_result =
     ldk_ui_tab_bar(ui, tab_items, leaf->window_count, active_index);
-  LDKUIRect tab_bar_rect = ldk_ui_last_rect(ui);
+  leaf->tab_bar_rect = ldk_ui_last_rect(ui);
+  leaf->tab_bar_rect_valid = true;
 
   if (tab_result.active_index < leaf->window_count)
   {
     leaf->active_window = leaf->windows[tab_result.active_index];
   }
 
-  LDKUIIcon menu_icon =
-    ui->theme.icons[LDK_UI_THEME_ICON_MORE_VERT];
-  float menu_button_width = LDK_UI_DEFAULT_SPACING;
-
-  if (menu_icon.texture != 0)
-  {
-    menu_button_width += menu_icon.size.w / 2.0f;
-  }
-
-  float tab_x =
-    tab_bar_rect.x + menu_button_width + LDK_UI_TAB_BAR_SPACING;
-  float tab_bar_right = tab_bar_rect.x + tab_bar_rect.w;
-
-  for (u32 i = 0; i < leaf->window_count; ++i)
-  {
-    u32 window = leaf->windows[i];
-    float tab_width =
-      s_editor_dock_tab_width(ui, &tab_items[i]);
-
-    if (tab_x >= tab_bar_right)
-    {
-      break;
-    }
-
-    dock->windows[window].tab_rect = (LDKUIRect){
-      tab_x,
-      tab_bar_rect.y,
-      s_editor_dock_clampf(
-        tab_width, 0.0f, tab_bar_right - tab_x),
-      LDK_UI_TAB_BAR_TAB_HEIGHT
-    };
-    dock->windows[window].tab_rect_valid = true;
-    tab_x += tab_width + LDK_UI_TAB_BAR_SPACING;
-  }
+  dock->windows[leaf->active_window].ui_window_id = dock_window_id;
   s_editor_dock_window_content_draw(dock, editor, leaf->active_window);
   ldk_ui_end_window(ui);
 }
@@ -1211,9 +1145,16 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
 static void s_editor_dock_windows_draw(
   LDKEditorDockState *dock, LDKEditorContext *editor)
 {
-  for (u32 i = 0; i < LDK_EDITOR_DOCK_WINDOW_COUNT; ++i)
+  for (i32 node_index = 0;
+       node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+       ++node_index)
   {
-    dock->windows[i].tab_rect_valid = false;
+    LDKEditorDockNode *node = &dock->nodes[node_index];
+
+    if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
+    {
+      node->data.leaf.tab_bar_rect_valid = false;
+    }
   }
 
   for (i32 node_index = 0;
@@ -1244,18 +1185,29 @@ static void s_editor_dock_tab_drag_update(
   if (!dock->drag.pending && !dock->drag.active &&
       s_editor_dock_mouse_down(ui))
   {
-    for (u32 window = 0; window < LDK_EDITOR_DOCK_WINDOW_COUNT; ++window)
+    for (i32 leaf_index = 0;
+         leaf_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+         ++leaf_index)
     {
-      LDKEditorDockWindow *panel = &dock->windows[window];
-      if (!panel->tab_rect_valid ||
-          !s_editor_dock_rect_contains(&panel->tab_rect, cursor.x, cursor.y))
+      LDKEditorDockNode *node = &dock->nodes[leaf_index];
+
+      if (!node->used || node->type != LDK_EDITOR_DOCK_NODE_LEAF)
+      {
+        continue;
+      }
+
+      LDKEditorDockLeaf *leaf = &node->data.leaf;
+
+      if (!leaf->tab_bar_rect_valid ||
+          !s_editor_dock_rect_contains(
+            &leaf->tab_bar_rect, cursor.x, cursor.y))
       {
         continue;
       }
 
       dock->drag.pending = true;
-      dock->drag.window = window;
-      dock->drag.source_leaf = panel->leaf;
+      dock->drag.window = leaf->active_window;
+      dock->drag.source_leaf = leaf_index;
       dock->drag.press_position = cursor;
       return;
     }
@@ -1407,24 +1359,6 @@ static const LDKEditorIcon s_editor_dock_target_icon(LDKEditorDockTarget target)
   case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT: return LDK_EDITOR_ICON_DOCK_RIGHT;
   case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM: return LDK_EDITOR_ICON_DOCK_BOTTOM;
   default: return -1;
-  }
-}
-
-
-static const char *s_editor_dock_target_label(LDKEditorDockTarget target)
-{
-  switch (target)
-  {
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP: return "A^";
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT: return "A<";
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT: return "A>";
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM: return "Av";
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP: return "^";
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT: return "<";
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER: return "C";
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT: return ">";
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM: return "v";
-    default: return "";
   }
 }
 
