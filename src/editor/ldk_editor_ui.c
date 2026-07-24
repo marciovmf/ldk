@@ -397,7 +397,6 @@ static void s_project_explorer_entries_draw(
   {
     column_count = 1;
   }
-
   u32 tile_index = 0;
   while (tile_index < total_count)
   {
@@ -479,6 +478,35 @@ static void s_editor_project_explorer(
 {
   ProjectExplorerState *state = &s_project_explorer_state;
   LDKUIContext *ui = &editor->ui;
+  bool owns_window = ui->current_window == NULL;
+
+  if (owns_window)
+  {
+    state->window_rect = ldk_ui_begin_window(
+      ui, "Project Explorer", state->window_rect, LDK_UI_WINDOW_TOOL);
+  }
+
+  if (!s_project_explorer_initialize(state))
+  {
+    ldk_ui_label(ui, "Project explorer allocation failed.");
+
+    if (owns_window)
+    {
+      ldk_ui_end_window(ui);
+    }
+    return;
+  }
+
+  if (!s_project_explorer_root_set(state, root_path))
+  {
+    ldk_ui_label(ui, "No project root.");
+
+    if (owns_window)
+    {
+      ldk_ui_end_window(ui);
+    }
+    return;
+  }
 
   LDKUIIcon file_icon = {0};
   file_icon.size = ldk_sizef(state->icon_size, state->icon_size);
@@ -495,29 +523,15 @@ static void s_editor_project_explorer(
   tree_folder_icon.size = ldk_sizef(
     PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
 
-  state->window_rect = ldk_ui_begin_window(
-    ui, "Project Explorer", state->window_rect, LDK_UI_WINDOW_TOOL);
-
-  if (!s_project_explorer_initialize(state))
-  {
-    ldk_ui_label(ui, "Project explorer allocation failed.");
-    ldk_ui_end_window(ui);
-    return;
-  }
-
-  if (!s_project_explorer_root_set(state, root_path))
-  {
-    ldk_ui_label(ui, "No project root.");
-    ldk_ui_end_window(ui);
-    return;
-  }
-
   ldk_ui_begin_horizontal(ui);
   s_project_explorer_tree_draw(state, ui, tree_folder_icon);
   s_project_explorer_files_draw(state, ui, folder_icon, file_icon);
   ldk_ui_end_horizontal(ui);
 
-  ldk_ui_end_window(ui);
+  if (owns_window)
+  {
+    ldk_ui_end_window(ui);
+  }
 }
 
 //------------------------------------------------------------
@@ -530,20 +544,25 @@ static void s_editor_console(LDKEditorContext *editor)
   LDK_ASSERT(editor->console_sb);
 
   static XSmallstr input = {0};
-  LDKUIIcon icon;
-  icon.size =
-      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-
-  LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
-  s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "CONSOLE", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-
   static LDKUIPoint scroll = {0};
+  static LDKUIRect window_rect = {150, 90, 200, 180};
+  LDKUIContext *ui = &editor->ui;
+  bool owns_window = ui->current_window == NULL;
+
+  if (owns_window)
+  {
+    window_rect = ldk_ui_begin_window_fixed(
+      ui, "CONSOLE", window_rect, LDK_UI_WINDOW_TOOL);
+  }
+
+  LDKUIIcon icon = {0};
+  icon.size =
+    ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
   scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
   icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
   ldk_ui_icon_label(ui, icon, "This is a warning.");
@@ -560,11 +579,13 @@ static void s_editor_console(LDKEditorContext *editor)
     x_strbuilder_append_format(editor->console_sb, "%s\n", input.buf);
     ldk_editor_command_run(editor, input.buf);
     x_smallstr_clear(&input);
-    // scroll down
     scroll.y += 10000.0f;
   }
 
-  ldk_ui_end_window(ui);
+  if (owns_window)
+  {
+    ldk_ui_end_window(ui);
+  }
 }
 
 //------------------------------------------------------------
@@ -793,10 +814,14 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 {
   LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {10, 60, 100, 100};
+  static LDKUIRect window_rect = {10, 60, 100, 100};
+  bool owns_window = ui->current_window == NULL;
 
-  s_entity_list_rect = ldk_ui_begin_window(
-      ui, "ENTITIES", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+  if (owns_window)
+  {
+    window_rect = ldk_ui_begin_window(
+      ui, "ENTITIES", window_rect, LDK_UI_WINDOW_TOOL);
+  }
   LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
   LDKEntity e;
 
@@ -816,7 +841,11 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     }
   }
   ldk_entity_iterator_end(&it);
-  ldk_ui_end_window(ui);
+
+  if (owns_window)
+  {
+    ldk_ui_end_window(ui);
+  }
 }
 
 //------------------------------------------------------------
