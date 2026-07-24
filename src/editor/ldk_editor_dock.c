@@ -85,6 +85,7 @@ typedef struct LDKEditorWindow
  */
 #define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
 #define LDK_EDITOR_WINDOW_SCENE            ((LDKEditorWindowId)0x4C444B02u)
+#define LDK_EDITOR_WINDOW_SCENE2           ((LDKEditorWindowId)0x4C444B99u)
 #define LDK_EDITOR_WINDOW_INSPECTOR        ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE          ((LDKEditorWindowId)0x4C444B04u)
 
@@ -993,7 +994,7 @@ static void s_editor_dock_layout_node(
     return;
   }
 
-  float ratio = s_editor_dock_clampf(node->data.split.ratio, 0.1f, 0.9f);
+  float ratio = s_editor_dock_clampf(node->data.split.ratio, 0.4f, 0.6f);
   float half_gap = LDK_EDITOR_DOCK_SPLIT_GAP * 0.5f;
   float half_hit_size = LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE * 0.5f;
   LDKUIRect first_rect = rect;
@@ -1101,7 +1102,7 @@ static bool s_editor_dock_split_resize_update(
       if (size > 0.0f)
       {
         node->data.split.ratio =
-          s_editor_dock_clampf(position / size, 0.1f, 0.9f);
+          s_editor_dock_clampf(position / size, 0.4f, 0.6f);
       }
 
       return true;

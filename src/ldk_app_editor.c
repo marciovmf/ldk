@@ -515,6 +515,67 @@ static void s_editor_test_b(LDKEditor *editor)
 /* POC implementation. */
 #include "editor/ldk_editor_dock.c"
 
+#define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
+
+static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKUIContext *ui = &editor->ui;
+  (void)data;
+
+  if (ui->current_layout == NULL)
+  {
+    return;
+  }
+
+  LDKUIRect content_rect = ui->current_layout->content_rect;
+  float content_bottom = content_rect.y + content_rect.h;
+  content_rect.y = ui->current_layout->cursor.y;
+  content_rect.h = content_bottom - content_rect.y;
+
+  if (content_rect.w <= 0.0f || content_rect.h <= 0.0f)
+  {
+    return;
+  }
+
+  rgba32 panel_bg = ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = 0x000000FFu;
+  ldk_ui_widget_panel(ui, 0x47414D42u, content_rect);
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = panel_bg;
+
+  if (editor->renderer->game_width == 0 ||
+      editor->renderer->game_height == 0)
+  {
+    return;
+  }
+
+  LDKUITextureHandle game_texture =
+    ldk_renderer_game_texture_get(editor->renderer);
+  if (game_texture == (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  float game_aspect =
+    (float)editor->renderer->game_width /
+    (float)editor->renderer->game_height;
+  float content_aspect = content_rect.w / content_rect.h;
+  LDKUIRect image_rect = content_rect;
+
+  if (content_aspect > game_aspect)
+  {
+    image_rect.w = content_rect.h * game_aspect;
+    image_rect.x += (content_rect.w - image_rect.w) * 0.5f;
+  }
+  else
+  {
+    image_rect.h = content_rect.w / game_aspect;
+    image_rect.y += (content_rect.h - image_rect.h) * 0.5f;
+  }
+
+  ldk_ui_widget_image(ui, 0x47414D45u, game_texture,
+    ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
+}
 
 //----------------------------------------------------------
 // Editor Udpate
@@ -986,8 +1047,26 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
 
+  LDKEditorWindow game_window = {
+    .id = LDK_EDITOR_WINDOW_GAME,
+    .title = "Game",
+    .function = s_editor_game_window,
+    .data = NULL
+  };
 
-  ldk_editor_dock_init(editor);
+  if (!ldk_editor_window_add((LDKEditor *)editor, &game_window))
+  {
+    ldk_log_error("Failed to register the Game editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+
+  if (!ldk_editor_dock_init(editor))
+  {
+    ldk_log_error("Failed to initialize the editor dock system.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
   
   s_editor_set_title(editor);
   XFSPath cmake_path = s_editor_cmake_path_get(editor->window);

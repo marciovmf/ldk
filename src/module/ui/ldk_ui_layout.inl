@@ -1606,13 +1606,13 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     result.active_index = 0;
   }
 
-  LDKUIIcon menu_icon = s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_EJECT);
+  LDKUIIcon menu_icon = s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_MORE_VERT);
 
   float menu_button_width = LDK_UI_DEFAULT_SPACING;
 
   if (s_ui_icon_valid(menu_icon))
   {
-    menu_button_width += menu_icon.size.w ;
+    menu_button_width += menu_icon.size.w / 3.0f;
   }
 
   u32 draw_active_index = result.active_index;

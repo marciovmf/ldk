@@ -549,6 +549,13 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = config->initial_ui_index_capacity;
   renderer_config.initial_ui_vertex_capacity = config->initial_ui_vertex_capacity;
+  renderer_config.game_width = (u32)config->width;
+  renderer_config.game_height = (u32)config->height;
+#ifdef LDK_EDITOR
+  renderer_config.present_game = false;
+#else
+  renderer_config.present_game = true;
+#endif
   if (!ldk_renderer_initialize(&e->renderer, &renderer_config))
   {
     ldk_log_error("Failed to initialize module: UI Renderer.");
@@ -657,7 +664,8 @@ void ldk_engine_frame(void)
     XArray* camera_owners = ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
 
     u32 camera_count = x_array_count(all_camera);
-    float aspect = (float)window_size.w / (float)window_size.h;
+    float aspect =
+        (float)e->renderer.game_width / (float)e->renderer.game_height;
 
     for (u32 i = 0; i < camera_count; i++)
     {
