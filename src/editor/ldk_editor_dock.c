@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef LDK_EDITOR_DOCK_WORKSPACE_TOP
 #define LDK_EDITOR_DOCK_WORKSPACE_TOP                                      \
@@ -8,6 +10,14 @@
 
 #ifndef LDK_EDITOR_DOCK_NODE_CAPACITY
 #define LDK_EDITOR_DOCK_NODE_CAPACITY 32
+#endif
+
+#ifndef LDK_EDITOR_WINDOW_CAPACITY
+#define LDK_EDITOR_WINDOW_CAPACITY 64
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY
+#define LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY 16
 #endif
 
 #ifndef LDK_EDITOR_DOCK_SPLIT_GAP
@@ -35,18 +45,48 @@
 #endif
 
 #define LDK_EDITOR_DOCK_INVALID_NODE (-1)
+#define LDK_EDITOR_WINDOW_ID_INVALID ((LDKEditorWindowId)0)
 
 #define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
 #define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
 
-typedef enum LDKEditorDockWindowId
+
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
+#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+
+enum
 {
-  LDK_EDITOR_DOCK_WINDOW_PROJECT_EXPLORER = 0,
-  LDK_EDITOR_DOCK_WINDOW_SCENE,
-  LDK_EDITOR_DOCK_WINDOW_INSPECTOR,
-  LDK_EDITOR_DOCK_WINDOW_CONSOLE,
-  LDK_EDITOR_DOCK_WINDOW_COUNT
-} LDKEditorDockWindowId;
+  LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
+  LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
+  LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
+};
+
+/*
+ * Editor window IDs are stored in the docking layout and must therefore be
+ * stable across runs. The value is intentionally just an application-defined
+ * integer. It must be non-zero and unique among the windows registered by the
+ * editor and its tools. Do not use an address as an ID.
+ */
+typedef uintptr_t LDKEditorWindowId;
+
+typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
+
+typedef struct LDKEditorWindow
+{
+  LDKEditorWindowId id;
+  const char *title;
+  LDKEditorWindowFunction function;
+  void *data;
+} LDKEditorWindow;
+
+/*
+ * Stable IDs reserved by the editor. User tools should define their own
+ * persistent non-zero values outside this range.
+ */
+#define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
+#define LDK_EDITOR_WINDOW_SCENE            ((LDKEditorWindowId)0x4C444B02u)
+#define LDK_EDITOR_WINDOW_INSPECTOR        ((LDKEditorWindowId)0x4C444B03u)
+#define LDK_EDITOR_WINDOW_CONSOLE          ((LDKEditorWindowId)0x4C444B04u)
 
 typedef enum LDKEditorDockNodeType
 {
@@ -79,7 +119,7 @@ typedef enum LDKEditorDockTarget
 
 typedef struct LDKEditorDockWindow
 {
-  const char *title;
+  LDKEditorWindow window;
   LDKUIRect floating_rect;
   LDKUIId ui_window_id;
   i32 leaf;
@@ -87,9 +127,9 @@ typedef struct LDKEditorDockWindow
 
 typedef struct LDKEditorDockLeaf
 {
-  u32 windows[LDK_EDITOR_DOCK_WINDOW_COUNT];
+  LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
   u32 window_count;
-  u32 active_window;
+  LDKEditorWindowId active_window;
   LDKUIRect tab_bar_rect;
   bool tab_bar_rect_valid;
 } LDKEditorDockLeaf;
@@ -119,7 +159,7 @@ typedef struct LDKEditorDockNode
 
 typedef struct LDKEditorDockDrag
 {
-  u32 window;
+  LDKEditorWindowId window;
   i32 source_leaf;
   LDKUIPoint press_position;
   LDKEditorDockTarget target;
@@ -134,22 +174,164 @@ typedef struct LDKEditorDockResize
   bool active;
 } LDKEditorDockResize;
 
+typedef struct LDKEditorProjectExplorerNode
+{
+  XFSPath path;
+  XSmallstr name;
+  u32 depth;
+  bool root;
+} LDKEditorProjectExplorerNode;
+
+typedef struct LDKEditorProjectExplorerEntry
+{
+  XFSPath path;
+  XSmallstr name;
+  size_t size;
+  time_t last_modified;
+} LDKEditorProjectExplorerEntry;
+
+typedef struct LDKEditorProjectExplorerWindowData
+{
+  LDKUIPoint tree_scroll;
+  LDKUIPoint file_scroll;
+  XFSPath root;
+  XFSPath selected_directory;
+  XFSPath selected_file;
+  XArray *expanded_paths;
+  XArray *stack;
+  XArray *dirs;
+  XArray *files;
+  bool root_expanded;
+  float icon_size;
+} LDKEditorProjectExplorerWindowData;
+
+typedef struct LDKEditorConsoleWindowData
+{
+  LDKUIPoint scroll;
+  XSmallstr input;
+} LDKEditorConsoleWindowData;
+
+typedef struct LDKEditorInspectorWindowData
+{
+  bool enabled;
+} LDKEditorInspectorWindowData;
+
 typedef struct LDKEditorDockState
 {
-  LDKEditorDockWindow windows[LDK_EDITOR_DOCK_WINDOW_COUNT];
+  LDKEditorDockWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 window_count;
+
   LDKEditorDockNode nodes[LDK_EDITOR_DOCK_NODE_CAPACITY];
   LDKEditorDockDrag drag;
   LDKEditorDockResize resize;
 
-  LDKUIPoint project_scroll;
-  LDKUIPoint console_scroll;
+  LDKEditorProjectExplorerWindowData project_explorer;
+  LDKEditorConsoleWindowData console;
+  LDKEditorInspectorWindowData inspector;
+
   LDKUIId target_overlay_window_id;
   i32 root;
-  bool inspector_enabled;
   bool initialized;
 } LDKEditorDockState;
 
 static LDKEditorDockState s_editor_dock;
+
+/* ------------------------------------------------------------------------- */
+/* Window registry                                                           */
+/* ------------------------------------------------------------------------- */
+
+static LDKEditorDockWindow *s_editor_dock_window_get(
+  LDKEditorDockState *dock, LDKEditorWindowId id)
+{
+  if (dock == NULL || id == LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < dock->window_count; ++i)
+  {
+    if (dock->windows[i].window.id == id)
+    {
+      return &dock->windows[i];
+    }
+  }
+
+  return NULL;
+}
+
+static const LDKEditorDockWindow *s_editor_dock_window_get_const(
+  const LDKEditorDockState *dock, LDKEditorWindowId id)
+{
+  return s_editor_dock_window_get((LDKEditorDockState *)dock, id);
+}
+
+static LDKUIRect s_editor_dock_default_floating_rect(u32 index)
+{
+  float offset = (float)(index % 8u) * 24.0f;
+  return (LDKUIRect){
+    80.0f + offset,
+    100.0f + offset,
+    480.0f,
+    320.0f
+  };
+}
+
+static bool s_editor_dock_window_add(
+  LDKEditorDockState *dock, const LDKEditorWindow *window,
+  LDKUIRect floating_rect)
+{
+  if (dock == NULL || window == NULL ||
+      window->id == LDK_EDITOR_WINDOW_ID_INVALID ||
+      window->title == NULL || window->title[0] == 0 ||
+      window->function == NULL)
+  {
+    return false;
+  }
+
+  if (s_editor_dock_window_get(dock, window->id) != NULL)
+  {
+    return false;
+  }
+
+  if (dock->window_count >= LDK_EDITOR_WINDOW_CAPACITY)
+  {
+    return false;
+  }
+
+  LDKEditorDockWindow *dock_window = &dock->windows[dock->window_count++];
+  *dock_window = (LDKEditorDockWindow){
+    .window = *window,
+    .floating_rect = floating_rect,
+    .leaf = LDK_EDITOR_DOCK_INVALID_NODE
+  };
+
+  return true;
+}
+
+/*
+ * Registers an editor window with the dock system.
+ *
+ * This may be called before or after ldk_editor_dock_init(). Windows registered
+ * before initialization are preserved while the default dock tree is created.
+ * Windows registered after initialization start as floating windows.
+ *
+ * The supplied ID must be stable across runs so that a future serialized dock
+ * layout can resolve the same window at startup.
+ */
+bool ldk_editor_window_add(
+  LDKEditor *editor, const LDKEditorWindow *window)
+{
+  (void)editor;
+
+  return s_editor_dock_window_add(
+    &s_editor_dock,
+    window,
+    s_editor_dock_default_floating_rect(s_editor_dock.window_count));
+}
+
+/* ------------------------------------------------------------------------- */
+/* General helpers                                                           */
+/* ------------------------------------------------------------------------- */
 
 static bool s_editor_dock_rect_contains(
   const LDKUIRect *rect, float x, float y)
@@ -258,12 +440,16 @@ static void s_editor_dock_drag_reset(LDKEditorDockDrag *drag)
   }
 
   *drag = (LDKEditorDockDrag){
-    .window = LDK_EDITOR_DOCK_WINDOW_COUNT,
+    .window = LDK_EDITOR_WINDOW_ID_INVALID,
     .source_leaf = LDK_EDITOR_DOCK_INVALID_NODE,
     .target = LDK_EDITOR_DOCK_TARGET_NONE,
     .target_leaf = LDK_EDITOR_DOCK_INVALID_NODE
   };
 }
+
+/* ------------------------------------------------------------------------- */
+/* Dock tree                                                                 */
+/* ------------------------------------------------------------------------- */
 
 static i32 s_editor_dock_node_allocate(LDKEditorDockState *dock)
 {
@@ -298,8 +484,13 @@ static void s_editor_dock_node_release(
 }
 
 static i32 s_editor_dock_leaf_create(
-  LDKEditorDockState *dock, u32 window)
+  LDKEditorDockState *dock, LDKEditorWindowId window)
 {
+  if (s_editor_dock_window_get(dock, window) == NULL)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
   i32 node_index = s_editor_dock_node_allocate(dock);
   if (node_index == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -315,9 +506,23 @@ static i32 s_editor_dock_leaf_create(
 }
 
 static i32 s_editor_dock_leaf_create_tabs(
-  LDKEditorDockState *dock, const u32 *windows, u32 window_count,
-  u32 active_window)
+  LDKEditorDockState *dock, const LDKEditorWindowId *windows,
+  u32 window_count, LDKEditorWindowId active_window)
 {
+  if (dock == NULL || windows == NULL || window_count == 0 ||
+      window_count > LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  for (u32 i = 0; i < window_count; ++i)
+  {
+    if (s_editor_dock_window_get(dock, windows[i]) == NULL)
+    {
+      return LDK_EDITOR_DOCK_INVALID_NODE;
+    }
+  }
+
   i32 node_index = s_editor_dock_node_allocate(dock);
   if (node_index == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -359,9 +564,9 @@ static i32 s_editor_dock_split_create(LDKEditorDockState *dock,
 }
 
 static bool s_editor_dock_leaf_contains(
-  const LDKEditorDockLeaf *leaf, u32 window)
+  const LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
-  if (leaf == NULL)
+  if (leaf == NULL || window == LDK_EDITOR_WINDOW_ID_INVALID)
   {
     return false;
   }
@@ -378,9 +583,9 @@ static bool s_editor_dock_leaf_contains(
 }
 
 static bool s_editor_dock_leaf_add(
-  LDKEditorDockLeaf *leaf, u32 window)
+  LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
-  if (leaf == NULL || window >= LDK_EDITOR_DOCK_WINDOW_COUNT)
+  if (leaf == NULL || window == LDK_EDITOR_WINDOW_ID_INVALID)
   {
     return false;
   }
@@ -391,7 +596,7 @@ static bool s_editor_dock_leaf_add(
     return true;
   }
 
-  if (leaf->window_count >= LDK_EDITOR_DOCK_WINDOW_COUNT)
+  if (leaf->window_count >= LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
   {
     return false;
   }
@@ -402,7 +607,7 @@ static bool s_editor_dock_leaf_add(
 }
 
 static bool s_editor_dock_leaf_remove(
-  LDKEditorDockLeaf *leaf, u32 window)
+  LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
   if (leaf == NULL)
   {
@@ -426,6 +631,10 @@ static bool s_editor_dock_leaf_remove(
     if (leaf->window_count > 0 && leaf->active_window == window)
     {
       leaf->active_window = leaf->windows[0];
+    }
+    else if (leaf->window_count == 0)
+    {
+      leaf->active_window = LDK_EDITOR_WINDOW_ID_INVALID;
     }
 
     return true;
@@ -495,7 +704,7 @@ static void s_editor_dock_empty_leaf_collapse(
 
 static void s_editor_dock_window_locations_refresh(LDKEditorDockState *dock)
 {
-  for (u32 i = 0; i < LDK_EDITOR_DOCK_WINDOW_COUNT; ++i)
+  for (u32 i = 0; i < dock->window_count; ++i)
   {
     dock->windows[i].leaf = LDK_EDITOR_DOCK_INVALID_NODE;
   }
@@ -514,21 +723,27 @@ static void s_editor_dock_window_locations_refresh(LDKEditorDockState *dock)
          window_index < node->data.leaf.window_count;
          ++window_index)
     {
-      u32 window = node->data.leaf.windows[window_index];
-      dock->windows[window].leaf = node_index;
+      LDKEditorDockWindow *window = s_editor_dock_window_get(
+        dock, node->data.leaf.windows[window_index]);
+
+      if (window != NULL)
+      {
+        window->leaf = node_index;
+      }
     }
   }
 }
 
 static bool s_editor_dock_window_detach(
-  LDKEditorDockState *dock, u32 window)
+  LDKEditorDockState *dock, LDKEditorWindowId window)
 {
-  if (window >= LDK_EDITOR_DOCK_WINDOW_COUNT)
+  LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
+  if (dock_window == NULL)
   {
     return false;
   }
 
-  i32 leaf_index = dock->windows[window].leaf;
+  i32 leaf_index = dock_window->leaf;
   if (leaf_index == LDK_EDITOR_DOCK_INVALID_NODE)
   {
     return true;
@@ -550,16 +765,19 @@ static bool s_editor_dock_window_detach(
 }
 
 static bool s_editor_dock_local_center(
-  LDKEditorDockState *dock, u32 window, i32 target_leaf)
+  LDKEditorDockState *dock, LDKEditorWindowId window, i32 target_leaf)
 {
-  if (target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+  LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
+
+  if (dock_window == NULL ||
+      target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
       !dock->nodes[target_leaf].used ||
       dock->nodes[target_leaf].type != LDK_EDITOR_DOCK_NODE_LEAF)
   {
     return false;
   }
 
-  if (dock->windows[window].leaf == target_leaf)
+  if (dock_window->leaf == target_leaf)
   {
     dock->nodes[target_leaf].data.leaf.active_window = window;
     return true;
@@ -585,17 +803,20 @@ static bool s_editor_dock_local_center(
   return true;
 }
 
-static bool s_editor_dock_local_edge(LDKEditorDockState *dock, u32 window,
-  i32 target_leaf, LDKEditorDockTarget target)
+static bool s_editor_dock_local_edge(LDKEditorDockState *dock,
+  LDKEditorWindowId window, i32 target_leaf, LDKEditorDockTarget target)
 {
-  if (target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+  LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
+
+  if (dock_window == NULL ||
+      target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
       !dock->nodes[target_leaf].used ||
       dock->nodes[target_leaf].type != LDK_EDITOR_DOCK_NODE_LEAF)
   {
     return false;
   }
 
-  i32 source_leaf = dock->windows[window].leaf;
+  i32 source_leaf = dock_window->leaf;
   if (source_leaf == target_leaf &&
       dock->nodes[target_leaf].data.leaf.window_count == 1)
   {
@@ -643,10 +864,11 @@ static bool s_editor_dock_local_edge(LDKEditorDockState *dock, u32 window,
   return true;
 }
 
-static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock, u32 window,
-  LDKEditorDockTarget target)
+static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
+  LDKEditorWindowId window, LDKEditorDockTarget target)
 {
-  if (!s_editor_dock_window_detach(dock, window))
+  if (s_editor_dock_window_get(dock, window) == NULL ||
+      !s_editor_dock_window_detach(dock, window))
   {
     return false;
   }
@@ -690,14 +912,15 @@ static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock, u32 window,
 }
 
 static void s_editor_dock_make_floating(LDKEditorDockState *dock,
-  u32 window, LDKUIPoint cursor)
+  LDKEditorWindowId window, LDKUIPoint cursor)
 {
-  if (window >= LDK_EDITOR_DOCK_WINDOW_COUNT)
+  LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
+  if (dock_window == NULL)
   {
     return;
   }
 
-  bool was_docked = dock->windows[window].leaf != LDK_EDITOR_DOCK_INVALID_NODE;
+  bool was_docked = dock_window->leaf != LDK_EDITOR_DOCK_INVALID_NODE;
   if (was_docked && !s_editor_dock_window_detach(dock, window))
   {
     return;
@@ -705,7 +928,7 @@ static void s_editor_dock_make_floating(LDKEditorDockState *dock,
 
   if (was_docked)
   {
-    LDKUIRect *rect = &dock->windows[window].floating_rect;
+    LDKUIRect *rect = &dock_window->floating_rect;
     rect->x = cursor.x - rect->w * 0.5f;
     rect->y = cursor.y - LDK_UI_TITLE_BAR_HEIGHT * 0.5f;
   }
@@ -715,7 +938,7 @@ static void s_editor_dock_drop_commit(LDKEditorDockState *dock,
   LDKEditorDockDrag *drag, LDKUIPoint cursor)
 {
   if (dock == NULL || drag == NULL ||
-      drag->window >= LDK_EDITOR_DOCK_WINDOW_COUNT)
+      s_editor_dock_window_get(dock, drag->window) == NULL)
   {
     return;
   }
@@ -747,6 +970,10 @@ static void s_editor_dock_drop_commit(LDKEditorDockState *dock,
       break;
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Layout and splitter interaction                                           */
+/* ------------------------------------------------------------------------- */
 
 static void s_editor_dock_layout_node(
   LDKEditorDockState *dock, i32 node_index, LDKUIRect rect)
@@ -938,13 +1165,488 @@ static i32 s_editor_dock_leaf_at(
   return LDK_EDITOR_DOCK_INVALID_NODE;
 }
 
-static void s_editor_dock_project_explorer_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor)
+/* ------------------------------------------------------------------------- */
+/* Built-in editor windows                                                   */
+/* ------------------------------------------------------------------------- */
+
+
+static bool s_editor_project_explorer_initialize(
+  LDKEditorProjectExplorerWindowData *state)
 {
+  if (state->expanded_paths == NULL)
+  {
+    state->expanded_paths = x_array_create(
+      sizeof(XFSPath), LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->stack == NULL)
+  {
+    state->stack = x_array_create(
+      sizeof(LDKEditorProjectExplorerNode),
+      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->dirs == NULL)
+  {
+    state->dirs = x_array_create(
+      sizeof(LDKEditorProjectExplorerEntry),
+      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->files == NULL)
+  {
+    state->files = x_array_create(
+      sizeof(LDKEditorProjectExplorerEntry),
+      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  return state->expanded_paths != NULL &&
+         state->stack != NULL &&
+         state->dirs != NULL &&
+         state->files != NULL;
+}
+
+static i32 s_editor_project_explorer_expanded_path_index(
+  LDKEditorProjectExplorerWindowData *state, const XFSPath *path)
+{
+  for (u32 i = 0; i < x_array_count(state->expanded_paths); ++i)
+  {
+    XFSPath *expanded_path = x_array_get(state->expanded_paths, i);
+    if (x_fs_path_compare(expanded_path, path) == 0)
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static bool s_editor_project_explorer_root_set(
+  LDKEditorProjectExplorerWindowData *state, const char *root_path)
+{
+  if (root_path == NULL)
+  {
+    return false;
+  }
+
+  XFSPath root = {0};
+  x_fs_path_set(&root, root_path);
+  x_fs_path_normalize(&root);
+
+  if (!x_fs_path_is_directory(&root))
+  {
+    return false;
+  }
+
+  if (state->root.length == 0 ||
+      x_fs_path_compare(&state->root, &root) != 0)
+  {
+    state->root = root;
+    state->selected_directory = root;
+    memset(&state->selected_file, 0, sizeof(state->selected_file));
+    x_array_clear(state->expanded_paths);
+    state->root_expanded = true;
+  }
+
+  return true;
+}
+
+static void s_editor_project_explorer_directory_select(
+  LDKEditorProjectExplorerWindowData *state,
+  const XFSPath *path, bool expand)
+{
+  state->selected_directory = *path;
+  memset(&state->selected_file, 0, sizeof(state->selected_file));
+
+  if (!expand)
+  {
+    return;
+  }
+
+  if (x_fs_path_compare(&state->root, path) == 0)
+  {
+    state->root_expanded = true;
+    return;
+  }
+
+  if (s_editor_project_explorer_expanded_path_index(state, path) < 0)
+  {
+    x_array_add(state->expanded_paths, (XFSPath *)path);
+  }
+}
+
+static void s_editor_project_explorer_entry_insert_sorted(
+  XArray *entries, const LDKEditorProjectExplorerEntry *entry)
+{
+  u32 insert_index = x_array_count(entries);
+
+  for (u32 i = 0; i < x_array_count(entries); ++i)
+  {
+    LDKEditorProjectExplorerEntry *it = x_array_get(entries, i);
+    if (strcmp(it->name.buf, entry->name.buf) > 0)
+    {
+      insert_index = i;
+      break;
+    }
+  }
+
+  x_array_insert(entries, (void *)entry, insert_index);
+}
+
+static void s_editor_project_explorer_directory_read(
+  const XFSPath *path, XArray *dirs, XArray *files)
+{
+  if (dirs != NULL)
+  {
+    x_array_clear(dirs);
+  }
+
+  if (files != NULL)
+  {
+    x_array_clear(files);
+  }
+
+  XFSDireEntry fs_entry = {0};
+  XFSDireHandle *dir =
+    x_fs_find_first_file(x_fs_path_cstr(path), &fs_entry);
+
+  while (dir != NULL)
+  {
+    bool special_entry = strcmp(fs_entry.name, ".") == 0 ||
+                         strcmp(fs_entry.name, "..") == 0;
+    XArray *target = fs_entry.is_directory ? dirs : files;
+
+    if (!special_entry && target != NULL)
+    {
+      LDKEditorProjectExplorerEntry entry = {0};
+      entry.path = *path;
+      x_fs_path_join(&entry.path, fs_entry.name);
+      x_smallstr_from_cstr(&entry.name, fs_entry.name);
+      entry.size = fs_entry.size;
+      entry.last_modified = fs_entry.last_modified;
+      s_editor_project_explorer_entry_insert_sorted(target, &entry);
+    }
+
+    if (!x_fs_find_next_file(dir, &fs_entry))
+    {
+      break;
+    }
+  }
+
+  if (dir != NULL)
+  {
+    x_fs_find_close(dir);
+  }
+}
+
+static bool s_editor_project_explorer_tree_node(
+  LDKEditorProjectExplorerWindowData *state,
+  LDKUIContext *ui,
+  const LDKEditorProjectExplorerNode *node,
+  LDKUIIcon folder_icon)
+{
+  i32 expanded_index = node->root
+    ? -1
+    : s_editor_project_explorer_expanded_path_index(state, &node->path);
+  bool was_expanded = node->root
+    ? state->root_expanded
+    : expanded_index >= 0;
+  u32 flags = 0;
+
+  if (x_fs_path_compare(&state->selected_directory, &node->path) == 0)
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  u32 result = ldk_ui_tree_node_ex(
+    ui, node->name.buf, folder_icon, was_expanded, node->depth, flags);
+  bool expanded = was_expanded;
+
+  if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
+  {
+    s_editor_project_explorer_directory_select(
+      state, &node->path, false);
+  }
+
+  if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+  {
+    expanded = !was_expanded;
+  }
+
+  if (expanded == was_expanded)
+  {
+    return expanded;
+  }
+
+  s_editor_project_explorer_directory_select(
+    state, &node->path, false);
+
+  if (node->root)
+  {
+    state->root_expanded = expanded;
+  }
+  else if (expanded)
+  {
+    x_array_add(state->expanded_paths, (XFSPath *)&node->path);
+  }
+  else
+  {
+    x_array_delete_at(state->expanded_paths, (u32)expanded_index);
+  }
+
+  return expanded;
+}
+
+static void s_editor_project_explorer_tree_draw(
+  LDKEditorProjectExplorerWindowData *state,
+  LDKUIContext *ui,
+  LDKUIIcon folder_icon)
+{
+  ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
+  state->tree_scroll = ldk_ui_begin_scrollview(
+    ui, state->tree_scroll,
+    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  x_array_clear(state->stack);
+
+  LDKEditorProjectExplorerNode root_node = {0};
+  root_node.path = state->root;
+  x_fs_path_basename(&state->root, &root_node.name);
+
+  if (root_node.name.length == 0)
+  {
+    x_smallstr_from_cstr(
+      &root_node.name, x_fs_path_cstr(&state->root));
+  }
+
+  root_node.root = true;
+  x_array_add(state->stack, &root_node);
+
+  while (x_array_count(state->stack) > 0)
+  {
+    u32 stack_index = x_array_count(state->stack) - 1;
+    LDKEditorProjectExplorerNode *node_ptr =
+      x_array_get(state->stack, stack_index);
+    LDKEditorProjectExplorerNode node = *node_ptr;
+    x_array_delete_at(state->stack, stack_index);
+
+    if (!s_editor_project_explorer_tree_node(
+          state, ui, &node, folder_icon))
+    {
+      continue;
+    }
+
+    s_editor_project_explorer_directory_read(
+      &node.path, state->dirs, NULL);
+
+    for (u32 i = x_array_count(state->dirs); i > 0; --i)
+    {
+      LDKEditorProjectExplorerEntry *entry =
+        x_array_get(state->dirs, i - 1);
+      LDKEditorProjectExplorerNode child = {0};
+      child.path = entry->path;
+      child.name = entry->name;
+      child.depth = node.depth + 1;
+      x_array_add(state->stack, &child);
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+}
+
+static LDKEditorProjectExplorerEntry *
+s_editor_project_explorer_entry_get(
+  LDKEditorProjectExplorerWindowData *state,
+  u32 index, bool *is_directory)
+{
+  u32 directory_count = x_array_count(state->dirs);
+  *is_directory = index < directory_count;
+
+  if (*is_directory)
+  {
+    return x_array_get(state->dirs, index);
+  }
+
+  return x_array_get(state->files, index - directory_count);
+}
+
+static void s_editor_project_explorer_entry_activate(
+  LDKEditorProjectExplorerWindowData *state,
+  const LDKEditorProjectExplorerEntry *entry,
+  bool is_directory)
+{
+  if (is_directory)
+  {
+    s_editor_project_explorer_directory_select(
+      state, &entry->path, true);
+  }
+  else
+  {
+    state->selected_file = entry->path;
+  }
+}
+
+static void s_editor_project_explorer_entries_draw(
+  LDKEditorProjectExplorerWindowData *state,
+  LDKUIContext *ui,
+  LDKUIIcon folder_icon,
+  LDKUIIcon file_icon)
+{
+  u32 total_count =
+    x_array_count(state->dirs) + x_array_count(state->files);
+  bool compact_mode =
+    state->icon_size <= LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE;
+
+  if (compact_mode)
+  {
+    for (u32 entry_index = 0;
+         entry_index < total_count;
+         ++entry_index)
+    {
+      bool is_directory = false;
+      LDKEditorProjectExplorerEntry *entry =
+        s_editor_project_explorer_entry_get(
+          state, entry_index, &is_directory);
+
+      ldk_ui_set_next_height(
+        ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+      ldk_ui_begin_horizontal(ui);
+
+      ldk_ui_set_next_weight(ui, 0.0f);
+      bool icon_clicked = ldk_ui_icon_button(
+        ui, is_directory ? folder_icon : file_icon, NULL);
+      bool label_clicked =
+        ldk_ui_button_flat(ui, entry->name.buf);
+
+      ldk_ui_end_horizontal(ui);
+
+      if (icon_clicked || label_clicked)
+      {
+        s_editor_project_explorer_entry_activate(
+          state, entry, is_directory);
+      }
+    }
+
+    return;
+  }
+
+  float tile_w = state->icon_size + 32.0f;
+  float tile_h =
+    state->icon_size + LDK_UI_DEFAULT_CONTROL_HEIGHT + 12.0f;
+  float available_w = ui->current_layout != NULL
+    ? ui->current_layout->content_rect.w
+    : tile_w;
+  u32 column_count = (u32)(available_w / tile_w);
+
+  if (column_count == 0)
+  {
+    column_count = 1;
+  }
+
+  u32 tile_index = 0;
+  while (tile_index < total_count)
+  {
+    ldk_ui_set_next_height(ui, ldk_ui_px(tile_h));
+    ldk_ui_begin_horizontal(ui);
+
+    for (u32 column = 0;
+         column < column_count && tile_index < total_count;
+         ++column, ++tile_index)
+    {
+      bool is_directory = false;
+      LDKEditorProjectExplorerEntry *entry =
+        s_editor_project_explorer_entry_get(
+          state, tile_index, &is_directory);
+
+      ldk_ui_set_next_size(
+        ui, ldk_ui_px(tile_w), ldk_ui_px(tile_h));
+      ldk_ui_begin_vertical(ui);
+
+      ldk_ui_set_next_size(
+        ui,
+        ldk_ui_px(state->icon_size),
+        ldk_ui_px(state->icon_size));
+      bool icon_clicked = ldk_ui_icon_button(
+        ui, is_directory ? folder_icon : file_icon, NULL);
+
+      ldk_ui_set_next_height(
+        ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+      bool label_clicked =
+        ldk_ui_button_flat(ui, entry->name.buf);
+
+      ldk_ui_end_vertical(ui);
+
+      if (icon_clicked || label_clicked)
+      {
+        s_editor_project_explorer_entry_activate(
+          state, entry, is_directory);
+      }
+    }
+
+    ldk_ui_spacer(ui);
+    ldk_ui_end_horizontal(ui);
+  }
+}
+
+static void s_editor_project_explorer_files_draw(
+  LDKEditorProjectExplorerWindowData *state,
+  LDKUIContext *ui,
+  LDKUIIcon folder_icon,
+  LDKUIIcon file_icon)
+{
+  ldk_ui_begin_vertical(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+
+  XFSPath relative_directory = {0};
+  if (x_fs_path_relative_to(
+        &state->root,
+        &state->selected_directory,
+        &relative_directory) > 0)
+  {
+    ldk_ui_label(ui, relative_directory.buf);
+  }
+  else
+  {
+    ldk_ui_label(ui, state->selected_directory.buf);
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  state->icon_size = ldk_ui_slider(
+    ui,
+    state->icon_size,
+    LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE,
+    72.0f);
+
+  folder_icon.size =
+    ldk_sizef(state->icon_size, state->icon_size);
+  file_icon.size = folder_icon.size;
+
+  state->file_scroll = ldk_ui_begin_scrollview(
+    ui, state->file_scroll,
+    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  s_editor_project_explorer_directory_read(
+    &state->selected_directory, state->dirs, state->files);
+  s_editor_project_explorer_entries_draw(
+    state, ui, folder_icon, file_icon);
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+  ldk_ui_end_vertical(ui);
+}
+
+static void s_editor_project_explorer_window(
+  LDKEditor *opaque_editor, void *data)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKEditorProjectExplorerWindowData *state =
+    (LDKEditorProjectExplorerWindowData *)data;
   LDKUIContext *ui = &editor->ui;
   const XFSPath *root = NULL;
 
-  if (editor->project.loaded && editor->project.project_root_path.length > 0)
+  if (editor->project.loaded &&
+      editor->project.project_root_path.length > 0)
   {
     root = &editor->project.project_root_path;
   }
@@ -953,82 +1655,86 @@ static void s_editor_dock_project_explorer_draw(
     root = &editor->engine_runtree;
   }
 
-  if (root == NULL)
+  if (!s_editor_project_explorer_initialize(state))
   {
-    ldk_ui_label(ui, "No project root is available.");
+    ldk_ui_label(ui, "Project explorer allocation failed.");
     return;
   }
 
-  ldk_ui_label(ui, root->buf);
-  dock->project_scroll = ldk_ui_begin_scrollview(ui, dock->project_scroll,
-    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  XFSDireEntry entry = {0};
-  XFSDireHandle *directory =
-    x_fs_find_first_file(x_fs_path_cstr(root), &entry);
-  u32 entry_index = 0;
-
-  while (directory != NULL && entry_index < LDK_EDITOR_DOCK_PROJECT_ENTRY_LIMIT)
+  if (root == NULL ||
+      !s_editor_project_explorer_root_set(state, root->buf))
   {
-    bool special = strcmp(entry.name, ".") == 0 ||
-                   strcmp(entry.name, "..") == 0;
-
-    if (!special)
-    {
-      char label[256];
-      snprintf(label, sizeof(label), "%s %.248s",
-        entry.is_directory ? "[D]" : "[F]", entry.name);
-
-      ldk_ui_push_id_u32(ui, entry_index++);
-      ldk_ui_button_flat(ui, label);
-      ldk_ui_pop_id(ui);
-    }
-
-    if (!x_fs_find_next_file(directory, &entry))
-    {
-      break;
-    }
+    ldk_ui_label(ui, "No project root.");
+    return;
   }
 
-  if (directory != NULL)
-  {
-    x_fs_find_close(directory);
-  }
+  LDKUIIcon file_icon = {0};
+  file_icon.size =
+    ldk_sizef(state->icon_size, state->icon_size);
+  file_icon.texture =
+    ldk_renderer_texture_ui_handle(
+      editor->renderer, editor->ui_atlas);
+  file_icon.uv =
+    ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
+  file_icon.color = LDK_EDITOR_COLOR_FILE;
 
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
+  LDKUIIcon folder_icon = file_icon;
+  folder_icon.uv =
+    ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER];
+  folder_icon.color = LDK_EDITOR_COLOR_FOLDER;
+
+  LDKUIIcon tree_folder_icon = folder_icon;
+  tree_folder_icon.size = ldk_sizef(
+    LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE,
+    LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE);
+
+  ldk_ui_begin_horizontal(ui);
+  s_editor_project_explorer_tree_draw(
+    state, ui, tree_folder_icon);
+  s_editor_project_explorer_files_draw(
+    state, ui, folder_icon, file_icon);
+  ldk_ui_end_horizontal(ui);
 }
 
-static void s_editor_dock_scene_draw(LDKEditorContext *editor)
+static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
 {
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
   LDKUIContext *ui = &editor->ui;
+  (void)data;
+
   ldk_ui_label(ui, "Scene viewport placeholder");
   ldk_ui_horizontal_line(ui);
-  ldk_ui_label(ui, "The docking POC intentionally keeps rendering simple.");
   ldk_ui_button(ui, "Frame selected");
   ldk_ui_button(ui, "Toggle grid");
   ldk_ui_spacer(ui);
 }
 
-static void s_editor_dock_inspector_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor)
+static void s_editor_inspector_window(
+  LDKEditor *opaque_editor, void *data)
 {
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKEditorInspectorWindowData *state =
+    (LDKEditorInspectorWindowData *)data;
   LDKUIContext *ui = &editor->ui;
+
   ldk_ui_label(ui, "Inspector placeholder");
   ldk_ui_horizontal_line(ui);
   ldk_ui_label(ui, "Name: Selected Entity");
-  dock->inspector_enabled =
-    ldk_ui_toggle(ui, dock->inspector_enabled);
-  ldk_ui_label(ui, dock->inspector_enabled ? "Enabled" : "Disabled");
+  state->enabled = ldk_ui_toggle(ui, state->enabled);
+  ldk_ui_label(ui, state->enabled ? "Enabled" : "Disabled");
   ldk_ui_button(ui, "Add Component");
   ldk_ui_spacer(ui);
 }
 
-static void s_editor_dock_console_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor)
+static void s_editor_console_window(
+  LDKEditor *opaque_editor, void *data)
 {
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKEditorConsoleWindowData *state =
+    (LDKEditorConsoleWindowData *)data;
   LDKUIContext *ui = &editor->ui;
-  dock->console_scroll = ldk_ui_begin_scrollview(ui, dock->console_scroll,
+
+  state->scroll = ldk_ui_begin_scrollview(ui, state->scroll,
     LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
   if (editor->console_sb != NULL)
@@ -1042,31 +1748,110 @@ static void s_editor_dock_console_draw(
 
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_input_box(
+        ui, state->input.buf, X_SMALLSTR_MAX_LENGTH) &
+      LDK_UI_INPUT_BOX_COMMITTED)
+  {
+    if (editor->console_sb != NULL)
+    {
+      x_strbuilder_append_format(
+        editor->console_sb, "%s\n", state->input.buf);
+    }
+
+    ldk_editor_command_run(opaque_editor, state->input.buf);
+    x_smallstr_clear(&state->input);
+    state->scroll.y += 10000.0f;
+  }
 }
 
-static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
-  LDKEditorContext *editor, u32 window)
+static bool s_editor_builtin_windows_add(
+  LDKEditorContext *editor, LDKEditorDockState *dock)
 {
-  switch (window)
+  if (s_editor_dock_window_get(
+        dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER) == NULL)
   {
-    case LDK_EDITOR_DOCK_WINDOW_PROJECT_EXPLORER:
-      s_editor_dock_project_explorer_draw(dock, editor);
-      break;
+    LDKEditorWindow window = {
+      .id = LDK_EDITOR_WINDOW_PROJECT_EXPLORER,
+      .title = "Project Explorer",
+      .function = s_editor_project_explorer_window,
+      .data = &dock->project_explorer
+    };
 
-    case LDK_EDITOR_DOCK_WINDOW_SCENE:
-      s_editor_dock_scene_draw(editor);
-      break;
+    if (!s_editor_dock_window_add(
+          dock, &window, (LDKUIRect){40.0f, 90.0f, 520.0f, 400.0f}))
+    {
+      return false;
+    }
+  }
 
-    case LDK_EDITOR_DOCK_WINDOW_INSPECTOR:
-      s_editor_dock_inspector_draw(dock, editor);
-      break;
+  if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_SCENE) == NULL)
+  {
+    LDKEditorWindow window = {
+      .id = LDK_EDITOR_WINDOW_SCENE,
+      .title = "Scene",
+      .function = s_editor_scene_window,
+      .data = NULL
+    };
 
-    case LDK_EDITOR_DOCK_WINDOW_CONSOLE:
-      s_editor_dock_console_draw(dock, editor);
-      break;
+    if (!s_editor_dock_window_add(
+          dock, &window, (LDKUIRect){180.0f, 100.0f, 640.0f, 420.0f}))
+    {
+      return false;
+    }
+  }
 
-    default:
-      break;
+  if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_INSPECTOR) == NULL)
+  {
+    LDKEditorWindow window = {
+      .id = LDK_EDITOR_WINDOW_INSPECTOR,
+      .title = "Inspector",
+      .function = s_editor_inspector_window,
+      .data = &dock->inspector
+    };
+
+    if (!s_editor_dock_window_add(
+          dock, &window, (LDKUIRect){760.0f, 100.0f, 280.0f, 420.0f}))
+    {
+      return false;
+    }
+  }
+
+  if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_CONSOLE) == NULL)
+  {
+    LDKEditorWindow window = {
+      .id = LDK_EDITOR_WINDOW_CONSOLE,
+      .title = "Console",
+      .function = s_editor_console_window,
+      .data = &dock->console
+    };
+
+    if (!s_editor_dock_window_add(
+          dock, &window, (LDKUIRect){180.0f, 540.0f, 640.0f, 240.0f}))
+    {
+      return false;
+    }
+  }
+
+  (void)editor;
+  return true;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Window drawing                                                            */
+/* ------------------------------------------------------------------------- */
+
+static void s_editor_dock_window_content_draw(
+  LDKEditorDockState *dock, LDKEditorContext *editor,
+  LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+    s_editor_dock_window_get(dock, window_id);
+
+  if (window != NULL && window->window.function != NULL)
+  {
+    window->window.function((LDKEditor *)editor, window->window.data);
   }
 }
 
@@ -1088,23 +1873,25 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   LDKUIContext *ui = &editor->ui;
   char window_title[32];
   snprintf(window_title, sizeof(window_title), "Dock Leaf %d", leaf_index);
+
   ldk_ui_begin_window_fixed(ui, window_title, node->rect,
     LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING);
   LDKUIId dock_window_id = ui->last_id;
 
-  LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_WINDOW_COUNT] = {0};
+  LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY] = {0};
   u32 active_index = 0;
 
   for (u32 i = 0; i < leaf->window_count; ++i)
   {
-    u32 window = leaf->windows[i];
+    const LDKEditorDockWindow *window =
+      s_editor_dock_window_get_const(dock, leaf->windows[i]);
 
     tab_items[i] = (LDKUITabBarItem){
-      .id = window + 1,
-      .label = dock->windows[window].title
+      .id = (LDKUIId)(i + 1),
+      .label = window != NULL ? window->window.title : "<missing window>"
     };
 
-    if (window == leaf->active_window)
+    if (leaf->windows[i] == leaf->active_window)
     {
       active_index = i;
     }
@@ -1120,25 +1907,33 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
     leaf->active_window = leaf->windows[tab_result.active_index];
   }
 
-  dock->windows[leaf->active_window].ui_window_id = dock_window_id;
-  s_editor_dock_window_content_draw(dock, editor, leaf->active_window);
+  LDKEditorDockWindow *active_window =
+    s_editor_dock_window_get(dock, leaf->active_window);
+
+  if (active_window != NULL)
+  {
+    active_window->ui_window_id = dock_window_id;
+    s_editor_dock_window_content_draw(
+      dock, editor, leaf->active_window);
+  }
+
   ldk_ui_end_window(ui);
 }
 
-static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
-  LDKEditorContext *editor, u32 window)
+static void s_editor_dock_floating_window_draw(
+  LDKEditorDockState *dock, LDKEditorContext *editor,
+  LDKEditorDockWindow *window)
 {
-  LDKEditorDockWindow *panel = &dock->windows[window];
   LDKUIContext *ui = &editor->ui;
   u32 flags = LDK_UI_WINDOW_TITLE_BAR |
               LDK_UI_WINDOW_DRAGGABLE |
               LDK_UI_WINDOW_RESIZABLE |
               LDK_UI_WINDOW_BORDER;
 
-  panel->floating_rect = ldk_ui_begin_window(
-    ui, panel->title, panel->floating_rect, flags);
-  panel->ui_window_id = ui->last_id;
-  s_editor_dock_window_content_draw(dock, editor, window);
+  window->floating_rect = ldk_ui_begin_window(
+    ui, window->window.title, window->floating_rect, flags);
+  window->ui_window_id = ui->last_id;
+  s_editor_dock_window_content_draw(dock, editor, window->window.id);
   ldk_ui_end_window(ui);
 }
 
@@ -1168,14 +1963,19 @@ static void s_editor_dock_windows_draw(
     }
   }
 
-  for (u32 window = 0; window < LDK_EDITOR_DOCK_WINDOW_COUNT; ++window)
+  for (u32 i = 0; i < dock->window_count; ++i)
   {
-    if (dock->windows[window].leaf == LDK_EDITOR_DOCK_INVALID_NODE)
+    LDKEditorDockWindow *window = &dock->windows[i];
+    if (window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
     {
       s_editor_dock_floating_window_draw(dock, editor, window);
     }
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Dragging                                                                  */
+/* ------------------------------------------------------------------------- */
 
 static void s_editor_dock_tab_drag_update(
   LDKEditorDockState *dock, LDKUIContext *ui)
@@ -1234,17 +2034,13 @@ static void s_editor_dock_tab_drag_update(
 
   if (s_editor_dock_mouse_up(ui))
   {
-    u32 window = dock->drag.window;
-    i32 leaf = dock->windows[window].leaf;
-    if (leaf != LDK_EDITOR_DOCK_INVALID_NODE &&
-        dock->nodes[leaf].used &&
-        dock->nodes[leaf].type == LDK_EDITOR_DOCK_NODE_LEAF)
-    {
-      dock->nodes[leaf].data.leaf.active_window = window;
-    }
+    /*
+     * A release without crossing the drag threshold is a normal tab click.
+     * ldk_ui_tab_bar() has already selected the clicked tab earlier in this
+     * frame. Only clear the pending drag; never restore drag.window here.
+     */
+    s_editor_dock_drag_reset(&dock->drag);
   }
-
-  s_editor_dock_drag_reset(&dock->drag);
 }
 
 static void s_editor_dock_floating_drag_update(
@@ -1260,19 +2056,24 @@ static void s_editor_dock_floating_drag_update(
     return;
   }
 
-  for (u32 window = 0; window < LDK_EDITOR_DOCK_WINDOW_COUNT; ++window)
+  for (u32 i = 0; i < dock->window_count; ++i)
   {
-    LDKEditorDockWindow *panel = &dock->windows[window];
-    if (panel->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
-        panel->ui_window_id == ui->dragging_window_id)
+    LDKEditorDockWindow *window = &dock->windows[i];
+
+    if (window->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
+        window->ui_window_id == ui->dragging_window_id)
     {
-      dock->drag.window = window;
+      dock->drag.window = window->window.id;
       dock->drag.source_leaf = LDK_EDITOR_DOCK_INVALID_NODE;
       dock->drag.active = true;
       return;
     }
   }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Dock targets                                                              */
+/* ------------------------------------------------------------------------- */
 
 static LDKUIRect s_editor_dock_target_rect_absolute(
   LDKUIRect workspace, LDKEditorDockTarget target)
@@ -1345,20 +2146,31 @@ static LDKUIRect s_editor_dock_target_rect_local(
   return center;
 }
 
-static const LDKEditorIcon s_editor_dock_target_icon(LDKEditorDockTarget target)
+static LDKEditorIcon s_editor_dock_target_icon(
+  LDKEditorDockTarget target)
 {
   switch (target)
   {
-  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP: return LDK_EDITOR_ICON_DOCK_TOP;
-  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:  return LDK_EDITOR_ICON_DOCK_LEFT;
-  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT: return LDK_EDITOR_ICON_DOCK_RIGHT;
-  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM: return LDK_EDITOR_ICON_DOCK_BOTTOM;
-  case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP: return LDK_EDITOR_ICON_DOCK_TOP;
-  case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT: return LDK_EDITOR_ICON_DOCK_LEFT;
-  case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER: return LDK_EDITOR_ICON_DOCK_CENTER;
-  case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT: return LDK_EDITOR_ICON_DOCK_RIGHT;
-  case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM: return LDK_EDITOR_ICON_DOCK_BOTTOM;
-  default: return -1;
+    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
+      return LDK_EDITOR_ICON_DOCK_TOP;
+    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
+      return LDK_EDITOR_ICON_DOCK_LEFT;
+    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
+      return LDK_EDITOR_ICON_DOCK_RIGHT;
+    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
+      return LDK_EDITOR_ICON_DOCK_BOTTOM;
+    case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
+      return LDK_EDITOR_ICON_DOCK_TOP;
+    case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
+      return LDK_EDITOR_ICON_DOCK_LEFT;
+    case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
+      return LDK_EDITOR_ICON_DOCK_CENTER;
+    case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
+      return LDK_EDITOR_ICON_DOCK_RIGHT;
+    case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
+      return LDK_EDITOR_ICON_DOCK_BOTTOM;
+    default:
+      return -1;
   }
 }
 
@@ -1388,6 +2200,7 @@ static void s_editor_dock_target_evaluate(LDKEditorDockState *dock,
   {
     LDKUIRect rect =
       s_editor_dock_target_rect_absolute(workspace, absolute_targets[i]);
+
     if (s_editor_dock_rect_contains(&rect, cursor.x, cursor.y))
     {
       dock->drag.target = absolute_targets[i];
@@ -1406,6 +2219,7 @@ static void s_editor_dock_target_evaluate(LDKEditorDockState *dock,
   {
     LDKUIRect rect =
       s_editor_dock_target_rect_local(leaf_rect, local_targets[i]);
+
     if (s_editor_dock_rect_contains(&rect, cursor.x, cursor.y))
     {
       dock->drag.target = local_targets[i];
@@ -1454,7 +2268,8 @@ static void s_editor_dock_ui_window_bring_to_front(
 static void s_editor_dock_target_overlay_disable(
   LDKEditorDockState *dock, LDKUIContext *ui)
 {
-  if (dock->target_overlay_window_id == 0 || ui == NULL || ui->windows == NULL)
+  if (dock->target_overlay_window_id == 0 ||
+      ui == NULL || ui->windows == NULL)
   {
     return;
   }
@@ -1463,6 +2278,7 @@ static void s_editor_dock_target_overlay_disable(
   for (u32 i = 0; i < count; ++i)
   {
     LDKUIWindow *window = x_array_ldk_ui_window_get(ui->windows, i);
+
     if (window != NULL && window->id == dock->target_overlay_window_id)
     {
       window->rect = (LDKUIRect){0};
@@ -1499,7 +2315,7 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
   icon.color = 0xFFFFFFFF;
   icon.size = ldk_sizef(24, 24);
   icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
   for (u32 i = 0;
        i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
@@ -1508,23 +2324,19 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
     LDKEditorDockTarget target = absolute_targets[i];
     LDKUIRect rect = s_editor_dock_target_rect_absolute(workspace, target);
     LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
-    if (target == dock->drag.target)
-    {
-      icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_HOVER;
-      icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
-    }
-    else
-    {
-      icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
-      icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
-    }
 
-      ldk_ui_widget_icon_label(ui, id, icon, "", rect);
+    icon.color = target == dock->drag.target
+                   ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
+                   : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+    icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
+
+    ldk_ui_widget_icon_label(ui, id, icon, "", rect);
   }
 
   if (dock->drag.target_leaf != LDK_EDITOR_DOCK_INVALID_NODE)
   {
     LDKUIRect leaf_rect = dock->nodes[dock->drag.target_leaf].rect;
+
     for (u32 i = 0;
          i < sizeof(local_targets) / sizeof(local_targets[0]);
          ++i)
@@ -1532,16 +2344,11 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
       LDKEditorDockTarget target = local_targets[i];
       LDKUIRect rect = s_editor_dock_target_rect_local(leaf_rect, target);
       LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
-      if (target == dock->drag.target)
-      {
-        icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_HOVER;
-        icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
-      }
-      else
-      {
-        icon.color = LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
-        icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
-      }
+
+      icon.color = target == dock->drag.target
+                     ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
+                     : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+      icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
 
       ldk_ui_widget_icon_label(ui, id, icon, "", rect);
     }
@@ -1581,6 +2388,47 @@ static void s_editor_dock_active_drag_update(LDKEditorDockState *dock,
   }
 }
 
+/* ------------------------------------------------------------------------- */
+/* Lifecycle                                                                 */
+/* ------------------------------------------------------------------------- */
+
+static void s_editor_dock_layout_reset_preserving_windows(
+  LDKEditorDockState *dock)
+{
+  LDKEditorDockWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 window_count = dock->window_count;
+
+  if (window_count > 0)
+  {
+    memcpy(windows, dock->windows,
+      sizeof(LDKEditorDockWindow) * window_count);
+  }
+
+  *dock = (LDKEditorDockState){
+    .root = LDK_EDITOR_DOCK_INVALID_NODE
+  };
+
+  if (window_count > 0)
+  {
+    memcpy(dock->windows, windows,
+      sizeof(LDKEditorDockWindow) * window_count);
+  }
+
+  dock->window_count = window_count;
+  dock->project_explorer.root_expanded = true;
+  dock->project_explorer.icon_size = 48.0f;
+  dock->inspector.enabled = true;
+
+  for (u32 i = 0; i < dock->window_count; ++i)
+  {
+    dock->windows[i].leaf = LDK_EDITOR_DOCK_INVALID_NODE;
+    dock->windows[i].ui_window_id = 0;
+  }
+
+  s_editor_dock_drag_reset(&dock->drag);
+  s_editor_dock_resize_reset(&dock->resize);
+}
+
 static bool ldk_editor_dock_init(LDKEditorContext *editor)
 {
   if (editor == NULL)
@@ -1589,77 +2437,49 @@ static bool ldk_editor_dock_init(LDKEditorContext *editor)
   }
 
   LDKEditorDockState *dock = &s_editor_dock;
-  *dock = (LDKEditorDockState){
-    .root = LDK_EDITOR_DOCK_INVALID_NODE,
-    .inspector_enabled = true
-  };
-  s_editor_dock_drag_reset(&dock->drag);
-  s_editor_dock_resize_reset(&dock->resize);
+  s_editor_dock_layout_reset_preserving_windows(dock);
 
-  dock->windows[LDK_EDITOR_DOCK_WINDOW_PROJECT_EXPLORER] =
-    (LDKEditorDockWindow){
-      .title = "Project Explorer",
-      .floating_rect = {40.0f, 90.0f, 520.0f, 400.0f},
-      .leaf = LDK_EDITOR_DOCK_INVALID_NODE
-    };
-  dock->windows[LDK_EDITOR_DOCK_WINDOW_SCENE] =
-    (LDKEditorDockWindow){
-      .title = "Scene",
-      .floating_rect = {180.0f, 100.0f, 640.0f, 420.0f},
-      .leaf = LDK_EDITOR_DOCK_INVALID_NODE
-    };
-  dock->windows[LDK_EDITOR_DOCK_WINDOW_INSPECTOR] =
-    (LDKEditorDockWindow){
-      .title = "Inspector",
-      .floating_rect = {760.0f, 100.0f, 280.0f, 420.0f},
-      .leaf = LDK_EDITOR_DOCK_INVALID_NODE
-    };
-  dock->windows[LDK_EDITOR_DOCK_WINDOW_CONSOLE] =
-    (LDKEditorDockWindow){
-      .title = "Console",
-      .floating_rect = {180.0f, 540.0f, 640.0f, 240.0f},
-      .leaf = LDK_EDITOR_DOCK_INVALID_NODE
-    };
+  if (!s_editor_builtin_windows_add(editor, dock))
+  {
+    return false;
+  }
 
   i32 project_leaf = s_editor_dock_leaf_create(
-    dock, LDK_EDITOR_DOCK_WINDOW_PROJECT_EXPLORER);
+    dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
   i32 scene_leaf = s_editor_dock_leaf_create(
-    dock, LDK_EDITOR_DOCK_WINDOW_SCENE);
-  const u32 bottom_windows[] = {
-    LDK_EDITOR_DOCK_WINDOW_INSPECTOR,
-    LDK_EDITOR_DOCK_WINDOW_CONSOLE
+    dock, LDK_EDITOR_WINDOW_SCENE);
+
+  const LDKEditorWindowId bottom_windows[] = {
+    LDK_EDITOR_WINDOW_INSPECTOR,
+    LDK_EDITOR_WINDOW_CONSOLE
   };
-  i32 bottom_leaf = s_editor_dock_leaf_create_tabs(dock, bottom_windows,
-    sizeof(bottom_windows) / sizeof(bottom_windows[0]),
-    LDK_EDITOR_DOCK_WINDOW_INSPECTOR);
+
+  i32 bottom_leaf = s_editor_dock_leaf_create_tabs(
+    dock,
+    bottom_windows,
+    (u32)(sizeof(bottom_windows) / sizeof(bottom_windows[0])),
+    LDK_EDITOR_WINDOW_INSPECTOR);
 
   if (project_leaf == LDK_EDITOR_DOCK_INVALID_NODE ||
       scene_leaf == LDK_EDITOR_DOCK_INVALID_NODE ||
       bottom_leaf == LDK_EDITOR_DOCK_INVALID_NODE)
   {
-    *dock = (LDKEditorDockState){
-      .root = LDK_EDITOR_DOCK_INVALID_NODE
-    };
     return false;
   }
 
   i32 right_split = s_editor_dock_split_create(dock,
     LDK_EDITOR_DOCK_SPLIT_VERTICAL, 0.66f, scene_leaf, bottom_leaf);
+
   if (right_split == LDK_EDITOR_DOCK_INVALID_NODE)
   {
-    *dock = (LDKEditorDockState){
-      .root = LDK_EDITOR_DOCK_INVALID_NODE
-    };
     return false;
   }
 
   i32 root = s_editor_dock_split_create(dock,
     LDK_EDITOR_DOCK_SPLIT_HORIZONTAL, 0.25f, project_leaf, right_split);
+
   if (root == LDK_EDITOR_DOCK_INVALID_NODE)
   {
-    *dock = (LDKEditorDockState){
-      .root = LDK_EDITOR_DOCK_INVALID_NODE
-    };
     return false;
   }
 
@@ -1700,6 +2520,7 @@ static void ldk_editor_dock_update(LDKEditorContext *editor)
 static void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
+
   s_editor_dock = (LDKEditorDockState){
     .root = LDK_EDITOR_DOCK_INVALID_NODE
   };

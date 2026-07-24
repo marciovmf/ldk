@@ -822,6 +822,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldk_event_handler_remove(eq, on_event_frame);
   ldk_event_handler_remove(eq, on_event_keyboard);
   ldk_event_handler_remove(eq, on_event_window);
+  ldk_editor_dock_terminate(editor);
 }
 
 //----------------------------------------------------------
