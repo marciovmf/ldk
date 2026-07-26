@@ -52,8 +52,8 @@ bool game_start(LDKGame* game)
   ldk_log_info("Game start\n");
   GameData* game_data = (GameData*) game;
   const LDKConfig* cfg = ldk_engine_config_get();
-  game_data->game_width = cfg->width;
-  game_data->game_height = cfg->height;
+  game_data->game_width = cfg->resolution_width;
+  game_data->game_height = cfg->resolution_height;
 
   LDKAssetManager* assets = (LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
 

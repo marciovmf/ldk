@@ -442,6 +442,7 @@ bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* co
 
   x_fs_path_dirname(&out_config->config_file_path, &config_dir);
   x_fs_path_normalize(&config_dir);
+  ldk_log_info("Game config file: %s\n", config_dir.buf);
 
   // scetion: general
   out_config->initial_ui_index_capacity = x_ini_get_i32(ini, "general", "initial_ui_index_capacity", 256);
@@ -454,9 +455,13 @@ bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* co
   s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, log_file);
   s_config_resolve_path(&out_config->game_dll, &out_config->runtree_path, game_dll);
 
+  // scetion: graphics
+  out_config->resolution_width = x_ini_get_i32(ini, "graphics", "resolution_width", 400);
+  out_config->resolution_height = x_ini_get_i32(ini, "graphics", "resolution_height", 400);
+  
   // scetion: display
-  out_config->width = x_ini_get_i32(ini, "display", "width", 800);
-  out_config->height = x_ini_get_i32(ini, "display", "height", 600);
+  out_config->display_width = x_ini_get_i32(ini, "display", "width", 800);
+  out_config->display_height = x_ini_get_i32(ini, "display", "height", 600);
   out_config->fullscreen = x_ini_get_bool(ini, "display", "fullscreen", false);
   const char* icon_path = x_ini_get(ini, "display", "icon_path", "assets/ldk.ico");
   s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path);
@@ -648,7 +653,7 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
     return false;
   }
 
-  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN | LDK_WINDOW_FLAG_CENTERED);
+  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.display_width, e->config.display_height, LDK_WINDOW_FLAG_HIDDEN | LDK_WINDOW_FLAG_CENTERED);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
   ldk_os_graphics_context_make_current(e->window, e->graphics);
 
@@ -674,8 +679,8 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = config->initial_ui_index_capacity;
   renderer_config.initial_ui_vertex_capacity = config->initial_ui_vertex_capacity;
-  renderer_config.game_width = (u32)config->width;
-  renderer_config.game_height = (u32)config->height;
+  renderer_config.game_width = (u32)config->resolution_width;
+  renderer_config.game_height = (u32)config->resolution_height;
 #ifdef LDK_EDITOR
   renderer_config.present_game = false;
 #else

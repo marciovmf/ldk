@@ -65,8 +65,10 @@ extern "C" {
     XFSPath   asset_root;
     XFSPath   log_file;
     XFSPath   game_dll;
-    i32       width;
-    i32       height;
+    i32       display_width;
+    i32       display_height;
+    i32       resolution_width;
+    i32       resolution_height;
     i32       initial_ui_index_capacity;
     i32       initial_ui_vertex_capacity;
     bool      fullscreen;
