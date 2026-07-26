@@ -50,9 +50,11 @@
 #define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
 #define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
 
-
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+
+#define LDK_EDITOR_DOCK_SIZE_MAX 0.95f
+#define LDK_EDITOR_DOCK_SIZE_MIN 0.05f
 
 enum
 {
@@ -898,7 +900,8 @@ static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
                    target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP;
   i32 first = new_first ? new_leaf : old_root;
   i32 second = new_first ? old_root : new_leaf;
-  i32 split = s_editor_dock_split_create(dock, axis, 0.25f, first, second);
+  float ratio = new_first ? LDK_EDITOR_DOCK_SIZE_MIN : LDK_EDITOR_DOCK_SIZE_MAX;
+  i32 split = s_editor_dock_split_create(dock, axis, ratio, first, second);
 
   if (split == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -994,7 +997,7 @@ static void s_editor_dock_layout_node(
     return;
   }
 
-  float ratio = s_editor_dock_clampf(node->data.split.ratio, 0.4f, 0.6f);
+  float ratio = s_editor_dock_clampf(node->data.split.ratio, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
   float half_gap = LDK_EDITOR_DOCK_SPLIT_GAP * 0.5f;
   float half_hit_size = LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE * 0.5f;
   LDKUIRect first_rect = rect;
@@ -1102,7 +1105,7 @@ static bool s_editor_dock_split_resize_update(
       if (size > 0.0f)
       {
         node->data.split.ratio =
-          s_editor_dock_clampf(position / size, 0.4f, 0.6f);
+          s_editor_dock_clampf(position / size, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
       }
 
       return true;
