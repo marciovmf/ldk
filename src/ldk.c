@@ -77,6 +77,21 @@ struct LDKRoot
 static LDKRoot g_engine;
 static bool g_engine_initialized = false;
 
+#ifdef LDK_EDITOR
+typedef struct LDKInputGameView
+{
+  float x;
+  float y;
+  float width;
+  float height;
+  u32 game_width;
+  u32 game_height;
+  bool valid;
+} LDKInputGameView;
+
+static LDKInputGameView g_input_game_view;
+#endif
+
 static volatile sig_atomic_t g_handling_signal = 0;
 static volatile sig_atomic_t g_signal_requested_stop = 0;
 static volatile sig_atomic_t g_last_signal = 0;
@@ -87,6 +102,116 @@ static bool s_stub_game_start(LDKGame* game) { return true; }
 static void s_stub_game_update(LDKGame* game, float delta_time) { }
 static void s_stub_game_terminate(LDKGame* game) { }
 static void s_stub_game_stop(LDKGame* game) { }
+
+void ldk_input_mouse_state_get(LDKMouseState* out_state)
+{
+  X_ASSERT(out_state != NULL);
+  ldk_os_mouse_state_get(out_state);
+
+#ifdef LDK_EDITOR
+  LDKInputGameView* view = &g_input_game_view;
+  if (!view->valid || view->width <= 0.0f || view->height <= 0.0f ||
+      view->game_width == 0 || view->game_height == 0)
+  {
+    out_state->wheel_delta = 0;
+    out_state->cursor = (LDKPoint){-1, -1};
+    out_state->cursor_relative = (LDKPoint){0, 0};
+    memset(out_state->button, 0, sizeof(out_state->button));
+    return;
+  }
+
+  float local_x = (float)out_state->cursor.x - view->x;
+  float local_y = (float)out_state->cursor.y - view->y;
+  bool inside = local_x >= 0.0f && local_y >= 0.0f &&
+      local_x < view->width && local_y < view->height;
+
+  if (!inside)
+  {
+    out_state->wheel_delta = 0;
+    out_state->cursor = (LDKPoint){-1, -1};
+    out_state->cursor_relative = (LDKPoint){0, 0};
+    memset(out_state->button, 0, sizeof(out_state->button));
+    return;
+  }
+
+  out_state->cursor.x = (i32)(local_x * (float)view->game_width / view->width);
+  out_state->cursor.y = (i32)(local_y * (float)view->game_height / view->height);
+#endif
+}
+
+bool ldk_input_mouse_button_is_pressed(LDKMouseState* state,
+    LDKMouseButton button)
+{
+  return ldk_os_mouse_button_is_pressed(state, button);
+}
+
+bool ldk_input_mouse_button_down(LDKMouseState* state, LDKMouseButton button)
+{
+  return ldk_os_mouse_button_down(state, button);
+}
+
+bool ldk_input_mouse_button_up(LDKMouseState* state, LDKMouseButton button)
+{
+  return ldk_os_mouse_button_up(state, button);
+}
+
+i32 ldk_input_mouse_wheel_delta(LDKMouseState* state)
+{
+  return ldk_os_mouse_wheel_delta(state);
+}
+
+LDKPoint ldk_input_mouse_cursor(LDKMouseState* state)
+{
+  return ldk_os_mouse_cursor(state);
+}
+
+LDKPoint ldk_input_mouse_cursor_relative(LDKMouseState* state)
+{
+  return ldk_os_mouse_cursor_relative(state);
+}
+
+void ldk_input_keyboard_state_get(LDKKeyboardState* out_state)
+{
+  X_ASSERT(out_state != NULL);
+  ldk_os_keyboard_state_get(out_state);
+}
+
+bool ldk_input_keyboard_key_is_pressed(LDKKeyboardState* state,
+    LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_is_pressed(state, keycode);
+}
+
+bool ldk_input_keyboard_key_down(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_down(state, keycode);
+}
+
+bool ldk_input_keyboard_key_up(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_up(state, keycode);
+}
+
+#ifdef LDK_EDITOR
+void ldk_input_game_view_set(float x, float y, float width, float height,
+    u32 game_width, u32 game_height)
+{
+  g_input_game_view = (LDKInputGameView){
+    .x = x,
+    .y = y,
+    .width = width,
+    .height = height,
+    .game_width = game_width,
+    .game_height = game_height,
+    .valid = true
+  };
+}
+
+void ldk_input_game_view_clear(void)
+{
+  memset(&g_input_game_view, 0, sizeof(g_input_game_view));
+}
+#endif
 
 static void s_log_signal_info(i32 signal)
 {
@@ -806,4 +931,9 @@ i32 ldk_engine_run(void)
 LDKWindow ldk_main_window(void)
 {
   return g_engine.window;
+}
+
+const LDKConfig* ldk_engine_config_get(void)
+{
+  return (const LDKConfig*) &g_engine.config;
 }

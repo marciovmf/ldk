@@ -573,6 +573,10 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
     image_rect.y += (content_rect.h - image_rect.h) * 0.5f;
   }
 
+  ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
+      image_rect.h, editor->renderer->game_width,
+      editor->renderer->game_height);
+
   ldk_ui_widget_image(ui, 0x47414D45u, game_texture,
     ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
 }
@@ -612,6 +616,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
       .h = (float)window_height};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
+  ldk_input_game_view_clear();
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
       &editor->text_input_state, ui_viewport);

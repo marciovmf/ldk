@@ -22,6 +22,9 @@ typedef struct GameData
 {
   LDKEntity cube_entity_0; 
   LDKEntity cube_entity_1; 
+  i32 game_width;
+  i32 game_height;
+
 }GameData;
 
 bool on_window_event(const LDKEvent* event, void* state)
@@ -48,6 +51,9 @@ bool game_start(LDKGame* game)
 {
   ldk_log_info("Game start\n");
   GameData* game_data = (GameData*) game;
+  const LDKConfig* cfg = ldk_engine_config_get();
+  game_data->game_width = cfg->width;
+  game_data->game_height = cfg->height;
 
   LDKAssetManager* assets = (LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
 
@@ -133,11 +139,29 @@ bool game_start(LDKGame* game)
 void game_update(LDKGame* game, float delta_time)
 {
   GameData* game_data = (GameData*) game;
-  static float angle = 0;
-  angle += deg_to_rad(100.0f * delta_time);
+  LDKMouseState mouse_state;
+  ldk_input_mouse_state_get(&mouse_state);
 
-  ldk_transform_set_local_rotation(game_data->cube_entity_0, quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), angle));
-  ldk_transform_set_local_rotation(game_data->cube_entity_1, quat_axis_angle(vec3_make(1.0f, 0.0f, 1.0f), angle * -2.0f));
+  if (mouse_state.cursor.x >= 0 && mouse_state.cursor.y >= 0)
+  {
+    float cursor_x = (float)mouse_state.cursor.x / game_data->game_width;
+    float cursor_y = (float)mouse_state.cursor.y / game_data->game_height;
+    float yaw = (cursor_x - 0.5f) * deg_to_rad(180.0f);
+    float pitch = (cursor_y - 0.5f) * deg_to_rad(180.0f);
+
+    ldk_transform_set_local_rotation(game_data->cube_entity_0,
+        quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), yaw));
+    ldk_transform_set_local_rotation(game_data->cube_entity_1,
+        quat_axis_angle(vec3_make(1.0f, 0.0f, 0.0f), pitch));
+  }
+
+  if (ldk_input_mouse_button_down(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_log_info("Game input click at %d, %d\n",
+        mouse_state.cursor.x, mouse_state.cursor.y);
+  }
+
+  (void)delta_time;
 }
 
 void game_terminate(LDKGame* game)

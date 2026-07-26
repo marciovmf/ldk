@@ -10,6 +10,7 @@
 #define LDK_H
 
 #include <ldk_common.h>
+#include <ldk_os.h>
 #include <stdx/stdx_log.h>
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_string.h>
@@ -79,6 +80,33 @@ extern "C" {
   LDK_API void* ldk_module_get(LDKModuleType module_type); // Returns the context pointer of a given engine module
   LDK_API i32   ldk_engine_run(void);
 
+  /* Game-facing input. Unlike ldk_os_* input, these functions account for
+   * the game being embedded in the editor. */
+  LDK_API void ldk_input_mouse_state_get(LDKMouseState* out_state);
+  LDK_API bool ldk_input_mouse_button_is_pressed(LDKMouseState* state,
+      LDKMouseButton button);
+  LDK_API bool ldk_input_mouse_button_down(LDKMouseState* state,
+      LDKMouseButton button);
+  LDK_API bool ldk_input_mouse_button_up(LDKMouseState* state,
+      LDKMouseButton button);
+  LDK_API i32 ldk_input_mouse_wheel_delta(LDKMouseState* state);
+  LDK_API LDKPoint ldk_input_mouse_cursor(LDKMouseState* state);
+  LDK_API LDKPoint ldk_input_mouse_cursor_relative(LDKMouseState* state);
+
+  LDK_API void ldk_input_keyboard_state_get(LDKKeyboardState* out_state);
+  LDK_API bool ldk_input_keyboard_key_is_pressed(LDKKeyboardState* state,
+      LDKKeycode keycode);
+  LDK_API bool ldk_input_keyboard_key_down(LDKKeyboardState* state,
+      LDKKeycode keycode);
+  LDK_API bool ldk_input_keyboard_key_up(LDKKeyboardState* state,
+      LDKKeycode keycode);
+
+#ifdef LDK_EDITOR
+  LDK_API void ldk_input_game_view_set(float x, float y, float width,
+      float height, u32 game_width, u32 game_height);
+  LDK_API void ldk_input_game_view_clear(void);
+#endif
+
 #ifndef LDK_MONOLITHIC
   LDK_API LDKGame* ldk_game_get(void);
   LDK_API bool ldk_game_instance_load_static(void);
@@ -95,8 +123,7 @@ LDK_API bool ldk_game_instance_unload(void);
 LDK_API LDKGame* ldk_game_get(void);
 LDK_API LDKWindow ldk_engine_main_window_get(void);
 LDK_API LDKWindow ldk_main_window(void);
-LDK_API LDKWindow ldk_main_window(void);
-LDK_API LDKWindow ldk_main_window(void);
+LDK_API const LDKConfig* ldk_engine_config_get(void);
 
 
 #ifdef __cplusplus
