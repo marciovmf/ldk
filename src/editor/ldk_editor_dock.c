@@ -3379,7 +3379,7 @@ static bool s_editor_dock_layout_apply(
  * Serializes all named dock layouts to TML. Before writing, the currently
  * selected layout is refreshed from the live dock state.
  */
-static bool ldk_editor_dock_to_tml(XStrBuilder *out)
+static bool s_editor_dock_to_tml(XStrBuilder *out)
 {
   LDKEditorDockLayouts layouts = s_editor_dock_layouts;
   LDKEditorDockLayout current_layout;
@@ -3454,7 +3454,7 @@ static bool ldk_editor_dock_to_tml(XStrBuilder *out)
  * The live dock and the stored layouts are only replaced after the complete
  * document has been validated.
  */
-static bool ldk_editor_dock_from_tml(const char *source)
+static bool s_editor_dock_from_tml(const char *source)
 {
   TMLParseResult parse;
   const TMLNode *dock_node;
