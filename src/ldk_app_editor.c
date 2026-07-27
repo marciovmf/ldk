@@ -861,6 +861,17 @@ static bool s_project_load(
   if (!ldk_project_load(&editor->project, project_file_path))
     return false;
 
+  if (!ldk_engine_render_resolution_set(
+          editor->project.project_resolution_width,
+          editor->project.project_resolution_height))
+  {
+    ldk_log_error("Invalid project render resolution %dx%d.\n",
+        editor->project.project_resolution_width,
+        editor->project.project_resolution_height);
+    ldk_project_unload(&editor->project);
+    return false;
+  }
+
   if (!ldk_game_instance_load_from_shared_lib(
           editor->project.game_dll_path.buf))
     return false;

@@ -77,6 +77,7 @@ extern "C" {
   LDK_API bool  ldk_engine_initialize(const char* config_ini_path);
   LDK_API bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* config_ini_path);
   LDK_API bool  ldk_engine_initialize_with_config(const LDKConfig* config);
+  LDK_API bool  ldk_engine_render_resolution_set(i32 width, i32 height);
   LDK_API bool  ldk_engine_is_initialized(void); // Checks if the engine was initialized
   LDK_API void  ldk_engine_frame(void);
   LDK_API void* ldk_module_get(LDKModuleType module_type); // Returns the context pointer of a given engine module

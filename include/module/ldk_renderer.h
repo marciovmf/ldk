@@ -259,6 +259,23 @@ extern "C" {
       LDKRendererConfig const* config);
 
   /**
+   * @brief Change the game render-target resolution.
+   *
+   * The current game render target is released when its dimensions change.
+   * A target with the new dimensions is created when the next scene is
+   * rendered.
+   *
+   * @param renderer Renderer instance.
+   * @param width New game render-target width in pixels.
+   * @param height New game render-target height in pixels.
+   * @return true when the resolution is valid and was accepted.
+   */
+  LDK_API bool ldk_renderer_game_resolution_set(
+      LDKRenderer* renderer,
+      u32 width,
+      u32 height);
+
+  /**
    * @brief Terminate the renderer and release renderer-owned resources.
    *
    * This destroys all renderer-owned GPU resources, including mesh buffers,

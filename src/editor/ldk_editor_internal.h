@@ -80,4 +80,20 @@ void ldk_editor_internal_log_error(LDKEditorContext *editor, const char* msg);
 void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char* msg);
 void ldk_editor_internal_log_info(LDKEditorContext  *editor, const char* msg);
 
+/**
+ * saves the dock tml representation to the dock file under a specific name
+ */
+bool ldk_editor_internal_dock_layout_save(xstrbuilder *out, const char* layout_name);
+
+/**
+ * loads the dock tml representation from the dock file under a specific name
+ */
+bool ldk_editor_internal_dock_layout_load(const char *layout_name);
+
+/**
+ * makes the dock layout identified by layout_name, the default layout
+ */
+bool ldk_editor_internal_dock_set_current(const char *layout_name);
+
+
 #endif // LDK_EDITOR_INTERNAL

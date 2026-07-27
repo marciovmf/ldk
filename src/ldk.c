@@ -723,11 +723,38 @@ LDKWindow ldk_engine_main_window_get(void)
   return g_engine.window;
 }
 
+bool ldk_engine_render_resolution_set(i32 width, i32 height)
+{
+  if (!g_engine_initialized || width <= 0 || height <= 0)
+  {
+    return false;
+  }
+
+  LDKRoot* e = &g_engine;
+  e->config.resolution_width = width;
+  e->config.resolution_height = height;
+  return true;
+}
+
 void ldk_engine_stop(i32 exit_code)
 {
   LDKRoot* e = &g_engine;
   e->exit_code = exit_code;
   e->running = false;
+}
+
+static bool s_engine_render_resolution_apply(LDKRoot* e)
+{
+  u32 width = (u32)e->config.resolution_width;
+  u32 height = (u32)e->config.resolution_height;
+
+  if (e->renderer.game_width == width &&
+      e->renderer.game_height == height)
+  {
+    return true;
+  }
+
+  return ldk_renderer_game_resolution_set(&e->renderer, width, height);
 }
 
 void ldk_engine_frame(void)
@@ -742,6 +769,13 @@ void ldk_engine_frame(void)
   if (!e->running)
   {
     return;
+  }
+
+  if (!s_engine_render_resolution_apply(e))
+  {
+    ldk_log_error("Failed to apply render resolution %dx%d.\n",
+        e->config.resolution_width,
+        e->config.resolution_height);
   }
 
   if (g_signal_requested_stop)
