@@ -261,6 +261,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
       {
         ldk_editor_internal_show_open_project_dialog(editor, NULL);
+        return true;
       }
     }
   }
