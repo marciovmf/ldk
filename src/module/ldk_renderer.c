@@ -9,6 +9,9 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
 static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
+static void s_renderer_ui_pass_remove_texture_bindings(
+    LDKRendererUIPass* renderer,
+    LDKRHITexture texture);
 static LDKRHISampler s_renderer_texture_sampler_from_rhi_texture(
     LDKRenderer* renderer,
     LDKRHITexture texture);
@@ -40,6 +43,8 @@ static void s_renderer_target_destroy(LDKRenderer* renderer, LDKRendererTarget* 
 
   if (target->color_texture != LDK_RHI_INVALID_RESOURCE)
   {
+    s_renderer_ui_pass_remove_texture_bindings(
+        &renderer->ui_pass, target->color_texture);
     ldk_rhi_texture_destroy(renderer->rhi, target->color_texture);
   }
 
@@ -961,6 +966,42 @@ static LDKRHIBindings s_renderer_ui_pass_find_cached_bindings(
   return LDK_RHI_INVALID_RESOURCE;
 }
 
+static void s_renderer_ui_pass_remove_texture_bindings(
+    LDKRendererUIPass* renderer,
+    LDKRHITexture texture)
+{
+  if (renderer == NULL || renderer->rhi == NULL ||
+      texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  u32 index = 0;
+  while (index < renderer->bindings_cache_count)
+  {
+    LDKRendererBindingsCacheEntry* entry =
+        &renderer->bindings_cache[index];
+    if (entry->texture != texture)
+    {
+      index += 1;
+      continue;
+    }
+
+    ldk_rhi_bindings_destroy(renderer->rhi, entry->bindings);
+    renderer->bindings_cache_count -= 1;
+
+    if (index != renderer->bindings_cache_count)
+    {
+      *entry = renderer->bindings_cache[renderer->bindings_cache_count];
+    }
+
+    memset(
+        &renderer->bindings_cache[renderer->bindings_cache_count],
+        0,
+        sizeof(*entry));
+  }
+}
+
 static bool s_renderer_ui_pass_grow_bindings_cache(LDKRendererUIPass* renderer)
 {
   u32 new_capacity = renderer->bindings_cache_capacity == 0 ? 16 : renderer->bindings_cache_capacity * 2;
@@ -1748,6 +1789,29 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   }
 
   renderer->is_initialized = true;
+  return true;
+}
+
+bool ldk_renderer_game_resolution_set(
+    LDKRenderer* renderer,
+    u32 width,
+    u32 height)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      width == 0 || height == 0)
+  {
+    return false;
+  }
+
+  if (renderer->game_width == width &&
+      renderer->game_height == height)
+  {
+    return true;
+  }
+
+  s_renderer_target_destroy(renderer, &renderer->scene_target);
+  renderer->game_width = width;
+  renderer->game_height = height;
   return true;
 }
 
