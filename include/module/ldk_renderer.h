@@ -73,6 +73,9 @@ extern "C" {
     LDKRHIContext* rhi;
     u32 initial_ui_vertex_capacity;
     u32 initial_ui_index_capacity;
+    u32 game_width;
+    u32 game_height;
+    bool present_game;
   } LDKRendererConfig;
 
   typedef struct LDKRendererView
@@ -206,6 +209,9 @@ extern "C" {
     LDKRendererMeshPass mesh_pass;
     LDKUIRenderData const* submitted_ui;
     LDKRendererTarget scene_target;
+    u32 game_width;
+    u32 game_height;
+    bool present_game;
 
     // Mesh cache
     LDKRendererMeshResource* meshes;
@@ -273,8 +279,8 @@ extern "C" {
    * @brief Render one frame using the currently submitted renderer data.
    *
    * The renderer begins an RHI frame, renders the submitted scene meshes when a
-   * view is available, presents the scene target, renders submitted UI data, and
-   * ends the RHI frame.
+   * view is available, optionally presents the scene target, renders submitted
+   * UI data, and ends the RHI frame.
    *
    * Submitted per-frame data is consumed by this call. After rendering, the
    * renderer clears transient submissions such as submitted meshes, submitted UI,
@@ -286,6 +292,18 @@ extern "C" {
   LDK_API void ldk_renderer_render_frame(
       LDKRenderer* renderer,
       LDKRendererFrameDesc const* desc);
+
+  /**
+   * @brief Return the game render target color texture for UI rendering.
+   *
+   * The returned texture is owned by the renderer and remains valid until the
+   * game render target is recreated or the renderer is terminated.
+   *
+   * @param renderer Renderer instance.
+   * @return Game color texture handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKUITextureHandle ldk_renderer_game_texture_get(
+      LDKRenderer const* renderer);
 
   // ---------------------------------------------------------------------------
   // Mesh Resource

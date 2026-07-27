@@ -1293,7 +1293,7 @@ void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   }
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 1.0f, false);
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_LABEL, min_size, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1303,42 +1303,131 @@ void ldk_ui_icon_label(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   ldk_ui_widget_icon_label(ctx, id, icon, text, rect);
 }
 
-bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon)
+bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
 {
-  LDKUILayoutRequest request;
-  LDKUIRect rect;
-  LDKUIRect icon_rect;
-  LDKUIRect saved_last_rect;
-  LDKUIRect saved_last_bounding_rect;
-  LDKUIId saved_last_id;
-  LDKUIId id;
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
+
   LDKUISize min_size;
-  bool clicked;
+  min_size.w = LDK_UI_DEFAULT_SPACING * 4.0f + text_size.w;
+  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h);
 
-  min_size.w = icon.size.w;
-  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, icon.size.h);
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.w += icon.size.w;
 
-  request =
-    s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+    if (text[0] != '\0')
+    {
+      min_size.w += LDK_UI_DEFAULT_SPACING;
+    }
+
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+
+  LDKUIRect rect;
+  LDKUIId id;
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
     return false;
   }
 
-  clicked = ldk_ui_widget_button(ctx, id, "", rect);
+  return ldk_ui_widget_icon_button(ctx, id, icon, text, rect);
+}
 
-  icon_rect.x = rect.x + (rect.w - icon.size.w) * 0.5f;
-  icon_rect.y = rect.y + (rect.h - icon.size.h) * 0.5f;
-  icon_rect.w = icon.size.w;
-  icon_rect.h = icon.size.h;
+u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
+    u32 item_count, u32 selected_index)
+{
+  const LDKUIId POPUP_TAG = 0x434F4D42u; // "COMB"
 
-  LDKUIRect clip_rect = s_ui_current_clip_rect(ctx);
-  clip_rect = s_ui_rect_intersect(&clip_rect, &icon_rect);
+  if (ctx == NULL || items == NULL || item_count == 0)
+  {
+    return selected_index;
+  }
 
-  s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip_rect);
+  if (selected_index >= item_count)
+  {
+    selected_index = 0;
+  }
 
-  return clicked;
+  const char *selected_text =
+      items[selected_index] != NULL ? items[selected_index] : "";
+
+  LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
+
+  LDKUISize min_size = {
+      text_size.w + 16.0f,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT,
+  };
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
+
+  LDKUIRect rect;
+  LDKUIId id;
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return selected_index;
+  }
+
+  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+
+  if (ldk_ui_widget_button(ctx, id, selected_text, rect))
+  {
+    if (ldk_ui_popup_is_open(ctx, popup_id))
+    {
+      ldk_ui_close_popup(ctx, popup_id);
+    }
+    else
+    {
+      LDKUIPoint popup_position = {
+          rect.x,
+          rect.y + rect.h,
+      };
+
+      ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+    }
+  }
+
+  if (ldk_ui_begin_popup(ctx, popup_id))
+  {
+    for (u32 i = 0; i < item_count; ++i)
+    {
+      const char *item_text = items[i] != NULL ? items[i] : "";
+
+      /*
+       * Make the popup at least as wide as the combo box.
+       * The popup layout will still measure its final height.
+       */
+      ldk_ui_set_next_width(ctx, ldk_ui_px(rect.w));
+
+      if (ldk_ui_button_flat(ctx, item_text))
+      {
+        selected_index = i;
+        ldk_ui_close_current_popup(ctx);
+      }
+    }
+
+    ldk_ui_end_popup(ctx);
+
+    /*
+     * ldk_ui_end_popup() changes the last-item information to the popup.
+     * Restore the combo box as the last submitted widget.
+     */
+    ctx->last_rect = rect;
+    ctx->last_bounding_rect = rect;
+    ctx->last_id = id;
+  }
+
+  return selected_index;
 }
 
 void ldk_ui_label(LDKUIContext *ctx, char const *text)
@@ -1450,7 +1539,288 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
   return ldk_ui_widget_button_flat(ctx, id, text, rect);
 }
 
-float ldk_ui_slider(LDKUIContext *ctx, float value, float min_value, float max_value)
+static float s_ui_tab_bar_item_width(
+    LDKUIContext *ctx, LDKUITabBarItem const *item)
+{
+  float width = LDK_UI_DEFAULT_SPACING * 4.0f;
+
+  if (ctx == NULL || item == NULL)
+  {
+    return width;
+  }
+
+  bool has_icon = s_ui_icon_valid(item->icon);
+  bool has_label = item->label != NULL && item->label[0] != '\0';
+
+  if (has_icon)
+  {
+    width += item->icon.size.w;
+  }
+
+  if (has_label)
+  {
+    LDKUISize text_size = s_ui_widget_text_size(ctx, item->label);
+
+    if (has_icon)
+    {
+      width += LDK_UI_DEFAULT_SPACING;
+    }
+
+    width += text_size.w;
+  }
+
+  return width;
+}
+
+static LDKUIId s_ui_tab_bar_item_id(
+    LDKUIId bar_id, LDKUITabBarItem const *item, u32 index)
+{
+  LDKUIId id = bar_id;
+
+  if (item != NULL && item->id != 0)
+  {
+    id = s_ui_id_hash_u32(id, item->id);
+  }
+  else
+  {
+    id = s_ui_id_hash_u32(id, index + 1);
+  }
+
+  return id;
+}
+
+LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
+    LDKUITabBarItem const *items, u32 item_count, u32 active_index)
+{
+  LDKUITabBarResult result = {0};
+  result.active_index = active_index;
+  result.changed = false;
+
+  if (ctx == NULL || items == NULL || item_count == 0)
+  {
+    return result;
+  }
+
+  if (result.active_index >= item_count)
+  {
+    result.active_index = 0;
+  }
+
+  LDKUIIcon menu_icon = s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_MORE_VERT);
+
+  float menu_button_width = LDK_UI_DEFAULT_SPACING;
+
+  if (s_ui_icon_valid(menu_icon))
+  {
+    menu_button_width += menu_icon.size.w / 3.0f;
+  }
+
+  u32 draw_active_index = result.active_index;
+  float bar_height =
+      LDK_UI_TAB_BAR_TAB_HEIGHT + LDK_UI_TAB_BAR_LINE_THICKNESS;
+  float total_width = menu_button_width + LDK_UI_TAB_BAR_SPACING;
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    total_width += s_ui_tab_bar_item_width(ctx, &items[i]);
+
+    if (i + 1 < item_count)
+    {
+      total_width += LDK_UI_TAB_BAR_SPACING;
+    }
+  }
+
+  LDKUISize min_size;
+  min_size.w = total_width;
+  min_size.h = bar_height;
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_TAB_BAR, min_size, 0.0f, false);
+
+  request.has_height = true;
+  request.height = ldk_ui_px(bar_height);
+
+  LDKUIRect bar_rect;
+  LDKUIId bar_id;
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &bar_rect, &bar_id))
+  {
+    return result;
+  }
+
+  LDKUIRect parent_clip = s_ui_current_clip_rect(ctx);
+  LDKUIRect bar_clip = s_ui_rect_intersect(&parent_clip, &bar_rect);
+
+  s_ui_render_quad(
+      ctx, bar_rect, ctx->theme.colors[LDK_UI_COLOR_TAB_BAR_BG], bar_clip, 0);
+
+  LDKUIRect menu_button_rect;
+  menu_button_rect.x = bar_rect.x;
+  menu_button_rect.y = bar_rect.y;
+  menu_button_rect.w = s_ui_minf(menu_button_width, bar_rect.w);
+  menu_button_rect.h = LDK_UI_TAB_BAR_TAB_HEIGHT;
+
+  LDKUIId menu_button_id = s_ui_id_hash_u32(bar_id, 0x5441424du);
+  LDKUIId popup_id = s_ui_id_hash_u32(bar_id, 0x54414250u);
+
+  if (ldk_ui_widget_icon_button(
+          ctx, menu_button_id, menu_icon, "", menu_button_rect))
+  {
+    LDKUIPoint popup_position;
+    popup_position.x = menu_button_rect.x;
+    popup_position.y = menu_button_rect.y + menu_button_rect.h;
+
+    ldk_ui_open_popup_at(ctx, popup_id, popup_position);
+  }
+
+  float tabs_x = bar_rect.x + menu_button_width + LDK_UI_TAB_BAR_SPACING;
+  float bar_right = bar_rect.x + bar_rect.w;
+  LDKUIRect active_rect = {0};
+  bool active_rect_visible = false;
+
+  float cursor_x = tabs_x;
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    float tab_width = s_ui_tab_bar_item_width(ctx, &items[i]);
+
+    if (cursor_x >= bar_right)
+    {
+      break;
+    }
+
+    LDKUIRect tab_rect;
+    tab_rect.x = cursor_x;
+    tab_rect.y = bar_rect.y;
+    tab_rect.w = s_ui_minf(tab_width, bar_right - cursor_x);
+    tab_rect.h = LDK_UI_TAB_BAR_TAB_HEIGHT;
+
+    if (i == draw_active_index)
+    {
+      active_rect = tab_rect;
+      active_rect_visible = true;
+    }
+    else
+    {
+      LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+
+      if (ldk_ui_widget_tab(
+              ctx, tab_id, items[i].icon, items[i].label, tab_rect, false))
+      {
+        result.active_index = i;
+        result.changed = i != draw_active_index;
+      }
+    }
+
+    cursor_x += tab_width + LDK_UI_TAB_BAR_SPACING;
+  }
+
+  if (active_rect_visible)
+  {
+    LDKUITabBarItem const *item = &items[draw_active_index];
+    LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, item, draw_active_index);
+
+    if (ldk_ui_widget_tab(
+            ctx, tab_id, item->icon, item->label, active_rect, true))
+    {
+      result.active_index = draw_active_index;
+      result.changed = false;
+    }
+  }
+
+  float line_y = bar_rect.y + LDK_UI_TAB_BAR_TAB_HEIGHT;
+
+  LDKUIRect separator;
+  separator.x = bar_rect.x;
+  separator.y = line_y;
+  separator.w = bar_rect.w;
+  separator.h = LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+  s_ui_render_quad(ctx, separator,
+      ctx->theme.colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR], bar_clip, 0);
+
+  if (active_rect_visible)
+  {
+    LDKUIRect active_gap;
+    active_gap.x = active_rect.x;
+    active_gap.y = line_y;
+    active_gap.w = active_rect.w;
+    active_gap.h = LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+    s_ui_render_quad(ctx, active_gap,
+        ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BG], bar_clip, 0);
+
+    float border_size = ctx->theme.control_border_size;
+
+    if (border_size > 0.0f)
+    {
+      u32 active_border = ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER];
+
+      LDKUIRect top_border;
+      top_border.x = active_rect.x;
+      top_border.y = active_rect.y;
+      top_border.w = active_rect.w;
+      top_border.h = border_size;
+
+      s_ui_render_quad(ctx, top_border, active_border, bar_clip, 0);
+
+      LDKUIRect left_border;
+      left_border.x = active_rect.x;
+      left_border.y = active_rect.y;
+      left_border.w = border_size;
+      left_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+      s_ui_render_quad(ctx, left_border, active_border, bar_clip, 0);
+
+      LDKUIRect right_border;
+      right_border.x = active_rect.x + active_rect.w - border_size;
+      right_border.y = active_rect.y;
+      right_border.w = border_size;
+      right_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
+
+      s_ui_render_quad(ctx, right_border, active_border, bar_clip, 0);
+    }
+  }
+
+  if (ldk_ui_begin_popup(ctx, popup_id))
+  {
+    for (u32 i = 0; i < item_count; ++i)
+    {
+      ldk_ui_push_id_u32(ctx, items[i].id != 0 ? items[i].id : i + 1);
+
+      if (i == result.active_index)
+      {
+        ldk_ui_set_next_disabled(ctx, true);
+      }
+
+      char const *label = items[i].label != NULL ? items[i].label : "";
+
+      if (ldk_ui_button_flat(ctx, label))
+      {
+        if (result.active_index != i)
+        {
+          result.active_index = i;
+          result.changed = i != draw_active_index;
+        }
+
+        ldk_ui_close_current_popup(ctx);
+      }
+
+      ldk_ui_pop_id(ctx);
+    }
+
+    ldk_ui_end_popup(ctx);
+  }
+
+  ctx->last_id = bar_id;
+  ctx->last_rect = bar_rect;
+  ctx->last_bounding_rect = bar_rect;
+
+  return result;
+}
+
+float ldk_ui_slider(
+    LDKUIContext *ctx, float value, float min_value, float max_value)
 {
   LDKUILayoutRequest request;
   LDKUIRect rect;
@@ -1481,7 +1851,7 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1502,7 +1872,7 @@ u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
+      s_ui_layout_request_make(LDK_UI_ITEM_INPUT_BOX, min_size, 1.0f, true);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1523,7 +1893,7 @@ void ldk_ui_horizontal_line(LDKUIContext *ctx)
   min_size.h = 1.0f;
 
   request =
-    s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
+      s_ui_layout_request_make(LDK_UI_ITEM_SEPARATOR, min_size, 0.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {
@@ -1540,7 +1910,7 @@ void ldk_ui_spacer(LDKUIContext *ctx)
   LDKUIId id;
 
   request = s_ui_layout_request_make(
-    LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
+      LDK_UI_ITEM_SPACER, (LDKUISize){0.0f, 0.0f}, 1.0f, false);
 
   if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
   {

@@ -229,6 +229,11 @@ static void s_project_append_project_file_text(
   x_strbuilder_append(builder, "asset_root = \"assets\"\n");
   x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
   x_strbuilder_append(builder, "\n");
+
+  x_strbuilder_append(builder, "[graphics]\n");
+  x_strbuilder_append(builder, "resolution_width = 1280\n");
+  x_strbuilder_append(builder, "resolution_height = 720\n");
+  
   x_strbuilder_append(builder, "[display]\n");
   x_strbuilder_append_format(builder, "title = \"%s\"\n", project->name.buf);
   x_strbuilder_append(builder, "width = 1280\n");
