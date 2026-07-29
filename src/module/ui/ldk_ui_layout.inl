@@ -1648,6 +1648,7 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
 {
   LDKUITabBarResult result = {0};
   result.active_index = active_index;
+  result.pressed_index = UINT32_MAX;
   result.changed = false;
 
   if (ctx == NULL || items == NULL || item_count == 0)
@@ -1757,9 +1758,15 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     else
     {
       LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+      bool clicked = ldk_ui_widget_tab(
+          ctx, tab_id, items[i].icon, items[i].label, tab_rect, false);
 
-      if (ldk_ui_widget_tab(
-              ctx, tab_id, items[i].icon, items[i].label, tab_rect, false))
+      if (ctx->active_id == tab_id)
+      {
+        result.pressed_index = i;
+      }
+
+      if (clicked)
       {
         result.active_index = i;
         result.changed = i != draw_active_index;
@@ -1773,9 +1780,15 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   {
     LDKUITabBarItem const *item = &items[draw_active_index];
     LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, item, draw_active_index);
+    bool clicked = ldk_ui_widget_tab(
+        ctx, tab_id, item->icon, item->label, active_rect, true);
 
-    if (ldk_ui_widget_tab(
-            ctx, tab_id, item->icon, item->label, active_rect, true))
+    if (ctx->active_id == tab_id)
+    {
+      result.pressed_index = draw_active_index;
+    }
+
+    if (clicked)
     {
       result.active_index = draw_active_index;
       result.changed = false;

@@ -147,6 +147,7 @@ typedef struct LDKEditorDockLeaf
   LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
   u32 window_count;
   LDKEditorWindowId active_window;
+  LDKEditorWindowId pressed_window;
   LDKUIRect tab_bar_rect;
   bool tab_bar_rect_valid;
 } LDKEditorDockLeaf;
@@ -1969,6 +1970,11 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   leaf->tab_bar_rect = ldk_ui_last_rect(ui);
   leaf->tab_bar_rect_valid = true;
 
+  if (tab_result.pressed_index < leaf->window_count)
+  {
+    leaf->pressed_window = leaf->windows[tab_result.pressed_index];
+  }
+
   if (tab_result.active_index < leaf->window_count)
   {
     leaf->active_window = leaf->windows[tab_result.active_index];
@@ -2015,6 +2021,7 @@ static void s_editor_dock_windows_draw(
 
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
     {
+      node->data.leaf.pressed_window = LDK_EDITOR_WINDOW_ID_INVALID;
       node->data.leaf.tab_bar_rect_valid = false;
     }
   }
@@ -2066,6 +2073,7 @@ static void s_editor_dock_tab_drag_update(
       LDKEditorDockLeaf *leaf = &node->data.leaf;
 
       if (!leaf->tab_bar_rect_valid ||
+          leaf->pressed_window == LDK_EDITOR_WINDOW_ID_INVALID ||
           !s_editor_dock_rect_contains(
             &leaf->tab_bar_rect, cursor.x, cursor.y))
       {
@@ -2073,7 +2081,7 @@ static void s_editor_dock_tab_drag_update(
       }
 
       dock->drag.pending = true;
-      dock->drag.window = leaf->active_window;
+      dock->drag.window = leaf->pressed_window;
       dock->drag.source_leaf = leaf_index;
       dock->drag.press_position = cursor;
       return;
