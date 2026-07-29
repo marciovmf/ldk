@@ -68,6 +68,8 @@
 #define LDK_EDITOR_DOCK_SIZE_MAX 0.95f
 #define LDK_EDITOR_DOCK_SIZE_MIN 0.05f
 
+#define LDK_EDITOR_DOCK_FILE "%APPDATA%//ldk//layout.tml"
+
 enum
 {
   LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
@@ -3375,6 +3377,181 @@ static bool s_editor_dock_layout_apply(
   return true;
 }
 
+static u32 s_editor_dock_layout_find(
+  const LDKEditorDockLayouts *layouts, const char *layout_name)
+{
+  if (layouts == NULL || layout_name == NULL ||
+      layouts->layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+  }
+
+  for (u32 i = 0; i < layouts->layout_count; ++i)
+  {
+    if (strcmp(layouts->layouts[i].name, layout_name) == 0)
+    {
+      return i;
+    }
+  }
+
+  return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+}
+
+u32 ldk_editor_internal_dock_layout_count(void)
+{
+  if (!s_editor_dock.initialized ||
+      s_editor_dock_layouts.layout_count >
+          LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return 0;
+  }
+
+  return s_editor_dock_layouts.layout_count;
+}
+
+const char *ldk_editor_internal_dock_layout_name_get(u32 index)
+{
+  if (!s_editor_dock.initialized ||
+      index >= s_editor_dock_layouts.layout_count ||
+      s_editor_dock_layouts.layout_count >
+          LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts.layouts[index].name;
+}
+
+const char *ldk_editor_internal_dock_layout_current_name_get(void)
+{
+  if (!s_editor_dock.initialized ||
+      s_editor_dock_layouts.current_layout >=
+          s_editor_dock_layouts.layout_count)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts
+      .layouts[s_editor_dock_layouts.current_layout]
+      .name;
+}
+
+/*
+ * Creates a new named layout from the current live dock state, appends it to
+ * the layout collection, and makes it the current layout.
+ */
+bool ldk_editor_internal_dock_layout_create(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout layout;
+  size_t layout_name_length;
+
+  if (!s_editor_dock.initialized || layout_name == NULL)
+  {
+    return false;
+  }
+
+  layout_name_length = strlen(layout_name);
+  if (layout_name_length == 0 ||
+      layout_name_length >= LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return false;
+  }
+
+  if (layouts.layout_count > 0 &&
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  if (s_editor_dock_layout_find(&layouts, layout_name) !=
+      LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  {
+    return false;
+  }
+
+  /*
+   * On a fresh installation, preserve the existing live layout as "default"
+   * before creating the first custom layout.
+   */
+  if (layouts.layout_count == 0 &&
+      strcmp(layout_name, "default") != 0)
+  {
+    if (!s_editor_dock_layout_snapshot(
+          &layouts.layouts[0], &s_editor_dock, "default"))
+    {
+      return false;
+    }
+
+    layouts.layout_count = 1;
+    layouts.current_layout = 0;
+  }
+
+  if (layouts.layout_count >= LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      !s_editor_dock_layout_snapshot(
+        &layout, &s_editor_dock, layout_name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.layout_count] = layout;
+  layouts.current_layout = layouts.layout_count;
+  layouts.layout_count += 1;
+
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/*
+ * Saves changes to the outgoing layout, applies the requested layout, and
+ * marks it as current. Nothing is committed if snapshotting or applying fails.
+ */
+bool ldk_editor_internal_dock_set_current(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout outgoing_layout;
+  u32 target_layout;
+
+  if (!s_editor_dock.initialized || layout_name == NULL ||
+      layout_name[0] == 0 ||
+      layouts.layout_count == 0 ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  target_layout = s_editor_dock_layout_find(&layouts, layout_name);
+  if (target_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  {
+    return false;
+  }
+
+  if (target_layout == layouts.current_layout)
+  {
+    return true;
+  }
+
+  if (!s_editor_dock_layout_snapshot(&outgoing_layout, &s_editor_dock,
+        layouts.layouts[layouts.current_layout].name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.current_layout] = outgoing_layout;
+
+  if (!s_editor_dock_layout_apply(
+        &s_editor_dock, &layouts.layouts[target_layout]))
+  {
+    return false;
+  }
+
+  layouts.current_layout = target_layout;
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
 /*
  * Serializes all named dock layouts to TML. Before writing, the currently
  * selected layout is refreshed from the live dock state.
@@ -3450,11 +3627,13 @@ static bool s_editor_dock_to_tml(XStrBuilder *out)
 }
 
 /*
- * Deserializes a named layout collection and applies its selected layout.
- * The live dock and the stored layouts are only replaced after the complete
+ * Deserializes a named layout collection and applies either the explicitly
+ * requested layout or the layout selected by the document's current field.
+ * The live dock and stored layouts are only replaced after the complete
  * document has been validated.
  */
-static bool s_editor_dock_from_tml(const char *source)
+static bool s_editor_dock_from_tml(const char *source,
+  const char *layout_name)
 {
   TMLParseResult parse;
   const TMLNode *dock_node;
@@ -3491,6 +3670,7 @@ static bool s_editor_dock_from_tml(const char *source)
 
   has_current =
       tml_node_get_string(document, dock_node, "current", &current_name) != 0;
+
   layouts_node = tml_node_find_child(document, dock_node, "layouts");
   if (layouts_node == NULL || layouts_node->child_count == 0 ||
       layouts_node->child_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
@@ -3504,7 +3684,7 @@ static bool s_editor_dock_from_tml(const char *source)
     LDKEditorDockLayout *layout = &layouts.layouts[layouts.layout_count];
 
     if (!s_editor_dock_layout_read(
-            document, layout_node, &s_editor_dock, layout))
+          document, layout_node, &s_editor_dock, layout))
     {
       goto cleanup;
     }
@@ -3517,34 +3697,64 @@ static bool s_editor_dock_from_tml(const char *source)
       }
     }
 
-    if (has_current &&
-        s_editor_dock_tml_string_equals(current_name, layout->name))
-    {
-      layouts.current_layout = layouts.layout_count;
-    }
-
     layouts.layout_count += 1;
   }
 
-  if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  if (layout_name != NULL)
   {
     for (u32 i = 0; i < layouts.layout_count; ++i)
     {
-      if (strcmp(layouts.layouts[i].name, "default") == 0)
+      if (strcmp(layouts.layouts[i].name, layout_name) == 0)
       {
         layouts.current_layout = i;
         break;
       }
     }
-  }
 
-  if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    /*
+     * An explicitly requested layout must exist. It must not silently fall
+     * back to the persisted current or default layout.
+     */
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      goto cleanup;
+    }
+  }
+  else
   {
-    layouts.current_layout = 0;
+    if (has_current)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (s_editor_dock_tml_string_equals(
+              current_name, layouts.layouts[i].name))
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (strcmp(layouts.layouts[i].name, "default") == 0)
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      layouts.current_layout = 0;
+    }
   }
 
   if (!s_editor_dock_layout_apply(
-          &s_editor_dock, &layouts.layouts[layouts.current_layout]))
+        &s_editor_dock, &layouts.layouts[layouts.current_layout]))
   {
     goto cleanup;
   }
@@ -3555,6 +3765,39 @@ static bool s_editor_dock_from_tml(const char *source)
 cleanup:
   tml_document_free(document);
   return ok;
+}
+
+bool ldk_editor_internal_dock_layout_save(XStrBuilder *out)
+{
+  XFSPath path = {0};
+  const char* appdata = getenv("APPDATA");
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  if (!s_editor_dock_to_tml(out))
+    return false;
+  return x_io_write_text(path.buf, x_strbuilder_to_string(out));
+}
+
+bool ldk_editor_internal_dock_layout_load(const char *layout_name)
+{
+  XFSPath path = {0};
+  const char *appdata = getenv("APPDATA");
+  if (appdata == NULL || appdata[0] == 0)
+  {
+    return false;
+  }
+
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  char *buffer = x_io_read_text(path.buf, NULL);
+  if (buffer == NULL)
+  {
+    return false;
+  }
+
+  bool loaded = s_editor_dock_from_tml(buffer, layout_name);
+  X_IO_FREE(buffer);
+  return loaded;
 }
 
 /* ------------------------------------------------------------------------- */
