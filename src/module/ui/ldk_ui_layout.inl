@@ -1345,6 +1345,7 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
 u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
     u32 item_count, u32 selected_index)
 {
+  const LDKUIId BUTTON_TAG = 0x42544E00u; // "BTN"
   const LDKUIId POPUP_TAG = 0x434F4D42u; // "COMB"
 
   if (ctx == NULL || items == NULL || item_count == 0)
@@ -1362,10 +1363,26 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
 
   LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
 
+  LDKUIIcon button_icon =
+      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
+
+  float button_width = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  if (s_ui_icon_valid(button_icon))
+  {
+    button_width = s_ui_maxf(button_width,
+        button_icon.size.w );
+  }
+
   LDKUISize min_size = {
-      text_size.w + 16.0f,
+      text_size.w + button_width,
       LDK_UI_DEFAULT_CONTROL_HEIGHT,
   };
+
+  if (s_ui_icon_valid(button_icon))
+  {
+    min_size.h = s_ui_maxf(min_size.h, button_icon.size.h);
+  }
 
   LDKUILayoutRequest request =
       s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
@@ -1378,9 +1395,57 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
     return selected_index;
   }
 
-  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+  LDKUIRect button_rect = rect;
+  button_rect.w = s_ui_minf(button_width, rect.w);
+  button_rect.x = rect.x + rect.w - button_rect.w;
 
-  if (ldk_ui_widget_button(ctx, id, selected_text, rect))
+  LDKUIRect text_rect = rect;
+  text_rect.w = s_ui_maxf(0.0f, button_rect.x - rect.x);
+
+  LDKUIId button_id = s_ui_id_hash_u32(id, BUTTON_TAG);
+  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+  bool clicked = false;
+  bool disabled = s_ui_take_next_disabled(ctx);
+
+  ldk_ui_begin_disabled(ctx, disabled);
+
+  if (text_rect.w > 0.0f)
+  {
+    LDKUIWidgetBox box = {0};
+
+    if (s_ui_widget_box_from_explicit_rect(ctx, &box, id, text_rect, true))
+    {
+      LDKUIFrameState frame =
+          s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+      u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+      u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
+      u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+      LDKUISize selected_text_size =
+          s_ui_widget_text_size(ctx, selected_text);
+      float text_x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;
+      float text_y =
+          box.rect.y + (box.rect.h - selected_text_size.h) * 0.5f;
+
+      s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+      s_ui_render_border(
+          ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+      s_ui_render_text(
+          ctx, selected_text, text_x, text_y, text_color, box.clip);
+
+      clicked = frame.clicked;
+    }
+  }
+
+  if (button_rect.w > 0.0f &&
+      ldk_ui_widget_icon_button(
+          ctx, button_id, button_icon, "", button_rect))
+  {
+    clicked = true;
+  }
+
+  ldk_ui_end_disabled(ctx);
+
+  if (clicked)
   {
     if (ldk_ui_popup_is_open(ctx, popup_id))
     {
@@ -1417,15 +1482,15 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
     }
 
     ldk_ui_end_popup(ctx);
-
-    /*
-     * ldk_ui_end_popup() changes the last-item information to the popup.
-     * Restore the combo box as the last submitted widget.
-     */
-    ctx->last_rect = rect;
-    ctx->last_bounding_rect = rect;
-    ctx->last_id = id;
   }
+
+  /*
+   * The combo box is composed of two widgets and may also submit a popup.
+   * Restore it as the last submitted layout item.
+   */
+  ctx->last_rect = rect;
+  ctx->last_bounding_rect = rect;
+  ctx->last_id = id;
 
   return selected_index;
 }
