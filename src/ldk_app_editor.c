@@ -22,6 +22,9 @@
 #define X_IMPL_HPOOL
 #include <stdx/stdx_hpool.h>
 
+#define X_IMPL_IO
+#include <stdx/stdx_io.h>
+
 #include <ldk_common.h>
 #include <module/ldk_ecs.h>
 
@@ -510,7 +513,6 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_scrollview(ui);
   ldk_ui_end_window(ui);
 }
-
 
 
 /* POC implementation. */
@@ -1084,6 +1086,10 @@ static i32 s_editor_main(const char *project_file_path)
     ldk_engine_terminate();
     return 1;
   }
+
+  // load layout
+  ldk_editor_internal_dock_layout_load(NULL);
+
   
   s_editor_set_title(editor);
   XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
@@ -1096,6 +1102,11 @@ static i32 s_editor_main(const char *project_file_path)
   }
 
   i32 exit_code = ldk_engine_run();
+
+  x_strbuilder_clear(editor->console_sb);
+  ldk_editor_internal_dock_layout_save(editor->console_sb);
+  
+  
   s_editor_terminate(editor);
   ldk_engine_terminate();
   return exit_code;
