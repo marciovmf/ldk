@@ -602,7 +602,18 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
   ldk_editor_internal_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
   ldk_editor_internal_menubar_show(editor);
-  
+
+  if (editor->show_input_window)
+  {
+    u32 input_result =
+        ldk_editor_internal_input_window(editor, "SAVE LAYOUT AS");
+
+    if ((input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0 &&
+        ldk_editor_internal_layout_save_as(editor))
+    {
+      editor->show_input_window = false;
+    }
+  }
 
   if (editor->create_project_window_show)
     ldk_editor_internal_project_create_show((LDKEditorContext*)ldk_editor_get());
@@ -1102,10 +1113,6 @@ static i32 s_editor_main(const char *project_file_path)
   }
 
   i32 exit_code = ldk_engine_run();
-
-  x_strbuilder_clear(editor->console_sb);
-  ldk_editor_internal_dock_layout_save(editor->console_sb);
-  
   
   s_editor_terminate(editor);
   ldk_engine_terminate();
