@@ -951,7 +951,7 @@ i32 ldk_engine_run(void)
 
   e->running = true;
 
-  ldk_os_window_show(e->window, true);
+  ldk_os_window_maximize(e->window);
   ldk_os_window_fullscreen_set(e->window, e->config.fullscreen);
 
   while (e->running)

@@ -93,6 +93,28 @@ extern "C" {
    */
   LDK_API bool ldk_os_window_show(LDKWindow window, bool show);
 
+  /**
+   * Maximizes a window
+   * @param window The LDK window to maximize. The window is shown if previously hidden.
+   * @return void
+   */
+  LDK_API void ldk_os_window_maximize(LDKWindow window);
+
+  /**
+   * Minimizes a window
+   * @param window The LDK window to minimize. The window is shown if previously hidden.
+   * @return void
+   */
+  LDK_API void ldk_os_window_minimize(LDKWindow window);
+
+  /**
+   * Restores a minimized or maximized window
+   * @param window The LDK window to restore. The window is shown if previously hidden.
+   * @return void
+   */
+  LDK_API void ldk_os_window_restore(LDKWindow window);
+
+
   // ---------------------------------------------------------------------------
   // Graphics
   // ---------------------------------------------------------------------------
