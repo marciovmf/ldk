@@ -1361,11 +1361,19 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
       items[selected_index] != NULL ? items[selected_index] : "";
 
   LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
+  LDKUIIcon icon =
+      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
+  float icon_width = s_ui_icon_valid(icon) ? icon.size.w : 0.0f;
 
   LDKUISize min_size = {
-      text_size.w + 16.0f,
+      text_size.w + icon_width + LDK_UI_DEFAULT_SPACING * 5.0f,
       LDK_UI_DEFAULT_CONTROL_HEIGHT,
   };
+
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
 
   LDKUILayoutRequest request =
       s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
@@ -1379,8 +1387,54 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
   }
 
   LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+  LDKUIWidgetBox box = {0};
 
-  if (ldk_ui_widget_button(ctx, id, selected_text, rect))
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return selected_index;
+  }
+
+  LDKUIFrameState frame =
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+  u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
+  u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+  LDKUISize selected_text_size = s_ui_widget_text_size(ctx, selected_text);
+
+  s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+  s_ui_render_border(
+      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+
+  LDKUIRect text_rect = box.rect;
+  text_rect.x += LDK_UI_DEFAULT_SPACING * 2.0f;
+  text_rect.w =
+      s_ui_maxf(0.0f, box.rect.x + box.rect.w -
+                          LDK_UI_DEFAULT_SPACING * 2.0f - text_rect.x);
+
+  if (s_ui_icon_valid(icon))
+  {
+    LDKUIRect icon_rect;
+    icon_rect.w = s_ui_minf(icon.size.w, box.rect.w);
+    icon_rect.h = s_ui_minf(icon.size.h, box.rect.h);
+    icon_rect.x =
+        s_ui_maxf(box.rect.x, box.rect.x + box.rect.w -
+                                  LDK_UI_DEFAULT_SPACING * 2.0f - icon_rect.w);
+    icon_rect.y = box.rect.y + (box.rect.h - icon_rect.h) * 0.5f;
+
+    text_rect.w =
+        s_ui_maxf(0.0f, icon_rect.x - LDK_UI_DEFAULT_SPACING - text_rect.x);
+
+    s_ui_render_icon(ctx, icon, icon_rect, text_color, box.clip);
+  }
+
+  LDKUIRect text_clip = s_ui_rect_intersect(&box.clip, &text_rect);
+  float text_y =
+      box.rect.y + (box.rect.h - selected_text_size.h) * 0.5f;
+
+  s_ui_render_text(
+      ctx, selected_text, text_rect.x, text_y, text_color, text_clip);
+
+  if (frame.clicked)
   {
     if (ldk_ui_popup_is_open(ctx, popup_id))
     {
@@ -1594,6 +1648,7 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
 {
   LDKUITabBarResult result = {0};
   result.active_index = active_index;
+  result.pressed_index = UINT32_MAX;
   result.changed = false;
 
   if (ctx == NULL || items == NULL || item_count == 0)
@@ -1703,9 +1758,15 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
     else
     {
       LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, &items[i], i);
+      bool clicked = ldk_ui_widget_tab(
+          ctx, tab_id, items[i].icon, items[i].label, tab_rect, false);
 
-      if (ldk_ui_widget_tab(
-              ctx, tab_id, items[i].icon, items[i].label, tab_rect, false))
+      if (ctx->active_id == tab_id)
+      {
+        result.pressed_index = i;
+      }
+
+      if (clicked)
       {
         result.active_index = i;
         result.changed = i != draw_active_index;
@@ -1719,9 +1780,15 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   {
     LDKUITabBarItem const *item = &items[draw_active_index];
     LDKUIId tab_id = s_ui_tab_bar_item_id(bar_id, item, draw_active_index);
+    bool clicked = ldk_ui_widget_tab(
+        ctx, tab_id, item->icon, item->label, active_rect, true);
 
-    if (ldk_ui_widget_tab(
-            ctx, tab_id, item->icon, item->label, active_rect, true))
+    if (ctx->active_id == tab_id)
+    {
+      result.pressed_index = draw_active_index;
+    }
+
+    if (clicked)
     {
       result.active_index = draw_active_index;
       result.changed = false;

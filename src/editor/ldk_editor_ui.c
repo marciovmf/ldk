@@ -1,7 +1,9 @@
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
 #include <stdx/stdx_strbuilder.h>
+#include <stdx/stdx_string.h>
 #include <inttypes.h> // for PRIu64
+#include <string.h>
 
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
@@ -734,6 +736,265 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 // Toolbar
 //------------------------------------------------------------
 
+static bool s_editor_layouts_save(void)
+{
+  XStrBuilder *out = x_strbuilder_create();
+  if (out == NULL)
+  {
+    return false;
+  }
+
+  bool saved = ldk_editor_internal_dock_layout_save(out);
+  x_strbuilder_destroy(out);
+  return saved;
+}
+
+bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor)
+{
+  XSlice name_slice;
+  char layout_name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
+
+  if (editor == NULL)
+  {
+    return false;
+  }
+
+  name_slice = x_slice_trim(x_slice(editor->input_window_buffer));
+
+  if (name_slice.length == 0)
+  {
+    ldk_editor_internal_log_error(
+        editor, "The layout name cannot be empty.");
+    return false;
+  }
+
+  if (name_slice.length >= sizeof(layout_name))
+  {
+    ldk_editor_internal_log_error(editor, "The layout name is too long.");
+    return false;
+  }
+
+  memcpy(layout_name, name_slice.ptr, name_slice.length);
+  layout_name[name_slice.length] = 0;
+
+  u32 layout_count = ldk_editor_internal_dock_layout_count();
+  for (u32 i = 0; i < layout_count; ++i)
+  {
+    const char *existing_name =
+        ldk_editor_internal_dock_layout_name_get(i);
+
+    if (existing_name != NULL && strcmp(existing_name, layout_name) == 0)
+    {
+      ldk_editor_internal_log_error(
+          editor, "A layout with that name already exists.");
+      return false;
+    }
+  }
+
+  if (!ldk_editor_internal_dock_layout_create(layout_name))
+  {
+    ldk_editor_internal_log_error(editor, "Failed to save the layout.");
+    return false;
+  }
+
+  if (!s_editor_layouts_save())
+  {
+    ldk_editor_internal_log_error(editor,
+        "Layout created in memory, but failed to save the layout file.");
+  }
+  else
+  {
+    ldk_editor_internal_log_info(editor, "Layout created.");
+  }
+
+  return true;
+}
+
+u32 ldk_editor_internal_input_window(
+    LDKEditorContext *editor, const char *title)
+{
+  LDKUIContext *ui;
+  LDKUIRect *rect;
+  u32 result;
+
+  if (editor == NULL || title == NULL || !editor->show_input_window)
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+
+  ui = &editor->ui;
+  rect = &editor->input_window_rect;
+
+  if (rect->w <= 0.0f || rect->h <= 0.0f)
+  {
+    rect->w = 400.0f;
+    rect->h = 128.0f;
+    rect->x = (ui->viewport.w - rect->w) * 0.5f;
+    rect->y = (ui->viewport.h - rect->h) * 0.5f;
+  }
+
+  if (!ldk_ui_begin_window_open(ui, title, rect,
+        &editor->show_input_window,
+        LDK_UI_WINDOW_TITLE_BAR | LDK_UI_WINDOW_DRAGGABLE |
+            LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_CLOSE_BUTTON))
+  {
+    return LDK_UI_INPUT_BOX_CANCELED;
+  }
+
+  result = ldk_ui_input_box(ui, editor->input_window_buffer,
+      (u32)sizeof(editor->input_window_buffer));
+
+  ldk_ui_spacer(ui);
+  ldk_ui_begin_horizontal(ui);
+  {
+    bool confirm_requested =
+        (result & LDK_UI_INPUT_BOX_COMMITTED) != 0;
+    bool cancel_requested = (result & LDK_UI_INPUT_BOX_CANCELED) != 0;
+
+    ldk_ui_spacer(ui);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    cancel_requested |= ldk_ui_button(ui, "CANCEL");
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    confirm_requested |= ldk_ui_button(ui, "OK");
+
+    if (cancel_requested)
+    {
+      editor->show_input_window = false;
+      result |= LDK_UI_INPUT_BOX_CANCELED;
+    }
+    else if (confirm_requested)
+    {
+      result |= LDK_UI_INPUT_BOX_COMMITTED;
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_end_window(ui);
+  return result;
+}
+
+static void s_editor_layout_combo_box(LDKEditorContext *editor)
+{
+  LDKUIContext *ui = &editor->ui;
+  const char *items[LDK_EDITOR_DOCK_LAYOUT_CAPACITY + 3];
+  const char *current_name =
+      ldk_editor_internal_dock_layout_current_name_get();
+  u32 stored_layout_count = ldk_editor_internal_dock_layout_count();
+  u32 layout_count = stored_layout_count;
+  u32 selected_index = 0;
+
+  for (u32 i = 0; i < layout_count; ++i)
+  {
+    items[i] = ldk_editor_internal_dock_layout_name_get(i);
+
+    if (current_name != NULL && items[i] != NULL &&
+        strcmp(items[i], current_name) == 0)
+    {
+      selected_index = i;
+    }
+  }
+
+  /*
+   * Before the first layout file is saved, the live dock is the compiled
+   * default layout but the named-layout collection is still empty.
+   */
+  if (layout_count == 0)
+  {
+    current_name = "default";
+    items[0] = current_name;
+    layout_count = 1;
+  }
+  else if (current_name == NULL)
+  {
+    current_name = items[0] != NULL ? items[0] : "default";
+  }
+
+  u32 save_layout_index = layout_count;
+  items[save_layout_index] = "Save...";
+
+  u32 save_layout_as_index = layout_count + 1;
+  items[save_layout_as_index] = "Save as...";
+
+  u32 item_count = layout_count + 2;
+  u32 delete_layout_index = UINT32_MAX;
+
+  if (strcmp(current_name, "default") != 0)
+  {
+    delete_layout_index = item_count;
+    items[item_count++] = "Delete current layout...";
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(200.0f));
+  u32 result =
+      ldk_ui_combo_box(ui, items, item_count, selected_index);
+
+  if (result == selected_index)
+  {
+    return;
+  }
+
+  if (result < layout_count)
+  {
+    if (stored_layout_count > 0 &&
+        ldk_editor_internal_dock_set_current(items[result]))
+    {
+      if (!s_editor_layouts_save())
+      {
+        ldk_editor_internal_log_error(editor,
+            "Layout changed in memory, but failed to save the layout file.");
+      }
+    }
+    else if (stored_layout_count > 0)
+    {
+      ldk_editor_internal_log_error(editor, "Failed to change layout.");
+    }
+  }
+  else if (result == save_layout_index)
+  {
+    if (!s_editor_layouts_save())
+    {
+      ldk_editor_internal_log_error(editor, "Failed to save the layout.");
+    }
+    else
+    {
+      ldk_editor_internal_log_info(editor, "Layout saved.");
+    }
+  }
+  else if (result == save_layout_as_index)
+  {
+    memset(editor->input_window_buffer, 0,
+        sizeof(editor->input_window_buffer));
+    editor->input_window_rect = (LDKUIRect){0};
+    editor->show_input_window = true;
+  }
+  else if (result == delete_layout_index)
+  {
+    char message[X_SMALLSTR_MAX_LENGTH];
+    snprintf(message, sizeof(message),
+        "Delete the \"%s\" layout? This cannot be undone.", current_name);
+
+    if (ldk_os_dialog_show_yes_no(
+          editor->window, "Delete layout?", message))
+    {
+      if (!ldk_editor_internal_dock_layout_delete(current_name))
+      {
+        ldk_editor_internal_log_error(editor, "Failed to delete layout.");
+      }
+      else if (!s_editor_layouts_save())
+      {
+        ldk_editor_internal_log_error(editor,
+            "Layout deleted in memory, but failed to save the layout file.");
+      }
+      else
+      {
+        ldk_editor_internal_log_info(editor, "Layout deleted.");
+      }
+    }
+  }
+}
+
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
@@ -803,6 +1064,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
 
   ldk_ui_spacer(ui);
+  s_editor_layout_combo_box(editor);
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
 }

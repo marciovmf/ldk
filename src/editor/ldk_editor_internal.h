@@ -29,6 +29,14 @@ typedef enum LDKEditorState
 #define LDK_EDITOR_COMMAND_INITIAL_CAPACITY 16
 #endif
 
+#ifndef LDK_EDITOR_DOCK_LAYOUT_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_CAPACITY 16
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY 64
+#endif
+
 typedef struct LDKEditorCommand
 {
   char name[LDK_EDITOR_COMMAND_MAX_LENGTH];
@@ -57,6 +65,10 @@ typedef struct LDKEditorContext
   // Console output string builder
   XStrBuilder *console_sb;
 
+  LDKUIRect input_window_rect;
+  char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
+  bool show_input_window;
+
   //
   bool create_project_window_show;
 
@@ -68,6 +80,9 @@ typedef struct LDKEditorContext
 
 void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
 void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
+u32 ldk_editor_internal_input_window(
+    LDKEditorContext *editor, const char *title);
+bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor);
 void ldk_editor_internal_theme_icons_set(
     LDKEditorContext *editor, LDKUITheme *theme);
 void ldk_editor_internal_project_create_show(LDKEditorContext *editor);
@@ -79,5 +94,28 @@ bool ldk_editor_internal_show_open_project_dialog(
 void ldk_editor_internal_log_error(LDKEditorContext *editor, const char* msg);
 void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char* msg);
 void ldk_editor_internal_log_info(LDKEditorContext  *editor, const char* msg);
+
+
+u32 ldk_editor_internal_dock_layout_count(void);
+const char *ldk_editor_internal_dock_layout_name_get(u32 index);
+const char *ldk_editor_internal_dock_layout_current_name_get(void);
+
+/**
+ * saves the dock tml representation to the dock file under a specific name
+ */
+bool ldk_editor_internal_dock_layout_save(XStrBuilder *out);
+
+/**
+ * loads the dock tml representation from the dock file under a specific name
+ */
+bool ldk_editor_internal_dock_layout_load(const char *layout_name);
+
+/**
+ * makes the dock layout identified by layout_name, the default layout
+ */
+bool ldk_editor_internal_dock_set_current(const char *layout_name);
+
+bool ldk_editor_internal_dock_layout_create(const char *layout_name);
+bool ldk_editor_internal_dock_layout_delete(const char *layout_name);
 
 #endif // LDK_EDITOR_INTERNAL

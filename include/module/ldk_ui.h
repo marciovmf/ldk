@@ -546,6 +546,7 @@ extern "C"
   typedef struct LDKUITabBarResult
   {
     u32 active_index;
+    u32 pressed_index;
     bool changed;
   } LDKUITabBarResult;
 

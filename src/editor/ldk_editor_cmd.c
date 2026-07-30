@@ -4,6 +4,7 @@
 #include "stdx/stdx_strbuilder.h"
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_string.h>
+#include <string.h>
 
 //------------------------------------------------------------
 // Command System
@@ -39,13 +40,11 @@ bool ldk_editor_command_register(LDKEditor *editor, const char *cmd_name,
   if (cmd)
     return false;
 
-
   const size_t cmd_name_len = strlen(cmd_name);
   const size_t cmd_help_len = strlen(cmd_help);
   LDK_ASSERT(cmd_name_len < X_SMALLSTR_MAX_LENGTH);
   LDK_ASSERT(cmd_help_len < X_SMALLSTR_MAX_LENGTH);
 
-  
   LDKEditorCommand new_cmd = {0};
   new_cmd.cmd_func = fn;
   strncpy(&new_cmd.name[0], cmd_name, cmd_name_len);
@@ -100,12 +99,12 @@ static bool s_editor_command_help(XSlice args)
 
   if (cmd_slice.length == 0)
   {
-    XStrBuilder* sb = x_strbuilder_create();
+    XStrBuilder *sb = x_strbuilder_create();
     x_strbuilder_append_cstr(sb, "----------------------------\n");
     const u32 num_commands = x_array_count(e->commands);
     for (u32 i = 0; i < num_commands; i++)
     {
-      LDKEditorCommand* cmd = (LDKEditorCommand*) x_array_get(e->commands, i);
+      LDKEditorCommand *cmd = (LDKEditorCommand *)x_array_get(e->commands, i);
       x_strbuilder_append_format(sb, "%s    %s\n", cmd->name, cmd->help);
     }
     ldk_editor_internal_log_info(e, sb->data);
@@ -160,7 +159,8 @@ static bool s_editor_command_project(XSlice args)
   bool loaded = false;
   if (!x_slice_next_token_white_space(&args, &path_arg))
   {
-    loaded = ldk_editor_internal_show_open_project_dialog(ldk_editor_get(), NULL);
+    loaded =
+        ldk_editor_internal_show_open_project_dialog(ldk_editor_get(), NULL);
     if (loaded)
     {
       ldk_editor_internal_log_info(ldk_editor_get(), "Project loaded\n");
@@ -181,14 +181,119 @@ static bool s_editor_command_project(XSlice args)
 
 static bool s_editor_command_projnew(XSlice args)
 {
-  LDKEditorContext* editor = (LDKEditorContext*) ldk_editor_get();
+  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
   editor->create_project_window_show = true;
-    
-  //LDKProjectCreateDesc desc;
-  //desc.project_name = "test_project";
-  //desc.project_root_path = "c:\\work\\my_ldk_project";
-  //desc.cmake_generator = "Visual Studio 17 2022";
-  //return ldk_project_create(&desc);
+  return true;
+}
+
+static bool s_editor_command_layout_save_as(XSlice args)
+{
+  XSlice arg0 = {0};
+  bool loaded = false;
+  if (!x_slice_next_token_white_space(&args, &arg0))
+  {
+    LDKEditorContext *e = ldk_editor_get();
+    ldk_editor_internal_log_error(
+        e, "Command requires layout name argument!\n");
+    return false;
+  }
+
+  XSmallstr name = {0};
+  x_smallstr_from_slice(arg0, &name);
+  ldk_editor_internal_dock_layout_create(name.buf);
+  return true;
+}
+
+static bool s_editor_command_layout_list(XSlice args)
+{
+  LDKEditorContext *e = ldk_editor_get();
+  u32 layout_count = ldk_editor_internal_dock_layout_count();
+  for (u32 i = 0; i < layout_count; ++i)
+  {
+    const char *layout_name = ldk_editor_internal_dock_layout_name_get(i);
+
+    if (layout_name != NULL)
+    {
+      ldk_editor_internal_log_info(e, layout_name);
+    }
+  }
+  return true;
+}
+
+static bool s_editor_command_layout_set(XSlice args)
+{
+  XSlice arg0 = {0};
+  bool loaded = false;
+  if (!x_slice_next_token_white_space(&args, &arg0))
+  {
+    LDKEditorContext *e = ldk_editor_get();
+    ldk_editor_internal_log_error(
+        e, "Command requires layout name argument!\n");
+    return false;
+  }
+
+  XSmallstr name = {0};
+  x_smallstr_from_slice(arg0, &name);
+  return ldk_editor_internal_dock_layout_load(name.buf);
+}
+
+static bool s_editor_command_layout_delete(XSlice args)
+{
+  LDKEditorContext *editor = ldk_editor_get();
+  XStrBuilder *out;
+  XSmallstr name = {0};
+  bool saved;
+
+  args = x_slice_trim(args);
+  if (args.length == 0)
+  {
+    ldk_editor_internal_log_error(
+        editor, "Command requires layout name argument!");
+    return false;
+  }
+
+  if (x_smallstr_from_slice(args, &name) == 0)
+  {
+    ldk_editor_internal_log_error(editor, "Invalid layout name!");
+    return false;
+  }
+
+  out = x_strbuilder_create();
+  if (out == NULL)
+  {
+    ldk_editor_internal_log_error(
+        editor, "Failed to allocate dock layout output!");
+    return false;
+  }
+
+  if (!ldk_editor_internal_dock_layout_delete(name.buf))
+  {
+    x_strbuilder_destroy(out);
+
+    if (strcmp(name.buf, "default") == 0)
+    {
+      ldk_editor_internal_log_error(
+          editor, "The default layout cannot be deleted!");
+    }
+    else
+    {
+      ldk_editor_internal_log_error(editor, "Failed to delete layout!");
+    }
+
+    return false;
+  }
+
+  saved = ldk_editor_internal_dock_layout_save(out);
+  x_strbuilder_destroy(out);
+
+  if (!saved)
+  {
+    ldk_editor_internal_log_error(
+        editor, "Layout deleted, but failed to save the layout file!");
+    return false;
+  }
+
+  ldk_editor_internal_log_info(editor, "Layout deleted.");
   return true;
 }
 
@@ -200,23 +305,39 @@ void ldk_editor_internal_register_commands(LDKEditorContext *editor)
   LDK_ASSERT(editor != NULL);
   LDK_ASSERT(editor->commands == NULL);
   editor->commands = x_array_create(
-    sizeof(LDKEditorCommand), LDK_EDITOR_COMMAND_INITIAL_CAPACITY);
+      sizeof(LDKEditorCommand), LDK_EDITOR_COMMAND_INITIAL_CAPACITY);
 
   ldk_editor_command_register(editor, "help",
-                              "Shows help information for a given command.", s_editor_command_help);
+      "Shows help information for a given command.", s_editor_command_help);
 
   ldk_editor_command_register(
-    editor, "projnew", "Creates a new project.", s_editor_command_projnew);
+      editor, "projnew", "Creates a new project.", s_editor_command_projnew);
   ldk_editor_command_register(
-    editor, "play", "Enter Play mode.", s_editor_command_play);
+      editor, "play", "Enter Play mode.", s_editor_command_play);
   ldk_editor_command_register(
-    editor, "stop", "Leaves Play mode.", s_editor_command_stop);
+      editor, "stop", "Leaves Play mode.", s_editor_command_stop);
   ldk_editor_command_register(
-    editor, "pause", "Pauses Play mode.", s_editor_command_pause);
+      editor, "pause", "Pauses Play mode.", s_editor_command_pause);
   ldk_editor_command_register(editor, "step",
-                              "Advances Play mode by one frame.", s_editor_command_step);
+      "Advances Play mode by one frame.", s_editor_command_step);
   ldk_editor_command_register(
-    editor, "project", "Loads a project.", s_editor_command_project);
+      editor, "project", "Loads a project.", s_editor_command_project);
   ldk_editor_command_register(
-    editor, "quit", "Terminates the editor.", s_editor_command_quit);
+      editor, "quit", "Terminates the editor.", s_editor_command_quit);
+
+  // Layout functions
+  ldk_editor_command_register(editor, "layout-save-as",
+      "Saves the current layout as a new name.",
+      s_editor_command_layout_save_as);
+
+  ldk_editor_command_register(editor, "layout-list", "List all layout names.",
+      s_editor_command_layout_list);
+
+  ldk_editor_command_register(editor, "layout-set",
+      "Set the current layout as the one identified by name.",
+      s_editor_command_layout_set);
+
+  ldk_editor_command_register(editor, "layout-delete",
+      "Deletes the layout identified by name.",
+      s_editor_command_layout_delete);
 }

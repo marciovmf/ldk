@@ -1,3 +1,5 @@
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -17,6 +19,14 @@
 
 #ifndef LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY
 #define LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY 16
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LAYOUT_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_CAPACITY 16
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY 64
 #endif
 
 #ifndef LDK_EDITOR_DOCK_SPLIT_GAP
@@ -40,13 +50,27 @@
 #endif
 
 #define LDK_EDITOR_DOCK_INVALID_NODE (-1)
+#define LDK_EDITOR_DOCK_INVALID_LAYOUT UINT32_MAX
 #define LDK_EDITOR_WINDOW_ID_INVALID ((LDKEditorWindowId)0)
+#define LDK_EDITOR_DOCK_TML_VERSION 1
 
 #define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
 #define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
 
-#define LDK_EDITOR_DOCK_MAX 0.95f
-#define LDK_EDITOR_DOCK_MIN 0.05f
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
+#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+
+#define LDK_EDITOR_DOCK_SIZE_MAX 0.95f
+#define LDK_EDITOR_DOCK_SIZE_MIN 0.05f
+
+#define LDK_EDITOR_DOCK_FILE "%APPDATA%//ldk//layout.tml"
+
+enum
+{
+  LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
+  LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
+  LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
+};
 
 /*
  * Editor window IDs are stored in the docking layout and must therefore be
@@ -54,7 +78,7 @@
  * integer. It must be non-zero and unique among the windows registered by the
  * editor and its tools. Do not use an address as an ID.
  */
-typedef uintptr_t LDKEditorWindowId;
+typedef u32 LDKEditorWindowId;
 
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 
@@ -118,6 +142,7 @@ typedef struct LDKEditorDockLeaf
   LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
   u32 window_count;
   LDKEditorWindowId active_window;
+  LDKEditorWindowId pressed_window;
   LDKUIRect tab_bar_rect;
   LDKUIId ui_window_id;
   bool tab_bar_rect_valid;
@@ -184,7 +209,55 @@ typedef struct LDKEditorDockState
   bool initialized;
 } LDKEditorDockState;
 
+typedef struct LDKEditorDockLayoutWindow
+{
+  LDKEditorWindowId id;
+  LDKUIRect floating_rect;
+} LDKEditorDockLayoutWindow;
+
+typedef struct LDKEditorDockLayoutNode
+{
+  LDKEditorDockNodeType type;
+
+  union
+  {
+    struct
+    {
+      LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
+      u32 window_count;
+      LDKEditorWindowId active_window;
+    } leaf;
+
+    struct
+    {
+      i32 first;
+      i32 second;
+      float ratio;
+      LDKEditorDockSplitAxis axis;
+    } split;
+  } data;
+} LDKEditorDockLayoutNode;
+
+typedef struct LDKEditorDockLayout
+{
+  char name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
+  LDKEditorDockLayoutWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
+  LDKEditorDockLayoutNode nodes[LDK_EDITOR_DOCK_NODE_CAPACITY];
+  u32 window_count;
+  u32 node_count;
+  i32 root;
+} LDKEditorDockLayout;
+
+typedef struct LDKEditorDockLayouts
+{
+  LDKEditorDockLayout layouts[LDK_EDITOR_DOCK_LAYOUT_CAPACITY];
+  u32 layout_count;
+  u32 current_layout;
+} LDKEditorDockLayouts;
+
 static LDKEditorDockState s_editor_dock;
+static LDKEditorDockLayouts s_editor_dock_layouts = {
+    .current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 
 /* ------------------------------------------------------------------------- */
 /* Window registry                                                           */
@@ -820,7 +893,8 @@ static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
                    target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP;
   i32 first = new_first ? new_leaf : old_root;
   i32 second = new_first ? old_root : new_leaf;
-  i32 split = s_editor_dock_split_create(dock, axis, 0.25f, first, second);
+  float ratio = new_first ? LDK_EDITOR_DOCK_SIZE_MIN : LDK_EDITOR_DOCK_SIZE_MAX;
+  i32 split = s_editor_dock_split_create(dock, axis, ratio, first, second);
 
   if (split == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -916,8 +990,8 @@ static void s_editor_dock_layout_node(
     return;
   }
 
-  float ratio = s_editor_dock_clampf(
-      node->data.split.ratio, LDK_EDITOR_DOCK_MIN, LDK_EDITOR_DOCK_MAX);
+  float ratio = s_editor_dock_clampf(node->data.split.ratio,
+      LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
   float half_gap = LDK_EDITOR_DOCK_SPLIT_GAP * 0.5f;
   float half_hit_size = LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE * 0.5f;
   LDKUIRect first_rect = rect;
@@ -1009,8 +1083,8 @@ static bool s_editor_dock_split_resize_update(
 
       if (size > 0.0f)
       {
-        node->data.split.ratio = s_editor_dock_clampf(
-            position / size, LDK_EDITOR_DOCK_MIN, LDK_EDITOR_DOCK_MAX);
+        node->data.split.ratio = s_editor_dock_clampf(position / size,
+            LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
       }
 
       return true;
@@ -1255,6 +1329,11 @@ static void s_editor_dock_leaf_draw(
   leaf->ui_window_id = dock_window_id;
   leaf->tab_bar_rect_valid = true;
 
+  if (tab_result.pressed_index < leaf->window_count)
+  {
+    leaf->pressed_window = leaf->windows[tab_result.pressed_index];
+  }
+
   if (tab_result.active_index < leaf->window_count)
   {
     leaf->active_window = leaf->windows[tab_result.active_index];
@@ -1296,6 +1375,7 @@ static void s_editor_dock_windows_draw(
 
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
     {
+      node->data.leaf.pressed_window = LDK_EDITOR_WINDOW_ID_INVALID;
       node->data.leaf.tab_bar_rect_valid = false;
       node->data.leaf.ui_window_id = 0;
     }
@@ -1432,6 +1512,7 @@ static void s_editor_dock_tab_drag_update(
       u32 tab_index = 0;
 
       if (!leaf->tab_bar_rect_valid ||
+          leaf->pressed_window == LDK_EDITOR_WINDOW_ID_INVALID ||
           !s_editor_dock_rect_contains(
               &leaf->tab_bar_rect, cursor.x, cursor.y) ||
           !s_editor_dock_leaf_tab_at(leaf, ui, cursor, &tab_index))
@@ -1440,7 +1521,7 @@ static void s_editor_dock_tab_drag_update(
       }
 
       dock->drag.pending = true;
-      dock->drag.window = leaf->windows[tab_index];
+      dock->drag.window = leaf->pressed_window;
       dock->drag.source_leaf = leaf_index;
       dock->drag.press_position = cursor;
       return;
@@ -1800,8 +1881,1404 @@ static void s_editor_dock_active_drag_update(
 }
 
 /* ------------------------------------------------------------------------- */
-/* Lifecycle                                                                 */
+/* Serialization                                                             */
 /* ------------------------------------------------------------------------- */
+
+typedef struct LDKEditorDockLayoutSnapshotContext
+{
+  const LDKEditorDockState *dock;
+  LDKEditorDockLayout *layout;
+  LDKEditorWindowId docked_windows[LDK_EDITOR_WINDOW_CAPACITY];
+  bool visited_nodes[LDK_EDITOR_DOCK_NODE_CAPACITY];
+  u32 docked_window_count;
+} LDKEditorDockLayoutSnapshotContext;
+
+typedef struct LDKEditorDockLayoutReadContext
+{
+  const TMLDocument *document;
+  const LDKEditorDockState *dock;
+  LDKEditorDockLayout *layout;
+  LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY];
+  LDKEditorWindowId docked_windows[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 saved_window_count;
+  u32 docked_window_count;
+  u32 source_node_count;
+} LDKEditorDockLayoutReadContext;
+
+static bool s_editor_dock_id_list_contains(
+    const LDKEditorWindowId *ids, u32 count, LDKEditorWindowId id)
+{
+  for (u32 i = 0; i < count; ++i)
+  {
+    if (ids[i] == id)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool s_editor_dock_id_list_add(
+    LDKEditorWindowId *ids, u32 *count, u32 capacity, LDKEditorWindowId id)
+{
+  if (ids == NULL || count == NULL || *count >= capacity ||
+      id == LDK_EDITOR_WINDOW_ID_INVALID ||
+      s_editor_dock_id_list_contains(ids, *count, id))
+  {
+    return false;
+  }
+
+  ids[(*count)++] = id;
+  return true;
+}
+
+static bool s_editor_dock_layout_name_copy(
+    char *destination, size_t destination_size, TMLString name)
+{
+  if (destination == NULL || destination_size == 0 || name.data == NULL ||
+      name.size == 0 || name.size >= destination_size)
+  {
+    return false;
+  }
+
+  memcpy(destination, name.data, name.size);
+  destination[name.size] = 0;
+  return true;
+}
+
+static bool s_editor_dock_tml_string_equals(TMLString string, const char *text)
+{
+  if (string.data == NULL || text == NULL)
+  {
+    return false;
+  }
+
+  size_t text_length = strlen(text);
+  return string.size == text_length &&
+         memcmp(string.data, text, text_length) == 0;
+}
+
+static bool s_editor_dock_float_from_entry(const TMLEntry *entry, float *value)
+{
+  if (entry == NULL || value == NULL)
+  {
+    return false;
+  }
+
+  double number;
+  if (entry->type == TML_VALUE_F64)
+  {
+    f64 parsed_number;
+    if (!tml_entry_get_f64(entry, &parsed_number))
+    {
+      return false;
+    }
+    number = parsed_number;
+  }
+  else if (entry->type == TML_VALUE_I64)
+  {
+    i64 parsed_integer;
+    if (!tml_entry_get_i64(entry, &parsed_integer))
+    {
+      return false;
+    }
+    number = (double)parsed_integer;
+  }
+  else
+  {
+    return false;
+  }
+
+  if (!isfinite(number) || number < -FLT_MAX || number > FLT_MAX)
+  {
+    return false;
+  }
+
+  *value = (float)number;
+  return true;
+}
+
+static bool s_editor_dock_window_id_from_entry(
+    const TMLEntry *entry, LDKEditorWindowId *id)
+{
+  i64 value;
+
+  if (entry == NULL || id == NULL || !tml_entry_get_i64(entry, &value) ||
+      value <= 0 || value > UINT32_MAX)
+  {
+    return false;
+  }
+
+  *id = (LDKEditorWindowId)value;
+  return true;
+}
+
+static bool s_editor_dock_rect_from_entry(
+    const TMLDocument *document, const TMLEntry *entry, LDKUIRect *rect)
+{
+  double values[4];
+
+  if (document == NULL || entry == NULL || rect == NULL)
+  {
+    return false;
+  }
+
+  if (entry->type == TML_VALUE_ARRAY_F64)
+  {
+    TMLF64Slice array;
+    if (!tml_entry_get_f64_array(document, entry, &array) || array.count != 4)
+    {
+      return false;
+    }
+
+    for (u32 i = 0; i < 4; ++i)
+    {
+      values[i] = array.data[i];
+    }
+  }
+  else if (entry->type == TML_VALUE_ARRAY_I64)
+  {
+    TMLI64Slice array;
+    if (!tml_entry_get_i64_array(document, entry, &array) || array.count != 4)
+    {
+      return false;
+    }
+
+    for (u32 i = 0; i < 4; ++i)
+    {
+      values[i] = (double)array.data[i];
+    }
+  }
+  else
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < 4; ++i)
+  {
+    if (!isfinite(values[i]) || values[i] < -FLT_MAX || values[i] > FLT_MAX)
+    {
+      return false;
+    }
+  }
+
+  if (values[2] <= 0.0 || values[3] <= 0.0)
+  {
+    return false;
+  }
+
+  *rect = (LDKUIRect){
+      (float)values[0], (float)values[1], (float)values[2], (float)values[3]};
+  return true;
+}
+
+static void s_editor_dock_tml_indent(XStrBuilder *out, u32 indent)
+{
+  for (u32 i = 0; i < indent; ++i)
+  {
+    x_strbuilder_append(out, "  ");
+  }
+}
+
+static void s_editor_dock_tml_string_append(XStrBuilder *out, const char *text)
+{
+  x_strbuilder_append_char(out, '"');
+
+  if (text != NULL)
+  {
+    for (const char *character = text; *character != 0; ++character)
+    {
+      switch (*character)
+      {
+      case '\n':
+        x_strbuilder_append(out, "\\n");
+        break;
+
+      case '\r':
+        x_strbuilder_append(out, "\\r");
+        break;
+
+      case '\t':
+        x_strbuilder_append(out, "\\t");
+        break;
+
+      case '"':
+        x_strbuilder_append(out, "\\\"");
+        break;
+
+      case '\\':
+        x_strbuilder_append(out, "\\\\");
+        break;
+
+      default:
+        x_strbuilder_append_char(out, *character);
+        break;
+      }
+    }
+  }
+
+  x_strbuilder_append_char(out, '"');
+}
+
+static bool s_editor_dock_layout_snapshot_node(
+    LDKEditorDockLayoutSnapshotContext *context, i32 source_node,
+    i32 *layout_node)
+{
+  if (context == NULL || layout_node == NULL || source_node < 0 ||
+      source_node >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+      context->visited_nodes[source_node] ||
+      context->layout->node_count >= LDK_EDITOR_DOCK_NODE_CAPACITY)
+  {
+    return false;
+  }
+
+  const LDKEditorDockNode *source = &context->dock->nodes[source_node];
+  if (!source->used)
+  {
+    return false;
+  }
+
+  context->visited_nodes[source_node] = true;
+
+  i32 destination_index = (i32)context->layout->node_count++;
+  LDKEditorDockLayoutNode *destination =
+      &context->layout->nodes[destination_index];
+  destination->type = source->type;
+
+  if (source->type == LDK_EDITOR_DOCK_NODE_LEAF)
+  {
+    const LDKEditorDockLeaf *leaf = &source->data.leaf;
+    if (leaf->window_count == 0 ||
+        leaf->window_count > LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
+    {
+      return false;
+    }
+
+    for (u32 i = 0; i < leaf->window_count; ++i)
+    {
+      LDKEditorWindowId window = leaf->windows[i];
+      if (s_editor_dock_window_get_const(context->dock, window) == NULL ||
+          !s_editor_dock_id_list_add(context->docked_windows,
+              &context->docked_window_count, LDK_EDITOR_WINDOW_CAPACITY,
+              window))
+      {
+        return false;
+      }
+
+      destination->data.leaf.windows[i] = window;
+    }
+
+    destination->data.leaf.window_count = leaf->window_count;
+    destination->data.leaf.active_window =
+        s_editor_dock_leaf_contains(leaf, leaf->active_window)
+            ? leaf->active_window
+            : leaf->windows[0];
+  }
+  else if (source->type == LDK_EDITOR_DOCK_NODE_SPLIT)
+  {
+    const LDKEditorDockSplit *split = &source->data.split;
+    if ((split->axis != LDK_EDITOR_DOCK_SPLIT_HORIZONTAL &&
+            split->axis != LDK_EDITOR_DOCK_SPLIT_VERTICAL) ||
+        !isfinite(split->ratio))
+    {
+      return false;
+    }
+
+    i32 first;
+    i32 second;
+    if (!s_editor_dock_layout_snapshot_node(context, split->first, &first) ||
+        !s_editor_dock_layout_snapshot_node(context, split->second, &second))
+    {
+      return false;
+    }
+
+    destination = &context->layout->nodes[destination_index];
+    destination->data.split.first = first;
+    destination->data.split.second = second;
+    destination->data.split.ratio = s_editor_dock_clampf(
+        split->ratio, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
+    destination->data.split.axis = split->axis;
+  }
+  else
+  {
+    return false;
+  }
+
+  *layout_node = destination_index;
+  return true;
+}
+
+static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
+    const LDKEditorDockState *dock, const char *name)
+{
+  LDKEditorDockLayoutSnapshotContext context;
+  size_t name_length;
+
+  if (layout == NULL || dock == NULL || name == NULL)
+  {
+    return false;
+  }
+
+  name_length = strlen(name);
+  if (name_length == 0 || name_length >= LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY ||
+      dock->window_count > LDK_EDITOR_WINDOW_CAPACITY)
+  {
+    return false;
+  }
+
+  memset(layout, 0, sizeof(*layout));
+  memcpy(layout->name, name, name_length + 1);
+  layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+
+  LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY] = {0};
+  for (u32 i = 0; i < dock->window_count; ++i)
+  {
+    const LDKEditorDockWindow *window = &dock->windows[i];
+    const LDKUIRect *rect = &window->floating_rect;
+
+    if (!s_editor_dock_id_list_add(saved_windows, &layout->window_count,
+            LDK_EDITOR_WINDOW_CAPACITY, window->window.id) ||
+        !isfinite(rect->x) || !isfinite(rect->y) || !isfinite(rect->w) ||
+        !isfinite(rect->h) || rect->w <= 0.0f || rect->h <= 0.0f)
+    {
+      return false;
+    }
+
+    LDKEditorDockLayoutWindow *saved =
+        &layout->windows[layout->window_count - 1];
+    saved->id = window->window.id;
+    saved->floating_rect = window->floating_rect;
+  }
+
+  if (dock->root == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    return true;
+  }
+
+  memset(&context, 0, sizeof(context));
+  context.dock = dock;
+  context.layout = layout;
+  return s_editor_dock_layout_snapshot_node(
+      &context, dock->root, &layout->root);
+}
+
+static bool s_editor_dock_layout_node_write(XStrBuilder *out,
+    const LDKEditorDockLayout *layout, i32 node_index, u32 indent,
+    bool *visited_nodes)
+{
+  if (out == NULL || layout == NULL || visited_nodes == NULL ||
+      node_index < 0 || (u32)node_index >= layout->node_count ||
+      visited_nodes[node_index])
+  {
+    return false;
+  }
+
+  visited_nodes[node_index] = true;
+  const LDKEditorDockLayoutNode *node = &layout->nodes[node_index];
+
+  if (node->type == LDK_EDITOR_DOCK_NODE_LEAF)
+  {
+    if (node->data.leaf.window_count == 0 ||
+        node->data.leaf.window_count > LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
+    {
+      return false;
+    }
+
+    s_editor_dock_tml_indent(out, indent);
+    x_strbuilder_append(out, "type: \"leaf\"\n");
+    s_editor_dock_tml_indent(out, indent);
+    x_strbuilder_append_format(
+        out, "active: %u\n", node->data.leaf.active_window);
+    s_editor_dock_tml_indent(out, indent);
+    x_strbuilder_append(out, "windows: [");
+
+    for (u32 i = 0; i < node->data.leaf.window_count; ++i)
+    {
+      if (i > 0)
+      {
+        x_strbuilder_append(out, ", ");
+      }
+
+      x_strbuilder_append_format(out, "%u", node->data.leaf.windows[i]);
+    }
+
+    x_strbuilder_append(out, "]\n");
+    return true;
+  }
+
+  if (node->type != LDK_EDITOR_DOCK_NODE_SPLIT ||
+      !isfinite(node->data.split.ratio))
+  {
+    return false;
+  }
+
+  s_editor_dock_tml_indent(out, indent);
+  x_strbuilder_append(out, "type: \"split\"\n");
+  s_editor_dock_tml_indent(out, indent);
+  x_strbuilder_append_format(out, "axis: \"%s\"\n",
+      node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL ? "horizontal"
+                                                                : "vertical");
+  s_editor_dock_tml_indent(out, indent);
+  x_strbuilder_append_format(
+      out, "ratio: %.9g\n", (double)node->data.split.ratio);
+  s_editor_dock_tml_indent(out, indent);
+  x_strbuilder_append(out, "first:\n");
+
+  if (!s_editor_dock_layout_node_write(
+          out, layout, node->data.split.first, indent + 1, visited_nodes))
+  {
+    return false;
+  }
+
+  s_editor_dock_tml_indent(out, indent);
+  x_strbuilder_append(out, "second:\n");
+  return s_editor_dock_layout_node_write(
+      out, layout, node->data.split.second, indent + 1, visited_nodes);
+}
+
+static bool s_editor_dock_layout_write(
+    XStrBuilder *out, const LDKEditorDockLayout *layout)
+{
+  bool visited_nodes[LDK_EDITOR_DOCK_NODE_CAPACITY] = {false};
+
+  if (out == NULL || layout == NULL || layout->name[0] == 0 ||
+      layout->window_count > LDK_EDITOR_WINDOW_CAPACITY ||
+      layout->node_count > LDK_EDITOR_DOCK_NODE_CAPACITY)
+  {
+    return false;
+  }
+
+  s_editor_dock_tml_indent(out, 2);
+  x_strbuilder_append(out, "- name: ");
+  s_editor_dock_tml_string_append(out, layout->name);
+  x_strbuilder_append_char(out, '\n');
+  s_editor_dock_tml_indent(out, 3);
+  x_strbuilder_append(out, "windows:\n");
+
+  for (u32 i = 0; i < layout->window_count; ++i)
+  {
+    const LDKEditorDockLayoutWindow *window = &layout->windows[i];
+    const LDKUIRect *rect = &window->floating_rect;
+
+    if (window->id == LDK_EDITOR_WINDOW_ID_INVALID || !isfinite(rect->x) ||
+        !isfinite(rect->y) || !isfinite(rect->w) || !isfinite(rect->h) ||
+        rect->w <= 0.0f || rect->h <= 0.0f)
+    {
+      return false;
+    }
+
+    s_editor_dock_tml_indent(out, 4);
+    x_strbuilder_append_format(out, "- id: %u\n", window->id);
+    s_editor_dock_tml_indent(out, 5);
+    x_strbuilder_append_format(out, "floating_rect: [%.9g, %.9g, %.9g, %.9g]\n",
+        (double)rect->x, (double)rect->y, (double)rect->w, (double)rect->h);
+  }
+
+  s_editor_dock_tml_indent(out, 3);
+  x_strbuilder_append(out, "tree:\n");
+
+  if (layout->root == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    s_editor_dock_tml_indent(out, 4);
+    x_strbuilder_append(out, "type: \"empty\"\n");
+    return true;
+  }
+
+  return s_editor_dock_layout_node_write(
+      out, layout, layout->root, 4, visited_nodes);
+}
+
+static bool s_editor_dock_window_ids_from_entry(const TMLDocument *document,
+    const TMLEntry *entry, LDKEditorWindowId *windows, u32 *window_count)
+{
+  if (document == NULL || entry == NULL || windows == NULL ||
+      window_count == NULL)
+  {
+    return false;
+  }
+
+  *window_count = 0;
+
+  if (entry->type == TML_VALUE_I64)
+  {
+    if (!s_editor_dock_window_id_from_entry(entry, &windows[0]))
+    {
+      return false;
+    }
+
+    *window_count = 1;
+    return true;
+  }
+
+  if (entry->type != TML_VALUE_ARRAY_I64)
+  {
+    return false;
+  }
+
+  TMLI64Slice array;
+  if (!tml_entry_get_i64_array(document, entry, &array) || array.count == 0 ||
+      array.count > LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < array.count; ++i)
+  {
+    if (array.data[i] <= 0 || array.data[i] > UINT32_MAX)
+    {
+      return false;
+    }
+
+    windows[i] = (LDKEditorWindowId)array.data[i];
+  }
+
+  *window_count = array.count;
+  return true;
+}
+
+static bool s_editor_dock_layout_windows_read(
+    LDKEditorDockLayoutReadContext *context, const TMLNode *windows_node)
+{
+  if (context == NULL || windows_node == NULL ||
+      windows_node->child_count > LDK_EDITOR_WINDOW_CAPACITY)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < windows_node->child_count; ++i)
+  {
+    const TMLNode *window_node =
+        tml_node_child_at(context->document, windows_node, i);
+    const TMLEntry *id_entry =
+        tml_node_find_entry(context->document, window_node, "id");
+    const TMLEntry *rect_entry =
+        tml_node_find_entry(context->document, window_node, "floating_rect");
+    LDKEditorWindowId id;
+    LDKUIRect rect;
+
+    if (!s_editor_dock_window_id_from_entry(id_entry, &id) ||
+        !s_editor_dock_rect_from_entry(context->document, rect_entry, &rect) ||
+        !s_editor_dock_id_list_add(context->saved_windows,
+            &context->saved_window_count, LDK_EDITOR_WINDOW_CAPACITY, id))
+    {
+      return false;
+    }
+
+    if (s_editor_dock_window_get_const(context->dock, id) == NULL)
+    {
+      continue;
+    }
+
+    LDKEditorDockLayoutWindow *window =
+        &context->layout->windows[context->layout->window_count++];
+    window->id = id;
+    window->floating_rect = rect;
+  }
+
+  return true;
+}
+
+static bool s_editor_dock_layout_node_read(
+    LDKEditorDockLayoutReadContext *context, const TMLNode *source_node,
+    u32 depth, i32 *layout_node)
+{
+  TMLString type;
+
+  if (context == NULL || source_node == NULL || layout_node == NULL ||
+      depth > LDK_EDITOR_DOCK_NODE_CAPACITY ||
+      !tml_node_get_string(context->document, source_node, "type", &type))
+  {
+    return false;
+  }
+
+  context->source_node_count += 1;
+  if (context->source_node_count > LDK_EDITOR_DOCK_NODE_CAPACITY)
+  {
+    return false;
+  }
+
+  if (s_editor_dock_tml_string_equals(type, "empty"))
+  {
+    *layout_node = LDK_EDITOR_DOCK_INVALID_NODE;
+    return true;
+  }
+
+  if (s_editor_dock_tml_string_equals(type, "leaf"))
+  {
+    const TMLEntry *windows_entry =
+        tml_node_find_entry(context->document, source_node, "windows");
+    const TMLEntry *active_entry =
+        tml_node_find_entry(context->document, source_node, "active");
+    LDKEditorWindowId saved_leaf_windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
+    LDKEditorWindowId active_window;
+    u32 saved_leaf_window_count;
+
+    if (!s_editor_dock_window_ids_from_entry(context->document, windows_entry,
+            saved_leaf_windows, &saved_leaf_window_count) ||
+        !s_editor_dock_window_id_from_entry(active_entry, &active_window))
+    {
+      return false;
+    }
+
+    LDKEditorWindowId leaf_windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
+    u32 leaf_window_count = 0;
+
+    for (u32 i = 0; i < saved_leaf_window_count; ++i)
+    {
+      LDKEditorWindowId window = saved_leaf_windows[i];
+
+      if (!s_editor_dock_id_list_contains(
+              context->saved_windows, context->saved_window_count, window) ||
+          !s_editor_dock_id_list_add(context->docked_windows,
+              &context->docked_window_count, LDK_EDITOR_WINDOW_CAPACITY,
+              window))
+      {
+        return false;
+      }
+
+      if (s_editor_dock_window_get_const(context->dock, window) != NULL)
+      {
+        leaf_windows[leaf_window_count++] = window;
+      }
+    }
+
+    if (leaf_window_count == 0)
+    {
+      *layout_node = LDK_EDITOR_DOCK_INVALID_NODE;
+      return true;
+    }
+
+    if (context->layout->node_count >= LDK_EDITOR_DOCK_NODE_CAPACITY)
+    {
+      return false;
+    }
+
+    i32 node_index = (i32)context->layout->node_count++;
+    LDKEditorDockLayoutNode *node = &context->layout->nodes[node_index];
+    node->type = LDK_EDITOR_DOCK_NODE_LEAF;
+    node->data.leaf.window_count = leaf_window_count;
+
+    for (u32 i = 0; i < leaf_window_count; ++i)
+    {
+      node->data.leaf.windows[i] = leaf_windows[i];
+    }
+
+    node->data.leaf.active_window = s_editor_dock_id_list_contains(leaf_windows,
+                                        leaf_window_count, active_window)
+                                        ? active_window
+                                        : leaf_windows[0];
+
+    *layout_node = node_index;
+    return true;
+  }
+
+  if (!s_editor_dock_tml_string_equals(type, "split"))
+  {
+    return false;
+  }
+
+  TMLString axis;
+  const TMLEntry *ratio_entry =
+      tml_node_find_entry(context->document, source_node, "ratio");
+  const TMLNode *first_node =
+      tml_node_find_child(context->document, source_node, "first");
+  const TMLNode *second_node =
+      tml_node_find_child(context->document, source_node, "second");
+  float ratio;
+  LDKEditorDockSplitAxis split_axis;
+  i32 first;
+  i32 second;
+
+  if (!tml_node_get_string(context->document, source_node, "axis", &axis) ||
+      !s_editor_dock_float_from_entry(ratio_entry, &ratio) ||
+      first_node == NULL || second_node == NULL)
+  {
+    return false;
+  }
+
+  if (s_editor_dock_tml_string_equals(axis, "horizontal"))
+  {
+    split_axis = LDK_EDITOR_DOCK_SPLIT_HORIZONTAL;
+  }
+  else if (s_editor_dock_tml_string_equals(axis, "vertical"))
+  {
+    split_axis = LDK_EDITOR_DOCK_SPLIT_VERTICAL;
+  }
+  else
+  {
+    return false;
+  }
+
+  if (!s_editor_dock_layout_node_read(context, first_node, depth + 1, &first) ||
+      !s_editor_dock_layout_node_read(context, second_node, depth + 1, &second))
+  {
+    return false;
+  }
+
+  if (first == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    *layout_node = second;
+    return true;
+  }
+
+  if (second == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    *layout_node = first;
+    return true;
+  }
+
+  if (context->layout->node_count >= LDK_EDITOR_DOCK_NODE_CAPACITY)
+  {
+    return false;
+  }
+
+  i32 node_index = (i32)context->layout->node_count++;
+  LDKEditorDockLayoutNode *node = &context->layout->nodes[node_index];
+  node->type = LDK_EDITOR_DOCK_NODE_SPLIT;
+  node->data.split.first = first;
+  node->data.split.second = second;
+  node->data.split.ratio = s_editor_dock_clampf(
+      ratio, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
+  node->data.split.axis = split_axis;
+  *layout_node = node_index;
+  return true;
+}
+
+static bool s_editor_dock_layout_read(const TMLDocument *document,
+    const TMLNode *layout_node, const LDKEditorDockState *dock,
+    LDKEditorDockLayout *layout)
+{
+  LDKEditorDockLayoutReadContext context;
+  const TMLNode *windows_node;
+  const TMLNode *tree_node;
+  TMLString name;
+
+  if (document == NULL || layout_node == NULL || dock == NULL ||
+      layout == NULL ||
+      !tml_node_get_string(document, layout_node, "name", &name))
+  {
+    return false;
+  }
+
+  memset(layout, 0, sizeof(*layout));
+  layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+
+  if (!s_editor_dock_layout_name_copy(layout->name, sizeof(layout->name), name))
+  {
+    return false;
+  }
+
+  windows_node = tml_node_find_child(document, layout_node, "windows");
+  tree_node = tml_node_find_child(document, layout_node, "tree");
+  if (windows_node == NULL || tree_node == NULL)
+  {
+    return false;
+  }
+
+  memset(&context, 0, sizeof(context));
+  context.document = document;
+  context.dock = dock;
+  context.layout = layout;
+
+  if (!s_editor_dock_layout_windows_read(&context, windows_node) ||
+      !s_editor_dock_layout_node_read(&context, tree_node, 0, &layout->root))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+static i32 s_editor_dock_layout_apply_node(LDKEditorDockState *dock,
+    const LDKEditorDockLayout *layout, i32 layout_node)
+{
+  if (dock == NULL || layout == NULL || layout_node < 0 ||
+      (u32)layout_node >= layout->node_count)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  const LDKEditorDockLayoutNode *node = &layout->nodes[layout_node];
+  if (node->type == LDK_EDITOR_DOCK_NODE_LEAF)
+  {
+    LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
+    u32 window_count = 0;
+
+    for (u32 i = 0; i < node->data.leaf.window_count; ++i)
+    {
+      LDKEditorWindowId window = node->data.leaf.windows[i];
+      if (s_editor_dock_window_get(dock, window) != NULL)
+      {
+        windows[window_count++] = window;
+      }
+    }
+
+    if (window_count == 0)
+    {
+      return LDK_EDITOR_DOCK_INVALID_NODE;
+    }
+
+    LDKEditorWindowId active_window =
+        s_editor_dock_id_list_contains(
+            windows, window_count, node->data.leaf.active_window)
+            ? node->data.leaf.active_window
+            : windows[0];
+
+    return s_editor_dock_leaf_create_tabs(
+        dock, windows, window_count, active_window);
+  }
+
+  if (node->type != LDK_EDITOR_DOCK_NODE_SPLIT)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  i32 first =
+      s_editor_dock_layout_apply_node(dock, layout, node->data.split.first);
+  i32 second =
+      s_editor_dock_layout_apply_node(dock, layout, node->data.split.second);
+
+  if (first == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    return second;
+  }
+
+  if (second == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    return first;
+  }
+
+  return s_editor_dock_split_create(
+      dock, node->data.split.axis, node->data.split.ratio, first, second);
+}
+
+static bool s_editor_dock_layout_apply(
+    LDKEditorDockState *dock, const LDKEditorDockLayout *layout)
+{
+  if (dock == NULL || layout == NULL)
+  {
+    return false;
+  }
+
+  LDKEditorDockState candidate = *dock;
+  memset(candidate.nodes, 0, sizeof(candidate.nodes));
+  candidate.root = LDK_EDITOR_DOCK_INVALID_NODE;
+  candidate.target_overlay_window_id = 0;
+  s_editor_dock_drag_reset(&candidate.drag);
+  s_editor_dock_resize_reset(&candidate.resize);
+
+  for (u32 i = 0; i < candidate.window_count; ++i)
+  {
+    candidate.windows[i].leaf = LDK_EDITOR_DOCK_INVALID_NODE;
+    candidate.windows[i].ui_window_id = 0;
+  }
+
+  for (u32 i = 0; i < layout->window_count; ++i)
+  {
+    LDKEditorDockWindow *window =
+        s_editor_dock_window_get(&candidate, layout->windows[i].id);
+    if (window != NULL)
+    {
+      window->floating_rect = layout->windows[i].floating_rect;
+    }
+  }
+
+  if (layout->root != LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    candidate.root =
+        s_editor_dock_layout_apply_node(&candidate, layout, layout->root);
+    if (candidate.root == LDK_EDITOR_DOCK_INVALID_NODE)
+    {
+      return false;
+    }
+
+    candidate.nodes[candidate.root].parent = LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  s_editor_dock_window_locations_refresh(&candidate);
+  *dock = candidate;
+  return true;
+}
+
+static u32 s_editor_dock_layout_find(
+    const LDKEditorDockLayouts *layouts, const char *layout_name)
+{
+  if (layouts == NULL || layout_name == NULL ||
+      layouts->layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+  }
+
+  for (u32 i = 0; i < layouts->layout_count; ++i)
+  {
+    if (strcmp(layouts->layouts[i].name, layout_name) == 0)
+    {
+      return i;
+    }
+  }
+
+  return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+}
+
+/*
+ * Serializes all named dock layouts to TML. Before writing, the currently
+ * selected layout is refreshed from the live dock state.
+ */
+static bool s_editor_dock_to_tml(XStrBuilder *out)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout current_layout;
+  const char *current_name;
+
+  if (out == NULL || !s_editor_dock.initialized)
+  {
+    return false;
+  }
+
+  if (layouts.layout_count == 0)
+  {
+    layouts.layout_count = 1;
+    layouts.current_layout = 0;
+    current_name = "default";
+  }
+  else
+  {
+    if (layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+        layouts.current_layout >= layouts.layout_count)
+    {
+      return false;
+    }
+
+    current_name = layouts.layouts[layouts.current_layout].name;
+  }
+
+  if (!s_editor_dock_layout_snapshot(
+          &current_layout, &s_editor_dock, current_name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.current_layout] = current_layout;
+
+  for (u32 i = 0; i < layouts.layout_count; ++i)
+  {
+    for (u32 j = i + 1; j < layouts.layout_count; ++j)
+    {
+      if (strcmp(layouts.layouts[i].name, layouts.layouts[j].name) == 0)
+      {
+        return false;
+      }
+    }
+  }
+
+  x_strbuilder_clear(out);
+  x_strbuilder_append(out, "dock:\n");
+  x_strbuilder_append_format(
+      out, "  version: %u\n", LDK_EDITOR_DOCK_TML_VERSION);
+  x_strbuilder_append(out, "  current: ");
+  s_editor_dock_tml_string_append(
+      out, layouts.layouts[layouts.current_layout].name);
+  x_strbuilder_append_char(out, '\n');
+  x_strbuilder_append(out, "  layouts:\n");
+
+  for (u32 i = 0; i < layouts.layout_count; ++i)
+  {
+    if (!s_editor_dock_layout_write(out, &layouts.layouts[i]))
+    {
+      x_strbuilder_clear(out);
+      return false;
+    }
+  }
+
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/*
+ * Deserializes a named layout collection and applies either the explicitly
+ * requested layout or the layout selected by the document's current field.
+ * The live dock and stored layouts are only replaced after the complete
+ * document has been validated.
+ */
+static bool s_editor_dock_from_tml(const char *source, const char *layout_name)
+{
+  TMLParseResult parse;
+  const TMLNode *dock_node;
+  const TMLNode *layouts_node;
+  TMLDocument *document;
+  LDKEditorDockLayouts layouts;
+  TMLString current_name = {0};
+  i64 version;
+  bool has_current;
+  bool ok = false;
+
+  if (source == NULL || !s_editor_dock.initialized)
+  {
+    return false;
+  }
+
+  parse = tml_parse(source);
+  if (!parse.ok)
+  {
+    return false;
+  }
+
+  document = parse.document;
+  memset(&layouts, 0, sizeof(layouts));
+  layouts.current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT;
+
+  dock_node = tml_path_find_node(document, "dock");
+  if (dock_node == NULL ||
+      !tml_node_get_i64(document, dock_node, "version", &version) ||
+      version != LDK_EDITOR_DOCK_TML_VERSION)
+  {
+    goto cleanup;
+  }
+
+  has_current =
+      tml_node_get_string(document, dock_node, "current", &current_name) != 0;
+
+  layouts_node = tml_node_find_child(document, dock_node, "layouts");
+  if (layouts_node == NULL || layouts_node->child_count == 0 ||
+      layouts_node->child_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    goto cleanup;
+  }
+
+  for (u32 i = 0; i < layouts_node->child_count; ++i)
+  {
+    const TMLNode *layout_node = tml_node_child_at(document, layouts_node, i);
+    LDKEditorDockLayout *layout = &layouts.layouts[layouts.layout_count];
+
+    if (!s_editor_dock_layout_read(
+            document, layout_node, &s_editor_dock, layout))
+    {
+      goto cleanup;
+    }
+
+    for (u32 j = 0; j < layouts.layout_count; ++j)
+    {
+      if (strcmp(layouts.layouts[j].name, layout->name) == 0)
+      {
+        goto cleanup;
+      }
+    }
+
+    layouts.layout_count += 1;
+  }
+
+  if (layout_name != NULL)
+  {
+    for (u32 i = 0; i < layouts.layout_count; ++i)
+    {
+      if (strcmp(layouts.layouts[i].name, layout_name) == 0)
+      {
+        layouts.current_layout = i;
+        break;
+      }
+    }
+
+    /*
+     * An explicitly requested layout must exist. It must not silently fall
+     * back to the persisted current or default layout.
+     */
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      goto cleanup;
+    }
+  }
+  else
+  {
+    if (has_current)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (s_editor_dock_tml_string_equals(
+                current_name, layouts.layouts[i].name))
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (strcmp(layouts.layouts[i].name, "default") == 0)
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      layouts.current_layout = 0;
+    }
+  }
+
+  if (!s_editor_dock_layout_apply(
+          &s_editor_dock, &layouts.layouts[layouts.current_layout]))
+  {
+    goto cleanup;
+  }
+
+  s_editor_dock_layouts = layouts;
+  ok = true;
+
+cleanup:
+  tml_document_free(document);
+  return ok;
+}
+
+u32 ldk_editor_internal_dock_layout_count(void)
+{
+  if (!s_editor_dock.initialized ||
+      s_editor_dock_layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return 0;
+  }
+
+  return s_editor_dock_layouts.layout_count;
+}
+
+const char *ldk_editor_internal_dock_layout_name_get(u32 index)
+{
+  if (!s_editor_dock.initialized ||
+      index >= s_editor_dock_layouts.layout_count ||
+      s_editor_dock_layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts.layouts[index].name;
+}
+
+const char *ldk_editor_internal_dock_layout_current_name_get(void)
+{
+  if (!s_editor_dock.initialized || s_editor_dock_layouts.current_layout >=
+                                        s_editor_dock_layouts.layout_count)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts.layouts[s_editor_dock_layouts.current_layout]
+      .name;
+}
+
+/*
+ * Creates a new named layout from the current live dock state, appends it to
+ * the layout collection, and makes it the current layout.
+ */
+bool ldk_editor_internal_dock_layout_create(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout layout;
+  size_t layout_name_length;
+
+  if (!s_editor_dock.initialized || layout_name == NULL)
+  {
+    return false;
+  }
+
+  layout_name_length = strlen(layout_name);
+  if (layout_name_length == 0 ||
+      layout_name_length >= LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return false;
+  }
+
+  if (layouts.layout_count > 0 &&
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  if (s_editor_dock_layout_find(&layouts, layout_name) !=
+      LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  {
+    return false;
+  }
+
+  /*
+   * On a fresh installation, preserve the existing live layout as "default"
+   * before creating the first custom layout.
+   */
+  if (layouts.layout_count == 0 && strcmp(layout_name, "default") != 0)
+  {
+    if (!s_editor_dock_layout_snapshot(
+            &layouts.layouts[0], &s_editor_dock, "default"))
+    {
+      return false;
+    }
+
+    layouts.layout_count = 1;
+    layouts.current_layout = 0;
+  }
+
+  if (layouts.layout_count >= LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      !s_editor_dock_layout_snapshot(&layout, &s_editor_dock, layout_name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.layout_count] = layout;
+  layouts.current_layout = layouts.layout_count;
+  layouts.layout_count += 1;
+
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/*
+ * Saves changes to the outgoing layout, applies the requested layout, and
+ * marks it as current. Nothing is committed if snapshotting or applying fails.
+ */
+bool ldk_editor_internal_dock_set_current(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout outgoing_layout;
+  u32 target_layout;
+
+  if (!s_editor_dock.initialized || layout_name == NULL ||
+      layout_name[0] == 0 || layouts.layout_count == 0 ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  target_layout = s_editor_dock_layout_find(&layouts, layout_name);
+  if (target_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  {
+    return false;
+  }
+
+  if (target_layout == layouts.current_layout)
+  {
+    return true;
+  }
+
+  if (!s_editor_dock_layout_snapshot(&outgoing_layout, &s_editor_dock,
+          layouts.layouts[layouts.current_layout].name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.current_layout] = outgoing_layout;
+
+  if (!s_editor_dock_layout_apply(
+          &s_editor_dock, &layouts.layouts[target_layout]))
+  {
+    return false;
+  }
+
+  layouts.current_layout = target_layout;
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/*
+ * Deletes a named layout. The default layout cannot be deleted. If the
+ * deleted layout is current, the default layout is applied and made current.
+ */
+bool ldk_editor_internal_dock_layout_delete(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockState dock = s_editor_dock;
+  u32 deleted_layout;
+  u32 next_current_layout;
+
+  if (!dock.initialized || layout_name == NULL || layout_name[0] == 0 ||
+      layouts.layout_count == 0 ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  deleted_layout = s_editor_dock_layout_find(&layouts, layout_name);
+  if (deleted_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT ||
+      strcmp(layouts.layouts[deleted_layout].name, "default") == 0)
+  {
+    return false;
+  }
+
+  next_current_layout = layouts.current_layout;
+
+  if (deleted_layout == layouts.current_layout)
+  {
+    u32 default_layout = s_editor_dock_layout_find(&layouts, "default");
+    if (default_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT ||
+        !s_editor_dock_layout_apply(&dock, &layouts.layouts[default_layout]))
+    {
+      return false;
+    }
+
+    next_current_layout = default_layout;
+  }
+
+  for (u32 i = deleted_layout; i + 1 < layouts.layout_count; ++i)
+  {
+    layouts.layouts[i] = layouts.layouts[i + 1];
+  }
+
+  layouts.layout_count -= 1;
+  memset(&layouts.layouts[layouts.layout_count], 0,
+      sizeof(layouts.layouts[layouts.layout_count]));
+
+  if (next_current_layout > deleted_layout)
+  {
+    next_current_layout -= 1;
+  }
+
+  layouts.current_layout = next_current_layout;
+  s_editor_dock = dock;
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+bool ldk_editor_internal_dock_layout_save(XStrBuilder *out)
+{
+  XFSPath path = {0};
+  const char *appdata = getenv("APPDATA");
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  if (!s_editor_dock_to_tml(out))
+    return false;
+  return x_io_write_text(path.buf, x_strbuilder_to_string(out));
+}
+
+bool ldk_editor_internal_dock_layout_load(const char *layout_name)
+{
+  XFSPath path = {0};
+  const char *appdata = getenv("APPDATA");
+  if (appdata == NULL || appdata[0] == 0)
+  {
+    return false;
+  }
+
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  char *buffer = x_io_read_text(path.buf, NULL);
+  if (buffer == NULL)
+  {
+    return false;
+  }
+
+  bool loaded = s_editor_dock_from_tml(buffer, layout_name);
+  X_IO_FREE(buffer);
+  return loaded;
+}
+
+//----------------------------------------------------------
+// Lifecycle
+//----------------------------------------------------------
 
 static void s_editor_dock_layout_reset_preserving_windows(
     LDKEditorDockState *dock)
@@ -1922,4 +3399,6 @@ static void ldk_editor_dock_terminate(LDKEditorContext *editor)
   (void)editor;
 
   s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
+  s_editor_dock_layouts =
+      (LDKEditorDockLayouts){.current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 }

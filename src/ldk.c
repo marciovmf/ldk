@@ -77,6 +77,21 @@ struct LDKRoot
 static LDKRoot g_engine;
 static bool g_engine_initialized = false;
 
+#ifdef LDK_EDITOR
+typedef struct LDKInputGameView
+{
+  float x;
+  float y;
+  float width;
+  float height;
+  u32 game_width;
+  u32 game_height;
+  bool valid;
+} LDKInputGameView;
+
+static LDKInputGameView g_input_game_view;
+#endif
+
 static volatile sig_atomic_t g_handling_signal = 0;
 static volatile sig_atomic_t g_signal_requested_stop = 0;
 static volatile sig_atomic_t g_last_signal = 0;
@@ -87,6 +102,116 @@ static bool s_stub_game_start(LDKGame* game) { return true; }
 static void s_stub_game_update(LDKGame* game, float delta_time) { }
 static void s_stub_game_terminate(LDKGame* game) { }
 static void s_stub_game_stop(LDKGame* game) { }
+
+void ldk_input_mouse_state_get(LDKMouseState* out_state)
+{
+  X_ASSERT(out_state != NULL);
+  ldk_os_mouse_state_get(out_state);
+
+#ifdef LDK_EDITOR
+  LDKInputGameView* view = &g_input_game_view;
+  if (!view->valid || view->width <= 0.0f || view->height <= 0.0f ||
+      view->game_width == 0 || view->game_height == 0)
+  {
+    out_state->wheel_delta = 0;
+    out_state->cursor = (LDKPoint){-1, -1};
+    out_state->cursor_relative = (LDKPoint){0, 0};
+    memset(out_state->button, 0, sizeof(out_state->button));
+    return;
+  }
+
+  float local_x = (float)out_state->cursor.x - view->x;
+  float local_y = (float)out_state->cursor.y - view->y;
+  bool inside = local_x >= 0.0f && local_y >= 0.0f &&
+      local_x < view->width && local_y < view->height;
+
+  if (!inside)
+  {
+    out_state->wheel_delta = 0;
+    out_state->cursor = (LDKPoint){-1, -1};
+    out_state->cursor_relative = (LDKPoint){0, 0};
+    memset(out_state->button, 0, sizeof(out_state->button));
+    return;
+  }
+
+  out_state->cursor.x = (i32)(local_x * (float)view->game_width / view->width);
+  out_state->cursor.y = (i32)(local_y * (float)view->game_height / view->height);
+#endif
+}
+
+bool ldk_input_mouse_button_is_pressed(LDKMouseState* state,
+    LDKMouseButton button)
+{
+  return ldk_os_mouse_button_is_pressed(state, button);
+}
+
+bool ldk_input_mouse_button_down(LDKMouseState* state, LDKMouseButton button)
+{
+  return ldk_os_mouse_button_down(state, button);
+}
+
+bool ldk_input_mouse_button_up(LDKMouseState* state, LDKMouseButton button)
+{
+  return ldk_os_mouse_button_up(state, button);
+}
+
+i32 ldk_input_mouse_wheel_delta(LDKMouseState* state)
+{
+  return ldk_os_mouse_wheel_delta(state);
+}
+
+LDKPoint ldk_input_mouse_cursor(LDKMouseState* state)
+{
+  return ldk_os_mouse_cursor(state);
+}
+
+LDKPoint ldk_input_mouse_cursor_relative(LDKMouseState* state)
+{
+  return ldk_os_mouse_cursor_relative(state);
+}
+
+void ldk_input_keyboard_state_get(LDKKeyboardState* out_state)
+{
+  X_ASSERT(out_state != NULL);
+  ldk_os_keyboard_state_get(out_state);
+}
+
+bool ldk_input_keyboard_key_is_pressed(LDKKeyboardState* state,
+    LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_is_pressed(state, keycode);
+}
+
+bool ldk_input_keyboard_key_down(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_down(state, keycode);
+}
+
+bool ldk_input_keyboard_key_up(LDKKeyboardState* state, LDKKeycode keycode)
+{
+  return ldk_os_keyboard_key_up(state, keycode);
+}
+
+#ifdef LDK_EDITOR
+void ldk_input_game_view_set(float x, float y, float width, float height,
+    u32 game_width, u32 game_height)
+{
+  g_input_game_view = (LDKInputGameView){
+    .x = x,
+    .y = y,
+    .width = width,
+    .height = height,
+    .game_width = game_width,
+    .game_height = game_height,
+    .valid = true
+  };
+}
+
+void ldk_input_game_view_clear(void)
+{
+  memset(&g_input_game_view, 0, sizeof(g_input_game_view));
+}
+#endif
 
 static void s_log_signal_info(i32 signal)
 {
@@ -317,6 +442,7 @@ bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* co
 
   x_fs_path_dirname(&out_config->config_file_path, &config_dir);
   x_fs_path_normalize(&config_dir);
+  ldk_log_info("Game config file: %s\n", config_dir.buf);
 
   // scetion: general
   out_config->initial_ui_index_capacity = x_ini_get_i32(ini, "general", "initial_ui_index_capacity", 256);
@@ -329,9 +455,13 @@ bool ldk_engine_config_from_ini(LDKConfig* out_config, XIni* ini, const char* co
   s_config_resolve_path(&out_config->log_file, &out_config->runtree_path, log_file);
   s_config_resolve_path(&out_config->game_dll, &out_config->runtree_path, game_dll);
 
+  // scetion: graphics
+  out_config->resolution_width = x_ini_get_i32(ini, "graphics", "resolution_width", 400);
+  out_config->resolution_height = x_ini_get_i32(ini, "graphics", "resolution_height", 400);
+  
   // scetion: display
-  out_config->width = x_ini_get_i32(ini, "display", "width", 800);
-  out_config->height = x_ini_get_i32(ini, "display", "height", 600);
+  out_config->display_width = x_ini_get_i32(ini, "display", "width", 800);
+  out_config->display_height = x_ini_get_i32(ini, "display", "height", 600);
   out_config->fullscreen = x_ini_get_bool(ini, "display", "fullscreen", false);
   const char* icon_path = x_ini_get(ini, "display", "icon_path", "assets/ldk.ico");
   s_config_resolve_path(&out_config->icon_path, &out_config->runtree_path, icon_path);
@@ -523,7 +653,7 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
     return false;
   }
 
-  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.width, e->config.height, LDK_WINDOW_FLAG_HIDDEN | LDK_WINDOW_FLAG_CENTERED);
+  e->window = ldk_os_window_create_with_flags(e->config.title.buf, e->config.display_width, e->config.display_height, LDK_WINDOW_FLAG_HIDDEN | LDK_WINDOW_FLAG_CENTERED);
   ldk_os_window_icon_set(e->window, e->config.icon_path.buf);
   ldk_os_graphics_context_make_current(e->window, e->graphics);
 
@@ -549,8 +679,8 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
   renderer_config.rhi = &e->rhi;
   renderer_config.initial_ui_index_capacity = config->initial_ui_index_capacity;
   renderer_config.initial_ui_vertex_capacity = config->initial_ui_vertex_capacity;
-  renderer_config.game_width = (u32)config->width;
-  renderer_config.game_height = (u32)config->height;
+  renderer_config.game_width = (u32)config->resolution_width;
+  renderer_config.game_height = (u32)config->resolution_height;
 #ifdef LDK_EDITOR
   renderer_config.present_game = false;
 #else
@@ -593,11 +723,38 @@ LDKWindow ldk_engine_main_window_get(void)
   return g_engine.window;
 }
 
+bool ldk_engine_render_resolution_set(i32 width, i32 height)
+{
+  if (!g_engine_initialized || width <= 0 || height <= 0)
+  {
+    return false;
+  }
+
+  LDKRoot* e = &g_engine;
+  e->config.resolution_width = width;
+  e->config.resolution_height = height;
+  return true;
+}
+
 void ldk_engine_stop(i32 exit_code)
 {
   LDKRoot* e = &g_engine;
   e->exit_code = exit_code;
   e->running = false;
+}
+
+static bool s_engine_render_resolution_apply(LDKRoot* e)
+{
+  u32 width = (u32)e->config.resolution_width;
+  u32 height = (u32)e->config.resolution_height;
+
+  if (e->renderer.game_width == width &&
+      e->renderer.game_height == height)
+  {
+    return true;
+  }
+
+  return ldk_renderer_game_resolution_set(&e->renderer, width, height);
 }
 
 void ldk_engine_frame(void)
@@ -612,6 +769,13 @@ void ldk_engine_frame(void)
   if (!e->running)
   {
     return;
+  }
+
+  if (!s_engine_render_resolution_apply(e))
+  {
+    ldk_log_error("Failed to apply render resolution %dx%d.\n",
+        e->config.resolution_width,
+        e->config.resolution_height);
   }
 
   if (g_signal_requested_stop)
@@ -787,7 +951,7 @@ i32 ldk_engine_run(void)
 
   e->running = true;
 
-  ldk_os_window_show(e->window, true);
+  ldk_os_window_maximize(e->window);
   ldk_os_window_fullscreen_set(e->window, e->config.fullscreen);
 
   while (e->running)
@@ -806,4 +970,9 @@ i32 ldk_engine_run(void)
 LDKWindow ldk_main_window(void)
 {
   return g_engine.window;
+}
+
+const LDKConfig* ldk_engine_config_get(void)
+{
+  return (const LDKConfig*) &g_engine.config;
 }

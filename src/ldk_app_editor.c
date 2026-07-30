@@ -22,6 +22,9 @@
 #define X_IMPL_HPOOL
 #include <stdx/stdx_hpool.h>
 
+#define X_IMPL_IO
+#include <stdx/stdx_io.h>
+
 #include <ldk_common.h>
 #include <module/ldk_ecs.h>
 
@@ -172,8 +175,7 @@ static bool s_editor_cmake_version_is_supported(const char *cmake_path)
   if (!process)
     return false;
 
-  bool output_read = fgets(
-      version_text, sizeof(version_text), process) != NULL;
+  bool output_read = fgets(version_text, sizeof(version_text), process) != NULL;
 
   i32 exit_code = _pclose(process);
   if (!output_read || exit_code != 0)
@@ -206,10 +208,8 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
     char selected_path[X_SMALLSTR_MAX_LENGTH] = {0};
 
     bool selected = ldk_os_dialog_show_open_file(owner,
-        "Locate CMake 3.16 or newer",
-        "CMake executable\0cmake.exe\0\0",
-        selected_path,
-        sizeof(selected_path));
+        "Locate CMake 3.16 or newer", "CMake executable\0cmake.exe\0\0",
+        selected_path, sizeof(selected_path));
 
     if (!selected)
       return (XFSPath){0};
@@ -223,8 +223,7 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
       return cmake_path;
     }
 
-    ldk_os_dialog_show_error(owner,
-        "Unsupported CMake",
+    ldk_os_dialog_show_error(owner, "Unsupported CMake",
         "The selected executable is not CMake 3.16 or newer.");
   }
 }
@@ -261,6 +260,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
       {
         ldk_editor_internal_show_open_project_dialog(editor, NULL);
+        return true;
       }
     }
   }
@@ -276,8 +276,8 @@ static bool on_event_text(const LDKEvent *event, void *state)
         LDK_UI_INPUT_CODEPOINTS_CAPACITY)
     {
       editor->text_input_state
-        .codepoints[editor->text_input_state.codepoint_count++] =
-        event->text_event.character;
+          .codepoints[editor->text_input_state.codepoint_count++] =
+          event->text_event.character;
       return true;
     }
   }
@@ -331,20 +331,20 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
   static bool s_root_open[10] = {0};
   static bool s_child_open[10] = {0};
   static char const *s_root_labels[10] = {
-    "Root 0",
-    "Root 1",
-    "Root 2",
-    "Root 3",
-    "Root 4",
-    "Root 5",
-    "Root 6",
-    "Root 7",
-    "Root 8",
-    "Root 9",
+      "Root 0",
+      "Root 1",
+      "Root 2",
+      "Root 3",
+      "Root 4",
+      "Root 5",
+      "Root 6",
+      "Root 7",
+      "Root 8",
+      "Root 9",
   };
 
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static u32 s_active_tab = 0;
   LDKUIIcon icon = {0};
@@ -354,11 +354,10 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
 
-
   LDKUITabBarItem tabs[] = {
-    {1, icon, "Primitives"},
-    {2, icon, "Canvas"},
-    {3, icon, "BG/FG draw lists"},
+      {1, icon, "Primitives"},
+      {2, icon, "Canvas"},
+      {3, icon, "BG/FG draw lists"},
   };
 
   LDKUITabBarResult tab_result = ldk_ui_tab_bar(ui, tabs, 3, s_active_tab);
@@ -379,14 +378,14 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
   else if (s_active_tab == 2)
   {
     scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+        ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
     for (u32 i = 0; i < 10; i++)
     {
       ldk_ui_push_id_u32(ui, i);
 
       s_root_open[i] =
-        ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
+          ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
       if (s_root_open[i])
       {
         if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
@@ -402,9 +401,9 @@ static void s_editor_test_treeview(LDKEditorContext *editor)
         if (s_child_open[i])
         {
           ldk_ui_tree_node(
-            ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
+              ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
           ldk_ui_tree_node(
-            ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
+              ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
           ldk_ui_tree_node(ui, "Nested Scale", false, 2, LDK_UI_TREE_NODE_LEAF);
         }
       }
@@ -443,10 +442,10 @@ static void s_editor_save_scene(LDKEditor *editor)
 
 static void s_editor_test_a(LDKEditor *editor)
 {
-  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
+  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
   static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
@@ -463,14 +462,14 @@ static void s_editor_test_a(LDKEditor *editor)
 static void s_editor_test_b(LDKEditor *editor)
 {
   static bool check = false;
-  LDKUIContext *ui = &((LDKEditorContext*)editor)->ui;
+  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
   static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
   s_entity_list_rect = ldk_ui_begin_window_fixed(
-    ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
 
   static LDKUIPoint scroll = {0};
   scroll = ldk_ui_begin_scrollview(
-    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
   static bool open_a = true;
   open_a = ldk_ui_begin_area(ui, "Transform", open_a);
@@ -510,8 +509,6 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
-
-
 /* POC implementation. */
 #include "editor/ldk_editor_dock.c"
 
@@ -543,22 +540,20 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
   ldk_ui_widget_panel(ui, 0x47414D42u, content_rect);
   ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = panel_bg;
 
-  if (editor->renderer->game_width == 0 ||
-      editor->renderer->game_height == 0)
+  if (editor->renderer->game_width == 0 || editor->renderer->game_height == 0)
   {
     return;
   }
 
   LDKUITextureHandle game_texture =
-    ldk_renderer_game_texture_get(editor->renderer);
+      ldk_renderer_game_texture_get(editor->renderer);
   if (game_texture == (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
   {
     return;
   }
 
-  float game_aspect =
-    (float)editor->renderer->game_width /
-    (float)editor->renderer->game_height;
+  float game_aspect = (float)editor->renderer->game_width /
+                      (float)editor->renderer->game_height;
   float content_aspect = content_rect.w / content_rect.h;
   LDKUIRect image_rect = content_rect;
 
@@ -573,8 +568,12 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
     image_rect.y += (content_rect.h - image_rect.h) * 0.5f;
   }
 
+  ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
+      image_rect.h, editor->renderer->game_width,
+      editor->renderer->game_height);
+
   ldk_ui_widget_image(ui, 0x47414D45u, game_texture,
-    ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
+      ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
 }
 
 //----------------------------------------------------------
@@ -583,22 +582,34 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
-  //LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  //ldk_editor_internal_toolbar_show((LDKEditor *)editor);
-  //ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
-  //s_editor_test_b(editor);
-  //s_editor_test_treeview(editor);
-  //ldk_editor_internal_menubar_show(editor);
-  //ldk_editor_console_show(editor);
-  //ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
+  // LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  // ldk_editor_internal_toolbar_show((LDKEditor *)editor);
+  // ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
+  // s_editor_test_b(editor);
+  // s_editor_test_treeview(editor);
+  // ldk_editor_internal_menubar_show(editor);
+  // ldk_editor_console_show(editor);
+  // ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
 
   ldk_editor_internal_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
   ldk_editor_internal_menubar_show(editor);
-  
+
+  if (editor->show_input_window)
+  {
+    u32 input_result =
+        ldk_editor_internal_input_window(editor, "SAVE LAYOUT AS");
+
+    if ((input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0 &&
+        ldk_editor_internal_layout_save_as(editor))
+    {
+      editor->show_input_window = false;
+    }
+  }
 
   if (editor->create_project_window_show)
-    ldk_editor_internal_project_create_show((LDKEditorContext*)ldk_editor_get());
+    ldk_editor_internal_project_create_show(
+        (LDKEditorContext *)ldk_editor_get());
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
@@ -612,6 +623,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
       .h = (float)window_height};
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
+  ldk_input_game_view_clear();
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
       &editor->text_input_state, ui_viewport);
@@ -805,9 +817,6 @@ static bool s_editor_state_set_play(LDKEditorContext *editor)
   return true;
 }
 
-/**
- * Change Editor mode to STOP
- */
 static void s_editor_state_set_stop(LDKEditorContext *editor)
 {
   if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
@@ -854,6 +863,17 @@ static bool s_project_load(
 
   if (!ldk_project_load(&editor->project, project_file_path))
     return false;
+
+  if (!ldk_engine_render_resolution_set(
+          editor->project.project_resolution_width,
+          editor->project.project_resolution_height))
+  {
+    ldk_log_error("Invalid project render resolution %dx%d.\n",
+        editor->project.project_resolution_width,
+        editor->project.project_resolution_height);
+    ldk_project_unload(&editor->project);
+    return false;
+  }
 
   if (!ldk_game_instance_load_from_shared_lib(
           editor->project.game_dll_path.buf))
@@ -1024,7 +1044,7 @@ static i32 s_editor_main(const char *project_file_path)
 
   editor->window = ldk_engine_main_window_get();
   editor->renderer = ldk_module_get(LDK_MODULE_RENDERER);
-  
+
   // Initialize editor
   if (!s_editor_config_load_from_ini(editor, &ini, &config))
   {
@@ -1047,12 +1067,10 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
 
-  LDKEditorWindow game_window = {
-    .id = LDK_EDITOR_WINDOW_GAME,
-    .title = "Game",
-    .function = s_editor_game_window,
-    .data = NULL
-  };
+  LDKEditorWindow game_window = {.id = LDK_EDITOR_WINDOW_GAME,
+      .title = "Game",
+      .function = s_editor_game_window,
+      .data = NULL};
 
   if (!ldk_editor_window_add((LDKEditor *)editor, &game_window))
   {
@@ -1067,7 +1085,10 @@ static i32 s_editor_main(const char *project_file_path)
     ldk_engine_terminate();
     return 1;
   }
-  
+
+  // load layout
+  ldk_editor_internal_dock_layout_load(NULL);
+
   s_editor_set_title(editor);
   XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
   ldk_log_info("CMake path is %s\n", cmake_path.buf);
@@ -1079,6 +1100,7 @@ static i32 s_editor_main(const char *project_file_path)
   }
 
   i32 exit_code = ldk_engine_run();
+
   s_editor_terminate(editor);
   ldk_engine_terminate();
   return exit_code;

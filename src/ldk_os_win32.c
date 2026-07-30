@@ -1086,12 +1086,29 @@ bool ldk_os_window_show(LDKWindow window, bool show)
   return ShowWindow(window_handle , show ? SW_RESTORE : SW_HIDE);
 }
 
+void ldk_os_window_maximize(LDKWindow window)
+{
+  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  ShowWindow(window_handle, SW_SHOWMAXIMIZED);
+}
+
+void ldk_os_window_minimize(LDKWindow window)
+{
+  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  ShowWindow(window_handle, SW_SHOWMINIMIZED);
+}
+
+void ldk_os_window_restore(LDKWindow window)
+{
+  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  ShowWindow(window_handle, SW_RESTORE);
+}
+
 void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect)
 {
   LDKWin32Window* w = (LDKWin32Window*) window;
   w->drag_rect = rect;
 }
-
 
 static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
