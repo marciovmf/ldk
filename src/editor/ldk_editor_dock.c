@@ -72,10 +72,10 @@ enum
   LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
 };
 
- //Editor window IDs are stored in the docking layout and must therefore be
- //stable across runs. The value is intentionally just an application-defined
- //integer. It must be non-zero and unique among the windows registered by the
- //editor and its tools. Do not use an address as an ID.
+// Editor window IDs are stored in the docking layout and must therefore be
+// stable across runs. The value is intentionally just an application-defined
+// integer. It must be non-zero and unique among the windows registered by the
+// editor and its tools. Do not use an address as an ID.
 
 typedef u32 LDKEditorWindowId;
 
@@ -89,8 +89,8 @@ typedef struct LDKEditorWindow
   void *data;
 } LDKEditorWindow;
 
-//Stable IDs reserved by the editor. User tools should define their own
-//persistent non-zero values outside this range.
+// Stable IDs reserved by the editor. User tools should define their own
+// persistent non-zero values outside this range.
 
 #define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
@@ -3067,7 +3067,7 @@ const char *ldk_editor_internal_dock_layout_current_name_get(void)
       .name;
 }
 
-/*
+/**
  * Creates a new named layout from the current live dock state, appends it to
  * the layout collection, and makes it the current layout.
  */
@@ -3132,7 +3132,7 @@ bool ldk_editor_internal_dock_layout_create(const char *layout_name)
   return true;
 }
 
-/*
+/**
  * Saves changes to the outgoing layout, applies the requested layout, and
  * marks it as current. Nothing is committed if snapshotting or applying fails.
  */
@@ -3180,7 +3180,7 @@ bool ldk_editor_internal_dock_set_current(const char *layout_name)
   return true;
 }
 
-/*
+/**
  * Deletes a named layout. The default layout cannot be deleted. If the
  * deleted layout is current, the default layout is applied and made current.
  */
