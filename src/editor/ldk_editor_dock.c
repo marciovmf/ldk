@@ -72,12 +72,11 @@ enum
   LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
 };
 
-/*
- * Editor window IDs are stored in the docking layout and must therefore be
- * stable across runs. The value is intentionally just an application-defined
- * integer. It must be non-zero and unique among the windows registered by the
- * editor and its tools. Do not use an address as an ID.
- */
+ //Editor window IDs are stored in the docking layout and must therefore be
+ //stable across runs. The value is intentionally just an application-defined
+ //integer. It must be non-zero and unique among the windows registered by the
+ //editor and its tools. Do not use an address as an ID.
+
 typedef u32 LDKEditorWindowId;
 
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
@@ -90,10 +89,9 @@ typedef struct LDKEditorWindow
   void *data;
 } LDKEditorWindow;
 
-/*
- * Stable IDs reserved by the editor. User tools should define their own
- * persistent non-zero values outside this range.
- */
+//Stable IDs reserved by the editor. User tools should define their own
+//persistent non-zero values outside this range.
+
 #define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
 #define LDK_EDITOR_WINDOW_SCENE2 ((LDKEditorWindowId)0x4C444B99u)
@@ -259,9 +257,9 @@ static LDKEditorDockState s_editor_dock;
 static LDKEditorDockLayouts s_editor_dock_layouts = {
     .current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 
-/* ------------------------------------------------------------------------- */
-/* Window registry                                                           */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Window registry
+//----------------------------------------------------------
 
 static LDKEditorDockWindow *s_editor_dock_window_get(
     LDKEditorDockState *dock, LDKEditorWindowId id)
@@ -340,9 +338,9 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window)
       s_editor_dock_default_floating_rect(s_editor_dock.window_count));
 }
 
-/* ------------------------------------------------------------------------- */
-/* General helpers                                                           */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// General helpers
+//----------------------------------------------------------
 
 static bool s_editor_dock_rect_contains(const LDKUIRect *rect, float x, float y)
 {
@@ -449,9 +447,9 @@ static void s_editor_dock_drag_reset(LDKEditorDockDrag *drag)
       .target_leaf = LDK_EDITOR_DOCK_INVALID_NODE};
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dock tree                                                                 */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dock tree
+//----------------------------------------------------------
 
 static i32 s_editor_dock_node_allocate(LDKEditorDockState *dock)
 {
@@ -968,9 +966,9 @@ static void s_editor_dock_drop_commit(
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Layout and splitter interaction                                           */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Layout and splitter interaction
+//----------------------------------------------------------
 
 static void s_editor_dock_layout_node(
     LDKEditorDockState *dock, i32 node_index, LDKUIRect rect)
@@ -1147,9 +1145,9 @@ static i32 s_editor_dock_leaf_at(LDKEditorDockState *dock, LDKUIPoint cursor)
   return LDK_EDITOR_DOCK_INVALID_NODE;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Built-in editor windows                                                   */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Built-in editor windows
+//----------------------------------------------------------
 
 static void s_editor_project_explorer_window(
     LDKEditor *opaque_editor, void *data)
@@ -1268,9 +1266,9 @@ static bool s_editor_builtin_windows_add(
   return true;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Window drawing                                                            */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Window drawing
+//----------------------------------------------------------
 
 static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
     LDKEditorContext *editor, LDKEditorWindowId window_id)
@@ -1355,8 +1353,7 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
     LDKEditorContext *editor, LDKEditorDockWindow *window)
 {
   LDKUIContext *ui = &editor->ui;
-  u32 flags = LDK_UI_WINDOW_TITLE_BAR | LDK_UI_WINDOW_DRAGGABLE |
-              LDK_UI_WINDOW_RESIZABLE | LDK_UI_WINDOW_BORDER;
+  u32 flags = LDK_UI_WINDOW_TOOL;
 
   window->floating_rect = ldk_ui_begin_window(
       ui, window->window.title, window->floating_rect, flags);
@@ -1401,9 +1398,9 @@ static void s_editor_dock_windows_draw(
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dragging                                                                  */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dragging
+//----------------------------------------------------------
 
 static bool s_editor_dock_hit_candidate_is_tab_bar_item(
     const LDKEditorDockLeaf *leaf, const LDKUIHitCandidate *candidate)
@@ -1586,9 +1583,9 @@ static void s_editor_dock_floating_drag_update(
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dock targets                                                              */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dock targets
+//----------------------------------------------------------
 
 static LDKUIRect s_editor_dock_target_rect_absolute(
     LDKUIRect workspace, LDKEditorDockTarget target)
@@ -1880,9 +1877,9 @@ static void s_editor_dock_active_drag_update(
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Serialization                                                             */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Serialization
+//----------------------------------------------------------
 
 typedef struct LDKEditorDockLayoutSnapshotContext
 {

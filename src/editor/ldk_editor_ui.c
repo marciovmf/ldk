@@ -896,10 +896,10 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
     }
   }
 
-  /*
-   * Before the first layout file is saved, the live dock is the compiled
-   * default layout but the named-layout collection is still empty.
-   */
+  
+  // Before the first layout file is saved, the live dock is the compiled
+  // default layout but the named-layout collection is still empty.
+  
   if (layout_count == 0)
   {
     current_name = "default";
@@ -926,7 +926,7 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
     items[item_count++] = "Delete current layout...";
   }
 
-  ldk_ui_set_next_width(ui, ldk_ui_px(200.0f));
+  ldk_ui_set_next_width(ui, ldk_ui_px(150.0f));
   u32 result =
       ldk_ui_combo_box(ui, items, item_count, selected_index);
 
