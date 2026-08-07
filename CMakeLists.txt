@@ -348,6 +348,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_system.h          src/module/ldk_system.c
   ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c
   ${INCLUDE_DIR}/module/ldk_scenegraph.h      src/module/ldk_scenegraph.c
+  ${INCLUDE_DIR}/module/ldk_scene_manager.h   src/module/ldk_scene_manager.c
 
   # Components
   ${INCLUDE_DIR}/component/ldk_transform.h    src/component/ldk_transform.c
@@ -443,7 +444,6 @@ if (OPTION_BUILD_EDITOR)
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_cmd.c
-    src/editor/ldk_editor_scene.c
   )
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)

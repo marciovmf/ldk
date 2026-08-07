@@ -1,3 +1,5 @@
+#include <ldk_common.h>
+
 #define X_IMPL_LOG
 #include <stdx/stdx_log.h>
 
@@ -38,6 +40,7 @@
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_scene_manager.h>
 #include "editor/ldk_editor_internal.h"
 
 #ifndef LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY
@@ -885,6 +888,18 @@ static bool s_project_load(
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
   ldk_ecs_terminate();
   ldk_ecs_initialize(ecs, 64, 1);
+
+  LDKSceneManager *scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+
+  //TODO: This is hardcoded for now. This should become an asset we load in runtime or somethign we request from the game module.
+  LDKSceneManagerConfig scene_config = {0};
+  static XFSPath scene0 = {0};
+  scene_config.scene_count = 1;
+  scene_config.scenes = &scene0;
+  x_fs_path_join(&scene0, "scenes", "default.tml");
+  x_fs_path_set(&scene_config.runtree_path, editor->project.run_root_path.buf);
+  ldk_scene_manager_override(scene_manager, &scene_config); 
+    
 
   // we change the game update function to call us so we can
   // update the game only in PLAY mode.

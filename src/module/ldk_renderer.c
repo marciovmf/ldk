@@ -744,12 +744,6 @@ static bool s_renderer_ui_pass_create_sampler(LDKRendererUIPass* renderer)
 {
   LDKRHISamplerDesc desc = {0};
   ldk_rhi_sampler_desc_defaults(&desc);
-  desc.min_filter = LDK_RHI_FILTER_NEAREST;
-  desc.mag_filter = LDK_RHI_FILTER_NEAREST;
-  desc.mip_filter = LDK_RHI_FILTER_NEAREST;
-  desc.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
-  desc.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
-  desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
 
   renderer->sampler = ldk_rhi_sampler_create(renderer->rhi, &desc);
   return renderer->sampler != LDK_RHI_INVALID_RESOURCE;

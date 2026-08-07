@@ -33,6 +33,9 @@
 #define X_IMPL_IO
 #include <stdx/stdx_io.h>
 
+#define X_IMPL_TML
+#include <stdx/stdx_tml.h>
+
 #include <ldk.h>
 #include <ldk_game.h>
 #include <ldk_os.h>
@@ -49,6 +52,7 @@
 #include <module/ldk_entity.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
+#include <module/ldk_scene_manager.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
@@ -60,6 +64,7 @@ struct LDKRoot
 {
   // Engine Modules
   LDKAssetManager       asset_manager;
+  LDKSceneManager       scene_manager;
   LDKECS                ecs;
   LDKConfig             config;
   LDKEventQueue         event_queue;
@@ -251,6 +256,7 @@ static void s_terminate_all_modules(LDKRoot* e)
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
   ldk_asset_manager_terminate(&e->asset_manager);
+  ldk_scene_manager_terminate(&e->scene_manager);
   ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
@@ -574,6 +580,9 @@ void* ldk_module_get(LDKModuleType module_type)
     case LDK_MODULE_ASSET_MANAGER:
       return &g_engine.asset_manager;
 
+  case LDK_MODULE_SCENE_MANAGER:
+      return &g_engine.scene_manager;
+
     default:
       break;
   }
@@ -666,6 +675,12 @@ bool ldk_engine_initialize_with_config(const LDKConfig* config)
   if (!ldk_asset_manager_initialize(&e->asset_manager, 16, 1))
   {
     ldk_log_error("Failed to initialize module: Asset Manager.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_scene_manager_initialize(&e->scene_manager))
+  {
+    ldk_log_error("Failed to initialize module: Scene Manager.");
     engine_init_failed = true;
   }
 

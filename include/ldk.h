@@ -51,6 +51,7 @@ extern "C" {
     LDK_MODULE_EVENT,
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
+    LDK_MODULE_SCENE_MANAGER,
   } LDKModuleType;
 
   struct LDKGame;
