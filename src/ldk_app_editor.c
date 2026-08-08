@@ -401,6 +401,7 @@ static void s_editor_test_b(LDKEditor *editor)
 #include "editor/ldk_editor_dock.c"
 
 #define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
+#define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
 
 static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 {
@@ -462,6 +463,20 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 
   ldk_ui_widget_image(ui, 0x47414D45u, game_texture,
       ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
+}
+
+static void s_editor_inspector_content_window(
+    LDKEditor *opaque_editor, void *data)
+{
+  (void)data;
+  ldk_editor_internal_inspector_show((LDKEditorContext *)opaque_editor);
+}
+
+static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
+{
+  (void)data;
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  ldk_editor_hierarchy_show(opaque_editor, ecs);
 }
 
 //----------------------------------------------------------
@@ -745,6 +760,11 @@ static bool s_project_unload(LDKEditorContext *editor)
 
   if (!editor->project.loaded)
   {
+    editor->selected_entity = x_handle_null();
+    if (editor->hierarchy_expanded_entities != NULL)
+    {
+      x_array_clear(editor->hierarchy_expanded_entities);
+    }
     return true;
   }
 
@@ -757,6 +777,11 @@ static bool s_project_unload(LDKEditorContext *editor)
     return false;
   }
 
+  editor->selected_entity = x_handle_null();
+  if (editor->hierarchy_expanded_entities != NULL)
+  {
+    x_array_clear(editor->hierarchy_expanded_entities);
+  }
   ldk_project_unload(&editor->project);
   editor->original_game_update_fn = NULL;
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
@@ -1102,6 +1127,30 @@ static i32 s_editor_main(const char *project_file_path)
   if (!ldk_editor_window_add((LDKEditor *)editor, &game_window))
   {
     ldk_log_error("Failed to register the Game editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+
+  LDKEditorWindow inspector_window = {.id = LDK_EDITOR_WINDOW_INSPECTOR,
+      .title = "Inspector",
+      .function = s_editor_inspector_content_window,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &inspector_window))
+  {
+    ldk_log_error("Failed to register the Inspector editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+
+  LDKEditorWindow hierarchy_window = {.id = LDK_EDITOR_WINDOW_HIERARCHY,
+      .title = "Hierarchy",
+      .function = s_editor_hierarchy_window,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &hierarchy_window))
+  {
+    ldk_log_error("Failed to register the Hierarchy editor window.\n");
     ldk_engine_terminate();
     return 1;
   }

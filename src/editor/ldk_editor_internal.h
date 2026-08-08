@@ -56,6 +56,8 @@ typedef struct LDKEditorContext
 
   LDKUITextInputState text_input_state;
   LDKProject project;
+  LDKEntity selected_entity;
+  XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
   XFSPath engine_runtree;
@@ -80,6 +82,7 @@ typedef struct LDKEditorContext
 
 void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
 void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
+void ldk_editor_internal_inspector_show(LDKEditorContext *editor);
 u32 ldk_editor_internal_input_window(
     LDKEditorContext *editor, const char *title);
 bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor);

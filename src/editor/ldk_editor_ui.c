@@ -1,5 +1,7 @@
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
+#include <ldk_scene.h>
+#include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
 #include <inttypes.h> // for PRIu64
@@ -896,10 +898,8 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
     }
   }
 
-  
   // Before the first layout file is saved, the live dock is the compiled
   // default layout but the named-layout collection is still empty.
-  
   if (layout_count == 0)
   {
     current_name = "default";
@@ -927,8 +927,7 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
   }
 
   ldk_ui_set_next_width(ui, ldk_ui_px(150.0f));
-  u32 result =
-      ldk_ui_combo_box(ui, items, item_count, selected_index);
+  u32 result = ldk_ui_combo_box(ui, items, item_count, selected_index);
 
   if (result == selected_index)
   {
@@ -1018,7 +1017,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
-      // Play
       bool can_play = editor->project.loaded;
       ldk_ui_set_next_disabled(ui, !can_play);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
@@ -1039,7 +1037,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
 
-    { // Pause button
+    {
       bool can_pause = (editor->editor_state == LDK_EDITOR_STATE_PLAYING);
       ldk_ui_set_next_disabled(ui, !can_pause);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PAUSE];
@@ -1050,8 +1048,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
 
-    { // Skip button
-      bool can_skip = (editor->editor_state != LDK_EDITOR_STATE_PLAYING);
+    {
       ldk_ui_set_next_disabled(
           ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP];
@@ -1070,44 +1067,469 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 }
 
 //------------------------------------------------------------
-// Hierarchy
+// Hierarchy / Inspector
 //------------------------------------------------------------
+
+static u64 s_editor_entity_id(LDKEntity entity)
+{
+  u64 id = 0;
+  size_t copy_size = sizeof(entity) < sizeof(id) ? sizeof(entity) : sizeof(id);
+  memcpy(&id, &entity, copy_size);
+  return id;
+}
+
+static bool s_editor_entity_equal(LDKEntity a, LDKEntity b)
+{
+  return memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+static bool s_editor_selected_entity_get(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity)
+{
+  if (!editor || !ecs ||
+      !ldk_entity_is_alive(&ecs->entity, editor->selected_entity))
+  {
+    if (editor)
+    {
+      editor->selected_entity = x_handle_null();
+    }
+    return false;
+  }
+
+  if (out_entity)
+  {
+    *out_entity = editor->selected_entity;
+  }
+  return true;
+}
+
+static void s_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size)
+{
+  const char *name = NULL;
+
+#if defined(_DEBUG) || defined(LDK_EDITOR)
+  if (info && info->name[0] != 0)
+  {
+    name = (const char *)info->name;
+  }
+#endif
+
+  if (name)
+  {
+    snprintf(out, out_size, "%s", name);
+  }
+  else
+  {
+    snprintf(out, out_size, "Entity 0x%016" PRIx64,
+        s_editor_entity_id(entity));
+  }
+}
+
+static bool s_editor_hierarchy_initialize(LDKEditorContext *editor)
+{
+  if (editor->hierarchy_expanded_entities == NULL)
+  {
+    editor->hierarchy_expanded_entities = x_array_create(sizeof(LDKEntity), 32);
+  }
+
+  return editor->hierarchy_expanded_entities != NULL;
+}
+
+static i32 s_editor_hierarchy_expanded_index(
+    LDKEditorContext *editor, LDKEntity entity)
+{
+  if (editor->hierarchy_expanded_entities == NULL)
+  {
+    return -1;
+  }
+
+  for (u32 i = 0; i < x_array_count(editor->hierarchy_expanded_entities); ++i)
+  {
+    LDKEntity *expanded = x_array_get(editor->hierarchy_expanded_entities, i);
+    if (expanded != NULL && s_editor_entity_equal(*expanded, entity))
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static bool s_editor_hierarchy_expanded_get(
+    LDKEditorContext *editor, LDKEntity entity)
+{
+  return s_editor_hierarchy_expanded_index(editor, entity) >= 0;
+}
+
+static void s_editor_hierarchy_expanded_set(
+    LDKEditorContext *editor, LDKEntity entity, bool expanded)
+{
+  i32 index = s_editor_hierarchy_expanded_index(editor, entity);
+
+  if (expanded)
+  {
+    if (index < 0)
+    {
+      x_array_add(editor->hierarchy_expanded_entities, &entity);
+    }
+    return;
+  }
+
+  if (index >= 0)
+  {
+    x_array_delete_at(editor->hierarchy_expanded_entities, (u32)index);
+  }
+}
+
+static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
+    LDKECS *ecs, LDKEntity entity, u32 depth, LDKEntity *selected_entity,
+    bool *has_selection)
+{
+  LDKUIContext *ui = &editor->ui;
+  const LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, entity);
+  const LDKTransform *transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, entity);
+  LDKEntity first_child = transform != NULL
+                            ? transform->first_child
+                            : x_handle_null();
+  bool has_children = !x_handle_is_null(first_child) &&
+                      ldk_entity_is_alive(&ecs->entity, first_child);
+  bool expanded = has_children &&
+                  s_editor_hierarchy_expanded_get(editor, entity);
+  u32 flags = has_children ? LDK_UI_TREE_NODE_NONE : LDK_UI_TREE_NODE_LEAF;
+  char label[LDK_ENTITY_NAME_MAX_LEN + 32];
+  u64 id = s_editor_entity_id(entity);
+  LDKUIIcon icon = {0};
+
+  s_editor_entity_display_name(info, entity, label, sizeof(label));
+
+  if (*has_selection && s_editor_entity_equal(*selected_entity, entity))
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  ldk_ui_push_id_u32(ui, (u32)id);
+  ldk_ui_push_id_u32(ui, (u32)(id >> 32));
+
+  u32 result = ldk_ui_tree_node_ex(
+      ui, label, icon, expanded, depth, flags);
+
+  if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
+  {
+    editor->selected_entity = entity;
+    *selected_entity = entity;
+    *has_selection = true;
+  }
+
+  if ((result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
+  {
+    expanded = !expanded;
+    s_editor_hierarchy_expanded_set(editor, entity, expanded);
+  }
+
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+
+  if (!has_children || !expanded)
+  {
+    return;
+  }
+
+  LDKEntity child = first_child;
+  while (!x_handle_is_null(child))
+  {
+    if (!ldk_entity_is_alive(&ecs->entity, child))
+    {
+      break;
+    }
+
+    const LDKTransform *child_transform = ldk_entity_transform_get_const(
+        &ecs->entity, &ecs->component, child);
+    LDKEntity next_sibling = child_transform != NULL
+                               ? child_transform->next_sibling
+                               : x_handle_null();
+
+    s_editor_hierarchy_entity_draw(editor, ecs, child, depth + 1,
+        selected_entity, has_selection);
+
+    child = next_sibling;
+  }
+}
 
 static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 {
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect window_rect = {10, 60, 100, 100};
+  static LDKUIPoint scroll = {0};
   bool owns_window = ui->current_window == NULL;
+  LDKEntity selected_entity = x_handle_null();
+  bool has_selection = false;
+
+  if (editor == NULL || ecs == NULL)
+  {
+    return;
+  }
+
+  has_selection = s_editor_selected_entity_get(
+      editor, ecs, &selected_entity);
 
   if (owns_window)
   {
     window_rect = ldk_ui_begin_window(
-      ui, "ENTITIES", window_rect, LDK_UI_WINDOW_TOOL);
+      ui, "HIERARCHY", window_rect, LDK_UI_WINDOW_TOOL);
   }
-  LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
-  LDKEntity e;
 
-  while (ldk_entity_iterator_next(&it, &e))
+  if (!s_editor_hierarchy_initialize(editor))
   {
-    LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, e);
-    u64 id = *((u64 *)&e);
-    snprintf((char *const)&info->name, LDK_ENTITY_NAME_MAX_LEN,
-        "0x%08" PRIu64 "(%d)", id, info->components.component_count);
-
-    ldk_ui_label(ui, (const char *)info->name);
-    for (u32 i = 0; i < info->components.component_count; i++)
+    ldk_ui_label(ui, "Hierarchy allocation failed.");
+    if (owns_window)
     {
-      const char *name = ldk_component_name_get(
-          &ecs->component, info->components.component_type[i]);
-      ldk_ui_label(ui, name);
+      ldk_ui_end_window(ui);
     }
+    return;
   }
+
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
+  LDKEntity entity;
+
+  while (ldk_entity_iterator_next(&it, &entity))
+  {
+    const LDKTransform *transform = ldk_entity_transform_get_const(
+        &ecs->entity, &ecs->component, entity);
+
+    if (transform != NULL && !x_handle_is_null(transform->parent) &&
+        ldk_entity_is_alive(&ecs->entity, transform->parent))
+    {
+      continue;
+    }
+
+    s_editor_hierarchy_entity_draw(
+        editor, ecs, entity, 0, &selected_entity, &has_selection);
+  }
+
   ldk_entity_iterator_end(&it);
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
 
   if (owns_window)
   {
     ldk_ui_end_window(ui);
   }
+}
+
+static void s_editor_inspector_field_value_format(
+    char *out, size_t out_size, const LDKComponentFieldMeta *field,
+    const void *value)
+{
+  switch (field->type)
+  {
+    case LDK_FIELD_BOOL:
+      snprintf(out, out_size, "%s", *(const bool *)value ? "true" : "false");
+      break;
+    case LDK_FIELD_I32:
+      snprintf(out, out_size, "%d", *(const i32 *)value);
+      break;
+    case LDK_FIELD_U32:
+      snprintf(out, out_size, "%u", *(const u32 *)value);
+      break;
+    case LDK_FIELD_FLOAT:
+      snprintf(out, out_size, "%.4f", *(const float *)value);
+      break;
+    case LDK_FIELD_VEC2:
+    {
+      const Vec2 *v = (const Vec2 *)value;
+      snprintf(out, out_size, "%.4f, %.4f", v->x, v->y);
+      break;
+    }
+    case LDK_FIELD_VEC3:
+    {
+      const Vec3 *v = (const Vec3 *)value;
+      snprintf(out, out_size, "%.4f, %.4f, %.4f", v->x, v->y, v->z);
+      break;
+    }
+    case LDK_FIELD_VEC4:
+    {
+      const Vec4 *v = (const Vec4 *)value;
+      snprintf(out, out_size, "%.4f, %.4f, %.4f, %.4f",
+          v->x, v->y, v->z, v->w);
+      break;
+    }
+    case LDK_FIELD_QUAT:
+    {
+      const Quat *q = (const Quat *)value;
+      snprintf(out, out_size, "%.4f, %.4f, %.4f, %.4f",
+          q->x, q->y, q->z, q->w);
+      break;
+    }
+    case LDK_FIELD_MAT4:
+      snprintf(out, out_size, "<mat4>");
+      break;
+    case LDK_FIELD_ENUM:
+      snprintf(out, out_size, "<enum>");
+      break;
+    case LDK_FIELD_ENTITY:
+    {
+      LDKEntity entity;
+      memcpy(&entity, value, sizeof(entity));
+      snprintf(out, out_size, "0x%016" PRIx64, s_editor_entity_id(entity));
+      break;
+    }
+    case LDK_FIELD_ASSET_MESH:
+      snprintf(out, out_size, "<asset mesh>");
+      break;
+    case LDK_FIELD_RESOURCE_MESH:
+      snprintf(out, out_size, "<resource mesh>");
+      break;
+    default:
+      snprintf(out, out_size, "<unsupported>");
+      break;
+  }
+}
+
+static void s_editor_inspector_field_draw(LDKUIContext *ui,
+    const LDKComponentMeta *meta, const LDKComponentFieldMeta *field,
+    void *component)
+{
+  char value_text[128];
+  u8 *field_value;
+  bool readonly;
+
+  if (!ui || !meta || !field || !component || field->offset >= meta->size)
+  {
+    return;
+  }
+
+  field_value = (u8 *)component + field->offset;
+  readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
+
+  ldk_ui_push_id_cstr(ui, field->name);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_label(ui, field->name);
+
+  if (field->type == LDK_FIELD_BOOL)
+  {
+    bool value = *(bool *)field_value;
+    ldk_ui_begin_disabled(ui, readonly);
+    value = ldk_ui_toggle(ui, value);
+    ldk_ui_end_disabled(ui);
+    if (!readonly)
+    {
+      *(bool *)field_value = value;
+    }
+  }
+  else if (field->type == LDK_FIELD_FLOAT &&
+           field->widget == LDK_FIELD_WIDGET_SLIDER &&
+           field->min_value < field->max_value)
+  {
+    float value = *(float *)field_value;
+    ldk_ui_begin_disabled(ui, readonly);
+    value = ldk_ui_slider(ui, value, field->min_value, field->max_value);
+    ldk_ui_end_disabled(ui);
+    if (!readonly)
+    {
+      *(float *)field_value = value;
+    }
+  }
+  else
+  {
+    s_editor_inspector_field_value_format(
+        value_text, sizeof(value_text), field, field_value);
+    ldk_ui_begin_disabled(ui, readonly);
+    ldk_ui_label(ui, value_text);
+    ldk_ui_end_disabled(ui);
+  }
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+}
+
+void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
+{
+  static LDKUIPoint scroll = {0};
+  LDKECS *ecs;
+  LDKGame *game;
+  LDKEntity entity;
+  LDKEntityInfo *info;
+  char entity_name[LDK_ENTITY_NAME_MAX_LEN + 32];
+
+  if (!editor)
+  {
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  game = ldk_game_get();
+
+  if (!ecs || !game || !s_editor_selected_entity_get(editor, ecs, &entity))
+  {
+    ldk_ui_label(ui, "No entity selected.");
+    return;
+  }
+
+  info = ldk_entity_info_get(&ecs->entity, entity);
+  if (!info)
+  {
+    editor->selected_entity = x_handle_null();
+    ldk_ui_label(ui, "No entity selected.");
+    return;
+  }
+
+  s_editor_entity_display_name(info, entity, entity_name, sizeof(entity_name));
+  ldk_ui_label(ui, entity_name);
+  ldk_ui_horizontal_line(ui);
+
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  for (u32 component_i = 0;
+       component_i < info->components.component_count; component_i++)
+  {
+    u32 component_type = info->components.component_type[component_i];
+    const LDKComponentMeta *meta =
+        ldk_scene_component_meta_find_by_type(game, component_type);
+    const char *component_name = meta
+        ? meta->name
+        : ldk_component_name_get(&ecs->component, component_type);
+    void *component = ldk_ecs_component_get(entity, component_type);
+
+    ldk_ui_push_id_u32(ui, component_type);
+    ldk_ui_label(ui, component_name ? component_name : "<unknown component>");
+    ldk_ui_horizontal_line(ui);
+
+    if (!meta)
+    {
+      ldk_ui_label(ui, "Component metadata unavailable.");
+    }
+    else if (!component)
+    {
+      ldk_ui_label(ui, "Component data unavailable.");
+    }
+    else
+    {
+      /*
+       * Inspector visibility follows Comet metadata. It intentionally does
+       * not use scene serialization rules: runtime/non-serialized fields may
+       * still be useful to inspect.
+       */
+      for (u32 field_i = 0; field_i < meta->field_count; field_i++)
+      {
+        s_editor_inspector_field_draw(
+            ui, meta, &meta->fields[field_i], component);
+      }
+    }
+
+    ldk_ui_spacer(ui);
+    ldk_ui_pop_id(ui);
+  }
+
+  ldk_ui_end_scrollview(ui);
 }
 
 //------------------------------------------------------------
