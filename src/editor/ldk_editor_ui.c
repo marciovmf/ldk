@@ -1293,25 +1293,68 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
-  LDKEntity entity;
+  static bool systems_expanded = true;
+  static bool entities_expanded = true;
+  LDKUIIcon icon = {0};
 
-  while (ldk_entity_iterator_next(&it, &entity))
+  ldk_ui_push_id_cstr(ui, "systems");
+  u32 systems_result = ldk_ui_tree_node_ex(
+      ui, "Systems", icon, systems_expanded, 0, LDK_UI_TREE_NODE_NONE);
+  if ((systems_result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
   {
-    const LDKTransform *transform = ldk_entity_transform_get_const(
-        &ecs->entity, &ecs->component, entity);
+    systems_expanded = !systems_expanded;
+  }
+  ldk_ui_pop_id(ui);
 
-    if (transform != NULL && !x_handle_is_null(transform->parent) &&
-        ldk_entity_is_alive(&ecs->entity, transform->parent))
+  if (systems_expanded)
+  {
+    u32 system_count = ldk_system_registry_count(&ecs->system);
+    for (u32 i = 0; i < system_count; ++i)
     {
-      continue;
-    }
+      LDKSystemDesc desc = {0};
+      if (!ldk_system_registry_at(&ecs->system, i, &desc))
+      {
+        continue;
+      }
 
-    s_editor_hierarchy_entity_draw(
-        editor, ecs, entity, 0, &selected_entity, &has_selection);
+      ldk_ui_push_id_u32(ui, i);
+      ldk_ui_tree_node_ex(ui, desc.name != NULL ? desc.name : "<unnamed system>",
+          icon, false, 1, LDK_UI_TREE_NODE_LEAF);
+      ldk_ui_pop_id(ui);
+    }
   }
 
-  ldk_entity_iterator_end(&it);
+  ldk_ui_push_id_cstr(ui, "entity");
+  u32 entities_result = ldk_ui_tree_node_ex(
+      ui, "Entity", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
+  if ((entities_result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
+  {
+    entities_expanded = !entities_expanded;
+  }
+  ldk_ui_pop_id(ui);
+
+  if (entities_expanded)
+  {
+    LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
+    LDKEntity entity;
+
+    while (ldk_entity_iterator_next(&it, &entity))
+    {
+      const LDKTransform *transform = ldk_entity_transform_get_const(
+          &ecs->entity, &ecs->component, entity);
+
+      if (transform != NULL && !x_handle_is_null(transform->parent) &&
+          ldk_entity_is_alive(&ecs->entity, transform->parent))
+      {
+        continue;
+      }
+
+      s_editor_hierarchy_entity_draw(
+          editor, ecs, entity, 1, &selected_entity, &has_selection);
+    }
+
+    ldk_entity_iterator_end(&it);
+  }
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
 
