@@ -13,6 +13,8 @@
 #endif // LDK_SHAREDLIB
 
 #include <ldk_game.h>
+#include <ldk_mesh.h>
+#include <module/ldk_asset_manager.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
@@ -56,52 +58,14 @@ bool game_start(LDKGame* game)
   game_data->game_height = cfg->resolution_height;
 
   LDKAssetManager* assets = (LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetMesh cube_asset = ldk_mesh_primitive_asset_get(
+      assets, LDK_MESH_PRIMITIVE_CUBE);
 
-  LDKMeshVertex cube_vertices[] =
+  if (x_handle_is_null(cube_asset.h))
   {
-    {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-
-    {{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-
-    {{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-
-    {{ 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-
-    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-
-    {{-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}, {0.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}, {1.0f, 0.0f}, 0xFF00FF00u},
-    {{ 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}, {1.0f, 1.0f}, 0xFF00FF00u},
-    {{-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}, {0.0f, 1.0f}, 0xFF00FF00u},
-  };
-
-  u32 cube_indices[] =
-  {
-    0, 2, 1,  0, 3, 2,       // -Z
-    4, 6, 5,  4, 7, 6,       // +Z
-    8, 10, 9,  8, 11, 10,    // -X
-    12, 14, 13,  12, 15, 14, // +X
-    16, 18, 17,  16, 19, 18, // +Y
-    20, 22, 21,  20, 23, 22  // -Y
-  };
-
-  LDKAssetMesh cube_asset = ldk_asset_manager_mesh_create(
-      assets, cube_vertices, 24, cube_indices, 36);
+    ldk_log_error("Failed to get built-in cube mesh.\n");
+    return false;
+  }
 
   LDKEntity camera_entity = ldk_ecs_entity_create();
   ldk_transform_set_local_position(camera_entity, vec3_make(0.0f, 0.0f, 0.0f));
