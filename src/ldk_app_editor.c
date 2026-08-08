@@ -1,34 +1,5 @@
-#include <ldk_common.h>
-
-#define X_IMPL_LOG
-#include <stdx/stdx_log.h>
-
-#define X_IMPL_STRING
-#include <stdx/stdx_string.h>
-
-#define X_IMPL_STRBUILDER
-#include <stdx/stdx_strbuilder.h>
-
-#define X_IMPL_FILESYSTEM
-#include <stdx/stdx_filesystem.h>
-
-#define X_IMPL_INI
-#include <stdx/stdx_ini.h>
-
-#define X_IMPL_ARRAY
-#include <stdx/stdx_array.h>
-
-#define X_IMPL_TML
-#include <stdx/stdx_tml.h>
-
-#define X_IMPL_HPOOL
-#include <stdx/stdx_hpool.h>
-
-#define X_IMPL_IO
-#include <stdx/stdx_io.h>
-
-#include <ldk_common.h>
-#include <module/ldk_ecs.h>
+#define LDK_IMPL_STDX
+#include "ldk_stdx.h"
 
 #include <ldk_common.h>
 #include <ldk_game.h>
@@ -37,6 +8,7 @@
 #include <ldk_image.h>
 #include <ldk_scene.h>
 #include <ldk_project.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
@@ -66,9 +38,6 @@
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
     i32 window_height, float delta_time);
 static bool s_editor_state_set_play(LDKEditorContext *editor);
-static void s_editor_state_set_stop(LDKEditorContext *editor);
-static void s_editor_state_set_pause(LDKEditorContext *editor);
-static void s_editor_state_set_step(LDKEditorContext *editor);
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path);
 
@@ -79,90 +48,6 @@ static LDKEditorContext *s_editor_instance(void)
 {
   static LDKEditorContext editor = {0};
   return &editor;
-}
-
-void ldk_editor_internal_confirm_quit(LDKEditorContext *editor)
-{
-  bool close = false;
-
-  if (!editor->project.loaded)
-    close = true;
-
-  else if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
-               "Are you sure you want to quit the editor ?"))
-  {
-    close = true;
-  }
-
-  if (close)
-  {
-    ldk_log_info("Closing game window\n");
-    ldk_engine_stop(0);
-  }
-}
-
-void ldk_editor_internal_theme_icons_set(
-    LDKEditorContext *editor, LDKUITheme *theme)
-{
-  LDKUIIcon icon = {0};
-  icon.color = 0xFFFFFFFF;
-  icon.size = ldk_sizef(24, 24);
-  icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
-  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
-  theme->icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
-  theme->icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_HORIZ];
-  theme->icons[LDK_UI_THEME_ICON_MORE_HORIZ] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_VERT];
-  theme->icons[LDK_UI_THEME_ICON_MORE_VERT] = icon;
-
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_EJECT];
-  theme->icons[LDK_UI_THEME_ICON_EJECT] = icon;
-}
-
-bool ldk_editor_internal_show_open_project_dialog(
-    LDKEditorContext *editor, XFSPath *project_path_out)
-{
-  XFSPath out;
-  if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
-          out.buf, X_SMALLSTR_MAX_LENGTH))
-  {
-    s_editor_state_set_stop(editor);
-    ldk_project_unload(&editor->project);
-    ldk_game_instance_unload();
-
-    if (!s_project_load(editor, out.buf))
-    {
-      ldk_os_dialog_show_ok(editor->window, "Failed to load project", out.buf);
-      return false;
-    }
-  }
-
-  if (project_path_out)
-  {
-    strncpy(project_path_out->buf, out.buf, X_FS_PATH_MAX_LENGTH);
-    project_path_out->length = out.length;
-  }
-
-  return true;
 }
 
 static bool s_editor_cmake_version_is_supported(const char *cmake_path)
@@ -434,7 +319,7 @@ static void s_editor_save_scene(LDKEditor *editor)
     return;
   }
 
-  if (!ldk_editor_scene_save_tml_file(path, game, &result))
+  if (!ldk_scene_save_tml_file(path, &result))
   {
     ldk_log_error("Failed to save scene: %s", result.error);
     return;
@@ -779,6 +664,7 @@ static bool s_editor_gui_initialize(
  * It is prevents the engine from updating the game when
  * the editor is not on PLAY mode
  */
+
 static inline void s_game_update(LDKGame *game, float delta_time)
 {
   LDKEditorContext *editor = s_editor_instance();
@@ -852,6 +738,32 @@ static void s_editor_state_set_step(LDKEditorContext *editor)
 // Project handling
 //----------------------------------------------------------
 
+static bool s_project_unload(LDKEditorContext *editor)
+{
+  LDK_ASSERT(editor);
+  LDK_ASSERT(editor->initialized);
+
+  if (!editor->project.loaded)
+  {
+    return true;
+  }
+
+  s_editor_state_set_stop(editor);
+
+  if (!ldk_game_instance_unload())
+  {
+    ldk_log_error("Failed to unload game instance for project '%s'.\n",
+        editor->project.name.buf);
+    return false;
+  }
+
+  ldk_project_unload(&editor->project);
+  editor->original_game_update_fn = NULL;
+  editor->editor_state = LDK_EDITOR_STATE_STOPED;
+  s_editor_set_title(editor);
+  return true;
+}
+
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path)
 {
@@ -874,32 +786,37 @@ static bool s_project_load(
     ldk_log_error("Invalid project render resolution %dx%d.\n",
         editor->project.project_resolution_width,
         editor->project.project_resolution_height);
-    ldk_project_unload(&editor->project);
-    return false;
+    goto fail;
   }
 
   if (!ldk_game_instance_load_from_shared_lib(
           editor->project.game_dll_path.buf))
-    return false;
+  {
+    goto fail;
+  }
 
   if (!ldk_game_instance_initialize())
-    return false;
-
-  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  ldk_ecs_terminate();
-  ldk_ecs_initialize(ecs, 64, 1);
+  {
+    goto fail;
+  }
 
   LDKSceneManager *scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
 
-  //TODO: This is hardcoded for now. This should become an asset we load in runtime or somethign we request from the game module.
+  // TODO: This is hardcoded for now. This should become an asset we load in
+  // runtime or somethign we request from the game module.
   LDKSceneManagerConfig scene_config = {0};
   static XFSPath scene0 = {0};
   scene_config.scene_count = 1;
   scene_config.scenes = &scene0;
   x_fs_path_join(&scene0, "scenes", "default.tml");
   x_fs_path_set(&scene_config.runtree_path, editor->project.run_root_path.buf);
-  ldk_scene_manager_override(scene_manager, &scene_config); 
-    
+
+  if (!ldk_scene_manager_override(scene_manager, &scene_config))
+  {
+    ldk_log_error("Failed to configure Scene Manager for project '%s'.\n",
+        editor->project.name.buf);
+    goto fail;
+  }
 
   // we change the game update function to call us so we can
   // update the game only in PLAY mode.
@@ -909,6 +826,10 @@ static bool s_project_load(
   game->update = s_game_update;
   s_editor_set_title(editor);
   return true;
+
+fail:
+  s_project_unload(editor);
+  return false;
 }
 
 static void s_editor_terminate(LDKEditorContext *editor)
@@ -919,6 +840,97 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldk_event_handler_remove(eq, on_event_keyboard);
   ldk_event_handler_remove(eq, on_event_window);
   ldk_editor_dock_terminate(editor);
+}
+
+//----------------------------------------------------------
+// public Internal functions
+//----------------------------------------------------------
+
+void ldk_editor_internal_confirm_quit(LDKEditorContext *editor)
+{
+  bool close = false;
+
+  if (!editor->project.loaded)
+    close = true;
+
+  else if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
+               "Are you sure you want to quit the editor ?"))
+  {
+    close = true;
+  }
+
+  if (close)
+  {
+    ldk_log_info("Closing game window\n");
+    ldk_engine_stop(0);
+  }
+}
+
+void ldk_editor_internal_theme_icons_set(
+    LDKEditorContext *editor, LDKUITheme *theme)
+{
+  LDKUIIcon icon = {0};
+  icon.color = 0xFFFFFFFF;
+  icon.size = ldk_sizef(24, 24);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_RIGHT];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  editor->ui.theme.icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHEV_DOWN];
+  theme->icons[LDK_UI_THEME_ICON_TREE_NODE_EXPANDED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_UNCHECKED];
+  theme->icons[LDK_UI_THEME_ICON_TOGGLE_UNCHECKED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CHECKBOX_CHECKED];
+  theme->icons[LDK_UI_THEME_ICON_TOGGLE_CHECKED] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_HORIZ];
+  theme->icons[LDK_UI_THEME_ICON_MORE_HORIZ] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MORE_VERT];
+  theme->icons[LDK_UI_THEME_ICON_MORE_VERT] = icon;
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_EJECT];
+  theme->icons[LDK_UI_THEME_ICON_EJECT] = icon;
+}
+
+bool ldk_editor_internal_show_open_project_dialog(
+    LDKEditorContext *editor, XFSPath *project_path_out)
+{
+  XFSPath out = {0};
+  if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
+          out.buf, X_SMALLSTR_MAX_LENGTH))
+  {
+    if (!s_project_unload(editor))
+    {
+      ldk_os_dialog_show_ok(editor->window, "Failed to unload current project",
+          editor->project.name.buf);
+      return false;
+    }
+
+    if (!s_project_load(editor, out.buf))
+    {
+      ldk_os_dialog_show_ok(editor->window, "Failed to load project", out.buf);
+      return false;
+    }
+  }
+
+  if (project_path_out)
+  {
+    strncpy(project_path_out->buf, out.buf, X_FS_PATH_MAX_LENGTH);
+    project_path_out->length = out.length;
+  }
+
+  return true;
 }
 
 //----------------------------------------------------------

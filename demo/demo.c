@@ -166,6 +166,8 @@ void game_update(LDKGame* game, float delta_time)
 
 void game_terminate(LDKGame* game)
 {
+  LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
+  ldk_event_handler_remove(q, on_window_event);
   ldk_log_info("Game terminate\n");
 }
 
@@ -173,4 +175,3 @@ void game_stop(LDKGame* game)
 {
   ldk_log_info("Game stop\n");
 }
-
