@@ -46,17 +46,17 @@
 #endif
 
 #if defined(LDK_MONOLITHIC)
-  #define LDK_GAME_API
+#define LDK_GAME_API
 #else
-  #define LDK_GAME_API X_PLAT_EXPORT
+#define LDK_GAME_API X_PLAT_EXPORT
 #endif
 
 #if defined(X_OS_WINDOWS)
-#define  LDK_OS_WINDOWS
+#define LDK_OS_WINDOWS
 #elif defined(X_OS_LINUX)
-#define  LDK_OS_LINUX
+#define LDK_OS_LINUX
 #elif defined(X_OS_OSX)
-#define  LDK_OS_OSX
+#define LDK_OS_OSX
 #endif
 
 #define LDK_ASSERT(expr) X_ASSERT(expr)
@@ -64,15 +64,13 @@
 typedef u32 rgba32;
 
 #ifdef X_LITTLE_ENDIAN
-#define LDK_RGBA32(c) \
-  ((u32)(((c) & 0x000000FFu) << 24) | \
-   (((c) & 0x0000FF00u) << 8)  | \
-   (((c) & 0x00FF0000u) >> 8)  | \
-   (((c) & 0xFF000000u) >> 24))
+#define LDK_RGBA32(c)                                                          \
+  ((u32)(((c) & 0x000000FFu) << 24) | (((c) & 0x0000FF00u) << 8) |             \
+      (((c) & 0x00FF0000u) >> 8) | (((c) & 0xFF000000u) >> 24))
 #else
 #define LDK_RGBA(c) ((u32)c)
 #endif
 
-typedef void* LDKWindow;
+typedef void *LDKWindow;
 
-#endif //LDK_COMMON_H
+#endif // LDK_COMMON_H
