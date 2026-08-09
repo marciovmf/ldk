@@ -56,6 +56,7 @@ typedef struct LDKEditorContext
 
   LDKUITextInputState text_input_state;
   LDKProject project;
+  XFSPath current_scene_path;
   LDKEntity selected_entity;
   XArray *hierarchy_expanded_entities;
   bool initialized;

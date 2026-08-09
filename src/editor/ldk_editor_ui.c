@@ -1,6 +1,8 @@
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
 #include <ldk_scene.h>
+#include <ldk_mesh.h>
+#include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
@@ -22,6 +24,8 @@ enum
   PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
   PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
 };
+
+#define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
 
 typedef struct ProjectExplorerNode
 {
@@ -47,6 +51,7 @@ typedef struct ProjectExplorerState
   XFSPath root;
   XFSPath selected_directory;
   XFSPath selected_file;
+  u64 last_click_ticks;
   XArray *expanded_paths;
   XArray *stack;
   XArray *dirs;
@@ -60,6 +65,343 @@ static ProjectExplorerState s_project_explorer_state = {
   .root_expanded = true,
   .icon_size = 48.0f,
 };
+
+typedef struct LDKEditorSceneEntityList
+{
+  XArray *entities;
+  bool ok;
+} LDKEditorSceneEntityList;
+
+static XFSPath s_editor_scene_runtree = {0};
+
+static void s_editor_scene_selection_clear(LDKEditorContext *editor)
+{
+  if (!editor)
+  {
+    return;
+  }
+
+  editor->selected_entity = x_handle_null();
+  if (editor->hierarchy_expanded_entities != NULL)
+  {
+    x_array_clear(editor->hierarchy_expanded_entities);
+  }
+}
+
+static bool s_editor_scene_entity_collect(LDKEntity entity, void *user)
+{
+  LDKEditorSceneEntityList *list = (LDKEditorSceneEntityList *)user;
+
+  if (!list || !list->ok || !list->entities)
+  {
+    return false;
+  }
+
+  if (x_array_add(list->entities, &entity) != XARRAY_OK)
+  {
+    list->ok = false;
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_editor_scene_ecs_clear(void)
+{
+  LDKEditorSceneEntityList list = {0};
+
+  list.entities = x_array_create(sizeof(LDKEntity), 64);
+  list.ok = list.entities != NULL;
+
+  if (!list.ok)
+  {
+    return false;
+  }
+
+  if (!ldk_ecs_entity_foreach(s_editor_scene_entity_collect, &list) ||
+      !list.ok)
+  {
+    x_array_destroy(list.entities);
+    return false;
+  }
+
+  for (u32 i = 0; i < x_array_count(list.entities); ++i)
+  {
+    LDKEntity *entity = x_array_get(list.entities, i);
+    if (entity != NULL)
+    {
+      ldk_ecs_entity_destroy(*entity);
+    }
+  }
+
+  x_array_destroy(list.entities);
+  return true;
+}
+
+static void s_editor_scene_state_sync(LDKEditorContext *editor)
+{
+  XFSPath runtree = {0};
+
+  if (!editor)
+  {
+    return;
+  }
+
+  if (!editor->project.loaded)
+  {
+    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+    memset(&s_editor_scene_runtree, 0, sizeof(s_editor_scene_runtree));
+    return;
+  }
+
+  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
+  x_fs_path_normalize(&runtree);
+
+  if (s_editor_scene_runtree.length == 0 ||
+      x_fs_path_compare(&s_editor_scene_runtree, &runtree) != 0)
+  {
+    s_editor_scene_runtree = runtree;
+    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+    s_editor_scene_selection_clear(editor);
+  }
+}
+
+static bool s_editor_scene_path_is_scene(const XFSPath *path)
+{
+  const char *text;
+  size_t length;
+  const char *extension = ".scene";
+  size_t extension_length = strlen(extension);
+
+  if (!path)
+  {
+    return false;
+  }
+
+  text = x_fs_path_cstr(path);
+  if (!text)
+  {
+    return false;
+  }
+
+  length = strlen(text);
+  return length >= extension_length &&
+         strcmp(text + length - extension_length, extension) == 0;
+}
+
+static bool s_editor_scene_path_relative(LDKEditorContext *editor,
+    const XFSPath *path, XFSPath *out_relative)
+{
+  XFSPath runtree = {0};
+  XFSPath normalized = {0};
+  const char *relative;
+
+  if (!editor || !editor->project.loaded || !path || !out_relative)
+  {
+    return false;
+  }
+
+  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
+  x_fs_path_normalize(&runtree);
+  normalized = *path;
+  x_fs_path_normalize(&normalized);
+
+  memset(out_relative, 0, sizeof(*out_relative));
+  if (!x_fs_path_common_prefix(x_fs_path_cstr(&runtree),
+        x_fs_path_cstr(&normalized), out_relative))
+  {
+    return false;
+  }
+
+  relative = x_fs_path_cstr(out_relative);
+  if (!relative || relative[0] == 0 || strcmp(relative, ".") == 0 ||
+      x_fs_path_is_absolute(out_relative))
+  {
+    memset(out_relative, 0, sizeof(*out_relative));
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_editor_scene_full_path(LDKEditorContext *editor,
+    const XFSPath *relative, XFSPath *out_path)
+{
+  if (!editor || !editor->project.loaded || !relative || !out_path ||
+      relative->length == 0 || x_fs_path_is_absolute(relative))
+  {
+    return false;
+  }
+
+  x_fs_path(out_path, editor->project.run_root_path.buf,
+      x_fs_path_cstr(relative));
+  x_fs_path_normalize(out_path);
+  return true;
+}
+
+static bool s_editor_scene_load(
+    LDKEditorContext *editor, const XFSPath *path)
+{
+  LDKSceneResult result;
+  XFSPath relative = {0};
+
+  s_editor_scene_state_sync(editor);
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      !s_editor_scene_path_is_scene(path) ||
+      !s_editor_scene_path_relative(editor, path, &relative))
+  {
+    return false;
+  }
+
+  if (!s_editor_scene_ecs_clear())
+  {
+    ldk_editor_internal_log_error(editor, "Failed to clear the current scene.");
+    return false;
+  }
+
+  s_editor_scene_selection_clear(editor);
+  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+
+  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
+  {
+    s_editor_scene_ecs_clear();
+    ldk_editor_internal_log_error(editor, result.error);
+    return false;
+  }
+
+  editor->current_scene_path = relative;
+  ldk_editor_internal_log_info(editor, "Scene loaded.");
+  return true;
+}
+
+static bool s_editor_scene_save(LDKEditorContext *editor)
+{
+  LDKSceneResult result;
+  XFSPath path = {0};
+
+  s_editor_scene_state_sync(editor);
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->current_scene_path.length == 0 ||
+      !s_editor_scene_full_path(editor, &editor->current_scene_path, &path))
+  {
+    return false;
+  }
+
+  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
+  {
+    ldk_editor_internal_log_error(editor, result.error);
+    return false;
+  }
+
+  ldk_editor_internal_log_info(editor, "Scene saved.");
+  return true;
+}
+
+static bool s_editor_scene_new(LDKEditorContext *editor)
+{
+  LDKSceneResult result;
+  XFSPath path = {0};
+  XFSPath relative = {0};
+  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
+
+  s_editor_scene_state_sync(editor);
+
+  if (!editor || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  if (!ldk_os_dialog_show_save_file(editor->window, "New Scene", "*.scene",
+        selected_path, sizeof(selected_path)))
+  {
+    return false;
+  }
+
+  x_fs_path_set(&path, selected_path);
+  x_fs_path_normalize(&path);
+  x_fs_path_change_extension(&path, ".scene");
+
+  if (!s_editor_scene_path_relative(editor, &path, &relative))
+  {
+    ldk_os_dialog_show_error(editor->window, "Invalid scene path",
+        "Scene files must be saved inside the project runtree.");
+    return false;
+  }
+
+  if (!s_editor_scene_ecs_clear())
+  {
+    ldk_editor_internal_log_error(editor, "Failed to clear the current scene.");
+    return false;
+  }
+
+  s_editor_scene_selection_clear(editor);
+  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+
+  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
+  {
+    ldk_editor_internal_log_error(editor, result.error);
+    return false;
+  }
+
+  editor->current_scene_path = relative;
+  ldk_editor_internal_log_info(editor, "Scene created.");
+  return true;
+}
+
+static bool s_editor_scene_add_primitive(LDKEditorContext *editor,
+    LDKMeshPrimitive primitive, const char *name)
+{
+  LDKAssetManager *asset_manager;
+  LDKAssetMesh asset;
+  LDKEntity entity;
+  LDKMeshSource *mesh_source;
+
+  s_editor_scene_state_sync(editor);
+
+  if (!editor || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->current_scene_path.length == 0)
+  {
+    return false;
+  }
+
+  asset_manager = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!asset_manager)
+  {
+    return false;
+  }
+
+  asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
+  if (x_handle_is_null(asset.h))
+  {
+    return false;
+  }
+
+  entity = ldk_ecs_entity_create();
+  if (x_handle_is_null(entity))
+  {
+    return false;
+  }
+
+  if (name && name[0] != 0)
+  {
+    ldk_ecs_entity_name_set(entity, name);
+  }
+
+  mesh_source = (LDKMeshSource *)ldk_ecs_component_add(
+      entity, LDK_COMPONENT_TYPE_MESH_SOURCE, NULL);
+  if (!mesh_source || !ldk_mesh_source_set_data(mesh_source, asset))
+  {
+    ldk_ecs_entity_destroy(entity);
+    return false;
+  }
+
+  editor->selected_entity = entity;
+  return true;
+}
 
 static bool s_project_explorer_initialize(ProjectExplorerState *state)
 {
@@ -129,6 +471,7 @@ static bool s_project_explorer_root_set(
     state->selected_directory = root;
     memset(&state->selected_file, 0, sizeof(state->selected_file));
     x_array_clear(state->expanded_paths);
+    state->last_click_ticks = 0;
     state->root_expanded = true;
   }
 
@@ -341,21 +684,34 @@ static ProjectExplorerEntry *s_project_explorer_entry_get(
   return x_array_get(state->files, index - directory_count);
 }
 
-static void s_project_explorer_entry_activate(
+static void s_project_explorer_entry_activate(LDKEditorContext *editor,
   ProjectExplorerState *state, const ProjectExplorerEntry *entry,
   bool is_directory)
 {
   if (is_directory)
   {
     s_project_explorer_directory_select(state, &entry->path, true);
+    return;
   }
-  else
+
+  u64 now = ldk_os_time_ticks_get();
+  bool same_file = state->selected_file.length != 0 &&
+                   x_fs_path_compare(&state->selected_file, &entry->path) == 0;
+  bool double_click = same_file && state->last_click_ticks != 0 &&
+                      ldk_os_time_ticks_interval_get_seconds(
+                        state->last_click_ticks, now) <=
+                        PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS;
+
+  state->selected_file = entry->path;
+  state->last_click_ticks = double_click ? 0 : now;
+
+  if (double_click && s_editor_scene_path_is_scene(&entry->path))
   {
-    state->selected_file = entry->path;
+    s_editor_scene_load(editor, &entry->path);
   }
 }
 
-static void s_project_explorer_entries_draw(
+static void s_project_explorer_entries_draw(LDKEditorContext *editor,
   ProjectExplorerState *state, LDKUIContext *ui,
   LDKUIIcon folder_icon, LDKUIIcon file_icon)
 {
@@ -383,7 +739,7 @@ static void s_project_explorer_entries_draw(
 
       if (icon_clicked || label_clicked)
       {
-        s_project_explorer_entry_activate(state, entry, is_directory);
+        s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }
     }
 
@@ -430,7 +786,7 @@ static void s_project_explorer_entries_draw(
 
       if (icon_clicked || label_clicked)
       {
-        s_project_explorer_entry_activate(state, entry, is_directory);
+        s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }
     }
 
@@ -439,7 +795,7 @@ static void s_project_explorer_entries_draw(
   }
 }
 
-static void s_project_explorer_files_draw(
+static void s_project_explorer_files_draw(LDKEditorContext *editor,
   ProjectExplorerState *state, LDKUIContext *ui,
   LDKUIIcon folder_icon, LDKUIIcon file_icon)
 {
@@ -470,7 +826,7 @@ static void s_project_explorer_files_draw(
 
   s_project_explorer_directory_read(
     &state->selected_directory, state->dirs, state->files);
-  s_project_explorer_entries_draw(state, ui, folder_icon, file_icon);
+  s_project_explorer_entries_draw(editor, state, ui, folder_icon, file_icon);
 
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
@@ -529,7 +885,7 @@ static void s_editor_project_explorer(
 
   ldk_ui_begin_horizontal(ui);
   s_project_explorer_tree_draw(state, ui, tree_folder_icon);
-  s_project_explorer_files_draw(state, ui, folder_icon, file_icon);
+  s_project_explorer_files_draw(editor, state, ui, folder_icon, file_icon);
   ldk_ui_end_horizontal(ui);
 
   if (owns_window)
@@ -600,6 +956,8 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
 
+  s_editor_scene_state_sync(editor);
+
   static LDKUIRect s_toolbar_rect = {0, 0, 0, 0};
   static LDKUIRect s_file_popup_rect = {0, 0, 1024, 1024};
   static LDKUIRect s_edit_popup_rect = {0, 0, 1024, 1024};
@@ -608,6 +966,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   const LDKUIId MENU_ID_FILE = 10;
   const LDKUIId MENU_ID_EDIT = 11;
   const LDKUIId MENU_ID_THEME = 12;
+  const LDKUIId MENU_ID_SCENE = 13;
 
   s_toolbar_rect.w = ui->viewport.w;
   s_toolbar_rect.h =
@@ -633,6 +992,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   LDKUIRect edit_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button_flat(ui, "Scene"))
+  {
+    ldk_ui_open_popup(ui, MENU_ID_SCENE);
+  }
+  LDKUIRect scene_button_rect = ldk_ui_last_rect(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button_flat(ui, "Theme"))
   {
     ldk_ui_open_popup(ui, MENU_ID_THEME);
@@ -651,8 +1017,21 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    if (ldk_ui_button_flat(ui, "New"))
+    bool can_edit_scene = editor->project.loaded &&
+                          editor->editor_state == LDK_EDITOR_STATE_STOPED;
+
+    ldk_ui_set_next_disabled(ui, !can_edit_scene);
+    if (ldk_ui_button_flat(ui, "New Scene"))
     {
+      s_editor_scene_new(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(
+      ui, !can_edit_scene || editor->current_scene_path.length == 0);
+    if (ldk_ui_button_flat(ui, "Save Scene"))
+    {
+      s_editor_scene_save(editor);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -698,6 +1077,60 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
     if (ldk_ui_button_flat(ui, "Redo"))
     {
+      ldk_ui_close_current_popup(ui);
+    }
+
+    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+  }
+  ldk_ui_end_popup(ui);
+
+  popup_pos.x = scene_button_rect.x;
+  popup_pos.y = scene_button_rect.y + scene_button_rect.h;
+
+  ldk_ui_begin_popup(ui, MENU_ID_SCENE);
+  {
+    LDKUIMark mark = ldk_ui_mark(ui);
+    bool can_add = editor->project.loaded &&
+                   editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+                   editor->current_scene_path.length != 0;
+
+    ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Cube"))
+    {
+      s_editor_scene_add_primitive(
+        editor, LDK_MESH_PRIMITIVE_CUBE, "Cube");
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Sphere"))
+    {
+      s_editor_scene_add_primitive(
+        editor, LDK_MESH_PRIMITIVE_SPHERE, "Sphere");
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Capsule"))
+    {
+      s_editor_scene_add_primitive(
+        editor, LDK_MESH_PRIMITIVE_CAPSULE, "Capsule");
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Plane"))
+    {
+      s_editor_scene_add_primitive(
+        editor, LDK_MESH_PRIMITIVE_PLANE, "Plane");
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Quad"))
+    {
+      s_editor_scene_add_primitive(
+        editor, LDK_MESH_PRIMITIVE_QUAD, "Quad");
       ldk_ui_close_current_popup(ui);
     }
 
