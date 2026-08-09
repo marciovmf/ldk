@@ -1,10 +1,13 @@
 #include <ldk_scene.h>
+#include <ldk.h>
 #include <ldk_game.h>
+#include <ldk_mesh.h>
 
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
 
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -203,8 +206,7 @@ bool ldk_scene_component_field_is_serializable(
     }
   }
 
-  if (field->type == LDK_FIELD_ASSET_MESH ||
-      field->type == LDK_FIELD_RESOURCE_MESH)
+  if (field->type == LDK_FIELD_RESOURCE_MESH)
   {
     return false;
   }
@@ -356,6 +358,42 @@ static void s_pending_parent_free(LDKScenePendingParentList *list)
 static void s_result_error(LDKSceneResult *result, const char *error)
 {
   ldk_scene_result_set_error(result, error);
+}
+
+static bool s_mesh_primitive_from_asset_reference(
+    const char *reference, LDKMeshPrimitive *out_primitive)
+{
+  static const char *references[LDK_MESH_PRIMITIVE_COUNT] =
+  {
+    "builtin:mesh/cube",
+    "builtin:mesh/sphere",
+    "builtin:mesh/capsule",
+    "builtin:mesh/plane",
+    "builtin:mesh/quad",
+  };
+  u32 i;
+
+  if (!reference)
+  {
+    return false;
+  }
+
+  for (i = 0; i < LDK_MESH_PRIMITIVE_COUNT; i++)
+  {
+    if (strcmp(reference, references[i]) != 0)
+    {
+      continue;
+    }
+
+    if (out_primitive)
+    {
+      *out_primitive = (LDKMeshPrimitive)i;
+    }
+
+    return true;
+  }
+
+  return false;
 }
 
 static const TMLNode *s_node_find_child(
@@ -669,21 +707,52 @@ static bool s_apply_field_value(const TMLDocument *doc,
 
   case LDK_FIELD_ASSET_MESH:
   {
-    i32 asset_id;
-
-    if (!s_entry_get_i32(entry, &asset_id))
+    if (entry->type == TML_VALUE_I64)
     {
-      return false;
+      i32 asset_id;
+
+      if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+      {
+        return false;
+      }
+
+      *(LDKAssetMesh *)ptr = ldk_asset_mesh_null();
+      break;
     }
 
-    if (asset_id != -1)
+    if (entry->type == TML_VALUE_STRING)
     {
-      return false;
+      TMLString reference;
+      LDKMeshPrimitive primitive;
+      LDKAssetManager *asset_manager;
+      LDKAssetMesh asset;
+
+      if (!tml_entry_get_string(entry, &reference) ||
+          !s_mesh_primitive_from_asset_reference(
+              reference.data, &primitive))
+      {
+        return false;
+      }
+
+      asset_manager = (LDKAssetManager *)ldk_module_get(
+          LDK_MODULE_ASSET_MANAGER);
+      if (!asset_manager)
+      {
+        return false;
+      }
+
+      asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
+      if (x_handle_is_null(asset.h))
+      {
+        return false;
+      }
+
+      *(LDKAssetMesh *)ptr = asset;
+      break;
     }
 
-    *(LDKAssetMesh *)ptr = ldk_asset_mesh_null();
+    return false;
   }
-  break;
 
   case LDK_FIELD_RESOURCE_MESH:
     return false;
@@ -1346,13 +1415,38 @@ static bool s_write_field_value(XStrBuilder *out,
   case LDK_FIELD_ASSET_MESH:
   {
     const LDKAssetMesh *value = (const LDKAssetMesh *)ptr;
+    LDKAssetManager *asset_manager;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    const char *reference;
 
-    if (!x_handle_is_null(value->h))
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+
+    asset_manager = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    if (!asset_manager)
     {
       return false;
     }
 
-    x_strbuilder_append_format(out, "%d", -1);
+    generic.h = value->h;
+    info = ldk_asset_get_info_const(asset_manager, generic);
+    if (!info || info->type != LDK_ASSET_TYPE_MESH)
+    {
+      return false;
+    }
+
+    reference = x_fs_path_cstr(&info->asset_path);
+    if (!s_mesh_primitive_from_asset_reference(reference, NULL))
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, reference);
   }
   break;
 
