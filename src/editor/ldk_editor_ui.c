@@ -1,12 +1,16 @@
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
+#include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <ldk_mesh.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
+#include <errno.h>
 #include <inttypes.h> // for PRIu64
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
@@ -1442,6 +1446,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 
   {
     LDKUIIcon icon;
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
     icon.size =
         ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
     icon.texture =
@@ -1633,7 +1638,12 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   u32 flags = has_children ? LDK_UI_TREE_NODE_NONE : LDK_UI_TREE_NODE_LEAF;
   char label[LDK_ENTITY_NAME_MAX_LEN + 32];
   u64 id = s_editor_entity_id(entity);
+
   LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
   s_editor_entity_display_name(info, entity, label, sizeof(label));
 
@@ -1699,6 +1709,12 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   LDKEntity selected_entity = x_handle_null();
   bool has_selection = false;
 
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+
   if (editor == NULL || ecs == NULL)
   {
     return;
@@ -1728,7 +1744,6 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   static bool systems_expanded = true;
   static bool entities_expanded = true;
-  LDKUIIcon icon = {0};
 
   ldk_ui_push_id_cstr(ui, "systems");
   u32 systems_result = ldk_ui_tree_node_ex(
@@ -1797,6 +1812,167 @@ static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   }
 }
 
+enum
+{
+  LDK_EDITOR_INSPECTOR_INPUT_CAPACITY = 64,
+};
+
+typedef struct LDKEditorInspectorInputState
+{
+  LDKEntity entity;
+  u32 component_type;
+  u32 field_offset;
+  u32 value_index;
+  LDKUIId widget_id;
+  char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+  bool valid;
+} LDKEditorInspectorInputState;
+
+static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
+
+static void s_editor_inspector_input_state_clear(void)
+{
+  memset(&s_editor_inspector_input_state, 0,
+      sizeof(s_editor_inspector_input_state));
+}
+
+static bool s_editor_inspector_input_state_matches(LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index)
+{
+  return s_editor_inspector_input_state.valid &&
+         s_editor_entity_equal(s_editor_inspector_input_state.entity, entity) &&
+         s_editor_inspector_input_state.component_type == component_type &&
+         s_editor_inspector_input_state.field_offset == field->offset &&
+         s_editor_inspector_input_state.value_index == value_index;
+}
+
+static u32 s_editor_inspector_input_box(LDKUIContext *ui, LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
+    char *buffer, u32 buffer_size)
+{
+  bool state_matches;
+  char *input_buffer;
+  u32 input_buffer_size;
+  u32 result;
+
+  if (!ui || !field || !buffer || buffer_size == 0)
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+
+  state_matches = s_editor_inspector_input_state_matches(
+      entity, component_type, field, value_index);
+
+  if (state_matches)
+  {
+    input_buffer = s_editor_inspector_input_state.buffer;
+    input_buffer_size =
+        (u32)sizeof(s_editor_inspector_input_state.buffer);
+  }
+  else
+  {
+    input_buffer = buffer;
+    input_buffer_size = buffer_size;
+  }
+
+  result = ldk_ui_input_box(ui, input_buffer, input_buffer_size);
+
+  if ((result &
+          (LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED)) != 0)
+  {
+    if (state_matches)
+    {
+      snprintf(buffer, buffer_size, "%s",
+          s_editor_inspector_input_state.buffer);
+    }
+
+    s_editor_inspector_input_state_clear();
+  }
+  else if (ui->input_box_id == ui->last_id)
+  {
+    if (!state_matches)
+    {
+      s_editor_inspector_input_state.entity = entity;
+      s_editor_inspector_input_state.component_type = component_type;
+      s_editor_inspector_input_state.field_offset = field->offset;
+      s_editor_inspector_input_state.value_index = value_index;
+      s_editor_inspector_input_state.widget_id = ui->last_id;
+      snprintf(s_editor_inspector_input_state.buffer,
+          sizeof(s_editor_inspector_input_state.buffer), "%s", buffer);
+      s_editor_inspector_input_state.valid = true;
+    }
+  }
+
+  return result;
+}
+
+static bool s_editor_inspector_parse_i32(const char *text, i32 *out_value)
+{
+  char *end = NULL;
+  long long value;
+
+  if (!text || !out_value || text[0] == 0)
+  {
+    return false;
+  }
+
+  errno = 0;
+  value = strtoll(text, &end, 10);
+
+  if (errno == ERANGE || end == text || *end != 0 ||
+      value < INT32_MIN || value > INT32_MAX)
+  {
+    return false;
+  }
+
+  *out_value = (i32)value;
+  return true;
+}
+
+static bool s_editor_inspector_parse_u32(const char *text, u32 *out_value)
+{
+  char *end = NULL;
+  unsigned long long value;
+
+  if (!text || !out_value || text[0] == 0)
+  {
+    return false;
+  }
+
+  errno = 0;
+  value = strtoull(text, &end, 10);
+
+  if (errno == ERANGE || end == text || *end != 0 || value > UINT32_MAX)
+  {
+    return false;
+  }
+
+  *out_value = (u32)value;
+  return true;
+}
+
+static bool s_editor_inspector_parse_float(const char *text, float *out_value)
+{
+  char *end = NULL;
+  float value;
+
+  if (!text || !out_value || text[0] == 0)
+  {
+    return false;
+  }
+
+  errno = 0;
+  value = strtof(text, &end);
+
+  if (errno == ERANGE || end == text || *end != 0)
+  {
+    return false;
+  }
+
+  *out_value = value;
+  return true;
+}
+
 static void s_editor_inspector_field_value_format(
     char *out, size_t out_size, const LDKComponentFieldMeta *field,
     const void *value)
@@ -1807,45 +1983,44 @@ static void s_editor_inspector_field_value_format(
       snprintf(out, out_size, "%s", *(const bool *)value ? "true" : "false");
       break;
     case LDK_FIELD_I32:
+    case LDK_FIELD_ENUM:
       snprintf(out, out_size, "%d", *(const i32 *)value);
       break;
     case LDK_FIELD_U32:
       snprintf(out, out_size, "%u", *(const u32 *)value);
       break;
     case LDK_FIELD_FLOAT:
-      snprintf(out, out_size, "%.4f", *(const float *)value);
+      snprintf(out, out_size, "%.9g", (double)*(const float *)value);
       break;
     case LDK_FIELD_VEC2:
     {
       const Vec2 *v = (const Vec2 *)value;
-      snprintf(out, out_size, "%.4f, %.4f", v->x, v->y);
+      snprintf(out, out_size, "%.9g, %.9g", (double)v->x, (double)v->y);
       break;
     }
     case LDK_FIELD_VEC3:
     {
       const Vec3 *v = (const Vec3 *)value;
-      snprintf(out, out_size, "%.4f, %.4f, %.4f", v->x, v->y, v->z);
+      snprintf(out, out_size, "%.9g, %.9g, %.9g",
+          (double)v->x, (double)v->y, (double)v->z);
       break;
     }
     case LDK_FIELD_VEC4:
     {
       const Vec4 *v = (const Vec4 *)value;
-      snprintf(out, out_size, "%.4f, %.4f, %.4f, %.4f",
-          v->x, v->y, v->z, v->w);
+      snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g",
+          (double)v->x, (double)v->y, (double)v->z, (double)v->w);
       break;
     }
     case LDK_FIELD_QUAT:
     {
       const Quat *q = (const Quat *)value;
-      snprintf(out, out_size, "%.4f, %.4f, %.4f, %.4f",
-          q->x, q->y, q->z, q->w);
+      snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g",
+          (double)q->x, (double)q->y, (double)q->z, (double)q->w);
       break;
     }
     case LDK_FIELD_MAT4:
       snprintf(out, out_size, "<mat4>");
-      break;
-    case LDK_FIELD_ENUM:
-      snprintf(out, out_size, "<enum>");
       break;
     case LDK_FIELD_ENTITY:
     {
@@ -1866,9 +2041,75 @@ static void s_editor_inspector_field_value_format(
   }
 }
 
-static void s_editor_inspector_field_draw(LDKUIContext *ui,
-    const LDKComponentMeta *meta, const LDKComponentFieldMeta *field,
-    void *component)
+static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
+    float *value, bool readonly)
+{
+  char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+  float original;
+  float parsed;
+  u32 result;
+
+  if (!value)
+  {
+    return false;
+  }
+
+  original = *value;
+  snprintf(buffer, sizeof(buffer), "%.9g", (double)original);
+
+  ldk_ui_begin_disabled(ui, readonly);
+  result = s_editor_inspector_input_box(ui, entity, component_type, field,
+      value_index, buffer, (u32)sizeof(buffer));
+  ldk_ui_end_disabled(ui);
+
+  if (readonly || (result & LDK_UI_INPUT_BOX_COMMITTED) == 0)
+  {
+    return false;
+  }
+
+  if (!s_editor_inspector_parse_float(buffer, &parsed))
+  {
+    *value = original;
+    return false;
+  }
+
+  *value = parsed;
+  return true;
+}
+
+static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field, const void *value)
+{
+  if (component_type != LDK_COMPONENT_TYPE_TRANSFORM || !field || !value)
+  {
+    return false;
+  }
+
+  if (field->offset == offsetof(LDKTransform, local_position))
+  {
+    ldk_transform_set_local_position(entity, *(const Vec3 *)value);
+    return true;
+  }
+
+  if (field->offset == offsetof(LDKTransform, local_rotation))
+  {
+    ldk_transform_set_local_rotation(entity, *(const Quat *)value);
+    return true;
+  }
+
+  if (field->offset == offsetof(LDKTransform, local_scale))
+  {
+    ldk_transform_set_local_scale(entity, *(const Vec3 *)value);
+    return true;
+  }
+
+  return false;
+}
+
+static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
+    u32 component_type, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, void *component)
 {
   char value_text[128];
   u8 *field_value;
@@ -1888,37 +2129,211 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui,
   ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
   ldk_ui_label(ui, field->name);
 
-  if (field->type == LDK_FIELD_BOOL)
+  switch (field->type)
   {
-    bool value = *(bool *)field_value;
-    ldk_ui_begin_disabled(ui, readonly);
-    value = ldk_ui_toggle(ui, value);
-    ldk_ui_end_disabled(ui);
-    if (!readonly)
+    case LDK_FIELD_BOOL:
     {
-      *(bool *)field_value = value;
+      bool value = *(bool *)field_value;
+
+      ldk_ui_begin_disabled(ui, readonly);
+      value = ldk_ui_toggle(ui, value);
+      ldk_ui_end_disabled(ui);
+
+      if (!readonly)
+      {
+        *(bool *)field_value = value;
+      }
+      break;
     }
-  }
-  else if (field->type == LDK_FIELD_FLOAT &&
-           field->widget == LDK_FIELD_WIDGET_SLIDER &&
-           field->min_value < field->max_value)
-  {
-    float value = *(float *)field_value;
-    ldk_ui_begin_disabled(ui, readonly);
-    value = ldk_ui_slider(ui, value, field->min_value, field->max_value);
-    ldk_ui_end_disabled(ui);
-    if (!readonly)
+
+    case LDK_FIELD_I32:
+    case LDK_FIELD_ENUM:
     {
-      *(float *)field_value = value;
+      char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+      i32 original = *(i32 *)field_value;
+      i32 parsed;
+      u32 result;
+
+      snprintf(buffer, sizeof(buffer), "%d", original);
+      ldk_ui_begin_disabled(ui, readonly);
+      result = s_editor_inspector_input_box(ui, entity, component_type, field,
+          0, buffer, (u32)sizeof(buffer));
+      ldk_ui_end_disabled(ui);
+
+      if (!readonly && (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+      {
+        if (s_editor_inspector_parse_i32(buffer, &parsed))
+        {
+          *(i32 *)field_value = parsed;
+        }
+        else
+        {
+          *(i32 *)field_value = original;
+        }
+      }
+      break;
     }
-  }
-  else
-  {
-    s_editor_inspector_field_value_format(
-        value_text, sizeof(value_text), field, field_value);
-    ldk_ui_begin_disabled(ui, readonly);
-    ldk_ui_label(ui, value_text);
-    ldk_ui_end_disabled(ui);
+
+    case LDK_FIELD_U32:
+    {
+      char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+      u32 original = *(u32 *)field_value;
+      u32 parsed;
+      u32 result;
+
+      snprintf(buffer, sizeof(buffer), "%u", original);
+      ldk_ui_begin_disabled(ui, readonly);
+      result = s_editor_inspector_input_box(ui, entity, component_type, field,
+          0, buffer, (u32)sizeof(buffer));
+      ldk_ui_end_disabled(ui);
+
+      if (!readonly && (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+      {
+        if (s_editor_inspector_parse_u32(buffer, &parsed))
+        {
+          *(u32 *)field_value = parsed;
+        }
+        else
+        {
+          *(u32 *)field_value = original;
+        }
+      }
+      break;
+    }
+
+    case LDK_FIELD_FLOAT:
+    {
+      float value = *(float *)field_value;
+
+      if (field->widget == LDK_FIELD_WIDGET_SLIDER &&
+          field->min_value < field->max_value)
+      {
+        ldk_ui_begin_disabled(ui, readonly);
+        value = ldk_ui_slider(ui, value, field->min_value, field->max_value);
+        ldk_ui_end_disabled(ui);
+
+        if (!readonly)
+        {
+          *(float *)field_value = value;
+        }
+      }
+      else
+      {
+        if (s_editor_inspector_float_input(ui, entity, component_type, field,
+              0, &value, readonly))
+        {
+          *(float *)field_value = value;
+        }
+      }
+      break;
+    }
+
+    case LDK_FIELD_VEC2:
+    {
+      Vec2 value = *(Vec2 *)field_value;
+
+      bool changed = false;
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 0, &value.x, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 1, &value.y, readonly);
+
+      if (changed)
+      {
+        *(Vec2 *)field_value = value;
+      }
+      break;
+    }
+
+    case LDK_FIELD_VEC3:
+    {
+      Vec3 value = *(Vec3 *)field_value;
+
+      bool changed = false;
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 0, &value.x, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 1, &value.y, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 2, &value.z, readonly);
+
+      if (changed && !s_editor_inspector_transform_field_apply(
+                         entity, component_type, field, &value))
+      {
+        *(Vec3 *)field_value = value;
+      }
+      break;
+    }
+
+    case LDK_FIELD_VEC4:
+    {
+      Vec4 value = *(Vec4 *)field_value;
+
+      bool changed = false;
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 0, &value.x, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 1, &value.y, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 2, &value.z, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 3, &value.w, readonly);
+
+      if (changed)
+      {
+        *(Vec4 *)field_value = value;
+      }
+      break;
+    }
+
+    case LDK_FIELD_QUAT:
+    {
+      Quat value = *(Quat *)field_value;
+
+      bool changed = false;
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 0, &value.x, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 1, &value.y, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 2, &value.z, readonly);
+      ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+      changed |= s_editor_inspector_float_input(ui, entity, component_type,
+          field, 3, &value.w, readonly);
+
+      if (changed && !s_editor_inspector_transform_field_apply(
+                         entity, component_type, field, &value))
+      {
+        *(Quat *)field_value = value;
+      }
+      break;
+    }
+
+    case LDK_FIELD_MAT4:
+    case LDK_FIELD_ENTITY:
+    case LDK_FIELD_ASSET_MESH:
+    case LDK_FIELD_RESOURCE_MESH:
+    default:
+      s_editor_inspector_field_value_format(
+          value_text, sizeof(value_text), field, field_value);
+      ldk_ui_label(ui, value_text);
+      break;
   }
 
   ldk_ui_end_horizontal(ui);
@@ -1957,13 +2372,21 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
     return;
   }
 
-  s_editor_entity_display_name(info, entity, entity_name, sizeof(entity_name));
-  ldk_ui_label(ui, entity_name);
-  ldk_ui_horizontal_line(ui);
-
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
+  s_editor_entity_display_name(info, entity, entity_name, sizeof(entity_name));
+
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+  ldk_ui_icon_label(ui, icon, entity_name);
+  ldk_ui_horizontal_line(ui);
+  
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
   for (u32 component_i = 0;
        component_i < info->components.component_count; component_i++)
   {
@@ -1976,16 +2399,16 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
     void *component = ldk_ecs_component_get(entity, component_type);
 
     ldk_ui_push_id_u32(ui, component_type);
-    ldk_ui_label(ui, component_name ? component_name : "<unknown component>");
+    ldk_ui_icon_label(ui, icon, component_name ? component_name : "<unknown component>");
     ldk_ui_horizontal_line(ui);
 
     if (!meta)
     {
-      ldk_ui_label(ui, "Component metadata unavailable.");
+      ldk_ui_icon_label(ui, icon, "Component metadata unavailable.");
     }
     else if (!component)
     {
-      ldk_ui_label(ui, "Component data unavailable.");
+      ldk_ui_icon_label(ui, icon,  "Component data unavailable.");
     }
     else
     {
@@ -1996,8 +2419,8 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
        */
       for (u32 field_i = 0; field_i < meta->field_count; field_i++)
       {
-        s_editor_inspector_field_draw(
-            ui, meta, &meta->fields[field_i], component);
+        s_editor_inspector_field_draw(ui, entity, component_type,
+            meta, &meta->fields[field_i], component);
       }
     }
 

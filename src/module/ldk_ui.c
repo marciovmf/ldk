@@ -716,7 +716,9 @@ static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
     return icon;
   }
 
-  return ctx->theme.icons[slot];
+  icon = ctx->theme.icons[slot];
+  icon.color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  return icon;
 }
 
 static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
@@ -728,7 +730,7 @@ static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
   }
 
   s_ui_render_quad_uv(
-      ctx, rect, icon.uv, icon.color, clip_rect, (LDKUITextureHandle)icon.texture);
+      ctx, rect, icon.uv, icon.color, clip_rect, (LDKUITextureHandle)icon.texture);
 }
 
 static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,
@@ -2064,7 +2066,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
-    text = 0xC4C4C4FFu;
+    text = 0xFFFFFFFFu;
     text_disabled = 0x707070FFu;
 
     window_bg = 0x383838FFu;
@@ -2075,7 +2077,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     control_bg_active = 0x46607CFFu;
     control_bg_active_hovered = 0x4F657FFFu;
 
-    control_text = 0xEEEEEEFFu;
+    control_text = 0xFFFFFFFFu;
     control_border = 0x303030FFu;
     control_border_hovered = 0x656565FFu;
     control_border_active = 0x0D0D0DFFu;
@@ -2223,7 +2225,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 
   theme->text_cursor_blink = true;
   theme->text_cursor_blink_interval = 1.0f;
-  theme->text_cursor_width = 1.0f;
+  theme->text_cursor_width = 2.0f;
   theme->text_cursor_padding_y = 4.0f;
 
   return true;
@@ -3232,7 +3234,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
     LDKUIRect cursor_rect = {cursor_x, box.rect.y + cursor_padding_y,
         cursor_width, box.rect.h - cursor_padding_y * 2.0f};
     s_ui_render_quad(
-        ctx, cursor_rect, ctx->theme.colors[LDK_UI_COLOR_FOCUS], box.clip, 0);
+        ctx, cursor_rect, ctx->theme.colors[LDK_UI_COLOR_TEXT], box.clip, 0);
   }
 
   return result;

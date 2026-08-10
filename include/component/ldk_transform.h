@@ -35,10 +35,15 @@ extern "C"
     Vec3 local_position;
     Vec3 local_scale;
     Quat local_rotation;
+    //@inspect hidden
     Mat4 world_matrix;
+    //@inspect hidden
     LDKEntity parent;
+    //@inspect hidden
     LDKEntity first_child;
+    //@inspect hidden
     LDKEntity next_sibling;
+    //@inspect hidden
     LDKEntity prev_sibling;
   } LDKTransform;
 
