@@ -27,6 +27,7 @@ typedef enum
   LDK_EVENT_TYPE_MOUSE_BUTTON     = 1 << 6,
   LDK_EVENT_TYPE_MOUSE_WHEEL      = 1 << 7,
   LDK_EVENT_TYPE_FRAME            = 1 << 8,
+  LDK_EVENT_TYPE_CUSTOM           = 1 << 9,
   LDK_EVENT_TYPE_ANY              = 0xFFFFFFFF,
 
   /* Keyboard Event types */
@@ -115,6 +116,15 @@ typedef struct
   float delta_time;
 } LDKFrameEvent;
 
+typedef struct
+{
+  LDKEventType type;
+  u32 sender; // An identifier of who sent the message
+  u32 tag;    // A ientification of the type of custom event
+  void* data; // User provided pointer to extra data
+} LDKCustomEvent;
+
+
 // LDKEvent
 typedef struct
 {
@@ -127,6 +137,7 @@ typedef struct
     LDKKeyboardEvent    keyboard_event;
     LDKMouseEvent       mouse_event;
     LDKFrameEvent       frame_event;
+    LDKCustomEvent      custom_event;
   };
 } LDKEvent;
 
