@@ -9,9 +9,8 @@
 #include <module/ldk_renderer.h>
 #include <editor/ldk_editor.h>
 #include "ldk_editor_atlas.h"
+#include "../ldk_stdx.h"
 
-#include <stdx/stdx_array.h>
-#include <stdx/stdx_strbuilder.h>
 
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
