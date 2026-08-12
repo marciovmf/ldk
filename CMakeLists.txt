@@ -443,6 +443,7 @@ if (OPTION_BUILD_EDITOR)
   add_executable(ldk_editor src/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_console.c
     src/editor/ldk_editor_cmd.c
   )
   add_dependencies(ldk_editor comet) # make sure the tools are built

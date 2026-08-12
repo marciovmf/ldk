@@ -13,6 +13,11 @@
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_strbuilder.h>
 
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
+#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+#define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
+#define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
+
 typedef enum LDKEditorState
 {
   LDK_EDITOR_STATE_STOPED = 0,
