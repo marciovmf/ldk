@@ -7,7 +7,6 @@
 #include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
-#include <errno.h>
 #include <inttypes.h> // for PRIu64
 #include <stddef.h>
 #include <stdlib.h>
@@ -2054,6 +2053,8 @@ typedef struct LDKEditorInspectorInputState
 } LDKEditorInspectorInputState;
 
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
+static char s_editor_inspector_input_buffer[
+    LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
 static void s_editor_inspector_input_state_clear(void)
 {
@@ -2071,13 +2072,19 @@ static bool s_editor_inspector_input_state_matches(LDKEntity entity,
          s_editor_inspector_input_state.value_index == value_index;
 }
 
-static u32 s_editor_inspector_input_box(LDKUIContext *ui, LDKEntity entity,
-    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
-    char *buffer, u32 buffer_size)
+static u32 s_editor_inspector_input_box(
+    LDKUIContext *ui, char *buffer, u32 buffer_size)
+{
+  return ldk_ui_input_box(ui, buffer, buffer_size);
+}
+
+static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
+    LDKEntity entity, u32 component_type,
+    const LDKComponentFieldMeta *field, u32 value_index, char *buffer,
+    u32 buffer_size)
 {
   bool state_matches;
   char *input_buffer;
-  u32 input_buffer_size;
   u32 result;
 
   if (!ui || !field || !buffer || buffer_size == 0)
@@ -2088,32 +2095,37 @@ static u32 s_editor_inspector_input_box(LDKUIContext *ui, LDKEntity entity,
   state_matches = s_editor_inspector_input_state_matches(
       entity, component_type, field, value_index);
 
+  if (state_matches && s_editor_inspector_input_state.widget_id != 0 &&
+      ui->focused_id != s_editor_inspector_input_state.widget_id)
+  {
+    s_editor_inspector_input_state_clear();
+    state_matches = false;
+  }
+
   if (state_matches)
   {
     input_buffer = s_editor_inspector_input_state.buffer;
-    input_buffer_size =
-        (u32)sizeof(s_editor_inspector_input_state.buffer);
   }
   else
   {
-    input_buffer = buffer;
-    input_buffer_size = buffer_size;
+    snprintf(s_editor_inspector_input_buffer,
+        sizeof(s_editor_inspector_input_buffer), "%s", buffer);
+    input_buffer = s_editor_inspector_input_buffer;
   }
 
-  result = ldk_ui_input_box(ui, input_buffer, input_buffer_size);
+  result = s_editor_inspector_input_box(ui, input_buffer,
+      LDK_EDITOR_INSPECTOR_INPUT_CAPACITY);
 
-  if ((result &
-          (LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED)) != 0)
+  if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
   {
-    if (state_matches)
-    {
-      snprintf(buffer, buffer_size, "%s",
-          s_editor_inspector_input_state.buffer);
-    }
+    snprintf(buffer, buffer_size, "%s", input_buffer);
+  }
 
+  if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+  {
     s_editor_inspector_input_state_clear();
   }
-  else if (ui->input_box_id == ui->last_id)
+  else if (ui->focused_id == ui->last_id)
   {
     if (!state_matches)
     {
@@ -2123,7 +2135,7 @@ static u32 s_editor_inspector_input_box(LDKUIContext *ui, LDKEntity entity,
       s_editor_inspector_input_state.value_index = value_index;
       s_editor_inspector_input_state.widget_id = ui->last_id;
       snprintf(s_editor_inspector_input_state.buffer,
-          sizeof(s_editor_inspector_input_state.buffer), "%s", buffer);
+          sizeof(s_editor_inspector_input_state.buffer), "%s", input_buffer);
       s_editor_inspector_input_state.valid = true;
     }
   }
@@ -2134,18 +2146,16 @@ static u32 s_editor_inspector_input_box(LDKUIContext *ui, LDKEntity entity,
 static bool s_editor_inspector_parse_i32(const char *text, i32 *out_value)
 {
   char *end = NULL;
-  long long value;
+  long value;
 
-  if (!text || !out_value || text[0] == 0)
+  if (!text || !out_value)
   {
     return false;
   }
 
-  errno = 0;
-  value = strtoll(text, &end, 10);
+  value = strtol(text, &end, 10);
 
-  if (errno == ERANGE || end == text || *end != 0 ||
-      value < INT32_MIN || value > INT32_MAX)
+  if (end == text)
   {
     return false;
   }
@@ -2157,17 +2167,16 @@ static bool s_editor_inspector_parse_i32(const char *text, i32 *out_value)
 static bool s_editor_inspector_parse_u32(const char *text, u32 *out_value)
 {
   char *end = NULL;
-  unsigned long long value;
+  unsigned long value;
 
-  if (!text || !out_value || text[0] == 0)
+  if (!text || !out_value)
   {
     return false;
   }
 
-  errno = 0;
-  value = strtoull(text, &end, 10);
+  value = strtoul(text, &end, 10);
 
-  if (errno == ERANGE || end == text || *end != 0 || value > UINT32_MAX)
+  if (end == text)
   {
     return false;
   }
@@ -2181,15 +2190,14 @@ static bool s_editor_inspector_parse_float(const char *text, float *out_value)
   char *end = NULL;
   float value;
 
-  if (!text || !out_value || text[0] == 0)
+  if (!text || !out_value)
   {
     return false;
   }
 
-  errno = 0;
   value = strtof(text, &end);
 
-  if (errno == ERANGE || end == text || *end != 0)
+  if (end == text)
   {
     return false;
   }
@@ -2284,11 +2292,11 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
   snprintf(buffer, sizeof(buffer), "%.9g", (double)original);
 
   ldk_ui_begin_disabled(ui, readonly);
-  result = s_editor_inspector_input_box(ui, entity, component_type, field,
-      value_index, buffer, (u32)sizeof(buffer));
+  result = s_editor_inspector_field_input_box(ui, entity, component_type,
+      field, value_index, buffer, (u32)sizeof(buffer));
   ldk_ui_end_disabled(ui);
 
-  if (readonly || (result & LDK_UI_INPUT_BOX_COMMITTED) == 0)
+  if (readonly || (result & LDK_UI_INPUT_BOX_CHANGED) == 0)
   {
     return false;
   }
@@ -2381,11 +2389,11 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
 
       snprintf(buffer, sizeof(buffer), "%d", original);
       ldk_ui_begin_disabled(ui, readonly);
-      result = s_editor_inspector_input_box(ui, entity, component_type, field,
-          0, buffer, (u32)sizeof(buffer));
+      result = s_editor_inspector_field_input_box(ui, entity, component_type,
+          field, 0, buffer, (u32)sizeof(buffer));
       ldk_ui_end_disabled(ui);
 
-      if (!readonly && (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+      if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
       {
         if (s_editor_inspector_parse_i32(buffer, &parsed))
         {
@@ -2408,11 +2416,11 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
 
       snprintf(buffer, sizeof(buffer), "%u", original);
       ldk_ui_begin_disabled(ui, readonly);
-      result = s_editor_inspector_input_box(ui, entity, component_type, field,
-          0, buffer, (u32)sizeof(buffer));
+      result = s_editor_inspector_field_input_box(ui, entity, component_type,
+          field, 0, buffer, (u32)sizeof(buffer));
       ldk_ui_end_disabled(ui);
 
-      if (!readonly && (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+      if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
       {
         if (s_editor_inspector_parse_u32(buffer, &parsed))
         {
