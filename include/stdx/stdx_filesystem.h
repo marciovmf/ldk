@@ -47,8 +47,8 @@
 #endif
 
 #define X_FILESYSTEM_VERSION_MAJOR 1
-#define X_FILESYSTEM_VERSION_MINOR 1
-#define X_FILESYSTEM_VERSION_PATCH 2
+#define X_FILESYSTEM_VERSION_MINOR 2
+#define X_FILESYSTEM_VERSION_PATCH 0
 #define X_FILESYSTEM_VERSION (X_FILESYSTEM_VERSION_MAJOR * 10000 + X_FILESYSTEM_VERSION_MINOR * 100 + X_FILESYSTEM_VERSION_PATCH)
 
 #ifndef X_FS_PATH_MAX_LENGTH
@@ -144,11 +144,39 @@ extern "C" {
   X_FILESYSTEM_API bool x_fs_directory_create_recursive(const char* path);
 
   /**
+   * @brief Recursively copy a directory to a new path.
+   * @param directory Source directory path.
+   * @param new_directory Destination directory path, which must not exist.
+   * @return True on success, false on failure.
+   * @note Symbolic links are not followed or copied.
+   */
+  X_FILESYSTEM_API bool x_fs_directory_copy(
+      const char* directory, const char* new_directory);
+
+  /**
    * @brief Delete an empty directory.
    * @param directory Directory path to delete.
    * @return True on success, false on failure.
    */
   X_FILESYSTEM_API bool x_fs_directory_delete(const char* directory);
+
+  /**
+   * @brief Recursively delete a directory and its contents.
+   * @param directory Directory path to delete.
+   * @return True on success, false on failure.
+   * @note Symbolic links are deleted without following their targets.
+   */
+  X_FILESYSTEM_API bool x_fs_directory_delete_recursive(
+      const char* directory);
+
+  /**
+   * @brief Rename (move) a directory to a new path.
+   * @param directory Source directory path.
+   * @param new_directory Destination directory path.
+   * @return True on success, false on failure.
+   */
+  X_FILESYSTEM_API bool x_fs_directory_rename(
+      const char* directory, const char* new_directory);
 
   /**
    * @brief Copy a file to a new path.
@@ -157,6 +185,13 @@ extern "C" {
    * @return True on success, false on failure.
    */
   X_FILESYSTEM_API bool x_fs_file_copy(const char* file, const char* newFile);
+
+  /**
+   * @brief Delete a file.
+   * @param file File path to delete.
+   * @return True on success, false on failure.
+   */
+  X_FILESYSTEM_API bool x_fs_file_delete(const char* file);
 
   /**
    * @brief Rename (move) a file to a new path.
@@ -915,6 +950,32 @@ extern "C" {
 #endif
   }
 
+  X_FILESYSTEM_API bool x_fs_file_delete(const char* file)
+  {
+    if (file == NULL)
+    {
+      return false;
+    }
+
+#ifdef _WIN32
+    DWORD attributes = GetFileAttributes(file);
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+    {
+      return false;
+    }
+
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) &&
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT))
+    {
+      return RemoveDirectory(file) != 0;
+    }
+
+    return DeleteFile(file) != 0;
+#else
+    return unlink(file) == 0;
+#endif
+  }
+
   X_FILESYSTEM_API bool x_fs_file_rename(const char* file, const char* newFile)
   {
 #ifdef _WIN32
@@ -922,6 +983,12 @@ extern "C" {
 #else
     return rename(file, newFile) == 0;
 #endif
+  }
+
+  X_FILESYSTEM_API bool x_fs_directory_rename(
+      const char* directory, const char* new_directory)
+  {
+    return x_fs_file_rename(directory, new_directory);
   }
 
   X_FILESYSTEM_API bool x_fs_directory_create(const char* path)
@@ -972,6 +1039,117 @@ extern "C" {
 #else
     return rmdir(directory) == 0;
 #endif
+  }
+
+  X_FILESYSTEM_API bool x_fs_directory_delete_recursive(
+      const char* directory)
+  {
+    XFSDireEntry entry = {0};
+    XFSDireHandle* handle;
+    bool deleted = true;
+
+    if (!directory || !x_fs_path_is_directory_cstr(directory))
+    {
+      return false;
+    }
+
+    if (x_fs_is_symlink(directory))
+    {
+      return x_fs_file_delete(directory);
+    }
+
+    handle = x_fs_find_first_file(directory, &entry);
+    if (!handle)
+    {
+      return false;
+    }
+
+    do
+    {
+      bool special =
+          strcmp(entry.name, ".") == 0 || strcmp(entry.name, "..") == 0;
+
+      if (!special)
+      {
+        XFSPath child = {0};
+
+        if (!x_fs_path(&child, directory, entry.name))
+        {
+          deleted = false;
+          break;
+        }
+
+        if (x_fs_is_symlink(child.buf))
+        {
+          deleted = x_fs_file_delete(child.buf);
+        }
+        else
+        {
+          deleted = entry.is_directory
+                        ? x_fs_directory_delete_recursive(child.buf)
+                        : x_fs_file_delete(child.buf);
+        }
+      }
+    } while (deleted && x_fs_find_next_file(handle, &entry));
+
+    x_fs_find_close(handle);
+    return deleted && x_fs_directory_delete(directory);
+  }
+
+  X_FILESYSTEM_API bool x_fs_directory_copy(
+      const char* directory, const char* new_directory)
+  {
+    XFSDireEntry entry = {0};
+    XFSDireHandle* handle;
+    bool copied = true;
+
+    if (!directory || !new_directory || x_fs_is_symlink(directory) ||
+        !x_fs_path_is_directory_cstr(directory) ||
+        x_fs_path_exists_cstr(new_directory) ||
+        !x_fs_directory_create(new_directory))
+    {
+      return false;
+    }
+
+    handle = x_fs_find_first_file(directory, &entry);
+    if (!handle)
+    {
+      x_fs_directory_delete(new_directory);
+      return false;
+    }
+
+    do
+    {
+      bool special =
+          strcmp(entry.name, ".") == 0 || strcmp(entry.name, "..") == 0;
+
+      if (!special)
+      {
+        XFSPath source = {0};
+        XFSPath destination = {0};
+
+        if (!x_fs_path(&source, directory, entry.name) ||
+            !x_fs_path(&destination, new_directory, entry.name) ||
+            x_fs_is_symlink(source.buf))
+        {
+          copied = false;
+          break;
+        }
+
+        copied = entry.is_directory
+                     ? x_fs_directory_copy(source.buf, destination.buf)
+                     : x_fs_file_copy(source.buf, destination.buf);
+      }
+    } while (copied && x_fs_find_next_file(handle, &entry));
+
+    x_fs_find_close(handle);
+
+    if (!copied)
+    {
+      x_fs_directory_delete_recursive(new_directory);
+    }
+
+    return copied;
   }
 
   X_FILESYSTEM_API bool x_fs_path_is_file(const XFSPath* path)
