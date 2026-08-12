@@ -27,6 +27,7 @@ enum
   PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
   PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
   PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
+  PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
 };
 
 #define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
@@ -46,6 +47,12 @@ typedef struct ProjectExplorerEntry
   size_t size;
   time_t last_modified;
 } ProjectExplorerEntry;
+
+typedef struct ProjectExplorerTileResult
+{
+  bool clicked;
+  bool pressed;
+} ProjectExplorerTileResult;
 
 typedef struct ProjectExplorerState
 {
@@ -715,6 +722,231 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
   }
 }
 
+static u32 s_project_explorer_text_prefix_fit(LDKFontInstance *font,
+  const char *text, float max_width)
+{
+  const char *cursor = text;
+  const char *last_fit = text;
+
+  if (font == NULL || text == NULL || max_width <= 0.0f)
+  {
+    return 0;
+  }
+
+  while (*cursor != '\0')
+  {
+    const char *next = cursor;
+    u32 codepoint = 0;
+
+    if (!ldk_ttf_utf8_consume_codepoint(&next, &codepoint) || next <= cursor)
+    {
+      break;
+    }
+
+    u32 byte_count = (u32)(next - text);
+    LDKTextSize text_size =
+      ldk_ttf_measure_text_cstrn(font, text, byte_count);
+
+    if (text_size.w > max_width)
+    {
+      break;
+    }
+
+    last_fit = next;
+    cursor = next;
+  }
+
+  return (u32)(last_fit - text);
+}
+
+static void s_project_explorer_text_copy(
+  char *destination, u32 capacity, const char *source, u32 length)
+{
+  if (destination == NULL || capacity == 0)
+  {
+    return;
+  }
+
+  destination[0] = '\0';
+
+  if (source == NULL)
+  {
+    return;
+  }
+
+  if (length >= capacity)
+  {
+    length = capacity - 1;
+  }
+
+  memcpy(destination, source, length);
+  destination[length] = '\0';
+}
+
+static u32 s_project_explorer_tile_text_wrap(LDKUIContext *ui,
+  const char *text, float max_width, char *first_line, u32 first_capacity,
+  char *second_line, u32 second_capacity)
+{
+  static const char ellipsis[] = "...";
+  const u32 ellipsis_length = (u32)(sizeof(ellipsis) - 1);
+
+  if (first_line == NULL || first_capacity == 0 || second_line == NULL ||
+      second_capacity == 0)
+  {
+    return 0;
+  }
+
+  first_line[0] = '\0';
+  second_line[0] = '\0';
+
+  if (ui == NULL || ui->font == NULL || text == NULL || text[0] == '\0')
+  {
+    return 0;
+  }
+
+  u32 text_length = (u32)strlen(text);
+  LDKTextSize text_size = ldk_ttf_measure_text_cstr(ui->font, text);
+
+  if (text_size.w <= max_width)
+  {
+    s_project_explorer_text_copy(
+      first_line, first_capacity, text, text_length);
+    return 1;
+  }
+
+  u32 first_length =
+    s_project_explorer_text_prefix_fit(ui->font, text, max_width);
+  s_project_explorer_text_copy(
+    first_line, first_capacity, text, first_length);
+
+  const char *remaining = text + first_length;
+  while (*remaining == ' ' || *remaining == '\t')
+  {
+    remaining++;
+  }
+
+  if (*remaining == '\0')
+  {
+    return first_line[0] != '\0' ? 1 : 0;
+  }
+
+  u32 remaining_length = (u32)strlen(remaining);
+  text_size = ldk_ttf_measure_text_cstr(ui->font, remaining);
+
+  if (text_size.w <= max_width)
+  {
+    s_project_explorer_text_copy(
+      second_line, second_capacity, remaining, remaining_length);
+    return first_line[0] != '\0' ? 2 : 1;
+  }
+
+  LDKTextSize ellipsis_size =
+    ldk_ttf_measure_text_cstr(ui->font, ellipsis);
+  float second_width = max_width - ellipsis_size.w;
+  u32 second_length =
+    s_project_explorer_text_prefix_fit(ui->font, remaining, second_width);
+  u32 second_prefix_capacity = second_capacity - 1;
+
+  if (second_prefix_capacity >= ellipsis_length)
+  {
+    second_prefix_capacity -= ellipsis_length;
+  }
+  else
+  {
+    second_prefix_capacity = 0;
+  }
+
+  if (second_length > second_prefix_capacity)
+  {
+    second_length = second_prefix_capacity;
+
+    while (second_length > 0 &&
+           (((u8)remaining[second_length] & 0xC0u) == 0x80u))
+    {
+      second_length--;
+    }
+  }
+
+  s_project_explorer_text_copy(
+    second_line, second_capacity, remaining, second_length);
+
+  if (second_capacity - (u32)strlen(second_line) > ellipsis_length)
+  {
+    strcat(second_line, ellipsis);
+  }
+
+  return first_line[0] != '\0' ? 2 : 1;
+}
+
+static void s_project_explorer_tile_label_draw(LDKUIContext *ui,
+  const char *text, LDKUIRect tile_rect, float label_y, float line_height)
+{
+  char lines[PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT]
+            [sizeof(((ProjectExplorerEntry *)0)->name.buf)] = {0};
+  float max_width = tile_rect.w - LDK_UI_DEFAULT_SPACING * 2.0f;
+  u32 line_count = s_project_explorer_tile_text_wrap(ui, text, max_width,
+    lines[0], (u32)sizeof(lines[0]), lines[1], (u32)sizeof(lines[1]));
+
+  for (u32 line_i = 0; line_i < line_count; line_i++)
+  {
+    LDKTextSize text_size =
+      ldk_ttf_measure_text_cstr(ui->font, lines[line_i]);
+    LDKUIRect line_rect = {
+      tile_rect.x + (tile_rect.w - text_size.w) * 0.5f,
+      label_y + line_height * (float)line_i,
+      text_size.w,
+      line_height,
+    };
+
+    ldk_ui_widget_label(ui, 0, lines[line_i], line_rect);
+  }
+}
+
+static ProjectExplorerTileResult s_project_explorer_tile(LDKUIContext *ui,
+  const ProjectExplorerEntry *entry, LDKUIIcon icon, float tile_width,
+  float tile_height, float line_height)
+{
+  ProjectExplorerTileResult result = {0};
+
+  if (ui == NULL || entry == NULL)
+  {
+    return result;
+  }
+
+  ldk_ui_push_id_cstr(ui, x_fs_path_cstr(&entry->path));
+
+  ldk_ui_set_next_size(
+    ui, ldk_ui_px(tile_width), ldk_ui_px(tile_height));
+  result.clicked = ldk_ui_button_flat(ui, "");
+  LDKUIRect tile_rect = ldk_ui_last_rect(ui);
+  LDKUIRect tile_bounding_rect = ldk_ui_last_bounding_rect(ui);
+  LDKUIId tile_id = ui->last_id;
+  result.pressed = ui->mouse != NULL && ui->active_id == tile_id &&
+                   ldk_os_mouse_button_down(
+                     (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+
+  LDKUIRect icon_rect = {
+    tile_rect.x + (tile_rect.w - icon.size.w) * 0.5f,
+    tile_rect.y + LDK_UI_DEFAULT_SPACING,
+    icon.size.w,
+    icon.size.h,
+  };
+
+  ldk_ui_widget_icon_label(ui, 0, icon, "", icon_rect);
+
+  float label_y =
+    icon_rect.y + icon_rect.h + LDK_UI_DEFAULT_SPACING;
+  s_project_explorer_tile_label_draw(
+    ui, entry->name.buf, tile_rect, label_y, line_height);
+
+  ui->last_rect = tile_rect;
+  ui->last_bounding_rect = tile_bounding_rect;
+  ui->last_id = tile_id;
+
+  ldk_ui_pop_id(ui);
+  return result;
+}
+
 static void s_project_explorer_entries_draw(LDKEditorContext *editor,
   ProjectExplorerState *state, LDKUIContext *ui,
   LDKUIIcon folder_icon, LDKUIIcon file_icon)
@@ -751,8 +983,10 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
   }
 
   float tile_w = state->icon_size + 32.0f;
-  float tile_h =
-    state->icon_size + LDK_UI_DEFAULT_CONTROL_HEIGHT + 12.0f;
+  float line_height = ldk_ttf_get_line_height(ui->font);
+  float tile_h = state->icon_size +
+                 line_height * PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT +
+                 LDK_UI_DEFAULT_SPACING * 3.0f;
   float available_w = ui->current_layout != NULL
                         ? ui->current_layout->content_rect.w
                         : tile_w;
@@ -775,20 +1009,11 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
       ProjectExplorerEntry *entry =
         s_project_explorer_entry_get(state, tile_index, &is_directory);
 
-      ldk_ui_set_next_size(ui, ldk_ui_px(tile_w), ldk_ui_px(tile_h));
-      ldk_ui_begin_vertical(ui);
+      ProjectExplorerTileResult result = s_project_explorer_tile(ui, entry,
+        is_directory ? folder_icon : file_icon, tile_w, tile_h, line_height);
 
-      ldk_ui_set_next_size(
-        ui, ldk_ui_px(state->icon_size), ldk_ui_px(state->icon_size));
-      bool icon_clicked =
-        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon, NULL);
-
-      ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-      bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
-
-      ldk_ui_end_vertical(ui);
-
-      if (icon_clicked || label_clicked)
+      if ((is_directory && result.clicked) ||
+          (!is_directory && result.pressed))
       {
         s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }

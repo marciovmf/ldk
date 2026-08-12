@@ -1,0 +1,39 @@
+scene:
+  version: 1
+  entities:
+    - entity: 0
+      parent: -1
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0, 0, 0
+            local_scale: 1, 1, 1
+            local_rotation: 0, 0, 0, 1
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+    - entity: 1
+      parent: -1
+      name: "Sphere"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0, 0, 0
+            local_scale: 1, 1, 1
+            local_rotation: 0, 0, 0, 1
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/sphere"
+    - entity: 2
+      parent: -1
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0, 0, 0
+            local_scale: 1, 1, 1
+            local_rotation: 0, 0, 0, 1
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
