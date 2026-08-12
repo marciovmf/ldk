@@ -127,4 +127,11 @@ bool ldk_editor_internal_dock_set_current(const char *layout_name);
 bool ldk_editor_internal_dock_layout_create(const char *layout_name);
 bool ldk_editor_internal_dock_layout_delete(const char *layout_name);
 
+
+bool ldk_editor_internal_editor_entity_equal(LDKEntity a, LDKEntity b);
+void ldk_editor_internal_editor_entity_display_name(
+const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
+bool ldk_editor_internal_selected_entity_get(LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
+
+
 #endif // LDK_EDITOR_INTERNAL
