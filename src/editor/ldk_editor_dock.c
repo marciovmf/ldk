@@ -1,3 +1,5 @@
+#include "../ldk_stdx.h"
+#include "ldk_editor_internal.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -71,32 +73,6 @@ enum
   LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
   LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
 };
-
-// Editor window IDs are stored in the docking layout and must therefore be
-// stable across runs. The value is intentionally just an application-defined
-// integer. It must be non-zero and unique among the windows registered by the
-// editor and its tools. Do not use an address as an ID.
-
-typedef u32 LDKEditorWindowId;
-
-typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
-
-typedef struct LDKEditorWindow
-{
-  LDKEditorWindowId id;
-  const char *title;
-  LDKEditorWindowFunction function;
-  void *data;
-} LDKEditorWindow;
-
-// Stable IDs reserved by the editor. User tools should define their own
-// persistent non-zero values outside this range.
-
-#define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
-#define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
-#define LDK_EDITOR_WINDOW_SCENE2 ((LDKEditorWindowId)0x4C444B99u)
-#define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
-#define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
 
 typedef enum LDKEditorDockNodeType
 {
@@ -3308,7 +3284,7 @@ static void s_editor_dock_layout_reset_preserving_windows(
   s_editor_dock_resize_reset(&dock->resize);
 }
 
-static bool ldk_editor_dock_init(LDKEditorContext *editor)
+bool ldk_editor_dock_init(LDKEditorContext *editor)
 {
   if (editor == NULL)
   {
@@ -3364,7 +3340,7 @@ static bool ldk_editor_dock_init(LDKEditorContext *editor)
   return true;
 }
 
-static void ldk_editor_dock_update(LDKEditorContext *editor)
+void ldk_editor_dock_update(LDKEditorContext *editor)
 {
   LDKEditorDockState *dock = &s_editor_dock;
   if (editor == NULL || !dock->initialized)
@@ -3391,7 +3367,7 @@ static void ldk_editor_dock_update(LDKEditorContext *editor)
   }
 }
 
-static void ldk_editor_dock_terminate(LDKEditorContext *editor)
+void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
 

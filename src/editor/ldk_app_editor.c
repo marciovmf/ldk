@@ -397,9 +397,6 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_window(ui);
 }
 
-/* POC implementation. */
-#include "ldk_editor_dock.c"
-
 #define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
 #define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
 

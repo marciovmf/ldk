@@ -124,10 +124,11 @@ bool ldki_editor_dock_set_current(const char *layout_name);
 bool ldki_editor_dock_layout_create(const char *layout_name);
 bool ldki_editor_dock_layout_delete(const char *layout_name);
 
+bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b);
 void ldki_editor_entity_display_name(
     const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
-bool ldki_editor_editor_entity_equal(LDKEntity a, LDKEntity b);
-void ldki_editor_editor_entity_display_name(
+
+void ldki_editor_entity_display_name(
     const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
 bool ldki_editor_selected_entity_get(
     LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
@@ -137,7 +138,33 @@ bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
 bool ldki_editor_scene_new(LDKEditorContext *editor);
+
 bool ldki_editor_scene_add_primitive(
     LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
+
+
+// Editor window IDs are stored in the docking layout and must therefore be
+// stable across runs. The value is intentionally just an application-defined
+// integer. It must be non-zero and unique among the windows registered by the
+// editor and its tools. Do not use an address as an ID.
+
+typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
+typedef u32 LDKEditorWindowId;
+
+typedef struct LDKEditorWindow
+{
+  LDKEditorWindowId id;
+  const char *title;
+  LDKEditorWindowFunction function;
+  void *data;
+} LDKEditorWindow;
+
+// Stable IDs reserved by the editor. User tools should define their own
+// persistent non-zero values outside this range.
+
+#define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
+#define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
+#define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
+#define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
 
 #endif // LDK_EDITOR_INTERNAL
