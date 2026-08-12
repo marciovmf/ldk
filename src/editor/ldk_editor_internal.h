@@ -128,6 +128,8 @@ bool ldk_editor_internal_dock_layout_create(const char *layout_name);
 bool ldk_editor_internal_dock_layout_delete(const char *layout_name);
 
 
+void ldk_editor_internal_entity_display_name(
+  const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
 bool ldk_editor_internal_editor_entity_equal(LDKEntity a, LDKEntity b);
 void ldk_editor_internal_editor_entity_display_name(
 const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
