@@ -9,12 +9,12 @@ static u64 s_editor_entity_id(LDKEntity entity)
   return id;
 }
 
-bool ldk_editor_internal_entity_equal(LDKEntity a, LDKEntity b)
+bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b)
 {
   return memcmp(&a, &b, sizeof(a)) == 0;
 }
 
-bool ldk_editor_internal_selected_entity_get(
+bool ldki_editor_selected_entity_get(
     LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity)
 {
   if (!editor || !ecs ||
@@ -34,7 +34,7 @@ bool ldk_editor_internal_selected_entity_get(
   return true;
 }
 
-void ldk_editor_internal_entity_display_name(
+void ldki_editor_entity_display_name(
     const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size)
 {
   const char *name = NULL;
@@ -52,8 +52,7 @@ void ldk_editor_internal_entity_display_name(
   }
   else
   {
-    snprintf(out, out_size, "Entity 0x%016" PRIx64,
-        s_editor_entity_id(entity));
+    snprintf(out, out_size, "Entity 0x%016" PRIx64, s_editor_entity_id(entity));
   }
 }
 
@@ -78,7 +77,7 @@ static i32 s_editor_hierarchy_expanded_index(
   for (u32 i = 0; i < x_array_count(editor->hierarchy_expanded_entities); ++i)
   {
     LDKEntity *expanded = x_array_get(editor->hierarchy_expanded_entities, i);
-    if (expanded != NULL && ldk_editor_internal_entity_equal(*expanded, entity))
+    if (expanded != NULL && ldki_editor_entity_equal(*expanded, entity))
     {
       return (i32)i;
     }
@@ -119,28 +118,30 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
 {
   LDKUIContext *ui = &editor->ui;
   const LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, entity);
-  const LDKTransform *transform = ldk_entity_transform_get_const(
-      &ecs->entity, &ecs->component, entity);
-  LDKEntity first_child = transform != NULL
-                            ? transform->first_child
-                            : x_handle_null();
+  const LDKTransform *transform =
+      ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
+  LDKEntity first_child =
+      transform != NULL ? transform->first_child : x_handle_null();
   bool has_children = !x_handle_is_null(first_child) &&
                       ldk_entity_is_alive(&ecs->entity, first_child);
-  bool expanded = has_children &&
-                  s_editor_hierarchy_expanded_get(editor, entity);
+  bool expanded =
+      has_children && s_editor_hierarchy_expanded_get(editor, entity);
   u32 flags = has_children ? LDK_UI_TREE_NODE_NONE : LDK_UI_TREE_NODE_LEAF;
   char label[LDK_ENTITY_NAME_MAX_LEN + 32];
   u64 id = s_editor_entity_id(entity);
 
   LDKUIIcon icon = {0};
-  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color =
+      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
-  ldk_editor_internal_entity_display_name(info, entity, label, sizeof(label));
+  ldki_editor_entity_display_name(info, entity, label, sizeof(label));
 
-  if (*has_selection && ldk_editor_internal_entity_equal(*selected_entity, entity))
+  if (*has_selection && ldki_editor_entity_equal(*selected_entity, entity))
   {
     flags |= LDK_UI_TREE_NODE_SELECTED;
   }
@@ -148,8 +149,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   ldk_ui_push_id_u32(ui, (u32)id);
   ldk_ui_push_id_u32(ui, (u32)(id >> 32));
 
-  u32 result = ldk_ui_tree_node_ex(
-      ui, label, icon, expanded, depth, flags);
+  u32 result = ldk_ui_tree_node_ex(ui, label, icon, expanded, depth, flags);
 
   if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
   {
@@ -180,14 +180,14 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
       break;
     }
 
-    const LDKTransform *child_transform = ldk_entity_transform_get_const(
-        &ecs->entity, &ecs->component, child);
+    const LDKTransform *child_transform =
+        ldk_entity_transform_get_const(&ecs->entity, &ecs->component, child);
     LDKEntity next_sibling = child_transform != NULL
-                               ? child_transform->next_sibling
-                               : x_handle_null();
+                                 ? child_transform->next_sibling
+                                 : x_handle_null();
 
-    s_editor_hierarchy_entity_draw(editor, ecs, child, depth + 1,
-        selected_entity, has_selection);
+    s_editor_hierarchy_entity_draw(
+        editor, ecs, child, depth + 1, selected_entity, has_selection);
 
     child = next_sibling;
   }
@@ -203,9 +203,12 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   bool has_selection = false;
 
   LDKUIIcon icon = {0};
-  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color =
+      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
   if (editor == NULL || ecs == NULL)
@@ -213,13 +216,13 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     return;
   }
 
-  has_selection = ldk_editor_internal_selected_entity_get(
-      editor, ecs, &selected_entity);
+  has_selection =
+      ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
 
   if (owns_window)
   {
-    window_rect = ldk_ui_begin_window(
-      ui, "HIERARCHY", window_rect, LDK_UI_WINDOW_TOOL);
+    window_rect =
+        ldk_ui_begin_window(ui, "HIERARCHY", window_rect, LDK_UI_WINDOW_TOOL);
   }
 
   if (!s_editor_hierarchy_initialize(editor))
@@ -259,8 +262,9 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
       }
 
       ldk_ui_push_id_u32(ui, i);
-      ldk_ui_tree_node_ex(ui, desc.name != NULL ? desc.name : "<unnamed system>",
-          icon, false, 1, LDK_UI_TREE_NODE_LEAF);
+      ldk_ui_tree_node_ex(ui,
+          desc.name != NULL ? desc.name : "<unnamed system>", icon, false, 1,
+          LDK_UI_TREE_NODE_LEAF);
       ldk_ui_pop_id(ui);
     }
   }
@@ -281,8 +285,8 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
     while (ldk_entity_iterator_next(&it, &entity))
     {
-      const LDKTransform *transform = ldk_entity_transform_get_const(
-          &ecs->entity, &ecs->component, entity);
+      const LDKTransform *transform =
+          ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
 
       if (transform != NULL && !x_handle_is_null(transform->parent) &&
           ldk_entity_is_alive(&ecs->entity, transform->parent))

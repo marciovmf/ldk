@@ -440,7 +440,7 @@ if (OPTION_BUILD_EDITOR)
     message(FATAL_ERROR "OPTION_BUILD_EDITOR cannot use OPTION_LDK_USE_PREBUILT. Build the editor with the engine sources.")
   endif()
 
-  add_executable(ldk_editor src/ldk_app_editor.c
+  add_executable(ldk_editor src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_console.c
@@ -544,7 +544,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     OUTPUT_DIR "${OPTION_GAME_DIR}/bin/$<CONFIG>"
   )
 
-  add_executable(ldk_launcher src/ldk_app_launcher.c)
+  add_executable(ldk_launcher src/launcher/ldk_app_launcher.c)
   ldk_target_defaults(ldk_launcher)
 
   target_include_directories(ldk_launcher PRIVATE

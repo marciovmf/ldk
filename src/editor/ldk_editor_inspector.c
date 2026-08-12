@@ -21,35 +21,35 @@ typedef struct LDKEditorInspectorInputState
 } LDKEditorInspectorInputState;
 
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
-static char s_editor_inspector_input_buffer[
-  LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
+static char
+    s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
 static void s_editor_inspector_input_state_clear(void)
 {
   memset(&s_editor_inspector_input_state, 0,
-         sizeof(s_editor_inspector_input_state));
+      sizeof(s_editor_inspector_input_state));
 }
 
 static bool s_editor_inspector_input_state_matches(LDKEntity entity,
-                                                   u32 component_type, const LDKComponentFieldMeta *field, u32 value_index)
+    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index)
 {
   return s_editor_inspector_input_state.valid &&
-    ldk_editor_internal_entity_equal(s_editor_inspector_input_state.entity, entity) &&
-    s_editor_inspector_input_state.component_type == component_type &&
-    s_editor_inspector_input_state.field_offset == field->offset &&
-    s_editor_inspector_input_state.value_index == value_index;
+         ldki_editor_entity_equal(
+             s_editor_inspector_input_state.entity, entity) &&
+         s_editor_inspector_input_state.component_type == component_type &&
+         s_editor_inspector_input_state.field_offset == field->offset &&
+         s_editor_inspector_input_state.value_index == value_index;
 }
 
 static u32 s_editor_inspector_input_box(
-  LDKUIContext *ui, char *buffer, u32 buffer_size)
+    LDKUIContext *ui, char *buffer, u32 buffer_size)
 {
   return ldk_ui_input_box(ui, buffer, buffer_size);
 }
 
 static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
-                                              LDKEntity entity, u32 component_type,
-                                              const LDKComponentFieldMeta *field, u32 value_index, char *buffer,
-                                              u32 buffer_size)
+    LDKEntity entity, u32 component_type, const LDKComponentFieldMeta *field,
+    u32 value_index, char *buffer, u32 buffer_size)
 {
   bool state_matches;
   char *input_buffer;
@@ -61,7 +61,7 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
   }
 
   state_matches = s_editor_inspector_input_state_matches(
-    entity, component_type, field, value_index);
+      entity, component_type, field, value_index);
 
   if (state_matches && s_editor_inspector_input_state.widget_id != 0 &&
       ui->focused_id != s_editor_inspector_input_state.widget_id)
@@ -77,12 +77,12 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
   else
   {
     snprintf(s_editor_inspector_input_buffer,
-             sizeof(s_editor_inspector_input_buffer), "%s", buffer);
+        sizeof(s_editor_inspector_input_buffer), "%s", buffer);
     input_buffer = s_editor_inspector_input_buffer;
   }
 
-  result = s_editor_inspector_input_box(ui, input_buffer,
-                                        LDK_EDITOR_INSPECTOR_INPUT_CAPACITY);
+  result = s_editor_inspector_input_box(
+      ui, input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY);
 
   if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
   {
@@ -103,7 +103,7 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
       s_editor_inspector_input_state.value_index = value_index;
       s_editor_inspector_input_state.widget_id = ui->last_id;
       snprintf(s_editor_inspector_input_state.buffer,
-               sizeof(s_editor_inspector_input_state.buffer), "%s", input_buffer);
+          sizeof(s_editor_inspector_input_state.buffer), "%s", input_buffer);
       s_editor_inspector_input_state.valid = true;
     }
   }
@@ -174,9 +174,8 @@ static bool s_editor_inspector_parse_float(const char *text, float *out_value)
   return true;
 }
 
-static void s_editor_inspector_field_value_format(
-  char *out, size_t out_size, const LDKComponentFieldMeta *field,
-  const void *value)
+static void s_editor_inspector_field_value_format(char *out, size_t out_size,
+    const LDKComponentFieldMeta *field, const void *value)
 {
   switch (field->type)
   {
@@ -202,22 +201,22 @@ static void s_editor_inspector_field_value_format(
   case LDK_FIELD_VEC3:
   {
     const Vec3 *v = (const Vec3 *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g",
-             (double)v->x, (double)v->y, (double)v->z);
+    snprintf(out, out_size, "%.9g, %.9g, %.9g", (double)v->x, (double)v->y,
+        (double)v->z);
     break;
   }
   case LDK_FIELD_VEC4:
   {
     const Vec4 *v = (const Vec4 *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g",
-             (double)v->x, (double)v->y, (double)v->z, (double)v->w);
+    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g", (double)v->x,
+        (double)v->y, (double)v->z, (double)v->w);
     break;
   }
   case LDK_FIELD_QUAT:
   {
     const Quat *q = (const Quat *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g",
-             (double)q->x, (double)q->y, (double)q->z, (double)q->w);
+    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g", (double)q->x,
+        (double)q->y, (double)q->z, (double)q->w);
     break;
   }
   case LDK_FIELD_MAT4:
@@ -227,7 +226,7 @@ static void s_editor_inspector_field_value_format(
   {
     LDKEntity entity;
     memcpy(&entity, value, sizeof(entity));
-    //snprintf(out, out_size, "0x%016" PRIx64, s_editor_entity_id(entity));
+    // snprintf(out, out_size, "0x%016" PRIx64, s_editor_entity_id(entity));
     break;
   }
   case LDK_FIELD_ASSET_MESH:
@@ -243,8 +242,8 @@ static void s_editor_inspector_field_value_format(
 }
 
 static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
-                                           u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
-                                           float *value, bool readonly)
+    u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
+    float *value, bool readonly)
 {
   char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
   float original;
@@ -260,8 +259,8 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
   snprintf(buffer, sizeof(buffer), "%.9g", (double)original);
 
   ldk_ui_begin_disabled(ui, readonly);
-  result = s_editor_inspector_field_input_box(ui, entity, component_type,
-                                              field, value_index, buffer, (u32)sizeof(buffer));
+  result = s_editor_inspector_field_input_box(ui, entity, component_type, field,
+      value_index, buffer, (u32)sizeof(buffer));
   ldk_ui_end_disabled(ui);
 
   if (readonly || (result & LDK_UI_INPUT_BOX_CHANGED) == 0)
@@ -280,7 +279,7 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
 }
 
 static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
-                                                     u32 component_type, const LDKComponentFieldMeta *field, const void *value)
+    u32 component_type, const LDKComponentFieldMeta *field, const void *value)
 {
   if (component_type != LDK_COMPONENT_TYPE_TRANSFORM || !field || !value)
   {
@@ -309,8 +308,8 @@ static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
 }
 
 static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
-                                          u32 component_type, const LDKComponentMeta *meta,
-                                          const LDKComponentFieldMeta *field, void *component)
+    u32 component_type, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, void *component)
 {
   char value_text[128];
   u8 *field_value;
@@ -357,8 +356,8 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
 
     snprintf(buffer, sizeof(buffer), "%d", original);
     ldk_ui_begin_disabled(ui, readonly);
-    result = s_editor_inspector_field_input_box(ui, entity, component_type,
-                                                field, 0, buffer, (u32)sizeof(buffer));
+    result = s_editor_inspector_field_input_box(
+        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer));
     ldk_ui_end_disabled(ui);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -384,8 +383,8 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
 
     snprintf(buffer, sizeof(buffer), "%u", original);
     ldk_ui_begin_disabled(ui, readonly);
-    result = s_editor_inspector_field_input_box(ui, entity, component_type,
-                                                field, 0, buffer, (u32)sizeof(buffer));
+    result = s_editor_inspector_field_input_box(
+        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer));
     ldk_ui_end_disabled(ui);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -420,8 +419,8 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
     }
     else
     {
-      if (s_editor_inspector_float_input(ui, entity, component_type, field,
-                                         0, &value, readonly))
+      if (s_editor_inspector_float_input(
+              ui, entity, component_type, field, 0, &value, readonly))
       {
         *(float *)field_value = value;
       }
@@ -436,11 +435,11 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
     bool changed = false;
 
     ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 0, &value.x, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 0, &value.x, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 1, &value.y, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 1, &value.y, readonly);
 
     if (changed)
     {
@@ -456,17 +455,17 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
     bool changed = false;
 
     ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 0, &value.x, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 0, &value.x, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 1, &value.y, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 1, &value.y, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 2, &value.z, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 2, &value.z, readonly);
 
     if (changed && !s_editor_inspector_transform_field_apply(
-          entity, component_type, field, &value))
+                       entity, component_type, field, &value))
     {
       *(Vec3 *)field_value = value;
     }
@@ -480,17 +479,17 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
     bool changed = false;
 
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 0, &value.x, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 0, &value.x, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 1, &value.y, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 1, &value.y, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 2, &value.z, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 2, &value.z, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 3, &value.w, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 3, &value.w, readonly);
 
     if (changed)
     {
@@ -506,20 +505,20 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
     bool changed = false;
 
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 0, &value.x, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 0, &value.x, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 1, &value.y, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 1, &value.y, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 2, &value.z, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 2, &value.z, readonly);
     ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
-    changed |= s_editor_inspector_float_input(ui, entity, component_type,
-                                              field, 3, &value.w, readonly);
+    changed |= s_editor_inspector_float_input(
+        ui, entity, component_type, field, 3, &value.w, readonly);
 
     if (changed && !s_editor_inspector_transform_field_apply(
-          entity, component_type, field, &value))
+                       entity, component_type, field, &value))
     {
       *(Quat *)field_value = value;
     }
@@ -532,7 +531,7 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
   case LDK_FIELD_RESOURCE_MESH:
   default:
     s_editor_inspector_field_value_format(
-      value_text, sizeof(value_text), field, field_value);
+        value_text, sizeof(value_text), field, field_value);
     ldk_ui_label(ui, value_text);
     break;
   }
@@ -541,7 +540,7 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
   ldk_ui_pop_id(ui);
 }
 
-void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
+void ldki_editor_inspector_show(LDKEditorContext *editor)
 {
   static LDKUIPoint scroll = {0};
   LDKECS *ecs;
@@ -559,7 +558,7 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
 
-  if (!ecs || !game || !ldk_editor_internal_selected_entity_get(editor, ecs, &entity))
+  if (!ecs || !game || !ldki_editor_selected_entity_get(editor, ecs, &entity))
   {
     ldk_ui_label(ui, "No entity selected.");
     return;
@@ -574,33 +573,37 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
   }
 
   scroll = ldk_ui_begin_scrollview(
-    ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  ldk_editor_internal_entity_display_name(info, entity, entity_name, sizeof(entity_name));
+  ldki_editor_entity_display_name(
+      info, entity, entity_name, sizeof(entity_name));
 
   LDKUIIcon icon = {0};
-  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color =
+      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
   ldk_ui_icon_label(ui, icon, entity_name);
   ldk_ui_horizontal_line(ui);
-  
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
-  for (u32 component_i = 0;
-       component_i < info->components.component_count; component_i++)
+  for (u32 component_i = 0; component_i < info->components.component_count;
+      component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
     const LDKComponentMeta *meta =
-      ldk_scene_component_meta_find_by_type(game, component_type);
-    const char *component_name = meta
-      ? meta->name
-      : ldk_component_name_get(&ecs->component, component_type);
+        ldk_scene_component_meta_find_by_type(game, component_type);
+    const char *component_name =
+        meta ? meta->name
+             : ldk_component_name_get(&ecs->component, component_type);
     void *component = ldk_ecs_component_get(entity, component_type);
 
     ldk_ui_push_id_u32(ui, component_type);
-    ldk_ui_icon_label(ui, icon, component_name ? component_name : "<unknown component>");
+    ldk_ui_icon_label(
+        ui, icon, component_name ? component_name : "<unknown component>");
     ldk_ui_horizontal_line(ui);
 
     if (!meta)
@@ -609,7 +612,7 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
     }
     else if (!component)
     {
-      ldk_ui_icon_label(ui, icon,  "Component data unavailable.");
+      ldk_ui_icon_label(ui, icon, "Component data unavailable.");
     }
     else
     {
@@ -620,8 +623,8 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
        */
       for (u32 field_i = 0; field_i < meta->field_count; field_i++)
       {
-        s_editor_inspector_field_draw(ui, entity, component_type,
-                                      meta, &meta->fields[field_i], component);
+        s_editor_inspector_field_draw(ui, entity, component_type, meta,
+            &meta->fields[field_i], component);
       }
     }
 
@@ -631,4 +634,3 @@ void ldk_editor_internal_inspector_show(LDKEditorContext *editor)
 
   ldk_ui_end_scrollview(ui);
 }
-

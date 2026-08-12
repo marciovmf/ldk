@@ -1,12 +1,11 @@
 #include "ldk_editor_internal.h"
 #include <ldk_scene.h>
 
-enum
-{
-  PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
-  PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
-  PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
-  PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
+enum{
+    PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
+    PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
+    PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
+    PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
 };
 
 #define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
@@ -55,7 +54,6 @@ static ProjectExplorerState s_project_explorer_state = {
     .root_expanded = true,
     .icon_size = 48.0f,
 };
-
 
 static bool s_project_explorer_initialize(ProjectExplorerState *state)
 {
@@ -352,9 +350,9 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
   state->selected_file = entry->path;
   state->last_click_ticks = double_click ? 0 : now;
 
-  if (double_click && ldk_editor_internal_scene_path_is_scene(&entry->path))
+  if (double_click && ldki_editor_scene_path_is_scene(&entry->path))
   {
-    ldk_editor_internal_scene_load(editor, &entry->path);
+    ldki_editor_scene_load(editor, &entry->path);
   }
 }
 

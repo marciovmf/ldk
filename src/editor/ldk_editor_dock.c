@@ -3032,7 +3032,7 @@ cleanup:
   return ok;
 }
 
-u32 ldk_editor_internal_dock_layout_count(void)
+u32 ldki_editor_dock_layout_count(void)
 {
   if (!s_editor_dock.initialized ||
       s_editor_dock_layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
@@ -3043,7 +3043,7 @@ u32 ldk_editor_internal_dock_layout_count(void)
   return s_editor_dock_layouts.layout_count;
 }
 
-const char *ldk_editor_internal_dock_layout_name_get(u32 index)
+const char *ldki_editor_dock_layout_name_get(u32 index)
 {
   if (!s_editor_dock.initialized ||
       index >= s_editor_dock_layouts.layout_count ||
@@ -3055,7 +3055,7 @@ const char *ldk_editor_internal_dock_layout_name_get(u32 index)
   return s_editor_dock_layouts.layouts[index].name;
 }
 
-const char *ldk_editor_internal_dock_layout_current_name_get(void)
+const char *ldki_editor_dock_layout_current_name_get(void)
 {
   if (!s_editor_dock.initialized || s_editor_dock_layouts.current_layout >=
                                         s_editor_dock_layouts.layout_count)
@@ -3071,7 +3071,7 @@ const char *ldk_editor_internal_dock_layout_current_name_get(void)
  * Creates a new named layout from the current live dock state, appends it to
  * the layout collection, and makes it the current layout.
  */
-bool ldk_editor_internal_dock_layout_create(const char *layout_name)
+bool ldki_editor_dock_layout_create(const char *layout_name)
 {
   LDKEditorDockLayouts layouts = s_editor_dock_layouts;
   LDKEditorDockLayout layout;
@@ -3136,7 +3136,7 @@ bool ldk_editor_internal_dock_layout_create(const char *layout_name)
  * Saves changes to the outgoing layout, applies the requested layout, and
  * marks it as current. Nothing is committed if snapshotting or applying fails.
  */
-bool ldk_editor_internal_dock_set_current(const char *layout_name)
+bool ldki_editor_dock_set_current(const char *layout_name)
 {
   LDKEditorDockLayouts layouts = s_editor_dock_layouts;
   LDKEditorDockLayout outgoing_layout;
@@ -3184,7 +3184,7 @@ bool ldk_editor_internal_dock_set_current(const char *layout_name)
  * Deletes a named layout. The default layout cannot be deleted. If the
  * deleted layout is current, the default layout is applied and made current.
  */
-bool ldk_editor_internal_dock_layout_delete(const char *layout_name)
+bool ldki_editor_dock_layout_delete(const char *layout_name)
 {
   LDKEditorDockLayouts layouts = s_editor_dock_layouts;
   LDKEditorDockState dock = s_editor_dock;
@@ -3240,7 +3240,7 @@ bool ldk_editor_internal_dock_layout_delete(const char *layout_name)
   return true;
 }
 
-bool ldk_editor_internal_dock_layout_save(XStrBuilder *out)
+bool ldki_editor_dock_layout_save(XStrBuilder *out)
 {
   XFSPath path = {0};
   const char *appdata = getenv("APPDATA");
@@ -3251,7 +3251,7 @@ bool ldk_editor_internal_dock_layout_save(XStrBuilder *out)
   return x_io_write_text(path.buf, x_strbuilder_to_string(out));
 }
 
-bool ldk_editor_internal_dock_layout_load(const char *layout_name)
+bool ldki_editor_dock_layout_load(const char *layout_name)
 {
   XFSPath path = {0};
   const char *appdata = getenv("APPDATA");

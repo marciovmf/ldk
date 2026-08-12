@@ -54,7 +54,6 @@ static void s_editor_console(LDKEditorContext *editor)
   }
 }
 
-
 void ldk_editor_console_show(LDKEditor *editor)
 {
   s_editor_console(editor);

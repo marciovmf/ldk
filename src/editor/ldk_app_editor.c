@@ -1,5 +1,5 @@
 #define LDK_IMPL_STDX
-#include "ldk_stdx.h"
+#include "../ldk_stdx.h"
 
 #include <ldk_common.h>
 #include <ldk_game.h>
@@ -13,7 +13,7 @@
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_scene_manager.h>
-#include "editor/ldk_editor_internal.h"
+#include "ldk_editor_internal.h"
 
 #ifndef LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY
 #define LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY 256
@@ -147,7 +147,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       // CTRL+O
       if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
       {
-        ldk_editor_internal_show_open_project_dialog(editor, NULL);
+        ldki_editor_show_open_project_dialog(editor, NULL);
         return true;
       }
     }
@@ -192,7 +192,7 @@ static bool on_event_window(const LDKEvent *event, void *state)
 
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
-    ldk_editor_internal_confirm_quit(editor);
+    ldki_editor_confirm_quit(editor);
     return true; // Do not propagate this message further
   }
   return false;
@@ -398,7 +398,7 @@ static void s_editor_test_b(LDKEditor *editor)
 }
 
 /* POC implementation. */
-#include "editor/ldk_editor_dock.c"
+#include "ldk_editor_dock.c"
 
 #define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
 #define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
@@ -469,7 +469,7 @@ static void s_editor_inspector_content_window(
     LDKEditor *opaque_editor, void *data)
 {
   (void)data;
-  ldk_editor_internal_inspector_show((LDKEditorContext *)opaque_editor);
+  ldki_editor_inspector_show((LDKEditorContext *)opaque_editor);
 }
 
 static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
@@ -486,33 +486,31 @@ static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
   // LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  // ldk_editor_internal_toolbar_show((LDKEditor *)editor);
+  // ldki_editor_toolbar_show((LDKEditor *)editor);
   // ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
   // s_editor_test_b(editor);
   // s_editor_test_treeview(editor);
-  // ldk_editor_internal_menubar_show(editor);
+  // ldki_editor_menubar_show(editor);
   // ldk_editor_console_show(editor);
   // ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
 
-  ldk_editor_internal_toolbar_show((LDKEditor *)editor);
+  ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
-  ldk_editor_internal_menubar_show(editor);
+  ldki_editor_menubar_show(editor);
 
   if (editor->show_input_window)
   {
-    u32 input_result =
-        ldk_editor_internal_input_window(editor, "SAVE LAYOUT AS");
+    u32 input_result = ldki_editor_input_window(editor, "SAVE LAYOUT AS");
 
     if ((input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0 &&
-        ldk_editor_internal_layout_save_as(editor))
+        ldki_editor_layout_save_as(editor))
     {
       editor->show_input_window = false;
     }
   }
 
   if (editor->create_project_window_show)
-    ldk_editor_internal_project_create_show(
-        (LDKEditorContext *)ldk_editor_get());
+    ldki_editor_project_create_show((LDKEditorContext *)ldk_editor_get());
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
@@ -665,8 +663,7 @@ static bool s_editor_gui_initialize(
     return false;
   }
 
-  ldk_editor_internal_theme_icons_set(
-      editor, &editor->ui.theme); // set theme icons
+  ldki_editor_theme_icons_set(editor, &editor->ui.theme); // set theme icons
   return true;
 }
 
@@ -871,7 +868,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
 // public Internal functions
 //----------------------------------------------------------
 
-void ldk_editor_internal_confirm_quit(LDKEditorContext *editor)
+void ldki_editor_confirm_quit(LDKEditorContext *editor)
 {
   bool close = false;
 
@@ -891,8 +888,7 @@ void ldk_editor_internal_confirm_quit(LDKEditorContext *editor)
   }
 }
 
-void ldk_editor_internal_theme_icons_set(
-    LDKEditorContext *editor, LDKUITheme *theme)
+void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme)
 {
   LDKUIIcon icon = {0};
   icon.color = 0xFFFFFFFF;
@@ -922,7 +918,7 @@ void ldk_editor_internal_theme_icons_set(
   theme->icons[LDK_UI_THEME_ICON_EJECT] = icon;
 }
 
-bool ldk_editor_internal_show_open_project_dialog(
+bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out)
 {
   XFSPath out = {0};
@@ -988,7 +984,7 @@ bool ldk_editor_project_load(LDKEditor *editor, const char *project_path)
 
 void ldk_editor_quit(LDKEditor *editor)
 {
-  ldk_editor_internal_confirm_quit((LDKEditorContext *)editor);
+  ldki_editor_confirm_quit((LDKEditorContext *)editor);
 }
 
 //----------------------------------------------------------
@@ -1000,7 +996,7 @@ static i32 s_editor_main(const char *project_file_path)
   LDKEditorContext *editor = s_editor_instance();
   editor->console_sb = x_strbuilder_create();
 
-  ldk_editor_internal_register_commands(editor);
+  ldki_editor_register_commands(editor);
 
   XIni ini = {0};
   XIniError ini_error = {0};
@@ -1157,7 +1153,7 @@ static i32 s_editor_main(const char *project_file_path)
   }
 
   // load layout
-  ldk_editor_internal_dock_layout_load(NULL);
+  ldki_editor_dock_layout_load(NULL);
 
   s_editor_set_title(editor);
   XFSPath cmake_path = s_editor_cmake_path_get(editor->window);

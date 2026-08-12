@@ -7,7 +7,6 @@
 #include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
-#include <inttypes.h> // for PRIu64
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,7 +24,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
 
-  ldk_editor_internal_scene_state_sync(editor);
+  ldki_editor_scene_state_sync(editor);
 
   static LDKUIRect s_toolbar_rect = {0, 0, 0, 0};
   static LDKUIRect s_file_popup_rect = {0, 0, 1024, 1024};
@@ -92,7 +91,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_edit_scene);
     if (ldk_ui_button_flat(ui, "New Scene"))
     {
-      ldk_editor_internal_scene_new(editor);
+      ldki_editor_scene_new(editor);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -100,7 +99,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
         ui, !can_edit_scene || editor->current_scene_path.length == 0);
     if (ldk_ui_button_flat(ui, "Save Scene"))
     {
-      ldk_editor_internal_scene_save(editor);
+      ldki_editor_scene_save(editor);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -166,15 +165,14 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Cube"))
     {
-      ldk_editor_internal_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_CUBE, "Cube");
+      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_CUBE, "Cube");
       ldk_ui_close_current_popup(ui);
     }
 
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Sphere"))
     {
-      ldk_editor_internal_scene_add_primitive(
+      ldki_editor_scene_add_primitive(
           editor, LDK_MESH_PRIMITIVE_SPHERE, "Sphere");
       ldk_ui_close_current_popup(ui);
     }
@@ -182,7 +180,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Capsule"))
     {
-      ldk_editor_internal_scene_add_primitive(
+      ldki_editor_scene_add_primitive(
           editor, LDK_MESH_PRIMITIVE_CAPSULE, "Capsule");
       ldk_ui_close_current_popup(ui);
     }
@@ -190,7 +188,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Plane"))
     {
-      ldk_editor_internal_scene_add_primitive(
+      ldki_editor_scene_add_primitive(
           editor, LDK_MESH_PRIMITIVE_PLANE, "Plane");
       ldk_ui_close_current_popup(ui);
     }
@@ -198,8 +196,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Quad"))
     {
-      ldk_editor_internal_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_QUAD, "Quad");
+      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_QUAD, "Quad");
       ldk_ui_close_current_popup(ui);
     }
 
@@ -217,14 +214,14 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     if (ldk_ui_button_flat(ui, "Dark"))
     {
       ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme);
-      ldk_editor_internal_theme_icons_set(editor, &theme);
+      ldki_editor_theme_icons_set(editor, &theme);
       ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
     if (ldk_ui_button_flat(ui, "Light"))
     {
       ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_LIGHT, &theme);
-      ldk_editor_internal_theme_icons_set(editor, &theme);
+      ldki_editor_theme_icons_set(editor, &theme);
       ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
@@ -248,12 +245,12 @@ static bool s_editor_layouts_save(void)
     return false;
   }
 
-  bool saved = ldk_editor_internal_dock_layout_save(out);
+  bool saved = ldki_editor_dock_layout_save(out);
   x_strbuilder_destroy(out);
   return saved;
 }
 
-bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor)
+bool ldki_editor_layout_save_as(LDKEditorContext *editor)
 {
   XSlice name_slice;
   char layout_name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
@@ -267,53 +264,51 @@ bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor)
 
   if (name_slice.length == 0)
   {
-    ldk_editor_internal_log_error(editor, "The layout name cannot be empty.");
+    ldki_editor_log_error(editor, "The layout name cannot be empty.");
     return false;
   }
 
   if (name_slice.length >= sizeof(layout_name))
   {
-    ldk_editor_internal_log_error(editor, "The layout name is too long.");
+    ldki_editor_log_error(editor, "The layout name is too long.");
     return false;
   }
 
   memcpy(layout_name, name_slice.ptr, name_slice.length);
   layout_name[name_slice.length] = 0;
 
-  u32 layout_count = ldk_editor_internal_dock_layout_count();
+  u32 layout_count = ldki_editor_dock_layout_count();
   for (u32 i = 0; i < layout_count; ++i)
   {
-    const char *existing_name = ldk_editor_internal_dock_layout_name_get(i);
+    const char *existing_name = ldki_editor_dock_layout_name_get(i);
 
     if (existing_name != NULL && strcmp(existing_name, layout_name) == 0)
     {
-      ldk_editor_internal_log_error(
-          editor, "A layout with that name already exists.");
+      ldki_editor_log_error(editor, "A layout with that name already exists.");
       return false;
     }
   }
 
-  if (!ldk_editor_internal_dock_layout_create(layout_name))
+  if (!ldki_editor_dock_layout_create(layout_name))
   {
-    ldk_editor_internal_log_error(editor, "Failed to save the layout.");
+    ldki_editor_log_error(editor, "Failed to save the layout.");
     return false;
   }
 
   if (!s_editor_layouts_save())
   {
-    ldk_editor_internal_log_error(editor,
+    ldki_editor_log_error(editor,
         "Layout created in memory, but failed to save the layout file.");
   }
   else
   {
-    ldk_editor_internal_log_info(editor, "Layout created.");
+    ldki_editor_log_info(editor, "Layout created.");
   }
 
   return true;
 }
 
-u32 ldk_editor_internal_input_window(
-    LDKEditorContext *editor, const char *title)
+u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title)
 {
   LDKUIContext *ui;
   LDKUIRect *rect;
@@ -379,14 +374,14 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
   const char *items[LDK_EDITOR_DOCK_LAYOUT_CAPACITY + 3];
-  const char *current_name = ldk_editor_internal_dock_layout_current_name_get();
-  u32 stored_layout_count = ldk_editor_internal_dock_layout_count();
+  const char *current_name = ldki_editor_dock_layout_current_name_get();
+  u32 stored_layout_count = ldki_editor_dock_layout_count();
   u32 layout_count = stored_layout_count;
   u32 selected_index = 0;
 
   for (u32 i = 0; i < layout_count; ++i)
   {
-    items[i] = ldk_editor_internal_dock_layout_name_get(i);
+    items[i] = ldki_editor_dock_layout_name_get(i);
 
     if (current_name != NULL && items[i] != NULL &&
         strcmp(items[i], current_name) == 0)
@@ -433,29 +428,28 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
 
   if (result < layout_count)
   {
-    if (stored_layout_count > 0 &&
-        ldk_editor_internal_dock_set_current(items[result]))
+    if (stored_layout_count > 0 && ldki_editor_dock_set_current(items[result]))
     {
       if (!s_editor_layouts_save())
       {
-        ldk_editor_internal_log_error(editor,
+        ldki_editor_log_error(editor,
             "Layout changed in memory, but failed to save the layout file.");
       }
     }
     else if (stored_layout_count > 0)
     {
-      ldk_editor_internal_log_error(editor, "Failed to change layout.");
+      ldki_editor_log_error(editor, "Failed to change layout.");
     }
   }
   else if (result == save_layout_index)
   {
     if (!s_editor_layouts_save())
     {
-      ldk_editor_internal_log_error(editor, "Failed to save the layout.");
+      ldki_editor_log_error(editor, "Failed to save the layout.");
     }
     else
     {
-      ldk_editor_internal_log_info(editor, "Layout saved.");
+      ldki_editor_log_info(editor, "Layout saved.");
     }
   }
   else if (result == save_layout_as_index)
@@ -472,18 +466,18 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
 
     if (ldk_os_dialog_show_yes_no(editor->window, "Delete layout?", message))
     {
-      if (!ldk_editor_internal_dock_layout_delete(current_name))
+      if (!ldki_editor_dock_layout_delete(current_name))
       {
-        ldk_editor_internal_log_error(editor, "Failed to delete layout.");
+        ldki_editor_log_error(editor, "Failed to delete layout.");
       }
       else if (!s_editor_layouts_save())
       {
-        ldk_editor_internal_log_error(editor,
+        ldki_editor_log_error(editor,
             "Layout deleted in memory, but failed to save the layout file.");
       }
       else
       {
-        ldk_editor_internal_log_info(editor, "Layout deleted.");
+        ldki_editor_log_info(editor, "Layout deleted.");
       }
     }
   }
@@ -637,7 +631,7 @@ static bool s_editor_scene_ecs_clear(void)
   return true;
 }
 
-void ldk_editor_internal_scene_state_sync(LDKEditorContext *editor)
+void ldki_editor_scene_state_sync(LDKEditorContext *editor)
 {
   XFSPath runtree = {0};
 
@@ -665,7 +659,7 @@ void ldk_editor_internal_scene_state_sync(LDKEditorContext *editor)
   }
 }
 
-bool ldk_editor_internal_scene_path_is_scene(const XFSPath *path)
+bool ldki_editor_scene_path_is_scene(const XFSPath *path)
 {
   const char *text;
   size_t length;
@@ -738,16 +732,15 @@ static bool s_editor_scene_full_path(
   return true;
 }
 
-bool ldk_editor_internal_scene_load(
-    LDKEditorContext *editor, const XFSPath *path)
+bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
 {
   LDKSceneResult result;
   XFSPath relative = {0};
 
-  ldk_editor_internal_scene_state_sync(editor);
+  ldki_editor_scene_state_sync(editor);
 
   if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldk_editor_internal_scene_path_is_scene(path) ||
+      !ldki_editor_scene_path_is_scene(path) ||
       !s_editor_scene_path_relative(editor, path, &relative))
   {
     return false;
@@ -755,7 +748,7 @@ bool ldk_editor_internal_scene_load(
 
   if (!s_editor_scene_ecs_clear())
   {
-    ldk_editor_internal_log_error(editor, "Failed to clear the current scene.");
+    ldki_editor_log_error(editor, "Failed to clear the current scene.");
     return false;
   }
 
@@ -765,21 +758,21 @@ bool ldk_editor_internal_scene_load(
   if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
   {
     s_editor_scene_ecs_clear();
-    ldk_editor_internal_log_error(editor, result.error);
+    ldki_editor_log_error(editor, result.error);
     return false;
   }
 
   editor->current_scene_path = relative;
-  ldk_editor_internal_log_info(editor, "Scene loaded.");
+  ldki_editor_log_info(editor, "Scene loaded.");
   return true;
 }
 
-bool ldk_editor_internal_scene_save(LDKEditorContext *editor)
+bool ldki_editor_scene_save(LDKEditorContext *editor)
 {
   LDKSceneResult result;
   XFSPath path = {0};
 
-  ldk_editor_internal_scene_state_sync(editor);
+  ldki_editor_scene_state_sync(editor);
 
   if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
       editor->current_scene_path.length == 0 ||
@@ -790,22 +783,22 @@ bool ldk_editor_internal_scene_save(LDKEditorContext *editor)
 
   if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
   {
-    ldk_editor_internal_log_error(editor, result.error);
+    ldki_editor_log_error(editor, result.error);
     return false;
   }
 
-  ldk_editor_internal_log_info(editor, "Scene saved.");
+  ldki_editor_log_info(editor, "Scene saved.");
   return true;
 }
 
-bool ldk_editor_internal_scene_new(LDKEditorContext *editor)
+bool ldki_editor_scene_new(LDKEditorContext *editor)
 {
   LDKSceneResult result;
   XFSPath path = {0};
   XFSPath relative = {0};
   char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
 
-  ldk_editor_internal_scene_state_sync(editor);
+  ldki_editor_scene_state_sync(editor);
 
   if (!editor || !editor->project.loaded ||
       editor->editor_state != LDK_EDITOR_STATE_STOPED)
@@ -832,7 +825,7 @@ bool ldk_editor_internal_scene_new(LDKEditorContext *editor)
 
   if (!s_editor_scene_ecs_clear())
   {
-    ldk_editor_internal_log_error(editor, "Failed to clear the current scene.");
+    ldki_editor_log_error(editor, "Failed to clear the current scene.");
     return false;
   }
 
@@ -841,16 +834,16 @@ bool ldk_editor_internal_scene_new(LDKEditorContext *editor)
 
   if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
   {
-    ldk_editor_internal_log_error(editor, result.error);
+    ldki_editor_log_error(editor, result.error);
     return false;
   }
 
   editor->current_scene_path = relative;
-  ldk_editor_internal_log_info(editor, "Scene created.");
+  ldki_editor_log_info(editor, "Scene created.");
   return true;
 }
 
-bool ldk_editor_internal_scene_add_primitive(
+bool ldki_editor_scene_add_primitive(
     LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name)
 {
   LDKAssetManager *asset_manager;
@@ -858,7 +851,7 @@ bool ldk_editor_internal_scene_add_primitive(
   LDKEntity entity;
   LDKMeshSource *mesh_source;
 
-  ldk_editor_internal_scene_state_sync(editor);
+  ldki_editor_scene_state_sync(editor);
 
   if (!editor || !editor->project.loaded ||
       editor->editor_state != LDK_EDITOR_STATE_STOPED ||
@@ -906,12 +899,12 @@ bool ldk_editor_internal_scene_add_primitive(
 // Internal
 //------------------------------------------------------------
 
-void ldk_editor_internal_menubar_show(LDKEditorContext *editor)
+void ldki_editor_menubar_show(LDKEditorContext *editor)
 {
   s_editor_menu_bar(editor);
 }
 
-void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
+void ldki_editor_project_create_show(LDKEditorContext *editor)
 {
   enum
   {
@@ -1023,11 +1016,11 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
 
       if (success)
       {
-        ldk_editor_internal_log_info(editor, "Project Created.");
+        ldki_editor_log_info(editor, "Project Created.");
       }
       else
       {
-        ldk_editor_internal_log_error(editor, "Failed to create project.");
+        ldki_editor_log_error(editor, "Failed to create project.");
         ldk_os_dialog_show_error(
             editor->window, "Failed to create project", s_project_name.buf);
       }
@@ -1045,24 +1038,24 @@ void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
   ldk_ui_end_window(ui);
 }
 
-void ldk_editor_internal_toolbar_show(LDKEditorContext *editor)
+void ldki_editor_toolbar_show(LDKEditorContext *editor)
 {
   s_editor_tool_bar(editor);
 }
 
-void ldk_editor_internal_log_error(LDKEditorContext *editor, const char *msg)
+void ldki_editor_log_error(LDKEditorContext *editor, const char *msg)
 {
   x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_error(msg);
 }
 
-void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char *msg)
+void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg)
 {
   x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_warning(msg);
 }
 
-void ldk_editor_internal_log_info(LDKEditorContext *editor, const char *msg)
+void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
 {
   x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_info(msg);

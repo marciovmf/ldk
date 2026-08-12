@@ -73,7 +73,7 @@ bool ldk_editor_command_run(LDKEditor *editor, const char *cmd_with_args)
   LDKEditorCommand *cmd = s_editor_command_find(e->commands, cmd_slice);
   if (!cmd)
   {
-    ldk_editor_internal_log_error(e, "Unknown command!\n");
+    ldki_editor_log_error(e, "Unknown command!\n");
     return false;
   }
 
@@ -107,7 +107,7 @@ static bool s_editor_command_help(XSlice args)
       LDKEditorCommand *cmd = (LDKEditorCommand *)x_array_get(e->commands, i);
       x_strbuilder_append_format(sb, "%s    %s\n", cmd->name, cmd->help);
     }
-    ldk_editor_internal_log_info(e, sb->data);
+    ldki_editor_log_info(e, sb->data);
     x_strbuilder_destroy(sb);
     return true;
   }
@@ -115,11 +115,11 @@ static bool s_editor_command_help(XSlice args)
   LDKEditorCommand *cmd = s_editor_command_find(e->commands, cmd_slice);
   if (!cmd)
   {
-    ldk_editor_internal_log_error(e, "Unknown command!\n");
+    ldki_editor_log_error(e, "Unknown command!\n");
     return false;
   }
 
-  ldk_editor_internal_log_info(e, cmd->help.buf);
+  ldki_editor_log_info(e, cmd->help.buf);
   return true;
 }
 
@@ -159,11 +159,10 @@ static bool s_editor_command_project(XSlice args)
   bool loaded = false;
   if (!x_slice_next_token_white_space(&args, &path_arg))
   {
-    loaded =
-        ldk_editor_internal_show_open_project_dialog(ldk_editor_get(), NULL);
+    loaded = ldki_editor_show_open_project_dialog(ldk_editor_get(), NULL);
     if (loaded)
     {
-      ldk_editor_internal_log_info(ldk_editor_get(), "Project loaded\n");
+      ldki_editor_log_info(ldk_editor_get(), "Project loaded\n");
     }
 
     return loaded;
@@ -174,7 +173,7 @@ static bool s_editor_command_project(XSlice args)
   loaded = ldk_editor_project_load(ldk_editor_get(), path.buf);
   if (loaded)
   {
-    ldk_editor_internal_log_info(ldk_editor_get(), "Project loaded\n");
+    ldki_editor_log_info(ldk_editor_get(), "Project loaded\n");
   }
   return loaded;
 }
@@ -193,28 +192,27 @@ static bool s_editor_command_layout_save_as(XSlice args)
   if (!x_slice_next_token_white_space(&args, &arg0))
   {
     LDKEditorContext *e = ldk_editor_get();
-    ldk_editor_internal_log_error(
-        e, "Command requires layout name argument!\n");
+    ldki_editor_log_error(e, "Command requires layout name argument!\n");
     return false;
   }
 
   XSmallstr name = {0};
   x_smallstr_from_slice(arg0, &name);
-  ldk_editor_internal_dock_layout_create(name.buf);
+  ldki_editor_dock_layout_create(name.buf);
   return true;
 }
 
 static bool s_editor_command_layout_list(XSlice args)
 {
   LDKEditorContext *e = ldk_editor_get();
-  u32 layout_count = ldk_editor_internal_dock_layout_count();
+  u32 layout_count = ldki_editor_dock_layout_count();
   for (u32 i = 0; i < layout_count; ++i)
   {
-    const char *layout_name = ldk_editor_internal_dock_layout_name_get(i);
+    const char *layout_name = ldki_editor_dock_layout_name_get(i);
 
     if (layout_name != NULL)
     {
-      ldk_editor_internal_log_info(e, layout_name);
+      ldki_editor_log_info(e, layout_name);
     }
   }
   return true;
@@ -227,14 +225,13 @@ static bool s_editor_command_layout_set(XSlice args)
   if (!x_slice_next_token_white_space(&args, &arg0))
   {
     LDKEditorContext *e = ldk_editor_get();
-    ldk_editor_internal_log_error(
-        e, "Command requires layout name argument!\n");
+    ldki_editor_log_error(e, "Command requires layout name argument!\n");
     return false;
   }
 
   XSmallstr name = {0};
   x_smallstr_from_slice(arg0, &name);
-  return ldk_editor_internal_dock_layout_load(name.buf);
+  return ldki_editor_dock_layout_load(name.buf);
 }
 
 static bool s_editor_command_layout_delete(XSlice args)
@@ -247,60 +244,57 @@ static bool s_editor_command_layout_delete(XSlice args)
   args = x_slice_trim(args);
   if (args.length == 0)
   {
-    ldk_editor_internal_log_error(
-        editor, "Command requires layout name argument!");
+    ldki_editor_log_error(editor, "Command requires layout name argument!");
     return false;
   }
 
   if (x_smallstr_from_slice(args, &name) == 0)
   {
-    ldk_editor_internal_log_error(editor, "Invalid layout name!");
+    ldki_editor_log_error(editor, "Invalid layout name!");
     return false;
   }
 
   out = x_strbuilder_create();
   if (out == NULL)
   {
-    ldk_editor_internal_log_error(
-        editor, "Failed to allocate dock layout output!");
+    ldki_editor_log_error(editor, "Failed to allocate dock layout output!");
     return false;
   }
 
-  if (!ldk_editor_internal_dock_layout_delete(name.buf))
+  if (!ldki_editor_dock_layout_delete(name.buf))
   {
     x_strbuilder_destroy(out);
 
     if (strcmp(name.buf, "default") == 0)
     {
-      ldk_editor_internal_log_error(
-          editor, "The default layout cannot be deleted!");
+      ldki_editor_log_error(editor, "The default layout cannot be deleted!");
     }
     else
     {
-      ldk_editor_internal_log_error(editor, "Failed to delete layout!");
+      ldki_editor_log_error(editor, "Failed to delete layout!");
     }
 
     return false;
   }
 
-  saved = ldk_editor_internal_dock_layout_save(out);
+  saved = ldki_editor_dock_layout_save(out);
   x_strbuilder_destroy(out);
 
   if (!saved)
   {
-    ldk_editor_internal_log_error(
+    ldki_editor_log_error(
         editor, "Layout deleted, but failed to save the layout file!");
     return false;
   }
 
-  ldk_editor_internal_log_info(editor, "Layout deleted.");
+  ldki_editor_log_info(editor, "Layout deleted.");
   return true;
 }
 
 //------------------------------------------------------------
 // Internal
 //------------------------------------------------------------
-void ldk_editor_internal_register_commands(LDKEditorContext *editor)
+void ldki_editor_register_commands(LDKEditorContext *editor)
 {
   LDK_ASSERT(editor != NULL);
   LDK_ASSERT(editor->commands == NULL);
@@ -338,6 +332,5 @@ void ldk_editor_internal_register_commands(LDKEditorContext *editor)
       s_editor_command_layout_set);
 
   ldk_editor_command_register(editor, "layout-delete",
-      "Deletes the layout identified by name.",
-      s_editor_command_layout_delete);
+      "Deletes the layout identified by name.", s_editor_command_layout_delete);
 }

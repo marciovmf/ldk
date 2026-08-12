@@ -86,62 +86,58 @@ typedef struct LDKEditorContext
   i32 editor_font_size;
 } LDKEditorContext;
 
-void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
-void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
-void ldk_editor_internal_inspector_show(LDKEditorContext *editor);
-u32 ldk_editor_internal_input_window(
-    LDKEditorContext *editor, const char *title);
-bool ldk_editor_internal_layout_save_as(LDKEditorContext *editor);
-void ldk_editor_internal_theme_icons_set(
-    LDKEditorContext *editor, LDKUITheme *theme);
-void ldk_editor_internal_project_create_show(LDKEditorContext *editor);
-void ldk_editor_internal_register_commands(LDKEditorContext *editor);
-void ldk_editor_internal_confirm_quit(LDKEditorContext *editor);
-bool ldk_editor_internal_show_open_project_dialog(
+void ldki_editor_menubar_show(LDKEditorContext *editor);
+void ldki_editor_toolbar_show(LDKEditorContext *editor);
+void ldki_editor_inspector_show(LDKEditorContext *editor);
+u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
+bool ldki_editor_layout_save_as(LDKEditorContext *editor);
+void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);
+void ldki_editor_project_create_show(LDKEditorContext *editor);
+void ldki_editor_register_commands(LDKEditorContext *editor);
+void ldki_editor_confirm_quit(LDKEditorContext *editor);
+bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);
 
-void ldk_editor_internal_log_error(LDKEditorContext *editor, const char* msg);
-void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char* msg);
-void ldk_editor_internal_log_info(LDKEditorContext  *editor, const char* msg);
+void ldki_editor_log_error(LDKEditorContext *editor, const char *msg);
+void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg);
+void ldki_editor_log_info(LDKEditorContext *editor, const char *msg);
 
-
-u32 ldk_editor_internal_dock_layout_count(void);
-const char *ldk_editor_internal_dock_layout_name_get(u32 index);
-const char *ldk_editor_internal_dock_layout_current_name_get(void);
+u32 ldki_editor_dock_layout_count(void);
+const char *ldki_editor_dock_layout_name_get(u32 index);
+const char *ldki_editor_dock_layout_current_name_get(void);
 
 /**
  * saves the dock tml representation to the dock file under a specific name
  */
-bool ldk_editor_internal_dock_layout_save(XStrBuilder *out);
+bool ldki_editor_dock_layout_save(XStrBuilder *out);
 
 /**
  * loads the dock tml representation from the dock file under a specific name
  */
-bool ldk_editor_internal_dock_layout_load(const char *layout_name);
+bool ldki_editor_dock_layout_load(const char *layout_name);
 
 /**
  * makes the dock layout identified by layout_name, the default layout
  */
-bool ldk_editor_internal_dock_set_current(const char *layout_name);
+bool ldki_editor_dock_set_current(const char *layout_name);
 
-bool ldk_editor_internal_dock_layout_create(const char *layout_name);
-bool ldk_editor_internal_dock_layout_delete(const char *layout_name);
+bool ldki_editor_dock_layout_create(const char *layout_name);
+bool ldki_editor_dock_layout_delete(const char *layout_name);
 
+void ldki_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
+bool ldki_editor_editor_entity_equal(LDKEntity a, LDKEntity b);
+void ldki_editor_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
+bool ldki_editor_selected_entity_get(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
 
-void ldk_editor_internal_entity_display_name(
-  const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
-bool ldk_editor_internal_editor_entity_equal(LDKEntity a, LDKEntity b);
-void ldk_editor_internal_editor_entity_display_name(
-const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
-bool ldk_editor_internal_selected_entity_get(LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
-
-
-void ldk_editor_internal_scene_state_sync(LDKEditorContext *editor);
+void ldki_editor_scene_state_sync(LDKEditorContext *editor);
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
-bool ldk_editor_internal_scene_save(LDKEditorContext *editor);
-bool ldk_editor_internal_scene_load(LDKEditorContext *editor, const XFSPath *path);
-bool ldk_editor_internal_scene_new(LDKEditorContext *editor);
-bool ldk_editor_internal_scene_add_primitive(
-LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
+bool ldki_editor_scene_save(LDKEditorContext *editor);
+bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
+bool ldki_editor_scene_new(LDKEditorContext *editor);
+bool ldki_editor_scene_add_primitive(
+    LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
 
 #endif // LDK_EDITOR_INTERNAL
