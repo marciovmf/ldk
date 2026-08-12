@@ -3,7 +3,6 @@
 #include "ldk_geom.h"
 #include "ldk_gl.h"
 
-
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -33,20 +32,19 @@
 #define LDK_WIN32_STACK_TRACE_SIZE_MAX 64
 #endif
 
-
 // ---------------------------------------------------------------------------
 // Extern
 // ---------------------------------------------------------------------------
 
-extern void* ldk_win32_opengl_proc_address_get(char* name);
+extern void *ldk_win32_opengl_proc_address_get(char *name);
 extern void ldk_opengl_function_pointers_get();
 
 // XInput specifics
 typedef struct _XINPUT_GAMEPAD
 {
-  WORD  wButtons;
-  BYTE  bLeftTrigger;
-  BYTE  bRightTrigger;
+  WORD wButtons;
+  BYTE bLeftTrigger;
+  BYTE bRightTrigger;
   SHORT sThumbLX;
   SHORT sThumbLY;
   SHORT sThumbRX;
@@ -55,7 +53,7 @@ typedef struct _XINPUT_GAMEPAD
 
 typedef struct _XINPUT_STATE
 {
-  DWORD          dwPacketNumber;
+  DWORD dwPacketNumber;
   XINPUT_GAMEPAD Gamepad;
 } XINPUT_STATE, *PXINPUT_STATE;
 
@@ -65,31 +63,31 @@ typedef struct _XINPUT_VIBRATION
   WORD wRightMotorSpeed;
 } XINPUT_VIBRATION, *PXINPUT_VIBRATION;
 
-#define XINPUT_GAMEPAD_DPAD_UP	0x0001
-#define XINPUT_GAMEPAD_DPAD_DOWN	0x0002
-#define XINPUT_GAMEPAD_DPAD_LEFT	0x0004
-#define XINPUT_GAMEPAD_DPAD_RIGHT	0x0008
-#define XINPUT_GAMEPAD_START	0x0010
-#define XINPUT_GAMEPAD_BACK	0x0020
-#define XINPUT_GAMEPAD_LEFT_THUMB	0x0040
-#define XINPUT_GAMEPAD_RIGHT_THUMB	0x0080
-#define XINPUT_GAMEPAD_LEFT_SHOULDER	0x0100
-#define XINPUT_GAMEPAD_RIGHT_SHOULDER	0x0200
-#define XINPUT_GAMEPAD_A	0x1000
-#define XINPUT_GAMEPAD_B	0x2000
-#define XINPUT_GAMEPAD_X	0x4000
-#define XINPUT_GAMEPAD_Y	0x8000
-//#define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  7849
-#define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  9000
+#define XINPUT_GAMEPAD_DPAD_UP 0x0001
+#define XINPUT_GAMEPAD_DPAD_DOWN 0x0002
+#define XINPUT_GAMEPAD_DPAD_LEFT 0x0004
+#define XINPUT_GAMEPAD_DPAD_RIGHT 0x0008
+#define XINPUT_GAMEPAD_START 0x0010
+#define XINPUT_GAMEPAD_BACK 0x0020
+#define XINPUT_GAMEPAD_LEFT_THUMB 0x0040
+#define XINPUT_GAMEPAD_RIGHT_THUMB 0x0080
+#define XINPUT_GAMEPAD_LEFT_SHOULDER 0x0100
+#define XINPUT_GAMEPAD_RIGHT_SHOULDER 0x0200
+#define XINPUT_GAMEPAD_A 0x1000
+#define XINPUT_GAMEPAD_B 0x2000
+#define XINPUT_GAMEPAD_X 0x4000
+#define XINPUT_GAMEPAD_Y 0x8000
+// #define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE  7849
+#define XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE 9000
 #define XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE 8689
-#define XINPUT_GAMEPAD_TRIGGER_THRESHOLD    30
+#define XINPUT_GAMEPAD_TRIGGER_THRESHOLD 30
 #define XINPUT_MAX_AXIS_VALUE 32767
 #define XINPUT_MIN_AXIS_VALUE -32768
 #define XINPUT_MAX_TRIGGER_VALUE 255
 
 typedef DWORD (*XInputGetStateFunc)(DWORD dwUserIndex, XINPUT_STATE *pState);
-typedef DWORD (*XInputSetStateFunc)(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration);
-
+typedef DWORD (*XInputSetStateFunc)(
+    DWORD dwUserIndex, XINPUT_VIBRATION *pVibration);
 
 // ---------------------------------------------------------------------------
 // Internal
@@ -99,7 +97,8 @@ typedef struct
 {
   bool close_flag;
   bool is_fullscreen;
-  LDKWindowFlags activation_flags; // if window is created hidden, set this on show
+  LDKWindowFlags
+      activation_flags; // if window is created hidden, set this on show
   HWND handle;
   HDC dc;
   LONG_PTR prev_style;
@@ -107,12 +106,12 @@ typedef struct
   LDKRect drag_rect;
 } LDKWin32Window;
 
-typedef struct 
+typedef struct
 {
-  PFNWGLCHOOSEPIXELFORMATARBPROC    wglChoosePixelFormatARB;
+  PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
   PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
-  PFNWGLSWAPINTERVALEXTPROC         wglSwapIntervalEXT;
-  PFNWGLGETSWAPINTERVALEXTPROC      wglGetSwapIntervalEXT;
+  PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+  PFNWGLGETSWAPINTERVALEXTPROC wglGetSwapIntervalEXT;
   HGLRC rc;
   u32 version_major;
   u32 version_minor;
@@ -120,10 +119,10 @@ typedef struct
   i32 context_attribs[16];
 } LDKWin32OpenGLAPI;
 
-typedef enum 
+typedef enum
 {
-  WIN32_GRAPHICS_API_NONE     = 0,
-  WIN32_GRAPHICS_API_OPENGL   = 1,
+  WIN32_GRAPHICS_API_NONE = 0,
+  WIN32_GRAPHICS_API_OPENGL = 1,
   WIN32_GRAPHICS_API_OPENGLES = 2,
   /* Expand this enum as we support other APIS */
 } Win32GraphicsAPI;
@@ -137,15 +136,15 @@ static struct
   };
 } s_graphicsAPIInfo = {0};
 
-static struct 
+static struct
 {
   LARGE_INTEGER frequency;
   LDKCursorType cursor_type;
 
   // input state
-  LDKKeyboardState  keyboard_state;
-  LDKMouseState     mouse_state;
-  LDKJoystickState  joystick_state[LDK_JOYSTICK_MAX];
+  LDKKeyboardState keyboard_state;
+  LDKMouseState mouse_state;
+  LDKJoystickState joystick_state[LDK_JOYSTICK_MAX];
 
   // Event queue
   LDKEvent events[LDK_WIN32_MAX_EVENTS];
@@ -162,7 +161,8 @@ static struct
   XInputSetStateFunc xinput_set_state;
 } s_oswin32 = {0};
 
-static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static LRESULT s_window_proc(
+    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 DWORD s_xinput_get_state_stub(DWORD dwUserIndex, XINPUT_STATE *pState)
 {
@@ -180,10 +180,10 @@ static bool s_xinput_init(void)
 {
   memset(&s_oswin32.joystick_state, 0, sizeof(s_oswin32.joystick_state));
 
-  char* xInputDllName = "xinput1_1.dll"; 
+  char *xInputDllName = "xinput1_1.dll";
   HMODULE hXInput = LoadLibraryA(xInputDllName);
   if (!hXInput)
-  {				
+  {
     xInputDllName = "xinput9_1_0.dll";
     hXInput = LoadLibraryA(xInputDllName);
   }
@@ -197,33 +197,36 @@ static bool s_xinput_init(void)
   if (!hXInput)
   {
     ldk_log_error("could not initialize xinput. No valid xinput dll found");
-    s_oswin32.xinput_get_state = (XInputGetStateFunc) s_xinput_get_state_stub;
-    s_oswin32.xinput_set_state = (XInputSetStateFunc) s_xinput_set_state_stub;
+    s_oswin32.xinput_get_state = (XInputGetStateFunc)s_xinput_get_state_stub;
+    s_oswin32.xinput_set_state = (XInputSetStateFunc)s_xinput_set_state_stub;
     return false;
   }
 
-  //get xinput function pointers
-  s_oswin32.xinput_get_state = (XInputGetStateFunc) GetProcAddress(hXInput, "XInputGetState");
-  s_oswin32.xinput_set_state = (XInputSetStateFunc) GetProcAddress(hXInput, "XInputSetState");
+  // get xinput function pointers
+  s_oswin32.xinput_get_state =
+      (XInputGetStateFunc)GetProcAddress(hXInput, "XInputGetState");
+  s_oswin32.xinput_set_state =
+      (XInputSetStateFunc)GetProcAddress(hXInput, "XInputSetState");
 
   if (!s_oswin32.xinput_get_state)
-    s_oswin32.xinput_get_state = (XInputGetStateFunc) s_xinput_get_state_stub;
+    s_oswin32.xinput_get_state = (XInputGetStateFunc)s_xinput_get_state_stub;
 
   if (!s_oswin32.xinput_set_state)
-    s_oswin32.xinput_set_state = (XInputSetStateFunc) s_xinput_set_state_stub;
+    s_oswin32.xinput_set_state = (XInputSetStateFunc)s_xinput_set_state_stub;
   return true;
 }
 
 static inline void s_xinput_poll_events(void)
 {
   // get gamepad input
-  for(i32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
+  for (i32 gamepadIndex = 0; gamepadIndex < LDK_JOYSTICK_MAX; gamepadIndex++)
   {
     XINPUT_STATE xinputState = {0};
-    LDKJoystickState* joystick_state = &s_oswin32.joystick_state[gamepadIndex];
+    LDKJoystickState *joystick_state = &s_oswin32.joystick_state[gamepadIndex];
 
     // ignore unconnected controllers
-    if (s_oswin32.xinput_get_state(gamepadIndex, &xinputState) == ERROR_DEVICE_NOT_CONNECTED)
+    if (s_oswin32.xinput_get_state(gamepadIndex, &xinputState) ==
+        ERROR_DEVICE_NOT_CONNECTED)
     {
       joystick_state->connected = false;
       continue;
@@ -231,66 +234,88 @@ static inline void s_xinput_poll_events(void)
 
     // digital buttons
     WORD buttons = xinputState.Gamepad.wButtons;
-    u8 isDown=0;
-    u8 wasDown=0;
+    u8 isDown = 0;
+    u8 wasDown = 0;
 
     const u32 pressedBit = LDK_JOYSTICK_PRESSED_BIT;
 
     // Buttons
     isDown = (buttons & XINPUT_GAMEPAD_DPAD_UP) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_UP] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_UP] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_UP] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_DPAD_LEFT) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_LEFT] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_DPAD_RIGHT) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_DPAD_RIGHT] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_START) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_START] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_START] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_START] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_BACK) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_BACK] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_BACK] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_BACK] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_LEFT_THUMB) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_THUMB] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_RIGHT_THUMB) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_THUMB] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_LEFT_SHOULDER) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_LEFT_SHOULDER] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_RIGHT_SHOULDER) > 0;
-    wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] = ((isDown ^ wasDown) << 1) | isDown;
+    wasDown =
+        joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] & pressedBit;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_RIGHT_SHOULDER] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_A) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_A] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_A] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_A] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_B) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_B] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_B] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_B] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_X) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_X] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_X] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_X] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
     isDown = (buttons & XINPUT_GAMEPAD_Y) > 0;
     wasDown = joystick_state->button[LDK_JOYSTICK_BUTTON_Y] & pressedBit;
-    joystick_state->button[LDK_JOYSTICK_BUTTON_Y] = ((isDown ^ wasDown) << 1) | isDown;
+    joystick_state->button[LDK_JOYSTICK_BUTTON_Y] =
+        ((isDown ^ wasDown) << 1) | isDown;
 
-#define GAMEPAD_AXIS_VALUE(value) (value/(float)(value < 0 ? XINPUT_MIN_AXIS_VALUE * -1: XINPUT_MAX_AXIS_VALUE))
-#define GAMEPAD_AXIS_IS_DEADZONE(value, deadzone) ( value > -deadzone && value < deadzone)
+#define GAMEPAD_AXIS_VALUE(value)                                              \
+  (value /                                                                     \
+      (float)(value < 0 ? XINPUT_MIN_AXIS_VALUE * -1 : XINPUT_MAX_AXIS_VALUE))
+#define GAMEPAD_AXIS_IS_DEADZONE(value, deadzone)                              \
+  (value > -deadzone && value < deadzone)
 
     // Left thumb axis
     i32 axisX = xinputState.Gamepad.sThumbLX;
@@ -298,33 +323,41 @@ static inline void s_xinput_poll_events(void)
     i32 deadZone = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE;
 
     // TODO(marcio): Implement deadZone filtering correctly. This is not enough!
-    joystick_state->axis[LDK_JOYSTICK_AXIS_LX] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :
-      GAMEPAD_AXIS_VALUE(axisX);
+    joystick_state->axis[LDK_JOYSTICK_AXIS_LX] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f
+                                                  : GAMEPAD_AXIS_VALUE(axisX);
 
-    joystick_state->axis[LDK_JOYSTICK_AXIS_LY] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
-      GAMEPAD_AXIS_VALUE(axisY);
+    joystick_state->axis[LDK_JOYSTICK_AXIS_LY] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f
+                                                  : GAMEPAD_AXIS_VALUE(axisY);
 
     // Right thumb axis
     axisX = xinputState.Gamepad.sThumbRX;
     axisY = xinputState.Gamepad.sThumbRY;
     deadZone = XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE;
 
-    joystick_state->axis[LDK_JOYSTICK_AXIS_RX] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :
-      GAMEPAD_AXIS_VALUE(axisX);
+    joystick_state->axis[LDK_JOYSTICK_AXIS_RX] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f
+                                                  : GAMEPAD_AXIS_VALUE(axisX);
 
-    joystick_state->axis[LDK_JOYSTICK_AXIS_RY] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
-      GAMEPAD_AXIS_VALUE(axisY);
+    joystick_state->axis[LDK_JOYSTICK_AXIS_RY] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f
+                                                  : GAMEPAD_AXIS_VALUE(axisY);
 
     // Left trigger
     axisX = xinputState.Gamepad.bLeftTrigger;
     axisY = xinputState.Gamepad.bRightTrigger;
     deadZone = XINPUT_GAMEPAD_TRIGGER_THRESHOLD;
 
-    joystick_state->axis[LDK_JOYSTICK_AXIS_LTRIGGER] = GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone) ? 0.0f :	
-      axisX/(float) XINPUT_MAX_TRIGGER_VALUE;
+    joystick_state->axis[LDK_JOYSTICK_AXIS_LTRIGGER] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisX, deadZone)
+            ? 0.0f
+            : axisX / (float)XINPUT_MAX_TRIGGER_VALUE;
 
-    joystick_state->axis[LDK_JOYSTICK_AXIS_RTRIGGER] = GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone) ? 0.0f :	
-      axisY/(float) XINPUT_MAX_TRIGGER_VALUE;
+    joystick_state->axis[LDK_JOYSTICK_AXIS_RTRIGGER] =
+        GAMEPAD_AXIS_IS_DEADZONE(axisY, deadZone)
+            ? 0.0f
+            : axisY / (float)XINPUT_MAX_TRIGGER_VALUE;
 
 #undef GAMEPAD_AXIS_IS_DEADZONE
 #undef GAMEPAD_AXIS_VALUE
@@ -335,54 +368,44 @@ static inline void s_xinput_poll_events(void)
 
 inline static bool s_graphics_api_is_opengl(Win32GraphicsAPI api)
 {
-  return (api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
+  return (
+      api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
 }
 
-static LDKEvent* s_win32_event_new(void)
+static LDKEvent *s_win32_event_new(void)
 {
   if (s_oswin32.events_count >= LDK_WIN32_MAX_EVENTS)
   {
-    ldk_log_error("Reached the maximum number of OS events %d.", LDK_WIN32_MAX_EVENTS);
+    ldk_log_error(
+        "Reached the maximum number of OS events %d.", LDK_WIN32_MAX_EVENTS);
     return NULL;
   }
 
-  LDKEvent* eventPtr = &(s_oswin32.events[s_oswin32.events_count++]);
+  LDKEvent *eventPtr = &(s_oswin32.events[s_oswin32.events_count++]);
   return eventPtr;
 }
 
-inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 glVersionMinor, i32 color_bits, i32 depth_bits)
+inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor,
+    i32 glVersionMinor, i32 color_bits, i32 depth_bits)
 {
-  LDKWin32Window* dummyWindow =  ldk_os_window_create("", 0,0);
+  LDKWin32Window *dummyWindow = ldk_os_window_create("", 0, 0);
   bool isGLES = api == WIN32_GRAPHICS_API_OPENGLES;
 
-  PIXELFORMATDESCRIPTOR pfd = { 
-    sizeof(PIXELFORMATDESCRIPTOR),  //  size of this pfd
-    1,
-    PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-    PFD_TYPE_RGBA,
-    (BYTE)depth_bits,
-    0, 0, 0, 0, 0, 0,
-    0,
-    0,
-    0,
-    0, 0, 0, 0,
-    (BYTE)color_bits,
-    0,
-    0,
-    PFD_MAIN_PLANE,
-    0,
-    0, 0, 0
-  }; 
+  PIXELFORMATDESCRIPTOR pfd = {
+      sizeof(PIXELFORMATDESCRIPTOR), //  size of this pfd
+      1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+      PFD_TYPE_RGBA, (BYTE)depth_bits, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      (BYTE)color_bits, 0, 0, PFD_MAIN_PLANE, 0, 0, 0, 0};
 
   int pixelFormat = ChoosePixelFormat(dummyWindow->dc, &pfd);
-  if (! pixelFormat)
+  if (!pixelFormat)
   {
     ldk_log_error("Unable to allocate a pixel format");
     ldk_os_window_destroy(dummyWindow);
     return false;
   }
 
-  if (! SetPixelFormat(dummyWindow->dc, pixelFormat, &pfd))
+  if (!SetPixelFormat(dummyWindow->dc, pixelFormat, &pfd))
   {
     ldk_log_error("Unable to set a pixel format");
     ldk_os_window_destroy(dummyWindow);
@@ -393,7 +416,7 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 g
   if (!rc)
   {
     rc = wglCreateContext(dummyWindow->dc);
-    if (! rc)
+    if (!rc)
     {
       ldk_log_error("Unable to create a valid OpenGL context");
       ldk_os_window_destroy(dummyWindow);
@@ -401,57 +424,56 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 g
     }
   }
 
-  if (! wglMakeCurrent(dummyWindow->dc, rc))
+  if (!wglMakeCurrent(dummyWindow->dc, rc))
   {
     ldk_log_error("Unable to set OpenGL context current");
     ldk_os_window_destroy(dummyWindow);
     return false;
   }
 
-  const int pixel_format_attrib_list[] =
-    {
-      WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-      WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-      WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-      WGL_COLOR_BITS_ARB, color_bits,
-      WGL_DEPTH_BITS_ARB, depth_bits,
-      //WGL_STENCIL_BITS_ARB, 8,
+  const int pixel_format_attrib_list[] = {WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+      WGL_SUPPORT_OPENGL_ARB, GL_TRUE, WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+      WGL_COLOR_BITS_ARB, color_bits, WGL_DEPTH_BITS_ARB, depth_bits,
+      // WGL_STENCIL_BITS_ARB, 8,
 
       // uncomment for sRGB framebuffer, from WGL_ARB_framebuffer_SRGB extension
       // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_framebuffer_SRGB.txt
-      //WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB,  GL_TRUE, 
-      // uncomment for multisampeld framebuffer, from WGL_ARB_multisample extension
+      // WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB,  GL_TRUE,
+      // uncomment for multisampeld framebuffer, from WGL_ARB_multisample
+      // extension
       // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_multisample.txt
-      WGL_SAMPLE_BUFFERS_ARB, 1,
-      WGL_SAMPLES_ARB,        4, // 4x MSAA
-      0
-    };
+      WGL_SAMPLE_BUFFERS_ARB, 1, WGL_SAMPLES_ARB, 4, // 4x MSAA
+      0};
 
-  const int context_attribs[] =
-    {
-      WGL_CONTEXT_MAJOR_VERSION_ARB, glVersionMajor,
-      WGL_CONTEXT_MINOR_VERSION_ARB, glVersionMinor,
-      WGL_CONTEXT_FLAGS_ARB,
+  const int context_attribs[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, glVersionMajor,
+      WGL_CONTEXT_MINOR_VERSION_ARB, glVersionMinor, WGL_CONTEXT_FLAGS_ARB,
 #ifdef LDK_DEBUG
       WGL_CONTEXT_DEBUG_BIT_ARB |
 #endif
-      (isGLES ? WGL_CONTEXT_ES_PROFILE_BIT_EXT : WGL_CONTEXT_CORE_PROFILE_BIT_ARB),
-      0
-    };
+          (isGLES ? WGL_CONTEXT_ES_PROFILE_BIT_EXT
+                  : WGL_CONTEXT_CORE_PROFILE_BIT_ARB),
+      0};
 
   // Initialize the global rendering api info with OpenGL api details
   s_graphicsAPIInfo.api = api;
   s_graphicsAPIInfo.gl.rc = 0;
   s_graphicsAPIInfo.gl.version_major = glVersionMajor;
   s_graphicsAPIInfo.gl.version_minor = glVersionMinor;
-  s_graphicsAPIInfo.gl.wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC) wglGetProcAddress("wglChoosePixelFormatARB");
-  s_graphicsAPIInfo.gl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress("wglCreateContextAttribsARB");
-  s_graphicsAPIInfo.gl.wglSwapIntervalEXT         = (PFNWGLSWAPINTERVALEXTPROC) wglGetProcAddress("wglSwapIntervalEXT");
-  s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT      = (PFNWGLGETSWAPINTERVALEXTPROC) wglGetProcAddress("wglGetSwapIntervalEXT");
+  s_graphicsAPIInfo.gl.wglChoosePixelFormatARB =
+      (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress(
+          "wglChoosePixelFormatARB");
+  s_graphicsAPIInfo.gl.wglCreateContextAttribsARB =
+      (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress(
+          "wglCreateContextAttribsARB");
+  s_graphicsAPIInfo.gl.wglSwapIntervalEXT =
+      (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+  s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT =
+      (PFNWGLGETSWAPINTERVALEXTPROC)wglGetProcAddress("wglGetSwapIntervalEXT");
 
-  memcpy(s_graphicsAPIInfo.gl.pixel_format_attribs, pixel_format_attrib_list, sizeof(pixel_format_attrib_list));
-  memcpy(s_graphicsAPIInfo.gl.context_attribs, context_attribs, sizeof(context_attribs));
-
+  memcpy(s_graphicsAPIInfo.gl.pixel_format_attribs, pixel_format_attrib_list,
+      sizeof(pixel_format_attrib_list));
+  memcpy(s_graphicsAPIInfo.gl.context_attribs, context_attribs,
+      sizeof(context_attribs));
 
   // Get function pointers
   ldk_opengl_function_pointers_get();
@@ -464,15 +486,14 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor, i32 g
 
 inline static LDKWindow s_ldkwindow_from_win32_hwnd(HWND hWnd)
 {
-  for (u32 i =0; i < s_oswin32.windowCount; i++)
+  for (u32 i = 0; i < s_oswin32.windowCount; i++)
   {
-    if ( s_oswin32.all_hwnd[i] == hWnd)
+    if (s_oswin32.all_hwnd[i] == hWnd)
       return s_oswin32.all_windows[i];
   }
 
   return NULL;
 }
-
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -480,8 +501,8 @@ inline static LDKWindow s_ldkwindow_from_win32_hwnd(HWND hWnd)
 
 bool ldk_os_initialize()
 {
-  //s_ = (LDKWin32s_*) ldk_os_memory_alloc(sizeof(LDKWin32s_));
-  //memset(s_oswin32, 0, sizeof(LDKWin32s_));
+  // s_ = (LDKWin32s_*) ldk_os_memory_alloc(sizeof(LDKWin32s_));
+  // memset(s_oswin32, 0, sizeof(LDKWin32s_));
   QueryPerformanceFrequency(&s_oswin32.frequency);
   s_xinput_init();
   return true;
@@ -495,7 +516,7 @@ void ldk_os_stack_trace_print(void)
 {
 #ifdef LDK_DEBUG
   static bool once = false;
-  if(!once)
+  if (!once)
   {
     SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
     SymInitialize(GetCurrentProcess(), NULL, TRUE);
@@ -503,10 +524,12 @@ void ldk_os_stack_trace_print(void)
   }
 
   const int max_stack_trace_size = LDK_WIN32_STACK_TRACE_SIZE_MAX;
-  void* stack_trace[LDK_WIN32_STACK_TRACE_SIZE_MAX];
-  USHORT frames = CaptureStackBackTrace(1, max_stack_trace_size, stack_trace, NULL);
+  void *stack_trace[LDK_WIN32_STACK_TRACE_SIZE_MAX];
+  USHORT frames =
+      CaptureStackBackTrace(1, max_stack_trace_size, stack_trace, NULL);
 
-  SYMBOL_INFO* symbol_info = (SYMBOL_INFO*)malloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char));
+  SYMBOL_INFO *symbol_info =
+      (SYMBOL_INFO *)malloc(sizeof(SYMBOL_INFO) + 256 * sizeof(char));
   symbol_info->MaxNameLen = 255;
   symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
 
@@ -517,26 +540,32 @@ void ldk_os_stack_trace_print(void)
     IMAGEHLP_LINE64 line_info;
     line_info.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
     DWORD displacement;
-    SymGetLineFromAddr64(GetCurrentProcess(), (DWORD64)(stack_trace[i]), &displacement, &line_info);
+    SymGetLineFromAddr64(GetCurrentProcess(), (DWORD64)(stack_trace[i]),
+        &displacement, &line_info);
 
 #ifdef LDK_COMPILER_MSVC
-    if (x_cstr_ends_with(symbol_info->Name, "s_on_signal") || x_cstr_ends_with(symbol_info->Name, "seh_filter_exe"))
+    if (x_cstr_ends_with(symbol_info->Name, "s_on_signal") ||
+        x_cstr_ends_with(symbol_info->Name, "seh_filter_exe"))
       continue;
 
-    if (line_info.FileName && (x_cstr_ends_with(line_info.FileName, "vcstartup\\src\\startup\\exe_common.inl")
-                               || x_cstr_ends_with(line_info.FileName, "src\\vctools\\crt\\vcstartup\\src\\startup\\exe_main.cpp")
-                               || x_cstr_ends_with(line_info.FileName, "vctools\\crt\\vcstartup\\src\\rtc\\error.cpp")
-                               || x_cstr_ends_with(line_info.FileName, "vctools\\crt\\vcstartup\\src\\rtc\\stack.cpp")
-        ))
+    if (line_info.FileName &&
+        (x_cstr_ends_with(
+             line_info.FileName, "vcstartup\\src\\startup\\exe_common.inl") ||
+            x_cstr_ends_with(line_info.FileName,
+                "src\\vctools\\crt\\vcstartup\\src\\startup\\exe_main.cpp") ||
+            x_cstr_ends_with(line_info.FileName,
+                "vctools\\crt\\vcstartup\\src\\rtc\\error.cpp") ||
+            x_cstr_ends_with(line_info.FileName,
+                "vctools\\crt\\vcstartup\\src\\rtc\\stack.cpp")))
     {
       continue;
     }
 #endif
     // Print the stack trace information
 
-    ldk_log_info("\tat %s(%s:%d)\n",
-                 symbol_info->Name,
-                 (line_info.FileName ? line_info.FileName : "N/A"), line_info.LineNumber);
+    ldk_log_info("\tat %s(%s:%d)\n", symbol_info->Name,
+        (line_info.FileName ? line_info.FileName : "N/A"),
+        line_info.LineNumber);
   }
 
   free(symbol_info);
@@ -547,10 +576,10 @@ void ldk_os_stack_trace_print(void)
 // Memory
 // ---------------------------------------------------------------------------
 
-void* ldk_os_memory_alloc(size_t size)
+void *ldk_os_memory_alloc(size_t size)
 {
-  void* mem = malloc(size);
-  if(mem == NULL)
+  void *mem = malloc(size);
+  if (mem == NULL)
   {
     ldk_log_error("Memmory allocation failed");
     ldk_os_stack_trace_print();
@@ -558,15 +587,15 @@ void* ldk_os_memory_alloc(size_t size)
   return mem;
 }
 
-void ldk_os_memory_free(void* memory)
+void ldk_os_memory_free(void *memory)
 {
   free(memory);
 }
 
-void* ldk_os_memory_resize(void* memory, size_t size)
+void *ldk_os_memory_resize(void *memory, size_t size)
 {
-  void* mem = realloc(memory, size);
-  if(mem == NULL)
+  void *mem = realloc(memory, size);
+  if (mem == NULL)
   {
     ldk_log_error("Memmory allocation failed");
     ldk_os_stack_trace_print();
@@ -588,7 +617,7 @@ u64 ldk_os_time_ticks_get(void)
 
 double ldk_os_time_ticks_interval_get_seconds(u64 start, u64 end)
 {
-  return ((end - start) / (double) s_oswin32.frequency.QuadPart);
+  return ((end - start) / (double)s_oswin32.frequency.QuadPart);
 }
 
 double ldk_os_time_ticks_interval_get_milliseconds(u64 start, u64 end)
@@ -602,7 +631,6 @@ double ldk_os_time_ticks_interval_get_nanoseconds(u64 start, u64 end)
   double difference = (end - start) * 1000000000.0;
   return (difference / s_oswin32.frequency.QuadPart);
 }
-
 
 // ---------------------------------------------------------------------------
 // Windowing
@@ -623,7 +651,7 @@ void LDK_API ldk_os_graphics_context_destroy(LDKGCtx context)
 void ldk_os_window_destroy(LDKWindow window)
 {
   u32 lastWindowIndex = s_oswin32.windowCount - 1;
-  for (u32 i =0; i < s_oswin32.windowCount; i++)
+  for (u32 i = 0; i < s_oswin32.windowCount; i++)
   {
     if (s_oswin32.all_windows[i] == window)
     {
@@ -640,48 +668,50 @@ void ldk_os_window_destroy(LDKWindow window)
     }
   }
 
-  LDKWin32Window* ldk_window = ((LDKWin32Window*)window);
+  LDKWin32Window *ldk_window = ((LDKWin32Window *)window);
   DeleteDC(ldk_window->dc);
   DestroyWindow(ldk_window->handle);
   ldk_os_memory_free(window);
 }
 
-LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 height, LDKWindowFlags flags)
+LDKWindow ldk_os_window_create_with_flags(
+    const char *title, i32 width, i32 height, LDKWindowFlags flags)
 {
   if (s_oswin32.windowCount > LDK_WIN32_MAX_WINDOWS)
   {
-    ldk_log_error("Exceeded maximum number of windows %d", LDK_WIN32_MAX_WINDOWS);
+    ldk_log_error(
+        "Exceeded maximum number of windows %d", LDK_WIN32_MAX_WINDOWS);
     return NULL;
   }
 
-  const char* ldk_window_class = "LDK_WINDOW_CLASS";
+  const char *ldk_window_class = "LDK_WINDOW_CLASS";
   HINSTANCE hInstance = GetModuleHandleA(NULL);
   WNDCLASSEXA wc = {0};
 
-                            
-  //const DWORD style_bare = WS_POPUP  | WS_SIZEBOX | WS_THICKFRAME;
+  // const DWORD style_bare = WS_POPUP  | WS_SIZEBOX | WS_THICKFRAME;
   const DWORD style_bare = WS_POPUP;
   const DWORD style_default = WS_OVERLAPPEDWINDOW;
-  DWORD windowStyle = (flags & LDK_WINDOW_FLAG_NOTITLEBAR) ? style_bare : style_default;
+  DWORD windowStyle =
+      (flags & LDK_WINDOW_FLAG_NOTITLEBAR) ? style_bare : style_default;
 
   // Calculate total window size
-  RECT clientArea = {(LONG)0,(LONG)0, (LONG)width, (LONG)height};
+  RECT clientArea = {(LONG)0, (LONG)0, (LONG)width, (LONG)height};
   if (!AdjustWindowRect(&clientArea, windowStyle, FALSE))
   {
     ldk_log_error("Could not calculate window size", 0);
   }
 
-  if (! GetClassInfoExA(hInstance, ldk_window_class, &wc))
+  if (!GetClassInfoExA(hInstance, ldk_window_class, &wc))
   {
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.style = CS_OWNDC;
-    wc.lpfnWndProc = (WNDPROC) &s_window_proc;
+    wc.lpfnWndProc = (WNDPROC)&s_window_proc;
     wc.hInstance = hInstance;
-    wc.hbrBackground = (HBRUSH) GetStockObject(BLACK_BRUSH);
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     wc.lpszClassName = ldk_window_class;
 
     // Do not try registering the class multiple times
-    if (! RegisterClassExA(&wc))
+    if (!RegisterClassExA(&wc))
     {
       ldk_log_error("Could not register window class", 0);
       return NULL;
@@ -704,11 +734,11 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
     position_y = desktop_rect.bottom / 2 - height / 2;
   }
 
-  HWND window_handle = CreateWindowExA(0, ldk_window_class, title, 
-                                       windowStyle, position_x, position_y, windowWidth, windowHeight,
-                                       NULL, NULL, hInstance, NULL);
+  HWND window_handle =
+      CreateWindowExA(0, ldk_window_class, title, windowStyle, position_x,
+          position_y, windowWidth, windowHeight, NULL, NULL, hInstance, NULL);
 
-  if (! window_handle)
+  if (!window_handle)
   {
     ldk_log_error("Could not create a window", 0);
     return NULL;
@@ -718,10 +748,10 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   showFlag |= (flags & LDK_WINDOW_FLAG_MINIMIZED) ? SW_SHOWMINIMIZED : 0;
   showFlag |= (flags & LDK_WINDOW_FLAG_MAXIMIZED) ? SW_SHOWMAXIMIZED : 0;
 
-  if (! (flags & LDK_WINDOW_FLAG_HIDDEN))
+  if (!(flags & LDK_WINDOW_FLAG_HIDDEN))
     ShowWindow(window_handle, showFlag);
 
-  LDKWin32Window* window = ldk_os_memory_alloc(sizeof(LDKWin32Window));
+  LDKWin32Window *window = ldk_os_memory_alloc(sizeof(LDKWin32Window));
   window->handle = window_handle;
   window->dc = GetDC(window_handle);
   window->is_fullscreen = false;
@@ -729,22 +759,21 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   window->drag_rect = ldk_rect(0, 0, windowWidth, windowHeight);
   window->activation_flags = flags;
 
-  bool isOpenGL = s_graphics_api_is_opengl(s_graphicsAPIInfo .api);
-  if(isOpenGL)
+  bool isOpenGL = s_graphics_api_is_opengl(s_graphicsAPIInfo.api);
+  if (isOpenGL)
   {
     int pixelFormat;
     int num_pixel_formats = 0;
     PIXELFORMATDESCRIPTOR pfd;
 
-    const int* pixel_format_attrib_list  = (const int*) s_graphicsAPIInfo .gl.pixel_format_attribs;
-    const int* context_attrib_list      = (const int*) s_graphicsAPIInfo.gl.context_attribs;
+    const int *pixel_format_attrib_list =
+        (const int *)s_graphicsAPIInfo.gl.pixel_format_attribs;
+    const int *context_attrib_list =
+        (const int *)s_graphicsAPIInfo.gl.context_attribs;
 
     s_graphicsAPIInfo.gl.wglChoosePixelFormatARB(window->dc,
-                                                 pixel_format_attrib_list,
-                                                 NULL,
-                                                 1,
-                                                 &pixelFormat,
-                                                 (UINT*) &num_pixel_formats);
+        pixel_format_attrib_list, NULL, 1, &pixelFormat,
+        (UINT *)&num_pixel_formats);
 
     if (num_pixel_formats <= 0)
     {
@@ -752,7 +781,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
       return NULL;
     }
 
-    if (! SetPixelFormat(window->dc, pixelFormat, &pfd))
+    if (!SetPixelFormat(window->dc, pixelFormat, &pfd))
     {
       ldk_log_error("Unable to set a pixel format", 0);
       return NULL;
@@ -760,15 +789,12 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
 
     HGLRC rc = s_graphicsAPIInfo.gl.rc;
 
-    if (! rc)
+    if (!rc)
     {
       rc = s_graphicsAPIInfo.gl.wglCreateContextAttribsARB(
-        window->dc,
-        NULL,
-        context_attrib_list
-      );
+          window->dc, NULL, context_attrib_list);
 
-      if (! rc)
+      if (!rc)
       {
         return NULL;
       }
@@ -776,7 +802,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
       s_graphicsAPIInfo.gl.rc = rc;
     }
 
-    if (! wglMakeCurrent(window->dc, rc))
+    if (!wglMakeCurrent(window->dc, rc))
     {
       ldk_log_error("Unable to set OpenGL context current", 0);
       return NULL;
@@ -793,7 +819,7 @@ LDKWindow ldk_os_window_create_with_flags(const char* title, i32 width, i32 heig
   return window;
 }
 
-LDKWindow ldk_os_window_create(const char* title, i32 width, i32 height)
+LDKWindow ldk_os_window_create(const char *title, i32 width, i32 height)
 {
   LDKWindowFlags defaultFlags = LDK_WINDOW_FLAG_NORMAL;
   return ldk_os_window_create_with_flags(title, width, height, defaultFlags);
@@ -801,23 +827,24 @@ LDKWindow ldk_os_window_create(const char* title, i32 width, i32 height)
 
 bool ldk_os_window_should_close(LDKWindow window)
 {
-  return ((LDKWin32Window*)window)->close_flag;
+  return ((LDKWin32Window *)window)->close_flag;
 }
 
-bool ldk_os_events_poll(LDKEvent* event)
+bool ldk_os_events_poll(LDKEvent *event)
 {
   MSG msg;
 
   if (s_oswin32.events_count == 0)
   {
     // clean up changed bit for keyboard keys
-    for(int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
+    for (int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
     {
-      s_oswin32.keyboard_state.key[keyCode] &= ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+      s_oswin32.keyboard_state.key[keyCode] &=
+          ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
     }
 
     // clean up changed bit for mouse buttons
-    for(int button = 0; button <  LDK_MOUSE_MAX_BUTTONS; button++)
+    for (int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
     {
       s_oswin32.mouse_state.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
     }
@@ -836,9 +863,10 @@ bool ldk_os_events_poll(LDKEvent* event)
   // clean up changed bit for joystick buttons
   for (u32 joystickId = 0; joystickId < LDK_JOYSTICK_MAX; joystickId++)
   {
-    for(int button = 0; button < LDK_JOYSTICK_NUM_BUTTONS; button++)
+    for (int button = 0; button < LDK_JOYSTICK_NUM_BUTTONS; button++)
     {
-      s_oswin32.joystick_state[joystickId].button[button] &= ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+      s_oswin32.joystick_state[joystickId].button[button] &=
+          ~LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
     }
   }
 
@@ -847,7 +875,8 @@ bool ldk_os_events_poll(LDKEvent* event)
   // WindowProc might have enqueued some events...
   if (s_oswin32.events_poll_index < s_oswin32.events_count)
   {
-    memcpy(event, &s_oswin32.events[s_oswin32.events_poll_index++], sizeof(LDKEvent));
+    memcpy(event, &s_oswin32.events[s_oswin32.events_poll_index++],
+        sizeof(LDKEvent));
     return true;
   }
   else
@@ -861,12 +890,12 @@ bool ldk_os_events_poll(LDKEvent* event)
 
 void ldk_os_window_buffers_swap(LDKWindow window)
 {
-  SwapBuffers(((LDKWin32Window*)window)->dc);
+  SwapBuffers(((LDKWin32Window *)window)->dc);
 }
 
 bool ldk_os_window_fullscreen_get(LDKWindow window)
 {
-  return ((LDKWin32Window*)window)->is_fullscreen;
+  return ((LDKWin32Window *)window)->is_fullscreen;
 }
 
 bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
@@ -886,7 +915,7 @@ bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
   ZeroMemory(&monitorInfo, sizeof(monitorInfo));
   monitorInfo.cbSize = sizeof(monitorInfo);
 
-  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO *)&monitorInfo))
   {
     return false;
   }
@@ -899,19 +928,22 @@ bool s_win32_enter_exclusive_fullscreen(HWND hWnd)
     return false;
   }
 
-  result = ChangeDisplaySettingsEx(monitorInfo.szDevice, &mode,
-                                   NULL, CDS_FULLSCREEN, NULL);
+  result = ChangeDisplaySettingsEx(
+      monitorInfo.szDevice, &mode, NULL, CDS_FULLSCREEN, NULL);
 
   if (result != DISP_CHANGE_SUCCESSFUL)
   {
-    ldk_log_error("Failed to change '%s' display settings\n", monitorInfo.szDevice);
+    ldk_log_error(
+        "Failed to change '%s' display settings\n", monitorInfo.szDevice);
     return false;
   }
 
-  SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
+  SetWindowLongPtr(hWnd, GWL_STYLE,
+      GetWindowLongPtr(hWnd, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
 
-  SetWindowPos(hWnd, HWND_TOP, mode.dmPosition.x, mode.dmPosition.y, mode.dmPelsWidth,
-               mode.dmPelsHeight, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  SetWindowPos(hWnd, HWND_TOP, mode.dmPosition.x, mode.dmPosition.y,
+      mode.dmPelsWidth, mode.dmPelsHeight,
+      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
   return true;
 }
@@ -932,7 +964,7 @@ bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
   ZeroMemory(&monitorInfo, sizeof(monitorInfo));
   monitorInfo.cbSize = sizeof(monitorInfo);
 
-  if (!GetMonitorInfo(hMonitor, (MONITORINFO*)&monitorInfo))
+  if (!GetMonitorInfo(hMonitor, (MONITORINFO *)&monitorInfo))
   {
     result = ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
   }
@@ -951,7 +983,7 @@ bool s_win32_exit_exclusive_fullscreen(HWND hWnd)
 
 bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
 {
-  LDKWin32Window* win32Window = (LDKWin32Window*)window;
+  LDKWin32Window *win32Window = (LDKWin32Window *)window;
   HWND hWnd = win32Window->handle;
 
   if (fs == win32Window->is_fullscreen)
@@ -989,7 +1021,8 @@ bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
   SetWindowPlacement(hWnd, &win32Window->prev_placement);
 
   SetWindowPos(hWnd, NULL, 0, 0, 0, 0,
-               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
+          SWP_FRAMECHANGED);
 
   ShowWindow(hWnd, SW_RESTORE);
 
@@ -999,46 +1032,46 @@ bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs)
 
 LDKSize ldk_os_window_client_area_size_get(LDKWindow window)
 {
-  HWND handle = ((LDKWin32Window*)window)->handle;
+  HWND handle = ((LDKWin32Window *)window)->handle;
   RECT rect;
   GetClientRect(handle, &rect);
-  LDKSize size = { .w = rect.right, .h = rect.bottom };
+  LDKSize size = {.w = rect.right, .h = rect.bottom};
   return size;
 }
 
 LDKPoint ldk_os_window_position_get(LDKWindow window)
 {
-  HWND handle = ((LDKWin32Window*)window)->handle;
+  HWND handle = ((LDKWin32Window *)window)->handle;
   RECT rect;
   GetClientRect(handle, &rect);
-  LDKPoint position = { .x = rect.right, .y = rect.bottom };
+  LDKPoint position = {.x = rect.right, .y = rect.bottom};
   return position;
 }
 
 void ldk_os_window_position_set(LDKWindow window, i32 x, i32 y)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   SetWindowPos(window_handle, NULL, x, y, 0, 0, SWP_NOSIZE);
 }
 
 void ldk_os_window_size_set(LDKWindow window, i32 width, i32 height)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   SetWindowPos(window_handle, NULL, 0, 0, width, height, SWP_NOMOVE);
 }
 
 LDKSize ldk_os_window_size_get(LDKWindow window)
 {
   RECT rect;
-  HWND handle = ((LDKWin32Window*)window)->handle;
+  HWND handle = ((LDKWin32Window *)window)->handle;
   GetWindowRect(handle, &rect);
-  LDKSize size = { rect.right - rect.left, rect.bottom - rect.top };
+  LDKSize size = {rect.right - rect.left, rect.bottom - rect.top};
   return size;
 }
 
 void ldk_os_window_client_area_size_set(LDKWindow window, i32 width, i32 height)
 {
-  RECT clientArea = {(LONG)0,(LONG)0, (LONG)width, (LONG)height};
+  RECT clientArea = {(LONG)0, (LONG)0, (LONG)width, (LONG)height};
   if (!AdjustWindowRect(&clientArea, WS_OVERLAPPEDWINDOW, FALSE))
     return;
 
@@ -1047,30 +1080,32 @@ void ldk_os_window_client_area_size_set(LDKWindow window, i32 width, i32 height)
   ldk_os_window_size_set(window, windowWidth, windowHeight);
 }
 
-void ldk_os_window_title_set(LDKWindow window, const char* title)
+void ldk_os_window_title_set(LDKWindow window, const char *title)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   SetWindowTextA(window_handle, title);
 }
 
-size_t ldk_os_window_title_get(LDKWindow window, XSmallstr* outTitle)
+size_t ldk_os_window_title_get(LDKWindow window, XSmallstr *outTitle)
 {
   size_t length = GetWindowTextLengthA(window);
 
   if (length >= X_FS_PATH_MAX_LENGTH)
     return length;
 
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
-  GetWindowTextA(window_handle, (char*) &outTitle->buf, X_FS_PATH_MAX_LENGTH);
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
+  GetWindowTextA(window_handle, (char *)&outTitle->buf, X_FS_PATH_MAX_LENGTH);
   return 0;
 }
 
-bool ldk_os_window_icon_set(LDKWindow window, const char* iconPath)
+bool ldk_os_window_icon_set(LDKWindow window, const char *iconPath)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
-  HICON hIcon = (HICON)LoadImage(NULL, iconPath, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
+  HICON hIcon = (HICON)LoadImage(
+      NULL, iconPath, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
 
-  if (hIcon == NULL) {
+  if (hIcon == NULL)
+  {
     ldk_log_error("Failed to load icon '%s'", iconPath);
     return FALSE;
   }
@@ -1082,31 +1117,79 @@ bool ldk_os_window_icon_set(LDKWindow window, const char* iconPath)
 
 bool ldk_os_window_show(LDKWindow window, bool show)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
-  return ShowWindow(window_handle , show ? SW_RESTORE : SW_HIDE);
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
+  return ShowWindow(window_handle, show ? SW_RESTORE : SW_HIDE);
 }
 
 void ldk_os_window_maximize(LDKWindow window)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   ShowWindow(window_handle, SW_SHOWMAXIMIZED);
 }
 
 void ldk_os_window_minimize(LDKWindow window)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   ShowWindow(window_handle, SW_SHOWMINIMIZED);
 }
 
 void ldk_os_window_restore(LDKWindow window)
 {
-  HWND window_handle = ((LDKWin32Window*)window)->handle;
+  HWND window_handle = ((LDKWin32Window *)window)->handle;
   ShowWindow(window_handle, SW_RESTORE);
+}
+
+bool ldk_os_clipboard_text_set(LDKWindow window, const char *text)
+{
+  LDKWin32Window *ldk_window = (LDKWin32Window *)window;
+  HGLOBAL memory;
+  char *destination;
+  size_t size;
+
+  if (!ldk_window || !text || !OpenClipboard(ldk_window->handle))
+  {
+    return false;
+  }
+
+  if (!EmptyClipboard())
+  {
+    CloseClipboard();
+    return false;
+  }
+
+  size = strlen(text) + 1;
+  memory = GlobalAlloc(GMEM_MOVEABLE, size);
+  if (!memory)
+  {
+    CloseClipboard();
+    return false;
+  }
+
+  destination = (char *)GlobalLock(memory);
+  if (!destination)
+  {
+    GlobalFree(memory);
+    CloseClipboard();
+    return false;
+  }
+
+  memcpy(destination, text, size);
+  GlobalUnlock(memory);
+
+  if (!SetClipboardData(CF_TEXT, memory))
+  {
+    GlobalFree(memory);
+    CloseClipboard();
+    return false;
+  }
+
+  CloseClipboard();
+  return true;
 }
 
 void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect)
 {
-  LDKWin32Window* w = (LDKWin32Window*) window;
+  LDKWin32Window *w = (LDKWin32Window *)window;
   w->drag_rect = rect;
 }
 
@@ -1116,13 +1199,14 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   i32 mouse_button_id = -1;
   LRESULT return_value = FALSE;
 
-  LDKWin32Window* window = (LDKWin32Window*) s_ldkwindow_from_win32_hwnd(hwnd);
+  LDKWin32Window *window = (LDKWin32Window *)s_ldkwindow_from_win32_hwnd(hwnd);
 
-  switch(uMsg) 
+  switch (uMsg)
   {
   case WM_NCHITTEST:
   {
-    // Get the default behaviour but set the arrow cursor if it's in the client area
+    // Get the default behaviour but set the arrow cursor if it's in the client
+    // area
     LRESULT result = DefWindowProc(hwnd, uMsg, wParam, lParam);
     if (result == HTCLIENT)
     {
@@ -1139,10 +1223,10 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         const int border = 8;
 
-        bool left   = p.x >= r.left  && p.x <  r.left + border;
-        bool right  = p.x <  r.right && p.x >= r.right - border;
-        bool top    = p.y >= r.top   && p.y <  r.top + border;
-        bool bottom = p.y <  r.bottom && p.y >= r.bottom - border;
+        bool left = p.x >= r.left && p.x < r.left + border;
+        bool right = p.x < r.right && p.x >= r.right - border;
+        bool top = p.y >= r.top && p.y < r.top + border;
+        bool bottom = p.y < r.bottom && p.y >= r.bottom - border;
 
         if (top && left)
           return HTTOPLEFT;
@@ -1163,15 +1247,12 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         if (ldk_rect_contains(&window->drag_rect, p.x, p.y))
         {
-          printf("NCHITTEST: %d,%d,%d,%d\n",
-                 window->drag_rect.x,
-                 window->drag_rect.y,
-                 window->drag_rect.w,
-                 window->drag_rect.h);
+          printf("NCHITTEST: %d,%d,%d,%d\n", window->drag_rect.x,
+              window->drag_rect.y, window->drag_rect.w, window->drag_rect.h);
           return HTCAPTION;
         }
 
-        //ldk_os_cursor_type_set(LDK_CURSOR_ARROW);
+        // ldk_os_cursor_type_set(LDK_CURSOR_ARROW);
         return result;
       }
     }
@@ -1197,50 +1278,64 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
   case WM_ACTIVATE:
   {
-    bool activate = (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE);
-    LDKEvent* e = s_win32_event_new();
+    bool activate =
+        (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE);
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_WINDOW;
-    e->window_event.type = activate ? LDK_WINDOW_EVENT_ACTIVATE : LDK_WINDOW_EVENT_DEACTIVATE;
+    e->window_event.type =
+        activate ? LDK_WINDOW_EVENT_ACTIVATE : LDK_WINDOW_EVENT_DEACTIVATE;
     e->window = window;
   }
   break;
   case WM_CHAR:
   {
-    if (ldk_os_keyboard_key_is_pressed(&s_oswin32.keyboard_state, LDK_KEYCODE_CONTROL))
+    if (ldk_os_keyboard_key_is_pressed(
+            &s_oswin32.keyboard_state, LDK_KEYCODE_CONTROL))
       break;
-    LDKEvent* e = s_win32_event_new();
-    e->type                = LDK_EVENT_TYPE_TEXT;
+    LDKEvent *e = s_win32_event_new();
+    e->type = LDK_EVENT_TYPE_TEXT;
     e->window = window;
-    e->text_event.character = (u32) wParam;
-    switch(wParam)
+    e->text_event.character = (u32)wParam;
+    switch (wParam)
     {
-    case VK_BACK: e->text_event.type = LDK_TEXT_EVENT_BACKSPACE; break;
-    case VK_RETURN: e->text_event.type = LDK_TEXT_EVENT_RETURN; break;
-    default: e->text_event.type =  LDK_TEXT_EVENT_CHARACTER_INPUT; break;
+    case VK_BACK:
+      e->text_event.type = LDK_TEXT_EVENT_BACKSPACE;
+      break;
+    case VK_RETURN:
+      e->text_event.type = LDK_TEXT_EVENT_RETURN;
+      break;
+    default:
+      e->text_event.type = LDK_TEXT_EVENT_CHARACTER_INPUT;
+      break;
     }
   }
   break;
 
   case WM_SIZE:
   {
-    //WM_SIZE is sent a lot of times in a row and would easily overflow our
-    //event buffer. We just update the last event if it is a LDK_EVENT_TYPE_WINDOW instead of adding a new event
-    LDKEvent* e = NULL;
+    // WM_SIZE is sent a lot of times in a row and would easily overflow our
+    // event buffer. We just update the last event if it is a
+    // LDK_EVENT_TYPE_WINDOW instead of adding a new event
+    LDKEvent *e = NULL;
     u32 lastEventIndex = s_oswin32.events_count - 1;
-    if (s_oswin32.events_count > 0 && s_oswin32.events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
+    if (s_oswin32.events_count > 0 &&
+        s_oswin32.events[lastEventIndex].type == LDK_EVENT_TYPE_WINDOW)
     {
-      if(s_oswin32.events[lastEventIndex].window_event.type == LDK_WINDOW_EVENT_RESIZED)
+      if (s_oswin32.events[lastEventIndex].window_event.type ==
+          LDK_WINDOW_EVENT_RESIZED)
         e = &s_oswin32.events[lastEventIndex];
     }
 
     if (e == NULL)
       e = s_win32_event_new();
 
-    e->type               = LDK_EVENT_TYPE_WINDOW;
-    e->window             = window;
-    e->window_event.type   = wParam == SIZE_MAXIMIZED ? LDK_WINDOW_EVENT_MAXIMIZED :
-      wParam == SIZE_MINIMIZED ? LDK_WINDOW_EVENT_MINIMIZED : LDK_WINDOW_EVENT_RESIZED;
-    e->window_event.width  = LOWORD(lParam);
+    e->type = LDK_EVENT_TYPE_WINDOW;
+    e->window = window;
+    e->window_event.type = wParam == SIZE_MAXIMIZED ? LDK_WINDOW_EVENT_MAXIMIZED
+                           : wParam == SIZE_MINIMIZED
+                               ? LDK_WINDOW_EVENT_MINIMIZED
+                               : LDK_WINDOW_EVENT_RESIZED;
+    e->window_event.width = LOWORD(lParam);
     e->window_event.height = HIWORD(lParam);
   }
   break;
@@ -1249,30 +1344,35 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   case WM_KEYUP:
   {
     i32 isDown = !(lParam & (1 << 31)); // 0 = pressed, 1 = released
-    i32 wasDown = (lParam & (1 << 30)) !=0;
+    i32 wasDown = (lParam & (1 << 30)) != 0;
     i32 state = (((isDown ^ wasDown) << 1) | isDown);
-    i16 vkCode = (i16) wParam;
-    s_oswin32.keyboard_state.key[vkCode] = (u8) state;
+    i16 vkCode = (i16)wParam;
+    s_oswin32.keyboard_state.key[vkCode] = (u8)state;
 
-    LDKEvent* e = s_win32_event_new();
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_KEYBOARD;
     e->window = window;
-    e->keyboard_event.type = (wasDown && !isDown) ?
-      LDK_KEYBOARD_EVENT_KEY_UP : (!wasDown && isDown) ?
-      LDK_KEYBOARD_EVENT_KEY_DOWN : LDK_KEYBOARD_EVENT_KEY_HOLD;
+    e->keyboard_event.type = (wasDown && !isDown) ? LDK_KEYBOARD_EVENT_KEY_UP
+                             : (!wasDown && isDown)
+                                 ? LDK_KEYBOARD_EVENT_KEY_DOWN
+                                 : LDK_KEYBOARD_EVENT_KEY_HOLD;
 
-    e->keyboard_event.keyCode      = vkCode;
-    e->keyboard_event.ctrl_is_down   = s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL];
-    e->keyboard_event.shift_is_down  = s_oswin32.keyboard_state.key[LDK_KEYCODE_SHIFT];
-    e->keyboard_event.alt_is_down    = s_oswin32.keyboard_state.key[LDK_KEYCODE_ALT];
+    e->keyboard_event.keyCode = vkCode;
+    e->keyboard_event.ctrl_is_down =
+        s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL];
+    e->keyboard_event.shift_is_down =
+        s_oswin32.keyboard_state.key[LDK_KEYCODE_SHIFT];
+    e->keyboard_event.alt_is_down =
+        s_oswin32.keyboard_state.key[LDK_KEYCODE_ALT];
   }
   break;
 
   case WM_MOUSEWHEEL:
   {
-    // A wheel event may be sent to the focus window, not necessarily the window under the cursor.
-    // Becasue of that we must to explicitly convert it to client space first.
-    // Also because of that I lost hours chasing a stupid IMGUI bug. Thanks Microsoft.
+    // A wheel event may be sent to the focus window, not necessarily the window
+    // under the cursor. Becasue of that we must to explicitly convert it to
+    // client space first. Also because of that I lost hours chasing a stupid
+    // IMGUI bug. Thanks Microsoft.
     POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
     ScreenToClient(hwnd, &pt);
 
@@ -1284,18 +1384,21 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     i32 last_y = s_oswin32.mouse_state.cursor.y;
     s_oswin32.mouse_state.cursor.x = pt.x;
     s_oswin32.mouse_state.cursor.y = pt.y;
-    s_oswin32.mouse_state.cursor_relative.x = s_oswin32.mouse_state.cursor.x - last_x;
-    s_oswin32.mouse_state.cursor_relative.y = s_oswin32.mouse_state.cursor.y - last_y;
+    s_oswin32.mouse_state.cursor_relative.x =
+        s_oswin32.mouse_state.cursor.x - last_x;
+    s_oswin32.mouse_state.cursor_relative.y =
+        s_oswin32.mouse_state.cursor.y - last_y;
 
-    LDKEvent* e = s_win32_event_new();
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_MOUSE_WHEEL;
     e->window = window;
     e->mouse_event.wheel_delta = delta;
-    e->mouse_event.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
+    e->mouse_event.type = delta >= 0 ? LDK_MOUSE_EVENT_WHEEL_FORWARD
+                                     : LDK_MOUSE_EVENT_WHEEL_BACKWARD;
     e->mouse_event.cursorX = pt.x;
     e->mouse_event.cursorY = pt.y;
-    e->mouse_event.xRel    = s_oswin32.mouse_state.cursor_relative.x;
-    e->mouse_event.yRel    = s_oswin32.mouse_state.cursor_relative.y;
+    e->mouse_event.xRel = s_oswin32.mouse_state.cursor_relative.x;
+    e->mouse_event.yRel = s_oswin32.mouse_state.cursor_relative.y;
 
     ScreenToClient(hwnd, &pt);
   }
@@ -1306,28 +1409,32 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     i32 last_x = s_oswin32.mouse_state.cursor.x;
     i32 last_y = s_oswin32.mouse_state.cursor.y;
     s_oswin32.mouse_state.cursor.x = GET_X_LPARAM(lParam);
-    s_oswin32.mouse_state.cursor.y = GET_Y_LPARAM(lParam); 
-    s_oswin32.mouse_state.cursor_relative.x = s_oswin32.mouse_state.cursor.x - last_x;
-    s_oswin32.mouse_state.cursor_relative.y = s_oswin32.mouse_state.cursor.y - last_y;
+    s_oswin32.mouse_state.cursor.y = GET_Y_LPARAM(lParam);
+    s_oswin32.mouse_state.cursor_relative.x =
+        s_oswin32.mouse_state.cursor.x - last_x;
+    s_oswin32.mouse_state.cursor_relative.y =
+        s_oswin32.mouse_state.cursor.y - last_y;
 
-    LDKEvent* e = s_win32_event_new();
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_MOUSE_MOVE;
-    e->mouse_event.xRel    = e->mouse_event.cursorX - last_x;
-    e->mouse_event.yRel    = e->mouse_event.cursorY - last_y;
+    e->mouse_event.xRel = e->mouse_event.cursorX - last_x;
+    e->mouse_event.yRel = e->mouse_event.cursorY - last_y;
     e->window = window;
-    e->mouse_event.type    = LDK_MOUSE_EVENT_MOVE;
-    e->mouse_event.cursorX = GET_X_LPARAM(lParam); 
-    e->mouse_event.cursorY = GET_Y_LPARAM(lParam); 
-    e->mouse_event.xRel    = s_oswin32.mouse_state.cursor_relative.x;
-    e->mouse_event.yRel    = s_oswin32.mouse_state.cursor_relative.y;
+    e->mouse_event.type = LDK_MOUSE_EVENT_MOVE;
+    e->mouse_event.cursorX = GET_X_LPARAM(lParam);
+    e->mouse_event.cursorY = GET_Y_LPARAM(lParam);
+    e->mouse_event.xRel = s_oswin32.mouse_state.cursor_relative.x;
+    e->mouse_event.yRel = s_oswin32.mouse_state.cursor_relative.y;
   }
   break;
 
   case WM_XBUTTONDOWN:
   case WM_XBUTTONUP:
     if (mouse_button_id == -1)
-      mouse_button_id = GET_XBUTTON_WPARAM (wParam) == XBUTTON1 ? LDK_MOUSE_BUTTON_EXTRA_0 : LDK_MOUSE_BUTTON_EXTRA_1;
-        return_value = TRUE;
+      mouse_button_id = GET_XBUTTON_WPARAM(wParam) == XBUTTON1
+                            ? LDK_MOUSE_BUTTON_EXTRA_0
+                            : LDK_MOUSE_BUTTON_EXTRA_1;
+    return_value = TRUE;
   case WM_LBUTTONDOWN:
   case WM_LBUTTONUP:
     if (mouse_button_id == -1)
@@ -1342,58 +1449,69 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     if (mouse_button_id == -1)
       mouse_button_id = LDK_MOUSE_BUTTON_RIGHT;
 
-    is_mouse_button_down_event = uMsg == WM_XBUTTONDOWN || uMsg == WM_LBUTTONDOWN || uMsg == WM_MBUTTONDOWN || uMsg == WM_RBUTTONDOWN;
+    is_mouse_button_down_event =
+        uMsg == WM_XBUTTONDOWN || uMsg == WM_LBUTTONDOWN ||
+        uMsg == WM_MBUTTONDOWN || uMsg == WM_RBUTTONDOWN;
 
-    unsigned char* buttonLeft   = (unsigned char*) &(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_LEFT]);
-    unsigned char* buttonRight  = (unsigned char*) &(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_RIGHT]);
-    unsigned char* buttonMiddle = (unsigned char*) &(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_MIDDLE]);
-    unsigned char* buttonExtra1 = (unsigned char*) &(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_0]);
-    unsigned char* buttonExtra2 = (unsigned char*) &(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_1]);
+    unsigned char *buttonLeft =
+        (unsigned char *)&(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_LEFT]);
+    unsigned char *buttonRight = (unsigned char *)&(
+        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_RIGHT]);
+    unsigned char *buttonMiddle = (unsigned char *)&(
+        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_MIDDLE]);
+    unsigned char *buttonExtra1 = (unsigned char *)&(
+        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_0]);
+    unsigned char *buttonExtra2 = (unsigned char *)&(
+        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_1]);
     unsigned char isDown, wasDown;
 
-    isDown        = (unsigned char) ((wParam & MK_LBUTTON) > 0);
-    wasDown       = *buttonLeft;
-    *buttonLeft   = (((isDown ^ wasDown) << 1) | isDown);
+    isDown = (unsigned char)((wParam & MK_LBUTTON) > 0);
+    wasDown = *buttonLeft;
+    *buttonLeft = (((isDown ^ wasDown) << 1) | isDown);
 
-    isDown        = (unsigned char) ((wParam & MK_RBUTTON) > 0);
-    wasDown       = *buttonRight;
-    *buttonRight  = (((isDown ^ wasDown) << 1) | isDown);
+    isDown = (unsigned char)((wParam & MK_RBUTTON) > 0);
+    wasDown = *buttonRight;
+    *buttonRight = (((isDown ^ wasDown) << 1) | isDown);
 
-    isDown        = (unsigned char) ((wParam & MK_MBUTTON) > 0);
-    wasDown       = *buttonMiddle;
+    isDown = (unsigned char)((wParam & MK_MBUTTON) > 0);
+    wasDown = *buttonMiddle;
     *buttonMiddle = (((isDown ^ wasDown) << 1) | isDown);
 
-    isDown        = (unsigned char) ((wParam & MK_XBUTTON1) > 0);
-    wasDown       = *buttonExtra1;
+    isDown = (unsigned char)((wParam & MK_XBUTTON1) > 0);
+    wasDown = *buttonExtra1;
     *buttonExtra1 = (((isDown ^ wasDown) << 1) | isDown);
 
-    isDown        = (unsigned char) ((wParam & MK_XBUTTON2) > 0);
-    wasDown       = *buttonExtra2;
+    isDown = (unsigned char)((wParam & MK_XBUTTON2) > 0);
+    wasDown = *buttonExtra2;
     *buttonExtra2 = (((isDown ^ wasDown) << 1) | isDown);
 
     // update cursor position
     i32 last_x = s_oswin32.mouse_state.cursor.x;
     i32 last_y = s_oswin32.mouse_state.cursor.y;
     s_oswin32.mouse_state.cursor.x = GET_X_LPARAM(lParam);
-    s_oswin32.mouse_state.cursor.y = GET_Y_LPARAM(lParam); 
-    s_oswin32.mouse_state.cursor_relative.x = s_oswin32.mouse_state.cursor.x - last_x;
-    s_oswin32.mouse_state.cursor_relative.y = s_oswin32.mouse_state.cursor.y - last_y;
+    s_oswin32.mouse_state.cursor.y = GET_Y_LPARAM(lParam);
+    s_oswin32.mouse_state.cursor_relative.x =
+        s_oswin32.mouse_state.cursor.x - last_x;
+    s_oswin32.mouse_state.cursor_relative.y =
+        s_oswin32.mouse_state.cursor.y - last_y;
 
-    LDKEvent* e = s_win32_event_new();
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_MOUSE_BUTTON;
     e->window = window;
-    e->mouse_event.type = is_mouse_button_down_event ? LDK_MOUSE_EVENT_BUTTON_DOWN : LDK_MOUSE_EVENT_BUTTON_UP;
+    e->mouse_event.type = is_mouse_button_down_event
+                              ? LDK_MOUSE_EVENT_BUTTON_DOWN
+                              : LDK_MOUSE_EVENT_BUTTON_UP;
     e->mouse_event.mouse_button = mouse_button_id;
     e->mouse_event.cursorX = GET_X_LPARAM(lParam);
     e->mouse_event.cursorY = GET_Y_LPARAM(lParam);
-    e->mouse_event.xRel    = s_oswin32.mouse_state.cursor_relative.x;
-    e->mouse_event.yRel    = s_oswin32.mouse_state.cursor_relative.y;
+    e->mouse_event.xRel = s_oswin32.mouse_state.cursor_relative.x;
+    e->mouse_event.yRel = s_oswin32.mouse_state.cursor_relative.y;
   }
   break;
 
   case WM_CLOSE:
   {
-    LDKEvent* e = s_win32_event_new();
+    LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_WINDOW;
     e->window_event.type = LDK_WINDOW_EVENT_CLOSE;
     e->window = window;
@@ -1405,26 +1523,29 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   return return_value;
 }
 
-
 // ---------------------------------------------------------------------------
 // Graphics
 // ---------------------------------------------------------------------------
 
-LDKGCtx ldk_os_graphics_context_opengl_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits)
+LDKGCtx ldk_os_graphics_context_opengl_create(
+    i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits)
 {
-  s_opengl_init(WIN32_GRAPHICS_API_OPENGL, version_major, version_minor, color_bits, depth_bits);
+  s_opengl_init(WIN32_GRAPHICS_API_OPENGL, version_major, version_minor,
+      color_bits, depth_bits);
   return &s_graphicsAPIInfo;
 }
 
-LDKGCtx ldk_os_graphics_context_opengles_create(i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits)
+LDKGCtx ldk_os_graphics_context_opengles_create(
+    i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits)
 {
-  s_opengl_init(WIN32_GRAPHICS_API_OPENGLES, version_major, version_minor, color_bits, depth_bits);
+  s_opengl_init(WIN32_GRAPHICS_API_OPENGLES, version_major, version_minor,
+      color_bits, depth_bits);
   return &s_graphicsAPIInfo;
 }
 
 void ldk_os_graphics_context_make_current(LDKWindow window, LDKGCtx context)
 {
-  HDC dc = ((LDKWin32Window*)window)->dc;
+  HDC dc = ((LDKWin32Window *)window)->dc;
   X_ASSERT(context == &s_graphicsAPIInfo);
   if (s_graphics_api_is_opengl(s_graphicsAPIInfo.api))
     wglMakeCurrent(dc, s_graphicsAPIInfo.gl.rc);
@@ -1450,24 +1571,23 @@ i32 ldk_os_graphics_vsync_get(void)
   return false;
 }
 
-
 // ---------------------------------------------------------------------------
 // Shared Library interface
 // ---------------------------------------------------------------------------
 
-LDKLibrary* ldk_os_library_load(const char* path)
+LDKLibrary *ldk_os_library_load(const char *path)
 {
-  return (void*) LoadLibrary(path);
+  return (void *)LoadLibrary(path);
 }
 
-bool ldk_os_library_unload(LDKLibrary* library)
+bool ldk_os_library_unload(LDKLibrary *library)
 {
   return FreeLibrary(library);
 }
 
-void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name)
+void *ldk_os_library_fuction_ptr_get(LDKLibrary *library, const char *name)
 {
-  return (void*) GetProcAddress(library, name);
+  return (void *)GetProcAddress(library, name);
 }
 
 // ---------------------------------------------------------------------------
@@ -1477,15 +1597,29 @@ void* ldk_os_library_fuction_ptr_get(LDKLibrary* library, const char* name)
 void ldk_os_cursor_type_set(LDKCursorType type)
 {
   LPCSTR cursor = IDC_ARROW;
-  switch(type)
+  switch (type)
   {
-  case LDK_CURSOR_ARROW: cursor = IDC_ARROW; break;
-  case LDK_CURSOR_TEXT_SELECT: cursor = IDC_IBEAM; break;
-  case LDK_CURSOR_SIZE_NWSE: cursor = IDC_SIZENWSE; break;
-  case LDK_CURSOR_SIZE_NESW: cursor = IDC_SIZENESW; break;
-  case LDK_CURSOR_SIZE_WE: cursor = IDC_SIZEWE; break;
-  case LDK_CURSOR_SIZE_NS: cursor = IDC_SIZENS; break;
-  default: cursor = IDC_ARROW; break;
+  case LDK_CURSOR_ARROW:
+    cursor = IDC_ARROW;
+    break;
+  case LDK_CURSOR_TEXT_SELECT:
+    cursor = IDC_IBEAM;
+    break;
+  case LDK_CURSOR_SIZE_NWSE:
+    cursor = IDC_SIZENWSE;
+    break;
+  case LDK_CURSOR_SIZE_NESW:
+    cursor = IDC_SIZENESW;
+    break;
+  case LDK_CURSOR_SIZE_WE:
+    cursor = IDC_SIZEWE;
+    break;
+  case LDK_CURSOR_SIZE_NS:
+    cursor = IDC_SIZENS;
+    break;
+  default:
+    cursor = IDC_ARROW;
+    break;
   }
 
   s_oswin32.cursor_type = type;
@@ -1493,106 +1627,109 @@ void ldk_os_cursor_type_set(LDKCursorType type)
   SetCursor(hcursor);
 }
 
-LDKCursorType  ldk_os_cursor_type_get()
+LDKCursorType ldk_os_cursor_type_get()
 {
   return s_oswin32.cursor_type;
 }
-
 
 // ---------------------------------------------------------------------------
 // Mouse
 // ---------------------------------------------------------------------------
 
-void ldk_os_mouse_state_get(LDKMouseState* outState)
+void ldk_os_mouse_state_get(LDKMouseState *outState)
 {
   memcpy(outState, &s_oswin32.mouse_state, sizeof(LDKMouseState));
 }
 
-bool ldk_os_mouse_button_is_pressed(LDKMouseState* state, LDKMouseButton button)
+bool ldk_os_mouse_button_is_pressed(LDKMouseState *state, LDKMouseButton button)
 {
-  return (state->button[button] & LDK_MOUSE_PRESSED_BIT) == LDK_MOUSE_PRESSED_BIT;
+  return (state->button[button] & LDK_MOUSE_PRESSED_BIT) ==
+         LDK_MOUSE_PRESSED_BIT;
 }
 
-bool ldk_os_mouse_button_down(LDKMouseState* state, LDKMouseButton button)
+bool ldk_os_mouse_button_down(LDKMouseState *state, LDKMouseButton button)
 {
   u32 mask = LDK_MOUSE_PRESSED_BIT | LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
   return (state->button[button] & mask) == mask;
 }
 
-bool ldk_os_mouse_button_up(LDKMouseState* state, LDKMouseButton button)
+bool ldk_os_mouse_button_up(LDKMouseState *state, LDKMouseButton button)
 {
   return state->button[button] == LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
 }
 
-LDKPoint ldk_os_mouse_cursor(LDKMouseState* state)
+LDKPoint ldk_os_mouse_cursor(LDKMouseState *state)
 {
   return state->cursor;
 }
 
-LDKPoint ldk_os_mouse_cursor_relative(LDKMouseState* state)
+LDKPoint ldk_os_mouse_cursor_relative(LDKMouseState *state)
 {
   return state->cursor_relative;
 }
 
-i32 ldk_os_mouse_wheel_delta(LDKMouseState* state)
+i32 ldk_os_mouse_wheel_delta(LDKMouseState *state)
 {
   return state->wheel_delta;
 }
-
 
 // ---------------------------------------------------------------------------
 // Keyboard
 // ---------------------------------------------------------------------------
 
-void ldk_os_keyboard_state_get(LDKKeyboardState* outState)
+void ldk_os_keyboard_state_get(LDKKeyboardState *outState)
 {
   memcpy(outState, &s_oswin32.keyboard_state, sizeof(LDKKeyboardState));
 }
 
-bool ldk_os_keyboard_key_is_pressed(LDKKeyboardState* state, LDKKeycode keycode)
+bool ldk_os_keyboard_key_is_pressed(LDKKeyboardState *state, LDKKeycode keycode)
 {
-  return (state->key[keycode] & LDK_KEYBOARD_PRESSED_BIT) == LDK_KEYBOARD_PRESSED_BIT;
+  return (state->key[keycode] & LDK_KEYBOARD_PRESSED_BIT) ==
+         LDK_KEYBOARD_PRESSED_BIT;
 }
 
-bool ldk_os_keyboard_key_down(LDKKeyboardState* state, LDKKeycode keycode)
+bool ldk_os_keyboard_key_down(LDKKeyboardState *state, LDKKeycode keycode)
 {
   u32 mask = LDK_KEYBOARD_PRESSED_BIT | LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
   return (state->key[keycode] & mask) == mask;
 }
 
-bool ldk_os_keyboard_key_up(LDKKeyboardState* state, LDKKeycode keycode)
+bool ldk_os_keyboard_key_up(LDKKeyboardState *state, LDKKeycode keycode)
 {
   return state->key[keycode] == LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
 }
-
 
 // ---------------------------------------------------------------------------
 // Joystick
 // ---------------------------------------------------------------------------
 
-void ldk_os_joystick_state_get(LDKJoystickState* outState, LDKJoystickID id)
+void ldk_os_joystick_state_get(LDKJoystickState *outState, LDKJoystickID id)
 {
-  X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  X_ASSERT(id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 ||
+           id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   memcpy(outState, &s_oswin32.joystick_state[id], sizeof(LDKJoystickState));
 }
 
-bool ldk_os_joystick_button_is_pressed(LDKJoystickState* state, LDKJoystickButton key)
+bool ldk_os_joystick_button_is_pressed(
+    LDKJoystickState *state, LDKJoystickButton key)
 {
-  return 	state->connected && (state->button[key] & LDK_JOYSTICK_PRESSED_BIT) == LDK_JOYSTICK_PRESSED_BIT;
+  return state->connected && (state->button[key] & LDK_JOYSTICK_PRESSED_BIT) ==
+                                 LDK_JOYSTICK_PRESSED_BIT;
 }
 
-bool ldk_os_joystick_button_down(LDKJoystickState* state, LDKJoystickButton key)
+bool ldk_os_joystick_button_down(LDKJoystickState *state, LDKJoystickButton key)
 {
   u32 mask = LDK_JOYSTICK_PRESSED_BIT | LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
-  return 	state->connected && (state->button[key] & mask) == mask;
+  return state->connected && (state->button[key] & mask) == mask;
 }
 
-bool ldk_os_joystick_button_up(LDKJoystickState* state, LDKJoystickButton key)
+bool ldk_os_joystick_button_up(LDKJoystickState *state, LDKJoystickButton key)
 {
-  return state->connected && state->button[key] == LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
+  return state->connected &&
+         state->button[key] == LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT;
 }
 
-float ldk_os_joystick_axis_get(LDKJoystickState* state, LDKJoystickAxis axis)
+float ldk_os_joystick_axis_get(LDKJoystickState *state, LDKJoystickAxis axis)
 {
   if (!state->connected)
     return 0.0f;
@@ -1619,20 +1756,24 @@ u32 ldk_os_joystick_is_connected(LDKJoystickID id)
 
 void ldk_os_joystick_vibration_left_set(LDKJoystickID id, float speed)
 {
-  X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  X_ASSERT(id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 ||
+           id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   if (!s_oswin32.joystick_state[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
-  if (speed < 0.0f) speed = 0.0f;
-  if (speed > 1.0f) speed = 1.0f;
+  if (speed < 0.0f)
+    speed = 0.0f;
+  if (speed > 1.0f)
+    speed = 1.0f;
 
   // we store speed as floats
   s_oswin32.joystick_state[id].vibration_left = speed;
 
   // xinput wants them as short int
-  WORD short_int_speed_left = (WORD) (0xFFFF * speed);
-  WORD short_int_speed_right = (WORD) (s_oswin32.joystick_state[id].vibration_right * 0XFFFF);
+  WORD short_int_speed_left = (WORD)(0xFFFF * speed);
+  WORD short_int_speed_right =
+      (WORD)(s_oswin32.joystick_state[id].vibration_right * 0XFFFF);
 
   vibration.wLeftMotorSpeed = short_int_speed_left;
   vibration.wRightMotorSpeed = short_int_speed_right;
@@ -1641,20 +1782,24 @@ void ldk_os_joystick_vibration_left_set(LDKJoystickID id, float speed)
 
 void ldk_os_joystick_vibration_right_set(LDKJoystickID id, float speed)
 {
-  X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  X_ASSERT(id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 ||
+           id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   if (!s_oswin32.joystick_state[id].connected)
     return;
 
   XINPUT_VIBRATION vibration;
-  if (speed < 0.0f) speed = 0.0f;
-  if (speed > 1.0f) speed = 1.0f;
+  if (speed < 0.0f)
+    speed = 0.0f;
+  if (speed > 1.0f)
+    speed = 1.0f;
 
   // we store speed as floats
   s_oswin32.joystick_state[id].vibration_right = speed;
 
   // xinput wants them as short int
-  WORD short_int_speed_left = (WORD) (s_oswin32.joystick_state[id].vibration_left * 0XFFFF);
-  WORD short_int_speed_right = (WORD) (0xFFFF * speed);
+  WORD short_int_speed_left =
+      (WORD)(s_oswin32.joystick_state[id].vibration_left * 0XFFFF);
+  WORD short_int_speed_right = (WORD)(0xFFFF * speed);
 
   vibration.wLeftMotorSpeed = short_int_speed_left;
   vibration.wRightMotorSpeed = short_int_speed_right;
@@ -1663,13 +1808,15 @@ void ldk_os_joystick_vibration_right_set(LDKJoystickID id, float speed)
 
 float ldk_os_joystick_vibration_left_get(LDKJoystickID id)
 {
-  X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  X_ASSERT(id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 ||
+           id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   return s_oswin32.joystick_state[id].vibration_left;
 }
 
 float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
 {
-  X_ASSERT( id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 || id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
+  X_ASSERT(id == LDK_JOYSTICK_0 || id == LDK_JOYSTICK_1 ||
+           id == LDK_JOYSTICK_2 || id == LDK_JOYSTICK_3);
   return s_oswin32.joystick_state[id].vibration_right;
 }
 
@@ -1677,10 +1824,10 @@ float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
 // Dialogs
 // ---------------------------------------------------------------------------
 
-bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char* filter,
-                                  char* out_path, size_t out_path_size)
+bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
+    const char *filter, char *out_path, size_t out_path_size)
 {
-  if (! out_path || out_path_size == 0)
+  if (!out_path || out_path_size == 0)
   {
     return false;
   }
@@ -1691,26 +1838,19 @@ bool ldk_os_dialog_show_open_file(LDKWindow owner, const char* title, const char
   memset(&ofn, 0, sizeof(ofn));
 
   ofn.lStructSize = sizeof(ofn);
-  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
   ofn.lpstrTitle = title;
   ofn.lpstrFilter = filter;
   ofn.lpstrFile = out_path;
-  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.nMaxFile = (DWORD)out_path_size;
   ofn.Flags =
-    OFN_PATHMUSTEXIST |
-    OFN_FILEMUSTEXIST |
-    OFN_NOCHANGEDIR |
-    OFN_EXPLORER;
+      OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
 
   return GetOpenFileNameA(&ofn) != 0;
 }
 
-bool ldk_os_dialog_show_open_folder(
-  LDKWindow owner,
-  const char* title,
-  const char* filter,
-  char* out_path,
-  size_t out_path_size)
+bool ldk_os_dialog_show_open_folder(LDKWindow owner, const char *title,
+    const char *filter, char *out_path, size_t out_path_size)
 {
   (void)filter;
 
@@ -1722,13 +1862,10 @@ bool ldk_os_dialog_show_open_folder(
   char selected_path[MAX_PATH] = {};
 
   BROWSEINFOA info = {};
-  info.hwndOwner =
-    owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  info.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
   info.pszDisplayName = selected_path;
   info.lpszTitle = title;
-  info.ulFlags =
-    BIF_RETURNONLYFSDIRS |
-    BIF_NEWDIALOGSTYLE;
+  info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
 
   PIDLIST_ABSOLUTE item = SHBrowseForFolderA(&info);
 
@@ -1752,10 +1889,10 @@ bool ldk_os_dialog_show_open_folder(
   return result;
 }
 
-bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char* filter,
-                                  char* out_path, size_t out_path_size)
+bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
+    const char *filter, char *out_path, size_t out_path_size)
 {
-  if (! out_path || out_path_size == 0)
+  if (!out_path || out_path_size == 0)
   {
     return false;
   }
@@ -1766,51 +1903,49 @@ bool ldk_os_dialog_show_save_file(LDKWindow owner, const char* title, const char
   memset(&ofn, 0, sizeof(ofn));
 
   ofn.lStructSize = sizeof(ofn);
-  ofn.hwndOwner = owner ? ((LDKWin32Window*)owner)->handle : NULL;
+  ofn.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
   ofn.lpstrTitle = title;
   ofn.lpstrFilter = filter;
   ofn.lpstrFile = out_path;
-  ofn.nMaxFile = (DWORD) out_path_size;
+  ofn.nMaxFile = (DWORD)out_path_size;
   ofn.Flags =
-    OFN_PATHMUSTEXIST |
-    OFN_OVERWRITEPROMPT |
-    OFN_NOCHANGEDIR |
-    OFN_EXPLORER;
+      OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_EXPLORER;
 
   return GetSaveFileNameA(&ofn) != 0;
 }
 
-bool ldk_os_dialog_show_yes_no(LDKWindow owner, const char* title, const char* message)
+bool ldk_os_dialog_show_yes_no(
+    LDKWindow owner, const char *title, const char *message)
 {
-  int result = MessageBoxA(
-    owner ? ((LDKWin32Window*)owner)->handle : NULL,
-    message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
+  int result = MessageBoxA(owner ? ((LDKWin32Window *)owner)->handle : NULL,
+      message, title, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2);
 
   return result == IDYES;
 }
 
-bool ldk_os_dialog_show_ok_cancel(LDKWindow owner, const char* title, const char* message)
+bool ldk_os_dialog_show_ok_cancel(
+    LDKWindow owner, const char *title, const char *message)
 {
-  int result = MessageBoxA(
-    owner ? ((LDKWin32Window*)owner)->handle : NULL,
-    message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2
-  );
+  int result = MessageBoxA(owner ? ((LDKWin32Window *)owner)->handle : NULL,
+      message, title, MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
 
   return result == IDOK;
 }
 
-bool ldk_os_dialog_show_ok(LDKWindow owner, const char* title, const char* message)
+bool ldk_os_dialog_show_ok(
+    LDKWindow owner, const char *title, const char *message)
 {
-  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
-                           message, title, MB_OK | MB_ICONINFORMATION);
+  int result = MessageBoxA(owner ? ((LDKWin32Window *)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONINFORMATION);
 
   return result == IDOK;
 }
 
-bool ldk_os_dialog_show_error(LDKWindow owner, const char* title, const char* message)
+bool ldk_os_dialog_show_error(
+    LDKWindow owner, const char *title, const char *message)
 {
-  int result = MessageBoxA(owner ? ((LDKWin32Window*)owner)->handle : NULL,
-                           message, title, MB_OK | MB_ICONERROR);
+  int result = MessageBoxA(owner ? ((LDKWin32Window *)owner)->handle : NULL,
+      message, title, MB_OK | MB_ICONERROR);
 
   return result == IDOK;
 }
