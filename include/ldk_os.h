@@ -125,7 +125,18 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Clipboard
   // ---------------------------------------------------------------------------
+  /** Store UTF-8 text in the system clipboard. */
   LDK_API bool ldk_os_clipboard_text_set(LDKWindow window, const char *text);
+
+  /**
+   * Read UTF-8 text from the system clipboard.
+   *
+   * Passing NULL and zero queries the required byte length. If out_size is too
+   * small, out_text is left empty and the required byte length is returned.
+   * The returned length excludes the null terminator.
+   */
+  LDK_API size_t ldk_os_clipboard_text_get(
+      LDKWindow window, char *out_text, size_t out_size);
 
   // ---------------------------------------------------------------------------
   // Graphics

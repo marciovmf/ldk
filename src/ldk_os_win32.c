@@ -1143,40 +1143,51 @@ bool ldk_os_clipboard_text_set(LDKWindow window, const char *text)
 {
   LDKWin32Window *ldk_window = (LDKWin32Window *)window;
   HGLOBAL memory;
-  char *destination;
-  size_t size;
+  WCHAR *destination;
+  int wide_length;
 
-  if (!ldk_window || !text || !OpenClipboard(ldk_window->handle))
+  if (!ldk_window || !text)
   {
     return false;
   }
 
-  if (!EmptyClipboard())
+  wide_length =
+      MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+  if (wide_length <= 0)
   {
-    CloseClipboard();
     return false;
   }
 
-  size = strlen(text) + 1;
-  memory = GlobalAlloc(GMEM_MOVEABLE, size);
+  memory = GlobalAlloc(GMEM_MOVEABLE, (size_t)wide_length * sizeof(WCHAR));
   if (!memory)
   {
-    CloseClipboard();
     return false;
   }
 
-  destination = (char *)GlobalLock(memory);
+  destination = (WCHAR *)GlobalLock(memory);
   if (!destination)
   {
     GlobalFree(memory);
-    CloseClipboard();
     return false;
   }
 
-  memcpy(destination, text, size);
+  if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, destination,
+          wide_length) <= 0)
+  {
+    GlobalUnlock(memory);
+    GlobalFree(memory);
+    return false;
+  }
+
   GlobalUnlock(memory);
 
-  if (!SetClipboardData(CF_TEXT, memory))
+  if (!OpenClipboard(ldk_window->handle))
+  {
+    GlobalFree(memory);
+    return false;
+  }
+
+  if (!EmptyClipboard() || !SetClipboardData(CF_UNICODETEXT, memory))
   {
     GlobalFree(memory);
     CloseClipboard();
@@ -1185,6 +1196,64 @@ bool ldk_os_clipboard_text_set(LDKWindow window, const char *text)
 
   CloseClipboard();
   return true;
+}
+
+size_t ldk_os_clipboard_text_get(
+    LDKWindow window, char *out_text, size_t out_size)
+{
+  LDKWin32Window *ldk_window = (LDKWin32Window *)window;
+  HANDLE memory;
+  const WCHAR *source;
+  int required_size;
+  size_t text_length;
+
+  if (out_text && out_size > 0)
+  {
+    out_text[0] = 0;
+  }
+
+  if (!ldk_window || !OpenClipboard(ldk_window->handle))
+  {
+    return 0;
+  }
+
+  memory = GetClipboardData(CF_UNICODETEXT);
+  if (!memory)
+  {
+    CloseClipboard();
+    return 0;
+  }
+
+  source = (const WCHAR *)GlobalLock(memory);
+  if (!source)
+  {
+    CloseClipboard();
+    return 0;
+  }
+
+  required_size = WideCharToMultiByte(
+      CP_UTF8, WC_ERR_INVALID_CHARS, source, -1, NULL, 0, NULL, NULL);
+  if (required_size <= 0)
+  {
+    GlobalUnlock(memory);
+    CloseClipboard();
+    return 0;
+  }
+
+  text_length = (size_t)required_size - 1;
+  if (out_text && out_size >= (size_t)required_size)
+  {
+    if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, source, -1, out_text,
+            required_size, NULL, NULL) <= 0)
+    {
+      out_text[0] = 0;
+      text_length = 0;
+    }
+  }
+
+  GlobalUnlock(memory);
+  CloseClipboard();
+  return text_length;
 }
 
 void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect)
