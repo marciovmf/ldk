@@ -445,6 +445,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_console.c
     src/editor/ldk_editor_inspector.c
+    src/editor/ldk_editor_file_explorer.c
     src/editor/ldk_editor_hierarchy_viewer.c
     src/editor/ldk_editor_cmd.c
   )

@@ -136,4 +136,12 @@ const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
 bool ldk_editor_internal_selected_entity_get(LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
 
 
+void ldk_editor_internal_scene_state_sync(LDKEditorContext *editor);
+bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
+bool ldk_editor_internal_scene_save(LDKEditorContext *editor);
+bool ldk_editor_internal_scene_load(LDKEditorContext *editor, const XFSPath *path);
+bool ldk_editor_internal_scene_new(LDKEditorContext *editor);
+bool ldk_editor_internal_scene_add_primitive(
+LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
+
 #endif // LDK_EDITOR_INTERNAL
