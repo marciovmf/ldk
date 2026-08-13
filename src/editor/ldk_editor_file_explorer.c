@@ -11,7 +11,8 @@ enum
   PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
   PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
   PROJECT_EXPLORER_CONTEXT_POPUP_ID = 0x50454301u,
-  PROJECT_EXPLORER_RENAME_POPUP_ID = 0x50455201u,
+  PROJECT_EXPLORER_TREE_RENAME_INPUT_ID = 0x54524901u,
+  PROJECT_EXPLORER_TILE_RENAME_INPUT_ID = 0x54494901u,
 };
 
 #define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
@@ -45,10 +46,17 @@ typedef struct ProjectExplorerFileIcon
   LDKEditorIcon atlas_id;
 } ProjectExplorerFileIcon;
 
+typedef enum ProjectExplorerSurface
+{
+  PROJECT_EXPLORER_SURFACE_TREE,
+  PROJECT_EXPLORER_SURFACE_FILES,
+} ProjectExplorerSurface;
+
 typedef struct ProjectExplorerContextTarget
 {
   XFSPath path;
   bool is_directory;
+  ProjectExplorerSurface surface;
 } ProjectExplorerContextTarget;
 
 typedef struct ProjectExplorerState
@@ -65,7 +73,12 @@ typedef struct ProjectExplorerState
   XArray *dirs;
   XArray *files;
   ProjectExplorerContextTarget context_target;
+  LDKUIRect rename_input_rect;
+  LDKUIId rename_input_id;
   char rename_buffer[X_SMALLSTR_MAX_LENGTH + 1];
+  bool rename_active;
+  bool rename_focus_requested;
+  bool rename_had_focus;
   bool root_expanded;
   float icon_size;
 } ProjectExplorerState;
@@ -136,7 +149,17 @@ static LDKEditorIcon s_project_explorer_file_icon_get(const XFSPath *path)
 
 static void s_project_explorer_on_right_click(LDKUIContext *ui,
     ProjectExplorerState *state, const ProjectExplorerEntry *entry,
-    bool is_directory);
+    bool is_directory, ProjectExplorerSurface surface);
+static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
+
+static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
+    const XFSPath *path, ProjectExplorerSurface surface)
+{
+  return state && path && state->rename_active &&
+         state->context_target.surface == surface &&
+         x_fs_path_compare(&state->context_target.path, path) == 0;
+}
 
 static bool s_project_explorer_initialize(ProjectExplorerState *state)
 {
@@ -206,7 +229,12 @@ static bool s_project_explorer_root_set(
     state->selected_directory = root;
     memset(&state->selected_file, 0, sizeof(state->selected_file));
     memset(&state->context_target, 0, sizeof(state->context_target));
+    memset(&state->rename_input_rect, 0, sizeof(state->rename_input_rect));
+    state->rename_input_id = 0;
     state->rename_buffer[0] = 0;
+    state->rename_active = false;
+    state->rename_focus_requested = false;
+    state->rename_had_focus = false;
     x_array_clear(state->expanded_paths);
     state->last_click_ticks = 0;
     state->root_expanded = true;
@@ -318,8 +346,45 @@ static bool s_project_explorer_rect_button_down(
          ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y);
 }
 
-static bool s_project_explorer_tree_node(ProjectExplorerState *state,
-    LDKUIContext *ui, const ProjectExplorerNode *node, LDKUIIcon folder_icon)
+static bool s_project_explorer_icon_valid(LDKUIIcon icon)
+{
+  return icon.texture != 0 && icon.uv.w > 0.0f && icon.uv.h > 0.0f &&
+         icon.size.w > 0.0f && icon.size.h > 0.0f;
+}
+
+static LDKUIRect s_project_explorer_tree_rename_rect(LDKUIContext *ui,
+    LDKUIRect row_rect, const ProjectExplorerNode *node, LDKUIIcon folder_icon,
+    bool expanded)
+{
+  LDKUIIcon chevron =
+      ui->theme.icons[expanded ? LDK_UI_THEME_ICON_TREE_NODE_EXPANDED
+                               : LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED];
+  float chevron_width = s_project_explorer_icon_valid(chevron)
+                            ? chevron.size.w
+                            : LDK_UI_TREE_NODE_CHEVRON_WIDTH;
+  float input_x = row_rect.x +
+                  (float)node->depth * LDK_UI_TREE_NODE_INDENT_WIDTH +
+                  chevron_width + LDK_UI_DEFAULT_SPACING;
+
+  if (s_project_explorer_icon_valid(folder_icon))
+  {
+    input_x += folder_icon.size.w + LDK_UI_DEFAULT_SPACING;
+  }
+
+  LDKUIRect input_rect = row_rect;
+  input_rect.x = input_x;
+  input_rect.w = row_rect.x + row_rect.w - input_x;
+  if (input_rect.w < 0.0f)
+  {
+    input_rect.w = 0.0f;
+  }
+
+  return input_rect;
+}
+
+static bool s_project_explorer_tree_node(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui,
+    const ProjectExplorerNode *node, LDKUIIcon folder_icon)
 {
   i32 expanded_index =
       node->root ? -1
@@ -332,17 +397,39 @@ static bool s_project_explorer_tree_node(ProjectExplorerState *state,
     flags |= LDK_UI_TREE_NODE_SELECTED;
   }
 
-  u32 result = ldk_ui_tree_node_ex(
-      ui, node->name.buf, folder_icon, was_expanded, node->depth, flags);
+  bool renaming = s_project_explorer_rename_matches(
+      state, &node->path, PROJECT_EXPLORER_SURFACE_TREE);
+  if (renaming)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_fill());
+  }
+
+  u32 result = ldk_ui_tree_node_ex(ui, renaming ? "" : node->name.buf,
+      folder_icon, was_expanded, node->depth, flags);
+  LDKUIRect row_rect = ldk_ui_last_bounding_rect(ui);
+  LDKUIId node_id = ui->last_id;
   bool expanded = was_expanded;
 
-  if (s_project_explorer_rect_button_down(
-          ui, ldk_ui_last_bounding_rect(ui), LDK_MOUSE_BUTTON_RIGHT))
+  if (renaming)
+  {
+    LDKUIRect input_rect = s_project_explorer_tree_rename_rect(
+        ui, row_rect, node, folder_icon, was_expanded);
+    s_project_explorer_rename_input_draw(editor, state, ui,
+        node_id ^ PROJECT_EXPLORER_TREE_RENAME_INPUT_ID, input_rect);
+  }
+  else if (s_project_explorer_rect_button_down(
+               ui, row_rect, LDK_MOUSE_BUTTON_RIGHT))
   {
     ProjectExplorerEntry entry = {0};
     entry.path = node->path;
     entry.name = node->name;
-    s_project_explorer_on_right_click(ui, state, &entry, true);
+    s_project_explorer_on_right_click(
+        ui, state, &entry, true, PROJECT_EXPLORER_SURFACE_TREE);
+  }
+
+  if (renaming)
+  {
+    return was_expanded;
   }
 
   if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
@@ -378,7 +465,7 @@ static bool s_project_explorer_tree_node(ProjectExplorerState *state,
   return expanded;
 }
 
-static void s_project_explorer_tree_draw(
+static void s_project_explorer_tree_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon)
 {
   ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
@@ -404,7 +491,7 @@ static void s_project_explorer_tree_draw(
     ProjectExplorerNode node = *node_ptr;
     x_array_delete_at(state->stack, stack_index);
 
-    if (!s_project_explorer_tree_node(state, ui, &node, folder_icon))
+    if (!s_project_explorer_tree_node(editor, state, ui, &node, folder_icon))
     {
       continue;
     }
@@ -483,18 +570,19 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
 
 static void s_project_explorer_on_right_click(LDKUIContext *ui,
     ProjectExplorerState *state, const ProjectExplorerEntry *entry,
-    bool is_directory)
+    bool is_directory, ProjectExplorerSurface surface)
 {
   LDKPoint cursor;
   LDKUIPoint position;
 
-  if (!ui || !ui->mouse || !state || !entry)
+  if (!ui || !ui->mouse || !state || !entry || state->rename_active)
   {
     return;
   }
 
   state->context_target.path = entry->path;
   state->context_target.is_directory = is_directory;
+  state->context_target.surface = surface;
   state->last_click_ticks = 0;
 
   cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
@@ -647,26 +735,164 @@ static bool s_project_explorer_path_rename(const XFSPath *path,
   return true;
 }
 
-static void s_project_explorer_rename_popup_open(
-    LDKUIContext *ui, ProjectExplorerState *state)
+static void s_project_explorer_rename_end(ProjectExplorerState *state)
+{
+  if (!state)
+  {
+    return;
+  }
+
+  state->rename_active = false;
+  state->rename_focus_requested = false;
+  state->rename_had_focus = false;
+  state->rename_input_id = 0;
+  memset(&state->rename_input_rect, 0, sizeof(state->rename_input_rect));
+  state->rename_buffer[0] = 0;
+}
+
+static bool s_project_explorer_rename_commit(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath old_path;
+  XFSPath renamed = {0};
+
+  if (!editor || !state || !state->rename_active)
+  {
+    return false;
+  }
+
+  old_path = state->context_target.path;
+  if (!s_project_explorer_path_rename(&old_path,
+          state->context_target.is_directory, state->rename_buffer, &renamed))
+  {
+    ldki_editor_log_error(editor, "Failed to rename path.");
+    state->rename_focus_requested = true;
+    state->rename_had_focus = false;
+    return false;
+  }
+
+  state->context_target.path = renamed;
+
+  if (state->context_target.is_directory)
+  {
+    s_project_explorer_directory_select(state, &renamed, false);
+    x_array_clear(state->expanded_paths);
+  }
+  else if (x_fs_path_compare(&state->selected_file, &old_path) == 0)
+  {
+    state->selected_file = renamed;
+  }
+
+  s_project_explorer_rename_end(state);
+  return true;
+}
+
+static void s_project_explorer_rename_begin(ProjectExplorerState *state)
 {
   XFSPath basename = {0};
-  LDKPoint cursor;
-  LDKUIPoint position;
 
-  if (!ui || !ui->mouse || !state ||
-      x_fs_path_basename(&state->context_target.path, &basename) == 0)
+  if (!state || x_fs_path_basename(&state->context_target.path, &basename) == 0)
   {
     return;
   }
 
   snprintf(
       state->rename_buffer, sizeof(state->rename_buffer), "%s", basename.buf);
+  state->rename_active = true;
+  state->rename_focus_requested = true;
+  state->rename_had_focus = false;
+  state->rename_input_id = 0;
+  memset(&state->rename_input_rect, 0, sizeof(state->rename_input_rect));
+}
 
-  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  position.x = (float)cursor.x;
-  position.y = (float)cursor.y;
-  ldk_ui_open_popup_at(ui, PROJECT_EXPLORER_RENAME_POPUP_ID, position);
+static void s_project_explorer_rename_input_prepare(
+    ProjectExplorerState *state, LDKUIContext *ui)
+{
+  if (state->rename_focus_requested)
+  {
+    ldk_ui_set_next_focus(ui);
+    state->rename_focus_requested = false;
+  }
+}
+
+static u32 s_project_explorer_rename_input_finish(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect,
+    u32 result)
+{
+  state->rename_input_id = id;
+  state->rename_input_rect = rect;
+
+  if (ui->focused_id == id)
+  {
+    state->rename_had_focus = true;
+  }
+
+  if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+  {
+    s_project_explorer_rename_end(state);
+  }
+  else if ((result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+  {
+    s_project_explorer_rename_commit(editor, state);
+  }
+
+  return result;
+}
+
+static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect)
+{
+  if (!editor || !state || !ui || !state->rename_active)
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+
+  s_project_explorer_rename_input_prepare(state, ui);
+  u32 result = ldk_ui_widget_input_label(
+      ui, id, state->rename_buffer, (u32)sizeof(state->rename_buffer), rect);
+  return s_project_explorer_rename_input_finish(
+      editor, state, ui, id, rect, result);
+}
+
+static u32 s_project_explorer_rename_input_layout_draw(
+    LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui)
+{
+  if (!editor || !state || !ui || !state->rename_active)
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+
+  s_project_explorer_rename_input_prepare(state, ui);
+  u32 result = ldk_ui_input_label(
+      ui, state->rename_buffer, (u32)sizeof(state->rename_buffer));
+  return s_project_explorer_rename_input_finish(
+      editor, state, ui, ui->last_id, ldk_ui_last_bounding_rect(ui), result);
+}
+
+static void s_project_explorer_rename_before_draw(
+    LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui)
+{
+  if (!editor || !state || !ui || !state->rename_active ||
+      !state->rename_had_focus)
+  {
+    return;
+  }
+
+  bool focus_lost = ui->focused_id != state->rename_input_id;
+  bool clicked_outside = false;
+
+  if (ui->mouse && ldk_os_mouse_button_down(
+                       (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    clicked_outside = !ldk_rectf_contains(
+        &state->rename_input_rect, (float)cursor.x, (float)cursor.y);
+  }
+
+  if (focus_lost || clicked_outside)
+  {
+    s_project_explorer_rename_commit(editor, state);
+  }
 }
 
 static void s_project_explorer_context_menu_draw(
@@ -724,7 +950,7 @@ static void s_project_explorer_context_menu_draw(
 
     if (ldk_ui_button_flat(ui, "Rename"))
     {
-      s_project_explorer_rename_popup_open(ui, state);
+      s_project_explorer_rename_begin(state);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -764,54 +990,6 @@ static void s_project_explorer_context_menu_draw(
     }
 
     ldk_ui_end_disabled(ui);
-    ldk_ui_end_popup(ui);
-  }
-
-  if (ldk_ui_begin_popup(ui, PROJECT_EXPLORER_RENAME_POPUP_ID))
-  {
-    u32 result = ldk_ui_input_box(
-        ui, state->rename_buffer, (u32)sizeof(state->rename_buffer));
-    bool rename = (result & LDK_UI_INPUT_BOX_COMMITTED) != 0;
-    bool cancel = (result & LDK_UI_INPUT_BOX_CANCELED) != 0;
-
-    ldk_ui_begin_horizontal(ui);
-    cancel |= ldk_ui_button(ui, "Cancel");
-    rename |= ldk_ui_button(ui, "Rename");
-    ldk_ui_end_horizontal(ui);
-
-    if (rename)
-    {
-      XFSPath old_path = state->context_target.path;
-      XFSPath renamed = {0};
-
-      if (!s_project_explorer_path_rename(&old_path,
-              state->context_target.is_directory, state->rename_buffer,
-              &renamed))
-      {
-        ldki_editor_log_error(editor, "Failed to rename path.");
-      }
-      else
-      {
-        state->context_target.path = renamed;
-
-        if (state->context_target.is_directory)
-        {
-          s_project_explorer_directory_select(state, &renamed, false);
-          x_array_clear(state->expanded_paths);
-        }
-        else if (x_fs_path_compare(&state->selected_file, &old_path) == 0)
-        {
-          state->selected_file = renamed;
-        }
-
-        ldk_ui_close_current_popup(ui);
-      }
-    }
-    else if (cancel)
-    {
-      ldk_ui_close_current_popup(ui);
-    }
-
     ldk_ui_end_popup(ui);
   }
 }
@@ -991,7 +1169,8 @@ static void s_project_explorer_tile_label_draw(LDKUIContext *ui,
   }
 }
 
-static ProjectExplorerTileResult s_project_explorer_tile(LDKUIContext *ui,
+static ProjectExplorerTileResult s_project_explorer_tile(
+    LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui,
     const ProjectExplorerEntry *entry, LDKUIIcon icon, float tile_width,
     float tile_height, float line_height)
 {
@@ -1025,8 +1204,19 @@ static ProjectExplorerTileResult s_project_explorer_tile(LDKUIContext *ui,
   ldk_ui_widget_icon_label(ui, 0, icon, "", icon_rect);
 
   float label_y = icon_rect.y + icon_rect.h + LDK_UI_DEFAULT_SPACING;
-  s_project_explorer_tile_label_draw(
-      ui, entry->name.buf, tile_rect, label_y, line_height);
+  if (s_project_explorer_rename_matches(
+          state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES))
+  {
+    LDKUIRect input_rect = {tile_rect.x + LDK_UI_DEFAULT_SPACING, label_y,
+        tile_rect.w - LDK_UI_DEFAULT_SPACING * 2.0f, line_height};
+    s_project_explorer_rename_input_draw(editor, state, ui,
+        tile_id ^ PROJECT_EXPLORER_TILE_RENAME_INPUT_ID, input_rect);
+  }
+  else
+  {
+    s_project_explorer_tile_label_draw(
+        ui, entry->name.buf, tile_rect, label_y, line_height);
+  }
 
   ui->last_rect = tile_rect;
   ui->last_bounding_rect = tile_bounding_rect;
@@ -1036,12 +1226,13 @@ static ProjectExplorerTileResult s_project_explorer_tile(LDKUIContext *ui,
   return result;
 }
 
-static void s_project_explorer_entries_draw(LDKEditorContext *editor,
+static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon,
     LDKUIIcon file_icon)
 {
   u32 total_count = x_array_count(state->dirs) + x_array_count(state->files);
   bool compact_mode = state->icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
+  bool right_click_handled = false;
 
   if (compact_mode)
   {
@@ -1064,7 +1255,17 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
-      bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+      bool renaming = s_project_explorer_rename_matches(
+          state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
+      bool label_clicked = false;
+      if (renaming)
+      {
+        s_project_explorer_rename_input_layout_draw(editor, state, ui);
+      }
+      else
+      {
+        label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+      }
 
       ldk_ui_end_horizontal(ui);
 
@@ -1078,11 +1279,13 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       if (right_clicked)
       {
-        s_project_explorer_on_right_click(ui, state, entry, is_directory);
+        s_project_explorer_on_right_click(
+            ui, state, entry, is_directory, PROJECT_EXPLORER_SURFACE_FILES);
+        right_click_handled = true;
       }
     }
 
-    return;
+    return right_click_handled;
   }
 
   float tile_w = state->icon_size + 32.0f;
@@ -1118,7 +1321,7 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
       }
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
-          ui, entry, entry_icon, tile_w, tile_h, line_height);
+          editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
@@ -1127,13 +1330,17 @@ static void s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       if (result.right_clicked)
       {
-        s_project_explorer_on_right_click(ui, state, entry, is_directory);
+        s_project_explorer_on_right_click(
+            ui, state, entry, is_directory, PROJECT_EXPLORER_SURFACE_FILES);
+        right_click_handled = true;
       }
     }
 
     ldk_ui_spacer(ui);
     ldk_ui_end_horizontal(ui);
   }
+
+  return right_click_handled;
 }
 
 static void s_project_explorer_files_draw(LDKEditorContext *editor,
@@ -1163,10 +1370,22 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
 
   state->file_scroll = ldk_ui_begin_scrollview(
       ui, state->file_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  LDKUIRect file_view_rect = ui->clip_rect;
 
   s_project_explorer_directory_read(
       &state->selected_directory, state->dirs, state->files);
-  s_project_explorer_entries_draw(editor, state, ui, folder_icon, file_icon);
+  bool right_click_handled = s_project_explorer_entries_draw(
+      editor, state, ui, folder_icon, file_icon);
+
+  if (!right_click_handled && s_project_explorer_rect_button_down(
+                                  ui, file_view_rect, LDK_MOUSE_BUTTON_RIGHT))
+  {
+    ProjectExplorerEntry directory_entry = {0};
+    directory_entry.path = state->selected_directory;
+    x_fs_path_basename(&directory_entry.path, &directory_entry.name);
+    s_project_explorer_on_right_click(
+        ui, state, &directory_entry, true, PROJECT_EXPLORER_SURFACE_TREE);
+  }
 
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
@@ -1209,6 +1428,8 @@ static void s_editor_project_explorer(
     return;
   }
 
+  s_project_explorer_rename_before_draw(editor, state, ui);
+
   LDKUIIcon file_icon = {0};
   file_icon.size = ldk_sizef(state->icon_size, state->icon_size);
   file_icon.texture =
@@ -1225,7 +1446,7 @@ static void s_editor_project_explorer(
       PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
 
   ldk_ui_begin_horizontal(ui);
-  s_project_explorer_tree_draw(state, ui, tree_folder_icon);
+  s_project_explorer_tree_draw(editor, state, ui, tree_folder_icon);
   s_project_explorer_files_draw(editor, state, ui, folder_icon, file_icon);
   ldk_ui_end_horizontal(ui);
 

@@ -87,6 +87,14 @@ extern "C"
 #define LDK_UI_DEFAULT_PADDING 4.0f
 #endif
 
+#ifndef LDK_UI_TREE_NODE_INDENT_WIDTH
+#define LDK_UI_TREE_NODE_INDENT_WIDTH 8.0f
+#endif
+
+#ifndef LDK_UI_TREE_NODE_CHEVRON_WIDTH
+#define LDK_UI_TREE_NODE_CHEVRON_WIDTH 10.0f
+#endif
+
 #ifndef LDK_UI_TAB_BAR_TAB_HEIGHT
 #define LDK_UI_TAB_BAR_TAB_HEIGHT 24.0f
 #endif
@@ -651,6 +659,7 @@ extern "C"
     i32 next_z_order;
 
     bool next_disabled;
+    bool next_focus;
     bool last_window_close_requested;
 
     float delta_time;
@@ -683,6 +692,7 @@ extern "C"
   LDK_API void ldk_ui_pop_id(LDKUIContext *ctx);
 
   LDK_API void ldk_ui_set_next_disabled(LDKUIContext *ctx, bool disabled);
+  LDK_API void ldk_ui_set_next_focus(LDKUIContext *ctx);
   LDK_API void ldk_ui_begin_disabled(LDKUIContext *ctx, bool disabled);
   LDK_API void ldk_ui_end_disabled(LDKUIContext *ctx);
 
@@ -740,6 +750,9 @@ extern "C"
   //----------------------------------------------------------
   // Areas
   //----------------------------------------------------------
+
+  LDK_API bool ldk_ui_begin_area_ex(
+    LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
   LDK_API bool ldk_ui_begin_area(
       LDKUIContext *ctx, char const *title, bool expanded);
   LDK_API void ldk_ui_end_area(LDKUIContext *ctx);

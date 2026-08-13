@@ -20,9 +20,82 @@ typedef struct LDKEditorInspectorInputState
   bool valid;
 } LDKEditorInspectorInputState;
 
+typedef struct LDKEditorInspectorAreaState
+{
+  LDKEntity entity;
+  u32 collapsed_component_types[LDK_ENTITY_MAX_COMPONENTS];
+  u32 collapsed_component_count;
+  bool valid;
+} LDKEditorInspectorAreaState;
+
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
+static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
+
+static void s_editor_inspector_area_state_sync(LDKEntity entity)
+{
+  if (s_editor_inspector_area_state.valid &&
+      ldki_editor_entity_equal(s_editor_inspector_area_state.entity, entity))
+  {
+    return;
+  }
+
+  memset(
+      &s_editor_inspector_area_state, 0, sizeof(s_editor_inspector_area_state));
+  s_editor_inspector_area_state.entity = entity;
+  s_editor_inspector_area_state.valid = true;
+}
+
+static i32 s_editor_inspector_collapsed_component_index(u32 component_type)
+{
+  for (u32 i = 0; i < s_editor_inspector_area_state.collapsed_component_count;
+       i++)
+  {
+    if (s_editor_inspector_area_state.collapsed_component_types[i] ==
+        component_type)
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static bool s_editor_inspector_component_expanded(u32 component_type)
+{
+  return s_editor_inspector_collapsed_component_index(component_type) < 0;
+}
+
+static void s_editor_inspector_component_expanded_set(
+    u32 component_type, bool expanded)
+{
+  i32 collapsed_index =
+      s_editor_inspector_collapsed_component_index(component_type);
+
+  if (!expanded)
+  {
+    if (collapsed_index < 0 &&
+        s_editor_inspector_area_state.collapsed_component_count <
+            LDK_ENTITY_MAX_COMPONENTS)
+    {
+      u32 index = s_editor_inspector_area_state.collapsed_component_count++;
+      s_editor_inspector_area_state.collapsed_component_types[index] =
+          component_type;
+    }
+    return;
+  }
+
+  if (collapsed_index < 0)
+  {
+    return;
+  }
+
+  u32 index = (u32)collapsed_index;
+  u32 last_index = --s_editor_inspector_area_state.collapsed_component_count;
+  s_editor_inspector_area_state.collapsed_component_types[index] =
+      s_editor_inspector_area_state.collapsed_component_types[last_index];
+}
 
 static void s_editor_inspector_input_state_clear(void)
 {
@@ -590,8 +663,10 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_horizontal_line(ui);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
+  s_editor_inspector_area_state_sync(entity);
+
   for (u32 component_i = 0; component_i < info->components.component_count;
-      component_i++)
+       component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
     const LDKComponentMeta *meta =
@@ -602,19 +677,21 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     void *component = ldk_ecs_component_get(entity, component_type);
 
     ldk_ui_push_id_u32(ui, component_type);
-    ldk_ui_icon_label(
-        ui, icon, component_name ? component_name : "<unknown component>");
+    bool expanded = s_editor_inspector_component_expanded(component_type);
+    expanded = ldk_ui_begin_area_ex(
+      ui, component_name ? component_name : "<unknown component>", icon, expanded);
+    s_editor_inspector_component_expanded_set(component_type, expanded);
     ldk_ui_horizontal_line(ui);
 
-    if (!meta)
+    if (expanded && !meta)
     {
       ldk_ui_icon_label(ui, icon, "Component metadata unavailable.");
     }
-    else if (!component)
+    else if (expanded && !component)
     {
       ldk_ui_icon_label(ui, icon, "Component data unavailable.");
     }
-    else
+    else if (expanded)
     {
       /*
        * Inspector visibility follows Comet metadata. It intentionally does
@@ -628,6 +705,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       }
     }
 
+    ldk_ui_end_area(ui);
     ldk_ui_spacer(ui);
     ldk_ui_pop_id(ui);
   }

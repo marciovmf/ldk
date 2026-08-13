@@ -330,11 +330,44 @@ static u32 s_ui_text_cstr_len_u32(char const *text)
   return (u32)len;
 }
 
-static u32 s_ui_input_box_cursor_from_x(
-    LDKUIContext *ctx, char const *text, LDKUIRect rect, float x)
+static float s_ui_input_box_text_x(LDKUIContext *ctx, char const *text,
+    u32 cursor, LDKUIRect rect, bool focused)
 {
-  float padding_x = 6.0f;
-  float local_x = x - rect.x - padding_x;
+  const float padding_x = 6.0f;
+  float text_x = rect.x + padding_x;
+
+  if (!focused)
+  {
+    return text_x;
+  }
+
+  u32 text_length = s_ui_text_cstr_len_u32(text);
+  if (cursor > text_length)
+  {
+    cursor = text_length;
+  }
+
+  LDKTextSize cursor_text_size =
+      ldk_ttf_measure_text_cstrn(ctx->font, text, cursor);
+  float available_width = rect.w - padding_x * 2.0f;
+
+  if (available_width < 0.0f)
+  {
+    available_width = 0.0f;
+  }
+
+  if (cursor_text_size.w > available_width)
+  {
+    text_x -= cursor_text_size.w - available_width;
+  }
+
+  return text_x;
+}
+
+static u32 s_ui_input_box_cursor_from_x(
+    LDKUIContext *ctx, char const *text, float text_x, float x)
+{
+  float local_x = x - text_x;
   u32 len = s_ui_text_cstr_len_u32(text);
   u32 best = 0;
   float best_distance = 1000000000.0f;
@@ -1627,6 +1660,7 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
     LDKUIRect rect, LDKUIRect clip, bool focusable, bool disabled)
 {
   LDKUIFrameState state = {0};
+  bool focus_requested = false;
 
   state.id = id;
   state.rect = rect;
@@ -1636,6 +1670,12 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
   if (ctx == NULL)
   {
     return state;
+  }
+
+  focus_requested = ctx->next_focus && focusable;
+  if (focus_requested)
+  {
+    ctx->next_focus = false;
   }
 
   if (disabled)
@@ -1662,6 +1702,16 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
   state.hot = ctx->hot_id == id;
   state.active = ctx->active_id == id;
   state.focused = ctx->focused_id == id;
+
+  if (focus_requested && focusable)
+  {
+    ctx->focused_id = id;
+    if (ctx->current_window != NULL)
+    {
+      ctx->current_window->focused_id = id;
+    }
+    state.focused = true;
+  }
 
   if (ctx->mouse != NULL)
   {
@@ -1879,6 +1929,7 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   ctx->current_window = NULL;
   x_array_ldk_ui_window_stack_entry_clear(ctx->window_stack);
   ctx->next_disabled = false;
+  ctx->next_focus = false;
   ctx->hot_id = ctx->next_hot_id;
   ctx->next_hot_id = 0;
   ctx->hit_order = 0;
@@ -2275,6 +2326,16 @@ void ldk_ui_set_next_disabled(LDKUIContext *ctx, bool disabled)
   }
 
   ctx->next_disabled = disabled;
+}
+
+void ldk_ui_set_next_focus(LDKUIContext *ctx)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  ctx->next_focus = true;
 }
 
 void ldk_ui_begin_disabled(LDKUIContext *ctx, bool disabled)
@@ -2901,7 +2962,6 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   u32 bg;
   u32 border;
   u32 text_color;
-  float padding_x;
   float text_x;
   float text_y;
   u32 previous_text_cursor;
@@ -2930,9 +2990,11 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   if (frame.pressed && frame.hot)
   {
+    float pressed_text_x = s_ui_input_box_text_x(ctx, buffer, ctx->text_cursor,
+        box.rect, frame.focused && ctx->input_box_id == box.id);
     ctx->input_box_id = box.id;
-    ctx->text_cursor =
-        s_ui_input_box_cursor_from_x(ctx, buffer, box.rect, frame.cursor.x);
+    ctx->text_cursor = s_ui_input_box_cursor_from_x(
+        ctx, buffer, pressed_text_x, frame.cursor.x);
     ctx->text_select_start = ctx->text_cursor;
     ctx->text_select_end = ctx->text_cursor;
     s_ui_input_cursor_blink_reset(ctx);
@@ -3194,8 +3256,8 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
         ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
   }
 
-  padding_x = 6.0f;
-  text_x = box.rect.x + padding_x;
+  text_x = s_ui_input_box_text_x(
+      ctx, buffer, ctx->text_cursor, box.rect, frame.focused);
   text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
   if (frame.focused && ctx->text_select_start != ctx->text_select_end)
