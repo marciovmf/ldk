@@ -116,6 +116,12 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
     LDKECS *ecs, LDKEntity entity, u32 depth, LDKEntity *selected_entity,
     bool *has_selection)
 {
+  if (ldk_entity_internal_flags_has(
+          &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return;
+  }
+
   LDKUIContext *ui = &editor->ui;
   const LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, entity);
   const LDKTransform *transform =
@@ -285,6 +291,12 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
     while (ldk_entity_iterator_next(&it, &entity))
     {
+      if (ldk_entity_internal_flags_has(
+              &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+      {
+        continue;
+      }
+
       const LDKTransform *transform =
           ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
 

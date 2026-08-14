@@ -68,6 +68,10 @@ extern "C" {
     Mat4 world;
   } LDKRendererMeshSubmit;
 
+  typedef u64 LDKRendererViewId;
+
+#define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
+
   typedef struct LDKRendererConfig
   {
     LDKRHIContext* rhi;
@@ -77,12 +81,6 @@ extern "C" {
     u32 game_height;
     bool present_game;
   } LDKRendererConfig;
-
-  typedef struct LDKRendererView
-  {
-    Mat4 view;
-    Mat4 projection;
-  } LDKRendererView;
 
   typedef struct LDKRendererFrameDesc
   {
@@ -160,6 +158,15 @@ extern "C" {
     LDKRHIFormat depth_format;
   } LDKRendererTarget;
 
+  typedef struct LDKRendererView
+  {
+    LDKRendererViewId id;
+    Mat4 view;
+    Mat4 projection;
+    LDKRendererTarget target;
+    bool submitted;
+  } LDKRendererView;
+
   typedef enum LDKRendererTextureFlag
   {
     LDK_RENDERER_TEXTURE_FLAG_NONE       = 0,
@@ -208,10 +215,15 @@ extern "C" {
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
     LDKUIRenderData const* submitted_ui;
-    LDKRendererTarget scene_target;
     u32 game_width;
     u32 game_height;
     bool present_game;
+
+    // Render views
+    LDKRendererView* views;
+    u32 view_count;
+    u32 view_capacity;
+    LDKRendererViewId game_view;
 
     // Mesh cache
     LDKRendererMeshResource* meshes;
@@ -232,11 +244,6 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
-
-    // global state
-    Mat4 camera_view;
-    Mat4 camera_projection;
-    bool has_camera;
 
     bool is_initialized;
   } LDKRenderer;
@@ -321,6 +328,21 @@ extern "C" {
    */
   LDK_API LDKUITextureHandle ldk_renderer_game_texture_get(
       LDKRenderer const* renderer);
+
+  /**
+   * @brief Return the color texture rendered for a submitted view.
+   *
+   * The view identifier is supplied by the caller when the view is submitted.
+   * The returned texture is owned by the renderer and remains valid until the
+   * view is removed, the game resolution changes, or the renderer terminates.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of the submitted view.
+   * @return View color texture handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
+      LDKRenderer const* renderer,
+      LDKRendererViewId view_id);
 
   // ---------------------------------------------------------------------------
   // Mesh Resource
@@ -573,7 +595,7 @@ extern "C" {
   // Primitive Submission
   // ---------------------------------------------------------------------------
   /**
-   * @brief Submit the camera view used for scene rendering this frame.
+   * @brief Submit a camera view used for scene rendering this frame.
    *
    * The renderer stores the view and projection matrices as transient frame
    * state. Submitted meshes will be rendered using this view when
@@ -583,14 +605,31 @@ extern "C" {
    * the renderer clears the active view state.
    *
    * @param renderer Renderer instance.
+   * @param view_id Stable non-zero identifier supplied by the caller.
    * @param view View matrix.
    * @param projection Projection matrix.
    * @return true if the view was submitted, false otherwise.
    */
   LDK_API bool ldk_renderer_submit_view(
       LDKRenderer* renderer,
+      LDKRendererViewId view_id,
       Mat4 view,
       Mat4 projection);
+
+  /**
+   * @brief Select the submitted view used as the game output.
+   *
+   * The selected view is returned by ldk_renderer_game_texture_get() and is
+   * presented directly when the renderer was configured with present_game.
+   * The selection is transient and must be set again on every frame.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of a view submitted for the current frame.
+   * @return true if the submitted view exists, false otherwise.
+   */
+  LDK_API bool ldk_renderer_game_view_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id);
 
   /**
    * @brief Submit UI render data for the current frame.

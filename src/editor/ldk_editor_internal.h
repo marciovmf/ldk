@@ -62,6 +62,8 @@ typedef struct LDKEditorContext
   LDKProject project;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
+  LDKEntity editor_camera;
+  LDKRendererViewId scene_view;
   XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
@@ -88,6 +90,9 @@ typedef struct LDKEditorContext
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
+bool ldki_editor_view_texture_show(LDKEditorContext *editor,
+    LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,
+    LDKUIRect *out_image_rect);
 u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
 bool ldki_editor_layout_save_as(LDKEditorContext *editor);
 void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);

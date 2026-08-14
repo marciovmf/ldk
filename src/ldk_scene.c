@@ -54,6 +54,14 @@ typedef struct LDKSceneSaveContext
   XStrBuilder *out;
   bool ok;
 } LDKSceneSaveContext;
+
+static bool s_scene_entity_is_editor_only(LDKEntity entity)
+{
+  LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+
+  return registry != NULL && ldk_entity_internal_flags_has(
+      registry, entity, LDK_ENTITY_INTERNAL_EDITOR);
+}
 #endif
 
 void ldk_scene_result_clear(LDKSceneResult *result)
@@ -1470,6 +1478,11 @@ static bool s_collect_entity_id_callback(LDKEntity entity, void *user)
     return false;
   }
 
+  if (s_scene_entity_is_editor_only(entity))
+  {
+    return true;
+  }
+
   scene_id = (i32)context->map.count;
 
   if (!s_map_push(&context->map, entity, scene_id))
@@ -1566,6 +1579,11 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
   if (!context || !context->ok)
   {
     return false;
+  }
+
+  if (s_scene_entity_is_editor_only(entity))
+  {
+    return true;
   }
 
   if (!s_map_find_id_by_entity(&context->map, entity, &scene_id))

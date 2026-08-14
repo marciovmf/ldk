@@ -1147,14 +1147,12 @@ static void s_editor_project_explorer_window(
 static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKUIContext *ui = &editor->ui;
+  LDKUITextureHandle texture = ldk_renderer_view_texture_get(
+      editor->renderer, editor->scene_view);
   (void)data;
 
-  ldk_ui_label(ui, "Scene viewport placeholder");
-  ldk_ui_horizontal_line(ui);
-  ldk_ui_button(ui, "Frame selected");
-  ldk_ui_button(ui, "Toggle grid");
-  ldk_ui_spacer(ui);
+  ldki_editor_view_texture_show(
+      editor, texture, 0x53434E42u, 0x53434E45u, NULL);
 }
 
 static void s_editor_inspector_window(LDKEditor *opaque_editor, void *data)

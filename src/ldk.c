@@ -66,6 +66,11 @@ static volatile sig_atomic_t g_handling_signal = 0;
 static volatile sig_atomic_t g_signal_requested_stop = 0;
 static volatile sig_atomic_t g_last_signal = 0;
 
+static LDKRendererViewId s_renderer_view_id_from_entity(LDKEntity entity)
+{
+  return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
+}
+
 // Stub game callbacks
 static bool s_stub_game_initialize(LDKGame *game)
 {
@@ -925,8 +930,8 @@ void ldk_engine_frame(void)
     LDKComponentRegistry *component_registry = ldk_ecs_component_registry_get();
     LDKEntityRegistry *entity_registry = ldk_ecs_entity_registry_get();
 
-    // Main camera
-    LDKCamera *main_camera = NULL;
+    // Active cameras
+    bool has_main_camera = false;
     Mat4 camera_view;
     Mat4 camera_projection;
     XArray *all_camera =
@@ -944,18 +949,34 @@ void ldk_engine_frame(void)
       LDKEntity *entity = x_array_get(camera_owners, i);
       LDK_ASSERT(camera);
       LDK_ASSERT(entity);
-      if (!camera->enabled || camera->role != LDK_CAMERA_ROLE_MAIN)
+      if (!camera->enabled || camera->role == LDK_CAMERA_ROLE_NONE)
       {
         continue;
       }
-      ldk_camera_get_view_matrix(*entity, &camera_view);
-      ldk_camera_get_projection_matrix(*entity, aspect, &camera_projection);
-      ldk_renderer_submit_view(&e->renderer, camera_view, camera_projection);
-      main_camera = camera;
-      break;
+
+      if (!ldk_camera_get_view_matrix(*entity, &camera_view) ||
+          !ldk_camera_get_projection_matrix(
+              *entity, aspect, &camera_projection))
+      {
+        continue;
+      }
+
+      LDKRendererViewId view_id =
+          s_renderer_view_id_from_entity(*entity);
+
+      if (!ldk_renderer_submit_view(
+              &e->renderer, view_id, camera_view, camera_projection))
+      {
+        continue;
+      }
+
+      if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
+      {
+        has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
+      }
     }
 
-    if (!main_camera && e->game.initialized)
+    if (!has_main_camera && e->game.initialized)
     {
       ldk_log_error("No main camera found!\n");
     }

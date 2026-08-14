@@ -127,6 +127,116 @@ static bool s_renderer_target_ensure(LDKRenderer* renderer, LDKRendererTarget* t
   return s_renderer_target_create(renderer, target, width, height);
 }
 
+static LDKRendererView* s_renderer_view_find(
+    LDKRenderer* renderer, LDKRendererViewId view_id)
+{
+  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < renderer->view_count; i++)
+  {
+    LDKRendererView* view = &renderer->views[i];
+    if (view->id == view_id)
+    {
+      return view;
+    }
+  }
+
+  return NULL;
+}
+
+static LDKRendererView const* s_renderer_view_find_const(
+    LDKRenderer const* renderer, LDKRendererViewId view_id)
+{
+  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < renderer->view_count; i++)
+  {
+    LDKRendererView const* view = &renderer->views[i];
+    if (view->id == view_id)
+    {
+      return view;
+    }
+  }
+
+  return NULL;
+}
+
+static bool s_renderer_grow_view_cache(LDKRenderer* renderer)
+{
+  u32 old_capacity = renderer->view_capacity;
+  u32 new_capacity = old_capacity == 0 ? 4 : old_capacity * 2;
+  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererView);
+  LDKRendererView* new_views = renderer->views == NULL
+    ? (LDKRendererView*)LDK_RENDERER_ALLOC(new_size)
+    : (LDKRendererView*)LDK_RENDERER_REALLOC(renderer->views, new_size);
+
+  if (new_views == NULL)
+  {
+    return false;
+  }
+
+  memset(new_views + old_capacity, 0,
+      (size_t)(new_capacity - old_capacity) * sizeof(LDKRendererView));
+  renderer->views = new_views;
+  renderer->view_capacity = new_capacity;
+  return true;
+}
+
+static void s_renderer_destroy_views(LDKRenderer* renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < renderer->view_count; i++)
+  {
+    s_renderer_target_destroy(renderer, &renderer->views[i].target);
+  }
+
+  LDK_RENDERER_FREE(renderer->views);
+  renderer->views = NULL;
+  renderer->view_count = 0;
+  renderer->view_capacity = 0;
+  renderer->game_view = LDK_RENDERER_VIEW_INVALID;
+}
+
+static void s_renderer_finish_views(LDKRenderer* renderer)
+{
+  u32 index = 0;
+
+  while (index < renderer->view_count)
+  {
+    LDKRendererView* view = &renderer->views[index];
+
+    if (view->submitted)
+    {
+      view->submitted = false;
+      index += 1;
+      continue;
+    }
+
+    s_renderer_target_destroy(renderer, &view->target);
+    renderer->view_count -= 1;
+
+    if (index != renderer->view_count)
+    {
+      *view = renderer->views[renderer->view_count];
+    }
+
+    memset(&renderer->views[renderer->view_count], 0,
+        sizeof(LDKRendererView));
+  }
+
+  renderer->game_view = LDK_RENDERER_VIEW_INVALID;
+}
+
 // ---------------------------------------------------------------------------
 // Internal renderer resources: Mesh
 // ---------------------------------------------------------------------------
@@ -564,14 +674,12 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
   memset(pass, 0, sizeof(*pass));
 }
 
-static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pass, LDKRendererFrameDesc const* frame_desc)
+static bool s_renderer_mesh_pass(LDKRenderer* renderer,
+    LDKRendererMeshPass* pass, LDKRendererView* view,
+    LDKRendererFrameDesc const* frame_desc)
 {
-  if (renderer == NULL || pass == NULL || !pass->is_initialized || frame_desc == NULL)
-  {
-    return false;
-  }
-
-  if (!renderer->has_camera || renderer->submitted_mesh_count == 0)
+  if (renderer == NULL || pass == NULL || !pass->is_initialized ||
+      view == NULL || !view->submitted || frame_desc == NULL)
   {
     return false;
   }
@@ -581,7 +689,7 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pas
     return false;
   }
 
-  if (!s_renderer_target_ensure(renderer, &renderer->scene_target,
+  if (!s_renderer_target_ensure(renderer, &view->target,
       (i32)renderer->game_width, (i32)renderer->game_height))
   {
     return false;
@@ -590,12 +698,12 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pas
   LDKRHIPassDesc pass_desc;
   ldk_rhi_pass_desc_defaults(&pass_desc);
   pass_desc.color_attachment_count = 1;
-  pass_desc.color_attachments[0].texture = renderer->scene_target.color_texture;
+  pass_desc.color_attachments[0].texture = view->target.color_texture;
   pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
   pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
   pass_desc.color_attachments[0].clear_color = ldk_renderer_color_from_rgba32(frame_desc->clear_color);
   pass_desc.depth_attachment.valid = true;
-  pass_desc.depth_attachment.texture = renderer->scene_target.depth_texture;
+  pass_desc.depth_attachment.texture = view->target.depth_texture;
   pass_desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
   pass_desc.depth_attachment.depth_store_op = LDK_RHI_STORE_OP_DONT_CARE;
   pass_desc.depth_attachment.clear_depth = 1.0f;
@@ -610,8 +718,8 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pas
   ldk_rhi_pass_begin(pass->rhi, &pass_desc);
 
   LDKRendererMeshCameraParams camera_params = {0};
-  camera_params.view = renderer->camera_view;
-  camera_params.projection = renderer->camera_projection;
+  camera_params.view = view->view;
+  camera_params.projection = view->projection;
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0, sizeof(camera_params), &camera_params);
   ldk_rhi_pipeline_bind(pass->rhi, pass->pipeline);
   ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
@@ -1160,14 +1268,15 @@ static void s_renderer_ui_pass(
   ldk_rhi_pass_end(renderer->rhi);
 }
 
-static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRendererFrameDesc* frame_desc)
+static void s_renderer_present_view_pass(LDKRenderer* renderer,
+    LDKRendererView const* view, const LDKRendererFrameDesc* frame_desc)
 {
-  if (renderer == NULL || frame_desc == NULL)
+  if (renderer == NULL || view == NULL || frame_desc == NULL)
   {
     return;
   }
 
-  if (renderer->scene_target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  if (view->target.color_texture == LDK_RHI_INVALID_RESOURCE)
   {
     return;
   }
@@ -1212,7 +1321,7 @@ static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRender
   };
 
   LDKUIDrawCmd command = {0};
-  command.texture = (LDKUITextureHandle)renderer->scene_target.color_texture;
+  command.texture = (LDKUITextureHandle)view->target.color_texture;
   command.clip_rect.x = 0.0f;
   command.clip_rect.y = 0.0f;
   command.clip_rect.w = (float)width;
@@ -1803,7 +1912,11 @@ bool ldk_renderer_game_resolution_set(
     return true;
   }
 
-  s_renderer_target_destroy(renderer, &renderer->scene_target);
+  for (u32 i = 0; i < renderer->view_count; i++)
+  {
+    s_renderer_target_destroy(renderer, &renderer->views[i].target);
+  }
+
   renderer->game_width = width;
   renderer->game_height = height;
   return true;
@@ -1816,7 +1929,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
     return;
   }
 
-  s_renderer_target_destroy(renderer, &renderer->scene_target);
+  s_renderer_destroy_views(renderer);
   s_renderer_destroy_font_page_cache(renderer);
   s_renderer_destroy_texture_resources(renderer);
   s_renderer_destroy_mesh_resources(renderer);
@@ -1834,19 +1947,34 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
 
   ldk_rhi_frame_begin(renderer->rhi);
 
-  bool rendered_scene = s_renderer_mesh_pass(renderer, &renderer->mesh_pass, desc);
-  bool presented_scene = false;
-  if (rendered_scene && renderer->present_game)
+  LDKRendererView* game_view =
+      s_renderer_view_find(renderer, renderer->game_view);
+  bool rendered_game = false;
+
+  for (u32 i = 0; i < renderer->view_count; i++)
   {
-    s_renderer_present_scene_pass(renderer, desc);
-    presented_scene = true;
+    LDKRendererView* view = &renderer->views[i];
+    bool rendered =
+        s_renderer_mesh_pass(renderer, &renderer->mesh_pass, view, desc);
+
+    if (view == game_view)
+    {
+      rendered_game = rendered;
+    }
+  }
+
+  bool presented_game = false;
+  if (rendered_game && renderer->present_game)
+  {
+    s_renderer_present_view_pass(renderer, game_view, desc);
+    presented_game = true;
   }
 
 
   if (renderer->submitted_ui != NULL)
   {
     LDKRendererFrameDesc ui_desc = *desc;
-    if (presented_scene)
+    if (presented_game)
     {
       ui_desc.clear_color_enabled = false;
     }
@@ -1859,31 +1987,76 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
 
   renderer->submitted_mesh_count = 0;
   renderer->submitted_ui = NULL;
-  renderer->has_camera = false;
+  s_renderer_finish_views(renderer);
 }
 
 LDKUITextureHandle ldk_renderer_game_texture_get(
     LDKRenderer const* renderer)
 {
-  if (renderer == NULL ||
-      renderer->scene_target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  if (renderer == NULL)
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
   }
 
-  return (LDKUITextureHandle)renderer->scene_target.color_texture;
+  return ldk_renderer_view_texture_get(renderer, renderer->game_view);
 }
 
-bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection)
+LDKUITextureHandle ldk_renderer_view_texture_get(
+    LDKRenderer const* renderer, LDKRendererViewId view_id)
 {
-  if (renderer == NULL || !renderer->is_initialized)
+  LDKRendererView const* view =
+      s_renderer_view_find_const(renderer, view_id);
+
+  if (view == NULL || !view->submitted ||
+      view->target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  return (LDKUITextureHandle)view->target.color_texture;
+}
+
+bool ldk_renderer_submit_view(LDKRenderer* renderer,
+    LDKRendererViewId view_id, Mat4 view_matrix, Mat4 projection)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID)
   {
     return false;
   }
 
-  renderer->camera_view = view;
-  renderer->camera_projection = projection;
-  renderer->has_camera = true;
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+
+  if (view == NULL)
+  {
+    if (renderer->view_count == renderer->view_capacity &&
+        !s_renderer_grow_view_cache(renderer))
+    {
+      return false;
+    }
+
+    view = &renderer->views[renderer->view_count++];
+    memset(view, 0, sizeof(*view));
+    view->id = view_id;
+  }
+
+  view->view = view_matrix;
+  view->projection = projection;
+  view->submitted = true;
+  return true;
+}
+
+bool ldk_renderer_game_view_set(
+    LDKRenderer* renderer, LDKRendererViewId view_id)
+{
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+
+  if (renderer == NULL || view == NULL || !view->submitted)
+  {
+    return false;
+  }
+
+  renderer->game_view = view_id;
   return true;
 }
 

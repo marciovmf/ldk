@@ -8,11 +8,14 @@
 #include <ldk_image.h>
 #include <ldk_scene.h>
 #include <ldk_project.h>
+#include <component/ldk_camera.h>
+#include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_scene_manager.h>
+#include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
 
 #ifndef LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY
@@ -40,6 +43,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 static bool s_editor_state_set_play(LDKEditorContext *editor);
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path);
+static bool s_editor_camera_ensure(LDKEditorContext *editor);
 
 /**
  * Tiny function to return a static editor instance.
@@ -48,6 +52,77 @@ static LDKEditorContext *s_editor_instance(void)
 {
   static LDKEditorContext editor = {0};
   return &editor;
+}
+
+static LDKRendererViewId s_editor_view_id_from_entity(LDKEntity entity)
+{
+  return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
+}
+
+static bool s_editor_camera_ensure(LDKEditorContext *editor)
+{
+  LDKECS *ecs;
+  LDKCamera *camera;
+  LDKEntity entity;
+
+  if (editor == NULL || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (ecs == NULL)
+  {
+    return false;
+  }
+
+  if (ldk_entity_is_alive(&ecs->entity, editor->editor_camera))
+  {
+    camera = (LDKCamera *)ldk_ecs_component_get(
+        editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+
+    if (camera != NULL && camera->role == LDK_CAMERA_ROLE_EDITOR)
+    {
+      editor->scene_view =
+          s_editor_view_id_from_entity(editor->editor_camera);
+      return true;
+    }
+  }
+
+  editor->editor_camera = x_handle_null();
+  editor->scene_view = LDK_RENDERER_VIEW_INVALID;
+
+  entity = ldk_ecs_entity_create();
+  if (x_handle_is_null(entity))
+  {
+    return false;
+  }
+
+  camera = (LDKCamera *)ldk_ecs_component_add(
+      entity, LDK_COMPONENT_TYPE_CAMERA, NULL);
+  if (camera == NULL)
+  {
+    ldk_ecs_entity_destroy(entity);
+    return false;
+  }
+
+  camera->role = LDK_CAMERA_ROLE_EDITOR;
+  camera->enabled = true;
+  ldk_entity_internal_flags_add(
+      &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR);
+  ldk_transform_set_local_position(
+      entity, vec3_make(8.0f, 8.0f, 8.0f));
+  ldk_camera_look_at(entity, vec3_make(0.0f, 0.0f, 0.0f));
+
+  if (!ldk_scenegraph_update_entity(entity))
+  {
+    ldk_ecs_entity_destroy(entity);
+    return false;
+  }
+
+  editor->editor_camera = entity;
+  editor->scene_view = s_editor_view_id_from_entity(entity);
+  return true;
 }
 
 static bool s_editor_cmake_version_is_supported(const char *cmake_path)
@@ -175,8 +250,16 @@ static bool on_event_text(const LDKEvent *event, void *state)
 static bool on_event_frame(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
-  if (event->type != LDK_EVENT_TYPE_FRAME ||
-      event->frame_event.type != LDK_FRAME_EVENT_SUBMIT_AFTER)
+  if (event->type != LDK_EVENT_TYPE_FRAME)
+    return false;
+
+  if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_AFTER)
+  {
+    s_editor_camera_ensure(editor);
+    return false;
+  }
+
+  if (event->frame_event.type != LDK_FRAME_EVENT_SUBMIT_AFTER)
     return false;
 
   // TODO: Replace this by widow event listener
@@ -400,15 +483,17 @@ static void s_editor_test_b(LDKEditor *editor)
 #define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
 #define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
 
-static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
+bool ldki_editor_view_texture_show(LDKEditorContext *editor,
+    LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,
+    LDKUIRect *out_image_rect)
 {
-  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
   LDKUIContext *ui = &editor->ui;
-  (void)data;
 
-  if (ui->current_layout == NULL)
+  if (ui->current_layout == NULL ||
+      editor->renderer->game_width == 0 ||
+      editor->renderer->game_height == 0)
   {
-    return;
+    return false;
   }
 
   LDKUIRect content_rect = ui->current_layout->content_rect;
@@ -418,24 +503,17 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 
   if (content_rect.w <= 0.0f || content_rect.h <= 0.0f)
   {
-    return;
+    return false;
   }
 
   rgba32 panel_bg = ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
   ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = 0x000000FFu;
-  ldk_ui_widget_panel(ui, 0x47414D42u, content_rect);
+  ldk_ui_widget_panel(ui, panel_id, content_rect);
   ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = panel_bg;
 
-  if (editor->renderer->game_width == 0 || editor->renderer->game_height == 0)
+  if (texture == (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
   {
-    return;
-  }
-
-  LDKUITextureHandle game_texture =
-      ldk_renderer_game_texture_get(editor->renderer);
-  if (game_texture == (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
-  {
-    return;
+    return false;
   }
 
   float game_aspect = (float)editor->renderer->game_width /
@@ -454,12 +532,34 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
     image_rect.y += (content_rect.h - image_rect.h) * 0.5f;
   }
 
+  ldk_ui_widget_image(ui, image_id, texture,
+      ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
+
+  if (out_image_rect != NULL)
+  {
+    *out_image_rect = image_rect;
+  }
+
+  return true;
+}
+
+static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKUITextureHandle game_texture =
+      ldk_renderer_game_texture_get(editor->renderer);
+  LDKUIRect image_rect;
+  (void)data;
+
+  if (!ldki_editor_view_texture_show(editor, game_texture,
+          0x47414D42u, 0x47414D45u, &image_rect))
+  {
+    return;
+  }
+
   ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
       image_rect.h, editor->renderer->game_width,
       editor->renderer->game_height);
-
-  ldk_ui_widget_image(ui, 0x47414D45u, game_texture,
-      ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
 }
 
 static void s_editor_inspector_content_window(
@@ -755,6 +855,8 @@ static bool s_project_unload(LDKEditorContext *editor)
   if (!editor->project.loaded)
   {
     editor->selected_entity = x_handle_null();
+    editor->editor_camera = x_handle_null();
+    editor->scene_view = LDK_RENDERER_VIEW_INVALID;
     if (editor->hierarchy_expanded_entities != NULL)
     {
       x_array_clear(editor->hierarchy_expanded_entities);
@@ -772,6 +874,8 @@ static bool s_project_unload(LDKEditorContext *editor)
   }
 
   editor->selected_entity = x_handle_null();
+  editor->editor_camera = x_handle_null();
+  editor->scene_view = LDK_RENDERER_VIEW_INVALID;
   if (editor->hierarchy_expanded_entities != NULL)
   {
     x_array_clear(editor->hierarchy_expanded_entities);
