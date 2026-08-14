@@ -444,6 +444,7 @@ if (OPTION_BUILD_EDITOR)
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_dock.c
+    src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_gizmo.c
     src/editor/ldk_editor_console.c
     src/editor/ldk_editor_inspector.c

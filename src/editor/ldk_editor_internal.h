@@ -98,6 +98,19 @@ typedef struct LDKEditorGizmoState
   bool initialized;
 } LDKEditorGizmoState;
 
+typedef struct LDKEditorCameraControllerState
+{
+  LDKEntity entity;
+  Vec3 pivot;
+  LDKPoint last_cursor;
+  float yaw;
+  float pitch;
+  float distance;
+  bool orbiting;
+  bool panning;
+  bool initialized;
+} LDKEditorCameraControllerState;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -113,6 +126,7 @@ typedef struct LDKEditorContext
   LDKEntity selected_entity;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
+  LDKEditorCameraControllerState camera_controller;
   LDKEditorGizmoState gizmo;
   XArray *hierarchy_expanded_entities;
   bool initialized;
@@ -140,6 +154,7 @@ typedef struct LDKEditorContext
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
+void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
 void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
