@@ -1,3 +1,28 @@
+//------------------------------------------------------------
+// Base Widgets
+//------------------------------------------------------------
+
+/**
+ * Measures the rendered size of a null-terminated string.
+ * @arg ctx UI context that owns the font used for measurement.
+ * @arg text Null-terminated text to measure.
+ * @return Measured text size, or an empty size for an invalid request.
+ */
+
+static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text)
+{
+  LDKUISize size = {0};
+
+  if (ctx == NULL || ctx->font == NULL || text == NULL)
+  {
+    return size;
+  }
+
+  size = ldk_ttf_measure_text_cstr(ctx->font, text);
+
+  return size;
+}
+
 void ldk_ui_widget_panel(LDKUIContext *ctx, LDKUIId id, LDKUIRect rect)
 {
   LDKUIWidgetBox box = {0};
@@ -404,6 +429,17 @@ float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
   return value;
 }
 
+/**
+ * Handles a scrollbar rendered inside an explicit rectangle.
+ * @arg ctx UI context that owns interaction, theme, and rendering state.
+ * @arg id Identifier assigned to the scrollbar.
+ * @arg scroll Current scroll offset.
+ * @arg visible_size Size of the visible content along the scrolling axis.
+ * @arg content_size Total content size along the scrolling axis.
+ * @arg rect Screen-space rectangle allocated to the scrollbar.
+ * @arg horizontal Whether the scrollbar operates on the horizontal axis.
+ * @return Updated, clamped scroll offset.
+ */
 static float s_ui_widget_scrollbar(LDKUIContext *ctx, LDKUIId id, float scroll,
     float visible_size, float content_size, LDKUIRect rect, bool horizontal)
 {
@@ -514,6 +550,16 @@ typedef enum LDKUIInputVisualMode
   LDK_UI_INPUT_VISUAL_LABEL = 1,
 } LDKUIInputVisualMode;
 
+/**
+ * Handles editing, interaction, and rendering for a single-line text input.
+ * @arg ctx UI context that owns input, focus, theme, and rendering state.
+ * @arg id Identifier assigned to the input widget.
+ * @arg buffer Mutable null-terminated text buffer edited by the widget.
+ * @arg buffer_size Total capacity of the text buffer in bytes.
+ * @arg rect Screen-space rectangle occupied by the input widget.
+ * @arg visual_mode Visual presentation used to render the input widget.
+ * @return Bitwise combination of LDKUIInputBoxResult values.
+ */
 static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
     u32 buffer_size, LDKUIRect rect, LDKUIInputVisualMode visual_mode)
 {
@@ -878,7 +924,6 @@ u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id, char *buffer,
   return s_ui_widget_input(
       ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_LABEL);
 }
-
 
 //------------------------------------------------------------
 // Layout widget wrappers

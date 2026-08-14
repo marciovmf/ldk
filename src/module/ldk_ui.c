@@ -35,12 +35,24 @@ static void s_ui_submit_popup_draw_data(LDKUIContext *ctx);
 static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx);
 static void s_ui_window_cache_gc(LDKUIContext *ctx);
 
+/**
+ * Mixes a 32-bit value into an existing UI identifier hash.
+ * @arg hash Current hash value.
+ * @arg value Value to mix into the hash.
+ * @return Updated hash value.
+ */
 static LDKUIId s_ui_id_hash_u32(LDKUIId hash, u32 value)
 {
   hash ^= value + 0x9e3779b9u + (hash << 6) + (hash >> 2);
   return hash;
 }
 
+/**
+ * Mixes every byte of a null-terminated string into a UI identifier hash.
+ * @arg hash Current hash value.
+ * @arg text String to mix into the hash. May be NULL.
+ * @return Updated hash value, or the original hash when text is NULL.
+ */
 static LDKUIId s_ui_id_hash_cstr(LDKUIId hash, char const *text)
 {
   char const *cursor = text;
@@ -59,11 +71,23 @@ static LDKUIId s_ui_id_hash_cstr(LDKUIId hash, char const *text)
   return hash;
 }
 
+/**
+ * Checks whether a codepoint is treated as intra-line word spacing.
+ * @arg codepoint Unicode codepoint to classify.
+ * @return true for space, tab, or carriage return. False otherwise.
+ */
 static bool s_ui_text_codepoint_is_word_space(u32 codepoint)
 {
   return codepoint == ' ' || codepoint == '\t' || codepoint == '\r';
 }
 
+/**
+ * Calculates the horizontal advance for a codepoint, including kerning.
+ * @arg font Font instance used to retrieve glyph and kerning information.
+ * @arg previous_codepoint Codepoint that precedes the current one, or zero.
+ * @arg codepoint Codepoint whose advance will be calculated.
+ * @return Horizontal advance in pixels, or zero when no valid glyph exists.
+ */
 static float s_ui_text_codepoint_advance_get(
     LDKFontInstance *font, u32 previous_codepoint, u32 codepoint)
 {
@@ -92,6 +116,11 @@ static float s_ui_text_codepoint_advance_get(
   return advance;
 }
 
+/**
+ * Advances a UTF-8 byte cursor past spaces, tabs, and carriage returns.
+ * @arg cursor Current byte position in a null-terminated string. May be NULL.
+ * @return First byte that is not word spacing, or NULL when cursor is NULL.
+ */
 static char const *s_ui_text_skip_word_spaces(char const *cursor)
 {
   char const *it = cursor;
@@ -109,6 +138,17 @@ static char const *s_ui_text_skip_word_spaces(char const *cursor)
   return it;
 }
 
+/**
+ * Finds the next line produced by wrapping text to a maximum width.
+ * @arg font Font instance used to measure codepoint advances.
+ * @arg start Byte position from which line parsing starts.
+ * @arg max_width Maximum line width. Non-positive values disable wrapping.
+ * @arg out_line_start Receives the first byte included in the line.
+ * @arg out_line_end Receives the byte immediately after the visible line text.
+ * @arg out_next Receives the byte from which the following line must start.
+ * @arg out_width Receives the measured width of the produced line.
+ * @return true when a line was produced. False for invalid or empty input.
+ */
 static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
     char const *start, float max_width, char const **out_line_start,
     char const **out_line_end, char const **out_next, float *out_width)
@@ -311,6 +351,11 @@ static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
   return true;
 }
 
+/**
+ * Measures the byte length of a null-terminated string as a 32-bit value.
+ * @arg text String to measure. May be NULL.
+ * @return String length in bytes, clamped to UINT32_MAX.
+ */
 static u32 s_ui_text_cstr_len_u32(char const *text)
 {
   size_t len = 0;
@@ -330,6 +375,15 @@ static u32 s_ui_text_cstr_len_u32(char const *text)
   return (u32)len;
 }
 
+/**
+ * Calculates the text origin required to keep an input cursor visible.
+ * @arg ctx UI context that owns the font used for measurement.
+ * @arg text Null-terminated text displayed by the input widget.
+ * @arg cursor UTF-8 byte offset of the editing cursor.
+ * @arg rect Rectangle allocated to the input widget.
+ * @arg focused Whether the input widget currently owns focus.
+ * @return Horizontal screen position at which the text must be rendered.
+ */
 static float s_ui_input_box_text_x(LDKUIContext *ctx, char const *text,
     u32 cursor, LDKUIRect rect, bool focused)
 {
@@ -364,6 +418,14 @@ static float s_ui_input_box_text_x(LDKUIContext *ctx, char const *text,
   return text_x;
 }
 
+/**
+ * Finds the nearest UTF-8 cursor position for a horizontal screen coordinate.
+ * @arg ctx UI context that owns the font used for measurement.
+ * @arg text Null-terminated input text.
+ * @arg text_x Horizontal screen position at which the text begins.
+ * @arg x Horizontal screen coordinate to map into the text.
+ * @return UTF-8 byte offset nearest to the supplied coordinate.
+ */
 static u32 s_ui_input_box_cursor_from_x(
     LDKUIContext *ctx, char const *text, float text_x, float x)
 {
@@ -401,6 +463,12 @@ static u32 s_ui_input_box_cursor_from_x(
   return best;
 }
 
+/**
+ * Moves an input cursor to the previous UTF-8 codepoint boundary.
+ * @arg text Null-terminated UTF-8 input text.
+ * @arg cursor Current cursor byte offset.
+ * @return Byte offset of the previous codepoint boundary.
+ */
 static u32 s_ui_input_text_cursor_prev(char const *text, u32 cursor)
 {
   u32 len = s_ui_text_cstr_len_u32(text);
@@ -426,6 +494,12 @@ static u32 s_ui_input_text_cursor_prev(char const *text, u32 cursor)
   return previous;
 }
 
+/**
+ * Moves an input cursor to the next UTF-8 codepoint boundary.
+ * @arg text Null-terminated UTF-8 input text.
+ * @arg cursor Current cursor byte offset.
+ * @return Byte offset of the next codepoint boundary.
+ */
 static u32 s_ui_input_text_cursor_next(char const *text, u32 cursor)
 {
   u32 len = s_ui_text_cstr_len_u32(text);
@@ -451,6 +525,14 @@ static u32 s_ui_input_text_cursor_next(char const *text, u32 cursor)
   return next;
 }
 
+/**
+ * Removes a byte range from a null-terminated text buffer.
+ * @arg buffer Mutable text buffer from which bytes will be removed.
+ * @arg buffer_len Current text length in bytes.
+ * @arg start Inclusive byte offset of the range to remove.
+ * @arg end Exclusive byte offset of the range to remove.
+ * @return true when a valid non-empty range was removed. False otherwise.
+ */
 static bool s_ui_text_delete_range(
     char *buffer, u32 buffer_len, u32 start, u32 end)
 {
@@ -463,6 +545,15 @@ static bool s_ui_text_delete_range(
   return true;
 }
 
+/**
+ * Inserts bytes into a null-terminated text buffer at the editing cursor.
+ * @arg buffer Mutable destination text buffer.
+ * @arg buffer_size Total capacity of the destination buffer in bytes.
+ * @arg cursor Cursor byte offset, updated to follow the inserted bytes.
+ * @arg text Bytes to insert into the destination buffer.
+ * @arg text_len Number of source bytes requested for insertion.
+ * @return true when at least one byte was inserted. False otherwise.
+ */
 static bool s_ui_text_insert_bytes(
     char *buffer, u32 buffer_size, u32 *cursor, char const *text, u32 text_len)
 {
@@ -496,6 +587,11 @@ static bool s_ui_text_insert_bytes(
   return true;
 }
 
+/**
+ * Checks whether the Shift modifier is currently held.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Shift is held. False otherwise.
+ */
 static bool s_ui_input_keyboard_shift_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -507,6 +603,11 @@ static bool s_ui_input_keyboard_shift_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SHIFT);
 }
 
+/**
+ * Checks whether Backspace was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Backspace was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_backspace_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -518,6 +619,11 @@ static bool s_ui_input_keyboard_backspace_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_BACKSPACE);
 }
 
+/**
+ * Checks whether Delete was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Delete was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_delete_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -529,6 +635,11 @@ static bool s_ui_input_keyboard_delete_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_DELETE);
 }
 
+/**
+ * Checks whether the Select All keyboard chord was pressed.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Control is held and A was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_ctrla_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -542,6 +653,11 @@ static bool s_ui_input_keyboard_ctrla_pressed(LDKUIContext *ctx)
              (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_CONTROL);
 }
 
+/**
+ * Checks whether Home was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Home was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_home_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -553,6 +669,11 @@ static bool s_ui_input_keyboard_home_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_HOME);
 }
 
+/**
+ * Checks whether End was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when End was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_end_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -564,6 +685,11 @@ static bool s_ui_input_keyboard_end_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_END);
 }
 
+/**
+ * Checks whether Enter was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Enter was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_enter_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -575,6 +701,11 @@ static bool s_ui_input_keyboard_enter_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_ENTER);
 }
 
+/**
+ * Checks whether the Left Arrow key was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Left Arrow was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_left_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -586,6 +717,11 @@ static bool s_ui_input_keyboard_left_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_LEFT);
 }
 
+/**
+ * Checks whether the Right Arrow key was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Right Arrow was pressed. False otherwise.
+ */
 static bool s_ui_input_keyboard_right_pressed(LDKUIContext *ctx)
 {
   if (ctx->keyboard == NULL)
@@ -597,6 +733,10 @@ static bool s_ui_input_keyboard_right_pressed(LDKUIContext *ctx)
       (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_RIGHT);
 }
 
+/**
+ * Restarts the text cursor blink cycle in its visible state.
+ * @arg ctx UI context whose cursor blink state will be reset.
+ */
 static void s_ui_input_cursor_blink_reset(LDKUIContext *ctx)
 {
   if (ctx == NULL)
@@ -608,6 +748,11 @@ static void s_ui_input_cursor_blink_reset(LDKUIContext *ctx)
   ctx->text_cursor_blink_visible = true;
 }
 
+/**
+ * Checks whether draw data is currently being submitted to a popup scope.
+ * @arg ctx UI context whose popup stack will be inspected.
+ * @return true when at least one popup scope is active. False otherwise.
+ */
 static bool s_ui_rendering_popup(LDKUIContext *ctx)
 {
   if (ctx == NULL || ctx->popup_stack == NULL)
@@ -618,6 +763,11 @@ static bool s_ui_rendering_popup(LDKUIContext *ctx)
   return !x_array_ldk_ui_popup_stack_entry_is_empty(ctx->popup_stack);
 }
 
+/**
+ * Selects the vertex buffer for the currently active rendering scope.
+ * @arg ctx UI context that owns the global, window, and popup buffers.
+ * @return Active popup, window, or global vertex buffer.
+ */
 static XArray_ldk_ui_vertex *s_ui_target_vertices(LDKUIContext *ctx)
 {
   if (s_ui_rendering_popup(ctx) && ctx->popup_vertices != NULL)
@@ -634,6 +784,11 @@ static XArray_ldk_ui_vertex *s_ui_target_vertices(LDKUIContext *ctx)
   return ctx->vertices;
 }
 
+/**
+ * Selects the index buffer for the currently active rendering scope.
+ * @arg ctx UI context that owns the global, window, and popup buffers.
+ * @return Active popup, window, or global index buffer.
+ */
 static XArray_ldk_ui_u32 *s_ui_target_indices(LDKUIContext *ctx)
 {
   if (s_ui_rendering_popup(ctx) && ctx->popup_indices != NULL)
@@ -650,6 +805,11 @@ static XArray_ldk_ui_u32 *s_ui_target_indices(LDKUIContext *ctx)
   return ctx->indices;
 }
 
+/**
+ * Selects the draw command buffer for the active rendering scope.
+ * @arg ctx UI context that owns the global, window, and popup buffers.
+ * @return Active popup, window, or global draw command buffer.
+ */
 static XArray_ldk_ui_draw_cmd *s_ui_target_commands(LDKUIContext *ctx)
 {
   if (s_ui_rendering_popup(ctx) && ctx->popup_commands != NULL)
@@ -666,6 +826,14 @@ static XArray_ldk_ui_draw_cmd *s_ui_target_commands(LDKUIContext *ctx)
   return ctx->commands;
 }
 
+/**
+ * Appends a draw command or merges it with the previous compatible command.
+ * @arg ctx UI context that selects the active command buffer.
+ * @arg texture Texture handle used by the submitted geometry.
+ * @arg clip_rect Clip rectangle applied while executing the command.
+ * @arg index_offset Offset of the first index consumed by the command.
+ * @arg index_count Number of indices consumed by the command.
+ */
 static void s_ui_render_add_draw_cmd(LDKUIContext *ctx,
     LDKUITextureHandle texture, LDKUIRect clip_rect, u32 index_offset,
     u32 index_count)
@@ -697,6 +865,15 @@ static void s_ui_render_add_draw_cmd(LDKUIContext *ctx,
   x_array_ldk_ui_draw_cmd_push(commands, cmd);
 }
 
+/**
+ * Emits a textured quad into the active rendering buffers.
+ * @arg ctx UI context that owns the active rendering buffers.
+ * @arg rect Screen-space rectangle occupied by the quad.
+ * @arg uv Texture-space rectangle mapped onto the quad.
+ * @arg color Color multiplied with the quad texture.
+ * @arg clip_rect Clip rectangle applied to the generated draw command.
+ * @arg texture Texture sampled by the quad, or zero for an untextured quad.
+ */
 static void s_ui_render_quad_uv(LDKUIContext *ctx, LDKUIRect rect, LDKUIRect uv,
     u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
@@ -727,6 +904,14 @@ static void s_ui_render_quad_uv(LDKUIContext *ctx, LDKUIRect rect, LDKUIRect uv,
   s_ui_render_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
 }
 
+/**
+ * Emits a quad using the full UV range of its texture.
+ * @arg ctx UI context that owns the active rendering buffers.
+ * @arg rect Screen-space rectangle occupied by the quad.
+ * @arg color Color multiplied with the quad texture.
+ * @arg clip_rect Clip rectangle applied to the generated draw command.
+ * @arg texture Texture sampled by the quad, or zero for an untextured quad.
+ */
 static void s_ui_render_quad(LDKUIContext *ctx, LDKUIRect rect, u32 color,
     LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
@@ -734,12 +919,23 @@ static void s_ui_render_quad(LDKUIContext *ctx, LDKUIRect rect, u32 color,
   s_ui_render_quad_uv(ctx, rect, uv, color, clip_rect, texture);
 }
 
+/**
+ * Checks whether an icon contains all data required for rendering.
+ * @arg icon Icon descriptor to validate.
+ * @return true when texture, UV area, and display size are valid.
+ */
 static bool s_ui_icon_valid(LDKUIIcon icon)
 {
   return icon.texture != 0 && icon.uv.w > 0.0f && icon.uv.h > 0.0f &&
          icon.size.w > 0.0f && icon.size.h > 0.0f;
 }
 
+/**
+ * Retrieves an icon from the active theme and applies its control text color.
+ * @arg ctx UI context that owns the active theme.
+ * @arg slot Theme icon slot to retrieve.
+ * @return Configured theme icon, or an empty icon for an invalid request.
+ */
 static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
 {
   LDKUIIcon icon = {0};
@@ -754,6 +950,14 @@ static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
   return icon;
 }
 
+/**
+ * Renders an icon into a screen-space rectangle.
+ * @arg ctx UI context that owns the active rendering buffers.
+ * @arg icon Icon descriptor containing texture, UV, and tint information.
+ * @arg rect Screen-space rectangle occupied by the icon.
+ * @arg color Requested tint color. The current implementation uses icon.color.
+ * @arg clip_rect Clip rectangle applied while rendering the icon.
+ */
 static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
     u32 color, LDKUIRect clip_rect)
 {
@@ -762,10 +966,18 @@ static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
     return;
   }
 
-  s_ui_render_quad_uv(
-      ctx, rect, icon.uv, icon.color, clip_rect, (LDKUITextureHandle)icon.texture);
+  s_ui_render_quad_uv(ctx, rect, icon.uv, icon.color, clip_rect,
+      (LDKUITextureHandle)icon.texture);
 }
 
+/**
+ * Renders a solid border around a rectangle.
+ * @arg ctx UI context that owns the active rendering buffers.
+ * @arg rect Rectangle enclosed by the border.
+ * @arg size Border thickness in pixels.
+ * @arg color Border color.
+ * @arg clip_rect Clip rectangle applied while rendering the border.
+ */
 static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,
     u32 color, LDKUIRect clip_rect)
 {
@@ -793,6 +1005,17 @@ static void s_ui_render_border(LDKUIContext *ctx, LDKUIRect rect, float size,
   s_ui_render_quad(ctx, right, color, clip_rect, 0);
 }
 
+/**
+ * Renders the selection highlight behind a byte range of input text.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg text Null-terminated text containing the selected range.
+ * @arg start Byte offset of one end of the selection.
+ * @arg end Byte offset of the other end of the selection.
+ * @arg text_x Horizontal screen position at which the text begins.
+ * @arg rect Rectangle occupied by the input widget.
+ * @arg clip Clip rectangle applied to the highlight.
+ * @arg color Selection highlight color.
+ */
 static void s_ui_render_text_highlight(LDKUIContext *ctx, char const *text,
     u32 start, u32 end, float text_x, LDKUIRect rect, LDKUIRect clip, u32 color)
 {
@@ -823,6 +1046,15 @@ static void s_ui_render_text_highlight(LDKUIContext *ctx, char const *text,
   s_ui_render_quad(ctx, highlight_rect, color, clip, 0);
 }
 
+/**
+ * Emits glyph geometry for a null-terminated UTF-8 string.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg text Null-terminated UTF-8 text to render.
+ * @arg x Horizontal screen position of the text origin.
+ * @arg y Vertical screen position of the text origin.
+ * @arg color Text color.
+ * @arg clip_rect Clip rectangle applied while rendering the text.
+ */
 static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
     float y, u32 color, LDKUIRect clip_rect)
 {
@@ -946,6 +1178,16 @@ static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
   }
 }
 
+/**
+ * Emits glyph geometry for a half-open UTF-8 byte range.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg text_start First byte included in the rendered range.
+ * @arg text_end First byte excluded from the rendered range.
+ * @arg x Horizontal screen position of the text origin.
+ * @arg y Vertical screen position of the text origin.
+ * @arg color Text color.
+ * @arg clip_rect Clip rectangle applied while rendering the text.
+ */
 static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
     char const *text_end, float x, float y, u32 color, LDKUIRect clip_rect)
 {
@@ -1058,6 +1300,16 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
   }
 }
 
+/**
+ * Renders a UTF-8 string as multiple lines constrained to a maximum width.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg text Null-terminated UTF-8 text to wrap and render.
+ * @arg x Horizontal screen position of the first line.
+ * @arg y Vertical screen position of the first line.
+ * @arg max_width Maximum width available to each rendered line.
+ * @arg color Text color.
+ * @arg clip_rect Clip rectangle applied while rendering the text.
+ */
 static void s_ui_render_text_wrapped(LDKUIContext *ctx, char const *text,
     float x, float y, float max_width, u32 color, LDKUIRect clip_rect)
 {
@@ -1094,6 +1346,15 @@ static void s_ui_render_text_wrapped(LDKUIContext *ctx, char const *text,
   }
 }
 
+/**
+ * Renders an icon and a wrapped label inside a shared rectangle.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg icon Optional icon displayed before the label.
+ * @arg text Null-terminated label text.
+ * @arg rect Rectangle available to the combined icon and label.
+ * @arg color Label color.
+ * @arg clip Clip rectangle applied while rendering the content.
+ */
 static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
     char const *text, LDKUIRect rect, u32 color, LDKUIRect clip)
 {
@@ -1130,6 +1391,15 @@ static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
   s_ui_render_text_wrapped(ctx, text, text_x, rect.y, text_w, color, clip);
 }
 
+/**
+ * Renders a centered icon and single-line label inside a shared rectangle.
+ * @arg ctx UI context that owns the font and rendering buffers.
+ * @arg icon Optional icon displayed before the label.
+ * @arg text Null-terminated label text.
+ * @arg rect Rectangle available to the combined icon and label.
+ * @arg color Label color.
+ * @arg clip Clip rectangle applied while rendering the content.
+ */
 static void s_ui_render_icon_label_nowrap(LDKUIContext *ctx, LDKUIIcon icon,
     char const *text, LDKUIRect rect, u32 color, LDKUIRect clip)
 {
@@ -1172,6 +1442,12 @@ static void s_ui_render_icon_label_nowrap(LDKUIContext *ctx, LDKUIIcon icon,
   }
 }
 
+/**
+ * Selects the themed control background color for a visual state.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the control.
+ * @return Background color associated with the supplied visual state.
+ */
 static u32 s_ui_render_control_bg_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
@@ -1189,6 +1465,12 @@ static u32 s_ui_render_control_bg_color(
   return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG];
 }
 
+/**
+ * Selects the themed control text color for a visual state.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the control.
+ * @return Text color associated with the supplied visual state.
+ */
 static u32 s_ui_render_control_text_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
@@ -1211,6 +1493,12 @@ static u32 s_ui_render_control_text_color(
   return ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
 }
 
+/**
+ * Selects the themed control border color for a visual state.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the control.
+ * @return Border color associated with the supplied visual state.
+ */
 static u32 s_ui_render_control_border_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
@@ -1233,6 +1521,12 @@ static u32 s_ui_render_control_border_color(
   return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
 }
 
+/**
+ * Selects the themed slider track color for a visual state.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the slider.
+ * @return Track color associated with the supplied visual state.
+ */
 static u32 s_ui_render_slider_track_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
@@ -1250,6 +1544,12 @@ static u32 s_ui_render_slider_track_color(
   return ctx->theme.colors[LDK_UI_COLOR_SLIDER_TRACK];
 }
 
+/**
+ * Selects the themed slider thumb color for a visual state.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the slider.
+ * @return Thumb color associated with the supplied visual state.
+ */
 static u32 s_ui_render_slider_thumb_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
@@ -1267,6 +1567,13 @@ static u32 s_ui_render_slider_thumb_color(
   return ctx->theme.colors[LDK_UI_COLOR_SLIDER_THUMB];
 }
 
+/**
+ * Converts a slider value to a normalized position.
+ * @arg value Slider value to normalize.
+ * @arg min_value Minimum value represented by the slider.
+ * @arg max_value Maximum value represented by the slider.
+ * @return Value in the inclusive range from zero to one.
+ */
 static float s_ui_slider_normalize(
     float value, float min_value, float max_value)
 {
@@ -1280,6 +1587,15 @@ static float s_ui_slider_normalize(
   return s_ui_clampf((value - min_value) / range, 0.0f, 1.0f);
 }
 
+/**
+ * Converts a cursor position to a value within a horizontal slider range.
+ * @arg rect Screen-space rectangle occupied by the slider.
+ * @arg thumb_width Width of the draggable slider thumb.
+ * @arg cursor_x Horizontal screen position of the cursor.
+ * @arg min_value Minimum value represented by the slider.
+ * @arg max_value Maximum value represented by the slider.
+ * @return Slider value corresponding to the cursor position.
+ */
 static float s_ui_slider_value_from_cursor(LDKUIRect rect, float thumb_width,
     float cursor_x, float min_value, float max_value)
 {
@@ -1290,6 +1606,17 @@ static float s_ui_slider_value_from_cursor(LDKUIRect rect, float thumb_width,
   return min_value + (max_value - min_value) * t;
 }
 
+/**
+ * Calculates the track and thumb rectangles for a scrollbar.
+ * @arg rect Rectangle allocated to the scrollbar.
+ * @arg visible_size Size of the visible content along the scrolling axis.
+ * @arg content_size Total content size along the scrolling axis.
+ * @arg scroll Current scroll offset along the scrolling axis.
+ * @arg horizontal Whether to calculate a horizontal scrollbar.
+ * @arg track_rect Receives the calculated scrollbar track rectangle.
+ * @arg thumb_rect Receives the calculated scrollbar thumb rectangle.
+ * @return true when both output rectangles are valid. False otherwise.
+ */
 static bool s_ui_scrollbar_rects(LDKUIRect rect, float visible_size,
     float content_size, float scroll, bool horizontal, LDKUIRect *track_rect,
     LDKUIRect *thumb_rect)
@@ -1389,6 +1716,11 @@ typedef struct LDKUIWidgetBox
   bool disabled;
 } LDKUIWidgetBox;
 
+/**
+ * Retrieves the clip rectangle of the currently active UI scope.
+ * @arg ctx UI context whose clip rectangle will be queried.
+ * @return Current clip rectangle, or an empty rectangle when ctx is NULL.
+ */
 static LDKUIRect s_ui_current_clip_rect(LDKUIContext *ctx)
 {
   if (ctx == NULL)
@@ -1399,6 +1731,13 @@ static LDKUIRect s_ui_current_clip_rect(LDKUIContext *ctx)
   return ctx->clip_rect;
 }
 
+/**
+ * Finds the topmost window from the current frame that contains a point.
+ * @arg ctx UI context that owns the ordered window list.
+ * @arg x Horizontal screen coordinate to test.
+ * @arg y Vertical screen coordinate to test.
+ * @return Identifier of the topmost matching window, or zero when none match.
+ */
 static LDKUIId s_ui_topmost_window_id_at_point(
     LDKUIContext *ctx, float x, float y)
 {
@@ -1430,6 +1769,13 @@ static LDKUIId s_ui_topmost_window_id_at_point(
   return 0;
 }
 
+/**
+ * Registers an item as a hit-testing candidate for the current frame.
+ * @arg ctx UI context that owns the hit candidate list.
+ * @arg item_id Identifier of the submitted interactive item.
+ * @arg rect Screen-space rectangle occupied by the item.
+ * @arg clip_rect Clip rectangle that limits the item's interactive area.
+ */
 static void s_ui_add_hit_candidate(
     LDKUIContext *ctx, LDKUIId item_id, LDKUIRect rect, LDKUIRect clip_rect)
 {
@@ -1454,6 +1800,11 @@ static void s_ui_add_hit_candidate(
   x_array_ldk_ui_hit_candidate_push(ctx->hit_candidates, candidate);
 }
 
+/**
+ * Checks whether any popup submitted geometry during the current frame.
+ * @arg ctx UI context that owns the current popup frame entries.
+ * @return true when at least one popup frame entry exists. False otherwise.
+ */
 static bool s_ui_has_popup_frame_entries(LDKUIContext *ctx)
 {
   if (ctx == NULL || ctx->popup_frame_entries == NULL)
@@ -1464,6 +1815,11 @@ static bool s_ui_has_popup_frame_entries(LDKUIContext *ctx)
   return !x_array_ldk_ui_popup_frame_entry_is_empty(ctx->popup_frame_entries);
 }
 
+/**
+ * Checks whether the mouse cursor lies inside a popup from the current frame.
+ * @arg ctx UI context that owns the mouse and popup frame entries.
+ * @return true when the cursor is inside any submitted popup. False otherwise.
+ */
 static bool s_ui_cursor_inside_any_popup(LDKUIContext *ctx)
 {
   if (ctx == NULL || ctx->mouse == NULL || ctx->popup_frame_entries == NULL)
@@ -1493,6 +1849,10 @@ static bool s_ui_cursor_inside_any_popup(LDKUIContext *ctx)
   return false;
 }
 
+/**
+ * Discards popup geometry, commands, and hit regions produced this frame.
+ * @arg ctx UI context whose popup frame data will be cleared.
+ */
 static void s_ui_clear_popup_frame_draw_data(LDKUIContext *ctx)
 {
   if (ctx == NULL)
@@ -1521,6 +1881,10 @@ static void s_ui_clear_popup_frame_draw_data(LDKUIContext *ctx)
   }
 }
 
+/**
+ * Closes all open popups when a press occurs outside their visible regions.
+ * @arg ctx UI context that owns popup and mouse interaction state.
+ */
 static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx)
 {
   if (ctx == NULL || ctx->mouse == NULL || ctx->open_popups == NULL)
@@ -1552,6 +1916,10 @@ static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx)
   ctx->active_id = 0;
 }
 
+/**
+ * Resolves the topmost hit candidate under the cursor for the next frame.
+ * @arg ctx UI context containing the current frame's hit candidates.
+ */
 static void s_ui_resolve_hot_item(LDKUIContext *ctx)
 {
   LDKPoint cursor;
@@ -1634,6 +2002,11 @@ static void s_ui_resolve_hot_item(LDKUIContext *ctx)
   ctx->next_hot_id = best_candidate != NULL ? best_candidate->item_id : 0;
 }
 
+/**
+ * Consumes the next-item disabled flag and combines it with parent state.
+ * @arg ctx UI context that owns next-item and disabled stack state.
+ * @return Effective disabled state for the next submitted item.
+ */
 static bool s_ui_take_next_disabled(LDKUIContext *ctx)
 {
   bool disabled = false;
@@ -1656,6 +2029,16 @@ static bool s_ui_take_next_disabled(LDKUIContext *ctx)
   return disabled;
 }
 
+/**
+ * Calculates item interaction and visual state for the current frame.
+ * @arg ctx UI context containing mouse, focus, and active item state.
+ * @arg id Identifier of the item being evaluated.
+ * @arg rect Screen-space rectangle occupied by the item.
+ * @arg clip Clip rectangle that limits the item's interactive area.
+ * @arg focusable Whether pressing the item can assign keyboard focus.
+ * @arg disabled Whether the item must ignore interaction.
+ * @return Complete per-frame interaction and visual state for the item.
+ */
 static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
     LDKUIRect rect, LDKUIRect clip, bool focusable, bool disabled)
 {
@@ -1955,6 +2338,13 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   ctx->cursor_type = LDK_CURSOR_ARROW;
 }
 
+/**
+ * Appends a complete draw-data set to the context's final render buffers.
+ * @arg ctx UI context that owns the final frame buffers.
+ * @arg vertices Source vertex buffer to append.
+ * @arg indices Source index buffer to append and rebase.
+ * @arg commands Source draw commands to append and offset.
+ */
 static void s_ui_append_draw_data(LDKUIContext *ctx,
     XArray_ldk_ui_vertex *vertices, XArray_ldk_ui_u32 *indices,
     XArray_ldk_ui_draw_cmd *commands)
@@ -2003,6 +2393,10 @@ static void s_ui_append_draw_data(LDKUIContext *ctx,
   }
 }
 
+/**
+ * Appends popup draw data after the regular and window draw data.
+ * @arg ctx UI context that owns the popup and final render buffers.
+ */
 static void s_ui_submit_popup_draw_data(LDKUIContext *ctx)
 {
   if (ctx == NULL)
@@ -2221,14 +2615,11 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->colors[LDK_UI_COLOR_CONTROL_TEXT_DISABLED] = text_disabled;
 
   theme->colors[LDK_UI_COLOR_CONTROL_BORDER] = control_border;
-  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
-      control_border_hovered;
-  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE] =
-      control_border_active;
+  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] = control_border_hovered;
+  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE] = control_border_active;
   theme->colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED] =
       control_border_active;
-  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED] =
-      control_border_disabled;
+  theme->colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED] = control_border_disabled;
 
   theme->colors[LDK_UI_COLOR_BORDER] = border;
   theme->colors[LDK_UI_COLOR_FOCUS] = focus;
@@ -2239,10 +2630,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->colors[LDK_UI_COLOR_SLIDER_TRACK_ACTIVE] = slider_track;
   theme->colors[LDK_UI_COLOR_SLIDER_FILL] = slider_track;
   theme->colors[LDK_UI_COLOR_SLIDER_THUMB] = slider_thumb;
-  theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED] =
-      slider_thumb_hovered;
-  theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE] =
-      slider_thumb_hovered;
+  theme->colors[LDK_UI_COLOR_SLIDER_THUMB_HOVERED] = slider_thumb_hovered;
+  theme->colors[LDK_UI_COLOR_SLIDER_THUMB_ACTIVE] = slider_thumb_hovered;
 
   theme->colors[LDK_UI_COLOR_TITLE] = title;
   theme->colors[LDK_UI_COLOR_TITLE_BAR] = title_bar;
@@ -2250,10 +2639,8 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 
   theme->colors[LDK_UI_COLOR_SCROLLBAR_TRACK] = scrollbar_track;
   theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB] = scrollbar_thumb;
-  theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] =
-      scrollbar_thumb_hovered;
-  theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] =
-      scrollbar_thumb_hovered;
+  theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED] = scrollbar_thumb_hovered;
+  theme->colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE] = scrollbar_thumb_hovered;
 
   theme->colors[LDK_UI_COLOR_TAB_BAR_BG] = tab_bar_bg;
   theme->colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR] = separator;
@@ -2385,6 +2772,15 @@ LDKUIRect ldk_ui_rect(float x, float y, float w, float h)
   return rect;
 }
 
+/**
+ * Prepares common box state for a widget with an explicit rectangle.
+ * @arg ctx UI context that owns clipping, disabled, and hit-testing state.
+ * @arg box Receives the prepared widget identifier, rectangle, and clip state.
+ * @arg id Identifier assigned to the widget.
+ * @arg rect Screen-space rectangle occupied by the widget.
+ * @arg hit_test Whether the widget must participate in hit testing.
+ * @return true when the widget box was prepared successfully. False otherwise.
+ */
 static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
     LDKUIWidgetBox *box, LDKUIId id, LDKUIRect rect, bool hit_test)
 {
@@ -2419,20 +2815,6 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
   }
 
   return true;
-}
-
-static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text)
-{
-  LDKUISize size = {0};
-
-  if (ctx == NULL || ctx->font == NULL || text == NULL)
-  {
-    return size;
-  }
-
-  size = ldk_ttf_measure_text_cstr(ctx->font, text);
-
-  return size;
 }
 
 #include "ui/ldk_ui_layout.inl"
