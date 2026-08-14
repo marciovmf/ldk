@@ -736,7 +736,6 @@ extern "C"
   //----------------------------------------------------------
   LDK_API void ldk_ui_begin_vertical(LDKUIContext *ctx);
   LDK_API void ldk_ui_begin_horizontal(LDKUIContext *ctx);
-  LDK_API void ldk_ui_end(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_vertical(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_horizontal(LDKUIContext *ctx);
 
