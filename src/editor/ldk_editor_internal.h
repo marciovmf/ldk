@@ -49,6 +49,31 @@ typedef struct LDKEditorCommand
   XSmallstr help;
 } LDKEditorCommand;
 
+typedef enum LDKEditorGizmoAxis
+{
+  LDK_EDITOR_GIZMO_AXIS_NONE = 0,
+  LDK_EDITOR_GIZMO_AXIS_X,
+  LDK_EDITOR_GIZMO_AXIS_Y,
+  LDK_EDITOR_GIZMO_AXIS_Z
+} LDKEditorGizmoAxis;
+
+typedef enum LDKEditorGizmoSpace
+{
+  LDK_EDITOR_GIZMO_SPACE_GLOBAL = 0,
+  LDK_EDITOR_GIZMO_SPACE_LOCAL
+} LDKEditorGizmoSpace;
+
+typedef struct LDKEditorGizmoState
+{
+  LDKResourceMesh translation_axis_meshes[3];
+  LDKResourceMesh translation_highlight_mesh;
+  LDKUIRect scene_view_rect;
+  LDKEditorGizmoAxis hovered_axis;
+  LDKEditorGizmoSpace space;
+  bool scene_view_visible;
+  bool initialized;
+} LDKEditorGizmoState;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -64,6 +89,7 @@ typedef struct LDKEditorContext
   LDKEntity selected_entity;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
+  LDKEditorGizmoState gizmo;
   XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
@@ -90,6 +116,12 @@ typedef struct LDKEditorContext
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
+void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
+void ldki_editor_gizmo_scene_view_set(
+    LDKEditorContext *editor, LDKUIRect scene_view_rect);
+void ldki_editor_gizmo_hover_update(LDKEditorContext *editor);
+void ldki_editor_gizmo_submit(LDKEditorContext *editor);
+void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
 bool ldki_editor_view_texture_show(LDKEditorContext *editor,
     LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,
     LDKUIRect *out_image_rect);

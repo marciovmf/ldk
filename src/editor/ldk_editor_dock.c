@@ -1149,10 +1149,15 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
   LDKUITextureHandle texture = ldk_renderer_view_texture_get(
       editor->renderer, editor->scene_view);
+  LDKUIRect image_rect;
   (void)data;
 
-  ldki_editor_view_texture_show(
-      editor, texture, 0x53434E42u, 0x53434E45u, NULL);
+  if (ldki_editor_view_texture_show(
+          editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
+  {
+    ldki_editor_gizmo_scene_view_set(editor, image_rect);
+    ldki_editor_gizmo_hover_update(editor);
+  }
 }
 
 static void s_editor_inspector_window(LDKEditor *opaque_editor, void *data)

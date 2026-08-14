@@ -266,6 +266,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   LDKSize size = ldk_os_window_client_area_size_get(editor->window);
 
   s_editor_update(editor, size.w, size.h, event->frame_event.delta_time);
+  ldki_editor_gizmo_submit(editor);
   return true;
 }
 
@@ -622,6 +623,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
   ldk_os_mouse_state_get(&mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
   ldk_input_game_view_clear();
+  ldki_editor_gizmo_begin_ui_frame(editor);
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
       &editor->text_input_state, ui_viewport);
@@ -962,6 +964,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldk_event_handler_remove(eq, on_event_frame);
   ldk_event_handler_remove(eq, on_event_keyboard);
   ldk_event_handler_remove(eq, on_event_window);
+  ldki_editor_gizmo_terminate(editor);
   ldk_editor_dock_terminate(editor);
 }
 
