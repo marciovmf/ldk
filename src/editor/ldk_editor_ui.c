@@ -170,6 +170,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     }
 
     ldk_ui_set_next_disabled(ui, !can_add);
+    if (ldk_ui_button_flat(ui, "Add Cone"))
+    {
+      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_CONE, "Cone");
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Sphere"))
     {
       ldki_editor_scene_add_primitive(

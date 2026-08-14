@@ -140,6 +140,7 @@ LDKRGBA ldk_rgba(u8 r, u8 g, u8 b, u8 a)
 #define LDK_MESH_SPHERE_STACKS 12u
 #define LDK_MESH_CAPSULE_SLICES 24u
 #define LDK_MESH_CAPSULE_HEMISPHERE_RINGS 6u
+#define LDK_MESH_CONE_SLICES 24u
 
 static bool s_mesh_data_allocate(
     LDKMeshData* mesh, u32 vertex_count, u32 index_count)
@@ -400,6 +401,93 @@ static bool s_mesh_primitive_capsule_create(LDKMeshData* mesh)
   return true;
 }
 
+static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
+{
+  const float pi = 3.14159265358979323846f;
+  const float radius = 0.5f;
+  const float height = 1.0f;
+  const float base_y = -height * 0.5f;
+  const float tip_y = height * 0.5f;
+  const u32 slices = LDK_MESH_CONE_SLICES;
+  const u32 side_ring_start = 0u;
+  const u32 side_tip_start = side_ring_start + slices + 1u;
+  const u32 base_center = side_tip_start + slices;
+  const u32 base_ring_start = base_center + 1u;
+  const u32 vertex_count = base_ring_start + slices + 1u;
+  const u32 index_count = slices * 6u;
+  const float side_normal_length = sqrtf(height * height + radius * radius);
+  const float side_normal_horizontal = height / side_normal_length;
+  const float side_normal_y = radius / side_normal_length;
+  u32 index = 0u;
+
+  if (!s_mesh_data_allocate(mesh, vertex_count, index_count))
+  {
+    return false;
+  }
+
+  for (u32 slice = 0; slice <= slices; ++slice)
+  {
+    float u = (float)slice / (float)slices;
+    float longitude = u * pi * 2.0f;
+    float x = cosf(longitude);
+    float z = sinf(longitude);
+    LDKMeshVertex* vertex = &mesh->vertices[side_ring_start + slice];
+
+    vertex->position = vec3_make(radius * x, base_y, radius * z);
+    vertex->normal = vec3_make(side_normal_horizontal * x, side_normal_y,
+        side_normal_horizontal * z);
+    vertex->uv = vec2_make(u, 0.0f);
+    vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+  }
+
+  for (u32 slice = 0; slice < slices; ++slice)
+  {
+    float u = ((float)slice + 0.5f) / (float)slices;
+    float longitude = u * pi * 2.0f;
+    float x = cosf(longitude);
+    float z = sinf(longitude);
+    LDKMeshVertex* vertex = &mesh->vertices[side_tip_start + slice];
+
+    vertex->position = vec3_make(0.0f, tip_y, 0.0f);
+    vertex->normal = vec3_make(side_normal_horizontal * x, side_normal_y,
+        side_normal_horizontal * z);
+    vertex->uv = vec2_make(u, 1.0f);
+    vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+
+    mesh->indices[index++] = side_ring_start + slice;
+    mesh->indices[index++] = side_tip_start + slice;
+    mesh->indices[index++] = side_ring_start + slice + 1u;
+  }
+
+  mesh->vertices[base_center].position = vec3_make(0.0f, base_y, 0.0f);
+  mesh->vertices[base_center].normal = vec3_make(0.0f, -1.0f, 0.0f);
+  mesh->vertices[base_center].uv = vec2_make(0.5f, 0.5f);
+  mesh->vertices[base_center].color = LDK_MESH_PRIMITIVE_COLOR;
+
+  for (u32 slice = 0; slice <= slices; ++slice)
+  {
+    float u = (float)slice / (float)slices;
+    float longitude = u * pi * 2.0f;
+    float x = cosf(longitude);
+    float z = sinf(longitude);
+    LDKMeshVertex* vertex = &mesh->vertices[base_ring_start + slice];
+
+    vertex->position = vec3_make(radius * x, base_y, radius * z);
+    vertex->normal = vec3_make(0.0f, -1.0f, 0.0f);
+    vertex->uv = vec2_make(0.5f + 0.5f * x, 0.5f + 0.5f * z);
+    vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+  }
+
+  for (u32 slice = 0; slice < slices; ++slice)
+  {
+    mesh->indices[index++] = base_center;
+    mesh->indices[index++] = base_ring_start + slice;
+    mesh->indices[index++] = base_ring_start + slice + 1u;
+  }
+
+  return true;
+}
+
 bool ldk_mesh_primitive_create(
     LDKMeshPrimitive primitive, LDKMeshData* out_mesh)
 {
@@ -422,6 +510,8 @@ bool ldk_mesh_primitive_create(
     return s_mesh_primitive_plane_create(out_mesh);
   case LDK_MESH_PRIMITIVE_QUAD:
     return s_mesh_primitive_quad_create(out_mesh);
+  case LDK_MESH_PRIMITIVE_CONE:
+    return s_mesh_primitive_cone_create(out_mesh);
   default:
     return false;
   }
@@ -467,6 +557,8 @@ static const char* s_mesh_primitive_asset_path(LDKMeshPrimitive primitive)
     return "builtin:mesh/plane";
   case LDK_MESH_PRIMITIVE_QUAD:
     return "builtin:mesh/quad";
+  case LDK_MESH_PRIMITIVE_CONE:
+    return "builtin:mesh/cone";
   default:
     return NULL;
   }
