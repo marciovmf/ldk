@@ -256,6 +256,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_AFTER)
   {
     s_editor_camera_ensure(editor);
+    ldki_editor_gizmo_update(editor);
     return false;
   }
 

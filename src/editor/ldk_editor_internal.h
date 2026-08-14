@@ -68,8 +68,16 @@ typedef struct LDKEditorGizmoState
   LDKResourceMesh translation_axis_meshes[3];
   LDKResourceMesh translation_highlight_mesh;
   LDKUIRect scene_view_rect;
+  Mat4 drag_orientation;
+  LDKEntity drag_entity;
+  Vec3 drag_axis;
+  Vec3 drag_origin;
+  Vec3 drag_plane_normal;
+  float drag_initial_parameter;
   LDKEditorGizmoAxis hovered_axis;
+  LDKEditorGizmoAxis active_axis;
   LDKEditorGizmoSpace space;
+  bool dragging;
   bool scene_view_visible;
   bool initialized;
 } LDKEditorGizmoState;
@@ -120,6 +128,7 @@ void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
 void ldki_editor_gizmo_hover_update(LDKEditorContext *editor);
+void ldki_editor_gizmo_update(LDKEditorContext *editor);
 void ldki_editor_gizmo_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
 bool ldki_editor_view_texture_show(LDKEditorContext *editor,

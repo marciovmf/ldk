@@ -5,6 +5,7 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_scenegraph.h>
 
 #include <math.h>
 #include <string.h>
@@ -14,6 +15,13 @@
 #define LDK_EDITOR_GIZMO_MIN_WORLD_LENGTH 0.05f
 #define LDK_EDITOR_GIZMO_PICK_RADIUS 12.0f
 #define LDK_EDITOR_GIZMO_MAX_HIERARCHY_DEPTH 256u
+#define LDK_EDITOR_GIZMO_INTERSECTION_EPSILON 0.00001f
+
+typedef struct LDKEditorGizmoRay
+{
+  Vec3 origin;
+  Vec3 direction;
+} LDKEditorGizmoRay;
 
 static const u32 s_gizmo_axis_colors[LDK_EDITOR_GIZMO_AXIS_COUNT] = {
     0xFF4040FFu,
@@ -54,6 +62,17 @@ static bool s_editor_gizmo_world_rotation_get(
   return true;
 }
 
+static void s_editor_gizmo_axes_from_orientation(
+    Mat4 orientation, Vec3 out_axes[3])
+{
+  out_axes[0] = vec3_make(
+      orientation.m[0], orientation.m[1], orientation.m[2]);
+  out_axes[1] = vec3_make(
+      orientation.m[4], orientation.m[5], orientation.m[6]);
+  out_axes[2] = vec3_make(
+      orientation.m[8], orientation.m[9], orientation.m[10]);
+}
+
 static bool s_editor_gizmo_orientation_get(LDKEditorContext *editor,
     LDKEntity selected, Mat4 *out_orientation, Vec3 out_axes[3])
 {
@@ -77,12 +96,7 @@ static bool s_editor_gizmo_orientation_get(LDKEditorContext *editor,
     orientation = mat4_from_quat(world_rotation);
   }
 
-  out_axes[0] = vec3_make(
-      orientation.m[0], orientation.m[1], orientation.m[2]);
-  out_axes[1] = vec3_make(
-      orientation.m[4], orientation.m[5], orientation.m[6]);
-  out_axes[2] = vec3_make(
-      orientation.m[8], orientation.m[9], orientation.m[10]);
+  s_editor_gizmo_axes_from_orientation(orientation, out_axes);
   *out_orientation = orientation;
   return true;
 }
@@ -253,6 +267,275 @@ static bool s_editor_gizmo_rect_contains(
          x < rect->x + rect->w && y < rect->y + rect->h;
 }
 
+static bool s_editor_gizmo_scene_ray_get(LDKEditorContext *editor,
+    LDKUIPoint cursor, LDKEditorGizmoRay *out_ray)
+{
+  LDKUIRect const *rect;
+  Mat4 view;
+  Mat4 projection;
+  Mat4 inverse_view_projection;
+  Vec3 near_position;
+  Vec3 far_position;
+  Vec3 direction;
+  float direction_length;
+  float aspect;
+  float ndc_x;
+  float ndc_y;
+  bool inverse_ok;
+
+  if (editor == NULL || editor->renderer == NULL || out_ray == NULL ||
+      editor->renderer->game_width == 0 ||
+      editor->renderer->game_height == 0)
+  {
+    return false;
+  }
+
+  rect = &editor->gizmo.scene_view_rect;
+  if (rect->w <= 0.0f || rect->h <= 0.0f)
+  {
+    return false;
+  }
+
+  aspect = (float)editor->renderer->game_width /
+           (float)editor->renderer->game_height;
+  if (!ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
+      !ldk_camera_get_projection_matrix(
+          editor->editor_camera, aspect, &projection))
+  {
+    return false;
+  }
+
+  inverse_view_projection =
+      mat4_inverse_full(mat4_mul(projection, view), &inverse_ok);
+  if (!inverse_ok)
+  {
+    return false;
+  }
+
+  // The Scene View presents the render target without a vertical UV flip.
+  // Keep this mapping symmetrical with s_editor_gizmo_world_to_scene().
+  ndc_x = ((cursor.x - rect->x) / rect->w) * 2.0f - 1.0f;
+  ndc_y = ((cursor.y - rect->y) / rect->h) * 2.0f - 1.0f;
+  near_position = mat4_mul_point(
+      inverse_view_projection, vec3_make(ndc_x, ndc_y, -1.0f));
+  far_position = mat4_mul_point(
+      inverse_view_projection, vec3_make(ndc_x, ndc_y, 1.0f));
+  direction = vec3_sub(far_position, near_position);
+  direction_length = vec3_len(direction);
+
+  if (direction_length <= LDK_EDITOR_GIZMO_INTERSECTION_EPSILON)
+  {
+    return false;
+  }
+
+  out_ray->origin = near_position;
+  out_ray->direction = vec3_div(direction, direction_length);
+  return true;
+}
+
+static Vec3 s_editor_gizmo_perpendicular_component(
+    Vec3 direction, Vec3 axis)
+{
+  return vec3_sub(direction, vec3_mul(axis, vec3_dot(direction, axis)));
+}
+
+static bool s_editor_gizmo_drag_plane_normal_get(LDKEditorContext *editor,
+    Vec3 origin, Vec3 axis, Vec3 *out_normal)
+{
+  LDKCamera *camera;
+  Mat4 camera_world;
+  Vec3 camera_position;
+  Vec3 view_direction;
+  Vec3 normal;
+  Vec3 camera_right;
+  Vec3 camera_up;
+  Vec3 right_candidate;
+  Vec3 up_candidate;
+  float normal_length;
+
+  if (editor == NULL || out_normal == NULL ||
+      !ldk_camera_get_world_matrix(editor->editor_camera, &camera_world))
+  {
+    return false;
+  }
+
+  camera = (LDKCamera *)ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  if (camera == NULL)
+  {
+    return false;
+  }
+
+  if (camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC)
+  {
+    view_direction = vec3_make(
+        -camera_world.m[8], -camera_world.m[9], -camera_world.m[10]);
+  }
+  else
+  {
+    camera_position = vec3_make(
+        camera_world.m[12], camera_world.m[13], camera_world.m[14]);
+    view_direction = vec3_sub(origin, camera_position);
+  }
+
+  // This projection creates a camera-facing plane that still contains the
+  // selected translation axis.
+  normal = s_editor_gizmo_perpendicular_component(view_direction, axis);
+  normal_length = vec3_len(normal);
+  if (normal_length > LDK_EDITOR_GIZMO_INTERSECTION_EPSILON)
+  {
+    *out_normal = vec3_div(normal, normal_length);
+    return true;
+  }
+
+  camera_right = vec3_make(
+      camera_world.m[0], camera_world.m[1], camera_world.m[2]);
+  camera_up = vec3_make(
+      camera_world.m[4], camera_world.m[5], camera_world.m[6]);
+  right_candidate =
+      s_editor_gizmo_perpendicular_component(camera_right, axis);
+  up_candidate = s_editor_gizmo_perpendicular_component(camera_up, axis);
+  normal = vec3_len2(right_candidate) > vec3_len2(up_candidate)
+               ? right_candidate
+               : up_candidate;
+  normal_length = vec3_len(normal);
+
+  if (normal_length <= LDK_EDITOR_GIZMO_INTERSECTION_EPSILON)
+  {
+    return false;
+  }
+
+  *out_normal = vec3_div(normal, normal_length);
+  return true;
+}
+
+static bool s_editor_gizmo_ray_plane_intersect(
+    LDKEditorGizmoRay ray, Vec3 plane_point, Vec3 plane_normal,
+    Vec3 *out_position)
+{
+  float denominator;
+  float distance;
+
+  if (out_position == NULL)
+  {
+    return false;
+  }
+
+  denominator = vec3_dot(ray.direction, plane_normal);
+  if (fabsf(denominator) <= LDK_EDITOR_GIZMO_INTERSECTION_EPSILON)
+  {
+    return false;
+  }
+
+  distance =
+      vec3_dot(vec3_sub(plane_point, ray.origin), plane_normal) /
+      denominator;
+  if (distance < 0.0f)
+  {
+    return false;
+  }
+
+  *out_position = vec3_add(ray.origin, vec3_mul(ray.direction, distance));
+  return true;
+}
+
+static void s_editor_gizmo_drag_end(LDKEditorContext *editor)
+{
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  editor->gizmo.drag_entity = x_handle_null();
+  editor->gizmo.active_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
+  editor->gizmo.dragging = false;
+}
+
+static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
+    LDKEntity selected, Vec3 origin, Mat4 orientation, Vec3 const axes[3],
+    LDKMouseState const *mouse)
+{
+  LDKEditorGizmoAxis active_axis;
+  LDKEditorGizmoRay ray;
+  Vec3 axis;
+  Vec3 plane_normal;
+  Vec3 hit_position;
+  LDKUIPoint cursor;
+  u32 axis_index;
+
+  if (editor == NULL || axes == NULL || mouse == NULL ||
+      editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE)
+  {
+    return false;
+  }
+
+  active_axis = editor->gizmo.hovered_axis;
+  axis_index = (u32)(active_axis - LDK_EDITOR_GIZMO_AXIS_X);
+  if (axis_index >= LDK_EDITOR_GIZMO_AXIS_COUNT)
+  {
+    return false;
+  }
+
+  axis = vec3_norm(axes[axis_index]);
+  cursor = ldk_pointf((float)mouse->cursor.x, (float)mouse->cursor.y);
+  if (!s_editor_gizmo_scene_ray_get(editor, cursor, &ray) ||
+      !s_editor_gizmo_drag_plane_normal_get(
+          editor, origin, axis, &plane_normal) ||
+      !s_editor_gizmo_ray_plane_intersect(
+          ray, origin, plane_normal, &hit_position))
+  {
+    return false;
+  }
+
+  editor->gizmo.drag_orientation = orientation;
+  editor->gizmo.drag_entity = selected;
+  editor->gizmo.drag_axis = axis;
+  editor->gizmo.drag_origin = origin;
+  editor->gizmo.drag_plane_normal = plane_normal;
+  editor->gizmo.drag_initial_parameter =
+      vec3_dot(vec3_sub(hit_position, origin), axis);
+  editor->gizmo.active_axis = active_axis;
+  editor->gizmo.dragging = true;
+  return true;
+}
+
+static bool s_editor_gizmo_world_position_set(
+    LDKEntity entity, Vec3 world_position)
+{
+  LDKEntity parent;
+  Vec3 local_position;
+
+  parent = ldk_transform_get_parent(entity);
+  if (x_handle_is_null(parent))
+  {
+    local_position = world_position;
+  }
+  else
+  {
+    Mat4 parent_world;
+    Mat4 inverse_parent_world;
+    bool inverse_ok;
+
+    if (!ldk_transform_get_world_matrix(parent, &parent_world))
+    {
+      return false;
+    }
+
+    // A TRS hierarchy can produce shear when rotation and non-uniform scale
+    // are combined, so the general inverse is required here.
+    inverse_parent_world = mat4_inverse_full(parent_world, &inverse_ok);
+    if (!inverse_ok)
+    {
+      return false;
+    }
+
+    local_position = mat4_mul_point(inverse_parent_world, world_position);
+  }
+
+  return ldk_transform_set_local_position(entity, local_position) &&
+         ldk_scenegraph_update_entity(entity);
+}
+
 static bool s_editor_gizmo_world_to_scene(
     LDKEditorContext *editor, Mat4 view_projection,
     Vec3 world_position, LDKUIPoint *out_position)
@@ -328,7 +611,9 @@ void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor)
   if (editor != NULL)
   {
     editor->gizmo.scene_view_visible = false;
-    editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
+    editor->gizmo.hovered_axis = editor->gizmo.dragging
+                                     ? editor->gizmo.active_axis
+                                     : LDK_EDITOR_GIZMO_AXIS_NONE;
   }
 }
 
@@ -365,6 +650,12 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
 
   if (editor == NULL)
   {
+    return;
+  }
+
+  if (editor->gizmo.dragging)
+  {
+    editor->gizmo.hovered_axis = editor->gizmo.active_axis;
     return;
   }
 
@@ -441,6 +732,75 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
           (LDKEditorGizmoAxis)(axis + LDK_EDITOR_GIZMO_AXIS_X);
     }
   }
+
+  if (editor->gizmo.hovered_axis != LDK_EDITOR_GIZMO_AXIS_NONE &&
+      ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    s_editor_gizmo_drag_begin(
+        editor, selected, origin, orientation, axes, &mouse);
+  }
+}
+
+void ldki_editor_gizmo_update(LDKEditorContext *editor)
+{
+  LDKECS *ecs;
+  LDKMouseState mouse;
+  LDKEditorGizmoRay ray;
+  Vec3 hit_position;
+  Vec3 world_position;
+  float current_parameter;
+  float translation;
+  bool released;
+
+  if (editor == NULL || !editor->gizmo.dragging)
+  {
+    return;
+  }
+
+  ldk_os_mouse_state_get(&mouse);
+  released = ldk_os_mouse_button_up(&mouse, LDK_MOUSE_BUTTON_LEFT);
+  if (!released &&
+      !ldk_os_mouse_button_is_pressed(&mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    s_editor_gizmo_drag_end(editor);
+    return;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (ecs == NULL || !editor->gizmo.scene_view_visible ||
+      !ldk_entity_is_alive(&ecs->entity, editor->gizmo.drag_entity) ||
+      !ldki_editor_entity_equal(
+          editor->selected_entity, editor->gizmo.drag_entity))
+  {
+    s_editor_gizmo_drag_end(editor);
+    return;
+  }
+
+  if (s_editor_gizmo_scene_ray_get(editor,
+          ldk_pointf((float)mouse.cursor.x, (float)mouse.cursor.y), &ray) &&
+      s_editor_gizmo_ray_plane_intersect(ray, editor->gizmo.drag_origin,
+          editor->gizmo.drag_plane_normal, &hit_position))
+  {
+    current_parameter = vec3_dot(
+        vec3_sub(hit_position, editor->gizmo.drag_origin),
+        editor->gizmo.drag_axis);
+    translation =
+        current_parameter - editor->gizmo.drag_initial_parameter;
+    world_position = vec3_add(editor->gizmo.drag_origin,
+        vec3_mul(editor->gizmo.drag_axis, translation));
+
+    if (!s_editor_gizmo_world_position_set(
+            editor->gizmo.drag_entity, world_position))
+    {
+      s_editor_gizmo_drag_end(editor);
+      return;
+    }
+  }
+
+  if (released)
+  {
+    s_editor_gizmo_drag_end(editor);
+  }
 }
 
 void ldki_editor_gizmo_submit(LDKEditorContext *editor)
@@ -467,9 +827,19 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   if (ecs == NULL ||
       !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
       !ldk_transform_get_world_matrix(selected, &selected_world) ||
-      !s_editor_gizmo_orientation_get(
-          editor, selected, &orientation, axes) ||
       !s_editor_gizmo_initialize(editor))
+  {
+    return;
+  }
+
+  if (editor->gizmo.dragging &&
+      ldki_editor_entity_equal(selected, editor->gizmo.drag_entity))
+  {
+    orientation = editor->gizmo.drag_orientation;
+    s_editor_gizmo_axes_from_orientation(orientation, axes);
+  }
+  else if (!s_editor_gizmo_orientation_get(
+               editor, selected, &orientation, axes))
   {
     return;
   }
