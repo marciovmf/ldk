@@ -42,7 +42,8 @@ extern "C" {
     LDK_SHADER_UI_PASS,
     LDK_SHADER_MESH_PASS,
     LDK_SHADER_PRESENT_PASS,
-    LDK_SHADER_MESH_PASS_INSTANCED
+    LDK_SHADER_MESH_PASS_INSTANCED,
+    LDK_SHADER_GRID_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -140,6 +141,19 @@ extern "C" {
     bool is_initialized;
   } LDKRendererMeshPass;
 
+  typedef struct LDKRendererGridPass
+  {
+    LDKRHIContext* rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer params_buffer;
+    LDKRHIBindings bindings;
+    bool is_initialized;
+  } LDKRendererGridPass;
+
   typedef struct LDKRendererFontPageCacheEntry
   {
     LDKFontInstance* font;
@@ -174,6 +188,10 @@ extern "C" {
     Mat4 view;
     Mat4 projection;
     LDKRendererTarget target;
+    Vec3 grid_center;
+    float grid_extent;
+    float grid_spacing;
+    bool grid_submitted;
     bool submitted;
   } LDKRendererView;
 
@@ -224,6 +242,7 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
+    LDKRendererGridPass grid_pass;
     LDKUIRenderData const* submitted_ui;
     u32 game_width;
     u32 game_height;
@@ -698,6 +717,27 @@ extern "C" {
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
       Mat4 world);
+
+  /**
+   * @brief Submit a procedural ground grid to a single render view.
+   *
+   * The grid is rendered after regular scene meshes and before overlay meshes,
+   * with depth testing enabled and depth writes disabled. Its visible area is
+   * centered on grid_center and fades before reaching grid_extent.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw the grid.
+   * @param grid_center Center of the visible grid area on the ground plane.
+   * @param grid_extent Radius of the visible grid area in world units.
+   * @param grid_spacing Distance between adjacent grid lines in world units.
+   * @return true if the grid was submitted, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_grid_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      Vec3 grid_center,
+      float grid_extent,
+      float grid_spacing);
 
   /**
    * @brief Submit a mesh as a view-local overlay for this frame.

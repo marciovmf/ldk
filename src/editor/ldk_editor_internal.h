@@ -155,6 +155,7 @@ void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
+void ldki_editor_grid_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);

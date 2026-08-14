@@ -268,6 +268,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   LDKSize size = ldk_os_window_client_area_size_get(editor->window);
 
   s_editor_update(editor, size.w, size.h, event->frame_event.delta_time);
+  ldki_editor_grid_submit(editor);
   ldki_editor_gizmo_submit(editor);
   return true;
 }

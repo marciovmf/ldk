@@ -218,6 +218,79 @@ static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "  out_color = vec4(v_color.rgb * light, v_color.a);\n"
 "}\n";
 
+static char const* LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec3 a_position;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  mat4 u_view;\n"
+"  mat4 u_projection;\n"
+"  vec4 u_grid_center_extent;\n"
+"  vec4 u_grid_settings;\n"
+"};\n"
+"out vec2 v_world_xz;\n"
+"void main()\n"
+"{\n"
+"  v_world_xz = u_grid_center_extent.xz +\n"
+"      a_position.xz * u_grid_center_extent.w;\n"
+"  vec3 world_position = vec3(v_world_xz.x,\n"
+"      u_grid_center_extent.y, v_world_xz.y);\n"
+"  gl_Position = u_projection * u_view * vec4(world_position, 1.0);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_GRID_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  mat4 u_view;\n"
+"  mat4 u_projection;\n"
+"  vec4 u_grid_center_extent;\n"
+"  vec4 u_grid_settings;\n"
+"};\n"
+"in vec2 v_world_xz;\n"
+"out vec4 out_color;\n"
+"float grid_coverage(vec2 coordinate)\n"
+"{\n"
+"  vec2 derivative = max(fwidth(coordinate), vec2(0.00001));\n"
+"  vec2 distance_to_line =\n"
+"      abs(fract(coordinate - 0.5) - 0.5) / derivative;\n"
+"  float nearest_line = min(distance_to_line.x, distance_to_line.y);\n"
+"  return 1.0 - smoothstep(0.0, 1.0, nearest_line);\n"
+"}\n"
+"float axis_coverage(float coordinate)\n"
+"{\n"
+"  float derivative = max(fwidth(coordinate), 0.00001);\n"
+"  return 1.0 - smoothstep(0.0, 1.5, abs(coordinate) / derivative);\n"
+"}\n"
+"void main()\n"
+"{\n"
+"  float spacing = max(u_grid_settings.x, 0.0001);\n"
+"  vec2 grid_coordinate = v_world_xz / spacing;\n"
+"  vec2 grid_derivative = max(fwidth(grid_coordinate), vec2(0.00001));\n"
+"  float pixels_per_cell = 1.0 /\n"
+"      max(grid_derivative.x, grid_derivative.y);\n"
+"  float detail_fade = smoothstep(1.0, 3.0, pixels_per_cell);\n"
+"  float grid_alpha =\n"
+"      grid_coverage(grid_coordinate) * detail_fade * 0.38;\n"
+"  float x_axis_alpha = axis_coverage(v_world_xz.y) * 0.9;\n"
+"  float z_axis_alpha = axis_coverage(v_world_xz.x) * 0.9;\n"
+"  float distance_to_center =\n"
+"      length(v_world_xz - u_grid_center_extent.xz);\n"
+"  float extent = max(u_grid_center_extent.w, 0.0001);\n"
+"  float distance_fade = 1.0 - smoothstep(\n"
+"      extent * 0.65, extent, distance_to_center);\n"
+"  float alpha = max(grid_alpha, max(x_axis_alpha, z_axis_alpha)) *\n"
+"      distance_fade;\n"
+"  if (alpha <= 0.001)\n"
+"  {\n"
+"    discard;\n"
+"  }\n"
+"  vec3 color = vec3(0.5);\n"
+"  color = mix(color, vec3(1.0, 0.25, 0.25), x_axis_alpha);\n"
+"  color = mix(color, vec3(0.25, 0.38, 1.0), z_axis_alpha);\n"
+"  out_color = vec4(color, alpha);\n"
+"}\n";
+
 static char const* LDK_RHI_GL33_PRESENT_PASS_VERTEX_SHADER =
 "#version 330 core\n"
 "layout(location = 0) in vec2 a_position;\n"
@@ -274,6 +347,16 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_GRID_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_GRID_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_GRID_PASS_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_PRESENT_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
