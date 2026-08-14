@@ -535,7 +535,7 @@ bool ldki_editor_view_texture_show(LDKEditorContext *editor,
   }
 
   ldk_ui_widget_image(ui, image_id, texture,
-      ldk_ui_rect(0.0f, 0.0f, 1.0f, 1.0f), image_rect);
+      ldk_ui_rect(0.0f, 1.0f, 1.0f, -1.0f), image_rect);
 
   if (out_image_rect != NULL)
   {

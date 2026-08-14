@@ -54,8 +54,15 @@ typedef enum LDKEditorGizmoAxis
   LDK_EDITOR_GIZMO_AXIS_NONE = 0,
   LDK_EDITOR_GIZMO_AXIS_X,
   LDK_EDITOR_GIZMO_AXIS_Y,
-  LDK_EDITOR_GIZMO_AXIS_Z
+  LDK_EDITOR_GIZMO_AXIS_Z,
+  LDK_EDITOR_GIZMO_AXIS_ALL
 } LDKEditorGizmoAxis;
+
+typedef enum LDKEditorGizmoMode
+{
+  LDK_EDITOR_GIZMO_MODE_TRANSLATE = 0,
+  LDK_EDITOR_GIZMO_MODE_SCALE
+} LDKEditorGizmoMode;
 
 typedef enum LDKEditorGizmoSpace
 {
@@ -65,17 +72,26 @@ typedef enum LDKEditorGizmoSpace
 
 typedef struct LDKEditorGizmoState
 {
-  LDKResourceMesh translation_axis_meshes[3];
-  LDKResourceMesh translation_highlight_mesh;
+  LDKResourceMesh axis_cube_meshes[3];
+  LDKResourceMesh axis_cone_meshes[3];
+  LDKResourceMesh cube_highlight_mesh;
+  LDKResourceMesh cone_highlight_mesh;
+  LDKResourceMesh center_cube_mesh;
   LDKUIRect scene_view_rect;
   Mat4 drag_orientation;
   LDKEntity drag_entity;
   Vec3 drag_axis;
   Vec3 drag_origin;
+  Vec3 drag_initial_hit;
   Vec3 drag_plane_normal;
+  Vec3 drag_initial_scale;
+  LDKUIPoint drag_initial_cursor;
   float drag_initial_parameter;
+  float drag_world_length;
   LDKEditorGizmoAxis hovered_axis;
   LDKEditorGizmoAxis active_axis;
+  LDKEditorGizmoMode mode;
+  LDKEditorGizmoMode drag_mode;
   LDKEditorGizmoSpace space;
   bool dragging;
   bool scene_view_visible;

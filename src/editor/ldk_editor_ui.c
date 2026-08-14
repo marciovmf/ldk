@@ -497,16 +497,49 @@ static void s_editor_gizmo_space_combo_box(LDKEditorContext *editor)
 
   ui = &editor->ui;
   item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  selected_index = (u32)editor->gizmo.space;
+  selected_index = editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE
+                       ? (u32)LDK_EDITOR_GIZMO_SPACE_LOCAL
+                       : (u32)editor->gizmo.space;
   if (selected_index >= item_count)
   {
     selected_index = (u32)LDK_EDITOR_GIZMO_SPACE_GLOBAL;
   }
 
-  ldk_ui_set_next_disabled(ui, editor->gizmo.dragging);
+  ldk_ui_set_next_disabled(ui,
+      editor->gizmo.dragging ||
+      editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
   ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
   selected_index = ldk_ui_combo_box(ui, items, item_count, selected_index);
-  editor->gizmo.space = (LDKEditorGizmoSpace)selected_index;
+  if (editor->gizmo.mode != LDK_EDITOR_GIZMO_MODE_SCALE)
+  {
+    editor->gizmo.space = (LDKEditorGizmoSpace)selected_index;
+  }
+}
+
+static void s_editor_gizmo_mode_combo_box(LDKEditorContext *editor)
+{
+  static const char *items[] = {"TRANSLATE", "SCALE"};
+  LDKUIContext *ui;
+  u32 item_count;
+  u32 selected_index;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  item_count = (u32)(sizeof(items) / sizeof(items[0]));
+  selected_index = (u32)editor->gizmo.mode;
+  if (selected_index >= item_count)
+  {
+    selected_index = (u32)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+  }
+
+  ldk_ui_set_next_disabled(ui, editor->gizmo.dragging);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  selected_index = ldk_ui_combo_box(ui, items, item_count, selected_index);
+  editor->gizmo.mode = (LDKEditorGizmoMode)selected_index;
 }
 
 static void s_editor_tool_bar(LDKEditorContext *editor)
@@ -520,6 +553,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   toolbar_rect =
       ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
+  s_editor_gizmo_mode_combo_box(editor);
   s_editor_gizmo_space_combo_box(editor);
   ldk_ui_spacer(ui);
 

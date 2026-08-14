@@ -67,11 +67,18 @@ extern "C" {
 #define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
 #define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
 
+  typedef enum LDKRendererMeshSubmitFlag
+  {
+    LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
+    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0
+  } LDKRendererMeshSubmitFlag;
+
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
     Mat4 world;
     LDKRendererViewId view_id;
+    u32 flags;
   } LDKRendererMeshSubmit;
 
   typedef struct LDKRendererConfig
@@ -126,6 +133,7 @@ extern "C" {
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
+    LDKRHIPipeline overlay_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBindings bindings;
@@ -673,8 +681,8 @@ extern "C" {
    * @brief Submit a mesh instance to a single render view for this frame.
    *
    * Unlike ldk_renderer_submit_mesh(), this mesh is only drawn while rendering
-   * the view identified by view_id. This is intended for view-local content,
-   * such as editor gizmos and overlays that must not appear in the Game View.
+   * the view identified by view_id. This is intended for view-local scene
+   * content that must not appear in other views.
    *
    * The view does not need to have been submitted before this call. If no view
    * with the supplied ID is submitted during the frame, the mesh is not drawn.
@@ -686,6 +694,25 @@ extern "C" {
    * @return true if the mesh was queued, false otherwise.
    */
   LDK_API bool ldk_renderer_submit_mesh_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      LDKResourceMesh mesh,
+      Mat4 world);
+
+  /**
+   * @brief Submit a mesh as a view-local overlay for this frame.
+   *
+   * Overlay meshes are rendered after regular meshes for the selected view,
+   * with depth testing and depth writes disabled. This makes them independent
+   * of the scene depth buffer and suitable for editor gizmos.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw this mesh.
+   * @param mesh Mesh resource handle to render.
+   * @param world World transform for this mesh instance.
+   * @return true if the mesh was queued, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_overlay_mesh_to_view(
       LDKRenderer* renderer,
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
