@@ -62,15 +62,17 @@ extern "C" {
     bool alive;
   } LDKRendererMeshResource;
 
+  typedef u64 LDKRendererViewId;
+
+#define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
+#define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
+
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
     Mat4 world;
+    LDKRendererViewId view_id;
   } LDKRendererMeshSubmit;
-
-  typedef u64 LDKRendererViewId;
-
-#define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
 
   typedef struct LDKRendererConfig
   {
@@ -652,7 +654,7 @@ extern "C" {
    *
    * The mesh handle is validated against the renderer mesh cache, then queued
    * with the supplied world transform. The queued mesh is rendered during
-   * ldk_renderer_render_frame() using the currently submitted view.
+   * ldk_renderer_render_frame() for every submitted view.
    *
    * Submitted mesh instances are transient frame data. After rendering, the
    * renderer clears the submitted mesh queue.
@@ -664,6 +666,28 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_submit_mesh(
       LDKRenderer* renderer,
+      LDKResourceMesh mesh,
+      Mat4 world);
+
+  /**
+   * @brief Submit a mesh instance to a single render view for this frame.
+   *
+   * Unlike ldk_renderer_submit_mesh(), this mesh is only drawn while rendering
+   * the view identified by view_id. This is intended for view-local content,
+   * such as editor gizmos and overlays that must not appear in the Game View.
+   *
+   * The view does not need to have been submitted before this call. If no view
+   * with the supplied ID is submitted during the frame, the mesh is not drawn.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw this mesh.
+   * @param mesh Mesh resource handle to render.
+   * @param world World transform for this mesh instance.
+   * @return true if the mesh was queued, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
       LDKResourceMesh mesh,
       Mat4 world);
 

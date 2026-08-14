@@ -130,7 +130,8 @@ static bool s_renderer_target_ensure(LDKRenderer* renderer, LDKRendererTarget* t
 static LDKRendererView* s_renderer_view_find(
     LDKRenderer* renderer, LDKRendererViewId view_id)
 {
-  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID)
+  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
   {
     return NULL;
   }
@@ -150,7 +151,8 @@ static LDKRendererView* s_renderer_view_find(
 static LDKRendererView const* s_renderer_view_find_const(
     LDKRenderer const* renderer, LDKRendererViewId view_id)
 {
-  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID)
+  if (renderer == NULL || view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
   {
     return NULL;
   }
@@ -727,6 +729,13 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer,
   for (u32 i = 0; i < renderer->submitted_mesh_count; i++)
   {
     LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[i];
+
+    if (submit->view_id != LDK_RENDERER_VIEW_ALL &&
+        submit->view_id != view->id)
+    {
+      continue;
+    }
+
     LDKRendererMeshResource* mesh = s_renderer_mesh_get_resource(renderer, submit->mesh);
 
     if (mesh == NULL || mesh->index_count == 0)
@@ -2020,7 +2029,8 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
     LDKRendererViewId view_id, Mat4 view_matrix, Mat4 projection)
 {
   if (renderer == NULL || !renderer->is_initialized ||
-      view_id == LDK_RENDERER_VIEW_INVALID)
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
   {
     return false;
   }
@@ -2070,7 +2080,8 @@ void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render
   renderer->submitted_ui = render_data;
 }
 
-bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world)
+static bool s_renderer_submit_mesh(LDKRenderer* renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world)
 {
   if (renderer == NULL || !renderer->is_initialized)
   {
@@ -2093,6 +2104,26 @@ bool ldk_renderer_submit_mesh(LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 
   LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[renderer->submitted_mesh_count];
   submit->mesh = mesh;
   submit->world = world;
+  submit->view_id = view_id;
   renderer->submitted_mesh_count += 1;
   return true;
+}
+
+bool ldk_renderer_submit_mesh(
+    LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world)
+{
+  return s_renderer_submit_mesh(
+      renderer, LDK_RENDERER_VIEW_ALL, mesh, world);
+}
+
+bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world)
+{
+  if (view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
+  {
+    return false;
+  }
+
+  return s_renderer_submit_mesh(renderer, view_id, mesh, world);
 }
