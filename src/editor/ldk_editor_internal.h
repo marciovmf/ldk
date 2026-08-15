@@ -61,6 +61,7 @@ typedef enum LDKEditorGizmoAxis
 typedef enum LDKEditorGizmoMode
 {
   LDK_EDITOR_GIZMO_MODE_TRANSLATE = 0,
+  LDK_EDITOR_GIZMO_MODE_ROTATE,
   LDK_EDITOR_GIZMO_MODE_SCALE
 } LDKEditorGizmoMode;
 
@@ -74,6 +75,8 @@ typedef struct LDKEditorGizmoState
 {
   LDKResourceMesh axis_cube_meshes[3];
   LDKResourceMesh axis_cone_meshes[3];
+  LDKResourceMesh rotation_arc_meshes[3];
+  LDKResourceMesh rotation_arc_highlight_meshes[3];
   LDKResourceMesh cube_highlight_mesh;
   LDKResourceMesh cone_highlight_mesh;
   LDKResourceMesh center_cube_mesh;
@@ -83,10 +86,15 @@ typedef struct LDKEditorGizmoState
   Vec3 drag_axis;
   Vec3 drag_origin;
   Vec3 drag_initial_hit;
+  Vec3 drag_initial_direction;
   Vec3 drag_plane_normal;
   Vec3 drag_initial_scale;
+  Quat drag_initial_world_rotation;
+  Quat drag_parent_world_rotation;
   LDKUIPoint drag_initial_cursor;
   float drag_initial_parameter;
+  float drag_previous_angle;
+  float drag_accumulated_angle;
   float drag_world_length;
   LDKEditorGizmoAxis hovered_axis;
   LDKEditorGizmoAxis active_axis;
@@ -155,7 +163,6 @@ void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
-void ldki_editor_grid_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);

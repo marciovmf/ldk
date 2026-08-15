@@ -525,7 +525,7 @@ static void s_editor_gizmo_space_combo_box(LDKEditorContext *editor)
 
 static void s_editor_gizmo_mode_combo_box(LDKEditorContext *editor)
 {
-  static const char *items[] = {"TRANSLATE", "SCALE"};
+  static const char *items[] = {"TRANSLATE", "ROTATE", "SCALE"};
   LDKUIContext *ui;
   u32 item_count;
   u32 selected_index;
