@@ -43,7 +43,8 @@ extern "C" {
     LDK_SHADER_MESH_PASS,
     LDK_SHADER_PRESENT_PASS,
     LDK_SHADER_MESH_PASS_INSTANCED,
-    LDK_SHADER_GRID_PASS
+    LDK_SHADER_GRID_PASS,
+    LDK_SHADER_MESH_PASS_UNLIT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -132,6 +133,7 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRHIShaderModule vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
+    LDKRHIShaderModule overlay_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
     LDKRHIPipeline overlay_pipeline;

@@ -218,6 +218,15 @@ static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "  out_color = vec4(v_color.rgb * light, v_color.a);\n"
 "}\n";
 
+static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec4 v_color;\n"
+"out vec4 out_color;\n"
+"void main()\n"
+"{\n"
+"  out_color = v_color;\n"
+"}\n";
+
 static char const* LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER =
 "#version 330 core\n"
 "layout(location = 0) in vec3 a_position;\n"
@@ -347,6 +356,18 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_UNLIT &&
+      stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_UNLIT &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_GRID_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)

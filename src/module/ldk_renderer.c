@@ -512,6 +512,20 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
     return false;
   }
 
+  pass->overlay_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_MESH_PASS_UNLIT, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->overlay_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->fragment_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vertex_shader_module);
+    pass->fragment_shader_module = LDK_RHI_INVALID_RESOURCE;
+    pass->vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
+    return false;
+  }
+
   return true;
 }
 
@@ -574,6 +588,7 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
 
   desc.depth_state.test_enabled = false;
   desc.depth_state.write_enabled = false;
+  desc.fragment_shader_module = pass->overlay_fragment_shader_module;
   pass->overlay_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->overlay_pipeline == LDK_RHI_INVALID_RESOURCE)
   {
@@ -687,6 +702,8 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(pass->rhi, pass->overlay_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->pipeline);
     ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->overlay_fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
   }
