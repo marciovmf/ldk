@@ -11,11 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
-#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
-#define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
-#define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
-
 //------------------------------------------------------------
 // Menu bar
 //------------------------------------------------------------

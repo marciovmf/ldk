@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -654,10 +655,13 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   LDKUIIcon icon = {0};
   icon.size =
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+
+  const rgba32 flat_color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  const rgba32 white =  0xFFFFFFFF;
+
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color =
-      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.color = flat_color;
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
   ldk_ui_icon_label(ui, icon, entity_name);
   ldk_ui_horizontal_line(ui);
@@ -669,6 +673,26 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
        component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
+
+    // custom icons for native components
+    if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+    {
+      icon.uv =ldk_editor_icon_rects[LDK_EDITOR_ICON_TRANSFORM];
+      icon.color = flat_color;
+    }
+    else if (component_type == LDK_COMPONENT_TYPE_CAMERA)
+    {
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_GIZMO_CAMERA];
+      icon.color = flat_color;
+    }
+    else if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+    {
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MESH];
+      icon.color = flat_color;
+    }
+    else
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+
     const LDKComponentMeta *meta =
         ldk_scene_component_meta_find_by_type(game, component_type);
     const char *component_name =
@@ -682,6 +706,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       ui, component_name ? component_name : "<unknown component>", icon, expanded);
     s_editor_inspector_component_expanded_set(component_type, expanded);
     ldk_ui_horizontal_line(ui);
+
 
     if (expanded && !meta)
     {
