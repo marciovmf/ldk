@@ -1,10 +1,15 @@
 #include "ldk_editor_internal.h"
 
+#include <ldk.h>
+#include <ldk_raycast.h>
 #include <component/ldk_camera.h>
+#include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_scenegraph.h>
 
+#include <float.h>
 #include <math.h>
 #include <string.h>
 
@@ -21,6 +26,140 @@ static bool s_editor_camera_rect_contains(
          (float)point.y >= rect->y &&
          (float)point.x < rect->x + rect->w &&
          (float)point.y < rect->y + rect->h;
+}
+
+static bool s_editor_scene_view_ray_get(
+    LDKEditorContext *editor, LDKPoint cursor, LDKRay *out_ray)
+{
+  LDKUIRect const *rect;
+  Mat4 view;
+  Mat4 projection;
+  Mat4 inverse_view_projection;
+  Vec3 near_position;
+  Vec3 far_position;
+  float aspect;
+  float ndc_x;
+  float ndc_y;
+  bool inverse_ok;
+
+  if (editor == NULL || editor->renderer == NULL || out_ray == NULL ||
+      editor->renderer->game_width == 0 ||
+      editor->renderer->game_height == 0)
+  {
+    return false;
+  }
+
+  rect = &editor->gizmo.scene_view_rect;
+  if (rect->w <= 0.0f || rect->h <= 0.0f ||
+      !s_editor_camera_rect_contains(rect, cursor))
+  {
+    return false;
+  }
+
+  aspect = (float)editor->renderer->game_width /
+           (float)editor->renderer->game_height;
+  if (!ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
+      !ldk_camera_get_projection_matrix(
+          editor->editor_camera, aspect, &projection))
+  {
+    return false;
+  }
+
+  inverse_view_projection =
+      mat4_inverse_full(mat4_mul(projection, view), &inverse_ok);
+  if (!inverse_ok)
+  {
+    return false;
+  }
+
+  // UI coordinates grow downward while NDC grows upward. Keep this mapping
+  // symmetrical with the gizmo's world-to-scene projection.
+  ndc_x = (((float)cursor.x - rect->x) / rect->w) * 2.0f - 1.0f;
+  ndc_y = 1.0f - (((float)cursor.y - rect->y) / rect->h) * 2.0f;
+  near_position = mat4_mul_point(
+      inverse_view_projection, vec3_make(ndc_x, ndc_y, -1.0f));
+  far_position = mat4_mul_point(
+      inverse_view_projection, vec3_make(ndc_x, ndc_y, 1.0f));
+
+  return ldk_ray_make(
+      near_position, vec3_sub(far_position, near_position), out_ray);
+}
+
+static void s_editor_scene_view_pick(
+    LDKEditorContext *editor, LDKPoint cursor)
+{
+  LDKECS *ecs;
+  LDKAssetManager *asset_manager;
+  XArray *mesh_sources;
+  XArray *mesh_owners;
+  LDKRay ray;
+  LDKEntity picked_entity = x_handle_null();
+  float nearest_distance = FLT_MAX;
+  u32 mesh_count;
+
+  if (editor == NULL ||
+      !s_editor_scene_view_ray_get(editor, cursor, &ray))
+  {
+    return;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  asset_manager = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (ecs == NULL || asset_manager == NULL)
+  {
+    return;
+  }
+
+  mesh_sources = ldk_component_store_get(
+      &ecs->component, LDK_COMPONENT_TYPE_MESH_SOURCE);
+  mesh_owners = ldk_component_owners_get(
+      &ecs->component, LDK_COMPONENT_TYPE_MESH_SOURCE);
+
+  if (mesh_sources == NULL || mesh_owners == NULL)
+  {
+    editor->selected_entity = x_handle_null();
+    return;
+  }
+
+  mesh_count = x_array_count(mesh_sources);
+  if (x_array_count(mesh_owners) < mesh_count)
+  {
+    mesh_count = x_array_count(mesh_owners);
+  }
+
+  for (u32 i = 0; i < mesh_count; ++i)
+  {
+    const LDKMeshSource *mesh_source = x_array_get(mesh_sources, i);
+    const LDKEntity *entity = x_array_get(mesh_owners, i);
+    const LDKAssetMeshData *mesh_data;
+    LDKRaycastHit hit;
+    Mat4 world;
+
+    if (mesh_source == NULL || entity == NULL ||
+        !ldk_entity_is_alive(&ecs->entity, *entity) ||
+        ldk_entity_internal_flags_has(
+            &ecs->entity, *entity, LDK_ENTITY_INTERNAL_EDITOR) ||
+        !ldk_transform_get_world_matrix(*entity, &world))
+    {
+      continue;
+    }
+
+    mesh_data = ldk_asset_manager_mesh_get_const(
+        asset_manager, mesh_source->source_asset);
+    if (mesh_data == NULL ||
+        !ldk_raycast_mesh_transformed(ray, &mesh_data->mesh, world, &hit))
+    {
+      continue;
+    }
+
+    if (hit.distance < nearest_distance)
+    {
+      nearest_distance = hit.distance;
+      picked_entity = *entity;
+    }
+  }
+
+  editor->selected_entity = picked_entity;
 }
 
 static Vec3 s_editor_camera_offset(
@@ -246,5 +385,12 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
   if (changed)
   {
     s_editor_camera_apply(editor);
+  }
+
+  if (inside && !editor->gizmo.dragging &&
+      editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
+      ldk_os_mouse_button_up(&mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    s_editor_scene_view_pick(editor, cursor);
   }
 }
