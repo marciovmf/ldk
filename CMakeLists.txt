@@ -336,6 +336,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
+  ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
@@ -582,4 +583,5 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
+  ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
 endif()
