@@ -7,33 +7,57 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0, 0, 0
-            local_scale: 1, 1, 1
-            local_rotation: 0, 0, 0, 1
+            local_position: 0.00000000, 3.70705223, -0.277993739
+            local_scale: 1.16555500, 1.16555500, 2.06512880
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
     - entity: 1
       parent: -1
-      name: "Sphere"
+      name: "Cone"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0, 0, 0
-            local_scale: 1, 1, 1
-            local_rotation: 0, 0, 0, 1
+            local_position: -0.0302972794, 5.22538710, -1.46811438
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
-            source_asset: "builtin:mesh/sphere"
+            source_asset: "builtin:mesh/cone"
     - entity: 2
       parent: -1
       name: "Capsule"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0, 0, 0
-            local_scale: 1, 1, 1
-            local_rotation: 0, 0, 0, 1
+            local_position: 0.00000000, 4.04539919, -1.46910703
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
+    - entity: 3
+      parent: -1
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 4.06291389, 0.635417581
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+    - entity: 4
+      parent: -1
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 5.19156504, 0.623600006
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
