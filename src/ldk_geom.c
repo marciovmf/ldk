@@ -549,6 +549,8 @@ static const char* s_mesh_primitive_asset_path(LDKMeshPrimitive primitive)
   {
   case LDK_MESH_PRIMITIVE_CUBE:
     return "builtin:mesh/cube";
+  case LDK_MESH_PRIMITIVE_CONE:
+    return "builtin:mesh/cone";
   case LDK_MESH_PRIMITIVE_SPHERE:
     return "builtin:mesh/sphere";
   case LDK_MESH_PRIMITIVE_CAPSULE:
@@ -557,8 +559,6 @@ static const char* s_mesh_primitive_asset_path(LDKMeshPrimitive primitive)
     return "builtin:mesh/plane";
   case LDK_MESH_PRIMITIVE_QUAD:
     return "builtin:mesh/quad";
-  case LDK_MESH_PRIMITIVE_CONE:
-    return "builtin:mesh/cone";
   default:
     return NULL;
   }
