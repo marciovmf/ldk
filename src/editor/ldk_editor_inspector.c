@@ -51,7 +51,7 @@ static void s_editor_inspector_area_state_sync(LDKEntity entity)
 static i32 s_editor_inspector_collapsed_component_index(u32 component_type)
 {
   for (u32 i = 0; i < s_editor_inspector_area_state.collapsed_component_count;
-       i++)
+      i++)
   {
     if (s_editor_inspector_area_state.collapsed_component_types[i] ==
         component_type)
@@ -657,7 +657,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   const rgba32 flat_color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  const rgba32 white =  0xFFFFFFFF;
+  const rgba32 white = 0xFFFFFFFF;
 
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
@@ -670,15 +670,17 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   s_editor_inspector_area_state_sync(entity);
 
   for (u32 component_i = 0; component_i < info->components.component_count;
-       component_i++)
+      component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
+    bool has_delete_button = true;
 
     // custom icons for native components
     if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
     {
-      icon.uv =ldk_editor_icon_rects[LDK_EDITOR_ICON_TRANSFORM];
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_TRANSFORM];
       icon.color = flat_color;
+      has_delete_button = false;
     }
     else if (component_type == LDK_COMPONENT_TYPE_CAMERA)
     {
@@ -702,11 +704,25 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
     ldk_ui_push_id_u32(ui, component_type);
     bool expanded = s_editor_inspector_component_expanded(component_type);
-    expanded = ldk_ui_begin_area_ex(
-      ui, component_name ? component_name : "<unknown component>", icon, expanded);
+
+    expanded = ldk_ui_begin_area_ex(ui,
+        component_name ? component_name : "<unknown component>", icon,
+        expanded);
     s_editor_inspector_component_expanded_set(component_type, expanded);
+
     ldk_ui_horizontal_line(ui);
 
+    // Delete button positioned over the area bar
+    u32 id = component_type + component_i;
+    ldk_ui_push_id_u32(ui, id);         // delete button id
+    LDKUIRect r = ldk_ui_last_rect(ui); // area rect
+    r.x += r.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+    r.y -= LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_SPACING;
+    r.w = 24.0f;
+    r.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+    icon.color = flat_color;
 
     if (expanded && !meta)
     {
@@ -718,6 +734,10 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     }
     else if (expanded)
     {
+      // expanded area rect is padded. We must account for that
+      r.x += LDK_UI_DEFAULT_PADDING;
+      r.y -= LDK_UI_DEFAULT_PADDING;
+
       /*
        * Inspector visibility follows Comet metadata. It intentionally does
        * not use scene serialization rules: runtime/non-serialized fields may
@@ -728,6 +748,19 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         s_editor_inspector_field_draw(ui, entity, component_type, meta,
             &meta->fields[field_i], component);
       }
+    }
+
+    if (has_delete_button && ldk_ui_widget_icon_button(ui, id, icon, "", r))
+    {
+      if (ldk_os_dialog_show_yes_no(editor->window, "Delete Component ?",
+              "Are you sure you want to delete this component instance ?"))
+      {
+        if (!ldk_ecs_component_remove(entity, component_type))
+        {
+          ldk_os_dialog_show_error(editor->window, "Error", "Error removing component.");
+        }
+      }
+      
     }
 
     ldk_ui_end_area(ui);
