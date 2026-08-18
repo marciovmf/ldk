@@ -374,6 +374,7 @@ static bool s_mesh_primitive_from_asset_reference(
   static const char *references[LDK_MESH_PRIMITIVE_COUNT] =
   {
     "builtin:mesh/cube",
+    "builtin:mesh/cone",
     "builtin:mesh/sphere",
     "builtin:mesh/capsule",
     "builtin:mesh/plane",
@@ -1359,7 +1360,7 @@ static bool s_write_field_value(XStrBuilder *out,
   case LDK_FIELD_FLOAT:
   {
     const float *value = (const float *)ptr;
-    x_strbuilder_append_format(out, "%.9g", (double)*value);
+    x_strbuilder_append_format(out, "%#.9g", (double)*value);
   }
   break;
 
@@ -1367,14 +1368,14 @@ static bool s_write_field_value(XStrBuilder *out,
   {
     const Vec2 *value = (const Vec2 *)ptr;
     x_strbuilder_append_format(
-        out, "%.9g, %.9g", (double)value->x, (double)value->y);
+        out, "%#.9g, %#.9g", (double)value->x, (double)value->y);
   }
   break;
 
   case LDK_FIELD_VEC3:
   {
     const Vec3 *value = (const Vec3 *)ptr;
-    x_strbuilder_append_format(out, "%.9g, %.9g, %.9g", (double)value->x,
+    x_strbuilder_append_format(out, "%#.9g, %#.9g, %#.9g", (double)value->x,
         (double)value->y, (double)value->z);
   }
   break;
@@ -1382,7 +1383,7 @@ static bool s_write_field_value(XStrBuilder *out,
   case LDK_FIELD_VEC4:
   {
     const Vec4 *value = (const Vec4 *)ptr;
-    x_strbuilder_append_format(out, "%.9g, %.9g, %.9g, %.9g",
+    x_strbuilder_append_format(out, "%#.9g, %#.9g, %#.9g, %#.9g",
         (double)value->x, (double)value->y, (double)value->z,
         (double)value->w);
   }
@@ -1391,7 +1392,7 @@ static bool s_write_field_value(XStrBuilder *out,
   case LDK_FIELD_QUAT:
   {
     const Quat *value = (const Quat *)ptr;
-    x_strbuilder_append_format(out, "%.9g, %.9g, %.9g, %.9g",
+    x_strbuilder_append_format(out, "%#.9g, %#.9g, %#.9g, %#.9g",
         (double)value->x, (double)value->y, (double)value->z,
         (double)value->w);
   }
@@ -1409,7 +1410,7 @@ static bool s_write_field_value(XStrBuilder *out,
         x_strbuilder_append(out, ", ");
       }
 
-      x_strbuilder_append_format(out, "%.9g", (double)value->m[i]);
+      x_strbuilder_append_format(out, "%#.9g", (double)value->m[i]);
     }
   }
   break;
