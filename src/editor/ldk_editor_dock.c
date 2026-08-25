@@ -1150,6 +1150,8 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
   LDKUIRect image_rect;
   (void)data;
 
+  ldki_editor_scene_view_toolbar_show(editor);
+
   if (ldki_editor_view_texture_show(
           editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
   {

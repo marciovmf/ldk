@@ -65,7 +65,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor)
   LDKCamera *camera;
   LDKEntity entity;
 
-  if (editor == NULL || !editor->project.loaded)
+  if (editor == NULL)
   {
     return false;
   }
@@ -860,8 +860,6 @@ static bool s_project_unload(LDKEditorContext *editor)
   if (!editor->project.loaded)
   {
     editor->selected_entity = x_handle_null();
-    editor->editor_camera = x_handle_null();
-    editor->scene_view = LDK_RENDERER_VIEW_INVALID;
     if (editor->hierarchy_expanded_entities != NULL)
     {
       x_array_clear(editor->hierarchy_expanded_entities);

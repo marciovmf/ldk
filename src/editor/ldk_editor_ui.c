@@ -1,3 +1,4 @@
+#include "ldk_editor_atlas.h"
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
 #include "module/ldk_ui.h"
@@ -485,63 +486,151 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
   }
 }
 
-static void s_editor_gizmo_space_combo_box(LDKEditorContext *editor)
+static bool s_editor_push_button(
+  LDKUIContext *ui, const char *text, LDKUIIcon icon, bool pushed)
+{
+  if (ui == NULL)
+  {
+    return false;
+  }
+
+  rgba32 control_bg = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+  rgba32 control_bg_hovered =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+  rgba32 control_text = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  rgba32 control_text_hovered =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED];
+  rgba32 control_border = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
+  rgba32 control_border_hovered =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
+
+  icon.color = control_text;
+
+  if (pushed)
+  {
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
+    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
+        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
+  }
+
+  bool clicked = ldk_ui_icon_button(ui, icon, text);
+
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = control_bg;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = control_bg_hovered;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] = control_text;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] = control_text_hovered;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] = control_border;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
+      control_border_hovered;
+
+  return clicked;
+}
+
+static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 {
   static const char *items[] = {"GLOBAL", "LOCAL"};
-  LDKUIContext *ui;
-  u32 item_count;
-  u32 selected_index;
 
   if (editor == NULL)
   {
     return;
   }
 
-  ui = &editor->ui;
-  item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  selected_index = editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE
-                       ? (u32)LDK_EDITOR_GIZMO_SPACE_LOCAL
-                       : (u32)editor->gizmo.space;
+  LDKUIContext *ui = &editor->ui;
+  u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
+  u32 selected_index = editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE
+                           ? (u32)LDK_EDITOR_GIZMO_SPACE_LOCAL
+                           : (u32)editor->gizmo.space;
+
   if (selected_index >= item_count)
   {
     selected_index = (u32)LDK_EDITOR_GIZMO_SPACE_GLOBAL;
   }
 
-  ldk_ui_set_next_disabled(ui,
+  ldk_ui_push_id_cstr(ui, "gizmo-space");
+  ldk_ui_begin_disabled(ui,
       editor->gizmo.dragging ||
-      editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
-  ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-  selected_index = ldk_ui_combo_box(ui, items, item_count, selected_index);
-  if (editor->gizmo.mode != LDK_EDITOR_GIZMO_MODE_SCALE)
+          editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
+
+  LDKUIIcon no_icon = {0};
+  for (u32 i = 0; i < item_count; ++i)
   {
-    editor->gizmo.space = (LDKEditorGizmoSpace)selected_index;
+    ldk_ui_set_next_width(ui, ldk_ui_px(76.0f));
+    if (s_editor_push_button(ui, items[i], no_icon, i == selected_index))
+    {
+      editor->gizmo.space = (LDKEditorGizmoSpace)i;
+    }
   }
+
+  ldk_ui_end_disabled(ui);
+  ldk_ui_pop_id(ui);
 }
 
-static void s_editor_gizmo_mode_combo_box(LDKEditorContext *editor)
+static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
 {
-  static const char *items[] = {"TRANSLATE", "ROTATE", "SCALE"};
-  LDKUIContext *ui;
-  u32 item_count;
-  u32 selected_index;
+  static const LDKEditorIcon items[] = {LDK_EDITOR_ICON_MOVETOOL, LDK_EDITOR_ICON_ROTATETOOL, LDK_EDITOR_ICON_SCALETOOL};
 
   if (editor == NULL)
   {
     return;
   }
 
-  ui = &editor->ui;
-  item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  selected_index = (u32)editor->gizmo.mode;
+  LDKUIContext *ui = &editor->ui;
+  LDKUIIcon icon;
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.size.w = icon.size.h = 24;
+
+  u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
+  u32 selected_index = (u32)editor->gizmo.mode;
+
   if (selected_index >= item_count)
   {
     selected_index = (u32)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
   }
 
-  ldk_ui_set_next_disabled(ui, editor->gizmo.dragging);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  selected_index = ldk_ui_combo_box(ui, items, item_count, selected_index);
-  editor->gizmo.mode = (LDKEditorGizmoMode)selected_index;
+  ldk_ui_push_id_cstr(ui, "gizmo-mode");
+  ldk_ui_begin_disabled(ui, editor->gizmo.dragging);
+
+  for (u32 i = 0; i < item_count; ++i)
+  {
+    icon.uv = ldk_editor_icon_rects[items[i]];
+    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
+    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
+    {
+      editor->gizmo.mode = (LDKEditorGizmoMode)i;
+    }
+  }
+
+  ldk_ui_end_disabled(ui);
+  ldk_ui_pop_id(ui);
+}
+
+void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
+{
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING) );
+  ldk_ui_begin_horizontal(ui);
+  s_editor_gizmo_mode_buttons(editor);
+  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
+  ldk_ui_spacer(ui);
+  s_editor_gizmo_space_buttons(editor);
+  ldk_ui_spacer(ui);
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_horizontal_line(ui);
 }
 
 static void s_editor_tool_bar(LDKEditorContext *editor)
@@ -555,8 +644,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   toolbar_rect =
       ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
-  s_editor_gizmo_mode_combo_box(editor);
-  s_editor_gizmo_space_combo_box(editor);
   ldk_ui_spacer(ui);
 
   {
