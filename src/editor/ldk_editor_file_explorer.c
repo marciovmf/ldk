@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "module/ldk_ui.h"
 #include <ldk_scene.h>
 
 #include <stdio.h>
@@ -1348,7 +1349,21 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
     LDKUIIcon file_icon)
 {
   ldk_ui_begin_vertical(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
+
+  //
+  // File area Toolbar 
+  //
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  LDKUIIcon up_dir_icon = {0};
+  up_dir_icon.size = ldk_sizef(24, 24);
+  up_dir_icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  up_dir_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER_UP];
+  up_dir_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+  ldk_ui_icon_button(ui, up_dir_icon, NULL);
 
   XFSPath relative_directory = {0};
   if (x_fs_path_relative_to(
@@ -1361,9 +1376,18 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
     ldk_ui_label(ui, state->selected_directory.buf);
   }
 
+  ldk_ui_spacer(ui);
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
   state->icon_size = ldk_ui_slider(
       ui, state->icon_size, PROJECT_EXPLORER_MIN_ICON_SIZE, 72.0f);
+  ldk_ui_end_horizontal(ui);
+
+  //
+  // File area content
+  //
 
   folder_icon.size = ldk_sizef(state->icon_size, state->icon_size);
   file_icon.size = folder_icon.size;
