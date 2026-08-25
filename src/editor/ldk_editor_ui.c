@@ -537,7 +537,10 @@ static bool s_editor_push_button(
 
 static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 {
-  static const char *items[] = {"GLOBAL", "LOCAL"};
+  static const LDKEditorIcon items[] = {
+    LDK_EDITOR_ICON_TOOL_MODE_GLOBAL,
+    LDK_EDITOR_ICON_TOOL_MODE_LOCAL,
+  };
 
   if (editor == NULL)
   {
@@ -560,11 +563,16 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
       editor->gizmo.dragging ||
           editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
 
-  LDKUIIcon no_icon = {0};
+  LDKUIIcon icon;
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.size.w = icon.size.h = 24;
+
   for (u32 i = 0; i < item_count; ++i)
   {
-    ldk_ui_set_next_width(ui, ldk_ui_px(76.0f));
-    if (s_editor_push_button(ui, items[i], no_icon, i == selected_index))
+    icon.uv = ldk_editor_icon_rects[items[i]];
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
+    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
     {
       editor->gizmo.space = (LDKEditorGizmoSpace)i;
     }
@@ -630,7 +638,6 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   s_editor_gizmo_space_buttons(editor);
   ldk_ui_spacer(ui);
   ldk_ui_end_horizontal(ui);
-  ldk_ui_horizontal_line(ui);
 }
 
 static void s_editor_tool_bar(LDKEditorContext *editor)
