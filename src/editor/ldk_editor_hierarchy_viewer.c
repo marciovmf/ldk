@@ -325,7 +325,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.color =
       editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
 
   if (editor == NULL || ecs == NULL)
   {
@@ -385,6 +385,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     }
   }
 
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
   ldk_ui_push_id_cstr(ui, "entity");
   u32 entities_result = ldk_ui_tree_node_ex(
       ui, "Entity", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
