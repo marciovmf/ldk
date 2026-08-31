@@ -717,4 +717,143 @@ bool ldk_project_build_game_module(
   return x_fs_path_is_file(&expected_game_dll_path);
 }
 
+static bool s_project_launcher_cmake_root_path_get(
+    const LDKProject *project, XFSPath *out_path)
+{
+  char path[X_FS_PATH_MAX_LENGTH];
+  int length;
+
+  if (project == NULL || out_path == NULL)
+  {
+    return false;
+  }
+
+  length = snprintf(path, sizeof(path), "%s_launcher",
+      x_fs_path_cstr(&project->cmake_root_path));
+  if (length < 0 || (size_t)length >= sizeof(path))
+  {
+    return false;
+  }
+
+  x_fs_path_set(out_path, path);
+  x_fs_path_normalize(out_path);
+  return true;
+}
+
+bool ldk_project_generate_game_launcher(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
+  XFSPath launcher_cmake_root;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      s_string_is_empty(desc->ldk_root_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return false;
+  }
+
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&launcher_cmake_root)))
+  {
+    return false;
+  }
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments, "-S \"%s\" -B \"%s\"",
+      desc->ldk_root_path, x_fs_path_cstr(&launcher_cmake_root));
+
+  if (!s_string_is_empty(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -G \"%s\"", project->cmake_generator.buf);
+  }
+
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -A \"%s\"", project->cmake_arch.buf);
+  }
+
+  x_strbuilder_append_format(arguments,
+      " -DCMAKE_BUILD_TYPE=\"%s\""
+      " -DOPTION_LDK_USE_PREBUILT=OFF"
+      " -DOPTION_BUILD_GAME=OFF"
+      " -DOPTION_BUILD_GAME_LAUNCHER=ON"
+      " -DOPTION_BUILD_EDITOR=OFF"
+      " -DOPTION_BUILD_TESTS=OFF"
+      " -DOPTION_GAME_DIR=\"%s\"",
+      s_project_build_config(desc->config),
+      x_fs_path_cstr(&project->project_root_path));
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+  return s_project_process_succeeded(process_result);
+}
+
+bool ldk_project_build_game_launcher(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
+  XFSPath launcher_cmake_root;
+  XFSPath expected_launcher_path;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return false;
+  }
+
+  config = s_project_build_config(desc->config);
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target ldk_launcher",
+      x_fs_path_cstr(&launcher_cmake_root), config);
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+
+  if (!s_project_process_succeeded(process_result))
+  {
+    return false;
+  }
+
+  x_fs_path(&expected_launcher_path,
+      x_fs_path_cstr(&project->project_root_path), "bin", config,
+      "ldk_launcher.exe");
+  x_fs_path_normalize(&expected_launcher_path);
+  return x_fs_path_is_file(&expected_launcher_path);
+}
+
 #endif // LDK_EDITOR

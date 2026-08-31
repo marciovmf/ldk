@@ -65,6 +65,10 @@ extern "C"
       const LDKProject *project, const LDKProjectBuildDesc *desc);
   LDK_API bool ldk_project_build_game_module(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
+  LDK_API bool ldk_project_generate_game_launcher(
+      const LDKProject *project, const LDKProjectBuildDesc *desc);
+  LDK_API bool ldk_project_build_game_launcher(
+      const LDKProject *project, const LDKProjectBuildDesc *desc);
 
 #endif // LDK_EDITOR
 

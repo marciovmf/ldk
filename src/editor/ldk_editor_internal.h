@@ -123,7 +123,9 @@ typedef enum LDKEditorProjectActionType
 {
   LDK_EDITOR_PROJECT_ACTION_NONE = 0,
   LDK_EDITOR_PROJECT_ACTION_OPEN,
-  LDK_EDITOR_PROJECT_ACTION_CREATE
+  LDK_EDITOR_PROJECT_ACTION_CREATE,
+  LDK_EDITOR_PROJECT_ACTION_BUILD,
+  LDK_EDITOR_PROJECT_ACTION_RELEASE
 } LDKEditorProjectActionType;
 
 typedef struct LDKEditorProjectAction
@@ -207,6 +209,8 @@ bool ldki_editor_project_create_request(LDKEditorContext *editor,
     const char *cmake_generator, const char *cmake_arch);
 bool ldki_editor_project_open_request(
     LDKEditorContext *editor, const char *project_file_path);
+bool ldki_editor_project_build_request(LDKEditorContext *editor);
+bool ldki_editor_project_release_request(LDKEditorContext *editor);
 void ldki_editor_register_commands(LDKEditorContext *editor);
 void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(

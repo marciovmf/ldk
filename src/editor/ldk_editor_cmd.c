@@ -175,6 +175,46 @@ static bool s_editor_command_projnew(XSlice args)
       (LDKEditorContext *)ldk_editor_get());
 }
 
+static bool s_editor_command_projbuild(XSlice args)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
+  (void)args;
+
+  if (!editor->project.loaded)
+  {
+    ldki_editor_log_error(editor, "No project is loaded.");
+    return false;
+  }
+
+  if (!ldki_editor_project_build_request(editor))
+  {
+    ldki_editor_log_error(editor, "A project action is already pending.");
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_editor_command_projrelease(XSlice args)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
+  (void)args;
+
+  if (!editor->project.loaded)
+  {
+    ldki_editor_log_error(editor, "No project is loaded.");
+    return false;
+  }
+
+  if (!ldki_editor_project_release_request(editor))
+  {
+    ldki_editor_log_error(editor, "A project action is already pending.");
+    return false;
+  }
+
+  return true;
+}
+
 static bool s_editor_command_layout_save_as(XSlice args)
 {
   XSlice arg0 = {0};
@@ -294,6 +334,11 @@ void ldki_editor_register_commands(LDKEditorContext *editor)
 
   ldk_editor_command_register(
       editor, "projnew", "Creates a new project.", s_editor_command_projnew);
+  ldk_editor_command_register(editor, "projbuild",
+      "Builds the current project game module.", s_editor_command_projbuild);
+  ldk_editor_command_register(editor, "projrelease",
+      "Builds the current project launcher in Release configuration.",
+      s_editor_command_projrelease);
   ldk_editor_command_register(
       editor, "play", "Enter Play mode.", s_editor_command_play);
   ldk_editor_command_register(
