@@ -1,5 +1,19 @@
 #include "ldk_editor_internal.h"
+#include <component/ldk_transform.h>
+#include <module/ldk_scenegraph.h>
+#include "ldk_ui_drag_n_drop.h"
 #include <inttypes.h> // for PRIu64
+#include <stdio.h>
+#include <string.h>
+
+#define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
+
+typedef struct LDKEditorHierarchyDropTarget
+{
+  LDKEntity entity;
+  bool detach;
+  bool valid;
+} LDKEditorHierarchyDropTarget;
 
 static u64 s_editor_entity_id(LDKEntity entity)
 {
@@ -7,6 +21,92 @@ static u64 s_editor_entity_id(LDKEntity entity)
   size_t copy_size = sizeof(entity) < sizeof(id) ? sizeof(entity) : sizeof(id);
   memcpy(&id, &entity, copy_size);
   return id;
+}
+
+static bool s_editor_hierarchy_node_pressed(LDKUIContext *ui, LDKUIId id)
+{
+  return ui != NULL && ui->mouse != NULL && ui->active_id == id &&
+         ldk_os_mouse_button_down(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static bool s_editor_hierarchy_node_drop(LDKUIContext *ui, LDKUIId id)
+{
+  return ui != NULL && ui->mouse != NULL && ui->active_id != 0 &&
+         ui->active_id != id && ui->hot_id == id &&
+         ldk_os_mouse_button_up(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static bool s_editor_hierarchy_window_empty_drop(LDKUIContext *ui)
+{
+  return ui != NULL && ui->mouse != NULL && ui->current_window != NULL &&
+         ui->active_id != 0 && ui->hot_id == 0 &&
+         ui->hovered_window_id == ui->current_window->id &&
+         ldk_os_mouse_button_up(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static void s_editor_hierarchy_entity_payload_set(LDKEntity entity)
+{
+  XSmallstr payload = {0};
+
+  x_smallstr_format(
+      &payload, "%" PRIu32 ":%" PRIu32, entity.index, entity.version);
+  ldk_ui_drag_n_drop_payload_set(
+      LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY, &payload);
+}
+
+static bool s_editor_hierarchy_entity_payload_parse(
+    const XSmallstr *payload, LDKEntity *out_entity)
+{
+  LDKEntity entity = x_handle_null();
+
+  if (payload == NULL || out_entity == NULL ||
+      sscanf(payload->buf, "%" SCNu32 ":%" SCNu32, &entity.index,
+          &entity.version) != 2)
+  {
+    return false;
+  }
+
+  *out_entity = entity;
+  return true;
+}
+
+static void s_editor_hierarchy_drop_commit(
+    LDKECS *ecs, const LDKEditorHierarchyDropTarget *target)
+{
+  XSmallstr payload = {0};
+  LDKEntity source = x_handle_null();
+  u32 type = 0;
+
+  if (ecs == NULL || target == NULL || !target->valid ||
+      !ldk_ui_drag_n_drop_payload_get_and_remove(&type, &payload) ||
+      type != LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY ||
+      !s_editor_hierarchy_entity_payload_parse(&payload, &source))
+  {
+    return;
+  }
+
+  if (!ldk_entity_is_alive(&ecs->entity, source))
+  {
+    return;
+  }
+
+  if (target->detach)
+  {
+    ldk_scenegraph_detach(source);
+    return;
+  }
+
+  if ((source.index == target->entity.index &&
+          source.version == target->entity.version) ||
+      !ldk_entity_is_alive(&ecs->entity, target->entity))
+  {
+    return;
+  }
+
+  ldk_scenegraph_set_parent(source, target->entity);
 }
 
 bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b)
@@ -114,7 +214,7 @@ static void s_editor_hierarchy_expanded_set(
 
 static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
     LDKECS *ecs, LDKEntity entity, u32 depth, LDKEntity *selected_entity,
-    bool *has_selection)
+    bool *has_selection, LDKEditorHierarchyDropTarget *drop_target)
 {
   if (ldk_entity_internal_flags_has(
           &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
@@ -156,12 +256,21 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   ldk_ui_push_id_u32(ui, (u32)(id >> 32));
 
   u32 result = ldk_ui_tree_node_ex(ui, label, icon, expanded, depth, flags);
+  LDKUIId node_id = ui->last_id;
 
-  if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
+  if (s_editor_hierarchy_node_pressed(ui, node_id))
   {
     editor->selected_entity = entity;
     *selected_entity = entity;
     *has_selection = true;
+    s_editor_hierarchy_entity_payload_set(entity);
+  }
+
+  if (drop_target != NULL && s_editor_hierarchy_node_drop(ui, node_id))
+  {
+    drop_target->entity = entity;
+    drop_target->detach = false;
+    drop_target->valid = true;
   }
 
   if ((result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
@@ -192,8 +301,8 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
                                  ? child_transform->next_sibling
                                  : x_handle_null();
 
-    s_editor_hierarchy_entity_draw(
-        editor, ecs, child, depth + 1, selected_entity, has_selection);
+    s_editor_hierarchy_entity_draw(editor, ecs, child, depth + 1,
+        selected_entity, has_selection, drop_target);
 
     child = next_sibling;
   }
@@ -207,6 +316,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   bool owns_window = ui->current_window == NULL;
   LDKEntity selected_entity = x_handle_null();
   bool has_selection = false;
+  LDKEditorHierarchyDropTarget drop_target = {0};
 
   LDKUIIcon icon = {0};
   icon.size =
@@ -278,6 +388,14 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   ldk_ui_push_id_cstr(ui, "entity");
   u32 entities_result = ldk_ui_tree_node_ex(
       ui, "Entity", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
+  LDKUIId entities_node_id = ui->last_id;
+
+  if (s_editor_hierarchy_node_drop(ui, entities_node_id))
+  {
+    drop_target.detach = true;
+    drop_target.valid = true;
+  }
+
   if ((entities_result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
   {
     entities_expanded = !entities_expanded;
@@ -306,14 +424,22 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
         continue;
       }
 
-      s_editor_hierarchy_entity_draw(
-          editor, ecs, entity, 1, &selected_entity, &has_selection);
+      s_editor_hierarchy_entity_draw(editor, ecs, entity, 1, &selected_entity,
+          &has_selection, &drop_target);
     }
 
     ldk_entity_iterator_end(&it);
   }
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
+
+  if (!drop_target.valid && s_editor_hierarchy_window_empty_drop(ui))
+  {
+    drop_target.detach = true;
+    drop_target.valid = true;
+  }
+
+  s_editor_hierarchy_drop_commit(ecs, &drop_target);
 
   if (owns_window)
   {

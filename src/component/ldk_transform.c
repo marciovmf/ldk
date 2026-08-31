@@ -21,6 +21,39 @@ static const LDKTransform* s_transform_get_ptr_const(LDKEntity entity)
   return (const LDKTransform*)ldk_ecs_component_get_const(entity, LDK_COMPONENT_TYPE_TRANSFORM);
 }
 
+static bool s_transform_world_matrix_calculate(
+    LDKEntity entity, Mat4* out_world_matrix)
+{
+  const LDKTransform* transform = s_transform_get_ptr_const(entity);
+
+  if (!transform || !out_world_matrix)
+  {
+    return false;
+  }
+
+  Mat4 local_matrix = mat4_compose(
+      transform->local_position,
+      transform->local_rotation,
+      transform->local_scale);
+
+  if (x_handle_is_null(transform->parent))
+  {
+    *out_world_matrix = local_matrix;
+    return true;
+  }
+
+  Mat4 parent_world_matrix;
+
+  if (!s_transform_world_matrix_calculate(
+          transform->parent, &parent_world_matrix))
+  {
+    return false;
+  }
+
+  *out_world_matrix = mat4_mul(parent_world_matrix, local_matrix);
+  return true;
+}
+
 static bool s_transform_mark_subtree_dirty(LDKEntity entity)
 {
   LDKTransform* transform = s_transform_get_ptr(entity);
@@ -331,6 +364,7 @@ LDKEntity ldk_transform_get_parent(LDKEntity entity)
 bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
 {
   LDKTransform* child_transform = s_transform_get_ptr(child_entity);
+  LDKTransform* parent_transform = NULL;
 
   if (!child_transform)
   {
@@ -344,7 +378,8 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
       return false;
     }
 
-    LDKTransform* parent_transform = s_transform_get_ptr(parent_entity);
+    parent_transform = s_transform_get_ptr(parent_entity);
+
     if (!parent_transform)
     {
       return false;
@@ -361,33 +396,81 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
     return true;
   }
 
-  s_transform_unlink_from_parent(child_transform);
+  Mat4 child_world_matrix;
 
-  if (!x_handle_is_null(parent_entity))
+  if (!s_transform_world_matrix_calculate(
+          child_entity, &child_world_matrix))
   {
-    LDKTransform* parent_transform = s_transform_get_ptr(parent_entity);
+    return false;
+  }
 
-    if (!parent_transform)
+  Mat4 new_local_matrix = child_world_matrix;
+
+  if (parent_transform)
+  {
+    Mat4 parent_world_matrix;
+
+    if (!s_transform_world_matrix_calculate(
+            parent_entity, &parent_world_matrix))
     {
       return false;
     }
 
+    bool inverse_ok = false;
+    Mat4 parent_world_inverse =
+        mat4_inverse_full(parent_world_matrix, &inverse_ok);
+
+    if (!inverse_ok)
+    {
+      return false;
+    }
+
+    new_local_matrix = mat4_mul(
+        parent_world_inverse, child_world_matrix);
+  }
+
+  Vec3 local_position;
+  Quat local_rotation;
+  Vec3 local_scale;
+
+  mat4_decompose(
+      new_local_matrix, &local_position, &local_rotation, &local_scale);
+
+  LDKTransform* first_child_transform = NULL;
+
+  if (parent_transform && !x_handle_is_null(parent_transform->first_child))
+  {
+    first_child_transform =
+        s_transform_get_ptr(parent_transform->first_child);
+
+    if (!first_child_transform)
+    {
+      return false;
+    }
+  }
+
+  if (!s_transform_unlink_from_parent(child_transform))
+  {
+    return false;
+  }
+
+  if (parent_transform)
+  {
     child_transform->parent = parent_entity;
     child_transform->prev_sibling = x_handle_null();
     child_transform->next_sibling = parent_transform->first_child;
 
-    if (!x_handle_is_null(parent_transform->first_child))
+    if (first_child_transform)
     {
-      LDKTransform* first_child_transform = s_transform_get_ptr(parent_transform->first_child);
-
-      if (first_child_transform)
-      {
-        first_child_transform->prev_sibling = child_entity;
-      }
+      first_child_transform->prev_sibling = child_entity;
     }
 
     parent_transform->first_child = child_entity;
   }
+
+  child_transform->local_position = local_position;
+  child_transform->local_rotation = local_rotation;
+  child_transform->local_scale = local_scale;
 
   return s_transform_mark_subtree_dirty(child_entity);
 }
