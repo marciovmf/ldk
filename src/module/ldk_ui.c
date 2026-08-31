@@ -142,6 +142,7 @@ static char const *s_ui_text_skip_word_spaces(char const *cursor)
  * Finds the next line produced by wrapping text to a maximum width.
  * @arg font Font instance used to measure codepoint advances.
  * @arg start Byte position from which line parsing starts.
+ * @arg text_end Exclusive end of the UTF-8 byte range.
  * @arg max_width Maximum line width. Non-positive values disable wrapping.
  * @arg out_line_start Receives the first byte included in the line.
  * @arg out_line_end Receives the byte immediately after the visible line text.
@@ -150,8 +151,9 @@ static char const *s_ui_text_skip_word_spaces(char const *cursor)
  * @return true when a line was produced. False for invalid or empty input.
  */
 static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
-    char const *start, float max_width, char const **out_line_start,
-    char const **out_line_end, char const **out_next, float *out_width)
+    char const *start, char const *text_end, float max_width,
+    char const **out_line_start, char const **out_line_end,
+    char const **out_next, float *out_width)
 {
   char const *line_start = start;
   char const *cursor = NULL;
@@ -184,7 +186,8 @@ static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
     *out_width = 0.0f;
   }
 
-  if (font == NULL || start == NULL || *start == '\0')
+  if (font == NULL || start == NULL || text_end == NULL ||
+      start >= text_end || *start == '\0')
   {
     return false;
   }
@@ -218,12 +221,13 @@ static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
     return true;
   }
 
-  while (*cursor != '\0')
+  while (cursor < text_end && *cursor != '\0')
   {
     char const *before = cursor;
     u32 codepoint = 0;
 
-    if (!ldk_ttf_utf8_consume_codepoint(&cursor, &codepoint))
+    if (!ldk_ttf_utf8_consume_codepoint_range(
+            &cursor, text_end, &codepoint))
     {
       break;
     }
@@ -877,6 +881,11 @@ static void s_ui_render_add_draw_cmd(LDKUIContext *ctx,
 static void s_ui_render_quad_uv(LDKUIContext *ctx, LDKUIRect rect, LDKUIRect uv,
     u32 color, LDKUIRect clip_rect, LDKUITextureHandle texture)
 {
+  if (ctx == NULL || clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
+  {
+    return;
+  }
+
   XArray_ldk_ui_vertex *vertices = s_ui_target_vertices(ctx);
   XArray_ldk_ui_u32 *indices = s_ui_target_indices(ctx);
   u32 index_offset = x_array_ldk_ui_u32_count(indices);
@@ -1064,8 +1073,10 @@ static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
   float pen_y;
   u32 prev_codepoint;
   char const *cursor;
+  char const *text_end;
 
-  if (ctx == NULL || text == NULL)
+  if (ctx == NULL || text == NULL || clip_rect.w <= 0.0f ||
+      clip_rect.h <= 0.0f)
   {
     return;
   }
@@ -1083,8 +1094,9 @@ static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
   pen_y = y + metrics.ascent;
   prev_codepoint = 0;
   cursor = text;
+  text_end = text + strlen(text);
 
-  while (*cursor != '\0')
+  while (cursor < text_end)
   {
     u32 codepoint = 0;
     LDKGlyph const *glyph;
@@ -1103,7 +1115,8 @@ static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
     XArray_ldk_ui_vertex *vertices = s_ui_target_vertices(ctx);
     XArray_ldk_ui_u32 *indices = s_ui_target_indices(ctx);
 
-    if (!ldk_ttf_utf8_consume_codepoint(&cursor, &codepoint))
+    if (!ldk_ttf_utf8_consume_codepoint_range(
+            &cursor, text_end, &codepoint))
     {
       break;
     }
@@ -1192,7 +1205,7 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
     char const *text_end, float x, float y, u32 color, LDKUIRect clip_rect)
 {
   if (ctx == NULL || text_start == NULL || text_end == NULL ||
-      text_start >= text_end)
+      text_start >= text_end || clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
   {
     return;
   }
@@ -1214,16 +1227,10 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
   while (cursor < text_end && *cursor != '\0')
   {
     u32 codepoint = 0;
-    char const *before = cursor;
 
-    if (!ldk_ttf_utf8_consume_codepoint(&cursor, &codepoint))
+    if (!ldk_ttf_utf8_consume_codepoint_range(
+            &cursor, text_end, &codepoint))
     {
-      break;
-    }
-
-    if (cursor > text_end)
-    {
-      cursor = before;
       break;
     }
 
@@ -1313,28 +1320,41 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
 static void s_ui_render_text_wrapped(LDKUIContext *ctx, char const *text,
     float x, float y, float max_width, u32 color, LDKUIRect clip_rect)
 {
-  if (ctx == NULL || ctx->font == NULL || text == NULL)
+  if (ctx == NULL || ctx->font == NULL || text == NULL ||
+      clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
   {
     return;
   }
 
   float line_height = ldk_ttf_get_line_height(ctx->font);
   char const *cursor = text;
+  char const *text_end = text + strlen(text);
   float line_y = y;
+  float clip_bottom = clip_rect.y + clip_rect.h;
 
-  while (cursor != NULL && *cursor != '\0')
+  while (cursor < text_end && *cursor != '\0')
   {
     char const *line_start = NULL;
     char const *line_end = NULL;
     char const *next = NULL;
-    if (!s_ui_text_wrapped_next_line(
-            ctx->font, cursor, max_width, &line_start, &line_end, &next, NULL))
+
+    if (line_y >= clip_bottom)
     {
       break;
     }
 
-    s_ui_render_text_range(
-        ctx, line_start, line_end, x, line_y, color, clip_rect);
+    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
+            &line_start, &line_end, &next, NULL))
+    {
+      break;
+    }
+
+    if (line_y + line_height > clip_rect.y)
+    {
+      s_ui_render_text_range(
+          ctx, line_start, line_end, x, line_y, color, clip_rect);
+    }
+
     line_y += line_height;
 
     if (next == NULL || next <= cursor)
