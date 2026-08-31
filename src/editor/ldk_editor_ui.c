@@ -101,21 +101,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
     if (ldk_ui_button_flat(ui, "Open"))
     {
-      XFSPath out = {0};
-      if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
-              out.buf, X_SMALLSTR_MAX_LENGTH))
-      {
-        ldk_editor_state_set_stop(editor);
-        ldk_project_unload(&editor->project);
-        ldk_game_instance_unload();
-
-        if (!ldk_editor_project_load(editor, out.buf))
-        {
-          ldk_os_dialog_show_error(
-              editor->window, "Failed to load project", out.buf);
-        }
-      }
-
+      ldki_editor_show_open_project_dialog(editor, NULL);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -1164,12 +1150,8 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     {
       editor->create_project_window_show = false;
 
-      LDKProjectCreateDesc desc = {0};
-      desc.project_name = s_project_name.buf;
-      desc.project_root_path = s_project_path.buf;
-      desc.cmake_generator = "Visual Studio 18 2026";
-
-      bool success = ldk_project_create(&desc);
+      bool success = ldki_editor_project_create(
+          editor, s_project_name.buf, s_project_path.buf);
 
       if (success)
       {

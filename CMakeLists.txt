@@ -346,9 +346,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_ecs.h             src/module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h        src/module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h             src/module/ldk_rhi.c
-  ${INCLUDE_DIR}/module/ldk_system.h          src/module/ldk_system.c
-  ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c
-  ${INCLUDE_DIR}/module/ldk_scenegraph.h      src/module/ldk_scenegraph.c
+  ${INCLUDE_DIR}/module/ldk_system.h         src/module/ldk_system.c
+  ${INCLUDE_DIR}/module/ldk_ui.h             src/module/ldk_ui.c
+  ${INCLUDE_DIR}/module/ldk_scenegraph.h       src/module/ldk_scenegraph.c
   ${INCLUDE_DIR}/module/ldk_scene_manager.h   src/module/ldk_scene_manager.c
 
   # Components
@@ -358,7 +358,9 @@ list(APPEND LDK_SOURCE
 )
 
 if (WIN32)
-  list(APPEND LDK_SOURCE src/ldk_os_win32.c)
+  list(APPEND LDK_SOURCE
+    src/ldk_os_win32.c
+  )
   set(LIBS dbghelp.lib)
 
   list(APPEND Release_LIBS ${LIBS})
@@ -393,16 +395,16 @@ if (OPTION_LDK_USE_PREBUILT)
 
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
 
-    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/lib/ldk.lib"
+    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/lib/Debug/ldk.lib"
     IMPORTED_LOCATION_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/ldk.dll"
 
-    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/lib/ldk.lib"
+    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/lib/Release/ldk.lib"
     IMPORTED_LOCATION_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/ldk.dll"
 
-    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/lib/ldk.lib"
+    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/lib/RelWithDebInfo/ldk.lib"
     IMPORTED_LOCATION_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/ldk.dll"
 
-    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/lib/ldk.lib"
+    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/lib/MinSizeRel/ldk.lib"
     IMPORTED_LOCATION_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/ldk.dll"
   )
 else()

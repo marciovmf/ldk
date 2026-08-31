@@ -161,6 +161,30 @@ extern "C"
   LDK_API void *ldk_os_library_fuction_ptr_get(
       LDKLibrary *library, const char *name);
 
+
+  // ---------------------------------------------------------------------------
+  // Process
+  // ---------------------------------------------------------------------------
+  typedef struct LDKOSProcessDesc
+  {
+    const char *executable;
+    const char *arguments;
+    const char *working_directory;
+    bool new_console;
+  } LDKOSProcessDesc;
+
+  typedef struct LDKOSProcessResult
+  {
+    bool started;
+    bool completed;
+    u32 exit_code;
+    u32 os_error;
+  } LDKOSProcessResult;
+
+  LDK_API LDKOSProcessResult ldk_os_process_run(
+      const LDKOSProcessDesc *desc);
+  
+
   // ---------------------------------------------------------------------------
   // Mouse
   // ---------------------------------------------------------------------------

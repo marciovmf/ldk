@@ -140,6 +140,8 @@ typedef struct LDKEditorContext
   bool initialized;
   LDKEditorState editor_state;
   XFSPath engine_runtree;
+  XFSPath engine_root;
+  XFSPath cmake_path;
   LDKGameUpdateFunc original_game_update_fn;
   LDKResourceTexture ui_atlas;
 
@@ -178,6 +180,8 @@ u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
 bool ldki_editor_layout_save_as(LDKEditorContext *editor);
 void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);
 void ldki_editor_project_create_show(LDKEditorContext *editor);
+bool ldki_editor_project_create(LDKEditorContext *editor,
+    const char *project_name, const char *project_root_path);
 void ldki_editor_register_commands(LDKEditorContext *editor);
 void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(

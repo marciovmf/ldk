@@ -1659,6 +1659,147 @@ void *ldk_os_library_fuction_ptr_get(LDKLibrary *library, const char *name)
   return (void *)GetProcAddress(library, name);
 }
 
+
+// ---------------------------------------------------------------------------
+// Process
+// ---------------------------------------------------------------------------
+
+static wchar_t *s_utf8_to_wide(const char *text)
+{
+  wchar_t *wide;
+  int length;
+
+  if (text == NULL)
+  {
+    return NULL;
+  }
+
+  length = MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+  if (length == 0)
+  {
+    return NULL;
+  }
+
+  wide = malloc((size_t)length * sizeof(*wide));
+  if (wide == NULL)
+  {
+    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+    return NULL;
+  }
+
+  if (MultiByteToWideChar(
+          CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, wide, length) == 0)
+  {
+    free(wide);
+    return NULL;
+  }
+
+  return wide;
+}
+
+LDKOSProcessResult ldk_os_process_run(const LDKOSProcessDesc *desc)
+{
+  LDKOSProcessResult result = {0};
+  PROCESS_INFORMATION process_info = {0};
+  STARTUPINFOW startup_info = {0};
+  char *command_line_utf8;
+  wchar_t *command_line;
+  wchar_t *executable;
+  wchar_t *working_directory;
+  const char *arguments;
+  size_t command_line_size;
+  DWORD creation_flags;
+  DWORD wait_result;
+  DWORD exit_code;
+
+  if (desc == NULL || desc->executable == NULL || desc->executable[0] == 0)
+  {
+    return result;
+  }
+
+  arguments = desc->arguments != NULL ? desc->arguments : "";
+  command_line_size = strlen(desc->executable) + strlen(arguments) + 5;
+  command_line_utf8 = malloc(command_line_size);
+  if (command_line_utf8 == NULL)
+  {
+    return result;
+  }
+
+  if (arguments[0] != 0)
+  {
+    snprintf(command_line_utf8, command_line_size, "\"%s\" %s",
+        desc->executable, arguments);
+  }
+  else
+  {
+    snprintf(
+        command_line_utf8, command_line_size, "\"%s\"", desc->executable);
+  }
+
+  executable = s_utf8_to_wide(desc->executable);
+  command_line = s_utf8_to_wide(command_line_utf8);
+  working_directory =
+      desc->working_directory != NULL && desc->working_directory[0] != 0
+          ? s_utf8_to_wide(desc->working_directory)
+          : NULL;
+  free(command_line_utf8);
+
+  if (executable == NULL || command_line == NULL ||
+      (desc->working_directory != NULL && desc->working_directory[0] != 0 &&
+          working_directory == NULL))
+  {
+    result.os_error = (u32)GetLastError();
+    free(executable);
+    free(command_line);
+    free(working_directory);
+    return result;
+  }
+
+  startup_info.cb = sizeof(startup_info);
+  creation_flags = desc->new_console ? CREATE_NEW_CONSOLE : 0;
+
+  if (!CreateProcessW(executable, command_line, NULL, NULL, FALSE,
+          creation_flags, NULL, working_directory, &startup_info,
+          &process_info))
+  {
+    result.os_error = (u32)GetLastError();
+    free(executable);
+    free(command_line);
+    free(working_directory);
+    return result;
+  }
+
+  free(executable);
+  free(command_line);
+  free(working_directory);
+  result.started = true;
+
+  wait_result = WaitForSingleObject(process_info.hProcess, INFINITE);
+  if (wait_result != WAIT_OBJECT_0)
+  {
+    result.os_error = wait_result == WAIT_FAILED ? (u32)GetLastError() : 0;
+    CloseHandle(process_info.hThread);
+    CloseHandle(process_info.hProcess);
+    return result;
+  }
+
+  if (!GetExitCodeProcess(process_info.hProcess, &exit_code))
+  {
+    result.os_error = (u32)GetLastError();
+    CloseHandle(process_info.hThread);
+    CloseHandle(process_info.hProcess);
+    return result;
+  }
+
+  result.completed = true;
+  result.exit_code = (u32)exit_code;
+
+  CloseHandle(process_info.hThread);
+  CloseHandle(process_info.hProcess);
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // System Cursor
 // ---------------------------------------------------------------------------

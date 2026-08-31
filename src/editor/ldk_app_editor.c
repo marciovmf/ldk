@@ -147,7 +147,7 @@ static bool s_editor_cmake_version_is_supported(const char *cmake_path)
   if (sscanf(version_text, "cmake version %d.%d", &major, &minor) != 2)
     return false;
 
-  return major > 3 || (major == 3 && minor >= 16);
+  return major > 4 || (major == 4 && minor >= 3);
 }
 
 /**
@@ -171,7 +171,7 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
     char selected_path[X_SMALLSTR_MAX_LENGTH] = {0};
 
     bool selected = ldk_os_dialog_show_open_file(owner,
-        "Locate CMake 3.16 or newer", "CMake executable\0cmake.exe\0\0",
+        "Locate CMake 4.3 or newer", "CMake executable\0cmake.exe\0\0",
         selected_path, sizeof(selected_path));
 
     if (!selected)
@@ -187,8 +187,23 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
     }
 
     ldk_os_dialog_show_error(owner, "Unsupported CMake",
-        "The selected executable is not CMake 3.16 or newer.");
+        "The selected executable is not CMake 4.3 or newer.");
   }
+}
+
+static const char *s_editor_cmake_arch_get(void)
+{
+#if defined(X_ARCH_X64)
+  return "x64";
+#elif defined(X_ARCH_X86)
+  return "Win32";
+#elif defined(X_ARCH_ARM64)
+  return "ARM64";
+#elif defined(X_ARCH_ARM32)
+  return "ARM";
+#else
+  return "";
+#endif
 }
 
 //----------------------------------------------------------
@@ -1097,6 +1112,89 @@ void ldk_editor_state_play_one_frame(LDKEditor *editor)
   s_editor_state_set_step((LDKEditorContext *)editor);
 }
 
+bool ldki_editor_project_create(LDKEditorContext *editor,
+    const char *project_name, const char *project_root_path)
+{
+  LDKProjectCreateDesc create_desc = {0};
+  LDKProjectBuildDesc build_desc = {0};
+  LDKProject project = {0};
+  XFSPath project_file_path;
+  const char *effective_project_name;
+  bool result = false;
+
+  if (editor == NULL || project_root_path == NULL || project_root_path[0] == 0)
+  {
+    return false;
+  }
+
+  effective_project_name =
+      project_name != NULL && project_name[0] != 0 ? project_name : "Game";
+
+  if (editor->cmake_path.length == 0 ||
+      !x_fs_path_is_file(&editor->cmake_path) ||
+      !s_editor_cmake_version_is_supported(editor->cmake_path.buf))
+  {
+    editor->cmake_path = s_editor_cmake_path_get(editor->window);
+  }
+
+  if (editor->cmake_path.length == 0)
+  {
+    ldk_os_dialog_show_error(editor->window, "CMake not found",
+        "CMake 4.3 or newer is required to create a project.");
+    return false;
+  }
+
+  if (editor->engine_root.length == 0)
+  {
+    return false;
+  }
+
+  create_desc.project_name = effective_project_name;
+  create_desc.project_root_path = project_root_path;
+  create_desc.cmake_generator = "Visual Studio 18 2026";
+  create_desc.cmake_arch = s_editor_cmake_arch_get();
+
+  if (!ldk_project_create(&create_desc))
+  {
+    return false;
+  }
+
+  x_fs_path(&project_file_path, project_root_path, effective_project_name);
+  x_fs_path_change_extension(&project_file_path, "ldk");
+  x_fs_path_normalize(&project_file_path);
+
+  if (!ldk_project_load(&project, x_fs_path_cstr(&project_file_path)))
+  {
+    return false;
+  }
+
+  build_desc.cmake_path = x_fs_path_cstr(&editor->cmake_path);
+  build_desc.ldk_root_path = x_fs_path_cstr(&editor->engine_root);
+  build_desc.config = LDK_BUILD_TYPE;
+  build_desc.new_console = true;
+
+  if (!ldk_project_generate_game_module(&project, &build_desc))
+  {
+    goto cleanup;
+  }
+
+  if (!ldk_project_build_game_module(&project, &build_desc))
+  {
+    goto cleanup;
+  }
+
+  if (!s_project_unload(editor))
+  {
+    goto cleanup;
+  }
+
+  result = s_project_load(editor, x_fs_path_cstr(&project_file_path));
+
+cleanup:
+  ldk_project_unload(&project);
+  return result;
+}
+
 bool ldk_editor_project_load(LDKEditor *editor, const char *project_path)
 {
   return s_project_load((LDKEditorContext *)editor, project_path);
@@ -1132,6 +1230,9 @@ static i32 s_editor_main(const char *project_file_path)
   x_fs_path_dirname(&editor->engine_runtree, &editor->engine_runtree);
   x_fs_path_join(&editor->engine_runtree, "..", "..", "runtree");
   x_fs_path_normalize(&editor->engine_runtree);
+
+  x_fs_path_dirname(&editor->engine_runtree, &editor->engine_root);
+  x_fs_path_normalize(&editor->engine_root);
 
   x_fs_path(&default_editor_ini_path, &editor->engine_runtree, "editor.ini");
 
@@ -1276,8 +1377,8 @@ static i32 s_editor_main(const char *project_file_path)
   ldki_editor_dock_layout_load(NULL);
 
   s_editor_set_title(editor);
-  XFSPath cmake_path = s_editor_cmake_path_get(editor->window);
-  ldk_log_info("CMake path is %s\n", cmake_path.buf);
+  editor->cmake_path = s_editor_cmake_path_get(editor->window);
+  ldk_log_info("CMake path is %s\n", editor->cmake_path.buf);
 
   // If a project file was passed, load that project
   if (project_file_path)
