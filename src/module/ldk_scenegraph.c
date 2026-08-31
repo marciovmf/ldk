@@ -195,12 +195,100 @@ bool ldk_scenegraph_update_entity(LDKEntity entity)
 bool ldk_scenegraph_set_parent(
     LDKEntity child_entity, LDKEntity parent_entity)
 {
-  return ldk_transform_set_parent(child_entity, parent_entity);
+  LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
+  LDKComponentRegistry* component_registry = ldk_ecs_component_registry_get();
+
+  if (!entity_registry || !component_registry)
+  {
+    return false;
+  }
+
+  LDKTransform* child_transform = s_scenegraph_transform_get(
+      entity_registry, component_registry, child_entity);
+
+  if (!child_transform)
+  {
+    return false;
+  }
+
+  if (child_transform->parent.index == parent_entity.index &&
+      child_transform->parent.version == parent_entity.version)
+  {
+    return true;
+  }
+
+  if (!x_handle_is_null(parent_entity) &&
+      child_entity.index == parent_entity.index &&
+      child_entity.version == parent_entity.version)
+  {
+    return false;
+  }
+
+  if (!ldk_scenegraph_update_entity(child_entity))
+  {
+    return false;
+  }
+
+  Mat4 child_world = child_transform->world_matrix;
+  Mat4 new_local = child_world;
+
+  if (!x_handle_is_null(parent_entity))
+  {
+    LDKTransform* parent_transform = s_scenegraph_transform_get(
+        entity_registry, component_registry, parent_entity);
+
+    if (!parent_transform)
+    {
+      return false;
+    }
+
+    if (!ldk_scenegraph_update_entity(parent_entity))
+    {
+      return false;
+    }
+
+    bool inverse_ok = false;
+    Mat4 parent_world_inverse =
+        mat4_inverse_full(parent_transform->world_matrix, &inverse_ok);
+
+    if (!inverse_ok)
+    {
+      return false;
+    }
+
+    new_local = mat4_mul(parent_world_inverse, child_world);
+  }
+
+  Vec3 local_position;
+  Quat local_rotation;
+  Vec3 local_scale;
+
+  mat4_decompose(
+      new_local, &local_position, &local_rotation, &local_scale);
+
+  if (!ldk_transform_set_parent(child_entity, parent_entity))
+  {
+    return false;
+  }
+
+  child_transform = s_scenegraph_transform_get(
+      entity_registry, component_registry, child_entity);
+
+  if (!child_transform)
+  {
+    return false;
+  }
+
+  child_transform->local_position = local_position;
+  child_transform->local_rotation = local_rotation;
+  child_transform->local_scale = local_scale;
+
+  return ldk_transform_mark_dirty(child_entity);
 }
 
 bool ldk_scenegraph_detach(LDKEntity entity)
 {
-  return ldk_transform_set_parent(entity, x_handle_null());
+  return ldk_scenegraph_set_parent(entity, x_handle_null());
 }
 
 LDKEntity ldk_scenegraph_get_parent(LDKEntity entity)
