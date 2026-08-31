@@ -181,8 +181,55 @@ extern "C"
     u32 os_error;
   } LDKOSProcessResult;
 
+  typedef struct LDKOSProcess LDKOSProcess;
+
   LDK_API LDKOSProcessResult ldk_os_process_run(
       const LDKOSProcessDesc *desc);
+
+  /**
+   * Starts a process and captures stdout and stderr into one output stream.
+   *
+   * The returned process must be destroyed with ldk_os_process_destroy().
+   * When out_result is not NULL it receives the initial process result. On
+   * success started is true and completed is false. On failure NULL is returned
+   * and os_error contains the platform error when available.
+   */
+  LDK_API LDKOSProcess *ldk_os_process_start(
+      const LDKOSProcessDesc *desc, LDKOSProcessResult *out_result);
+
+  /**
+   * Reads currently available captured output without blocking.
+   *
+   * stdout and stderr are merged and returned in process order as observed by
+   * the shared pipe. The returned byte count may be zero while the process is
+   * still running.
+   */
+  LDK_API size_t ldk_os_process_output_read(
+      LDKOSProcess *process, char *out_buffer, size_t buffer_size);
+
+  /**
+   * Polls the current process state without blocking.
+   *
+   * Returns false only when polling fails. out_result is always updated when it
+   * is not NULL. completed becomes true after the child process exits.
+   */
+  LDK_API bool ldk_os_process_poll(
+      LDKOSProcess *process, LDKOSProcessResult *out_result);
+
+  /**
+   * Cancels the process and its child process tree.
+   */
+  LDK_API bool ldk_os_process_cancel(LDKOSProcess *process);
+
+  /**
+   * Returns true when cancellation was successfully requested for the process.
+   */
+  LDK_API bool ldk_os_process_was_cancelled(const LDKOSProcess *process);
+
+  /**
+   * Releases the process resources. A still-running process tree is terminated.
+   */
+  LDK_API void ldk_os_process_destroy(LDKOSProcess *process);
   
 
   // ---------------------------------------------------------------------------

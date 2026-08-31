@@ -215,6 +215,21 @@ static bool s_editor_command_projrelease(XSlice args)
   return true;
 }
 
+static bool s_editor_command_projcancel(XSlice args)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
+  (void)args;
+
+  if (!ldki_editor_project_build_cancel_request(editor))
+  {
+    ldki_editor_log_warning(editor, "No project build is running.");
+    return false;
+  }
+
+  ldki_editor_log_info(editor, "Build cancellation requested.");
+  return true;
+}
+
 static bool s_editor_command_layout_save_as(XSlice args)
 {
   XSlice arg0 = {0};
@@ -339,6 +354,9 @@ void ldki_editor_register_commands(LDKEditorContext *editor)
   ldk_editor_command_register(editor, "projrelease",
       "Builds the current project launcher in Release configuration.",
       s_editor_command_projrelease);
+  ldk_editor_command_register(editor, "projcancel",
+      "Cancels the currently running project build.",
+      s_editor_command_projcancel);
   ldk_editor_command_register(
       editor, "play", "Enter Play mode.", s_editor_command_play);
   ldk_editor_command_register(

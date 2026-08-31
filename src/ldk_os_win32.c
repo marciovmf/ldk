@@ -1800,6 +1800,477 @@ LDKOSProcessResult ldk_os_process_run(const LDKOSProcessDesc *desc)
   return result;
 }
 
+
+struct LDKOSProcess
+{
+  HANDLE process_handle;
+  HANDLE job_handle;
+  HANDLE output_read_handle;
+  LDKOSProcessResult result;
+  bool cancelled;
+  bool io_failed;
+};
+
+static wchar_t *s_process_utf8_to_wide(const char *text)
+{
+  wchar_t *wide;
+  int length;
+
+  if (text == NULL)
+  {
+    return NULL;
+  }
+
+  length = MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+  if (length == 0)
+  {
+    return NULL;
+  }
+
+  wide = malloc((size_t)length * sizeof(*wide));
+  if (wide == NULL)
+  {
+    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+    return NULL;
+  }
+
+  if (MultiByteToWideChar(
+          CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, wide, length) == 0)
+  {
+    free(wide);
+    return NULL;
+  }
+
+  return wide;
+}
+
+static char *s_process_command_line_create(const LDKOSProcessDesc *desc)
+{
+  const char *arguments;
+  char *command_line;
+  size_t command_line_size;
+
+  arguments = desc->arguments != NULL ? desc->arguments : "";
+  command_line_size = strlen(desc->executable) + strlen(arguments) + 5;
+  command_line = malloc(command_line_size);
+  if (command_line == NULL)
+  {
+    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+    return NULL;
+  }
+
+  if (arguments[0] != 0)
+  {
+    snprintf(command_line, command_line_size, "\"%s\" %s",
+        desc->executable, arguments);
+  }
+  else
+  {
+    snprintf(command_line, command_line_size, "\"%s\"", desc->executable);
+  }
+
+  return command_line;
+}
+
+static bool s_process_job_create(HANDLE *out_job)
+{
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info = {0};
+  HANDLE job;
+
+  job = CreateJobObjectW(NULL, NULL);
+  if (job == NULL)
+  {
+    return false;
+  }
+
+  job_info.BasicLimitInformation.LimitFlags =
+      JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+  if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+          &job_info, sizeof(job_info)))
+  {
+    CloseHandle(job);
+    return false;
+  }
+
+  *out_job = job;
+  return true;
+}
+
+static void s_process_start_cleanup(HANDLE process_handle,
+    HANDLE thread_handle, HANDLE job_handle, HANDLE output_read_handle,
+    HANDLE output_write_handle, HANDLE input_handle)
+{
+  if (thread_handle != NULL)
+  {
+    CloseHandle(thread_handle);
+  }
+
+  if (process_handle != NULL)
+  {
+    CloseHandle(process_handle);
+  }
+
+  if (job_handle != NULL)
+  {
+    CloseHandle(job_handle);
+  }
+
+  if (output_read_handle != NULL)
+  {
+    CloseHandle(output_read_handle);
+  }
+
+  if (output_write_handle != NULL)
+  {
+    CloseHandle(output_write_handle);
+  }
+
+  if (input_handle != NULL && input_handle != INVALID_HANDLE_VALUE)
+  {
+    CloseHandle(input_handle);
+  }
+}
+
+LDKOSProcess *ldk_os_process_start(
+    const LDKOSProcessDesc *desc, LDKOSProcessResult *out_result)
+{
+  LDKOSProcessResult result = {0};
+  PROCESS_INFORMATION process_info = {0};
+  STARTUPINFOW startup_info = {0};
+  SECURITY_ATTRIBUTES security_attributes = {0};
+  LDKOSProcess *process = NULL;
+  char *command_line_utf8 = NULL;
+  wchar_t *command_line = NULL;
+  wchar_t *executable = NULL;
+  wchar_t *working_directory = NULL;
+  HANDLE output_read_handle = NULL;
+  HANDLE output_write_handle = NULL;
+  HANDLE input_handle = INVALID_HANDLE_VALUE;
+  HANDLE job_handle = NULL;
+  DWORD creation_flags;
+  DWORD error;
+
+  if (out_result != NULL)
+  {
+    *out_result = result;
+  }
+
+  if (desc == NULL || desc->executable == NULL || desc->executable[0] == 0)
+  {
+    return NULL;
+  }
+
+  security_attributes.nLength = sizeof(security_attributes);
+  security_attributes.bInheritHandle = TRUE;
+
+  if (!CreatePipe(&output_read_handle, &output_write_handle,
+          &security_attributes, 0))
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  if (!SetHandleInformation(
+          output_read_handle, HANDLE_FLAG_INHERIT, 0))
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  input_handle = CreateFileW(L"NUL", GENERIC_READ,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, &security_attributes, OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL, NULL);
+  if (input_handle == INVALID_HANDLE_VALUE)
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  if (!s_process_job_create(&job_handle))
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  command_line_utf8 = s_process_command_line_create(desc);
+  if (command_line_utf8 == NULL)
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  executable = s_process_utf8_to_wide(desc->executable);
+  command_line = s_process_utf8_to_wide(command_line_utf8);
+  working_directory =
+      desc->working_directory != NULL && desc->working_directory[0] != 0
+          ? s_process_utf8_to_wide(desc->working_directory)
+          : NULL;
+
+  if (executable == NULL || command_line == NULL ||
+      (desc->working_directory != NULL && desc->working_directory[0] != 0 &&
+          working_directory == NULL))
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  startup_info.cb = sizeof(startup_info);
+  startup_info.dwFlags = STARTF_USESTDHANDLES;
+  startup_info.hStdInput = input_handle;
+  startup_info.hStdOutput = output_write_handle;
+  startup_info.hStdError = output_write_handle;
+
+  creation_flags = CREATE_SUSPENDED;
+  if (desc->new_console)
+  {
+    creation_flags |= CREATE_NEW_CONSOLE;
+  }
+
+  if (!CreateProcessW(executable, command_line, NULL, NULL, TRUE,
+          creation_flags, NULL, working_directory, &startup_info,
+          &process_info))
+  {
+    result.os_error = (u32)GetLastError();
+    goto fail;
+  }
+
+  if (!AssignProcessToJobObject(job_handle, process_info.hProcess))
+  {
+    result.os_error = (u32)GetLastError();
+    TerminateProcess(process_info.hProcess, result.os_error);
+    goto fail;
+  }
+
+  if (ResumeThread(process_info.hThread) == (DWORD)-1)
+  {
+    result.os_error = (u32)GetLastError();
+    TerminateJobObject(job_handle, result.os_error);
+    goto fail;
+  }
+
+  process = calloc(1, sizeof(*process));
+  if (process == NULL)
+  {
+    result.os_error = ERROR_NOT_ENOUGH_MEMORY;
+    TerminateJobObject(job_handle, result.os_error);
+    goto fail;
+  }
+
+  result.started = true;
+  process->process_handle = process_info.hProcess;
+  process->job_handle = job_handle;
+  process->output_read_handle = output_read_handle;
+  process->result = result;
+
+  CloseHandle(process_info.hThread);
+  CloseHandle(output_write_handle);
+  CloseHandle(input_handle);
+  free(command_line_utf8);
+  free(executable);
+  free(command_line);
+  free(working_directory);
+
+  if (out_result != NULL)
+  {
+    *out_result = result;
+  }
+
+  return process;
+
+fail:
+  error = result.os_error != 0 ? result.os_error : (u32)GetLastError();
+  result.os_error = (u32)error;
+
+  if (process != NULL)
+  {
+    free(process);
+  }
+
+  s_process_start_cleanup(process_info.hProcess, process_info.hThread,
+      job_handle, output_read_handle, output_write_handle, input_handle);
+  free(command_line_utf8);
+  free(executable);
+  free(command_line);
+  free(working_directory);
+
+  if (out_result != NULL)
+  {
+    *out_result = result;
+  }
+
+  return NULL;
+}
+
+size_t ldk_os_process_output_read(
+    LDKOSProcess *process, char *out_buffer, size_t buffer_size)
+{
+  DWORD available = 0;
+  DWORD bytes_read = 0;
+  DWORD bytes_to_read;
+  DWORD error;
+
+  if (process == NULL || out_buffer == NULL || buffer_size == 0 ||
+      process->output_read_handle == NULL)
+  {
+    return 0;
+  }
+
+  if (!PeekNamedPipe(process->output_read_handle, NULL, 0, NULL,
+          &available, NULL))
+  {
+    error = GetLastError();
+    if (error != ERROR_BROKEN_PIPE)
+    {
+      process->result.os_error = (u32)error;
+      process->io_failed = true;
+    }
+    return 0;
+  }
+
+  if (available == 0)
+  {
+    return 0;
+  }
+
+  bytes_to_read = available < buffer_size ? available : (DWORD)buffer_size;
+  if (!ReadFile(process->output_read_handle, out_buffer, bytes_to_read,
+          &bytes_read, NULL))
+  {
+    error = GetLastError();
+    if (error != ERROR_BROKEN_PIPE)
+    {
+      process->result.os_error = (u32)error;
+      process->io_failed = true;
+    }
+    return 0;
+  }
+
+  return (size_t)bytes_read;
+}
+
+bool ldk_os_process_poll(
+    LDKOSProcess *process, LDKOSProcessResult *out_result)
+{
+  DWORD wait_result;
+  DWORD exit_code;
+
+  if (process == NULL)
+  {
+    return false;
+  }
+
+  if (process->io_failed)
+  {
+    if (out_result != NULL)
+    {
+      *out_result = process->result;
+    }
+    return false;
+  }
+
+  if (!process->result.completed)
+  {
+    wait_result = WaitForSingleObject(process->process_handle, 0);
+    if (wait_result == WAIT_OBJECT_0)
+    {
+      if (!GetExitCodeProcess(process->process_handle, &exit_code))
+      {
+        process->result.os_error = (u32)GetLastError();
+        if (out_result != NULL)
+        {
+          *out_result = process->result;
+        }
+        return false;
+      }
+
+      process->result.completed = true;
+      process->result.exit_code = (u32)exit_code;
+    }
+    else if (wait_result == WAIT_FAILED)
+    {
+      process->result.os_error = (u32)GetLastError();
+      if (out_result != NULL)
+      {
+        *out_result = process->result;
+      }
+      return false;
+    }
+  }
+
+  if (out_result != NULL)
+  {
+    *out_result = process->result;
+  }
+  return true;
+}
+
+bool ldk_os_process_cancel(LDKOSProcess *process)
+{
+  LDKOSProcessResult result;
+
+  if (process == NULL || process->cancelled)
+  {
+    return false;
+  }
+
+  if (!ldk_os_process_poll(process, &result) || result.completed)
+  {
+    return false;
+  }
+
+  if (!TerminateJobObject(process->job_handle, ERROR_CANCELLED))
+  {
+    process->result.os_error = (u32)GetLastError();
+    return false;
+  }
+
+  process->cancelled = true;
+  return true;
+}
+
+bool ldk_os_process_was_cancelled(const LDKOSProcess *process)
+{
+  return process != NULL && process->cancelled;
+}
+
+void ldk_os_process_destroy(LDKOSProcess *process)
+{
+  DWORD wait_result;
+
+  if (process == NULL)
+  {
+    return;
+  }
+
+  if (process->process_handle != NULL && !process->result.completed)
+  {
+    wait_result = WaitForSingleObject(process->process_handle, 0);
+    if (wait_result == WAIT_TIMEOUT && process->job_handle != NULL)
+    {
+      TerminateJobObject(process->job_handle, ERROR_CANCELLED);
+      WaitForSingleObject(process->process_handle, INFINITE);
+    }
+  }
+
+  if (process->output_read_handle != NULL)
+  {
+    CloseHandle(process->output_read_handle);
+  }
+  if (process->process_handle != NULL)
+  {
+    CloseHandle(process->process_handle);
+  }
+  if (process->job_handle != NULL)
+  {
+    CloseHandle(process->job_handle);
+  }
+
+  free(process);
+}
+
+
+
 // ---------------------------------------------------------------------------
 // System Cursor
 // ---------------------------------------------------------------------------

@@ -138,6 +138,28 @@ typedef struct LDKEditorProjectAction
   XSmallstr cmake_arch;
 } LDKEditorProjectAction;
 
+typedef enum LDKEditorProjectBuildStage
+{
+  LDK_EDITOR_PROJECT_BUILD_STAGE_NONE = 0,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD
+} LDKEditorProjectBuildStage;
+
+typedef struct LDKEditorProjectBuild
+{
+  LDKEditorProjectActionType action_type;
+  LDKEditorProjectBuildStage stage;
+  LDKOSProcess *process;
+  LDKProject project;
+  XFSPath project_file_path;
+  XFSPath log_path;
+  bool active;
+  bool cancel_requested;
+  bool cancel_sent;
+} LDKEditorProjectBuild;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -172,6 +194,7 @@ typedef struct LDKEditorContext
   bool show_input_window;
 
   LDKEditorProjectAction pending_project_action;
+  LDKEditorProjectBuild project_build;
   bool create_project_window_show;
   bool create_project_window_open_requested;
   bool create_project_window_close_requested;
@@ -211,6 +234,7 @@ bool ldki_editor_project_open_request(
     LDKEditorContext *editor, const char *project_file_path);
 bool ldki_editor_project_build_request(LDKEditorContext *editor);
 bool ldki_editor_project_release_request(LDKEditorContext *editor);
+bool ldki_editor_project_build_cancel_request(LDKEditorContext *editor);
 void ldki_editor_register_commands(LDKEditorContext *editor);
 void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(

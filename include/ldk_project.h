@@ -13,6 +13,10 @@
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_string.h>
 
+#ifdef LDK_EDITOR
+#include "ldk_os.h"
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -69,6 +73,24 @@ extern "C"
       const LDKProject *project, const LDKProjectBuildDesc *desc);
   LDK_API bool ldk_project_build_game_launcher(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
+
+  LDK_API LDKOSProcess *ldk_project_generate_game_module_start(
+      const LDKProject *project, const LDKProjectBuildDesc *desc,
+      LDKOSProcessResult *out_result);
+  LDK_API LDKOSProcess *ldk_project_build_game_module_start(
+      const LDKProject *project, const LDKProjectBuildDesc *desc,
+      LDKOSProcessResult *out_result);
+  LDK_API LDKOSProcess *ldk_project_generate_game_launcher_start(
+      const LDKProject *project, const LDKProjectBuildDesc *desc,
+      LDKOSProcessResult *out_result);
+  LDK_API LDKOSProcess *ldk_project_build_game_launcher_start(
+      const LDKProject *project, const LDKProjectBuildDesc *desc,
+      LDKOSProcessResult *out_result);
+
+  LDK_API bool ldk_project_game_module_output_path_get(
+      const LDKProject *project, const char *config, XFSPath *out_path);
+  LDK_API bool ldk_project_game_launcher_output_path_get(
+      const LDKProject *project, const char *config, XFSPath *out_path);
 
 #endif // LDK_EDITOR
 
