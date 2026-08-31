@@ -25,6 +25,14 @@ typedef enum LDKEditorState
   LDK_EDITOR_STATE_PLAYING = 3
 } LDKEditorState;
 
+typedef enum LDKEditorConsoleEntryType
+{
+  LDK_EDITOR_CONSOLE_ENTRY_INFO = 'i',
+  LDK_EDITOR_CONSOLE_ENTRY_WARNING = 'w',
+  LDK_EDITOR_CONSOLE_ENTRY_ERROR = 'e',
+  LDK_EDITOR_CONSOLE_ENTRY_RAW = 'r'
+} LDKEditorConsoleEntryType;
+
 #ifndef LDK_EDITOR_COMMAND_MAX_LENGTH
 #define LDK_EDITOR_COMMAND_MAX_LENGTH 32
 #endif
@@ -188,6 +196,9 @@ typedef struct LDKEditorContext
 
   // Console output string builder
   XStrBuilder *console_sb;
+  bool console_auto_scroll_disabled;
+  bool console_scroll_pending;
+  size_t console_observed_length;
 
   LDKUIRect input_window_rect;
   char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
@@ -240,6 +251,8 @@ void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);
 
+void ldki_editor_console_append(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType type, const char *message);
 void ldki_editor_log_error(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_info(LDKEditorContext *editor, const char *msg);

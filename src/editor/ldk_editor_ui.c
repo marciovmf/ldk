@@ -1179,18 +1179,18 @@ void ldki_editor_toolbar_show(LDKEditorContext *editor)
 
 void ldki_editor_log_error(LDKEditorContext *editor, const char *msg)
 {
-  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_ERROR, msg);
   ldk_log_error(msg);
 }
 
 void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg)
 {
-  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_WARNING, msg);
   ldk_log_warning(msg);
 }
 
 void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
 {
-  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
+  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
   ldk_log_info(msg);
 }
