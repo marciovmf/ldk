@@ -43,6 +43,8 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 static bool s_editor_state_set_play(LDKEditorContext *editor);
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path);
+static bool s_project_unload(LDKEditorContext *editor);
+static bool s_editor_project_action_process(LDKEditorContext *editor);
 static bool s_editor_camera_ensure(LDKEditorContext *editor);
 
 /**
@@ -191,7 +193,7 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
   }
 }
 
-static const char *s_editor_cmake_arch_get(void)
+const char *ldki_editor_cmake_native_arch_get(void)
 {
 #if defined(X_ARCH_X64)
   return "x64";
@@ -288,6 +290,40 @@ static bool on_event_frame(const LDKEvent *event, void *state)
     s_editor_camera_ensure(editor);
     ldki_editor_camera_update(editor, event->frame_event.delta_time);
     ldki_editor_gizmo_update(editor);
+    return false;
+  }
+
+  if (event->frame_event.type == LDK_FRAME_EVENT_RENDER_AFTER)
+  {
+    s_editor_project_action_process(editor);
+
+    if (editor->create_project_window_close_requested)
+    {
+      ldki_editor_window_remove(LDK_EDITOR_WINDOW_CREATE_PROJECT);
+      editor->create_project_window_show = false;
+      editor->create_project_window_close_requested = false;
+    }
+
+    if (editor->create_project_window_open_requested &&
+        !editor->create_project_window_show)
+    {
+      LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_CREATE_PROJECT,
+          .title = "Create Project",
+          .function = ldki_editor_project_create_window,
+          .data = NULL};
+
+      if (ldk_editor_window_add((LDKEditor *)editor, &window))
+      {
+        editor->create_project_window_show = true;
+      }
+      else
+      {
+        ldki_editor_log_error(editor, "Failed to open Create Project window.");
+      }
+
+      editor->create_project_window_open_requested = false;
+    }
+
     return false;
   }
 
@@ -640,8 +676,6 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
     }
   }
 
-  if (editor->create_project_window_show)
-    ldki_editor_project_create_show((LDKEditorContext *)ldk_editor_get());
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
@@ -988,6 +1022,160 @@ fail:
   return false;
 }
 
+static bool s_project_switch(
+    LDKEditorContext *editor, const char *project_file_path)
+{
+  XFSPath previous_project_file = {0};
+  bool had_previous_project;
+
+  if (editor == NULL || project_file_path == NULL || project_file_path[0] == 0)
+  {
+    return false;
+  }
+
+  had_previous_project = editor->project.loaded;
+  if (had_previous_project)
+  {
+    previous_project_file = editor->project.project_file_path;
+  }
+
+  if (!s_project_unload(editor))
+  {
+    return false;
+  }
+
+  if (s_project_load(editor, project_file_path))
+  {
+    return true;
+  }
+
+  if (had_previous_project && previous_project_file.length > 0)
+  {
+    ldk_log_warning("Failed to load project '%s'. Restoring '%s'.\n",
+        project_file_path, previous_project_file.buf);
+
+    if (!s_project_load(editor, previous_project_file.buf))
+    {
+      ldk_log_error("Failed to restore previous project '%s'.\n",
+          previous_project_file.buf);
+    }
+  }
+
+  return false;
+}
+
+static bool s_editor_project_create_process(
+    LDKEditorContext *editor, const LDKEditorProjectAction *action)
+{
+  LDKProjectCreateDesc create_desc = {0};
+  LDKProjectBuildDesc build_desc = {0};
+  LDKProject project = {0};
+  XFSPath project_file_path;
+  bool result = false;
+
+  if (editor->cmake_path.length == 0 ||
+      !x_fs_path_is_file(&editor->cmake_path) ||
+      !s_editor_cmake_version_is_supported(editor->cmake_path.buf))
+  {
+    editor->cmake_path = s_editor_cmake_path_get(editor->window);
+  }
+
+  if (editor->cmake_path.length == 0)
+  {
+    ldk_os_dialog_show_error(editor->window, "CMake not found",
+        "CMake 4.3 or newer is required to create a project.");
+    return false;
+  }
+
+  if (editor->engine_root.length == 0)
+  {
+    return false;
+  }
+
+  create_desc.project_name = action->project_name.buf;
+  create_desc.project_root_path = action->project_root_path.buf;
+  create_desc.cmake_generator = action->cmake_generator.buf;
+  create_desc.cmake_arch = action->cmake_arch.buf;
+
+  if (!ldk_project_create(&create_desc))
+  {
+    return false;
+  }
+
+  x_fs_path(&project_file_path, action->project_root_path.buf,
+      action->project_name.buf);
+  x_fs_path_change_extension(&project_file_path, "ldk");
+  x_fs_path_normalize(&project_file_path);
+
+  if (!ldk_project_load(&project, x_fs_path_cstr(&project_file_path)))
+  {
+    return false;
+  }
+
+  build_desc.cmake_path = x_fs_path_cstr(&editor->cmake_path);
+  build_desc.ldk_root_path = x_fs_path_cstr(&editor->engine_root);
+  build_desc.config = LDK_BUILD_TYPE;
+  build_desc.new_console = true;
+
+  if (!ldk_project_generate_game_module(&project, &build_desc) ||
+      !ldk_project_build_game_module(&project, &build_desc) ||
+      !x_fs_path_is_file(&project.game_dll_path))
+  {
+    goto cleanup;
+  }
+
+  result = s_project_switch(editor, x_fs_path_cstr(&project_file_path));
+
+cleanup:
+  ldk_project_unload(&project);
+  return result;
+}
+
+static bool s_editor_project_action_process(LDKEditorContext *editor)
+{
+  LDKEditorProjectAction action;
+  bool result;
+
+  if (editor == NULL ||
+      editor->pending_project_action.type == LDK_EDITOR_PROJECT_ACTION_NONE)
+  {
+    return true;
+  }
+
+  action = editor->pending_project_action;
+  editor->pending_project_action = (LDKEditorProjectAction){0};
+
+  if (action.type == LDK_EDITOR_PROJECT_ACTION_OPEN)
+  {
+    result = s_project_switch(editor, action.project_file_path.buf);
+    if (!result)
+    {
+      ldk_os_dialog_show_error(editor->window, "Failed to load project",
+          action.project_file_path.buf);
+    }
+    return result;
+  }
+
+  if (action.type == LDK_EDITOR_PROJECT_ACTION_CREATE)
+  {
+    result = s_editor_project_create_process(editor, &action);
+    if (result)
+    {
+      ldki_editor_log_info(editor, "Project created.");
+      editor->create_project_window_close_requested = true;
+    }
+    else
+    {
+      ldki_editor_log_error(editor, "Failed to create project.");
+      ldk_os_dialog_show_error(editor->window, "Failed to create project",
+          action.project_name.buf);
+    }
+    return result;
+  }
+
+  return false;
+}
+
 static void s_editor_terminate(LDKEditorContext *editor)
 {
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
@@ -1053,33 +1241,101 @@ void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme)
   theme->icons[LDK_UI_THEME_ICON_EJECT] = icon;
 }
 
+bool ldki_editor_project_open_request(
+    LDKEditorContext *editor, const char *project_file_path)
+{
+  if (editor == NULL || project_file_path == NULL ||
+      project_file_path[0] == 0 ||
+      editor->pending_project_action.type != LDK_EDITOR_PROJECT_ACTION_NONE)
+  {
+    return false;
+  }
+
+  editor->pending_project_action = (LDKEditorProjectAction){0};
+  editor->pending_project_action.type = LDK_EDITOR_PROJECT_ACTION_OPEN;
+  x_fs_path_set(
+      &editor->pending_project_action.project_file_path, project_file_path);
+  x_fs_path_normalize(&editor->pending_project_action.project_file_path);
+  return true;
+}
+
 bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out)
 {
   XFSPath out = {0};
-  if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
+
+  if (editor == NULL)
+  {
+    return false;
+  }
+
+  if (!ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
           out.buf, X_SMALLSTR_MAX_LENGTH))
   {
-    if (!s_project_unload(editor))
-    {
-      ldk_os_dialog_show_ok(editor->window, "Failed to unload current project",
-          editor->project.name.buf);
-      return false;
-    }
+    return false;
+  }
 
-    if (!s_project_load(editor, out.buf))
-    {
-      ldk_os_dialog_show_ok(editor->window, "Failed to load project", out.buf);
-      return false;
-    }
+  x_fs_path_set(&out, out.buf);
+  x_fs_path_normalize(&out);
+
+  if (!ldki_editor_project_open_request(editor, out.buf))
+  {
+    return false;
   }
 
   if (project_path_out)
   {
-    strncpy(project_path_out->buf, out.buf, X_FS_PATH_MAX_LENGTH);
-    project_path_out->length = out.length;
+    *project_path_out = out;
   }
 
+  return true;
+}
+
+bool ldki_editor_project_create_window_open(LDKEditorContext *editor)
+{
+  if (editor == NULL)
+  {
+    return false;
+  }
+
+  if (editor->create_project_window_show ||
+      editor->create_project_window_open_requested)
+  {
+    return true;
+  }
+
+  editor->create_project_window_open_requested = true;
+  return true;
+}
+
+bool ldki_editor_project_create_request(LDKEditorContext *editor,
+    const char *project_name, const char *project_root_path,
+    const char *cmake_generator, const char *cmake_arch)
+{
+  const char *effective_project_name;
+
+  if (editor == NULL || project_root_path == NULL ||
+      project_root_path[0] == 0 || cmake_generator == NULL ||
+      cmake_generator[0] == 0 ||
+      editor->pending_project_action.type != LDK_EDITOR_PROJECT_ACTION_NONE)
+  {
+    return false;
+  }
+
+  effective_project_name =
+      project_name != NULL && project_name[0] != 0 ? project_name : "Game";
+
+  editor->pending_project_action = (LDKEditorProjectAction){0};
+  editor->pending_project_action.type = LDK_EDITOR_PROJECT_ACTION_CREATE;
+  x_smallstr_from_cstr(
+      &editor->pending_project_action.project_name, effective_project_name);
+  x_fs_path_set(
+      &editor->pending_project_action.project_root_path, project_root_path);
+  x_fs_path_normalize(&editor->pending_project_action.project_root_path);
+  x_smallstr_from_cstr(
+      &editor->pending_project_action.cmake_generator, cmake_generator);
+  x_smallstr_from_cstr(&editor->pending_project_action.cmake_arch,
+      cmake_arch != NULL ? cmake_arch : "");
   return true;
 }
 
@@ -1112,92 +1368,10 @@ void ldk_editor_state_play_one_frame(LDKEditor *editor)
   s_editor_state_set_step((LDKEditorContext *)editor);
 }
 
-bool ldki_editor_project_create(LDKEditorContext *editor,
-    const char *project_name, const char *project_root_path)
-{
-  LDKProjectCreateDesc create_desc = {0};
-  LDKProjectBuildDesc build_desc = {0};
-  LDKProject project = {0};
-  XFSPath project_file_path;
-  const char *effective_project_name;
-  bool result = false;
-
-  if (editor == NULL || project_root_path == NULL || project_root_path[0] == 0)
-  {
-    return false;
-  }
-
-  effective_project_name =
-      project_name != NULL && project_name[0] != 0 ? project_name : "Game";
-
-  if (editor->cmake_path.length == 0 ||
-      !x_fs_path_is_file(&editor->cmake_path) ||
-      !s_editor_cmake_version_is_supported(editor->cmake_path.buf))
-  {
-    editor->cmake_path = s_editor_cmake_path_get(editor->window);
-  }
-
-  if (editor->cmake_path.length == 0)
-  {
-    ldk_os_dialog_show_error(editor->window, "CMake not found",
-        "CMake 4.3 or newer is required to create a project.");
-    return false;
-  }
-
-  if (editor->engine_root.length == 0)
-  {
-    return false;
-  }
-
-  create_desc.project_name = effective_project_name;
-  create_desc.project_root_path = project_root_path;
-  create_desc.cmake_generator = "Visual Studio 18 2026";
-  create_desc.cmake_arch = s_editor_cmake_arch_get();
-
-  if (!ldk_project_create(&create_desc))
-  {
-    return false;
-  }
-
-  x_fs_path(&project_file_path, project_root_path, effective_project_name);
-  x_fs_path_change_extension(&project_file_path, "ldk");
-  x_fs_path_normalize(&project_file_path);
-
-  if (!ldk_project_load(&project, x_fs_path_cstr(&project_file_path)))
-  {
-    return false;
-  }
-
-  build_desc.cmake_path = x_fs_path_cstr(&editor->cmake_path);
-  build_desc.ldk_root_path = x_fs_path_cstr(&editor->engine_root);
-  build_desc.config = LDK_BUILD_TYPE;
-  build_desc.new_console = true;
-
-  if (!ldk_project_generate_game_module(&project, &build_desc))
-  {
-    goto cleanup;
-  }
-
-  if (!ldk_project_build_game_module(&project, &build_desc))
-  {
-    goto cleanup;
-  }
-
-  if (!s_project_unload(editor))
-  {
-    goto cleanup;
-  }
-
-  result = s_project_load(editor, x_fs_path_cstr(&project_file_path));
-
-cleanup:
-  ldk_project_unload(&project);
-  return result;
-}
-
 bool ldk_editor_project_load(LDKEditor *editor, const char *project_path)
 {
-  return s_project_load((LDKEditorContext *)editor, project_path);
+  return ldki_editor_project_open_request(
+      (LDKEditorContext *)editor, project_path);
 }
 
 void ldk_editor_quit(LDKEditor *editor)

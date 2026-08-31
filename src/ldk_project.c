@@ -3,7 +3,7 @@
 
 #ifdef LDK_EDITOR
 
-#include <ldk_os.h>
+#include "ldk_os.h"
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_ini.h>
 #include <stdx/stdx_strbuilder.h>
@@ -386,6 +386,11 @@ static bool s_project_create_files(
   return result;
 }
 
+static bool s_project_generator_supports_platform(const char *generator)
+{
+  return generator != NULL && strncmp(generator, "Visual Studio ", 14) == 0;
+}
+
 static bool s_project_process_succeeded(LDKOSProcessResult result)
 {
   return result.started && result.completed && result.exit_code == 0;
@@ -419,6 +424,16 @@ bool ldk_project_create(const LDKProjectCreateDesc *desc)
   x_fs_path_set(&project.project_root_path, desc->project_root_path);
   x_fs_path_normalize(&project.project_root_path);
 
+  x_fs_path(&project.project_file_path,
+      x_fs_path_cstr(&project.project_root_path), project_name);
+  x_fs_path_change_extension(&project.project_file_path, "ldk");
+  x_fs_path_normalize(&project.project_file_path);
+
+  if (x_fs_path_exists(&project.project_file_path))
+  {
+    return false;
+  }
+
   x_fs_path(&project.cmake_root_path,
       x_fs_path_cstr(&project.project_root_path), "workspace");
   x_fs_path_normalize(&project.cmake_root_path);
@@ -429,15 +444,15 @@ bool ldk_project_create(const LDKProjectCreateDesc *desc)
 
   s_project_set_derived_paths(&project, LDK_PROJECT_DEFAULT_CONFIG);
 
-  if (!s_project_create_required_dirs(&project))
+  if (x_fs_path_exists(&project.game_cmake_path))
   {
     return false;
   }
 
-  x_fs_path(&project.project_file_path,
-      x_fs_path_cstr(&project.project_root_path), project_name);
-  x_fs_path_change_extension(&project.project_file_path, "ldk");
-  x_fs_path_normalize(&project.project_file_path);
+  if (!s_project_create_required_dirs(&project))
+  {
+    return false;
+  }
 
   x_fs_path(&game_c_path, x_fs_path_cstr(&project.source_root_path), "game.c");
   x_fs_path_normalize(&game_c_path);
@@ -627,7 +642,8 @@ bool ldk_project_generate_game_module(
         arguments, " -G \"%s\"", project->cmake_generator.buf);
   }
 
-  if (!s_string_is_empty(project->cmake_arch.buf))
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
   {
     x_strbuilder_append_format(
         arguments, " -A \"%s\"", project->cmake_arch.buf);

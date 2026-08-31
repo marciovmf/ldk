@@ -119,6 +119,23 @@ typedef struct LDKEditorCameraControllerState
   bool initialized;
 } LDKEditorCameraControllerState;
 
+typedef enum LDKEditorProjectActionType
+{
+  LDK_EDITOR_PROJECT_ACTION_NONE = 0,
+  LDK_EDITOR_PROJECT_ACTION_OPEN,
+  LDK_EDITOR_PROJECT_ACTION_CREATE
+} LDKEditorProjectActionType;
+
+typedef struct LDKEditorProjectAction
+{
+  LDKEditorProjectActionType type;
+  XFSPath project_file_path;
+  XFSPath project_root_path;
+  XSmallstr project_name;
+  XSmallstr cmake_generator;
+  XSmallstr cmake_arch;
+} LDKEditorProjectAction;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -152,8 +169,10 @@ typedef struct LDKEditorContext
   char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
   bool show_input_window;
 
-  //
+  LDKEditorProjectAction pending_project_action;
   bool create_project_window_show;
+  bool create_project_window_open_requested;
+  bool create_project_window_close_requested;
 
   // config
   XFSPath editor_font;
@@ -180,8 +199,14 @@ u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
 bool ldki_editor_layout_save_as(LDKEditorContext *editor);
 void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);
 void ldki_editor_project_create_show(LDKEditorContext *editor);
-bool ldki_editor_project_create(LDKEditorContext *editor,
-    const char *project_name, const char *project_root_path);
+void ldki_editor_project_create_window(LDKEditor *editor, void *data);
+const char *ldki_editor_cmake_native_arch_get(void);
+bool ldki_editor_project_create_window_open(LDKEditorContext *editor);
+bool ldki_editor_project_create_request(LDKEditorContext *editor,
+    const char *project_name, const char *project_root_path,
+    const char *cmake_generator, const char *cmake_arch);
+bool ldki_editor_project_open_request(
+    LDKEditorContext *editor, const char *project_file_path);
 void ldki_editor_register_commands(LDKEditorContext *editor);
 void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(
@@ -240,6 +265,8 @@ bool ldki_editor_scene_add_primitive(
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
+bool ldki_editor_window_remove(LDKEditorWindowId window_id);
+
 typedef struct LDKEditorWindow
 {
   LDKEditorWindowId id;
@@ -248,6 +275,8 @@ typedef struct LDKEditorWindow
   void *data;
 } LDKEditorWindow;
 
+bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
+
 // Stable IDs reserved by the editor. User tools should define their own
 // persistent non-zero values outside this range.
 
@@ -255,5 +284,6 @@ typedef struct LDKEditorWindow
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
 #define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
+#define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
 
 #endif // LDK_EDITOR_INTERNAL

@@ -1049,71 +1049,67 @@ void ldki_editor_menubar_show(LDKEditorContext *editor)
 
 void ldki_editor_project_create_show(LDKEditorContext *editor)
 {
-  enum
+  typedef struct LDKEditorProjectGenerator
   {
-    PROJECT_TYPE_COUNT = 3,
-  };
+    const char *cmake_generator;
+    bool uses_platform;
+  } LDKEditorProjectGenerator;
 
-  static const char *s_project_types[PROJECT_TYPE_COUNT] = {
-      "Placeholder 1",
-      "Placeholder 2",
-      "Placeholder 3",
+  static const LDKEditorProjectGenerator s_generators[] = {
+      {"Visual Studio 18 2026", true},
+      {"Visual Studio 17 2022", true},
+      {"Ninja", false},
+      {"Ninja Multi-Config", false},
+      {"NMake Makefiles", false},
+      {"MinGW Makefiles", false},
   };
-
+  static const char *s_generator_labels[] = {
+      "Visual Studio 2026",
+      "Visual Studio 2022",
+      "Ninja",
+      "Ninja Multi-Config",
+      "NMake",
+      "MinGW Make",
+  };
   static XSmallstr s_project_name = {0};
   static XFSPath s_project_path = {0};
-  static u32 s_project_type = 0;
+  static u32 s_generator = 0;
+  LDKUIContext *ui;
+  const LDKEditorProjectGenerator *generator;
+  const char *cmake_arch;
 
-  static LDKUIRect s_window_rect = {0};
-  static bool s_window_initialized = false;
-
-  LDKUIContext *ui = &editor->ui;
-
-  if (!s_window_initialized)
+  if (editor == NULL)
   {
-    s_window_rect.w = 480.0f;
-    s_window_rect.h = 210.0f;
-    s_window_rect.x = (ui->viewport.w - s_window_rect.w) * 0.5f;
-    s_window_rect.y = (ui->viewport.h - s_window_rect.h) * 0.5f;
-
-    s_window_initialized = true;
+    return;
   }
 
-  s_window_rect = ldk_ui_begin_window(ui, "CREATE PROJECT", s_window_rect,
-      LDK_UI_WINDOW_TITLE_BAR | LDK_UI_WINDOW_DRAGGABLE | LDK_UI_WINDOW_BORDER);
-
-  //----------------------------------------------------------------------
-  // Project name
-  //----------------------------------------------------------------------
+  ui = &editor->ui;
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
     ldk_ui_label(ui, "Project name");
-
     ldk_ui_input_box(ui, s_project_name.buf, (u32)sizeof(s_project_name.buf));
   }
   ldk_ui_end_horizontal(ui);
-
-  //----------------------------------------------------------------------
-  // Project type
-  //----------------------------------------------------------------------
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-    ldk_ui_label(ui, "Project type");
-
-    s_project_type = ldk_ui_combo_box(
-        ui, s_project_types, PROJECT_TYPE_COUNT, s_project_type);
+    ldk_ui_label(ui, "Generator");
+    s_generator = ldk_ui_combo_box(ui, s_generator_labels,
+        (u32)(sizeof(s_generator_labels) / sizeof(s_generator_labels[0])),
+        s_generator);
   }
   ldk_ui_end_horizontal(ui);
 
-  //----------------------------------------------------------------------
-  // Project path
-  //----------------------------------------------------------------------
+  if (s_generator >= sizeof(s_generators) / sizeof(s_generators[0]))
+  {
+    s_generator = 0;
+  }
+  generator = &s_generators[s_generator];
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
@@ -1148,33 +1144,32 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
     if (ldk_ui_button(ui, "OK"))
     {
-      editor->create_project_window_show = false;
+      cmake_arch = generator->uses_platform
+                       ? ldki_editor_cmake_native_arch_get()
+                       : "";
 
-      bool success = ldki_editor_project_create(
-          editor, s_project_name.buf, s_project_path.buf);
-
-      if (success)
+      if (!ldki_editor_project_create_request(editor, s_project_name.buf,
+              s_project_path.buf, generator->cmake_generator, cmake_arch))
       {
-        ldki_editor_log_info(editor, "Project Created.");
-      }
-      else
-      {
-        ldki_editor_log_error(editor, "Failed to create project.");
-        ldk_os_dialog_show_error(
-            editor->window, "Failed to create project", s_project_name.buf);
+        ldki_editor_log_error(editor, "Failed to queue project creation.");
       }
     }
 
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
     if (ldk_ui_button(ui, "CANCEL"))
     {
-      editor->create_project_window_show = false;
+      editor->create_project_window_close_requested = true;
+      x_smallstr_clear(&s_project_name);
       x_smallstr_clear(&s_project_path);
     }
   }
   ldk_ui_end_horizontal(ui);
+}
 
-  ldk_ui_end_window(ui);
+void ldki_editor_project_create_window(LDKEditor *opaque_editor, void *data)
+{
+  (void)data;
+  ldki_editor_project_create_show((LDKEditorContext *)opaque_editor);
 }
 
 void ldki_editor_toolbar_show(LDKEditorContext *editor)

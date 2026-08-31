@@ -156,39 +156,28 @@ static bool s_editor_command_step(XSlice args)
 static bool s_editor_command_project(XSlice args)
 {
   XSlice path_arg;
-  bool loaded = false;
+  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
+
   if (!x_slice_next_token_white_space(&args, &path_arg))
   {
-    loaded = ldki_editor_show_open_project_dialog(ldk_editor_get(), NULL);
-    if (loaded)
-    {
-      ldki_editor_log_info(ldk_editor_get(), "Project loaded\n");
-    }
-
-    return loaded;
+    return ldki_editor_show_open_project_dialog(editor, NULL);
   }
 
-  XSmallstr path;
-  x_smallstr_from_slice(args, &path);
-  loaded = ldk_editor_project_load(ldk_editor_get(), path.buf);
-  if (loaded)
-  {
-    ldki_editor_log_info(ldk_editor_get(), "Project loaded\n");
-  }
-  return loaded;
+  XSmallstr path = {0};
+  x_smallstr_from_slice(path_arg, &path);
+  return ldki_editor_project_open_request(editor, path.buf);
 }
 
 static bool s_editor_command_projnew(XSlice args)
 {
-  LDKEditorContext *editor = (LDKEditorContext *)ldk_editor_get();
-  editor->create_project_window_show = true;
-  return true;
+  (void)args;
+  return ldki_editor_project_create_window_open(
+      (LDKEditorContext *)ldk_editor_get());
 }
 
 static bool s_editor_command_layout_save_as(XSlice args)
 {
   XSlice arg0 = {0};
-  bool loaded = false;
   if (!x_slice_next_token_white_space(&args, &arg0))
   {
     LDKEditorContext *e = ldk_editor_get();
@@ -221,7 +210,6 @@ static bool s_editor_command_layout_list(XSlice args)
 static bool s_editor_command_layout_set(XSlice args)
 {
   XSlice arg0 = {0};
-  bool loaded = false;
   if (!x_slice_next_token_white_space(&args, &arg0))
   {
     LDKEditorContext *e = ldk_editor_get();
@@ -319,7 +307,6 @@ void ldki_editor_register_commands(LDKEditorContext *editor)
   ldk_editor_command_register(
       editor, "quit", "Terminates the editor.", s_editor_command_quit);
 
-  // Layout functions
   ldk_editor_command_register(editor, "layout-save-as",
       "Saves the current layout as a new name.",
       s_editor_command_layout_save_as);
