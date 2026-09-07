@@ -79,6 +79,7 @@ extern "C" {
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
+    LDKResourceMaterial material;
     Mat4 world;
     LDKRendererViewId view_id;
     u32 flags;
@@ -284,6 +285,7 @@ extern "C" {
     LDKRendererMaterialResource* materials;
     u32 material_count;
     u32 material_capacity;
+    LDKResourceMaterial default_material;
 
     // Font atlas cache
     LDKRendererFontPageCacheEntry* font_pages;
@@ -655,6 +657,18 @@ extern "C" {
       LDKRenderer* renderer,
       LDKResourceMaterial material);
 
+  /**
+   * @brief Return the renderer-owned default mesh material.
+   *
+   * The default material is a white vertex-color material created during
+   * renderer initialization and destroyed during renderer termination.
+   *
+   * @param renderer Renderer that owns the default material.
+   * @return Default material handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_default_get(
+      LDKRenderer* renderer);
+
   // ---------------------------------------------------------------------------
   // Font cache Resources
   // ---------------------------------------------------------------------------
@@ -748,21 +762,23 @@ extern "C" {
   /**
    * @brief Submit a mesh instance for scene rendering this frame.
    *
-   * The mesh handle is validated against the renderer mesh cache, then queued
-   * with the supplied world transform. The queued mesh is rendered during
-   * ldk_renderer_render_frame() for every submitted view.
+   * The mesh and material handles are validated against their renderer caches,
+   * then queued with the supplied world transform. The queued mesh is rendered
+   * during ldk_renderer_render_frame() for every submitted view.
    *
    * Submitted mesh instances are transient frame data. After rendering, the
    * renderer clears the submitted mesh queue.
    *
    * @param renderer Renderer instance.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was submitted, false otherwise.
    */
   LDK_API bool ldk_renderer_submit_mesh(
       LDKRenderer* renderer,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
   /**
@@ -778,6 +794,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id ID of the only view that should draw this mesh.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
    */
@@ -785,6 +802,7 @@ extern "C" {
       LDKRenderer* renderer,
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
   /**
@@ -818,6 +836,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id ID of the only view that should draw this mesh.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
    */
@@ -825,6 +844,7 @@ extern "C" {
       LDKRenderer* renderer,
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
 

@@ -728,7 +728,8 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
 
     LDKRendererMeshResource* mesh =
         s_renderer_mesh_get_resource(renderer, submit->mesh);
-    if (mesh == NULL || mesh->index_count == 0)
+    if (mesh == NULL || mesh->index_count == 0 ||
+        !ldk_renderer_material_is_valid(renderer, submit->material))
     {
       continue;
     }
@@ -2141,6 +2142,17 @@ void ldk_renderer_material_destroy(
   memset(resource, 0, sizeof(*resource));
 }
 
+LDKResourceMaterial ldk_renderer_material_default_get(LDKRenderer* renderer)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      !ldk_renderer_material_is_valid(renderer, renderer->default_material))
+  {
+    return ldk_renderer_material_null();
+  }
+
+  return renderer->default_material;
+}
+
 static void s_renderer_destroy_material_resources(LDKRenderer* renderer)
 {
   if (renderer == NULL)
@@ -2340,6 +2352,20 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   }
 
   renderer->is_initialized = true;
+
+  LDKRendererMaterialDesc default_material_desc = {0};
+  default_material_desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  default_material_desc.texture = ldk_renderer_texture_null();
+  default_material_desc.color = 0xffffffffu;
+  renderer->default_material =
+      ldk_renderer_material_create(renderer, &default_material_desc);
+  if (!ldk_renderer_material_is_valid(
+          renderer, renderer->default_material))
+  {
+    ldk_renderer_terminate(renderer);
+    return false;
+  }
+
   return true;
 }
 
@@ -2521,7 +2547,8 @@ void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render
 }
 
 static bool s_renderer_submit_mesh(LDKRenderer* renderer,
-    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world, u32 flags)
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, Mat4 world, u32 flags)
 {
   if (renderer == NULL || !renderer->is_initialized)
   {
@@ -2529,6 +2556,11 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   }
 
   if (!ldk_renderer_mesh_is_valid(renderer, mesh))
+  {
+    return false;
+  }
+
+  if (!ldk_renderer_material_is_valid(renderer, material))
   {
     return false;
   }
@@ -2543,6 +2575,7 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
 
   LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[renderer->submitted_mesh_count];
   submit->mesh = mesh;
+  submit->material = material;
   submit->world = world;
   submit->view_id = view_id;
   submit->flags = flags;
@@ -2551,15 +2584,17 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
 }
 
 bool ldk_renderer_submit_mesh(
-    LDKRenderer* renderer, LDKResourceMesh mesh, Mat4 world)
+    LDKRenderer* renderer, LDKResourceMesh mesh,
+    LDKResourceMaterial material, Mat4 world)
 {
   return s_renderer_submit_mesh(
-      renderer, LDK_RENDERER_VIEW_ALL, mesh, world,
+      renderer, LDK_RENDERER_VIEW_ALL, mesh, material, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
 }
 
 bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
-    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world)
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, Mat4 world)
 {
   if (view_id == LDK_RENDERER_VIEW_INVALID ||
       view_id == LDK_RENDERER_VIEW_ALL)
@@ -2567,7 +2602,7 @@ bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, view_id, mesh, world,
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
 }
 
@@ -2597,7 +2632,8 @@ bool ldk_renderer_submit_grid_to_view(LDKRenderer* renderer,
 }
 
 bool ldk_renderer_submit_overlay_mesh_to_view(LDKRenderer* renderer,
-    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world)
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, Mat4 world)
 {
   if (view_id == LDK_RENDERER_VIEW_INVALID ||
       view_id == LDK_RENDERER_VIEW_ALL)
@@ -2605,6 +2641,6 @@ bool ldk_renderer_submit_overlay_mesh_to_view(LDKRenderer* renderer,
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, view_id, mesh, world,
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
 }

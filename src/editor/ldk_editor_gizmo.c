@@ -1601,6 +1601,7 @@ static void s_editor_gizmo_rotation_submit(LDKEditorContext *editor,
 
     ldk_renderer_submit_overlay_mesh_to_view(
         editor->renderer, editor->scene_view, arc_mesh,
+        ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(origin, ring_orientation,
             vec3_make(radius, radius, radius)));
   }
@@ -1634,11 +1635,13 @@ static void s_editor_gizmo_rotation_drag_submit(
   ldk_renderer_submit_overlay_mesh_to_view(editor->renderer,
       editor->scene_view,
       editor->gizmo.rotation_arc_highlight_meshes[axis],
+      ldk_renderer_material_default_get(editor->renderer),
       s_editor_gizmo_part_world(editor->gizmo.drag_origin,
           ring_orientation, ring_scale));
   ldk_renderer_submit_overlay_mesh_to_view(editor->renderer,
       editor->scene_view,
       editor->gizmo.rotation_arc_highlight_meshes[axis],
+      ldk_renderer_material_default_get(editor->renderer),
       s_editor_gizmo_part_world(editor->gizmo.drag_origin,
           reflected_orientation, ring_scale));
 }
@@ -1757,10 +1760,12 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
     ldk_renderer_submit_overlay_mesh_to_view(
         editor->renderer, editor->scene_view,
         bar_mesh,
+        ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(bar_position, orientation, bar_scale));
     ldk_renderer_submit_overlay_mesh_to_view(
         editor->renderer, editor->scene_view,
         handle_mesh,
+        ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(
             handle_position, handle_orientation, handle_scale));
   }
@@ -1776,6 +1781,7 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 
     ldk_renderer_submit_overlay_mesh_to_view(
         editor->renderer, editor->scene_view, center_mesh,
+        ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(origin, orientation, center_scale));
   }
 }

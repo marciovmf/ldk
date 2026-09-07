@@ -131,14 +131,59 @@ static int test_renderer_material_lifecycle(void)
   ASSERT_EQ(renderer.materials[0].desc.texture.id, LDK_RHI_INVALID_RESOURCE);
   ASSERT_EQ(renderer.materials[0].desc.color, 0x10203040u);
 
+  renderer.default_material = material;
+  ASSERT_EQ(ldk_renderer_material_default_get(&renderer).id, material.id);
+
   ldk_renderer_material_destroy(&renderer, material);
   ASSERT_FALSE(ldk_renderer_material_is_valid(&renderer, material));
+  ASSERT_EQ(ldk_renderer_material_default_get(&renderer).id,
+      LDK_RHI_INVALID_RESOURCE);
   ldk_renderer_material_destroy(&renderer, material);
 
   LDKResourceMaterial null_material = ldk_renderer_material_null();
   ASSERT_FALSE(ldk_renderer_material_is_valid(&renderer, null_material));
 
   free(renderer.materials);
+  return 0;
+}
+
+static int test_renderer_mesh_submission_requires_material(void)
+{
+  LDKRenderer renderer = {0};
+  LDKRendererMaterialDesc material_desc = {0};
+  LDKResourceMesh mesh = {0};
+  Mat4 world = {0};
+  renderer.is_initialized = true;
+
+  renderer.meshes =
+      (LDKRendererMeshResource *)calloc(1, sizeof(LDKRendererMeshResource));
+  ASSERT_TRUE(renderer.meshes != NULL);
+  renderer.mesh_count = 1;
+  renderer.mesh_capacity = 1;
+  renderer.meshes[0].alive = true;
+  renderer.meshes[0].index_count = 3;
+  mesh.id = 1u;
+
+  material_desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  material_desc.color = 0xffffffffu;
+  LDKResourceMaterial material =
+      ldk_renderer_material_create(&renderer, &material_desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
+
+  ASSERT_TRUE(ldk_renderer_submit_mesh(&renderer, mesh, material, world));
+  ASSERT_EQ(renderer.submitted_mesh_count, 1u);
+  ASSERT_EQ(renderer.submitted_meshes[0].mesh.id, mesh.id);
+  ASSERT_EQ(renderer.submitted_meshes[0].material.id, material.id);
+  ASSERT_EQ(renderer.submitted_meshes[0].view_id, LDK_RENDERER_VIEW_ALL);
+
+  ASSERT_FALSE(ldk_renderer_submit_mesh(
+      &renderer, mesh, ldk_renderer_material_null(), world));
+  ASSERT_EQ(renderer.submitted_mesh_count, 1u);
+
+  ldk_renderer_material_destroy(&renderer, material);
+  free(renderer.submitted_meshes);
+  free(renderer.materials);
+  free(renderer.meshes);
   return 0;
 }
 
@@ -203,6 +248,7 @@ int main(void)
       X_TEST(test_material_equality),
       X_TEST(test_invalid_material_descriptors),
       X_TEST(test_renderer_material_lifecycle),
+      X_TEST(test_renderer_mesh_submission_requires_material),
       X_TEST(test_renderer_textured_material),
       X_TEST(test_renderer_material_rejects_invalid_input),
   };

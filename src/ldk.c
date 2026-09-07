@@ -1035,7 +1035,8 @@ void ldk_engine_frame(void)
         continue;
       }
 
-      ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh, mesh_world);
+      ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh,
+          ldk_renderer_material_default_get(&e->renderer), mesh_world);
     }
   }
   s_broadcast_frame_event(
