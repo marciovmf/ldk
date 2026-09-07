@@ -325,10 +325,12 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h
+  ${INCLUDE_DIR}/ldk_asset.h
   ${INCLUDE_DIR}/ldk_color.h
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
+  ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
   ${INCLUDE_DIR}/ldk_resource.h
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
@@ -587,5 +589,6 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
+  ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
   ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
 endif()

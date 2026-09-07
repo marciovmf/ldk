@@ -1,11 +1,11 @@
 #ifndef LDK_MESH_H
 #define LDK_MESH_H
 
+#include <ldk_asset.h>
 #include <ldk_common.h>
 #include <stdx/stdx_math.h>
 
 typedef struct LDKAssetManager LDKAssetManager;
-typedef struct LDKAssetMesh LDKAssetMesh;
 
 #ifdef __cplusplus
 extern "C" {

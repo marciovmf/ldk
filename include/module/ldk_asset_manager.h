@@ -1,6 +1,7 @@
 #ifndef LDK_ASSET_MANAGER_H
 #define LDK_ASSET_MANAGER_H
 
+#include <ldk_asset.h>
 #include <ldk_common.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
@@ -11,23 +12,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef XHandle LDKHandle;
-
-  typedef enum LDKAssetType
-  {
-    LDK_ASSET_TYPE_NULL      = 0,
-    LDK_ASSET_TYPE_TEXT_FILE = 1,
-    LDK_ASSET_TYPE_FONT      = 2,
-    LDK_ASSET_TYPE_IMAGE     = 3,
-    LDK_ASSET_TYPE_MESH      = 4
-  } LDKAssetType;
-
-  typedef struct LDKAssetHandle
-  {
-    LDKHandle h;
-  } LDKAssetHandle;
-
 
   typedef struct LDKAssetInfo
   {
@@ -67,11 +51,6 @@ typedef XHandle LDKHandle;
   // Text file asset
   // ---------------------------------------------------------------------------
 
-  typedef struct LDKAssetTextFile
-  {
-    LDKHandle h;
-  } LDKAssetTextFile;
-
   typedef struct LDKAssetTextFileData
   {
     char* text;
@@ -90,11 +69,6 @@ typedef XHandle LDKHandle;
   // ---------------------------------------------------------------------------
   // Image
   // ---------------------------------------------------------------------------
-
-  typedef struct LDKAssetImage
-  {
-    LDKHandle h;
-  } LDKAssetImage;
 
   typedef struct LDKAssetImageData
   {
@@ -125,11 +99,6 @@ typedef XHandle LDKHandle;
   // Font asset
   // ---------------------------------------------------------------------------
 
-  typedef struct LDKAssetFont
-  {
-    LDKHandle h;
-  } LDKAssetFont;
-
   typedef struct LDKAssetFontData
   {
     LDKFontFace* face;
@@ -148,11 +117,6 @@ typedef XHandle LDKHandle;
   // ---------------------------------------------------------------------------
   // Mesh asset
   // ---------------------------------------------------------------------------
-
-  typedef struct LDKAssetMesh
-  {
-    LDKHandle h;
-  } LDKAssetMesh;
 
   typedef struct LDKAssetMeshData
   {
