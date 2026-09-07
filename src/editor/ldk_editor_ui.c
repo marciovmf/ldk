@@ -28,7 +28,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   static LDKUIRect s_theme_popup_rect = {0, 0, 1024, 1024};
 
   const LDKUIId MENU_ID_FILE = 10;
-  const LDKUIId MENU_ID_EDIT = 11;
+  const LDKUIId MENU_ID_PROJECT = 11;
   const LDKUIId MENU_ID_THEME = 12;
   const LDKUIId MENU_ID_SCENE = 13;
 
@@ -49,9 +49,9 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   LDKUIRect file_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Edit"))
+  if (ldk_ui_button_flat(ui, "Project"))
   {
-    ldk_ui_open_popup(ui, MENU_ID_EDIT);
+    ldk_ui_open_popup(ui, MENU_ID_PROJECT);
   }
   LDKUIRect edit_button_rect = ldk_ui_last_rect(ui);
 
@@ -74,16 +74,24 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_horizontal(ui);
   ldk_ui_horizontal_line(ui);
 
+
   LDKUIRect popup_pos = {
       file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
+
+  bool can_edit_scene = editor->project.loaded &&
+    editor->editor_state == LDK_EDITOR_STATE_STOPED;
+  
 
   ldk_ui_begin_popup(ui, MENU_ID_FILE);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    bool can_edit_scene = editor->project.loaded &&
-                          editor->editor_state == LDK_EDITOR_STATE_STOPED;
-
+    if (ldk_ui_button_flat(ui, "New Project"))
+    {
+      ldki_editor_project_create_window_open(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+    
     ldk_ui_set_next_disabled(ui, !can_edit_scene);
     if (ldk_ui_button_flat(ui, "New Scene"))
     {
@@ -116,17 +124,30 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   popup_pos.x = edit_button_rect.x;
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_EDIT);
+  ldk_ui_begin_popup(ui, MENU_ID_PROJECT);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    if (ldk_ui_button_flat(ui, "Undo"))
+    const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
+
+    ldk_ui_set_next_disabled(ui, can_not_build);
+    if (ldk_ui_button_flat(ui, "Build"))
     {
+      ldki_editor_project_build_request(editor);
       ldk_ui_close_current_popup(ui);
     }
 
-    if (ldk_ui_button_flat(ui, "Redo"))
+    ldk_ui_set_next_disabled(ui, !editor->project_build.active);
+    if (ldk_ui_button_flat(ui, "Cancel Build"))
     {
+      ldki_editor_project_build_cancel_request(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, can_not_build);
+    if (ldk_ui_button_flat(ui, "Build Launcher"))
+    {
+      ldki_editor_project_release_request(editor);
       ldk_ui_close_current_popup(ui);
     }
 
