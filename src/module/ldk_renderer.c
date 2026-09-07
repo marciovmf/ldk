@@ -11,8 +11,17 @@ static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_material_resources(LDKRenderer* renderer);
+static LDKRendererMaterialResource* s_renderer_material_get_resource(
+    LDKRenderer* renderer,
+    LDKResourceMaterial material);
+static LDKRendererTextureResource* s_renderer_texture_get_resource(
+    LDKRenderer* renderer,
+    LDKResourceTexture texture);
 static void s_renderer_ui_pass_remove_texture_bindings(
     LDKRendererUIPass* renderer,
+    LDKRHITexture texture);
+static void s_renderer_mesh_pass_remove_texture_bindings(
+    LDKRendererMeshPass* pass,
     LDKRHITexture texture);
 static LDKRHISampler s_renderer_texture_sampler_from_rhi_texture(
     LDKRenderer* renderer,
@@ -497,6 +506,11 @@ typedef struct LDKRendererMeshObjectParams
   Mat4 world;
 } LDKRendererMeshObjectParams;
 
+typedef struct LDKRendererMeshMaterialParams
+{
+  LDKRHIColor color;
+} LDKRendererMeshMaterialParams;
+
 static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
 {
   pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
@@ -527,6 +541,24 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
     return false;
   }
 
+  pass->textured_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_MESH_PASS_TEXTURED, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->textured_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  pass->textured_unlit_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_MESH_PASS_TEXTURED_UNLIT,
+          LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->textured_unlit_fragment_shader_module ==
+      LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
   return true;
 }
 
@@ -534,13 +566,19 @@ static bool s_renderer_mesh_pass_create_bindings_layout(LDKRendererMeshPass* pas
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
-  desc.entry_count = 2;
+  desc.entry_count = 4;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
   desc.entries[1].slot = 1;
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[2].slot = 2;
+  desc.entries[2].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  desc.entries[2].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.entries[3].slot = 3;
+  desc.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
   pass->bindings_layout = ldk_rhi_bindings_layout_create(pass->rhi, &desc);
   return pass->bindings_layout != LDK_RHI_INVALID_RESOURCE;
@@ -581,20 +619,56 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
   desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
 
-  pass->pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
-  if (pass->pipeline == LDK_RHI_INVALID_RESOURCE)
+  pass->vertex_color_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  desc.fragment_shader_module = pass->overlay_fragment_shader_module;
+  pass->vertex_color_unlit_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_unlit_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
+    pass->vertex_color_pipeline = LDK_RHI_INVALID_RESOURCE;
+    return false;
+  }
+
+  desc.depth_state.test_enabled = false;
+  desc.depth_state.write_enabled = false;
+  pass->overlay_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->overlay_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
+    pass->vertex_color_unlit_pipeline = LDK_RHI_INVALID_RESOURCE;
+    pass->vertex_color_pipeline = LDK_RHI_INVALID_RESOURCE;
+    return false;
+  }
+
+  desc.depth_state.test_enabled = true;
+  desc.depth_state.write_enabled = true;
+  desc.fragment_shader_module = pass->textured_fragment_shader_module;
+  pass->textured_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->textured_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  desc.fragment_shader_module = pass->textured_unlit_fragment_shader_module;
+  pass->textured_unlit_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->textured_unlit_pipeline == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
 
   desc.depth_state.test_enabled = false;
   desc.depth_state.write_enabled = false;
-  desc.fragment_shader_module = pass->overlay_fragment_shader_module;
-  pass->overlay_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
-  if (pass->overlay_pipeline == LDK_RHI_INVALID_RESOURCE)
+  pass->textured_overlay_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->textured_overlay_pipeline == LDK_RHI_INVALID_RESOURCE)
   {
-    ldk_rhi_pipeline_destroy(pass->rhi, pass->pipeline);
-    pass->pipeline = LDK_RHI_INVALID_RESOURCE;
     return false;
   }
 
@@ -622,7 +696,20 @@ static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
   object_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
   pass->object_buffer = ldk_rhi_buffer_create(pass->rhi, &object_desc);
-  return pass->object_buffer != LDK_RHI_INVALID_RESOURCE;
+  if (pass->object_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  LDKRHIBufferDesc material_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&material_desc);
+  material_desc.size = sizeof(LDKRendererMeshMaterialParams);
+  material_desc.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  material_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+
+  pass->material_buffer = ldk_rhi_buffer_create(pass->rhi, &material_desc);
+  return pass->material_buffer != LDK_RHI_INVALID_RESOURCE;
 }
 
 static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
@@ -630,7 +717,7 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
   desc.layout = pass->bindings_layout;
-  desc.binding_count = 2;
+  desc.binding_count = 3;
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = pass->camera_buffer;
   desc.bindings[0].buffer_offset = 0;
@@ -639,9 +726,135 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
   desc.bindings[1].buffer = pass->object_buffer;
   desc.bindings[1].buffer_offset = 0;
   desc.bindings[1].buffer_size = sizeof(LDKRendererMeshObjectParams);
+  desc.bindings[2].slot = 2;
+  desc.bindings[2].buffer = pass->material_buffer;
+  desc.bindings[2].buffer_offset = 0;
+  desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
 
   pass->bindings = ldk_rhi_bindings_create(pass->rhi, &desc);
   return pass->bindings != LDK_RHI_INVALID_RESOURCE;
+}
+
+static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
+    LDKRendererMeshPass* pass,
+    LDKRHITexture texture,
+    LDKRHISampler sampler)
+{
+  LDKRHIBindingsDesc desc = {0};
+  ldk_rhi_bindings_desc_defaults(&desc);
+  desc.layout = pass->bindings_layout;
+  desc.binding_count = 4;
+  desc.bindings[0].slot = 0;
+  desc.bindings[0].buffer = pass->camera_buffer;
+  desc.bindings[0].buffer_offset = 0;
+  desc.bindings[0].buffer_size = sizeof(LDKRendererMeshCameraParams);
+  desc.bindings[1].slot = 1;
+  desc.bindings[1].buffer = pass->object_buffer;
+  desc.bindings[1].buffer_offset = 0;
+  desc.bindings[1].buffer_size = sizeof(LDKRendererMeshObjectParams);
+  desc.bindings[2].slot = 2;
+  desc.bindings[2].buffer = pass->material_buffer;
+  desc.bindings[2].buffer_offset = 0;
+  desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
+  desc.bindings[3].slot = 3;
+  desc.bindings[3].texture = texture;
+  desc.bindings[3].sampler = sampler;
+  return ldk_rhi_bindings_create(pass->rhi, &desc);
+}
+
+static bool s_renderer_mesh_pass_grow_textured_bindings_cache(
+    LDKRendererMeshPass* pass)
+{
+  u32 new_capacity = pass->textured_bindings_cache_capacity == 0
+      ? 16
+      : pass->textured_bindings_cache_capacity * 2;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererBindingsCacheEntry);
+  LDKRendererBindingsCacheEntry* new_cache =
+      pass->textured_bindings_cache == NULL
+      ? (LDKRendererBindingsCacheEntry*)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererBindingsCacheEntry*)LDK_RENDERER_REALLOC(
+            pass->textured_bindings_cache, new_size);
+
+  if (new_cache == NULL)
+  {
+    return false;
+  }
+
+  pass->textured_bindings_cache = new_cache;
+  pass->textured_bindings_cache_capacity = new_capacity;
+  return true;
+}
+
+static LDKRHIBindings s_renderer_mesh_pass_get_textured_bindings(
+    LDKRendererMeshPass* pass,
+    LDKRHITexture texture,
+    LDKRHISampler sampler)
+{
+  for (u32 i = 0; i < pass->textured_bindings_cache_count; i++)
+  {
+    LDKRendererBindingsCacheEntry* entry =
+        &pass->textured_bindings_cache[i];
+    if (entry->texture == texture && entry->sampler == sampler)
+    {
+      return entry->bindings;
+    }
+  }
+
+  if (pass->textured_bindings_cache_count ==
+          pass->textured_bindings_cache_capacity &&
+      !s_renderer_mesh_pass_grow_textured_bindings_cache(pass))
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  LDKRHIBindings bindings =
+      s_renderer_mesh_pass_create_textured_bindings(pass, texture, sampler);
+  if (bindings == LDK_RHI_INVALID_RESOURCE)
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  LDKRendererBindingsCacheEntry* entry =
+      &pass->textured_bindings_cache[pass->textured_bindings_cache_count];
+  entry->texture = texture;
+  entry->sampler = sampler;
+  entry->bindings = bindings;
+  pass->textured_bindings_cache_count += 1;
+  return bindings;
+}
+
+static void s_renderer_mesh_pass_remove_texture_bindings(
+    LDKRendererMeshPass* pass, LDKRHITexture texture)
+{
+  if (pass == NULL || pass->rhi == NULL ||
+      texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  u32 index = 0;
+  while (index < pass->textured_bindings_cache_count)
+  {
+    LDKRendererBindingsCacheEntry* entry =
+        &pass->textured_bindings_cache[index];
+    if (entry->texture != texture)
+    {
+      index += 1;
+      continue;
+    }
+
+    ldk_rhi_bindings_destroy(pass->rhi, entry->bindings);
+    pass->textured_bindings_cache_count -= 1;
+    if (index != pass->textured_bindings_cache_count)
+    {
+      *entry =
+          pass->textured_bindings_cache[pass->textured_bindings_cache_count];
+    }
+
+    memset(&pass->textured_bindings_cache[pass->textured_bindings_cache_count],
+        0, sizeof(*entry));
+  }
 }
 
 static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass* pass, LDKRendererConfig const* config)
@@ -697,18 +910,34 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
 
   if (pass->rhi != NULL)
   {
+    for (u32 i = 0; i < pass->textured_bindings_cache_count; i++)
+    {
+      ldk_rhi_bindings_destroy(
+          pass->rhi, pass->textured_bindings_cache[i].bindings);
+    }
+
     ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->camera_buffer);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_overlay_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_unlit_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->overlay_pipeline);
-    ldk_rhi_pipeline_destroy(pass->rhi, pass->pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
     ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->textured_unlit_fragment_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->textured_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->overlay_fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
   }
 
+  LDK_RENDERER_FREE(pass->textured_bindings_cache);
   memset(pass, 0, sizeof(*pass));
 }
 
@@ -728,8 +957,54 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
 
     LDKRendererMeshResource* mesh =
         s_renderer_mesh_get_resource(renderer, submit->mesh);
-    if (mesh == NULL || mesh->index_count == 0 ||
-        !ldk_renderer_material_is_valid(renderer, submit->material))
+    LDKRendererMaterialResource* material =
+        s_renderer_material_get_resource(renderer, submit->material);
+    if (mesh == NULL || mesh->index_count == 0 || material == NULL)
+    {
+      continue;
+    }
+
+    bool textured =
+        material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED ||
+        material->selection ==
+            LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT;
+    LDKRHIPipeline pipeline = LDK_RHI_INVALID_RESOURCE;
+    if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
+    {
+      if (textured)
+      {
+        pipeline = pass->textured_overlay_pipeline;
+      }
+      else if (material->selection ==
+                   LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR ||
+               material->selection ==
+                   LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT)
+      {
+        pipeline = pass->overlay_pipeline;
+      }
+    }
+    else if (material->selection ==
+             LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR)
+    {
+      pipeline = pass->vertex_color_pipeline;
+    }
+    else if (material->selection ==
+             LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT)
+    {
+      pipeline = pass->vertex_color_unlit_pipeline;
+    }
+    else if (material->selection ==
+             LDK_RENDERER_MATERIAL_SELECTION_TEXTURED)
+    {
+      pipeline = pass->textured_pipeline;
+    }
+    else if (material->selection ==
+             LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT)
+    {
+      pipeline = pass->textured_unlit_pipeline;
+    }
+
+    if (pipeline == LDK_RHI_INVALID_RESOURCE)
     {
       continue;
     }
@@ -738,6 +1013,33 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     object_params.world = submit->world;
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
         sizeof(object_params), &object_params);
+
+    LDKRendererMeshMaterialParams material_params = {0};
+    material_params.color =
+        ldk_renderer_color_from_rgba32(material->desc.color);
+    ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
+        sizeof(material_params), &material_params);
+
+    LDKRHIBindings bindings = pass->bindings;
+    if (textured)
+    {
+      LDKRendererTextureResource* texture =
+          s_renderer_texture_get_resource(renderer, material->desc.texture);
+      if (texture == NULL)
+      {
+        continue;
+      }
+
+      bindings = s_renderer_mesh_pass_get_textured_bindings(
+          pass, texture->texture, texture->sampler);
+      if (bindings == LDK_RHI_INVALID_RESOURCE)
+      {
+        continue;
+      }
+    }
+
+    ldk_rhi_pipeline_bind(pass->rhi, pipeline);
+    ldk_rhi_bindings_bind(pass->rhi, bindings);
     ldk_rhi_vertex_buffer_bind(pass->rhi, mesh->vertex_buffer, 0);
     ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
         LDK_RHI_INDEX_TYPE_UINT32);
@@ -765,16 +1067,6 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0,
       sizeof(camera_params), &camera_params);
 
-  if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
-  {
-    ldk_rhi_pipeline_bind(pass->rhi, pass->overlay_pipeline);
-  }
-  else
-  {
-    ldk_rhi_pipeline_bind(pass->rhi, pass->pipeline);
-  }
-
-  ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
 }
 
@@ -2006,6 +2298,10 @@ void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture text
     return;
   }
 
+  s_renderer_mesh_pass_remove_texture_bindings(
+      &renderer->mesh_pass, resource->texture);
+  s_renderer_ui_pass_remove_texture_bindings(
+      &renderer->ui_pass, resource->texture);
   ldk_rhi_sampler_destroy(renderer->rhi, resource->sampler);
   ldk_rhi_texture_destroy(renderer->rhi, resource->texture);
   memset(resource, 0, sizeof(*resource));
@@ -2080,6 +2376,31 @@ static bool s_renderer_material_type_is_textured(LDKMaterialType type)
          type == LDK_MATERIAL_TYPE_TEXTURED;
 }
 
+static LDKRendererMaterialSelection s_renderer_material_selection(
+    LDKMaterialType type)
+{
+  switch (type)
+  {
+    case LDK_MATERIAL_TYPE_TEXTURED_UNLIT:
+      return LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT;
+    case LDK_MATERIAL_TYPE_TEXTURED:
+      return LDK_RENDERER_MATERIAL_SELECTION_TEXTURED;
+    case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
+      return LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
+    case LDK_MATERIAL_TYPE_VERTEX_COLOR:
+      return LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR;
+    case LDK_MATERIAL_TYPE_INVALID:
+    default:
+      return LDK_RENDERER_MATERIAL_SELECTION_INVALID;
+  }
+}
+
+static LDKRendererRenderKey s_renderer_material_render_key(
+    LDKRendererMaterialSelection selection)
+{
+  return (LDKRendererRenderKey)selection;
+}
+
 static bool s_renderer_material_desc_is_valid(
     LDKRenderer* renderer, LDKRendererMaterialDesc const* desc)
 {
@@ -2121,6 +2442,9 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.texture = s_renderer_material_type_is_textured(desc->type)
       ? desc->texture
       : ldk_renderer_texture_null();
+  resource->selection = s_renderer_material_selection(desc->type);
+  resource->render_key =
+      s_renderer_material_render_key(resource->selection);
   resource->alive = true;
   renderer->material_count += 1;
 

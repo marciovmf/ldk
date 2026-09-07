@@ -130,6 +130,9 @@ static int test_renderer_material_lifecycle(void)
   ASSERT_EQ(renderer.materials[0].desc.type, LDK_MATERIAL_TYPE_VERTEX_COLOR);
   ASSERT_EQ(renderer.materials[0].desc.texture.id, LDK_RHI_INVALID_RESOURCE);
   ASSERT_EQ(renderer.materials[0].desc.color, 0x10203040u);
+  ASSERT_EQ(renderer.materials[0].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
+  ASSERT_NEQ(renderer.materials[0].render_key, 0u);
 
   renderer.default_material = material;
   ASSERT_EQ(ldk_renderer_material_default_get(&renderer).id, material.id);
@@ -210,10 +213,66 @@ static int test_renderer_textured_material(void)
   ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
   ASSERT_EQ(renderer.materials[0].desc.texture.id, 1u);
   ASSERT_EQ(renderer.materials[0].desc.color, 0xffffffffu);
+  ASSERT_EQ(renderer.materials[0].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED);
+  ASSERT_NEQ(renderer.materials[0].render_key, 0u);
+
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  LDKResourceMaterial unlit_material =
+      ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, unlit_material));
+  ASSERT_EQ(renderer.materials[1].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT);
+  ASSERT_NEQ(renderer.materials[0].render_key,
+      renderer.materials[1].render_key);
 
   ldk_renderer_material_destroy(&renderer, material);
+  ldk_renderer_material_destroy(&renderer, unlit_material);
   free(renderer.materials);
   free(renderer.textures);
+  return 0;
+}
+
+static int test_renderer_material_selection_and_render_key(void)
+{
+  LDKRenderer renderer = {0};
+  LDKRendererMaterialDesc desc = {0};
+  renderer.is_initialized = true;
+
+  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  desc.color = 0xffffffffu;
+  LDKResourceMaterial lit_white =
+      ldk_renderer_material_create(&renderer, &desc);
+
+  desc.color = 0xff0000ffu;
+  LDKResourceMaterial lit_red =
+      ldk_renderer_material_create(&renderer, &desc);
+
+  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT;
+  LDKResourceMaterial unlit_red =
+      ldk_renderer_material_create(&renderer, &desc);
+
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, lit_white));
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, lit_red));
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, unlit_red));
+
+  LDKRendererMaterialResource* lit_white_resource =
+      &renderer.materials[lit_white.id - 1u];
+  LDKRendererMaterialResource* lit_red_resource =
+      &renderer.materials[lit_red.id - 1u];
+  LDKRendererMaterialResource* unlit_red_resource =
+      &renderer.materials[unlit_red.id - 1u];
+
+  ASSERT_EQ(lit_white_resource->selection,
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
+  ASSERT_EQ(lit_red_resource->selection,
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
+  ASSERT_EQ(unlit_red_resource->selection,
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT);
+  ASSERT_EQ(lit_white_resource->render_key, lit_red_resource->render_key);
+  ASSERT_NEQ(lit_white_resource->render_key, unlit_red_resource->render_key);
+
+  free(renderer.materials);
   return 0;
 }
 
@@ -250,6 +309,7 @@ int main(void)
       X_TEST(test_renderer_material_lifecycle),
       X_TEST(test_renderer_mesh_submission_requires_material),
       X_TEST(test_renderer_textured_material),
+      X_TEST(test_renderer_material_selection_and_render_key),
       X_TEST(test_renderer_material_rejects_invalid_input),
   };
 
