@@ -1,5 +1,6 @@
 #include "ldk_editor_internal.h"
 #include "module/ldk_ui.h"
+#include "stdx/stdx_filesystem.h"
 #include <ldk_scene.h>
 
 #include <stdio.h>
@@ -1363,19 +1364,34 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   up_dir_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
 
   ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-  ldk_ui_icon_button(ui, up_dir_icon, NULL);
 
   XFSPath relative_directory = {0};
+  const char* path = NULL;
   if (x_fs_path_relative_to(
           &state->root, &state->selected_directory, &relative_directory) > 0)
   {
-    ldk_ui_label(ui, relative_directory.buf);
+    path = relative_directory.buf;
   }
   else
   {
-    ldk_ui_label(ui, state->selected_directory.buf);
+    path = state->selected_directory.buf;
   }
 
+  // up one dir button
+  bool toplevel = strncmp(path, ".", 1) == 0 || strlen(path) == 0;
+  ldk_ui_begin_disabled(ui, toplevel);
+  if (ldk_ui_icon_button(ui, up_dir_icon, NULL))
+  {
+    XFSPath up_path = {0};
+    x_fs_directory_parent(&state->selected_directory, &up_path);
+    s_project_explorer_directory_select(state, &up_path, true);
+    printf("UP to %.*s\n", (i32) up_path.length, up_path.buf);
+    return;
+  }
+  ldk_ui_end_disabled(ui);
+
+  // full path label
+  ldk_ui_label(ui, path);
   ldk_ui_spacer(ui);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
