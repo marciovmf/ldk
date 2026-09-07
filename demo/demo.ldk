@@ -4,9 +4,15 @@ project_cmake_root = workspace
 project_run_root = runtree
 project_cmake_generator = Visual Studio 17 2022
 
+[graphics]
+resolution_width=1280
+resolution_height=720
+
 [general]
 asset_root = "assets"
 log_file = "ldk.log"
+width=1024
+height=768
 
 [display]
 title = "My Awesome Game"

@@ -21,6 +21,7 @@ extern "C" {
   typedef struct LDKMeshSource
   {
     LDKAssetMesh source_asset;
+    //@inspect hidden
     LDKResourceMesh renderer_mesh;
     bool dirty;
   } LDKMeshSource;

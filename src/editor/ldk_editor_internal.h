@@ -9,9 +9,13 @@
 #include <module/ldk_renderer.h>
 #include <editor/ldk_editor.h>
 #include "ldk_editor_atlas.h"
+#include "../ldk_stdx.h"
 
-#include <stdx/stdx_array.h>
-#include <stdx/stdx_strbuilder.h>
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
+//#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+#define LDK_EDITOR_COLOR_FOLDER 0xFFFFFFFF
+#define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
+#define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
 
 typedef enum LDKEditorState
 {
@@ -21,12 +25,28 @@ typedef enum LDKEditorState
   LDK_EDITOR_STATE_PLAYING = 3
 } LDKEditorState;
 
+typedef enum LDKEditorConsoleEntryType
+{
+  LDK_EDITOR_CONSOLE_ENTRY_INFO = 'i',
+  LDK_EDITOR_CONSOLE_ENTRY_WARNING = 'w',
+  LDK_EDITOR_CONSOLE_ENTRY_ERROR = 'e',
+  LDK_EDITOR_CONSOLE_ENTRY_RAW = 'r'
+} LDKEditorConsoleEntryType;
+
 #ifndef LDK_EDITOR_COMMAND_MAX_LENGTH
 #define LDK_EDITOR_COMMAND_MAX_LENGTH 32
 #endif
 
 #ifndef LDK_EDITOR_COMMAND_INITIAL_CAPACITY
 #define LDK_EDITOR_COMMAND_INITIAL_CAPACITY 16
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LAYOUT_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_CAPACITY 16
+#endif
+
+#ifndef LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY
+#define LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY 64
 #endif
 
 typedef struct LDKEditorCommand
@@ -36,6 +56,117 @@ typedef struct LDKEditorCommand
   LDKEditorCommandFn cmd_func;
   XSmallstr help;
 } LDKEditorCommand;
+
+typedef enum LDKEditorGizmoAxis
+{
+  LDK_EDITOR_GIZMO_AXIS_NONE = 0,
+  LDK_EDITOR_GIZMO_AXIS_X,
+  LDK_EDITOR_GIZMO_AXIS_Y,
+  LDK_EDITOR_GIZMO_AXIS_Z,
+  LDK_EDITOR_GIZMO_AXIS_ALL
+} LDKEditorGizmoAxis;
+
+typedef enum LDKEditorGizmoMode
+{
+  LDK_EDITOR_GIZMO_MODE_TRANSLATE = 0,
+  LDK_EDITOR_GIZMO_MODE_ROTATE,
+  LDK_EDITOR_GIZMO_MODE_SCALE
+} LDKEditorGizmoMode;
+
+typedef enum LDKEditorGizmoSpace
+{
+  LDK_EDITOR_GIZMO_SPACE_GLOBAL = 0,
+  LDK_EDITOR_GIZMO_SPACE_LOCAL
+} LDKEditorGizmoSpace;
+
+typedef struct LDKEditorGizmoState
+{
+  LDKResourceMesh axis_cube_meshes[3];
+  LDKResourceMesh axis_cone_meshes[3];
+  LDKResourceMesh rotation_arc_meshes[3];
+  LDKResourceMesh rotation_arc_highlight_meshes[3];
+  LDKResourceMesh cube_highlight_mesh;
+  LDKResourceMesh cone_highlight_mesh;
+  LDKResourceMesh center_cube_mesh;
+  LDKUIRect scene_view_rect;
+  Mat4 drag_orientation;
+  LDKEntity drag_entity;
+  Vec3 drag_axis;
+  Vec3 drag_origin;
+  Vec3 drag_initial_hit;
+  Vec3 drag_initial_direction;
+  Vec3 drag_plane_normal;
+  Vec3 drag_initial_scale;
+  Quat drag_initial_world_rotation;
+  Quat drag_parent_world_rotation;
+  LDKUIPoint drag_initial_cursor;
+  float drag_initial_parameter;
+  float drag_previous_angle;
+  float drag_accumulated_angle;
+  float drag_world_length;
+  LDKEditorGizmoAxis hovered_axis;
+  LDKEditorGizmoAxis active_axis;
+  LDKEditorGizmoMode mode;
+  LDKEditorGizmoMode drag_mode;
+  LDKEditorGizmoSpace space;
+  bool dragging;
+  bool scene_view_visible;
+  bool initialized;
+} LDKEditorGizmoState;
+
+typedef struct LDKEditorCameraControllerState
+{
+  LDKEntity entity;
+  Vec3 pivot;
+  LDKPoint last_cursor;
+  float yaw;
+  float pitch;
+  float distance;
+  bool orbiting;
+  bool panning;
+  bool initialized;
+} LDKEditorCameraControllerState;
+
+typedef enum LDKEditorProjectActionType
+{
+  LDK_EDITOR_PROJECT_ACTION_NONE = 0,
+  LDK_EDITOR_PROJECT_ACTION_OPEN,
+  LDK_EDITOR_PROJECT_ACTION_CREATE,
+  LDK_EDITOR_PROJECT_ACTION_BUILD,
+  LDK_EDITOR_PROJECT_ACTION_RELEASE
+} LDKEditorProjectActionType;
+
+typedef struct LDKEditorProjectAction
+{
+  LDKEditorProjectActionType type;
+  XFSPath project_file_path;
+  XFSPath project_root_path;
+  XSmallstr project_name;
+  XSmallstr cmake_generator;
+  XSmallstr cmake_arch;
+} LDKEditorProjectAction;
+
+typedef enum LDKEditorProjectBuildStage
+{
+  LDK_EDITOR_PROJECT_BUILD_STAGE_NONE = 0,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD
+} LDKEditorProjectBuildStage;
+
+typedef struct LDKEditorProjectBuild
+{
+  LDKEditorProjectActionType action_type;
+  LDKEditorProjectBuildStage stage;
+  LDKOSProcess *process;
+  LDKProject project;
+  XFSPath project_file_path;
+  XFSPath log_path;
+  bool active;
+  bool cancel_requested;
+  bool cancel_sent;
+} LDKEditorProjectBuild;
 
 typedef struct LDKEditorContext
 {
@@ -48,17 +179,36 @@ typedef struct LDKEditorContext
 
   LDKUITextInputState text_input_state;
   LDKProject project;
+  XFSPath current_scene_path;
+  LDKEntity selected_entity;
+  LDKEntity editor_camera;
+  LDKRendererViewId scene_view;
+  LDKEditorCameraControllerState camera_controller;
+  LDKEditorGizmoState gizmo;
+  XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
   XFSPath engine_runtree;
+  XFSPath engine_root;
+  XFSPath cmake_path;
   LDKGameUpdateFunc original_game_update_fn;
   LDKResourceTexture ui_atlas;
 
   // Console output string builder
   XStrBuilder *console_sb;
+  bool console_auto_scroll_disabled;
+  bool console_scroll_pending;
+  size_t console_observed_length;
 
-  //
+  LDKUIRect input_window_rect;
+  char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
+  bool show_input_window;
+
+  LDKEditorProjectAction pending_project_action;
+  LDKEditorProjectBuild project_build;
   bool create_project_window_show;
+  bool create_project_window_open_requested;
+  bool create_project_window_close_requested;
 
   // config
   XFSPath editor_font;
@@ -66,18 +216,118 @@ typedef struct LDKEditorContext
   i32 editor_font_size;
 } LDKEditorContext;
 
-void ldk_editor_internal_menubar_show(LDKEditorContext *editor);
-void ldk_editor_internal_toolbar_show(LDKEditorContext *editor);
-void ldk_editor_internal_theme_icons_set(
-    LDKEditorContext *editor, LDKUITheme *theme);
-void ldk_editor_internal_project_create_show(LDKEditorContext *editor);
-void ldk_editor_internal_register_commands(LDKEditorContext *editor);
-void ldk_editor_internal_confirm_quit(LDKEditorContext *editor);
-bool ldk_editor_internal_show_open_project_dialog(
+void ldki_editor_menubar_show(LDKEditorContext *editor);
+void ldki_editor_toolbar_show(LDKEditorContext *editor);
+void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
+void ldki_editor_inspector_show(LDKEditorContext *editor);
+void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
+void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
+void ldki_editor_gizmo_scene_view_set(
+    LDKEditorContext *editor, LDKUIRect scene_view_rect);
+void ldki_editor_gizmo_hover_update(LDKEditorContext *editor);
+void ldki_editor_gizmo_update(LDKEditorContext *editor);
+void ldki_editor_gizmo_submit(LDKEditorContext *editor);
+void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
+bool ldki_editor_view_texture_show(LDKEditorContext *editor,
+    LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,
+    LDKUIRect *out_image_rect);
+u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
+bool ldki_editor_layout_save_as(LDKEditorContext *editor);
+void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);
+void ldki_editor_project_create_show(LDKEditorContext *editor);
+void ldki_editor_project_create_window(LDKEditor *editor, void *data);
+const char *ldki_editor_cmake_native_arch_get(void);
+bool ldki_editor_project_create_window_open(LDKEditorContext *editor);
+bool ldki_editor_project_create_request(LDKEditorContext *editor,
+    const char *project_name, const char *project_root_path,
+    const char *cmake_generator, const char *cmake_arch);
+bool ldki_editor_project_open_request(
+    LDKEditorContext *editor, const char *project_file_path);
+bool ldki_editor_project_build_request(LDKEditorContext *editor);
+bool ldki_editor_project_release_request(LDKEditorContext *editor);
+bool ldki_editor_project_build_cancel_request(LDKEditorContext *editor);
+void ldki_editor_register_commands(LDKEditorContext *editor);
+void ldki_editor_confirm_quit(LDKEditorContext *editor);
+bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);
 
-void ldk_editor_internal_log_error(LDKEditorContext *editor, const char* msg);
-void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char* msg);
-void ldk_editor_internal_log_info(LDKEditorContext  *editor, const char* msg);
+void ldki_editor_console_append(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType type, const char *message);
+void ldki_editor_log_error(LDKEditorContext *editor, const char *msg);
+void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg);
+void ldki_editor_log_info(LDKEditorContext *editor, const char *msg);
+
+u32 ldki_editor_dock_layout_count(void);
+const char *ldki_editor_dock_layout_name_get(u32 index);
+const char *ldki_editor_dock_layout_current_name_get(void);
+
+/**
+ * saves the dock tml representation to the dock file under a specific name
+ */
+bool ldki_editor_dock_layout_save(XStrBuilder *out);
+
+/**
+ * loads the dock tml representation from the dock file under a specific name
+ */
+bool ldki_editor_dock_layout_load(const char *layout_name);
+
+/**
+ * makes the dock layout identified by layout_name, the default layout
+ */
+bool ldki_editor_dock_set_current(const char *layout_name);
+
+bool ldki_editor_dock_layout_create(const char *layout_name);
+bool ldki_editor_dock_layout_delete(const char *layout_name);
+
+bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b);
+void ldki_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
+
+void ldki_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
+bool ldki_editor_selected_entity_get(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
+
+void ldki_editor_scene_state_sync(LDKEditorContext *editor);
+bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
+bool ldki_editor_scene_save(LDKEditorContext *editor);
+bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
+bool ldki_editor_scene_new(LDKEditorContext *editor);
+
+bool ldki_editor_scene_add_primitive(
+    LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
+
+
+// Editor window IDs are stored in the docking layout and must therefore be
+// stable across runs. The value is intentionally just an application-defined
+// integer. It must be non-zero and unique among the windows registered by the
+// editor and its tools. Do not use an address as an ID.
+
+typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
+typedef u32 LDKEditorWindowId;
+
+bool ldki_editor_window_remove(LDKEditorWindowId window_id);
+
+typedef struct LDKEditorWindow
+{
+  LDKEditorWindowId id;
+  const char *title;
+  LDKEditorWindowFunction function;
+  void *data;
+} LDKEditorWindow;
+
+u32 ldki_editor_window_count(void);
+const LDKEditorWindow *ldki_editor_window_at(u32 index);
+bool ldki_editor_window_show(LDKEditorWindowId window_id);
+bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
+
+// Stable IDs reserved by the editor. User tools should define their own
+// persistent non-zero values outside this range.
+
+#define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
+#define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
+#define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
+#define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
+#define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
 
 #endif // LDK_EDITOR_INTERNAL

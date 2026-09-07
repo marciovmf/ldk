@@ -521,6 +521,52 @@ bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSyst
   return false;
 }
 
+u32 ldk_system_registry_count(const LDKSystemRegistry* registry)
+{
+  const LDKSystemRegistryInternal* internal;
+
+  if (!registry || !registry->is_initialized)
+  {
+    return 0;
+  }
+
+  internal = s_system_registry_internal_const(registry);
+  if (!internal || !internal->systems)
+  {
+    return 0;
+  }
+
+  return x_array_LDKRegisteredSystem_count(internal->systems);
+}
+
+bool ldk_system_registry_at(
+    const LDKSystemRegistry* registry, u32 index, LDKSystemDesc* out)
+{
+  const LDKSystemRegistryInternal* internal;
+  const LDKRegisteredSystem* system;
+
+  if (!registry || !out || !registry->is_initialized)
+  {
+    return false;
+  }
+
+  internal = s_system_registry_internal_const(registry);
+  if (!internal || !internal->systems ||
+      index >= x_array_LDKRegisteredSystem_count(internal->systems))
+  {
+    return false;
+  }
+
+  system = x_array_LDKRegisteredSystem_get(internal->systems, index);
+  if (!system)
+  {
+    return false;
+  }
+
+  memcpy(out, &system->desc, sizeof(*out));
+  return true;
+}
+
 bool ldk_system_registry_clear(LDKSystemRegistry* registry)
 {
   LDKSystemRegistryInternal* internal;
@@ -694,4 +740,3 @@ bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id)
 {
   return s_system_registry_find_by_id_const(registry, id) != NULL;
 }
-

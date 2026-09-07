@@ -42,7 +42,9 @@ extern "C" {
     LDK_SHADER_UI_PASS,
     LDK_SHADER_MESH_PASS,
     LDK_SHADER_PRESENT_PASS,
-    LDK_SHADER_MESH_PASS_INSTANCED
+    LDK_SHADER_MESH_PASS_INSTANCED,
+    LDK_SHADER_GRID_PASS,
+    LDK_SHADER_MESH_PASS_UNLIT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -62,10 +64,23 @@ extern "C" {
     bool alive;
   } LDKRendererMeshResource;
 
+  typedef u64 LDKRendererViewId;
+
+#define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
+#define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
+
+  typedef enum LDKRendererMeshSubmitFlag
+  {
+    LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
+    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0
+  } LDKRendererMeshSubmitFlag;
+
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
     Mat4 world;
+    LDKRendererViewId view_id;
+    u32 flags;
   } LDKRendererMeshSubmit;
 
   typedef struct LDKRendererConfig
@@ -73,13 +88,10 @@ extern "C" {
     LDKRHIContext* rhi;
     u32 initial_ui_vertex_capacity;
     u32 initial_ui_index_capacity;
+    u32 game_width;
+    u32 game_height;
+    bool present_game;
   } LDKRendererConfig;
-
-  typedef struct LDKRendererView
-  {
-    Mat4 view;
-    Mat4 projection;
-  } LDKRendererView;
 
   typedef struct LDKRendererFrameDesc
   {
@@ -121,13 +133,28 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRHIShaderModule vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
+    LDKRHIShaderModule overlay_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
+    LDKRHIPipeline overlay_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBindings bindings;
     bool is_initialized;
   } LDKRendererMeshPass;
+
+  typedef struct LDKRendererGridPass
+  {
+    LDKRHIContext* rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer params_buffer;
+    LDKRHIBindings bindings;
+    bool is_initialized;
+  } LDKRendererGridPass;
 
   typedef struct LDKRendererFontPageCacheEntry
   {
@@ -156,6 +183,19 @@ extern "C" {
     LDKRHIFormat color_format;
     LDKRHIFormat depth_format;
   } LDKRendererTarget;
+
+  typedef struct LDKRendererView
+  {
+    LDKRendererViewId id;
+    Mat4 view;
+    Mat4 projection;
+    LDKRendererTarget target;
+    Vec3 grid_center;
+    float grid_extent;
+    float grid_spacing;
+    bool grid_submitted;
+    bool submitted;
+  } LDKRendererView;
 
   typedef enum LDKRendererTextureFlag
   {
@@ -204,8 +244,17 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
+    LDKRendererGridPass grid_pass;
     LDKUIRenderData const* submitted_ui;
-    LDKRendererTarget scene_target;
+    u32 game_width;
+    u32 game_height;
+    bool present_game;
+
+    // Render views
+    LDKRendererView* views;
+    u32 view_count;
+    u32 view_capacity;
+    LDKRendererViewId game_view;
 
     // Mesh cache
     LDKRendererMeshResource* meshes;
@@ -226,11 +275,6 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
-
-    // global state
-    Mat4 camera_view;
-    Mat4 camera_projection;
-    bool has_camera;
 
     bool is_initialized;
   } LDKRenderer;
@@ -253,6 +297,23 @@ extern "C" {
       LDKRendererConfig const* config);
 
   /**
+   * @brief Change the game render-target resolution.
+   *
+   * The current game render target is released when its dimensions change.
+   * A target with the new dimensions is created when the next scene is
+   * rendered.
+   *
+   * @param renderer Renderer instance.
+   * @param width New game render-target width in pixels.
+   * @param height New game render-target height in pixels.
+   * @return true when the resolution is valid and was accepted.
+   */
+  LDK_API bool ldk_renderer_game_resolution_set(
+      LDKRenderer* renderer,
+      u32 width,
+      u32 height);
+
+  /**
    * @brief Terminate the renderer and release renderer-owned resources.
    *
    * This destroys all renderer-owned GPU resources, including mesh buffers,
@@ -273,8 +334,8 @@ extern "C" {
    * @brief Render one frame using the currently submitted renderer data.
    *
    * The renderer begins an RHI frame, renders the submitted scene meshes when a
-   * view is available, presents the scene target, renders submitted UI data, and
-   * ends the RHI frame.
+   * view is available, optionally presents the scene target, renders submitted
+   * UI data, and ends the RHI frame.
    *
    * Submitted per-frame data is consumed by this call. After rendering, the
    * renderer clears transient submissions such as submitted meshes, submitted UI,
@@ -286,6 +347,33 @@ extern "C" {
   LDK_API void ldk_renderer_render_frame(
       LDKRenderer* renderer,
       LDKRendererFrameDesc const* desc);
+
+  /**
+   * @brief Return the game render target color texture for UI rendering.
+   *
+   * The returned texture is owned by the renderer and remains valid until the
+   * game render target is recreated or the renderer is terminated.
+   *
+   * @param renderer Renderer instance.
+   * @return Game color texture handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKUITextureHandle ldk_renderer_game_texture_get(
+      LDKRenderer const* renderer);
+
+  /**
+   * @brief Return the color texture rendered for a submitted view.
+   *
+   * The view identifier is supplied by the caller when the view is submitted.
+   * The returned texture is owned by the renderer and remains valid until the
+   * view is removed, the game resolution changes, or the renderer terminates.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of the submitted view.
+   * @return View color texture handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
+      LDKRenderer const* renderer,
+      LDKRendererViewId view_id);
 
   // ---------------------------------------------------------------------------
   // Mesh Resource
@@ -538,7 +626,7 @@ extern "C" {
   // Primitive Submission
   // ---------------------------------------------------------------------------
   /**
-   * @brief Submit the camera view used for scene rendering this frame.
+   * @brief Submit a camera view used for scene rendering this frame.
    *
    * The renderer stores the view and projection matrices as transient frame
    * state. Submitted meshes will be rendered using this view when
@@ -548,14 +636,31 @@ extern "C" {
    * the renderer clears the active view state.
    *
    * @param renderer Renderer instance.
+   * @param view_id Stable non-zero identifier supplied by the caller.
    * @param view View matrix.
    * @param projection Projection matrix.
    * @return true if the view was submitted, false otherwise.
    */
   LDK_API bool ldk_renderer_submit_view(
       LDKRenderer* renderer,
+      LDKRendererViewId view_id,
       Mat4 view,
       Mat4 projection);
+
+  /**
+   * @brief Select the submitted view used as the game output.
+   *
+   * The selected view is returned by ldk_renderer_game_texture_get() and is
+   * presented directly when the renderer was configured with present_game.
+   * The selection is transient and must be set again on every frame.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of a view submitted for the current frame.
+   * @return true if the submitted view exists, false otherwise.
+   */
+  LDK_API bool ldk_renderer_game_view_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id);
 
   /**
    * @brief Submit UI render data for the current frame.
@@ -578,7 +683,7 @@ extern "C" {
    *
    * The mesh handle is validated against the renderer mesh cache, then queued
    * with the supplied world transform. The queued mesh is rendered during
-   * ldk_renderer_render_frame() using the currently submitted view.
+   * ldk_renderer_render_frame() for every submitted view.
    *
    * Submitted mesh instances are transient frame data. After rendering, the
    * renderer clears the submitted mesh queue.
@@ -590,6 +695,68 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_submit_mesh(
       LDKRenderer* renderer,
+      LDKResourceMesh mesh,
+      Mat4 world);
+
+  /**
+   * @brief Submit a mesh instance to a single render view for this frame.
+   *
+   * Unlike ldk_renderer_submit_mesh(), this mesh is only drawn while rendering
+   * the view identified by view_id. This is intended for view-local scene
+   * content that must not appear in other views.
+   *
+   * The view does not need to have been submitted before this call. If no view
+   * with the supplied ID is submitted during the frame, the mesh is not drawn.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw this mesh.
+   * @param mesh Mesh resource handle to render.
+   * @param world World transform for this mesh instance.
+   * @return true if the mesh was queued, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      LDKResourceMesh mesh,
+      Mat4 world);
+
+  /**
+   * @brief Submit a procedural ground grid to a single render view.
+   *
+   * The grid is rendered after regular scene meshes and before overlay meshes,
+   * with depth testing enabled and depth writes disabled. Its visible area is
+   * centered on grid_center and fades before reaching grid_extent.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw the grid.
+   * @param grid_center Center of the visible grid area on the ground plane.
+   * @param grid_extent Radius of the visible grid area in world units.
+   * @param grid_spacing Distance between adjacent grid lines in world units.
+   * @return true if the grid was submitted, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_grid_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      Vec3 grid_center,
+      float grid_extent,
+      float grid_spacing);
+
+  /**
+   * @brief Submit a mesh as a view-local overlay for this frame.
+   *
+   * Overlay meshes are rendered after regular meshes for the selected view,
+   * with depth testing and depth writes disabled. This makes them independent
+   * of the scene depth buffer and suitable for editor gizmos.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id ID of the only view that should draw this mesh.
+   * @param mesh Mesh resource handle to render.
+   * @param world World transform for this mesh instance.
+   * @return true if the mesh was queued, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_overlay_mesh_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
       LDKResourceMesh mesh,
       Mat4 world);
 
