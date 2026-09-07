@@ -1893,8 +1893,12 @@ bool ldki_editor_project_create_window_open(LDKEditorContext *editor)
     return false;
   }
 
-  if (editor->create_project_window_show ||
-      editor->create_project_window_open_requested)
+  if (editor->create_project_window_show)
+  {
+    return ldki_editor_window_show(LDK_EDITOR_WINDOW_CREATE_PROJECT);
+  }
+
+  if (editor->create_project_window_open_requested)
   {
     return true;
   }

@@ -107,6 +107,7 @@ typedef struct LDKEditorDockWindow
   LDKUIRect floating_rect;
   LDKUIId ui_window_id;
   i32 leaf;
+  bool open;
 } LDKEditorDockWindow;
 
 typedef struct LDKEditorDockLeaf
@@ -289,7 +290,8 @@ static bool s_editor_dock_window_add(LDKEditorDockState *dock,
   LDKEditorDockWindow *dock_window = &dock->windows[dock->window_count++];
   *dock_window = (LDKEditorDockWindow){.window = *window,
       .floating_rect = floating_rect,
-      .leaf = LDK_EDITOR_DOCK_INVALID_NODE};
+      .leaf = LDK_EDITOR_DOCK_INVALID_NODE,
+      .open = true};
 
   return true;
 }
@@ -310,6 +312,35 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window)
 
   return s_editor_dock_window_add(&s_editor_dock, window,
       s_editor_dock_default_floating_rect(s_editor_dock.window_count));
+}
+
+u32 ldki_editor_window_count(void)
+{
+  return s_editor_dock.window_count;
+}
+
+const LDKEditorWindow *ldki_editor_window_at(u32 index)
+{
+  if (index >= s_editor_dock.window_count)
+  {
+    return NULL;
+  }
+
+  return &s_editor_dock.windows[index].window;
+}
+
+bool ldki_editor_window_show(LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+      s_editor_dock_window_get(&s_editor_dock, window_id);
+
+  if (window == NULL)
+  {
+    return false;
+  }
+
+  window->open = true;
+  return true;
 }
 
 //----------------------------------------------------------
@@ -1329,8 +1360,16 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
   LDKUIContext *ui = &editor->ui;
   u32 flags = LDK_UI_WINDOW_TOOL;
 
-  window->floating_rect = ldk_ui_begin_window(
-      ui, window->window.title, window->floating_rect, flags);
+  if (!ldk_ui_begin_window_open(ui, window->window.title,
+          &window->floating_rect, &window->open, flags))
+  {
+    if (!window->open)
+    {
+      s_editor_dock_window_detach(dock, window->window.id);
+    }
+    return;
+  }
+
   window->ui_window_id = ui->last_id;
   s_editor_dock_window_content_draw(dock, editor, window->window.id);
   ldk_ui_end_window(ui);
@@ -1365,7 +1404,7 @@ static void s_editor_dock_windows_draw(
   for (u32 i = 0; i < dock->window_count; ++i)
   {
     LDKEditorDockWindow *window = &dock->windows[i];
-    if (window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
+    if (window->open && window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
     {
       s_editor_dock_floating_window_draw(dock, editor, window);
     }

@@ -316,6 +316,9 @@ typedef struct LDKEditorWindow
   void *data;
 } LDKEditorWindow;
 
+u32 ldki_editor_window_count(void);
+const LDKEditorWindow *ldki_editor_window_at(u32 index);
+bool ldki_editor_window_show(LDKEditorWindowId window_id);
 bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 
 // Stable IDs reserved by the editor. User tools should define their own

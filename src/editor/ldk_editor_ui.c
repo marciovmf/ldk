@@ -31,6 +31,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   const LDKUIId MENU_ID_PROJECT = 11;
   const LDKUIId MENU_ID_THEME = 12;
   const LDKUIId MENU_ID_SCENE = 13;
+  const LDKUIId MENU_ID_WINDOW = 14;
 
   s_toolbar_rect.w = ui->viewport.w;
   s_toolbar_rect.h =
@@ -61,6 +62,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_open_popup(ui, MENU_ID_SCENE);
   }
   LDKUIRect scene_button_rect = ldk_ui_last_rect(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button_flat(ui, "Window"))
+  {
+    ldk_ui_open_popup(ui, MENU_ID_WINDOW);
+  }
+  LDKUIRect window_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button_flat(ui, "Theme"))
@@ -208,6 +216,28 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     {
       ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_QUAD, "Quad");
       ldk_ui_close_current_popup(ui);
+    }
+
+    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+  }
+  ldk_ui_end_popup(ui);
+
+  popup_pos.x = window_button_rect.x;
+  popup_pos.y = window_button_rect.y + window_button_rect.h;
+
+  ldk_ui_begin_popup(ui, MENU_ID_WINDOW);
+  {
+    LDKUIMark mark = ldk_ui_mark(ui);
+    u32 window_count = ldki_editor_window_count();
+
+    for (u32 i = 0; i < window_count; ++i)
+    {
+      const LDKEditorWindow *window = ldki_editor_window_at(i);
+      if (window != NULL && ldk_ui_button_flat(ui, window->title))
+      {
+        ldki_editor_window_show(window->id);
+        ldk_ui_close_current_popup(ui);
+      }
     }
 
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
