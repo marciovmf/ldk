@@ -9,6 +9,9 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
 static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
+static void s_renderer_ui_pass_remove_texture_bindings(
+    LDKRendererUIPass* renderer,
+    LDKRHITexture texture);
 static LDKRHISampler s_renderer_texture_sampler_from_rhi_texture(
     LDKRenderer* renderer,
     LDKRHITexture texture);
@@ -40,6 +43,8 @@ static void s_renderer_target_destroy(LDKRenderer* renderer, LDKRendererTarget* 
 
   if (target->color_texture != LDK_RHI_INVALID_RESOURCE)
   {
+    s_renderer_ui_pass_remove_texture_bindings(
+        &renderer->ui_pass, target->color_texture);
     ldk_rhi_texture_destroy(renderer->rhi, target->color_texture);
   }
 
@@ -571,12 +576,13 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pas
     return false;
   }
 
-  if (frame_desc->framebuffer_width <= 0 || frame_desc->framebuffer_height <= 0)
+  if (renderer->game_width == 0 || renderer->game_height == 0)
   {
     return false;
   }
 
-  if (!s_renderer_target_ensure(renderer, &renderer->scene_target, frame_desc->framebuffer_width, frame_desc->framebuffer_height))
+  if (!s_renderer_target_ensure(renderer, &renderer->scene_target,
+      (i32)renderer->game_width, (i32)renderer->game_height))
   {
     return false;
   }
@@ -596,8 +602,8 @@ static bool s_renderer_mesh_pass(LDKRenderer* renderer, LDKRendererMeshPass* pas
   pass_desc.has_viewport = true;
   pass_desc.viewport.x = 0.0f;
   pass_desc.viewport.y = 0.0f;
-  pass_desc.viewport.width = (float)frame_desc->framebuffer_width;
-  pass_desc.viewport.height = (float)frame_desc->framebuffer_height;
+  pass_desc.viewport.width = (float)renderer->game_width;
+  pass_desc.viewport.height = (float)renderer->game_height;
   pass_desc.viewport.min_depth = 0.0f;
   pass_desc.viewport.max_depth = 1.0f;
 
@@ -960,6 +966,42 @@ static LDKRHIBindings s_renderer_ui_pass_find_cached_bindings(
   return LDK_RHI_INVALID_RESOURCE;
 }
 
+static void s_renderer_ui_pass_remove_texture_bindings(
+    LDKRendererUIPass* renderer,
+    LDKRHITexture texture)
+{
+  if (renderer == NULL || renderer->rhi == NULL ||
+      texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return;
+  }
+
+  u32 index = 0;
+  while (index < renderer->bindings_cache_count)
+  {
+    LDKRendererBindingsCacheEntry* entry =
+        &renderer->bindings_cache[index];
+    if (entry->texture != texture)
+    {
+      index += 1;
+      continue;
+    }
+
+    ldk_rhi_bindings_destroy(renderer->rhi, entry->bindings);
+    renderer->bindings_cache_count -= 1;
+
+    if (index != renderer->bindings_cache_count)
+    {
+      *entry = renderer->bindings_cache[renderer->bindings_cache_count];
+    }
+
+    memset(
+        &renderer->bindings_cache[renderer->bindings_cache_count],
+        0,
+        sizeof(*entry));
+  }
+}
+
 static bool s_renderer_ui_pass_grow_bindings_cache(LDKRendererUIPass* renderer)
 {
   u32 new_capacity = renderer->bindings_cache_capacity == 0 ? 16 : renderer->bindings_cache_capacity * 2;
@@ -1144,12 +1186,29 @@ static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRender
     return;
   }
 
+  float game_aspect = (float)renderer->game_width / (float)renderer->game_height;
+  float framebuffer_aspect = (float)width / (float)height;
+  float present_width = (float)width;
+  float present_height = (float)height;
+
+  if (framebuffer_aspect > game_aspect)
+  {
+    present_width = present_height * game_aspect;
+  }
+  else
+  {
+    present_height = present_width / game_aspect;
+  }
+
+  float present_x = ((float)width - present_width) * 0.5f;
+  float present_y = ((float)height - present_height) * 0.5f;
+
   LDKUIVertex vertices[4] =
   {
-    {0.0f,         0.0f,          0.0f, 0.0f, 0xffffffffu},
-    {(float)width, 0.0f,          1.0f, 0.0f, 0xffffffffu},
-    {(float)width, (float)height, 1.0f, 1.0f, 0xffffffffu},
-    {0.0f,         (float)height, 0.0f, 1.0f, 0xffffffffu},
+    {present_x,                 present_y,                  0.0f, 0.0f, 0xffffffffu},
+    {present_x + present_width, present_y,                  1.0f, 0.0f, 0xffffffffu},
+    {present_x + present_width, present_y + present_height, 1.0f, 1.0f, 0xffffffffu},
+    {present_x,                 present_y + present_height, 0.0f, 1.0f, 0xffffffffu},
   };
 
   u32 indices[6] =
@@ -1176,6 +1235,7 @@ static void s_renderer_present_scene_pass(LDKRenderer* renderer, const LDKRender
   render_data.command_count = 1;
 
   LDKRendererFrameDesc present_desc = *frame_desc;
+  present_desc.clear_color = 0x000000FFu;
   present_desc.clear_color_enabled = true;
 
   s_renderer_ui_pass(renderer, &renderer->ui_pass, &render_data, &present_desc);
@@ -1704,13 +1764,17 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFo
 
 bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config)
 {
-  if (renderer == NULL || config == NULL || config->rhi == NULL)
+  if (renderer == NULL || config == NULL || config->rhi == NULL ||
+      config->game_width == 0 || config->game_height == 0)
   {
     return false;
   }
 
   memset(renderer, 0, sizeof(*renderer));
   renderer->rhi = config->rhi;
+  renderer->game_width = config->game_width;
+  renderer->game_height = config->game_height;
+  renderer->present_game = config->present_game;
 
   if (!s_renderer_mesh_pass_initialize(&renderer->mesh_pass, config))
   {
@@ -1725,6 +1789,29 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   }
 
   renderer->is_initialized = true;
+  return true;
+}
+
+bool ldk_renderer_game_resolution_set(
+    LDKRenderer* renderer,
+    u32 width,
+    u32 height)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      width == 0 || height == 0)
+  {
+    return false;
+  }
+
+  if (renderer->game_width == width &&
+      renderer->game_height == height)
+  {
+    return true;
+  }
+
+  s_renderer_target_destroy(renderer, &renderer->scene_target);
+  renderer->game_width = width;
+  renderer->game_height = height;
   return true;
 }
 
@@ -1754,16 +1841,18 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   ldk_rhi_frame_begin(renderer->rhi);
 
   bool rendered_scene = s_renderer_mesh_pass(renderer, &renderer->mesh_pass, desc);
-  if (rendered_scene)
+  bool presented_scene = false;
+  if (rendered_scene && renderer->present_game)
   {
     s_renderer_present_scene_pass(renderer, desc);
+    presented_scene = true;
   }
 
 
   if (renderer->submitted_ui != NULL)
   {
     LDKRendererFrameDesc ui_desc = *desc;
-    if (rendered_scene)
+    if (presented_scene)
     {
       ui_desc.clear_color_enabled = false;
     }
@@ -1777,6 +1866,18 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   renderer->submitted_mesh_count = 0;
   renderer->submitted_ui = NULL;
   renderer->has_camera = false;
+}
+
+LDKUITextureHandle ldk_renderer_game_texture_get(
+    LDKRenderer const* renderer)
+{
+  if (renderer == NULL ||
+      renderer->scene_target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  return (LDKUITextureHandle)renderer->scene_target.color_texture;
 }
 
 bool ldk_renderer_submit_view(LDKRenderer* renderer, Mat4 view, Mat4 projection)

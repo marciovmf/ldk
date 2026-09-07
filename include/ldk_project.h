@@ -49,6 +49,8 @@ extern "C" {
     XFSPath run_root_path;
     XFSPath runtime_ini_path;
     XFSPath source_root_path;
+    i32 project_resolution_width;
+    i32 project_resolution_height;
   } LDKProject;
 
   LDK_API bool ldk_project_create(const LDKProjectCreateDesc* desc);

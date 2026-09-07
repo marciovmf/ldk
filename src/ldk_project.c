@@ -229,6 +229,11 @@ static void s_project_append_project_file_text(
   x_strbuilder_append(builder, "asset_root = \"assets\"\n");
   x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
   x_strbuilder_append(builder, "\n");
+
+  x_strbuilder_append(builder, "[graphics]\n");
+  x_strbuilder_append(builder, "resolution_width = 1280\n");
+  x_strbuilder_append(builder, "resolution_height = 720\n");
+  
   x_strbuilder_append(builder, "[display]\n");
   x_strbuilder_append_format(builder, "title = \"%s\"\n", project->name.buf);
   x_strbuilder_append(builder, "width = 1280\n");
@@ -428,6 +433,9 @@ bool ldk_project_load(LDKProject* project, const char* project_file_path)
   cmake_root = x_ini_get(&ini, ".project", "project_cmake_root", "workspace");
   run_root = x_ini_get(&ini, ".project", "project_run_root", "runtree");
   cmake_generator = x_ini_get(&ini, ".project", "project_cmake_generator", LDK_PROJECT_DEFAULT_CMAKE_GENERATOR);
+
+  project->project_resolution_width = x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
+  project->project_resolution_height = x_ini_get_i32(&ini, "graphics", "resolution_height", 760);
 
   x_smallstr_from_cstr(&project->name, project_name);
   x_smallstr_from_cstr(&project->cmake_generator, cmake_generator);
