@@ -37,7 +37,8 @@ typedef enum LDKEntityInternalFlags
   LDK_ENTITY_INTERNAL_HAS_TRANSFORM  = 1 << 1,
   LDK_ENTITY_INTERNAL_HAS_CAMERA     = 1 << 2,
   LDK_ENTITY_INTERNAL_HAS_RENDERABLE = 1 << 3,
-  LDK_ENTITY_INTERNAL_HAS_LIGHT      = 1 << 4
+  LDK_ENTITY_INTERNAL_HAS_LIGHT      = 1 << 4,
+  LDK_ENTITY_INTERNAL_EDITOR         = 1 << 5
 } LDKEntityInternalFlags;
 
 /**
@@ -143,11 +144,11 @@ LDK_API LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry)
 LDK_API bool ldk_entity_iterator_next(LDKEntityIterator* iterator, LDKEntity* out_entity);
 LDK_API void ldk_entity_iterator_end(LDKEntityIterator* iterator);
 
-#ifdef LDK_ENGINE
+#if defined(LDK_ENGINE) || defined(LDK_EDITOR)
 LDK_API void ldk_entity_internal_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 LDK_API void ldk_entity_internal_flags_add(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 LDK_API void ldk_entity_internal_flags_remove(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
-#endif// LDK_ENGINE
+#endif
 
 #ifdef __cplusplus
 }

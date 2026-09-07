@@ -1,12 +1,13 @@
+#include "../ldk_stdx.h"
+#include "ldk_editor_internal.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <time.h>
 
 #ifndef LDK_EDITOR_DOCK_WORKSPACE_TOP
-#define LDK_EDITOR_DOCK_WORKSPACE_TOP                                      \
+#define LDK_EDITOR_DOCK_WORKSPACE_TOP                                          \
   (LDK_UI_DEFAULT_CONTROL_HEIGHT * 2.0f + LDK_UI_DEFAULT_PADDING * 4.0f)
 #endif
 
@@ -50,10 +51,6 @@
 #define LDK_EDITOR_DOCK_TARGET_GAP 6.0f
 #endif
 
-#ifndef LDK_EDITOR_DOCK_PROJECT_ENTRY_LIMIT
-#define LDK_EDITOR_DOCK_PROJECT_ENTRY_LIMIT 128
-#endif
-
 #define LDK_EDITOR_DOCK_INVALID_NODE (-1)
 #define LDK_EDITOR_DOCK_INVALID_LAYOUT UINT32_MAX
 #define LDK_EDITOR_WINDOW_ID_INVALID ((LDKEditorWindowId)0)
@@ -62,11 +59,11 @@
 #define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
 #define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
 
-#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
-#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
 
 #define LDK_EDITOR_DOCK_SIZE_MAX 0.95f
 #define LDK_EDITOR_DOCK_SIZE_MIN 0.05f
+
+#define LDK_EDITOR_DOCK_FILE "%APPDATA%//ldk//layout.tml"
 
 enum
 {
@@ -74,34 +71,6 @@ enum
   LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
   LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE = 20
 };
-
-/*
- * Editor window IDs are stored in the docking layout and must therefore be
- * stable across runs. The value is intentionally just an application-defined
- * integer. It must be non-zero and unique among the windows registered by the
- * editor and its tools. Do not use an address as an ID.
- */
-typedef u32 LDKEditorWindowId;
-
-typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
-
-typedef struct LDKEditorWindow
-{
-  LDKEditorWindowId id;
-  const char *title;
-  LDKEditorWindowFunction function;
-  void *data;
-} LDKEditorWindow;
-
-/*
- * Stable IDs reserved by the editor. User tools should define their own
- * persistent non-zero values outside this range.
- */
-#define LDK_EDITOR_WINDOW_PROJECT_EXPLORER ((LDKEditorWindowId)0x4C444B01u)
-#define LDK_EDITOR_WINDOW_SCENE            ((LDKEditorWindowId)0x4C444B02u)
-#define LDK_EDITOR_WINDOW_SCENE2           ((LDKEditorWindowId)0x4C444B99u)
-#define LDK_EDITOR_WINDOW_INSPECTOR        ((LDKEditorWindowId)0x4C444B03u)
-#define LDK_EDITOR_WINDOW_CONSOLE          ((LDKEditorWindowId)0x4C444B04u)
 
 typedef enum LDKEditorDockNodeType
 {
@@ -138,6 +107,7 @@ typedef struct LDKEditorDockWindow
   LDKUIRect floating_rect;
   LDKUIId ui_window_id;
   i32 leaf;
+  bool open;
 } LDKEditorDockWindow;
 
 typedef struct LDKEditorDockLeaf
@@ -145,7 +115,9 @@ typedef struct LDKEditorDockLeaf
   LDKEditorWindowId windows[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY];
   u32 window_count;
   LDKEditorWindowId active_window;
+  LDKEditorWindowId pressed_window;
   LDKUIRect tab_bar_rect;
+  LDKUIId ui_window_id;
   bool tab_bar_rect_valid;
 } LDKEditorDockLeaf;
 
@@ -189,43 +161,6 @@ typedef struct LDKEditorDockResize
   bool active;
 } LDKEditorDockResize;
 
-typedef struct LDKEditorProjectExplorerNode
-{
-  XFSPath path;
-  XSmallstr name;
-  u32 depth;
-  bool root;
-} LDKEditorProjectExplorerNode;
-
-typedef struct LDKEditorProjectExplorerEntry
-{
-  XFSPath path;
-  XSmallstr name;
-  size_t size;
-  time_t last_modified;
-} LDKEditorProjectExplorerEntry;
-
-typedef struct LDKEditorProjectExplorerWindowData
-{
-  LDKUIPoint tree_scroll;
-  LDKUIPoint file_scroll;
-  XFSPath root;
-  XFSPath selected_directory;
-  XFSPath selected_file;
-  XArray *expanded_paths;
-  XArray *stack;
-  XArray *dirs;
-  XArray *files;
-  bool root_expanded;
-  float icon_size;
-} LDKEditorProjectExplorerWindowData;
-
-typedef struct LDKEditorConsoleWindowData
-{
-  LDKUIPoint scroll;
-  XSmallstr input;
-} LDKEditorConsoleWindowData;
-
 typedef struct LDKEditorInspectorWindowData
 {
   bool enabled;
@@ -240,8 +175,6 @@ typedef struct LDKEditorDockState
   LDKEditorDockDrag drag;
   LDKEditorDockResize resize;
 
-  LDKEditorProjectExplorerWindowData project_explorer;
-  LDKEditorConsoleWindowData console;
   LDKEditorInspectorWindowData inspector;
 
   LDKUIId target_overlay_window_id;
@@ -297,15 +230,14 @@ typedef struct LDKEditorDockLayouts
 
 static LDKEditorDockState s_editor_dock;
 static LDKEditorDockLayouts s_editor_dock_layouts = {
-  .current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT
-};
+    .current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 
-/* ------------------------------------------------------------------------- */
-/* Window registry                                                           */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Window registry
+//----------------------------------------------------------
 
 static LDKEditorDockWindow *s_editor_dock_window_get(
-  LDKEditorDockState *dock, LDKEditorWindowId id)
+    LDKEditorDockState *dock, LDKEditorWindowId id)
 {
   if (dock == NULL || id == LDK_EDITOR_WINDOW_ID_INVALID)
   {
@@ -324,7 +256,7 @@ static LDKEditorDockWindow *s_editor_dock_window_get(
 }
 
 static const LDKEditorDockWindow *s_editor_dock_window_get_const(
-  const LDKEditorDockState *dock, LDKEditorWindowId id)
+    const LDKEditorDockState *dock, LDKEditorWindowId id)
 {
   return s_editor_dock_window_get((LDKEditorDockState *)dock, id);
 }
@@ -332,22 +264,15 @@ static const LDKEditorDockWindow *s_editor_dock_window_get_const(
 static LDKUIRect s_editor_dock_default_floating_rect(u32 index)
 {
   float offset = (float)(index % 8u) * 24.0f;
-  return (LDKUIRect){
-    80.0f + offset,
-    100.0f + offset,
-    480.0f,
-    320.0f
-  };
+  return (LDKUIRect){80.0f + offset, 100.0f + offset, 480.0f, 320.0f};
 }
 
-static bool s_editor_dock_window_add(
-  LDKEditorDockState *dock, const LDKEditorWindow *window,
-  LDKUIRect floating_rect)
+static bool s_editor_dock_window_add(LDKEditorDockState *dock,
+    const LDKEditorWindow *window, LDKUIRect floating_rect)
 {
   if (dock == NULL || window == NULL ||
-      window->id == LDK_EDITOR_WINDOW_ID_INVALID ||
-      window->title == NULL || window->title[0] == 0 ||
-      window->function == NULL)
+      window->id == LDK_EDITOR_WINDOW_ID_INVALID || window->title == NULL ||
+      window->title[0] == 0 || window->function == NULL)
   {
     return false;
   }
@@ -363,11 +288,10 @@ static bool s_editor_dock_window_add(
   }
 
   LDKEditorDockWindow *dock_window = &dock->windows[dock->window_count++];
-  *dock_window = (LDKEditorDockWindow){
-    .window = *window,
-    .floating_rect = floating_rect,
-    .leaf = LDK_EDITOR_DOCK_INVALID_NODE
-  };
+  *dock_window = (LDKEditorDockWindow){.window = *window,
+      .floating_rect = floating_rect,
+      .leaf = LDK_EDITOR_DOCK_INVALID_NODE,
+      .open = true};
 
   return true;
 }
@@ -382,31 +306,56 @@ static bool s_editor_dock_window_add(
  * The supplied ID must be stable across runs so that a future serialized dock
  * layout can resolve the same window at startup.
  */
-bool ldk_editor_window_add(
-  LDKEditor *editor, const LDKEditorWindow *window)
+bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window)
 {
   (void)editor;
 
-  return s_editor_dock_window_add(
-    &s_editor_dock,
-    window,
-    s_editor_dock_default_floating_rect(s_editor_dock.window_count));
+  return s_editor_dock_window_add(&s_editor_dock, window,
+      s_editor_dock_default_floating_rect(s_editor_dock.window_count));
 }
 
-/* ------------------------------------------------------------------------- */
-/* General helpers                                                           */
-/* ------------------------------------------------------------------------- */
+u32 ldki_editor_window_count(void)
+{
+  return s_editor_dock.window_count;
+}
 
-static bool s_editor_dock_rect_contains(
-  const LDKUIRect *rect, float x, float y)
+const LDKEditorWindow *ldki_editor_window_at(u32 index)
+{
+  if (index >= s_editor_dock.window_count)
+  {
+    return NULL;
+  }
+
+  return &s_editor_dock.windows[index].window;
+}
+
+bool ldki_editor_window_show(LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+      s_editor_dock_window_get(&s_editor_dock, window_id);
+
+  if (window == NULL)
+  {
+    return false;
+  }
+
+  window->open = true;
+  return true;
+}
+
+//----------------------------------------------------------
+// General helpers
+//----------------------------------------------------------
+
+static bool s_editor_dock_rect_contains(const LDKUIRect *rect, float x, float y)
 {
   if (rect == NULL)
   {
     return false;
   }
 
-  return x >= rect->x && y >= rect->y &&
-         x < rect->x + rect->w && y < rect->y + rect->h;
+  return x >= rect->x && y >= rect->y && x < rect->x + rect->w &&
+         y < rect->y + rect->h;
 }
 
 static float s_editor_dock_clampf(float value, float min_value, float max_value)
@@ -439,28 +388,28 @@ static bool s_editor_dock_mouse_down(const LDKUIContext *ui)
 {
   return ui != NULL && ui->mouse != NULL &&
          ldk_os_mouse_button_down(
-           (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
 }
 
 static bool s_editor_dock_mouse_pressed(const LDKUIContext *ui)
 {
   return ui != NULL && ui->mouse != NULL &&
          ldk_os_mouse_button_is_pressed(
-           (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
 }
 
 static bool s_editor_dock_mouse_up(const LDKUIContext *ui)
 {
   return ui != NULL && ui->mouse != NULL &&
          ldk_os_mouse_button_up(
-           (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
 }
 
 static bool s_editor_dock_escape_down(const LDKUIContext *ui)
 {
   return ui != NULL && ui->keyboard != NULL &&
          ldk_os_keyboard_key_down(
-           (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_ESCAPE);
+             (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_ESCAPE);
 }
 
 static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
@@ -476,44 +425,30 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
     height = 0.0f;
   }
 
-  return (LDKUIRect){
-    ui->viewport.x,
-    ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP,
-    ui->viewport.w,
-    height
-  };
+  return (LDKUIRect){ui->viewport.x,
+      ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP, ui->viewport.w, height};
 }
 
 static void s_editor_dock_resize_reset(LDKEditorDockResize *resize)
 {
-  if (resize == NULL)
-  {
-    return;
-  }
-
-  *resize = (LDKEditorDockResize){
-    .split = LDK_EDITOR_DOCK_INVALID_NODE
-  };
+  if (resize != NULL)
+    *resize = (LDKEditorDockResize){.split = LDK_EDITOR_DOCK_INVALID_NODE};
 }
 
 static void s_editor_dock_drag_reset(LDKEditorDockDrag *drag)
 {
-  if (drag == NULL)
+  if (drag != NULL)
   {
-    return;
+    *drag = (LDKEditorDockDrag){.window = LDK_EDITOR_WINDOW_ID_INVALID,
+        .source_leaf = LDK_EDITOR_DOCK_INVALID_NODE,
+        .target = LDK_EDITOR_DOCK_TARGET_NONE,
+        .target_leaf = LDK_EDITOR_DOCK_INVALID_NODE};
   }
-
-  *drag = (LDKEditorDockDrag){
-    .window = LDK_EDITOR_WINDOW_ID_INVALID,
-    .source_leaf = LDK_EDITOR_DOCK_INVALID_NODE,
-    .target = LDK_EDITOR_DOCK_TARGET_NONE,
-    .target_leaf = LDK_EDITOR_DOCK_INVALID_NODE
-  };
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dock tree                                                                 */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dock tree
+//----------------------------------------------------------
 
 static i32 s_editor_dock_node_allocate(LDKEditorDockState *dock)
 {
@@ -521,11 +456,9 @@ static i32 s_editor_dock_node_allocate(LDKEditorDockState *dock)
   {
     if (!dock->nodes[i].used)
     {
-      dock->nodes[i] = (LDKEditorDockNode){
-        .type = LDK_EDITOR_DOCK_NODE_NONE,
-        .parent = LDK_EDITOR_DOCK_INVALID_NODE,
-        .used = true
-      };
+      dock->nodes[i] = (LDKEditorDockNode){.type = LDK_EDITOR_DOCK_NODE_NONE,
+          .parent = LDK_EDITOR_DOCK_INVALID_NODE,
+          .used = true};
       return i;
     }
   }
@@ -533,8 +466,7 @@ static i32 s_editor_dock_node_allocate(LDKEditorDockState *dock)
   return LDK_EDITOR_DOCK_INVALID_NODE;
 }
 
-static void s_editor_dock_node_release(
-  LDKEditorDockState *dock, i32 node_index)
+static void s_editor_dock_node_release(LDKEditorDockState *dock, i32 node_index)
 {
   if (dock == NULL || node_index < 0 ||
       node_index >= LDK_EDITOR_DOCK_NODE_CAPACITY)
@@ -542,13 +474,12 @@ static void s_editor_dock_node_release(
     return;
   }
 
-  dock->nodes[node_index] = (LDKEditorDockNode){
-    .parent = LDK_EDITOR_DOCK_INVALID_NODE
-  };
+  dock->nodes[node_index] =
+      (LDKEditorDockNode){.parent = LDK_EDITOR_DOCK_INVALID_NODE};
 }
 
 static i32 s_editor_dock_leaf_create(
-  LDKEditorDockState *dock, LDKEditorWindowId window)
+    LDKEditorDockState *dock, LDKEditorWindowId window)
 {
   if (s_editor_dock_window_get(dock, window) == NULL)
   {
@@ -569,9 +500,9 @@ static i32 s_editor_dock_leaf_create(
   return node_index;
 }
 
-static i32 s_editor_dock_leaf_create_tabs(
-  LDKEditorDockState *dock, const LDKEditorWindowId *windows,
-  u32 window_count, LDKEditorWindowId active_window)
+static i32 s_editor_dock_leaf_create_tabs(LDKEditorDockState *dock,
+    const LDKEditorWindowId *windows, u32 window_count,
+    LDKEditorWindowId active_window)
 {
   if (dock == NULL || windows == NULL || window_count == 0 ||
       window_count > LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY)
@@ -607,7 +538,7 @@ static i32 s_editor_dock_leaf_create_tabs(
 }
 
 static i32 s_editor_dock_split_create(LDKEditorDockState *dock,
-  LDKEditorDockSplitAxis axis, float ratio, i32 first, i32 second)
+    LDKEditorDockSplitAxis axis, float ratio, i32 first, i32 second)
 {
   i32 node_index = s_editor_dock_node_allocate(dock);
   if (node_index == LDK_EDITOR_DOCK_INVALID_NODE)
@@ -628,7 +559,7 @@ static i32 s_editor_dock_split_create(LDKEditorDockState *dock,
 }
 
 static bool s_editor_dock_leaf_contains(
-  const LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
+    const LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
   if (leaf == NULL || window == LDK_EDITOR_WINDOW_ID_INVALID)
   {
@@ -647,7 +578,7 @@ static bool s_editor_dock_leaf_contains(
 }
 
 static bool s_editor_dock_leaf_add(
-  LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
+    LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
   if (leaf == NULL || window == LDK_EDITOR_WINDOW_ID_INVALID)
   {
@@ -671,7 +602,7 @@ static bool s_editor_dock_leaf_add(
 }
 
 static bool s_editor_dock_leaf_remove(
-  LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
+    LDKEditorDockLeaf *leaf, LDKEditorWindowId window)
 {
   if (leaf == NULL)
   {
@@ -707,8 +638,8 @@ static bool s_editor_dock_leaf_remove(
   return false;
 }
 
-static void s_editor_dock_replace_child(LDKEditorDockState *dock,
-  i32 parent_index, i32 old_child, i32 new_child)
+static void s_editor_dock_replace_child(
+    LDKEditorDockState *dock, i32 parent_index, i32 old_child, i32 new_child)
 {
   if (parent_index == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -737,7 +668,7 @@ static void s_editor_dock_replace_child(LDKEditorDockState *dock,
 }
 
 static void s_editor_dock_empty_leaf_collapse(
-  LDKEditorDockState *dock, i32 leaf_index)
+    LDKEditorDockState *dock, i32 leaf_index)
 {
   LDKEditorDockNode *leaf = &dock->nodes[leaf_index];
   if (leaf->type != LDK_EDITOR_DOCK_NODE_LEAF ||
@@ -756,12 +687,12 @@ static void s_editor_dock_empty_leaf_collapse(
 
   LDKEditorDockNode *parent = &dock->nodes[parent_index];
   i32 sibling_index = parent->data.split.first == leaf_index
-                        ? parent->data.split.second
-                        : parent->data.split.first;
+                          ? parent->data.split.second
+                          : parent->data.split.first;
   i32 grandparent_index = parent->parent;
 
   s_editor_dock_replace_child(
-    dock, grandparent_index, parent_index, sibling_index);
+      dock, grandparent_index, parent_index, sibling_index);
   s_editor_dock_node_release(dock, leaf_index);
   s_editor_dock_node_release(dock, parent_index);
 }
@@ -773,9 +704,8 @@ static void s_editor_dock_window_locations_refresh(LDKEditorDockState *dock)
     dock->windows[i].leaf = LDK_EDITOR_DOCK_INVALID_NODE;
   }
 
-  for (i32 node_index = 0;
-       node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
-       ++node_index)
+  for (i32 node_index = 0; node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+      ++node_index)
   {
     LDKEditorDockNode *node = &dock->nodes[node_index];
     if (!node->used || node->type != LDK_EDITOR_DOCK_NODE_LEAF)
@@ -783,12 +713,11 @@ static void s_editor_dock_window_locations_refresh(LDKEditorDockState *dock)
       continue;
     }
 
-    for (u32 window_index = 0;
-         window_index < node->data.leaf.window_count;
-         ++window_index)
+    for (u32 window_index = 0; window_index < node->data.leaf.window_count;
+        ++window_index)
     {
-      LDKEditorDockWindow *window = s_editor_dock_window_get(
-        dock, node->data.leaf.windows[window_index]);
+      LDKEditorDockWindow *window =
+          s_editor_dock_window_get(dock, node->data.leaf.windows[window_index]);
 
       if (window != NULL)
       {
@@ -799,42 +728,70 @@ static void s_editor_dock_window_locations_refresh(LDKEditorDockState *dock)
 }
 
 static bool s_editor_dock_window_detach(
-  LDKEditorDockState *dock, LDKEditorWindowId window)
+    LDKEditorDockState *dock, LDKEditorWindowId window)
 {
   LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
   if (dock_window == NULL)
+    return false;
+  i32 leaf_index = dock_window->leaf;
+  if (leaf_index == LDK_EDITOR_DOCK_INVALID_NODE)
+    return true;
+  LDKEditorDockNode *leaf = &dock->nodes[leaf_index];
+  if (!s_editor_dock_leaf_remove(&leaf->data.leaf, window))
+    return false;
+  if (leaf->data.leaf.window_count == 0)
+    s_editor_dock_empty_leaf_collapse(dock, leaf_index);
+  s_editor_dock_window_locations_refresh(dock);
+  return true;
+}
+
+bool ldki_editor_window_remove(LDKEditorWindowId window_id)
+{
+  LDKEditorDockState *dock = &s_editor_dock;
+  LDKEditorDockWindow *window;
+  u32 index;
+
+  if (!dock->initialized || window_id == LDK_EDITOR_WINDOW_ID_INVALID)
   {
     return false;
   }
 
-  i32 leaf_index = dock_window->leaf;
-  if (leaf_index == LDK_EDITOR_DOCK_INVALID_NODE)
+  window = s_editor_dock_window_get(dock, window_id);
+  if (window == NULL)
   {
     return true;
   }
 
-  LDKEditorDockNode *leaf = &dock->nodes[leaf_index];
-  if (!s_editor_dock_leaf_remove(&leaf->data.leaf, window))
+  index = (u32)(window - dock->windows);
+  if (!s_editor_dock_window_detach(dock, window_id))
   {
     return false;
   }
 
-  if (leaf->data.leaf.window_count == 0)
+  if (dock->drag.window == window_id)
   {
-    s_editor_dock_empty_leaf_collapse(dock, leaf_index);
+    s_editor_dock_drag_reset(&dock->drag);
   }
 
+  for (u32 i = index + 1; i < dock->window_count; ++i)
+  {
+    dock->windows[i - 1] = dock->windows[i];
+  }
+
+  dock->window_count -= 1;
+  memset(&dock->windows[dock->window_count], 0,
+      sizeof(dock->windows[dock->window_count]));
   s_editor_dock_window_locations_refresh(dock);
   return true;
 }
 
 static bool s_editor_dock_local_center(
-  LDKEditorDockState *dock, LDKEditorWindowId window, i32 target_leaf)
+    LDKEditorDockState *dock, LDKEditorWindowId window, i32 target_leaf)
 {
   LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
 
-  if (dock_window == NULL ||
-      target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+  if (dock_window == NULL || target_leaf < 0 ||
+      target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
       !dock->nodes[target_leaf].used ||
       dock->nodes[target_leaf].type != LDK_EDITOR_DOCK_NODE_LEAF)
   {
@@ -868,12 +825,12 @@ static bool s_editor_dock_local_center(
 }
 
 static bool s_editor_dock_local_edge(LDKEditorDockState *dock,
-  LDKEditorWindowId window, i32 target_leaf, LDKEditorDockTarget target)
+    LDKEditorWindowId window, i32 target_leaf, LDKEditorDockTarget target)
 {
   LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
 
-  if (dock_window == NULL ||
-      target_leaf < 0 || target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+  if (dock_window == NULL || target_leaf < 0 ||
+      target_leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
       !dock->nodes[target_leaf].used ||
       dock->nodes[target_leaf].type != LDK_EDITOR_DOCK_NODE_LEAF)
   {
@@ -906,10 +863,10 @@ static bool s_editor_dock_local_edge(LDKEditorDockState *dock,
 
   i32 old_parent = dock->nodes[target_leaf].parent;
   LDKEditorDockSplitAxis axis =
-    target == LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT ||
-    target == LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT
-      ? LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
-      : LDK_EDITOR_DOCK_SPLIT_VERTICAL;
+      target == LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT ||
+              target == LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT
+          ? LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+          : LDK_EDITOR_DOCK_SPLIT_VERTICAL;
   bool new_first = target == LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT ||
                    target == LDK_EDITOR_DOCK_TARGET_LOCAL_TOP;
   i32 first = new_first ? new_leaf : target_leaf;
@@ -929,7 +886,7 @@ static bool s_editor_dock_local_edge(LDKEditorDockState *dock,
 }
 
 static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
-  LDKEditorWindowId window, LDKEditorDockTarget target)
+    LDKEditorWindowId window, LDKEditorDockTarget target)
 {
   if (s_editor_dock_window_get(dock, window) == NULL ||
       !s_editor_dock_window_detach(dock, window))
@@ -953,10 +910,10 @@ static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
 
   i32 old_root = dock->root;
   LDKEditorDockSplitAxis axis =
-    target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT ||
-    target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT
-      ? LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
-      : LDK_EDITOR_DOCK_SPLIT_VERTICAL;
+      target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT ||
+              target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT
+          ? LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+          : LDK_EDITOR_DOCK_SPLIT_VERTICAL;
   bool new_first = target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT ||
                    target == LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP;
   i32 first = new_first ? new_leaf : old_root;
@@ -976,8 +933,8 @@ static bool s_editor_dock_absolute_edge(LDKEditorDockState *dock,
   return true;
 }
 
-static void s_editor_dock_make_floating(LDKEditorDockState *dock,
-  LDKEditorWindowId window, LDKUIPoint cursor)
+static void s_editor_dock_make_floating(
+    LDKEditorDockState *dock, LDKEditorWindowId window, LDKUIPoint cursor)
 {
   LDKEditorDockWindow *dock_window = s_editor_dock_window_get(dock, window);
   if (dock_window == NULL)
@@ -999,8 +956,8 @@ static void s_editor_dock_make_floating(LDKEditorDockState *dock,
   }
 }
 
-static void s_editor_dock_drop_commit(LDKEditorDockState *dock,
-  LDKEditorDockDrag *drag, LDKUIPoint cursor)
+static void s_editor_dock_drop_commit(
+    LDKEditorDockState *dock, LDKEditorDockDrag *drag, LDKUIPoint cursor)
 {
   if (dock == NULL || drag == NULL ||
       s_editor_dock_window_get(dock, drag->window) == NULL)
@@ -1010,38 +967,38 @@ static void s_editor_dock_drop_commit(LDKEditorDockState *dock,
 
   switch (drag->target)
   {
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
-      s_editor_dock_local_center(dock, drag->window, drag->target_leaf);
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
+    s_editor_dock_local_center(dock, drag->window, drag->target_leaf);
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
-      s_editor_dock_local_edge(
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
+    s_editor_dock_local_edge(
         dock, drag->window, drag->target_leaf, drag->target);
-      break;
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
-      s_editor_dock_absolute_edge(dock, drag->window, drag->target);
-      break;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
+    s_editor_dock_absolute_edge(dock, drag->window, drag->target);
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_NONE:
-    default:
-      s_editor_dock_make_floating(dock, drag->window, cursor);
-      break;
+  case LDK_EDITOR_DOCK_TARGET_NONE:
+  default:
+    s_editor_dock_make_floating(dock, drag->window, cursor);
+    break;
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Layout and splitter interaction                                           */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Layout and splitter interaction
+//----------------------------------------------------------
 
 static void s_editor_dock_layout_node(
-  LDKEditorDockState *dock, i32 node_index, LDKUIRect rect)
+    LDKEditorDockState *dock, i32 node_index, LDKUIRect rect)
 {
   if (node_index < 0 || node_index >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
       !dock->nodes[node_index].used)
@@ -1058,7 +1015,8 @@ static void s_editor_dock_layout_node(
     return;
   }
 
-  float ratio = s_editor_dock_clampf(node->data.split.ratio, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
+  float ratio = s_editor_dock_clampf(node->data.split.ratio,
+      LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
   float half_gap = LDK_EDITOR_DOCK_SPLIT_GAP * 0.5f;
   float half_hit_size = LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE * 0.5f;
   LDKUIRect first_rect = rect;
@@ -1072,12 +1030,8 @@ static void s_editor_dock_layout_node(
     first_rect.w = split_x - half_gap;
     second_rect.x = rect.x + split_x + half_gap;
     second_rect.w = rect.w - split_x - half_gap;
-    node->splitter_rect = (LDKUIRect){
-      rect.x + split_x - half_hit_size,
-      rect.y,
-      LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE,
-      rect.h
-    };
+    node->splitter_rect = (LDKUIRect){rect.x + split_x - half_hit_size, rect.y,
+        LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE, rect.h};
   }
   else
   {
@@ -1085,22 +1039,15 @@ static void s_editor_dock_layout_node(
     first_rect.h = split_y - half_gap;
     second_rect.y = rect.y + split_y + half_gap;
     second_rect.h = rect.h - split_y - half_gap;
-    node->splitter_rect = (LDKUIRect){
-      rect.x,
-      rect.y + split_y - half_hit_size,
-      rect.w,
-      LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE
-    };
+    node->splitter_rect = (LDKUIRect){rect.x, rect.y + split_y - half_hit_size,
+        rect.w, LDK_EDITOR_DOCK_SPLITTER_HIT_SIZE};
   }
 
-  s_editor_dock_layout_node(
-    dock, node->data.split.first, first_rect);
-  s_editor_dock_layout_node(
-    dock, node->data.split.second, second_rect);
+  s_editor_dock_layout_node(dock, node->data.split.first, first_rect);
+  s_editor_dock_layout_node(dock, node->data.split.second, second_rect);
 }
 
-static i32 s_editor_dock_split_at(
-  LDKEditorDockState *dock, LDKUIPoint cursor)
+static i32 s_editor_dock_split_at(LDKEditorDockState *dock, LDKUIPoint cursor)
 {
   for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
   {
@@ -1110,8 +1057,7 @@ static i32 s_editor_dock_split_at(
       continue;
     }
 
-    if (s_editor_dock_rect_contains(
-          &node->splitter_rect, cursor.x, cursor.y))
+    if (s_editor_dock_rect_contains(&node->splitter_rect, cursor.x, cursor.y))
     {
       return i;
     }
@@ -1121,7 +1067,7 @@ static i32 s_editor_dock_split_at(
 }
 
 static bool s_editor_dock_split_resize_update(
-  LDKEditorDockState *dock, LDKUIContext *ui)
+    LDKEditorDockState *dock, LDKUIContext *ui)
 {
   if (dock == NULL || ui == NULL)
   {
@@ -1133,74 +1079,46 @@ static bool s_editor_dock_split_resize_update(
   if (dock->resize.active)
   {
     i32 split_index = dock->resize.split;
-    if (split_index < 0 ||
-        split_index >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+    if (split_index < 0 || split_index >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
         !dock->nodes[split_index].used ||
         dock->nodes[split_index].type != LDK_EDITOR_DOCK_NODE_SPLIT)
     {
       s_editor_dock_resize_reset(&dock->resize);
       return false;
     }
-
     LDKEditorDockNode *node = &dock->nodes[split_index];
-    if (node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL)
-    {
-      ui->cursor_type = LDK_CURSOR_SIZE_WE;
-    }
-    else
-    {
-      ui->cursor_type = LDK_CURSOR_SIZE_NS;
-    }
-
+    ui->cursor_type = node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+                          ? LDK_CURSOR_SIZE_WE
+                          : LDK_CURSOR_SIZE_NS;
     if (s_editor_dock_mouse_pressed(ui))
     {
-      float position = node->data.split.axis ==
-                         LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
-                         ? cursor.x - node->rect.x
-                         : cursor.y - node->rect.y;
-      float size = node->data.split.axis ==
-                     LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
-                     ? node->rect.w
-                     : node->rect.h;
+      float position = node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+                           ? cursor.x - node->rect.x
+                           : cursor.y - node->rect.y;
+      float size = node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+                       ? node->rect.w
+                       : node->rect.h;
 
       if (size > 0.0f)
       {
-        node->data.split.ratio =
-          s_editor_dock_clampf(position / size, LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
+        node->data.split.ratio = s_editor_dock_clampf(position / size,
+            LDK_EDITOR_DOCK_SIZE_MIN, LDK_EDITOR_DOCK_SIZE_MAX);
       }
-
       return true;
     }
-
     if (s_editor_dock_mouse_up(ui))
-    {
       s_editor_dock_resize_reset(&dock->resize);
-    }
-
     return true;
   }
-
   if (dock->drag.pending || dock->drag.active)
-  {
     return false;
-  }
-
   i32 split_index = s_editor_dock_split_at(dock, cursor);
   if (split_index == LDK_EDITOR_DOCK_INVALID_NODE)
-  {
     return false;
-  }
-
   LDKEditorDockNode *node = &dock->nodes[split_index];
-  if (node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL)
-  {
-    ui->cursor_type = LDK_CURSOR_SIZE_WE;
-  }
-  else
-  {
-    ui->cursor_type = LDK_CURSOR_SIZE_NS;
-  }
-
+  ui->cursor_type = node->data.split.axis == LDK_EDITOR_DOCK_SPLIT_HORIZONTAL
+                        ? LDK_CURSOR_SIZE_WE
+                        : LDK_CURSOR_SIZE_NS;
   if (s_editor_dock_mouse_down(ui))
   {
     dock->resize.split = split_index;
@@ -1210,8 +1128,7 @@ static bool s_editor_dock_split_resize_update(
   return true;
 }
 
-static i32 s_editor_dock_leaf_at(
-  LDKEditorDockState *dock, LDKUIPoint cursor)
+static i32 s_editor_dock_leaf_at(LDKEditorDockState *dock, LDKUIPoint cursor)
 {
   for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
   {
@@ -1230,556 +1147,49 @@ static i32 s_editor_dock_leaf_at(
   return LDK_EDITOR_DOCK_INVALID_NODE;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Built-in editor windows                                                   */
-/* ------------------------------------------------------------------------- */
-
-
-static bool s_editor_project_explorer_initialize(
-  LDKEditorProjectExplorerWindowData *state)
-{
-  if (state->expanded_paths == NULL)
-  {
-    state->expanded_paths = x_array_create(
-      sizeof(XFSPath), LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
-  }
-
-  if (state->stack == NULL)
-  {
-    state->stack = x_array_create(
-      sizeof(LDKEditorProjectExplorerNode),
-      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
-  }
-
-  if (state->dirs == NULL)
-  {
-    state->dirs = x_array_create(
-      sizeof(LDKEditorProjectExplorerEntry),
-      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
-  }
-
-  if (state->files == NULL)
-  {
-    state->files = x_array_create(
-      sizeof(LDKEditorProjectExplorerEntry),
-      LDK_EDITOR_PROJECT_EXPLORER_INITIAL_CAPACITY);
-  }
-
-  return state->expanded_paths != NULL &&
-         state->stack != NULL &&
-         state->dirs != NULL &&
-         state->files != NULL;
-}
-
-static i32 s_editor_project_explorer_expanded_path_index(
-  LDKEditorProjectExplorerWindowData *state, const XFSPath *path)
-{
-  for (u32 i = 0; i < x_array_count(state->expanded_paths); ++i)
-  {
-    XFSPath *expanded_path = x_array_get(state->expanded_paths, i);
-    if (x_fs_path_compare(expanded_path, path) == 0)
-    {
-      return (i32)i;
-    }
-  }
-
-  return -1;
-}
-
-static bool s_editor_project_explorer_root_set(
-  LDKEditorProjectExplorerWindowData *state, const char *root_path)
-{
-  if (root_path == NULL)
-  {
-    return false;
-  }
-
-  XFSPath root = {0};
-  x_fs_path_set(&root, root_path);
-  x_fs_path_normalize(&root);
-
-  if (!x_fs_path_is_directory(&root))
-  {
-    return false;
-  }
-
-  if (state->root.length == 0 ||
-      x_fs_path_compare(&state->root, &root) != 0)
-  {
-    state->root = root;
-    state->selected_directory = root;
-    memset(&state->selected_file, 0, sizeof(state->selected_file));
-    x_array_clear(state->expanded_paths);
-    state->root_expanded = true;
-  }
-
-  return true;
-}
-
-static void s_editor_project_explorer_directory_select(
-  LDKEditorProjectExplorerWindowData *state,
-  const XFSPath *path, bool expand)
-{
-  state->selected_directory = *path;
-  memset(&state->selected_file, 0, sizeof(state->selected_file));
-
-  if (!expand)
-  {
-    return;
-  }
-
-  if (x_fs_path_compare(&state->root, path) == 0)
-  {
-    state->root_expanded = true;
-    return;
-  }
-
-  if (s_editor_project_explorer_expanded_path_index(state, path) < 0)
-  {
-    x_array_add(state->expanded_paths, (XFSPath *)path);
-  }
-}
-
-static void s_editor_project_explorer_entry_insert_sorted(
-  XArray *entries, const LDKEditorProjectExplorerEntry *entry)
-{
-  u32 insert_index = x_array_count(entries);
-
-  for (u32 i = 0; i < x_array_count(entries); ++i)
-  {
-    LDKEditorProjectExplorerEntry *it = x_array_get(entries, i);
-    if (strcmp(it->name.buf, entry->name.buf) > 0)
-    {
-      insert_index = i;
-      break;
-    }
-  }
-
-  x_array_insert(entries, (void *)entry, insert_index);
-}
-
-static void s_editor_project_explorer_directory_read(
-  const XFSPath *path, XArray *dirs, XArray *files)
-{
-  if (dirs != NULL)
-  {
-    x_array_clear(dirs);
-  }
-
-  if (files != NULL)
-  {
-    x_array_clear(files);
-  }
-
-  XFSDireEntry fs_entry = {0};
-  XFSDireHandle *dir =
-    x_fs_find_first_file(x_fs_path_cstr(path), &fs_entry);
-
-  while (dir != NULL)
-  {
-    bool special_entry = strcmp(fs_entry.name, ".") == 0 ||
-                         strcmp(fs_entry.name, "..") == 0;
-    XArray *target = fs_entry.is_directory ? dirs : files;
-
-    if (!special_entry && target != NULL)
-    {
-      LDKEditorProjectExplorerEntry entry = {0};
-      entry.path = *path;
-      x_fs_path_join(&entry.path, fs_entry.name);
-      x_smallstr_from_cstr(&entry.name, fs_entry.name);
-      entry.size = fs_entry.size;
-      entry.last_modified = fs_entry.last_modified;
-      s_editor_project_explorer_entry_insert_sorted(target, &entry);
-    }
-
-    if (!x_fs_find_next_file(dir, &fs_entry))
-    {
-      break;
-    }
-  }
-
-  if (dir != NULL)
-  {
-    x_fs_find_close(dir);
-  }
-}
-
-static bool s_editor_project_explorer_tree_node(
-  LDKEditorProjectExplorerWindowData *state,
-  LDKUIContext *ui,
-  const LDKEditorProjectExplorerNode *node,
-  LDKUIIcon folder_icon)
-{
-  i32 expanded_index = node->root
-    ? -1
-    : s_editor_project_explorer_expanded_path_index(state, &node->path);
-  bool was_expanded = node->root
-    ? state->root_expanded
-    : expanded_index >= 0;
-  u32 flags = 0;
-
-  if (x_fs_path_compare(&state->selected_directory, &node->path) == 0)
-  {
-    flags |= LDK_UI_TREE_NODE_SELECTED;
-  }
-
-  u32 result = ldk_ui_tree_node_ex(
-    ui, node->name.buf, folder_icon, was_expanded, node->depth, flags);
-  bool expanded = was_expanded;
-
-  if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
-  {
-    s_editor_project_explorer_directory_select(
-      state, &node->path, false);
-  }
-
-  if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
-  {
-    expanded = !was_expanded;
-  }
-
-  if (expanded == was_expanded)
-  {
-    return expanded;
-  }
-
-  s_editor_project_explorer_directory_select(
-    state, &node->path, false);
-
-  if (node->root)
-  {
-    state->root_expanded = expanded;
-  }
-  else if (expanded)
-  {
-    x_array_add(state->expanded_paths, (XFSPath *)&node->path);
-  }
-  else
-  {
-    x_array_delete_at(state->expanded_paths, (u32)expanded_index);
-  }
-
-  return expanded;
-}
-
-static void s_editor_project_explorer_tree_draw(
-  LDKEditorProjectExplorerWindowData *state,
-  LDKUIContext *ui,
-  LDKUIIcon folder_icon)
-{
-  ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
-  state->tree_scroll = ldk_ui_begin_scrollview(
-    ui, state->tree_scroll,
-    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  x_array_clear(state->stack);
-
-  LDKEditorProjectExplorerNode root_node = {0};
-  root_node.path = state->root;
-  x_fs_path_basename(&state->root, &root_node.name);
-
-  if (root_node.name.length == 0)
-  {
-    x_smallstr_from_cstr(
-      &root_node.name, x_fs_path_cstr(&state->root));
-  }
-
-  root_node.root = true;
-  x_array_add(state->stack, &root_node);
-
-  while (x_array_count(state->stack) > 0)
-  {
-    u32 stack_index = x_array_count(state->stack) - 1;
-    LDKEditorProjectExplorerNode *node_ptr =
-      x_array_get(state->stack, stack_index);
-    LDKEditorProjectExplorerNode node = *node_ptr;
-    x_array_delete_at(state->stack, stack_index);
-
-    if (!s_editor_project_explorer_tree_node(
-          state, ui, &node, folder_icon))
-    {
-      continue;
-    }
-
-    s_editor_project_explorer_directory_read(
-      &node.path, state->dirs, NULL);
-
-    for (u32 i = x_array_count(state->dirs); i > 0; --i)
-    {
-      LDKEditorProjectExplorerEntry *entry =
-        x_array_get(state->dirs, i - 1);
-      LDKEditorProjectExplorerNode child = {0};
-      child.path = entry->path;
-      child.name = entry->name;
-      child.depth = node.depth + 1;
-      x_array_add(state->stack, &child);
-    }
-  }
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
-}
-
-static LDKEditorProjectExplorerEntry *
-s_editor_project_explorer_entry_get(
-  LDKEditorProjectExplorerWindowData *state,
-  u32 index, bool *is_directory)
-{
-  u32 directory_count = x_array_count(state->dirs);
-  *is_directory = index < directory_count;
-
-  if (*is_directory)
-  {
-    return x_array_get(state->dirs, index);
-  }
-
-  return x_array_get(state->files, index - directory_count);
-}
-
-static void s_editor_project_explorer_entry_activate(
-  LDKEditorProjectExplorerWindowData *state,
-  const LDKEditorProjectExplorerEntry *entry,
-  bool is_directory)
-{
-  if (is_directory)
-  {
-    s_editor_project_explorer_directory_select(
-      state, &entry->path, true);
-  }
-  else
-  {
-    state->selected_file = entry->path;
-  }
-}
-
-static void s_editor_project_explorer_entries_draw(
-  LDKEditorProjectExplorerWindowData *state,
-  LDKUIContext *ui,
-  LDKUIIcon folder_icon,
-  LDKUIIcon file_icon)
-{
-  u32 total_count =
-    x_array_count(state->dirs) + x_array_count(state->files);
-  bool compact_mode =
-    state->icon_size <= LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE;
-
-  if (compact_mode)
-  {
-    for (u32 entry_index = 0;
-         entry_index < total_count;
-         ++entry_index)
-    {
-      bool is_directory = false;
-      LDKEditorProjectExplorerEntry *entry =
-        s_editor_project_explorer_entry_get(
-          state, entry_index, &is_directory);
-
-      ldk_ui_set_next_height(
-        ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-      ldk_ui_begin_horizontal(ui);
-
-      ldk_ui_set_next_weight(ui, 0.0f);
-      bool icon_clicked = ldk_ui_icon_button(
-        ui, is_directory ? folder_icon : file_icon, NULL);
-      bool label_clicked =
-        ldk_ui_button_flat(ui, entry->name.buf);
-
-      ldk_ui_end_horizontal(ui);
-
-      if (icon_clicked || label_clicked)
-      {
-        s_editor_project_explorer_entry_activate(
-          state, entry, is_directory);
-      }
-    }
-
-    return;
-  }
-
-  float tile_w = state->icon_size + 32.0f;
-  float tile_h =
-    state->icon_size + LDK_UI_DEFAULT_CONTROL_HEIGHT + 12.0f;
-  float available_w = ui->current_layout != NULL
-    ? ui->current_layout->content_rect.w
-    : tile_w;
-  u32 column_count = (u32)(available_w / tile_w);
-
-  if (column_count == 0)
-  {
-    column_count = 1;
-  }
-
-  u32 tile_index = 0;
-  while (tile_index < total_count)
-  {
-    ldk_ui_set_next_height(ui, ldk_ui_px(tile_h));
-    ldk_ui_begin_horizontal(ui);
-
-    for (u32 column = 0;
-         column < column_count && tile_index < total_count;
-         ++column, ++tile_index)
-    {
-      bool is_directory = false;
-      LDKEditorProjectExplorerEntry *entry =
-        s_editor_project_explorer_entry_get(
-          state, tile_index, &is_directory);
-
-      ldk_ui_set_next_size(
-        ui, ldk_ui_px(tile_w), ldk_ui_px(tile_h));
-      ldk_ui_begin_vertical(ui);
-
-      ldk_ui_set_next_size(
-        ui,
-        ldk_ui_px(state->icon_size),
-        ldk_ui_px(state->icon_size));
-      bool icon_clicked = ldk_ui_icon_button(
-        ui, is_directory ? folder_icon : file_icon, NULL);
-
-      ldk_ui_set_next_height(
-        ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-      bool label_clicked =
-        ldk_ui_button_flat(ui, entry->name.buf);
-
-      ldk_ui_end_vertical(ui);
-
-      if (icon_clicked || label_clicked)
-      {
-        s_editor_project_explorer_entry_activate(
-          state, entry, is_directory);
-      }
-    }
-
-    ldk_ui_spacer(ui);
-    ldk_ui_end_horizontal(ui);
-  }
-}
-
-static void s_editor_project_explorer_files_draw(
-  LDKEditorProjectExplorerWindowData *state,
-  LDKUIContext *ui,
-  LDKUIIcon folder_icon,
-  LDKUIIcon file_icon)
-{
-  ldk_ui_begin_vertical(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
-
-  XFSPath relative_directory = {0};
-  if (x_fs_path_relative_to(
-        &state->root,
-        &state->selected_directory,
-        &relative_directory) > 0)
-  {
-    ldk_ui_label(ui, relative_directory.buf);
-  }
-  else
-  {
-    ldk_ui_label(ui, state->selected_directory.buf);
-  }
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  state->icon_size = ldk_ui_slider(
-    ui,
-    state->icon_size,
-    LDK_EDITOR_PROJECT_EXPLORER_MIN_ICON_SIZE,
-    72.0f);
-
-  folder_icon.size =
-    ldk_sizef(state->icon_size, state->icon_size);
-  file_icon.size = folder_icon.size;
-
-  state->file_scroll = ldk_ui_begin_scrollview(
-    ui, state->file_scroll,
-    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  s_editor_project_explorer_directory_read(
-    &state->selected_directory, state->dirs, state->files);
-  s_editor_project_explorer_entries_draw(
-    state, ui, folder_icon, file_icon);
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
-  ldk_ui_end_vertical(ui);
-}
+//----------------------------------------------------------
+// Built-in editor windows
+//----------------------------------------------------------
 
 static void s_editor_project_explorer_window(
-  LDKEditor *opaque_editor, void *data)
+    LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKEditorProjectExplorerWindowData *state =
-    (LDKEditorProjectExplorerWindowData *)data;
-  LDKUIContext *ui = &editor->ui;
-  const XFSPath *root = NULL;
+  const char *root_path = NULL;
+  (void)data;
 
-  if (editor->project.loaded &&
-      editor->project.project_root_path.length > 0)
+  if (editor->project.loaded && editor->project.project_root_path.length > 0)
   {
-    root = &editor->project.project_root_path;
+    root_path = editor->project.project_root_path.buf;
   }
   else if (editor->engine_runtree.length > 0)
   {
-    root = &editor->engine_runtree;
+    root_path = editor->engine_runtree.buf;
   }
 
-  if (!s_editor_project_explorer_initialize(state))
-  {
-    ldk_ui_label(ui, "Project explorer allocation failed.");
-    return;
-  }
-
-  if (root == NULL ||
-      !s_editor_project_explorer_root_set(state, root->buf))
-  {
-    ldk_ui_label(ui, "No project root.");
-    return;
-  }
-
-  LDKUIIcon file_icon = {0};
-  file_icon.size =
-    ldk_sizef(state->icon_size, state->icon_size);
-  file_icon.texture =
-    ldk_renderer_texture_ui_handle(
-      editor->renderer, editor->ui_atlas);
-  file_icon.uv =
-    ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
-  file_icon.color = LDK_EDITOR_COLOR_FILE;
-
-  LDKUIIcon folder_icon = file_icon;
-  folder_icon.uv =
-    ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER];
-  folder_icon.color = LDK_EDITOR_COLOR_FOLDER;
-
-  LDKUIIcon tree_folder_icon = folder_icon;
-  tree_folder_icon.size = ldk_sizef(
-    LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE,
-    LDK_EDITOR_PROJECT_EXPLORER_TREE_ICON_SIZE);
-
-  ldk_ui_begin_horizontal(ui);
-  s_editor_project_explorer_tree_draw(
-    state, ui, tree_folder_icon);
-  s_editor_project_explorer_files_draw(
-    state, ui, folder_icon, file_icon);
-  ldk_ui_end_horizontal(ui);
+  ldk_editor_file_explorer_show(opaque_editor, root_path);
 }
 
 static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKUIContext *ui = &editor->ui;
+  LDKUITextureHandle texture =
+      ldk_renderer_view_texture_get(editor->renderer, editor->scene_view);
+  LDKUIRect image_rect;
   (void)data;
-
-  ldk_ui_label(ui, "Scene viewport placeholder");
-  ldk_ui_horizontal_line(ui);
-  ldk_ui_button(ui, "Frame selected");
-  ldk_ui_button(ui, "Toggle grid");
-  ldk_ui_spacer(ui);
+  ldki_editor_scene_view_toolbar_show(editor);
+  if (ldki_editor_view_texture_show(
+          editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
+  {
+    ldki_editor_gizmo_scene_view_set(editor, image_rect);
+    ldki_editor_gizmo_hover_update(editor);
+  }
 }
 
-static void s_editor_inspector_window(
-  LDKEditor *opaque_editor, void *data)
+static void s_editor_inspector_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKEditorInspectorWindowData *state =
-    (LDKEditorInspectorWindowData *)data;
+  LDKEditorInspectorWindowData *state = (LDKEditorInspectorWindowData *)data;
   LDKUIContext *ui = &editor->ui;
 
   ldk_ui_label(ui, "Inspector placeholder");
@@ -1791,61 +1201,25 @@ static void s_editor_inspector_window(
   ldk_ui_spacer(ui);
 }
 
-static void s_editor_console_window(
-  LDKEditor *opaque_editor, void *data)
+static void s_editor_console_window(LDKEditor *opaque_editor, void *data)
 {
-  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKEditorConsoleWindowData *state =
-    (LDKEditorConsoleWindowData *)data;
-  LDKUIContext *ui = &editor->ui;
-
-  state->scroll = ldk_ui_begin_scrollview(ui, state->scroll,
-    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  if (editor->console_sb != NULL)
-  {
-    ldk_ui_label(ui, x_strbuilder_to_string(editor->console_sb));
-  }
-  else
-  {
-    ldk_ui_label(ui, "Console is not initialized.");
-  }
-
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_input_box(
-        ui, state->input.buf, X_SMALLSTR_MAX_LENGTH) &
-      LDK_UI_INPUT_BOX_COMMITTED)
-  {
-    if (editor->console_sb != NULL)
-    {
-      x_strbuilder_append_format(
-        editor->console_sb, "%s\n", state->input.buf);
-    }
-
-    ldk_editor_command_run(opaque_editor, state->input.buf);
-    x_smallstr_clear(&state->input);
-    state->scroll.y += 10000.0f;
-  }
+  (void)data;
+  ldk_editor_console_show(opaque_editor);
 }
 
 static bool s_editor_builtin_windows_add(
-  LDKEditorContext *editor, LDKEditorDockState *dock)
+    LDKEditorContext *editor, LDKEditorDockState *dock)
 {
-  if (s_editor_dock_window_get(
-        dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER) == NULL)
+  if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER) ==
+      NULL)
   {
-    LDKEditorWindow window = {
-      .id = LDK_EDITOR_WINDOW_PROJECT_EXPLORER,
-      .title = "Project Explorer",
-      .function = s_editor_project_explorer_window,
-      .data = &dock->project_explorer
-    };
+    LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_PROJECT_EXPLORER,
+        .title = "Project Explorer",
+        .function = s_editor_project_explorer_window,
+        .data = NULL};
 
     if (!s_editor_dock_window_add(
-          dock, &window, (LDKUIRect){40.0f, 90.0f, 520.0f, 400.0f}))
+            dock, &window, (LDKUIRect){40.0f, 90.0f, 520.0f, 400.0f}))
     {
       return false;
     }
@@ -1853,15 +1227,13 @@ static bool s_editor_builtin_windows_add(
 
   if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_SCENE) == NULL)
   {
-    LDKEditorWindow window = {
-      .id = LDK_EDITOR_WINDOW_SCENE,
-      .title = "Scene",
-      .function = s_editor_scene_window,
-      .data = NULL
-    };
+    LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_SCENE,
+        .title = "Scene",
+        .function = s_editor_scene_window,
+        .data = NULL};
 
     if (!s_editor_dock_window_add(
-          dock, &window, (LDKUIRect){180.0f, 100.0f, 640.0f, 420.0f}))
+            dock, &window, (LDKUIRect){180.0f, 100.0f, 640.0f, 420.0f}))
     {
       return false;
     }
@@ -1869,15 +1241,13 @@ static bool s_editor_builtin_windows_add(
 
   if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_INSPECTOR) == NULL)
   {
-    LDKEditorWindow window = {
-      .id = LDK_EDITOR_WINDOW_INSPECTOR,
-      .title = "Inspector",
-      .function = s_editor_inspector_window,
-      .data = &dock->inspector
-    };
+    LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_INSPECTOR,
+        .title = "Inspector",
+        .function = s_editor_inspector_window,
+        .data = &dock->inspector};
 
     if (!s_editor_dock_window_add(
-          dock, &window, (LDKUIRect){760.0f, 100.0f, 280.0f, 420.0f}))
+            dock, &window, (LDKUIRect){760.0f, 100.0f, 280.0f, 420.0f}))
     {
       return false;
     }
@@ -1885,15 +1255,13 @@ static bool s_editor_builtin_windows_add(
 
   if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_CONSOLE) == NULL)
   {
-    LDKEditorWindow window = {
-      .id = LDK_EDITOR_WINDOW_CONSOLE,
-      .title = "Console",
-      .function = s_editor_console_window,
-      .data = &dock->console
-    };
+    LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_CONSOLE,
+        .title = "Console",
+        .function = s_editor_console_window,
+        .data = NULL};
 
     if (!s_editor_dock_window_add(
-          dock, &window, (LDKUIRect){180.0f, 540.0f, 640.0f, 240.0f}))
+            dock, &window, (LDKUIRect){180.0f, 540.0f, 640.0f, 240.0f}))
     {
       return false;
     }
@@ -1903,16 +1271,14 @@ static bool s_editor_builtin_windows_add(
   return true;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Window drawing                                                            */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Window drawing
+//----------------------------------------------------------
 
-static void s_editor_dock_window_content_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor,
-  LDKEditorWindowId window_id)
+static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
+    LDKEditorContext *editor, LDKEditorWindowId window_id)
 {
-  LDKEditorDockWindow *window =
-    s_editor_dock_window_get(dock, window_id);
+  LDKEditorDockWindow *window = s_editor_dock_window_get(dock, window_id);
 
   if (window != NULL && window->window.function != NULL)
   {
@@ -1920,8 +1286,8 @@ static void s_editor_dock_window_content_draw(
   }
 }
 
-static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
-  LDKEditorContext *editor, i32 leaf_index)
+static void s_editor_dock_leaf_draw(
+    LDKEditorDockState *dock, LDKEditorContext *editor, i32 leaf_index)
 {
   LDKEditorDockNode *node = &dock->nodes[leaf_index];
   LDKEditorDockLeaf *leaf = &node->data.leaf;
@@ -1940,7 +1306,7 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   snprintf(window_title, sizeof(window_title), "Dock Leaf %d", leaf_index);
 
   ldk_ui_begin_window_fixed(ui, window_title, node->rect,
-    LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING);
+      LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING);
   LDKUIId dock_window_id = ui->last_id;
 
   LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY] = {0};
@@ -1949,12 +1315,10 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   for (u32 i = 0; i < leaf->window_count; ++i)
   {
     const LDKEditorDockWindow *window =
-      s_editor_dock_window_get_const(dock, leaf->windows[i]);
+        s_editor_dock_window_get_const(dock, leaf->windows[i]);
 
-    tab_items[i] = (LDKUITabBarItem){
-      .id = (LDKUIId)(i + 1),
-      .label = window != NULL ? window->window.title : "<missing window>"
-    };
+    tab_items[i] = (LDKUITabBarItem){.id = (LDKUIId)(i + 1),
+        .label = window != NULL ? window->window.title : "<missing window>"};
 
     if (leaf->windows[i] == leaf->active_window)
     {
@@ -1963,9 +1327,15 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   }
 
   LDKUITabBarResult tab_result =
-    ldk_ui_tab_bar(ui, tab_items, leaf->window_count, active_index);
+      ldk_ui_tab_bar(ui, tab_items, leaf->window_count, active_index);
   leaf->tab_bar_rect = ldk_ui_last_rect(ui);
+  leaf->ui_window_id = dock_window_id;
   leaf->tab_bar_rect_valid = true;
+
+  if (tab_result.pressed_index < leaf->window_count)
+  {
+    leaf->pressed_window = leaf->windows[tab_result.pressed_index];
+  }
 
   if (tab_result.active_index < leaf->window_count)
   {
@@ -1973,53 +1343,56 @@ static void s_editor_dock_leaf_draw(LDKEditorDockState *dock,
   }
 
   LDKEditorDockWindow *active_window =
-    s_editor_dock_window_get(dock, leaf->active_window);
+      s_editor_dock_window_get(dock, leaf->active_window);
 
   if (active_window != NULL)
   {
     active_window->ui_window_id = dock_window_id;
-    s_editor_dock_window_content_draw(
-      dock, editor, leaf->active_window);
+    s_editor_dock_window_content_draw(dock, editor, leaf->active_window);
   }
 
   ldk_ui_end_window(ui);
 }
 
-static void s_editor_dock_floating_window_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor,
-  LDKEditorDockWindow *window)
+static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
+    LDKEditorContext *editor, LDKEditorDockWindow *window)
 {
   LDKUIContext *ui = &editor->ui;
-  u32 flags = LDK_UI_WINDOW_TITLE_BAR |
-              LDK_UI_WINDOW_DRAGGABLE |
-              LDK_UI_WINDOW_RESIZABLE |
-              LDK_UI_WINDOW_BORDER;
+  u32 flags = LDK_UI_WINDOW_TOOL;
 
-  window->floating_rect = ldk_ui_begin_window(
-    ui, window->window.title, window->floating_rect, flags);
+  if (!ldk_ui_begin_window_open(ui, window->window.title,
+          &window->floating_rect, &window->open, flags))
+  {
+    if (!window->open)
+    {
+      s_editor_dock_window_detach(dock, window->window.id);
+    }
+    return;
+  }
+
   window->ui_window_id = ui->last_id;
   s_editor_dock_window_content_draw(dock, editor, window->window.id);
   ldk_ui_end_window(ui);
 }
 
 static void s_editor_dock_windows_draw(
-  LDKEditorDockState *dock, LDKEditorContext *editor)
+    LDKEditorDockState *dock, LDKEditorContext *editor)
 {
-  for (i32 node_index = 0;
-       node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
-       ++node_index)
+  for (i32 node_index = 0; node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+      ++node_index)
   {
     LDKEditorDockNode *node = &dock->nodes[node_index];
 
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
     {
+      node->data.leaf.pressed_window = LDK_EDITOR_WINDOW_ID_INVALID;
       node->data.leaf.tab_bar_rect_valid = false;
+      node->data.leaf.ui_window_id = 0;
     }
   }
 
-  for (i32 node_index = 0;
-       node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
-       ++node_index)
+  for (i32 node_index = 0; node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+      ++node_index)
   {
     LDKEditorDockNode *node = &dock->nodes[node_index];
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
@@ -2031,28 +1404,111 @@ static void s_editor_dock_windows_draw(
   for (u32 i = 0; i < dock->window_count; ++i)
   {
     LDKEditorDockWindow *window = &dock->windows[i];
-    if (window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
+    if (window->open && window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
     {
       s_editor_dock_floating_window_draw(dock, editor, window);
     }
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dragging                                                                  */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dragging
+//----------------------------------------------------------
+
+static bool s_editor_dock_hit_candidate_is_tab_bar_item(
+    const LDKEditorDockLeaf *leaf, const LDKUIHitCandidate *candidate)
+{
+  if (leaf == NULL || candidate == NULL || !leaf->tab_bar_rect_valid)
+  {
+    return false;
+  }
+
+  return candidate->window_id == leaf->ui_window_id &&
+         candidate->rect.x >= leaf->tab_bar_rect.x &&
+         candidate->rect.x < leaf->tab_bar_rect.x + leaf->tab_bar_rect.w &&
+         candidate->rect.y == leaf->tab_bar_rect.y &&
+         candidate->rect.h == LDK_UI_TAB_BAR_TAB_HEIGHT;
+}
+
+static bool s_editor_dock_leaf_tab_at(const LDKEditorDockLeaf *leaf,
+    LDKUIContext *ui, LDKUIPoint cursor, u32 *tab_index_out)
+{
+  if (leaf == NULL || ui == NULL || tab_index_out == NULL ||
+      ui->hit_candidates == NULL || leaf->ui_window_id == 0)
+  {
+    return false;
+  }
+
+  const LDKUIHitCandidate *pressed_candidate = NULL;
+  float first_item_x = 0.0f;
+  bool has_first_item = false;
+  u32 candidate_count = x_array_ldk_ui_hit_candidate_count(ui->hit_candidates);
+
+  for (u32 i = 0; i < candidate_count; ++i)
+  {
+    const LDKUIHitCandidate *candidate =
+        x_array_ldk_ui_hit_candidate_get(ui->hit_candidates, i);
+
+    if (!s_editor_dock_hit_candidate_is_tab_bar_item(leaf, candidate))
+    {
+      continue;
+    }
+
+    if (!has_first_item || candidate->rect.x < first_item_x)
+    {
+      first_item_x = candidate->rect.x;
+      has_first_item = true;
+    }
+
+    if (s_editor_dock_rect_contains(&candidate->rect, cursor.x, cursor.y))
+    {
+      pressed_candidate = candidate;
+    }
+  }
+
+  if (pressed_candidate == NULL || !has_first_item ||
+      pressed_candidate->rect.x <= first_item_x)
+  {
+    return false;
+  }
+
+  u32 tab_index = 0;
+
+  for (u32 i = 0; i < candidate_count; ++i)
+  {
+    const LDKUIHitCandidate *candidate =
+        x_array_ldk_ui_hit_candidate_get(ui->hit_candidates, i);
+
+    if (!s_editor_dock_hit_candidate_is_tab_bar_item(leaf, candidate))
+    {
+      continue;
+    }
+
+    if (candidate->rect.x > first_item_x &&
+        candidate->rect.x < pressed_candidate->rect.x)
+    {
+      tab_index += 1;
+    }
+  }
+
+  if (tab_index >= leaf->window_count)
+  {
+    return false;
+  }
+
+  *tab_index_out = tab_index;
+  return true;
+}
 
 static void s_editor_dock_tab_drag_update(
-  LDKEditorDockState *dock, LDKUIContext *ui)
+    LDKEditorDockState *dock, LDKUIContext *ui)
 {
   LDKUIPoint cursor = s_editor_dock_cursor_get(ui);
 
-  if (!dock->drag.pending && !dock->drag.active &&
-      s_editor_dock_mouse_down(ui))
+  if (!dock->drag.pending && !dock->drag.active && s_editor_dock_mouse_down(ui))
   {
-    for (i32 leaf_index = 0;
-         leaf_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
-         ++leaf_index)
+    for (i32 leaf_index = 0; leaf_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
+        ++leaf_index)
     {
       LDKEditorDockNode *node = &dock->nodes[leaf_index];
 
@@ -2063,15 +1519,19 @@ static void s_editor_dock_tab_drag_update(
 
       LDKEditorDockLeaf *leaf = &node->data.leaf;
 
+      u32 tab_index = 0;
+
       if (!leaf->tab_bar_rect_valid ||
+          leaf->pressed_window == LDK_EDITOR_WINDOW_ID_INVALID ||
           !s_editor_dock_rect_contains(
-            &leaf->tab_bar_rect, cursor.x, cursor.y))
+              &leaf->tab_bar_rect, cursor.x, cursor.y) ||
+          !s_editor_dock_leaf_tab_at(leaf, ui, cursor, &tab_index))
       {
         continue;
       }
 
       dock->drag.pending = true;
-      dock->drag.window = leaf->active_window;
+      dock->drag.window = leaf->pressed_window;
       dock->drag.source_leaf = leaf_index;
       dock->drag.press_position = cursor;
       return;
@@ -2109,22 +1569,13 @@ static void s_editor_dock_tab_drag_update(
 }
 
 static void s_editor_dock_floating_drag_update(
-  LDKEditorDockState *dock, LDKUIContext *ui)
+    LDKEditorDockState *dock, LDKUIContext *ui)
 {
-  if (dock->drag.active || dock->drag.pending)
-  {
+  if (dock->drag.active || dock->drag.pending || ui->dragging_window_id == 0)
     return;
-  }
-
-  if (ui->dragging_window_id == 0)
-  {
-    return;
-  }
-
   for (u32 i = 0; i < dock->window_count; ++i)
   {
     LDKEditorDockWindow *window = &dock->windows[i];
-
     if (window->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
         window->ui_window_id == ui->dragging_window_id)
     {
@@ -2136,12 +1587,12 @@ static void s_editor_dock_floating_drag_update(
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Dock targets                                                              */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Dock targets
+//----------------------------------------------------------
 
 static LDKUIRect s_editor_dock_target_rect_absolute(
-  LDKUIRect workspace, LDKEditorDockTarget target)
+    LDKUIRect workspace, LDKEditorDockTarget target)
 {
   float size = LDK_EDITOR_DOCK_TARGET_SIZE;
   float margin = 14.0f;
@@ -2150,121 +1601,106 @@ static LDKUIRect s_editor_dock_target_rect_absolute(
 
   switch (target)
   {
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
-      return (LDKUIRect){center_x - size * 0.5f,
-        workspace.y + margin, size, size};
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
+    return (LDKUIRect){
+        center_x - size * 0.5f, workspace.y + margin, size, size};
 
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
-      return (LDKUIRect){workspace.x + margin,
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
+    return (LDKUIRect){
+        workspace.x + margin, center_y - size * 0.5f, size, size};
+
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
+    return (LDKUIRect){workspace.x + workspace.w - margin - size,
         center_y - size * 0.5f, size, size};
 
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
-      return (LDKUIRect){workspace.x + workspace.w - margin - size,
-        center_y - size * 0.5f, size, size};
-
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
-      return (LDKUIRect){center_x - size * 0.5f,
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
+    return (LDKUIRect){center_x - size * 0.5f,
         workspace.y + workspace.h - margin - size, size, size};
 
-    default:
-      return (LDKUIRect){0};
+  default:
+    return (LDKUIRect){0};
   }
 }
 
 static LDKUIRect s_editor_dock_target_rect_local(
-  LDKUIRect leaf, LDKEditorDockTarget target)
+    LDKUIRect leaf, LDKEditorDockTarget target)
 {
   float size = LDK_EDITOR_DOCK_TARGET_SIZE;
   float step = size + LDK_EDITOR_DOCK_TARGET_GAP;
   float center_x = leaf.x + leaf.w * 0.5f;
   float center_y = leaf.y + leaf.h * 0.5f;
   LDKUIRect center = {
-    center_x - size * 0.5f,
-    center_y - size * 0.5f,
-    size,
-    size
-  };
+      center_x - size * 0.5f, center_y - size * 0.5f, size, size};
 
   switch (target)
   {
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
-      center.y -= step;
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
+    center.y -= step;
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
-      center.x -= step;
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
+    center.x -= step;
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
-      center.x += step;
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
+    center.x += step;
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
-      center.y += step;
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
+    center.y += step;
+    break;
 
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
-    default:
-      break;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
+  default:
+    break;
   }
 
   return center;
 }
 
-static LDKEditorIcon s_editor_dock_target_icon(
-  LDKEditorDockTarget target)
+static LDKEditorIcon s_editor_dock_target_icon(LDKEditorDockTarget target)
 {
   switch (target)
   {
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
-      return LDK_EDITOR_ICON_DOCK_TOP;
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
-      return LDK_EDITOR_ICON_DOCK_LEFT;
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
-      return LDK_EDITOR_ICON_DOCK_RIGHT;
-    case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
-      return LDK_EDITOR_ICON_DOCK_BOTTOM;
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
-      return LDK_EDITOR_ICON_DOCK_TOP;
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
-      return LDK_EDITOR_ICON_DOCK_LEFT;
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
-      return LDK_EDITOR_ICON_DOCK_CENTER;
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
-      return LDK_EDITOR_ICON_DOCK_RIGHT;
-    case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
-      return LDK_EDITOR_ICON_DOCK_BOTTOM;
-    default:
-      return -1;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_TOP:
+    return LDK_EDITOR_ICON_DOCK_TOP;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT:
+    return LDK_EDITOR_ICON_DOCK_LEFT;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT:
+    return LDK_EDITOR_ICON_DOCK_RIGHT;
+  case LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM:
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM:
+    return LDK_EDITOR_ICON_DOCK_BOTTOM;
+  case LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER:
+    return LDK_EDITOR_ICON_DOCK_CENTER;
+  default:
+    return -1;
   }
 }
 
-static void s_editor_dock_target_evaluate(LDKEditorDockState *dock,
-  LDKUIRect workspace, LDKUIPoint cursor)
+static void s_editor_dock_target_evaluate(
+    LDKEditorDockState *dock, LDKUIRect workspace, LDKUIPoint cursor)
 {
   static const LDKEditorDockTarget absolute_targets[] = {
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM
-  };
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP, LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT,
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT,
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM};
   static const LDKEditorDockTarget local_targets[] = {
-    LDK_EDITOR_DOCK_TARGET_LOCAL_TOP,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM
-  };
+      LDK_EDITOR_DOCK_TARGET_LOCAL_TOP, LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT,
+      LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER, LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT,
+      LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM};
 
   dock->drag.target = LDK_EDITOR_DOCK_TARGET_NONE;
   dock->drag.target_leaf = s_editor_dock_leaf_at(dock, cursor);
 
-  for (u32 i = 0;
-       i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
-       ++i)
+  for (u32 i = 0; i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
+      ++i)
   {
     LDKUIRect rect =
-      s_editor_dock_target_rect_absolute(workspace, absolute_targets[i]);
+        s_editor_dock_target_rect_absolute(workspace, absolute_targets[i]);
 
     if (s_editor_dock_rect_contains(&rect, cursor.x, cursor.y))
     {
@@ -2278,12 +1714,10 @@ static void s_editor_dock_target_evaluate(LDKEditorDockState *dock,
   }
 
   LDKUIRect leaf_rect = dock->nodes[dock->drag.target_leaf].rect;
-  for (u32 i = 0;
-       i < sizeof(local_targets) / sizeof(local_targets[0]);
-       ++i)
+  for (u32 i = 0; i < sizeof(local_targets) / sizeof(local_targets[0]); ++i)
   {
     LDKUIRect rect =
-      s_editor_dock_target_rect_local(leaf_rect, local_targets[i]);
+        s_editor_dock_target_rect_local(leaf_rect, local_targets[i]);
 
     if (s_editor_dock_rect_contains(&rect, cursor.x, cursor.y))
     {
@@ -2293,7 +1727,7 @@ static void s_editor_dock_target_evaluate(LDKEditorDockState *dock,
 }
 
 static void s_editor_dock_ui_window_bring_to_front(
-  LDKUIContext *ui, LDKUIId window_id)
+    LDKUIContext *ui, LDKUIId window_id)
 {
   if (ui == NULL || window_id == 0 || ui->windows == NULL)
   {
@@ -2330,11 +1764,40 @@ static void s_editor_dock_ui_window_bring_to_front(
   }
 }
 
-static void s_editor_dock_target_overlay_disable(
-  LDKEditorDockState *dock, LDKUIContext *ui)
+static void s_editor_dock_floating_windows_bring_to_front(
+    LDKEditorDockState *dock, LDKUIContext *ui)
 {
-  if (dock->target_overlay_window_id == 0 ||
-      ui == NULL || ui->windows == NULL)
+  LDKUIId floating_window_ids[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 floating_window_count = 0;
+  u32 ui_window_count = x_array_ldk_ui_window_count(ui->windows);
+
+  for (u32 i = 0; i < ui_window_count; ++i)
+  {
+    const LDKUIWindow *ui_window =
+        x_array_ldk_ui_window_get(ui->windows, i);
+
+    for (u32 j = 0; j < dock->window_count; ++j)
+    {
+      const LDKEditorDockWindow *window = &dock->windows[j];
+      if (window->open && window->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
+          ui_window != NULL && window->ui_window_id == ui_window->id)
+      {
+        floating_window_ids[floating_window_count++] = ui_window->id;
+        break;
+      }
+    }
+  }
+
+  for (u32 i = 0; i < floating_window_count; ++i)
+  {
+    s_editor_dock_ui_window_bring_to_front(ui, floating_window_ids[i]);
+  }
+}
+
+static void s_editor_dock_target_overlay_disable(
+    LDKEditorDockState *dock, LDKUIContext *ui)
+{
+  if (dock->target_overlay_window_id == 0 || ui == NULL || ui->windows == NULL)
   {
     return;
   }
@@ -2354,45 +1817,39 @@ static void s_editor_dock_target_overlay_disable(
   }
 }
 
-static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
-  LDKEditorContext *editor, LDKUIRect workspace)
+static void s_editor_dock_targets_draw(
+    LDKEditorDockState *dock, LDKEditorContext *editor, LDKUIRect workspace)
 {
   static const LDKEditorDockTarget absolute_targets[] = {
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT,
-    LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM
-  };
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_TOP, LDK_EDITOR_DOCK_TARGET_ABSOLUTE_LEFT,
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_RIGHT,
+      LDK_EDITOR_DOCK_TARGET_ABSOLUTE_BOTTOM};
   static const LDKEditorDockTarget local_targets[] = {
-    LDK_EDITOR_DOCK_TARGET_LOCAL_TOP,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT,
-    LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM
-  };
+      LDK_EDITOR_DOCK_TARGET_LOCAL_TOP, LDK_EDITOR_DOCK_TARGET_LOCAL_LEFT,
+      LDK_EDITOR_DOCK_TARGET_LOCAL_CENTER, LDK_EDITOR_DOCK_TARGET_LOCAL_RIGHT,
+      LDK_EDITOR_DOCK_TARGET_LOCAL_BOTTOM};
 
   LDKUIContext *ui = &editor->ui;
   ldk_ui_begin_window_fixed(ui, "LDK Dock Targets", workspace,
-    LDK_UI_WINDOW_NO_BG | LDK_UI_WINDOW_NO_PADDING);
+      LDK_UI_WINDOW_NO_BG | LDK_UI_WINDOW_NO_PADDING);
   dock->target_overlay_window_id = ui->last_id;
 
   LDKUIIcon icon = {0};
   icon.color = 0xFFFFFFFF;
   icon.size = ldk_sizef(24, 24);
   icon.texture =
-    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
-  for (u32 i = 0;
-       i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
-       ++i)
+  for (u32 i = 0; i < sizeof(absolute_targets) / sizeof(absolute_targets[0]);
+      ++i)
   {
     LDKEditorDockTarget target = absolute_targets[i];
     LDKUIRect rect = s_editor_dock_target_rect_absolute(workspace, target);
     LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
 
     icon.color = target == dock->drag.target
-                   ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
-                   : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+                     ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
+                     : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
     icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
 
     ldk_ui_widget_icon_label(ui, id, icon, "", rect);
@@ -2402,17 +1859,15 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
   {
     LDKUIRect leaf_rect = dock->nodes[dock->drag.target_leaf].rect;
 
-    for (u32 i = 0;
-         i < sizeof(local_targets) / sizeof(local_targets[0]);
-         ++i)
+    for (u32 i = 0; i < sizeof(local_targets) / sizeof(local_targets[0]); ++i)
     {
       LDKEditorDockTarget target = local_targets[i];
       LDKUIRect rect = s_editor_dock_target_rect_local(leaf_rect, target);
       LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
 
       icon.color = target == dock->drag.target
-                     ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
-                     : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+                       ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
+                       : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
       icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
 
       ldk_ui_widget_icon_label(ui, id, icon, "", rect);
@@ -2420,12 +1875,11 @@ static void s_editor_dock_targets_draw(LDKEditorDockState *dock,
   }
 
   ldk_ui_end_window(ui);
-  s_editor_dock_ui_window_bring_to_front(
-    ui, dock->target_overlay_window_id);
+  s_editor_dock_ui_window_bring_to_front(ui, dock->target_overlay_window_id);
 }
 
-static void s_editor_dock_active_drag_update(LDKEditorDockState *dock,
-  LDKEditorContext *editor, LDKUIRect workspace)
+static void s_editor_dock_active_drag_update(
+    LDKEditorDockState *dock, LDKEditorContext *editor, LDKUIRect workspace)
 {
   if (!dock->drag.active)
   {
@@ -2453,9 +1907,9 @@ static void s_editor_dock_active_drag_update(LDKEditorDockState *dock,
   }
 }
 
-/* ------------------------------------------------------------------------- */
-/* Serialization                                                             */
-/* ------------------------------------------------------------------------- */
+//----------------------------------------------------------
+// Serialization
+//----------------------------------------------------------
 
 typedef struct LDKEditorDockLayoutSnapshotContext
 {
@@ -2944,8 +2398,7 @@ static bool s_editor_dock_layout_write(
     s_editor_dock_tml_indent(out, 4);
     x_strbuilder_append_format(out, "- id: %u\n", window->id);
     s_editor_dock_tml_indent(out, 5);
-    x_strbuilder_append_format(out,
-        "floating_rect: [%.9g, %.9g, %.9g, %.9g]\n",
+    x_strbuilder_append_format(out, "floating_rect: [%.9g, %.9g, %.9g, %.9g]\n",
         (double)rect->x, (double)rect->y, (double)rect->w, (double)rect->h);
   }
 
@@ -3375,6 +2828,26 @@ static bool s_editor_dock_layout_apply(
   return true;
 }
 
+static u32 s_editor_dock_layout_find(
+    const LDKEditorDockLayouts *layouts, const char *layout_name)
+{
+  if (layouts == NULL || layout_name == NULL ||
+      layouts->layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+  }
+
+  for (u32 i = 0; i < layouts->layout_count; ++i)
+  {
+    if (strcmp(layouts->layouts[i].name, layout_name) == 0)
+    {
+      return i;
+    }
+  }
+
+  return LDK_EDITOR_DOCK_INVALID_LAYOUT;
+}
+
 /*
  * Serializes all named dock layouts to TML. Before writing, the currently
  * selected layout is refreshed from the live dock state.
@@ -3450,11 +2923,12 @@ static bool s_editor_dock_to_tml(XStrBuilder *out)
 }
 
 /*
- * Deserializes a named layout collection and applies its selected layout.
- * The live dock and the stored layouts are only replaced after the complete
+ * Deserializes a named layout collection and applies either the explicitly
+ * requested layout or the layout selected by the document's current field.
+ * The live dock and stored layouts are only replaced after the complete
  * document has been validated.
  */
-static bool s_editor_dock_from_tml(const char *source)
+static bool s_editor_dock_from_tml(const char *source, const char *layout_name)
 {
   TMLParseResult parse;
   const TMLNode *dock_node;
@@ -3491,6 +2965,7 @@ static bool s_editor_dock_from_tml(const char *source)
 
   has_current =
       tml_node_get_string(document, dock_node, "current", &current_name) != 0;
+
   layouts_node = tml_node_find_child(document, dock_node, "layouts");
   if (layouts_node == NULL || layouts_node->child_count == 0 ||
       layouts_node->child_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
@@ -3517,30 +2992,60 @@ static bool s_editor_dock_from_tml(const char *source)
       }
     }
 
-    if (has_current &&
-        s_editor_dock_tml_string_equals(current_name, layout->name))
-    {
-      layouts.current_layout = layouts.layout_count;
-    }
-
     layouts.layout_count += 1;
   }
 
-  if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  if (layout_name != NULL)
   {
     for (u32 i = 0; i < layouts.layout_count; ++i)
     {
-      if (strcmp(layouts.layouts[i].name, "default") == 0)
+      if (strcmp(layouts.layouts[i].name, layout_name) == 0)
       {
         layouts.current_layout = i;
         break;
       }
     }
-  }
 
-  if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    /*
+     * An explicitly requested layout must exist. It must not silently fall
+     * back to the persisted current or default layout.
+     */
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      goto cleanup;
+    }
+  }
+  else
   {
-    layouts.current_layout = 0;
+    if (has_current)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (s_editor_dock_tml_string_equals(
+                current_name, layouts.layouts[i].name))
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      for (u32 i = 0; i < layouts.layout_count; ++i)
+      {
+        if (strcmp(layouts.layouts[i].name, "default") == 0)
+        {
+          layouts.current_layout = i;
+          break;
+        }
+      }
+    }
+
+    if (layouts.current_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    {
+      layouts.current_layout = 0;
+    }
   }
 
   if (!s_editor_dock_layout_apply(
@@ -3557,35 +3062,260 @@ cleanup:
   return ok;
 }
 
-/* ------------------------------------------------------------------------- */
-/* Lifecycle                                                                 */
-/* ------------------------------------------------------------------------- */
+u32 ldki_editor_dock_layout_count(void)
+{
+  if (!s_editor_dock.initialized ||
+      s_editor_dock_layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return 0;
+  }
+
+  return s_editor_dock_layouts.layout_count;
+}
+
+const char *ldki_editor_dock_layout_name_get(u32 index)
+{
+  if (!s_editor_dock.initialized ||
+      index >= s_editor_dock_layouts.layout_count ||
+      s_editor_dock_layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts.layouts[index].name;
+}
+
+const char *ldki_editor_dock_layout_current_name_get(void)
+{
+  if (!s_editor_dock.initialized || s_editor_dock_layouts.current_layout >=
+                                        s_editor_dock_layouts.layout_count)
+  {
+    return NULL;
+  }
+
+  return s_editor_dock_layouts.layouts[s_editor_dock_layouts.current_layout]
+      .name;
+}
+
+/**
+ * Creates a new named layout from the current live dock state, appends it to
+ * the layout collection, and makes it the current layout.
+ */
+bool ldki_editor_dock_layout_create(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout layout;
+  size_t layout_name_length;
+
+  if (!s_editor_dock.initialized || layout_name == NULL)
+  {
+    return false;
+  }
+
+  layout_name_length = strlen(layout_name);
+  if (layout_name_length == 0 ||
+      layout_name_length >= LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY)
+    return false;
+  if (layouts.layout_count > 0 && layouts.current_layout >= layouts.layout_count)
+    return false;
+  if (s_editor_dock_layout_find(&layouts, layout_name) !=
+      LDK_EDITOR_DOCK_INVALID_LAYOUT)
+    return false;
+  /*
+   * On a fresh installation, preserve the existing live layout as "default"
+   * before creating the first custom layout.
+   */
+  if (layouts.layout_count == 0 && strcmp(layout_name, "default") != 0)
+  {
+    if (!s_editor_dock_layout_snapshot(
+            &layouts.layouts[0], &s_editor_dock, "default"))
+    {
+      return false;
+    }
+
+    layouts.layout_count = 1;
+    layouts.current_layout = 0;
+  }
+
+  if (layouts.layout_count >= LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      !s_editor_dock_layout_snapshot(&layout, &s_editor_dock, layout_name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.layout_count] = layout;
+  layouts.current_layout = layouts.layout_count;
+  layouts.layout_count += 1;
+
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/**
+ * Saves changes to the outgoing layout, applies the requested layout, and
+ * marks it as current. Nothing is committed if snapshotting or applying fails.
+ */
+bool ldki_editor_dock_set_current(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockLayout outgoing_layout;
+  u32 target_layout;
+
+  if (!s_editor_dock.initialized || layout_name == NULL ||
+      layout_name[0] == 0 || layouts.layout_count == 0 ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  target_layout = s_editor_dock_layout_find(&layouts, layout_name);
+  if (target_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT)
+  {
+    return false;
+  }
+
+  if (target_layout == layouts.current_layout)
+  {
+    return true;
+  }
+
+  if (!s_editor_dock_layout_snapshot(&outgoing_layout, &s_editor_dock,
+          layouts.layouts[layouts.current_layout].name))
+  {
+    return false;
+  }
+
+  layouts.layouts[layouts.current_layout] = outgoing_layout;
+
+  if (!s_editor_dock_layout_apply(
+          &s_editor_dock, &layouts.layouts[target_layout]))
+  {
+    return false;
+  }
+
+  layouts.current_layout = target_layout;
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+/**
+ * Deletes a named layout. The default layout cannot be deleted. If the
+ * deleted layout is current, the default layout is applied and made current.
+ */
+bool ldki_editor_dock_layout_delete(const char *layout_name)
+{
+  LDKEditorDockLayouts layouts = s_editor_dock_layouts;
+  LDKEditorDockState dock = s_editor_dock;
+  u32 deleted_layout;
+  u32 next_current_layout;
+
+  if (!dock.initialized || layout_name == NULL || layout_name[0] == 0 ||
+      layouts.layout_count == 0 ||
+      layouts.layout_count > LDK_EDITOR_DOCK_LAYOUT_CAPACITY ||
+      layouts.current_layout >= layouts.layout_count)
+  {
+    return false;
+  }
+
+  deleted_layout = s_editor_dock_layout_find(&layouts, layout_name);
+  if (deleted_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT ||
+      strcmp(layouts.layouts[deleted_layout].name, "default") == 0)
+  {
+    return false;
+  }
+
+  next_current_layout = layouts.current_layout;
+
+  if (deleted_layout == layouts.current_layout)
+  {
+    u32 default_layout = s_editor_dock_layout_find(&layouts, "default");
+    if (default_layout == LDK_EDITOR_DOCK_INVALID_LAYOUT ||
+        !s_editor_dock_layout_apply(&dock, &layouts.layouts[default_layout]))
+    {
+      return false;
+    }
+
+    next_current_layout = default_layout;
+  }
+
+  for (u32 i = deleted_layout; i + 1 < layouts.layout_count; ++i)
+  {
+    layouts.layouts[i] = layouts.layouts[i + 1];
+  }
+
+  layouts.layout_count -= 1;
+  memset(&layouts.layouts[layouts.layout_count], 0,
+      sizeof(layouts.layouts[layouts.layout_count]));
+
+  if (next_current_layout > deleted_layout)
+  {
+    next_current_layout -= 1;
+  }
+
+  layouts.current_layout = next_current_layout;
+  s_editor_dock = dock;
+  s_editor_dock_layouts = layouts;
+  return true;
+}
+
+bool ldki_editor_dock_layout_save(XStrBuilder *out)
+{
+  XFSPath path = {0};
+  const char *appdata = getenv("APPDATA");
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  if (!s_editor_dock_to_tml(out))
+    return false;
+  return x_io_write_text(path.buf, x_strbuilder_to_string(out));
+}
+
+bool ldki_editor_dock_layout_load(const char *layout_name)
+{
+  XFSPath path = {0};
+  const char *appdata = getenv("APPDATA");
+  if (appdata == NULL || appdata[0] == 0)
+  {
+    return false;
+  }
+
+  x_fs_path(&path, appdata, "ldk", "layout.tml");
+
+  char *buffer = x_io_read_text(path.buf, NULL);
+  if (buffer == NULL)
+  {
+    return false;
+  }
+
+  bool loaded = s_editor_dock_from_tml(buffer, layout_name);
+  X_IO_FREE(buffer);
+  return loaded;
+}
+
+//----------------------------------------------------------
+// Lifecycle
+//----------------------------------------------------------
 
 static void s_editor_dock_layout_reset_preserving_windows(
-  LDKEditorDockState *dock)
+    LDKEditorDockState *dock)
 {
   LDKEditorDockWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
   u32 window_count = dock->window_count;
 
   if (window_count > 0)
   {
-    memcpy(windows, dock->windows,
-      sizeof(LDKEditorDockWindow) * window_count);
+    memcpy(windows, dock->windows, sizeof(LDKEditorDockWindow) * window_count);
   }
 
-  *dock = (LDKEditorDockState){
-    .root = LDK_EDITOR_DOCK_INVALID_NODE
-  };
+  *dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
 
   if (window_count > 0)
   {
-    memcpy(dock->windows, windows,
-      sizeof(LDKEditorDockWindow) * window_count);
+    memcpy(dock->windows, windows, sizeof(LDKEditorDockWindow) * window_count);
   }
 
   dock->window_count = window_count;
-  dock->project_explorer.root_expanded = true;
-  dock->project_explorer.icon_size = 48.0f;
   dock->inspector.enabled = true;
 
   for (u32 i = 0; i < dock->window_count; ++i)
@@ -3598,7 +3328,7 @@ static void s_editor_dock_layout_reset_preserving_windows(
   s_editor_dock_resize_reset(&dock->resize);
 }
 
-static bool ldk_editor_dock_init(LDKEditorContext *editor)
+bool ldk_editor_dock_init(LDKEditorContext *editor)
 {
   if (editor == NULL)
   {
@@ -3613,21 +3343,16 @@ static bool ldk_editor_dock_init(LDKEditorContext *editor)
     return false;
   }
 
-  i32 project_leaf = s_editor_dock_leaf_create(
-    dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
-  i32 scene_leaf = s_editor_dock_leaf_create(
-    dock, LDK_EDITOR_WINDOW_SCENE);
+  i32 project_leaf =
+      s_editor_dock_leaf_create(dock, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
+  i32 scene_leaf = s_editor_dock_leaf_create(dock, LDK_EDITOR_WINDOW_SCENE);
 
   const LDKEditorWindowId bottom_windows[] = {
-    LDK_EDITOR_WINDOW_INSPECTOR,
-    LDK_EDITOR_WINDOW_CONSOLE
-  };
+      LDK_EDITOR_WINDOW_INSPECTOR, LDK_EDITOR_WINDOW_CONSOLE};
 
-  i32 bottom_leaf = s_editor_dock_leaf_create_tabs(
-    dock,
-    bottom_windows,
-    (u32)(sizeof(bottom_windows) / sizeof(bottom_windows[0])),
-    LDK_EDITOR_WINDOW_INSPECTOR);
+  i32 bottom_leaf = s_editor_dock_leaf_create_tabs(dock, bottom_windows,
+      (u32)(sizeof(bottom_windows) / sizeof(bottom_windows[0])),
+      LDK_EDITOR_WINDOW_INSPECTOR);
 
   if (project_leaf == LDK_EDITOR_DOCK_INVALID_NODE ||
       scene_leaf == LDK_EDITOR_DOCK_INVALID_NODE ||
@@ -3636,16 +3361,16 @@ static bool ldk_editor_dock_init(LDKEditorContext *editor)
     return false;
   }
 
-  i32 right_split = s_editor_dock_split_create(dock,
-    LDK_EDITOR_DOCK_SPLIT_VERTICAL, 0.66f, scene_leaf, bottom_leaf);
+  i32 right_split = s_editor_dock_split_create(
+      dock, LDK_EDITOR_DOCK_SPLIT_VERTICAL, 0.66f, scene_leaf, bottom_leaf);
 
   if (right_split == LDK_EDITOR_DOCK_INVALID_NODE)
   {
     return false;
   }
 
-  i32 root = s_editor_dock_split_create(dock,
-    LDK_EDITOR_DOCK_SPLIT_HORIZONTAL, 0.25f, project_leaf, right_split);
+  i32 root = s_editor_dock_split_create(
+      dock, LDK_EDITOR_DOCK_SPLIT_HORIZONTAL, 0.25f, project_leaf, right_split);
 
   if (root == LDK_EDITOR_DOCK_INVALID_NODE)
   {
@@ -3659,7 +3384,7 @@ static bool ldk_editor_dock_init(LDKEditorContext *editor)
   return true;
 }
 
-static void ldk_editor_dock_update(LDKEditorContext *editor)
+void ldk_editor_dock_update(LDKEditorContext *editor)
 {
   LDKEditorDockState *dock = &s_editor_dock;
   if (editor == NULL || !dock->initialized)
@@ -3676,6 +3401,7 @@ static void ldk_editor_dock_update(LDKEditorContext *editor)
   }
 
   s_editor_dock_windows_draw(dock, editor);
+  s_editor_dock_floating_windows_bring_to_front(dock, ui);
 
   bool split_resizing = s_editor_dock_split_resize_update(dock, ui);
   if (!split_resizing)
@@ -3686,14 +3412,11 @@ static void ldk_editor_dock_update(LDKEditorContext *editor)
   }
 }
 
-static void ldk_editor_dock_terminate(LDKEditorContext *editor)
+void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
 
-  s_editor_dock = (LDKEditorDockState){
-    .root = LDK_EDITOR_DOCK_INVALID_NODE
-  };
-  s_editor_dock_layouts = (LDKEditorDockLayouts){
-    .current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT
-  };
+  s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
+  s_editor_dock_layouts =
+      (LDKEditorDockLayouts){.current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 }

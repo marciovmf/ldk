@@ -4,7 +4,8 @@
 #include <ldk_common.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
   typedef enum LDKFieldType
@@ -45,14 +46,14 @@ extern "C" {
 
   typedef enum LDKFieldFlags
   {
-    LDK_FIELD_FLAG_NONE     = 0,
+    LDK_FIELD_FLAG_NONE = 0,
     LDK_FIELD_FLAG_READONLY = 1 << 0,
-    LDK_FIELD_FLAG_RUNTIME  = 1 << 1,
+    LDK_FIELD_FLAG_RUNTIME = 1 << 1,
   } LDKFieldFlags;
 
   typedef struct LDKComponentFieldMeta
   {
-    const char* name;
+    const char *name;
     LDKFieldType type;
     u32 offset;
     u32 flags;
@@ -63,13 +64,13 @@ extern "C" {
 
   typedef struct LDKComponentMeta
   {
-    const char* name;
+    const char *name;
     u32 type;
     u32 size;
-    const LDKComponentFieldMeta* fields;
+    const LDKComponentFieldMeta *fields;
     u32 field_count;
   } LDKComponentMeta;
-  
+
 #ifdef __cplusplus
 }
 #endif

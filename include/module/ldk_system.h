@@ -110,6 +110,8 @@ LDK_API void ldk_system_registry_terminate(LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_register(LDKSystemRegistry* registry, const LDKSystemDesc* desc);
 LDK_API bool ldk_system_registry_unregister(LDKSystemRegistry* registry, u64 id);
 LDK_API bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id, LDKSystemDesc* out);
+LDK_API u32 ldk_system_registry_count(const LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_at(const LDKSystemRegistry* registry, u32 index, LDKSystemDesc* out);
 LDK_API bool ldk_system_registry_clear(LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_start(LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_stop(LDKSystemRegistry* registry);
