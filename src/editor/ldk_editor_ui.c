@@ -1,16 +1,571 @@
-#include "ldk_editor_atlas.h"
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
-#include "module/ldk_ui.h"
-#include <ldk_scene.h>
-#include <ldk_mesh.h>
-#include <component/ldk_mesh_source.h>
-#include <component/ldk_transform.h>
 #include <stdx/stdx_strbuilder.h>
-#include <stdx/stdx_string.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <inttypes.h> // for PRIu64
+
+#define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
+#define LDK_EDITOR_COLOR_FOLDER 0xFAD460FF
+#define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
+#define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
+
+//------------------------------------------------------------
+// Project Explorer
+//------------------------------------------------------------
+
+enum
+{
+  PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
+  PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
+  PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
+};
+
+typedef struct ProjectExplorerNode
+{
+  XFSPath path;
+  XSmallstr name;
+  u32 depth;
+  bool root;
+} ProjectExplorerNode;
+
+typedef struct ProjectExplorerEntry
+{
+  XFSPath path;
+  XSmallstr name;
+  size_t size;
+  time_t last_modified;
+} ProjectExplorerEntry;
+
+typedef struct ProjectExplorerState
+{
+  LDKUIRect window_rect;
+  LDKUIPoint tree_scroll;
+  LDKUIPoint file_scroll;
+  XFSPath root;
+  XFSPath selected_directory;
+  XFSPath selected_file;
+  XArray *expanded_paths;
+  XArray *stack;
+  XArray *dirs;
+  XArray *files;
+  bool root_expanded;
+  float icon_size;
+} ProjectExplorerState;
+
+static ProjectExplorerState s_project_explorer_state = {
+  .window_rect = {10.0f, 60.0f, 640.0f, 420.0f},
+  .root_expanded = true,
+  .icon_size = 48.0f,
+};
+
+static bool s_project_explorer_initialize(ProjectExplorerState *state)
+{
+  if (state->expanded_paths == NULL)
+  {
+    state->expanded_paths =
+      x_array_create(sizeof(XFSPath), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->stack == NULL)
+  {
+    state->stack = x_array_create(
+      sizeof(ProjectExplorerNode), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->dirs == NULL)
+  {
+    state->dirs = x_array_create(
+      sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->files == NULL)
+  {
+    state->files = x_array_create(
+      sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  return state->expanded_paths != NULL && state->stack != NULL &&
+         state->dirs != NULL && state->files != NULL;
+}
+
+static i32 s_project_explorer_expanded_path_index(
+  ProjectExplorerState *state, const XFSPath *path)
+{
+  for (u32 i = 0; i < x_array_count(state->expanded_paths); i++)
+  {
+    XFSPath *expanded_path = x_array_get(state->expanded_paths, i);
+    if (x_fs_path_compare(expanded_path, path) == 0)
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static bool s_project_explorer_root_set(
+  ProjectExplorerState *state, const char *root_path)
+{
+  if (root_path == NULL)
+  {
+    return false;
+  }
+
+  XFSPath root = {0};
+  x_fs_path_set(&root, root_path);
+  x_fs_path_normalize(&root);
+
+  if (!x_fs_path_is_directory(&root))
+  {
+    return false;
+  }
+
+  if (state->root.length == 0 || x_fs_path_compare(&state->root, &root) != 0)
+  {
+    state->root = root;
+    state->selected_directory = root;
+    memset(&state->selected_file, 0, sizeof(state->selected_file));
+    x_array_clear(state->expanded_paths);
+    state->root_expanded = true;
+  }
+
+  return true;
+}
+
+static void s_project_explorer_directory_select(
+  ProjectExplorerState *state, const XFSPath *path, bool expand)
+{
+  state->selected_directory = *path;
+  memset(&state->selected_file, 0, sizeof(state->selected_file));
+
+  if (!expand)
+  {
+    return;
+  }
+
+  if (x_fs_path_compare(&state->root, path) == 0)
+  {
+    state->root_expanded = true;
+    return;
+  }
+
+  if (s_project_explorer_expanded_path_index(state, path) < 0)
+  {
+    x_array_add(state->expanded_paths, (XFSPath*) path);
+  }
+}
+
+static void s_project_explorer_entry_insert_sorted(
+  XArray *entries, const ProjectExplorerEntry *entry)
+{
+  u32 insert_index = x_array_count(entries);
+
+  for (u32 i = 0; i < x_array_count(entries); i++)
+  {
+    ProjectExplorerEntry *it = x_array_get(entries, i);
+    if (strcmp(it->name.buf, entry->name.buf) > 0)
+    {
+      insert_index = i;
+      break;
+    }
+  }
+
+  x_array_insert(entries, (XArray*) entry, insert_index);
+}
+
+static void s_project_explorer_directory_read(
+  const XFSPath *path, XArray *dirs, XArray *files)
+{
+  if (dirs != NULL)
+  {
+    x_array_clear(dirs);
+  }
+
+  if (files != NULL)
+  {
+    x_array_clear(files);
+  }
+
+  XFSDireEntry fs_entry = {0};
+  XFSDireHandle *dir =
+    x_fs_find_first_file(x_fs_path_cstr(path), &fs_entry);
+
+  while (dir != NULL)
+  {
+    bool special_entry = strcmp(fs_entry.name, ".") == 0 ||
+                         strcmp(fs_entry.name, "..") == 0;
+    XArray *target = fs_entry.is_directory ? dirs : files;
+
+    if (!special_entry && target != NULL)
+    {
+      ProjectExplorerEntry entry = {0};
+      entry.path = *path;
+      x_fs_path_join(&entry.path, fs_entry.name);
+      x_smallstr_from_cstr(&entry.name, fs_entry.name);
+      entry.size = fs_entry.size;
+      entry.last_modified = fs_entry.last_modified;
+      s_project_explorer_entry_insert_sorted(target, &entry);
+    }
+
+    if (!x_fs_find_next_file(dir, &fs_entry))
+    {
+      break;
+    }
+  }
+
+  if (dir != NULL)
+  {
+    x_fs_find_close(dir);
+  }
+}
+
+static bool s_project_explorer_tree_node(
+  ProjectExplorerState *state, LDKUIContext *ui,
+  const ProjectExplorerNode *node, LDKUIIcon folder_icon)
+{
+  i32 expanded_index = node->root
+                         ? -1
+                         : s_project_explorer_expanded_path_index(
+                             state, &node->path);
+  bool was_expanded = node->root
+                        ? state->root_expanded
+                        : expanded_index >= 0;
+  u32 flags = 0;
+
+  if (x_fs_path_compare(&state->selected_directory, &node->path) == 0)
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  u32 result = ldk_ui_tree_node_ex(
+    ui, node->name.buf, folder_icon, was_expanded, node->depth, flags);
+  bool expanded = was_expanded;
+
+  if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
+  {
+    s_project_explorer_directory_select(state, &node->path, false);
+  }
+
+  if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+  {
+    expanded = !was_expanded;
+  }
+
+  if (expanded == was_expanded)
+  {
+    return expanded;
+  }
+
+  s_project_explorer_directory_select(state, &node->path, false);
+
+  if (node->root)
+  {
+    state->root_expanded = expanded;
+  }
+  else if (expanded)
+  {
+    x_array_add(state->expanded_paths, (ProjectExplorerNode*)&node->path);
+  }
+  else
+  {
+    x_array_delete_at(state->expanded_paths, (u32)expanded_index);
+  }
+
+  return expanded;
+}
+
+static void s_project_explorer_tree_draw(
+  ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon)
+{
+  ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
+  state->tree_scroll = ldk_ui_begin_scrollview(
+    ui, state->tree_scroll,
+    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  x_array_clear(state->stack);
+
+  ProjectExplorerNode root_node = {0};
+  root_node.path = state->root;
+  x_fs_path_basename(&state->root, &root_node.name);
+  if (root_node.name.length == 0)
+  {
+    x_smallstr_from_cstr(
+      &root_node.name, x_fs_path_cstr(&state->root));
+  }
+  root_node.root = true;
+  x_array_add(state->stack, &root_node);
+
+  while (x_array_count(state->stack) > 0)
+  {
+    u32 stack_index = x_array_count(state->stack) - 1;
+    ProjectExplorerNode *node_ptr = x_array_get(state->stack, stack_index);
+    ProjectExplorerNode node = *node_ptr;
+    x_array_delete_at(state->stack, stack_index);
+
+    if (!s_project_explorer_tree_node(state, ui, &node, folder_icon))
+    {
+      continue;
+    }
+
+    s_project_explorer_directory_read(&node.path, state->dirs, NULL);
+
+    for (u32 i = x_array_count(state->dirs); i > 0; i--)
+    {
+      ProjectExplorerEntry *entry = x_array_get(state->dirs, i - 1);
+      ProjectExplorerNode child = {0};
+      child.path = entry->path;
+      child.name = entry->name;
+      child.depth = node.depth + 1;
+      x_array_add(state->stack, &child);
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+}
+
+static ProjectExplorerEntry *s_project_explorer_entry_get(
+  ProjectExplorerState *state, u32 index, bool *is_directory)
+{
+  u32 directory_count = x_array_count(state->dirs);
+  *is_directory = index < directory_count;
+
+  if (*is_directory)
+  {
+    return x_array_get(state->dirs, index);
+  }
+
+  return x_array_get(state->files, index - directory_count);
+}
+
+static void s_project_explorer_entry_activate(
+  ProjectExplorerState *state, const ProjectExplorerEntry *entry,
+  bool is_directory)
+{
+  if (is_directory)
+  {
+    s_project_explorer_directory_select(state, &entry->path, true);
+  }
+  else
+  {
+    state->selected_file = entry->path;
+  }
+}
+
+static void s_project_explorer_entries_draw(
+  ProjectExplorerState *state, LDKUIContext *ui,
+  LDKUIIcon folder_icon, LDKUIIcon file_icon)
+{
+  u32 total_count = x_array_count(state->dirs) + x_array_count(state->files);
+  bool compact_mode =
+    state->icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
+
+  if (compact_mode)
+  {
+    for (u32 entry_i = 0; entry_i < total_count; entry_i++)
+    {
+      bool is_directory = false;
+      ProjectExplorerEntry *entry =
+        s_project_explorer_entry_get(state, entry_i, &is_directory);
+
+      ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+      ldk_ui_begin_horizontal(ui);
+
+      ldk_ui_set_next_weight(ui, 0.0f);
+      bool icon_clicked =
+        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+      bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+
+      ldk_ui_end_horizontal(ui);
+
+      if (icon_clicked || label_clicked)
+      {
+        s_project_explorer_entry_activate(state, entry, is_directory);
+      }
+    }
+
+    return;
+  }
+
+  float tile_w = state->icon_size + 32.0f;
+  float tile_h =
+    state->icon_size + LDK_UI_DEFAULT_CONTROL_HEIGHT + 12.0f;
+  float available_w = ui->current_layout != NULL
+                        ? ui->current_layout->content_rect.w
+                        : tile_w;
+  u32 column_count = (u32)(available_w / tile_w);
+  if (column_count == 0)
+  {
+    column_count = 1;
+  }
+
+  u32 tile_index = 0;
+  while (tile_index < total_count)
+  {
+    ldk_ui_set_next_height(ui, ldk_ui_px(tile_h));
+    ldk_ui_begin_horizontal(ui);
+
+    for (u32 column = 0;
+         column < column_count && tile_index < total_count;
+         column++, tile_index++)
+    {
+      bool is_directory = false;
+      ProjectExplorerEntry *entry =
+        s_project_explorer_entry_get(state, tile_index, &is_directory);
+
+      ldk_ui_set_next_size(ui, ldk_ui_px(tile_w), ldk_ui_px(tile_h));
+      ldk_ui_begin_vertical(ui);
+
+      ldk_ui_set_next_size(
+        ui, ldk_ui_px(state->icon_size), ldk_ui_px(state->icon_size));
+      bool icon_clicked =
+        ldk_ui_icon_button(ui, is_directory ? folder_icon : file_icon);
+
+      ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+      bool label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+
+      ldk_ui_end_vertical(ui);
+
+      if (icon_clicked || label_clicked)
+      {
+        s_project_explorer_entry_activate(state, entry, is_directory);
+      }
+    }
+
+    ldk_ui_spacer(ui);
+    ldk_ui_end_horizontal(ui);
+  }
+}
+
+static void s_project_explorer_files_draw(
+  ProjectExplorerState *state, LDKUIContext *ui,
+  LDKUIIcon folder_icon, LDKUIIcon file_icon)
+{
+  ldk_ui_begin_vertical(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+
+  XFSPath relative_directory = {0};
+  if (x_fs_path_relative_to(
+        &state->root, &state->selected_directory, &relative_directory) > 0)
+  {
+    ldk_ui_label(ui, relative_directory.buf);
+  }
+  else
+  {
+    ldk_ui_label(ui, state->selected_directory.buf);
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  state->icon_size = ldk_ui_slider(
+    ui, state->icon_size, PROJECT_EXPLORER_MIN_ICON_SIZE, 72.0f);
+
+  folder_icon.size = ldk_sizef(state->icon_size, state->icon_size);
+  file_icon.size = folder_icon.size;
+
+  state->file_scroll = ldk_ui_begin_scrollview(
+    ui, state->file_scroll,
+    LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  s_project_explorer_directory_read(
+    &state->selected_directory, state->dirs, state->files);
+  s_project_explorer_entries_draw(state, ui, folder_icon, file_icon);
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+  ldk_ui_end_vertical(ui);
+}
+
+static void s_editor_project_explorer(
+  LDKEditorContext *editor, const char *root_path)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+  LDKUIContext *ui = &editor->ui;
+
+  LDKUIIcon file_icon = {0};
+  file_icon.size = ldk_sizef(state->icon_size, state->icon_size);
+  file_icon.texture =
+    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  file_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
+  file_icon.color = LDK_EDITOR_COLOR_FILE;
+
+  LDKUIIcon folder_icon = file_icon;
+  folder_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FOLDER];
+  folder_icon.color = LDK_EDITOR_COLOR_FOLDER;
+
+  LDKUIIcon tree_folder_icon = folder_icon;
+  tree_folder_icon.size = ldk_sizef(
+    PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
+
+  state->window_rect = ldk_ui_begin_window(
+    ui, "Project Explorer", state->window_rect, LDK_UI_WINDOW_TOOL);
+
+  if (!s_project_explorer_initialize(state))
+  {
+    ldk_ui_label(ui, "Project explorer allocation failed.");
+    ldk_ui_end_window(ui);
+    return;
+  }
+
+  if (!s_project_explorer_root_set(state, root_path))
+  {
+    ldk_ui_label(ui, "No project root.");
+    ldk_ui_end_window(ui);
+    return;
+  }
+
+  ldk_ui_begin_horizontal(ui);
+  s_project_explorer_tree_draw(state, ui, tree_folder_icon);
+  s_project_explorer_files_draw(state, ui, folder_icon, file_icon);
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_end_window(ui);
+}
+
+//------------------------------------------------------------
+// Console
+//------------------------------------------------------------
+
+static void s_editor_console(LDKEditorContext *editor)
+{
+  LDK_ASSERT(editor);
+  LDK_ASSERT(editor->console_sb);
+
+  static XSmallstr input = {0};
+  LDKUIIcon icon;
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+  LDKUIContext *ui = &editor->ui;
+  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
+  s_entity_list_rect = ldk_ui_begin_window_fixed(
+      ui, "CONSOLE", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+
+  static LDKUIPoint scroll = {0};
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
+  icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+  ldk_ui_icon_label(ui, icon, "This is a warning.");
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
+  icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+  ldk_ui_icon_label(ui, icon, "This is an error.");
+  ldk_ui_label(ui, x_strbuilder_to_string(editor->console_sb));
+  ldk_ui_end_scrollview(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_input_box(ui, input.buf, X_SMALLSTR_MAX_LENGTH) &
+      LDK_UI_INPUT_BOX_COMMITTED)
+  {
+    x_strbuilder_append_format(editor->console_sb, "%s\n", input.buf);
+    ldk_editor_command_run(editor, input.buf);
+    x_smallstr_clear(&input);
+    // scroll down
+    scroll.y += 10000.0f;
+  }
+
+  ldk_ui_end_window(ui);
+}
 
 //------------------------------------------------------------
 // Menu bar
@@ -20,22 +575,18 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
 
-  ldki_editor_scene_state_sync(editor);
-
   static LDKUIRect s_toolbar_rect = {0, 0, 0, 0};
   static LDKUIRect s_file_popup_rect = {0, 0, 1024, 1024};
   static LDKUIRect s_edit_popup_rect = {0, 0, 1024, 1024};
   static LDKUIRect s_theme_popup_rect = {0, 0, 1024, 1024};
 
   const LDKUIId MENU_ID_FILE = 10;
-  const LDKUIId MENU_ID_PROJECT = 11;
+  const LDKUIId MENU_ID_EDIT = 11;
   const LDKUIId MENU_ID_THEME = 12;
-  const LDKUIId MENU_ID_SCENE = 13;
-  const LDKUIId MENU_ID_WINDOW = 14;
 
   s_toolbar_rect.w = ui->viewport.w;
   s_toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING; // * 2.0f;
+      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
 
   s_toolbar_rect = ldk_ui_begin_window(ui, "TOOLBAR", s_toolbar_rect, 0);
 
@@ -50,25 +601,11 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   LDKUIRect file_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Project"))
+  if (ldk_ui_button_flat(ui, "Edit"))
   {
-    ldk_ui_open_popup(ui, MENU_ID_PROJECT);
+    ldk_ui_open_popup(ui, MENU_ID_EDIT);
   }
   LDKUIRect edit_button_rect = ldk_ui_last_rect(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Scene"))
-  {
-    ldk_ui_open_popup(ui, MENU_ID_SCENE);
-  }
-  LDKUIRect scene_button_rect = ldk_ui_last_rect(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Window"))
-  {
-    ldk_ui_open_popup(ui, MENU_ID_WINDOW);
-  }
-  LDKUIRect window_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button_flat(ui, "Theme"))
@@ -82,42 +619,35 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_horizontal(ui);
   ldk_ui_horizontal_line(ui);
 
-
   LDKUIRect popup_pos = {
       file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
-
-  bool can_edit_scene = editor->project.loaded &&
-    editor->editor_state == LDK_EDITOR_STATE_STOPED;
-  
 
   ldk_ui_begin_popup(ui, MENU_ID_FILE);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    if (ldk_ui_button_flat(ui, "New Project"))
+    if (ldk_ui_button_flat(ui, "New"))
     {
-      ldki_editor_project_create_window_open(editor);
-      ldk_ui_close_current_popup(ui);
-    }
-    
-    ldk_ui_set_next_disabled(ui, !can_edit_scene);
-    if (ldk_ui_button_flat(ui, "New Scene"))
-    {
-      ldki_editor_scene_new(editor);
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(
-        ui, !can_edit_scene || editor->current_scene_path.length == 0);
-    if (ldk_ui_button_flat(ui, "Save Scene"))
-    {
-      ldki_editor_scene_save(editor);
       ldk_ui_close_current_popup(ui);
     }
 
     if (ldk_ui_button_flat(ui, "Open"))
     {
-      ldki_editor_show_open_project_dialog(editor, NULL);
+      XFSPath out = {0};
+      if (ldk_os_dialog_show_open_file(editor->window, "Open Project", "*.ldk",
+              out.buf, X_SMALLSTR_MAX_LENGTH))
+      {
+        ldk_editor_state_set_stop(editor);
+        ldk_project_unload(&editor->project);
+        ldk_game_instance_unload();
+
+        if (!ldk_editor_project_load(editor, out.buf))
+        {
+          ldk_os_dialog_show_error(
+              editor->window, "Failed to load project", out.buf);
+        }
+      }
+
       ldk_ui_close_current_popup(ui);
     }
 
@@ -132,112 +662,18 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   popup_pos.x = edit_button_rect.x;
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_PROJECT);
+  ldk_ui_begin_popup(ui, MENU_ID_EDIT);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
-
-    ldk_ui_set_next_disabled(ui, can_not_build);
-    if (ldk_ui_button_flat(ui, "Build"))
+    if (ldk_ui_button_flat(ui, "Undo"))
     {
-      ldki_editor_project_build_request(editor);
       ldk_ui_close_current_popup(ui);
     }
 
-    ldk_ui_set_next_disabled(ui, !editor->project_build.active);
-    if (ldk_ui_button_flat(ui, "Cancel Build"))
+    if (ldk_ui_button_flat(ui, "Redo"))
     {
-      ldki_editor_project_build_cancel_request(editor);
       ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, can_not_build);
-    if (ldk_ui_button_flat(ui, "Build Launcher"))
-    {
-      ldki_editor_project_release_request(editor);
-      ldk_ui_close_current_popup(ui);
-    }
-
-    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
-  }
-  ldk_ui_end_popup(ui);
-
-  popup_pos.x = scene_button_rect.x;
-  popup_pos.y = scene_button_rect.y + scene_button_rect.h;
-
-  ldk_ui_begin_popup(ui, MENU_ID_SCENE);
-  {
-    LDKUIMark mark = ldk_ui_mark(ui);
-    bool can_add = editor->project.loaded &&
-                   editor->editor_state == LDK_EDITOR_STATE_STOPED &&
-                   editor->current_scene_path.length != 0;
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Cube"))
-    {
-      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_CUBE, "Cube");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Cone"))
-    {
-      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_CONE, "Cone");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Sphere"))
-    {
-      ldki_editor_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_SPHERE, "Sphere");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Capsule"))
-    {
-      ldki_editor_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_CAPSULE, "Capsule");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Plane"))
-    {
-      ldki_editor_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_PLANE, "Plane");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    ldk_ui_set_next_disabled(ui, !can_add);
-    if (ldk_ui_button_flat(ui, "Add Quad"))
-    {
-      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_QUAD, "Quad");
-      ldk_ui_close_current_popup(ui);
-    }
-
-    LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
-  }
-  ldk_ui_end_popup(ui);
-
-  popup_pos.x = window_button_rect.x;
-  popup_pos.y = window_button_rect.y + window_button_rect.h;
-
-  ldk_ui_begin_popup(ui, MENU_ID_WINDOW);
-  {
-    LDKUIMark mark = ldk_ui_mark(ui);
-    u32 window_count = ldki_editor_window_count();
-
-    for (u32 i = 0; i < window_count; ++i)
-    {
-      const LDKEditorWindow *window = ldki_editor_window_at(i);
-      if (window != NULL && ldk_ui_button_flat(ui, window->title))
-      {
-        ldki_editor_window_show(window->id);
-        ldk_ui_close_current_popup(ui);
-      }
     }
 
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
@@ -254,14 +690,14 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     if (ldk_ui_button_flat(ui, "Dark"))
     {
       ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme);
-      ldki_editor_theme_icons_set(editor, &theme);
+      ldk_editor_internal_theme_icons_set(editor, &theme);
       ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
     if (ldk_ui_button_flat(ui, "Light"))
     {
       ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_LIGHT, &theme);
-      ldki_editor_theme_icons_set(editor, &theme);
+      ldk_editor_internal_theme_icons_set(editor, &theme);
       ldk_ui_theme_set(ui, &theme);
       ldk_ui_close_current_popup(ui);
     }
@@ -277,413 +713,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 // Toolbar
 //------------------------------------------------------------
 
-static bool s_editor_layouts_save(void)
-{
-  XStrBuilder *out = x_strbuilder_create();
-  if (out == NULL)
-  {
-    return false;
-  }
-
-  bool saved = ldki_editor_dock_layout_save(out);
-  x_strbuilder_destroy(out);
-  return saved;
-}
-
-bool ldki_editor_layout_save_as(LDKEditorContext *editor)
-{
-  XSlice name_slice;
-  char layout_name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
-
-  if (editor == NULL)
-  {
-    return false;
-  }
-
-  name_slice = x_slice_trim(x_slice(editor->input_window_buffer));
-
-  if (name_slice.length == 0)
-  {
-    ldki_editor_log_error(editor, "The layout name cannot be empty.");
-    return false;
-  }
-
-  if (name_slice.length >= sizeof(layout_name))
-  {
-    ldki_editor_log_error(editor, "The layout name is too long.");
-    return false;
-  }
-
-  memcpy(layout_name, name_slice.ptr, name_slice.length);
-  layout_name[name_slice.length] = 0;
-
-  u32 layout_count = ldki_editor_dock_layout_count();
-  for (u32 i = 0; i < layout_count; ++i)
-  {
-    const char *existing_name = ldki_editor_dock_layout_name_get(i);
-
-    if (existing_name != NULL && strcmp(existing_name, layout_name) == 0)
-    {
-      ldki_editor_log_error(editor, "A layout with that name already exists.");
-      return false;
-    }
-  }
-
-  if (!ldki_editor_dock_layout_create(layout_name))
-  {
-    ldki_editor_log_error(editor, "Failed to save the layout.");
-    return false;
-  }
-
-  if (!s_editor_layouts_save())
-  {
-    ldki_editor_log_error(editor,
-        "Layout created in memory, but failed to save the layout file.");
-  }
-  else
-  {
-    ldki_editor_log_info(editor, "Layout created.");
-  }
-
-  return true;
-}
-
-u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title)
-{
-  LDKUIContext *ui;
-  LDKUIRect *rect;
-  u32 result;
-
-  if (editor == NULL || title == NULL || !editor->show_input_window)
-  {
-    return LDK_UI_INPUT_BOX_NONE;
-  }
-
-  ui = &editor->ui;
-  rect = &editor->input_window_rect;
-
-  if (rect->w <= 0.0f || rect->h <= 0.0f)
-  {
-    rect->w = 400.0f;
-    rect->h = 128.0f;
-    rect->x = (ui->viewport.w - rect->w) * 0.5f;
-    rect->y = (ui->viewport.h - rect->h) * 0.5f;
-  }
-
-  if (!ldk_ui_begin_window_open(ui, title, rect, &editor->show_input_window,
-          LDK_UI_WINDOW_TITLE_BAR | LDK_UI_WINDOW_DRAGGABLE |
-              LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_CLOSE_BUTTON))
-  {
-    return LDK_UI_INPUT_BOX_CANCELED;
-  }
-
-  result = ldk_ui_input_box(ui, editor->input_window_buffer,
-      (u32)sizeof(editor->input_window_buffer));
-
-  ldk_ui_spacer(ui);
-  ldk_ui_begin_horizontal(ui);
-  {
-    bool confirm_requested = (result & LDK_UI_INPUT_BOX_COMMITTED) != 0;
-    bool cancel_requested = (result & LDK_UI_INPUT_BOX_CANCELED) != 0;
-
-    ldk_ui_spacer(ui);
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
-    cancel_requested |= ldk_ui_button(ui, "CANCEL");
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
-    confirm_requested |= ldk_ui_button(ui, "OK");
-
-    if (cancel_requested)
-    {
-      editor->show_input_window = false;
-      result |= LDK_UI_INPUT_BOX_CANCELED;
-    }
-    else if (confirm_requested)
-    {
-      result |= LDK_UI_INPUT_BOX_COMMITTED;
-    }
-  }
-  ldk_ui_end_horizontal(ui);
-
-  ldk_ui_end_window(ui);
-  return result;
-}
-
-static void s_editor_layout_combo_box(LDKEditorContext *editor)
-{
-  LDKUIContext *ui = &editor->ui;
-  const char *items[LDK_EDITOR_DOCK_LAYOUT_CAPACITY + 3];
-  const char *current_name = ldki_editor_dock_layout_current_name_get();
-  u32 stored_layout_count = ldki_editor_dock_layout_count();
-  u32 layout_count = stored_layout_count;
-  u32 selected_index = 0;
-
-  for (u32 i = 0; i < layout_count; ++i)
-  {
-    items[i] = ldki_editor_dock_layout_name_get(i);
-
-    if (current_name != NULL && items[i] != NULL &&
-        strcmp(items[i], current_name) == 0)
-    {
-      selected_index = i;
-    }
-  }
-
-  // Before the first layout file is saved, the live dock is the compiled
-  // default layout but the named-layout collection is still empty.
-  if (layout_count == 0)
-  {
-    current_name = "default";
-    items[0] = current_name;
-    layout_count = 1;
-  }
-  else if (current_name == NULL)
-  {
-    current_name = items[0] != NULL ? items[0] : "default";
-  }
-
-  u32 save_layout_index = layout_count;
-  items[save_layout_index] = "Save...";
-
-  u32 save_layout_as_index = layout_count + 1;
-  items[save_layout_as_index] = "Save as...";
-
-  u32 item_count = layout_count + 2;
-  u32 delete_layout_index = UINT32_MAX;
-
-  if (strcmp(current_name, "default") != 0)
-  {
-    delete_layout_index = item_count;
-    items[item_count++] = "Delete current layout...";
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(150.0f));
-  u32 result = ldk_ui_combo_box(ui, items, item_count, selected_index);
-
-  if (result == selected_index)
-  {
-    return;
-  }
-
-  if (result < layout_count)
-  {
-    if (stored_layout_count > 0 && ldki_editor_dock_set_current(items[result]))
-    {
-      if (!s_editor_layouts_save())
-      {
-        ldki_editor_log_error(editor,
-            "Layout changed in memory, but failed to save the layout file.");
-      }
-    }
-    else if (stored_layout_count > 0)
-    {
-      ldki_editor_log_error(editor, "Failed to change layout.");
-    }
-  }
-  else if (result == save_layout_index)
-  {
-    if (!s_editor_layouts_save())
-    {
-      ldki_editor_log_error(editor, "Failed to save the layout.");
-    }
-    else
-    {
-      ldki_editor_log_info(editor, "Layout saved.");
-    }
-  }
-  else if (result == save_layout_as_index)
-  {
-    memset(editor->input_window_buffer, 0, sizeof(editor->input_window_buffer));
-    editor->input_window_rect = (LDKUIRect){0};
-    editor->show_input_window = true;
-  }
-  else if (result == delete_layout_index)
-  {
-    char message[X_SMALLSTR_MAX_LENGTH];
-    snprintf(message, sizeof(message),
-        "Delete the \"%s\" layout? This cannot be undone.", current_name);
-
-    if (ldk_os_dialog_show_yes_no(editor->window, "Delete layout?", message))
-    {
-      if (!ldki_editor_dock_layout_delete(current_name))
-      {
-        ldki_editor_log_error(editor, "Failed to delete layout.");
-      }
-      else if (!s_editor_layouts_save())
-      {
-        ldki_editor_log_error(editor,
-            "Layout deleted in memory, but failed to save the layout file.");
-      }
-      else
-      {
-        ldki_editor_log_info(editor, "Layout deleted.");
-      }
-    }
-  }
-}
-
-static bool s_editor_push_button(
-  LDKUIContext *ui, const char *text, LDKUIIcon icon, bool pushed)
-{
-  if (ui == NULL)
-  {
-    return false;
-  }
-
-  rgba32 control_bg = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG];
-  rgba32 control_bg_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
-  rgba32 control_text = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  rgba32 control_text_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED];
-  rgba32 control_border = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
-  rgba32 control_border_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
-
-  icon.color = control_text;
-
-  if (pushed)
-  {
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
-  }
-
-  bool clicked = ldk_ui_icon_button(ui, icon, text);
-
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = control_bg;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = control_bg_hovered;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] = control_text;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] = control_text_hovered;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] = control_border;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
-      control_border_hovered;
-
-  return clicked;
-}
-
-static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
-{
-  static const LDKEditorIcon items[] = {
-    LDK_EDITOR_ICON_TOOL_MODE_GLOBAL,
-    LDK_EDITOR_ICON_TOOL_MODE_LOCAL,
-  };
-
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  LDKUIContext *ui = &editor->ui;
-  u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  u32 selected_index = editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE
-                           ? (u32)LDK_EDITOR_GIZMO_SPACE_LOCAL
-                           : (u32)editor->gizmo.space;
-
-  if (selected_index >= item_count)
-  {
-    selected_index = (u32)LDK_EDITOR_GIZMO_SPACE_GLOBAL;
-  }
-
-  ldk_ui_push_id_cstr(ui, "gizmo-space");
-  ldk_ui_begin_disabled(ui,
-      editor->gizmo.dragging ||
-          editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
-
-  LDKUIIcon icon;
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.size.w = icon.size.h = 24;
-
-  for (u32 i = 0; i < item_count; ++i)
-  {
-    icon.uv = ldk_editor_icon_rects[items[i]];
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
-    {
-      editor->gizmo.space = (LDKEditorGizmoSpace)i;
-    }
-  }
-
-  ldk_ui_end_disabled(ui);
-  ldk_ui_pop_id(ui);
-}
-
-static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
-{
-  static const LDKEditorIcon items[] = {LDK_EDITOR_ICON_MOVETOOL, LDK_EDITOR_ICON_ROTATETOOL, LDK_EDITOR_ICON_SCALETOOL};
-
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  LDKUIContext *ui = &editor->ui;
-  LDKUIIcon icon;
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.size.w = icon.size.h = 24;
-
-  u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  u32 selected_index = (u32)editor->gizmo.mode;
-
-  if (selected_index >= item_count)
-  {
-    selected_index = (u32)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
-  }
-
-  ldk_ui_push_id_cstr(ui, "gizmo-mode");
-  ldk_ui_begin_disabled(ui, editor->gizmo.dragging);
-
-  for (u32 i = 0; i < item_count; ++i)
-  {
-    icon.uv = ldk_editor_icon_rects[items[i]];
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
-    {
-      editor->gizmo.mode = (LDKEditorGizmoMode)i;
-    }
-  }
-
-  ldk_ui_end_disabled(ui);
-  ldk_ui_pop_id(ui);
-}
-
-void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
-{
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  LDKUIContext *ui = &editor->ui;
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING) );
-  ldk_ui_begin_horizontal(ui);
-  s_editor_gizmo_mode_buttons(editor);
-  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
-  ldk_ui_spacer(ui);
-  s_editor_gizmo_space_buttons(editor);
-  ldk_ui_spacer(ui);
-  ldk_ui_end_horizontal(ui);
-}
-
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
   static LDKUIRect toolbar_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
   toolbar_rect.w = ui->viewport.w;
   toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 4.0f;
+      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 2.0f;
 
   toolbar_rect =
       ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
@@ -692,7 +728,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 
   {
     LDKUIIcon icon;
-    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
     icon.size =
         ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
     icon.texture =
@@ -701,12 +736,13 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
+      // Play
       bool can_play = editor->project.loaded;
       ldk_ui_set_next_disabled(ui, !can_play);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
 
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, icon))
       {
         ldk_editor_state_set_play(editor);
       }
@@ -715,29 +751,30 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     {
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, icon))
       {
         ldk_editor_state_set_stop(editor);
       }
     }
 
-    {
+    { // Pause button
       bool can_pause = (editor->editor_state == LDK_EDITOR_STATE_PLAYING);
       ldk_ui_set_next_disabled(ui, !can_pause);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PAUSE];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, icon))
       {
         ldk_editor_state_set_pause(editor);
       }
     }
 
-    {
+    { // Skip button
+      bool can_skip = (editor->editor_state != LDK_EDITOR_STATE_PLAYING);
       ldk_ui_set_next_disabled(
           ui, (editor->editor_state != LDK_EDITOR_STATE_PAUSED));
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP];
       ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, icon))
       {
         ldk_editor_state_play_one_frame(editor);
       }
@@ -745,422 +782,146 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
 
   ldk_ui_spacer(ui);
-  s_editor_layout_combo_box(editor);
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
 }
 
 //------------------------------------------------------------
-// Scene utils
+// Hierarchy
 //------------------------------------------------------------
 
-typedef struct LDKEditorSceneEntityList
+static void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 {
-  XArray *entities;
-  bool ok;
-} LDKEditorSceneEntityList;
+  LDKUIContext *ui = &editor->ui;
+  static LDKUIRect s_entity_list_rect = {10, 60, 100, 100};
 
-static XFSPath s_editor_scene_runtree = {0};
+  s_entity_list_rect = ldk_ui_begin_window(
+      ui, "ENTITIES", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
+  LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
+  LDKEntity e;
 
-static void s_editor_scene_selection_clear(LDKEditorContext *editor)
-{
-  if (!editor)
+  while (ldk_entity_iterator_next(&it, &e))
   {
-    return;
-  }
+    LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, e);
+    u64 id = *((u64 *)&e);
+    snprintf((char *const)&info->name, LDK_ENTITY_NAME_MAX_LEN,
+        "0x%08" PRIu64 "(%d)", id, info->components.component_count);
 
-  editor->selected_entity = x_handle_null();
-  if (editor->hierarchy_expanded_entities != NULL)
-  {
-    x_array_clear(editor->hierarchy_expanded_entities);
-  }
-}
-
-static bool s_editor_scene_entity_collect(LDKEntity entity, void *user)
-{
-  LDKEditorSceneEntityList *list = (LDKEditorSceneEntityList *)user;
-
-  if (!list || !list->ok || !list->entities)
-  {
-    return false;
-  }
-
-  if (x_array_add(list->entities, &entity) != XARRAY_OK)
-  {
-    list->ok = false;
-    return false;
-  }
-
-  return true;
-}
-
-static bool s_editor_scene_ecs_clear(void)
-{
-  LDKEditorSceneEntityList list = {0};
-
-  list.entities = x_array_create(sizeof(LDKEntity), 64);
-  list.ok = list.entities != NULL;
-
-  if (!list.ok)
-  {
-    return false;
-  }
-
-  if (!ldk_ecs_entity_foreach(s_editor_scene_entity_collect, &list) || !list.ok)
-  {
-    x_array_destroy(list.entities);
-    return false;
-  }
-
-  for (u32 i = 0; i < x_array_count(list.entities); ++i)
-  {
-    LDKEntity *entity = x_array_get(list.entities, i);
-    if (entity != NULL)
+    ldk_ui_label(ui, (const char *)info->name);
+    for (u32 i = 0; i < info->components.component_count; i++)
     {
-      ldk_ecs_entity_destroy(*entity);
+      const char *name = ldk_component_name_get(
+          &ecs->component, info->components.component_type[i]);
+      ldk_ui_label(ui, name);
     }
   }
-
-  x_array_destroy(list.entities);
-  return true;
-}
-
-void ldki_editor_scene_state_sync(LDKEditorContext *editor)
-{
-  XFSPath runtree = {0};
-
-  if (!editor)
-  {
-    return;
-  }
-
-  if (!editor->project.loaded)
-  {
-    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-    memset(&s_editor_scene_runtree, 0, sizeof(s_editor_scene_runtree));
-    return;
-  }
-
-  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
-  x_fs_path_normalize(&runtree);
-
-  if (s_editor_scene_runtree.length == 0 ||
-      x_fs_path_compare(&s_editor_scene_runtree, &runtree) != 0)
-  {
-    s_editor_scene_runtree = runtree;
-    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-    s_editor_scene_selection_clear(editor);
-  }
-}
-
-bool ldki_editor_scene_path_is_scene(const XFSPath *path)
-{
-  const char *text;
-  size_t length;
-  const char *extension = ".scene";
-  size_t extension_length = strlen(extension);
-
-  if (!path)
-  {
-    return false;
-  }
-
-  text = x_fs_path_cstr(path);
-  if (!text)
-  {
-    return false;
-  }
-
-  length = strlen(text);
-  return length >= extension_length &&
-         strcmp(text + length - extension_length, extension) == 0;
-}
-
-static bool s_editor_scene_path_relative(
-    LDKEditorContext *editor, const XFSPath *path, XFSPath *out_relative)
-{
-  XFSPath runtree = {0};
-  XFSPath normalized = {0};
-  const char *relative;
-
-  if (!editor || !editor->project.loaded || !path || !out_relative)
-  {
-    return false;
-  }
-
-  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
-  x_fs_path_normalize(&runtree);
-  normalized = *path;
-  x_fs_path_normalize(&normalized);
-
-  memset(out_relative, 0, sizeof(*out_relative));
-  if (!x_fs_path_common_prefix(
-          x_fs_path_cstr(&runtree), x_fs_path_cstr(&normalized), out_relative))
-  {
-    return false;
-  }
-
-  relative = x_fs_path_cstr(out_relative);
-  if (!relative || relative[0] == 0 || strcmp(relative, ".") == 0 ||
-      x_fs_path_is_absolute(out_relative))
-  {
-    memset(out_relative, 0, sizeof(*out_relative));
-    return false;
-  }
-
-  return true;
-}
-
-static bool s_editor_scene_full_path(
-    LDKEditorContext *editor, const XFSPath *relative, XFSPath *out_path)
-{
-  if (!editor || !editor->project.loaded || !relative || !out_path ||
-      relative->length == 0 || x_fs_path_is_absolute(relative))
-  {
-    return false;
-  }
-
-  x_fs_path(
-      out_path, editor->project.run_root_path.buf, x_fs_path_cstr(relative));
-  x_fs_path_normalize(out_path);
-  return true;
-}
-
-bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
-{
-  LDKSceneResult result;
-  XFSPath relative = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldki_editor_scene_path_is_scene(path) ||
-      !s_editor_scene_path_relative(editor, path, &relative))
-  {
-    return false;
-  }
-
-  if (!s_editor_scene_ecs_clear())
-  {
-    ldki_editor_log_error(editor, "Failed to clear the current scene.");
-    return false;
-  }
-
-  s_editor_scene_selection_clear(editor);
-  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
-  {
-    s_editor_scene_ecs_clear();
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  editor->current_scene_path = relative;
-  ldki_editor_log_info(editor, "Scene loaded.");
-  return true;
-}
-
-bool ldki_editor_scene_save(LDKEditorContext *editor)
-{
-  LDKSceneResult result;
-  XFSPath path = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      editor->current_scene_path.length == 0 ||
-      !s_editor_scene_full_path(editor, &editor->current_scene_path, &path))
-  {
-    return false;
-  }
-
-  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  ldki_editor_log_info(editor, "Scene saved.");
-  return true;
-}
-
-bool ldki_editor_scene_new(LDKEditorContext *editor)
-{
-  LDKSceneResult result;
-  XFSPath path = {0};
-  XFSPath relative = {0};
-  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED)
-  {
-    return false;
-  }
-
-  if (!ldk_os_dialog_show_save_file(editor->window, "New Scene", "*.scene",
-          selected_path, sizeof(selected_path)))
-  {
-    return false;
-  }
-
-  x_fs_path_set(&path, selected_path);
-  x_fs_path_normalize(&path);
-  x_fs_path_change_extension(&path, ".scene");
-
-  if (!s_editor_scene_path_relative(editor, &path, &relative))
-  {
-    ldk_os_dialog_show_error(editor->window, "Invalid scene path",
-        "Scene files must be saved inside the project runtree.");
-    return false;
-  }
-
-  if (!s_editor_scene_ecs_clear())
-  {
-    ldki_editor_log_error(editor, "Failed to clear the current scene.");
-    return false;
-  }
-
-  s_editor_scene_selection_clear(editor);
-  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-
-  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  editor->current_scene_path = relative;
-  ldki_editor_log_info(editor, "Scene created.");
-  return true;
-}
-
-bool ldki_editor_scene_add_primitive(
-    LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name)
-{
-  LDKAssetManager *asset_manager;
-  LDKAssetMesh asset;
-  LDKEntity entity;
-  LDKMeshSource *mesh_source;
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      editor->current_scene_path.length == 0)
-  {
-    return false;
-  }
-
-  asset_manager = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  if (!asset_manager)
-  {
-    return false;
-  }
-
-  asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
-  if (x_handle_is_null(asset.h))
-  {
-    return false;
-  }
-
-  entity = ldk_ecs_entity_create();
-  if (x_handle_is_null(entity))
-  {
-    return false;
-  }
-
-  if (name && name[0] != 0)
-  {
-    ldk_ecs_entity_name_set(entity, name);
-  }
-
-  mesh_source = (LDKMeshSource *)ldk_ecs_component_add(
-      entity, LDK_COMPONENT_TYPE_MESH_SOURCE, NULL);
-  if (!mesh_source || !ldk_mesh_source_set_data(mesh_source, asset))
-  {
-    ldk_ecs_entity_destroy(entity);
-    return false;
-  }
-
-  editor->selected_entity = entity;
-  return true;
+  ldk_entity_iterator_end(&it);
+  ldk_ui_end_window(ui);
 }
 
 //------------------------------------------------------------
 // Internal
 //------------------------------------------------------------
 
-void ldki_editor_menubar_show(LDKEditorContext *editor)
+void ldk_editor_internal_menubar_show(LDKEditorContext *editor)
 {
   s_editor_menu_bar(editor);
 }
 
-void ldki_editor_project_create_show(LDKEditorContext *editor)
+void ldk_editor_internal_project_create_show(LDKEditorContext *editor)
 {
-  typedef struct LDKEditorProjectGenerator
+  enum
   {
-    const char *cmake_generator;
-    bool uses_platform;
-  } LDKEditorProjectGenerator;
+    PROJECT_TYPE_COUNT = 3,
+  };
 
-  static const LDKEditorProjectGenerator s_generators[] = {
-      {"Visual Studio 18 2026", true},
-      {"Visual Studio 17 2022", true},
-      {"Ninja", false},
-      {"Ninja Multi-Config", false},
-      {"NMake Makefiles", false},
-      {"MinGW Makefiles", false},
+  static const char *s_project_types[PROJECT_TYPE_COUNT] = {
+      "Placeholder 1",
+      "Placeholder 2",
+      "Placeholder 3",
   };
-  static const char *s_generator_labels[] = {
-      "Visual Studio 2026",
-      "Visual Studio 2022",
-      "Ninja",
-      "Ninja Multi-Config",
-      "NMake",
-      "MinGW Make",
-  };
+
   static XSmallstr s_project_name = {0};
   static XFSPath s_project_path = {0};
-  static u32 s_generator = 0;
-  LDKUIContext *ui;
-  const LDKEditorProjectGenerator *generator;
-  const char *cmake_arch;
+  static u32 s_project_type = 0;
 
-  if (editor == NULL)
+  static LDKUIRect s_window_rect = {0};
+  static bool s_window_initialized = false;
+
+  const LDKUIId PROJECT_TYPE_POPUP_ID = 0x43505459; // "CPTY"
+
+  LDKUIContext *ui = &editor->ui;
+
+  if (!s_window_initialized)
   {
-    return;
+    s_window_rect.w = 480.0f;
+    s_window_rect.h = 210.0f;
+    s_window_rect.x = (ui->viewport.w - s_window_rect.w) * 0.5f;
+    s_window_rect.y = (ui->viewport.h - s_window_rect.h) * 0.5f;
+
+    s_window_initialized = true;
   }
 
-  ui = &editor->ui;
+  s_window_rect = ldk_ui_begin_window(ui, "CREATE PROJECT", s_window_rect,
+      LDK_UI_WINDOW_TITLE_BAR | LDK_UI_WINDOW_DRAGGABLE |
+          LDK_UI_WINDOW_BORDER);
+
+  //----------------------------------------------------------------------
+  // Project name
+  //----------------------------------------------------------------------
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
     ldk_ui_label(ui, "Project name");
-    ldk_ui_input_box(ui, s_project_name.buf, (u32)sizeof(s_project_name.buf));
+
+    ldk_ui_input_box(
+        ui, s_project_name.buf, (u32)sizeof(s_project_name.buf));
   }
   ldk_ui_end_horizontal(ui);
+
+  //----------------------------------------------------------------------
+  // Project type
+  //----------------------------------------------------------------------
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-    ldk_ui_label(ui, "Generator");
-    s_generator = ldk_ui_combo_box(ui, s_generator_labels,
-        (u32)(sizeof(s_generator_labels) / sizeof(s_generator_labels[0])),
-        s_generator);
+    ldk_ui_label(ui, "Project type");
+
+    if (ldk_ui_button(ui, s_project_types[s_project_type]))
+    {
+      if (ldk_ui_popup_is_open(ui, PROJECT_TYPE_POPUP_ID))
+      {
+        ldk_ui_close_popup(ui, PROJECT_TYPE_POPUP_ID);
+      }
+      else
+      {
+        ldk_ui_open_popup(ui, PROJECT_TYPE_POPUP_ID);
+      }
+    }
   }
   ldk_ui_end_horizontal(ui);
 
-  if (s_generator >= sizeof(s_generators) / sizeof(s_generators[0]))
+  if (ldk_ui_begin_popup(ui, PROJECT_TYPE_POPUP_ID))
   {
-    s_generator = 0;
+    for (u32 i = 0; i < PROJECT_TYPE_COUNT; i++)
+    {
+      if (ldk_ui_button_flat(ui, s_project_types[i]))
+      {
+        s_project_type = i;
+        ldk_ui_close_current_popup(ui);
+      }
+    }
+
+    ldk_ui_end_popup(ui);
   }
-  generator = &s_generators[s_generator];
+
+  //----------------------------------------------------------------------
+  // Project path
+  //----------------------------------------------------------------------
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
@@ -1169,13 +930,13 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     ldk_ui_label(ui, "Project path");
 
     ldk_ui_set_next_disabled(ui, true);
-    ldk_ui_input_box(ui, s_project_path.buf, (u32)sizeof(s_project_path.buf));
+    ldk_ui_input_box(
+        ui, s_project_path.buf, (u32)sizeof(s_project_path.buf));
 
     ldk_ui_set_next_width(ui, ldk_ui_px(32.0f));
     if (ldk_ui_button(ui, "..."))
     {
-      ldk_os_dialog_show_open_folder(editor->window, "Project Location", "",
-          s_project_path.buf, (u32)sizeof(s_project_path.buf));
+      ldk_os_dialog_show_open_folder(NULL, "Project Location", "", s_project_path.buf, (u32)sizeof(s_project_path.buf));
     }
   }
   ldk_ui_end_horizontal(ui);
@@ -1195,53 +956,74 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
     if (ldk_ui_button(ui, "OK"))
     {
-      cmake_arch = generator->uses_platform
-                       ? ldki_editor_cmake_native_arch_get()
-                       : "";
+      editor->create_project_window_show = false;
 
-      if (!ldki_editor_project_create_request(editor, s_project_name.buf,
-              s_project_path.buf, generator->cmake_generator, cmake_arch))
+      LDKProjectCreateDesc desc;
+      desc.project_name = s_project_name.buf;
+      desc.project_root_path = s_project_path.buf;
+      desc.cmake_generator = "Visual Studio 18 2026";
+      bool success = ldk_project_create(&desc);
+      if (success)
+        ldk_editor_internal_log_info(editor, "Project Created.");
+      else
       {
-        ldki_editor_log_error(editor, "Failed to queue project creation.");
+        ldk_editor_internal_log_error(editor, "Failed to create project.");
+        ldk_os_dialog_show_error(
+          editor->window, "Failed to create project", s_project_name.buf);
       }
     }
 
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
     if (ldk_ui_button(ui, "CANCEL"))
     {
-      editor->create_project_window_close_requested = true;
-      x_smallstr_clear(&s_project_name);
+      editor->create_project_window_show = false;
       x_smallstr_clear(&s_project_path);
+
     }
   }
   ldk_ui_end_horizontal(ui);
+
+  ldk_ui_end_window(ui);
 }
 
-void ldki_editor_project_create_window(LDKEditor *opaque_editor, void *data)
-{
-  (void)data;
-  ldki_editor_project_create_show((LDKEditorContext *)opaque_editor);
-}
-
-void ldki_editor_toolbar_show(LDKEditorContext *editor)
+void ldk_editor_internal_toolbar_show(LDKEditorContext *editor)
 {
   s_editor_tool_bar(editor);
 }
 
-void ldki_editor_log_error(LDKEditorContext *editor, const char *msg)
+void ldk_editor_internal_log_error(LDKEditorContext *editor, const char *msg)
 {
-  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_ERROR, msg);
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_error(msg);
 }
 
-void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg)
+void ldk_editor_internal_log_warning(LDKEditorContext *editor, const char *msg)
 {
-  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_WARNING, msg);
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_warning(msg);
 }
 
-void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
+void ldk_editor_internal_log_info(LDKEditorContext *editor, const char *msg)
 {
-  ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
+  x_strbuilder_append_format(editor->console_sb, "%s\n", msg);
   ldk_log_info(msg);
+}
+
+//------------------------------------------------------------
+// Public
+//------------------------------------------------------------
+
+void ldk_editor_console_show(LDKEditor *editor)
+{
+  s_editor_console(editor);
+}
+
+void ldk_editor_file_explorer_show(LDKEditor *editor, const char *root_path)
+{
+  s_editor_project_explorer((LDKEditorContext *)editor, root_path);
+}
+
+void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
+{
+  s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }

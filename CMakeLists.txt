@@ -336,7 +336,6 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
-  ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
@@ -346,10 +345,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_ecs.h             src/module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h        src/module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h             src/module/ldk_rhi.c
-  ${INCLUDE_DIR}/module/ldk_system.h         src/module/ldk_system.c
-  ${INCLUDE_DIR}/module/ldk_ui.h             src/module/ldk_ui.c
-  ${INCLUDE_DIR}/module/ldk_scenegraph.h       src/module/ldk_scenegraph.c
-  ${INCLUDE_DIR}/module/ldk_scene_manager.h   src/module/ldk_scene_manager.c
+  ${INCLUDE_DIR}/module/ldk_system.h          src/module/ldk_system.c
+  ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c
+  ${INCLUDE_DIR}/module/ldk_scenegraph.h      src/module/ldk_scenegraph.c
 
   # Components
   ${INCLUDE_DIR}/component/ldk_transform.h    src/component/ldk_transform.c
@@ -358,9 +356,7 @@ list(APPEND LDK_SOURCE
 )
 
 if (WIN32)
-  list(APPEND LDK_SOURCE
-    src/ldk_os_win32.c
-  )
+  list(APPEND LDK_SOURCE src/ldk_os_win32.c)
   set(LIBS dbghelp.lib)
 
   list(APPEND Release_LIBS ${LIBS})
@@ -395,16 +391,16 @@ if (OPTION_LDK_USE_PREBUILT)
 
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
 
-    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/lib/Debug/ldk.lib"
+    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/lib/ldk.lib"
     IMPORTED_LOCATION_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/ldk.dll"
 
-    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/lib/Release/ldk.lib"
+    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/lib/ldk.lib"
     IMPORTED_LOCATION_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/ldk.dll"
 
-    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/lib/RelWithDebInfo/ldk.lib"
+    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/lib/ldk.lib"
     IMPORTED_LOCATION_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/ldk.dll"
 
-    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/lib/MinSizeRel/ldk.lib"
+    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/lib/ldk.lib"
     IMPORTED_LOCATION_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/ldk.dll"
   )
 else()
@@ -443,20 +439,11 @@ if (OPTION_BUILD_EDITOR)
     message(FATAL_ERROR "OPTION_BUILD_EDITOR cannot use OPTION_LDK_USE_PREBUILT. Build the editor with the engine sources.")
   endif()
 
-  add_executable(ldk_editor src/editor/ldk_app_editor.c
+  add_executable(ldk_editor src/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
-    src/editor/ldk_editor_dock.c
-    src/editor/ldk_editor_camera.c
-    src/editor/ldk_editor_grid.c
-    src/editor/ldk_editor_gizmo.c
-    src/editor/ldk_editor_console.c
-    src/editor/ldk_editor_inspector.c
-    src/editor/ldk_editor_file_explorer.c
-    src/editor/ldk_editor_hierarchy_viewer.c
     src/editor/ldk_editor_cmd.c
-    src/editor/ldk_ui_drag_n_drop.h
-    src/editor/ldk_ui_drag_n_drop.c
+    src/editor/ldk_editor_scene.c
   )
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
@@ -553,7 +540,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     OUTPUT_DIR "${OPTION_GAME_DIR}/bin/$<CONFIG>"
   )
 
-  add_executable(ldk_launcher src/launcher/ldk_app_launcher.c)
+  add_executable(ldk_launcher src/ldk_app_launcher.c)
   ldk_target_defaults(ldk_launcher)
 
   target_include_directories(ldk_launcher PRIVATE
@@ -587,5 +574,4 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
-  ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
 endif()

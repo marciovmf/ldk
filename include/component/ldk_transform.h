@@ -1,5 +1,5 @@
 /*
- * @File  ldk_transform.h
+ * @file  ldk_transform.h
  * @brief LDK Transform Component
  *
  * Coordinate System Conventions:
@@ -18,51 +18,39 @@
 #include <stdx/stdx_math.h>
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
   typedef enum LDKTransformFlags
   {
-    LDK_TRANSFORM_FLAG_NONE = 0,
+    LDK_TRANSFORM_FLAG_NONE        = 0,
     LDK_TRANSFORM_FLAG_WORLD_DIRTY = 1 << 0,
   } LDKTransformFlags;
 
   //@component
   typedef struct LDKTransform
   {
-    u32 flags;
     Vec3 local_position;
-    Vec3 local_scale;
     Quat local_rotation;
-    //@inspect hidden
+    Vec3 local_scale;
     Mat4 world_matrix;
-    //@inspect hidden
     LDKEntity parent;
-    //@inspect hidden
     LDKEntity first_child;
-    //@inspect hidden
     LDKEntity next_sibling;
-    //@inspect hidden
     LDKEntity prev_sibling;
+    u32 flags;
   } LDKTransform;
 
   LDK_API LDKTransform ldk_transform_make_default(void);
 
-  LDK_API bool ldk_transform_set_local_position(
-      LDKEntity entity, Vec3 position);
-  LDK_API bool ldk_transform_set_local_rotation(
-      LDKEntity entity, Quat rotation);
+  LDK_API bool ldk_transform_set_local_position(LDKEntity entity, Vec3 position);
+  LDK_API bool ldk_transform_set_local_rotation(LDKEntity entity, Quat rotation);
   LDK_API bool ldk_transform_set_local_scale(LDKEntity entity, Vec3 scale);
-  LDK_API bool ldk_transform_get_local_position(
-      LDKEntity entity, Vec3 *out_position);
-  LDK_API bool ldk_transform_get_local_rotation(
-      LDKEntity entity, Quat *out_rotation);
-  LDK_API bool ldk_transform_get_local_scale(LDKEntity entity, Vec3 *out_scale);
-  LDK_API bool ldk_transform_get_world_matrix(
-      LDKEntity entity, Mat4 *out_world_matrix);
-  LDK_API bool ldk_transform_set_parent(
-      LDKEntity child_entity, LDKEntity parent_entity);
+  LDK_API bool ldk_transform_get_local_position(LDKEntity entity, Vec3* out_position);
+  LDK_API bool ldk_transform_get_local_rotation(LDKEntity entity, Quat* out_rotation);
+  LDK_API bool ldk_transform_get_local_scale(LDKEntity entity, Vec3* out_scale);
+  LDK_API bool ldk_transform_get_world_matrix(LDKEntity entity, Mat4* out_world_matrix);
+  LDK_API bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity);
   LDK_API LDKEntity ldk_transform_get_parent(LDKEntity entity);
   LDK_API bool ldk_transform_mark_dirty(LDKEntity entity);
 
