@@ -1764,6 +1764,36 @@ static void s_editor_dock_ui_window_bring_to_front(
   }
 }
 
+static void s_editor_dock_floating_windows_bring_to_front(
+    LDKEditorDockState *dock, LDKUIContext *ui)
+{
+  LDKUIId floating_window_ids[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 floating_window_count = 0;
+  u32 ui_window_count = x_array_ldk_ui_window_count(ui->windows);
+
+  for (u32 i = 0; i < ui_window_count; ++i)
+  {
+    const LDKUIWindow *ui_window =
+        x_array_ldk_ui_window_get(ui->windows, i);
+
+    for (u32 j = 0; j < dock->window_count; ++j)
+    {
+      const LDKEditorDockWindow *window = &dock->windows[j];
+      if (window->open && window->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
+          ui_window != NULL && window->ui_window_id == ui_window->id)
+      {
+        floating_window_ids[floating_window_count++] = ui_window->id;
+        break;
+      }
+    }
+  }
+
+  for (u32 i = 0; i < floating_window_count; ++i)
+  {
+    s_editor_dock_ui_window_bring_to_front(ui, floating_window_ids[i]);
+  }
+}
+
 static void s_editor_dock_target_overlay_disable(
     LDKEditorDockState *dock, LDKUIContext *ui)
 {
@@ -3371,6 +3401,7 @@ void ldk_editor_dock_update(LDKEditorContext *editor)
   }
 
   s_editor_dock_windows_draw(dock, editor);
+  s_editor_dock_floating_windows_bring_to_front(dock, ui);
 
   bool split_resizing = s_editor_dock_split_resize_update(dock, ui);
   if (!split_resizing)
