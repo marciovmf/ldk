@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include <ldk_common.h>
+#include <ldk_material.h>
 #include <ldk_mesh.h>
 #include <ldk_resource.h>
 #include <ldk_ttf.h>
@@ -239,6 +240,19 @@ extern "C" {
     bool alive;
   } LDKRendererTextureResource;
 
+  typedef struct LDKRendererMaterialDesc
+  {
+    LDKMaterialType type;
+    LDKResourceTexture texture;
+    rgba32 color;
+  } LDKRendererMaterialDesc;
+
+  typedef struct LDKRendererMaterialResource
+  {
+    LDKRendererMaterialDesc desc;
+    bool alive;
+  } LDKRendererMaterialResource;
+
   typedef struct LDKRenderer
   {
     LDKRHIContext* rhi;
@@ -265,6 +279,11 @@ extern "C" {
     LDKRendererTextureResource* textures;
     u32 texture_count;
     u32 texture_capacity;
+
+    // Material cache
+    LDKRendererMaterialResource* materials;
+    u32 material_count;
+    u32 material_capacity;
 
     // Font atlas cache
     LDKRendererFontPageCacheEntry* font_pages;
@@ -587,6 +606,54 @@ extern "C" {
       LDKRenderer* renderer,
       LDKImage const* image,
       LDKRendererTextureOptions const* options);
+
+  // ---------------------------------------------------------------------------
+  // Material Resource
+  // ---------------------------------------------------------------------------
+
+  /**
+   * @brief Return an invalid material resource handle.
+   * @return Invalid material resource handle.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_null(void);
+
+  /**
+   * @brief Check whether a material handle refers to a live renderer material.
+   * @param renderer Renderer that owns the material resource.
+   * @param material Material resource handle to validate.
+   * @return true if the material is valid and alive, false otherwise.
+   */
+  LDK_API bool ldk_renderer_material_is_valid(
+      LDKRenderer* renderer,
+      LDKResourceMaterial material);
+
+  /**
+   * @brief Create a renderer-owned material resource.
+   *
+   * Textured materials require a live renderer texture. The referenced texture
+   * must remain alive until the material is destroyed. Vertex-color materials
+   * ignore desc->texture and store a canonical null texture handle.
+   *
+   * @param renderer Renderer that will own the material resource.
+   * @param desc Resolved renderer material description.
+   * @return New material handle, or an invalid handle on failure.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_create(
+      LDKRenderer* renderer,
+      LDKRendererMaterialDesc const* desc);
+
+  /**
+   * @brief Destroy a renderer-owned material resource.
+   *
+   * Destroying an invalid or already-dead material is a no-op. Material
+   * resources are also destroyed automatically when the renderer terminates.
+   *
+   * @param renderer Renderer that owns the material resource.
+   * @param material Material resource to destroy.
+   */
+  LDK_API void ldk_renderer_material_destroy(
+      LDKRenderer* renderer,
+      LDKResourceMaterial material);
 
   // ---------------------------------------------------------------------------
   // Font cache Resources

@@ -10,6 +10,7 @@ static void s_renderer_grid_pass_terminate(LDKRendererGridPass* pass);
 static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
+static void s_renderer_destroy_material_resources(LDKRenderer* renderer);
 static void s_renderer_ui_pass_remove_texture_bindings(
     LDKRendererUIPass* renderer,
     LDKRHITexture texture);
@@ -2009,6 +2010,157 @@ void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture text
   memset(resource, 0, sizeof(*resource));
 }
 
+// ---------------------------------------------------------------------------
+// Material resources
+// ---------------------------------------------------------------------------
+
+LDKResourceMaterial ldk_renderer_material_null(void)
+{
+  return LDK_RESOURCE_MATERIAL_INVALID;
+}
+
+static LDKRendererMaterialResource* s_renderer_material_get_resource(
+    LDKRenderer* renderer, LDKResourceMaterial material)
+{
+  if (renderer == NULL || material.id == LDK_RHI_INVALID_RESOURCE)
+  {
+    return NULL;
+  }
+
+  u32 index = (u32)(material.id - 1u);
+  if (index >= renderer->material_count)
+  {
+    return NULL;
+  }
+
+  LDKRendererMaterialResource* resource = &renderer->materials[index];
+  if (!resource->alive)
+  {
+    return NULL;
+  }
+
+  return resource;
+}
+
+bool ldk_renderer_material_is_valid(
+    LDKRenderer* renderer, LDKResourceMaterial material)
+{
+  return s_renderer_material_get_resource(renderer, material) != NULL;
+}
+
+static bool s_renderer_grow_material_cache(LDKRenderer* renderer)
+{
+  u32 new_capacity =
+      renderer->material_capacity == 0 ? 64 : renderer->material_capacity * 2;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererMaterialResource);
+  LDKRendererMaterialResource* new_materials = renderer->materials == NULL
+      ? (LDKRendererMaterialResource*)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererMaterialResource*)LDK_RENDERER_REALLOC(
+            renderer->materials, new_size);
+
+  if (new_materials == NULL)
+  {
+    return false;
+  }
+
+  memset(new_materials + renderer->material_capacity, 0,
+      (size_t)(new_capacity - renderer->material_capacity) *
+          sizeof(LDKRendererMaterialResource));
+
+  renderer->materials = new_materials;
+  renderer->material_capacity = new_capacity;
+  return true;
+}
+
+static bool s_renderer_material_type_is_textured(LDKMaterialType type)
+{
+  return type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
+         type == LDK_MATERIAL_TYPE_TEXTURED;
+}
+
+static bool s_renderer_material_desc_is_valid(
+    LDKRenderer* renderer, LDKRendererMaterialDesc const* desc)
+{
+  if (desc == NULL || !ldk_material_type_is_valid(desc->type))
+  {
+    return false;
+  }
+
+  if (s_renderer_material_type_is_textured(desc->type))
+  {
+    return ldk_renderer_texture_is_valid(renderer, desc->texture);
+  }
+
+  return true;
+}
+
+LDKResourceMaterial ldk_renderer_material_create(
+    LDKRenderer* renderer, LDKRendererMaterialDesc const* desc)
+{
+  LDKResourceMaterial invalid = ldk_renderer_material_null();
+
+  if (renderer == NULL || !renderer->is_initialized ||
+      !s_renderer_material_desc_is_valid(renderer, desc))
+  {
+    return invalid;
+  }
+
+  if (renderer->material_count == renderer->material_capacity &&
+      !s_renderer_grow_material_cache(renderer))
+  {
+    return invalid;
+  }
+
+  u32 index = renderer->material_count;
+  LDKRendererMaterialResource* resource = &renderer->materials[index];
+  memset(resource, 0, sizeof(*resource));
+  resource->desc.type = desc->type;
+  resource->desc.color = desc->color;
+  resource->desc.texture = s_renderer_material_type_is_textured(desc->type)
+      ? desc->texture
+      : ldk_renderer_texture_null();
+  resource->alive = true;
+  renderer->material_count += 1;
+
+  LDKResourceMaterial material = {0};
+  material.id = (LDKRHIResource)(index + 1u);
+  return material;
+}
+
+void ldk_renderer_material_destroy(
+    LDKRenderer* renderer, LDKResourceMaterial material)
+{
+  LDKRendererMaterialResource* resource =
+      s_renderer_material_get_resource(renderer, material);
+  if (resource == NULL)
+  {
+    return;
+  }
+
+  memset(resource, 0, sizeof(*resource));
+}
+
+static void s_renderer_destroy_material_resources(LDKRenderer* renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < renderer->material_count; i++)
+  {
+    LDKResourceMaterial material = {0};
+    material.id = (LDKRHIResource)(i + 1u);
+    ldk_renderer_material_destroy(renderer, material);
+  }
+
+  LDK_RENDERER_FREE(renderer->materials);
+  renderer->materials = NULL;
+  renderer->material_count = 0;
+  renderer->material_capacity = 0;
+}
+
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer)
 {
   if (renderer == NULL)
@@ -2227,6 +2379,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
 
   s_renderer_destroy_views(renderer);
   s_renderer_destroy_font_page_cache(renderer);
+  s_renderer_destroy_material_resources(renderer);
   s_renderer_destroy_texture_resources(renderer);
   s_renderer_destroy_mesh_resources(renderer);
   s_renderer_ui_pass_terminate(&renderer->ui_pass);

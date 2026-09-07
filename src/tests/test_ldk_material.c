@@ -3,10 +3,12 @@
 #endif
 
 #include <ldk_material.h>
+#include <module/ldk_renderer.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 static int test_material_types(void)
@@ -112,6 +114,87 @@ static int test_invalid_material_descriptors(void)
   return 0;
 }
 
+static int test_renderer_material_lifecycle(void)
+{
+  LDKRenderer renderer = {0};
+  LDKRendererMaterialDesc desc = {0};
+  renderer.is_initialized = true;
+
+  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  desc.texture.id = 77u;
+  desc.color = 0x10203040u;
+
+  LDKResourceMaterial material = ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
+  ASSERT_EQ(renderer.material_count, 1u);
+  ASSERT_EQ(renderer.materials[0].desc.type, LDK_MATERIAL_TYPE_VERTEX_COLOR);
+  ASSERT_EQ(renderer.materials[0].desc.texture.id, LDK_RHI_INVALID_RESOURCE);
+  ASSERT_EQ(renderer.materials[0].desc.color, 0x10203040u);
+
+  ldk_renderer_material_destroy(&renderer, material);
+  ASSERT_FALSE(ldk_renderer_material_is_valid(&renderer, material));
+  ldk_renderer_material_destroy(&renderer, material);
+
+  LDKResourceMaterial null_material = ldk_renderer_material_null();
+  ASSERT_FALSE(ldk_renderer_material_is_valid(&renderer, null_material));
+
+  free(renderer.materials);
+  return 0;
+}
+
+static int test_renderer_textured_material(void)
+{
+  LDKRenderer renderer = {0};
+  LDKRendererMaterialDesc desc = {0};
+  renderer.is_initialized = true;
+
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED;
+  desc.color = 0xffffffffu;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+
+  renderer.textures = (LDKRendererTextureResource *)calloc(
+      1, sizeof(LDKRendererTextureResource));
+  ASSERT_TRUE(renderer.textures != NULL);
+  renderer.texture_count = 1;
+  renderer.texture_capacity = 1;
+  renderer.textures[0].alive = true;
+  desc.texture.id = 1u;
+
+  LDKResourceMaterial material = ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
+  ASSERT_EQ(renderer.materials[0].desc.texture.id, 1u);
+  ASSERT_EQ(renderer.materials[0].desc.color, 0xffffffffu);
+
+  ldk_renderer_material_destroy(&renderer, material);
+  free(renderer.materials);
+  free(renderer.textures);
+  return 0;
+}
+
+static int test_renderer_material_rejects_invalid_input(void)
+{
+  LDKRenderer renderer = {0};
+  LDKRendererMaterialDesc desc = {0};
+
+  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT;
+  desc.color = 0xffffffffu;
+
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+
+  renderer.is_initialized = true;
+  desc.type = LDK_MATERIAL_TYPE_INVALID;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, NULL)));
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(NULL, &desc)));
+
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -119,6 +202,9 @@ int main(void)
       X_TEST(test_material_defaults),
       X_TEST(test_material_equality),
       X_TEST(test_invalid_material_descriptors),
+      X_TEST(test_renderer_material_lifecycle),
+      X_TEST(test_renderer_textured_material),
+      X_TEST(test_renderer_material_rejects_invalid_input),
   };
 
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
