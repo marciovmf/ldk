@@ -82,6 +82,11 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
     }
   }
 
+  else if (info->type == LDK_ASSET_TYPE_MATERIAL)
+  {
+    free(info->data); /* Image references are owned by the manager. */
+  }
+
   memset(info, 0, sizeof(*info));
 }
 

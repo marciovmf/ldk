@@ -5,6 +5,7 @@
 
 #include <component/ldk_mesh_source.h>
 #include <ldk_resource.h>
+#include <ldk_material_asset.h>
 #include <module/ldk_renderer.h>
 
 static LDKMeshSource s_mesh_source_make_default(void)
@@ -127,6 +128,8 @@ bool ldk_mesh_source_set_material(
     return false;
   }
 
+  mesh_source->material_asset = ldk_asset_material_null();
+  mesh_source->material_revision = 0;
   if (ldk_material_desc_equal(&mesh_source->material, material))
   {
     return true;
@@ -152,3 +155,35 @@ LDKComponentDesc ldk_mesh_source_component_desc(u32 initial_capacity)
   return desc;
 }
 #endif // LDK_ENGINE
+
+bool ldk_mesh_source_set_material_asset(LDKMeshSource* mesh_source,
+    LDKAssetManager* assets, LDKAssetMaterial asset)
+{
+  const LDKAssetMaterialData* data =
+      ldk_asset_manager_material_get_const(assets, asset);
+  if (!mesh_source || !data)
+    return false;
+  if (!ldk_material_desc_equal(&mesh_source->material, &data->descriptor))
+    mesh_source->material_dirty = true;
+  mesh_source->material = data->descriptor;
+  mesh_source->material_asset = asset;
+  mesh_source->material_revision = data->revision;
+  return true;
+}
+
+bool ldk_mesh_source_material_sync(LDKMeshSource* mesh_source,
+    LDKAssetManager* assets)
+{
+  if (!mesh_source)
+    return false;
+  if (!mesh_source->material_revision)
+    return true;
+  const LDKAssetMaterialData* data =
+      ldk_asset_manager_material_get_const(assets, mesh_source->material_asset);
+  if (!data)
+    return false;
+  if (data->revision != mesh_source->material_revision)
+    return ldk_mesh_source_set_material_asset(
+        mesh_source, assets, mesh_source->material_asset);
+  return true;
+}

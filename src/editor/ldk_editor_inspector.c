@@ -1,3 +1,4 @@
+#include <ldk_material_asset.h>
 #include "ldk_editor_internal.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
@@ -625,6 +626,58 @@ static void s_editor_material_row_begin(LDKUIContext *ui, const char *title)
   ldk_ui_label(ui, title);
 }
 
+static void s_editor_material_diagnostic(const char *message, void *user)
+{
+  ldki_editor_console_append(user, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
+}
+
+static bool s_editor_material_asset_field(LDKEditorContext *editor,
+    LDKMeshSource *mesh, const LDKMaterialIOContext *context)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetHandle handle = {mesh->material_asset.h};
+  const LDKAssetInfo *info = mesh->material_revision
+      ? ldk_asset_get_info_const(context->assets, handle) : NULL;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+  s_editor_material_row_begin(ui, "Material");
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+  bool assign = false;
+  if (ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(&type, &path) &&
+          type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+    }
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  if (ldk_ui_button(ui, "..."))
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose material",
+        "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
+  ldk_ui_end_horizontal(ui);
+  if (assign)
+  {
+    LDKMaterialIOResult result;
+    LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
+        context, path.buf, &result);
+    if (x_handle_is_null(asset.h))
+      ldki_editor_log_error(editor, result.error);
+    else
+      return ldk_mesh_source_set_material_asset(mesh, context->assets, asset);
+  }
+  return false;
+}
+
 static void s_editor_inspector_material(
     LDKEditorContext *editor, LDKMeshSource *mesh)
 {
@@ -634,6 +687,15 @@ static void s_editor_inspector_material(
       LDK_MATERIAL_TYPE_TEXTURED_UNLIT, LDK_MATERIAL_TYPE_TEXTURED,
       LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT, LDK_MATERIAL_TYPE_VERTEX_COLOR};
   LDKUIContext *ui = &editor->ui;
+  LDKMaterialIOContext context = {0};
+  context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  context.runtree_path = editor->project.run_root_path;
+  context.diagnostic = s_editor_material_diagnostic;
+  context.user = editor;
+  ldk_mesh_source_material_sync(mesh, context.assets);
+  ldk_ui_push_id_cstr(ui, "material");
+  ldk_ui_horizontal_line(ui);
+  s_editor_material_asset_field(editor, mesh, &context);
   LDKMaterialDesc desc = mesh->material;
   u32 selected = 3;
   for (u32 i = 0; i < 4; ++i)
@@ -642,9 +704,7 @@ static void s_editor_inspector_material(
       selected = i;
   }
 
-  ldk_ui_push_id_cstr(ui, "material");
-  ldk_ui_horizontal_line(ui);
-  s_editor_material_row_begin(ui, "Material");
+  s_editor_material_row_begin(ui, "Type");
   u32 next = ldk_ui_combo_box(ui, names, 4, selected);
   ldk_ui_end_horizontal(ui);
   if (next < 4 && next != selected)
@@ -737,7 +797,44 @@ static void s_editor_inspector_material(
     }
   }
 
-  ldk_mesh_source_set_material(mesh, &desc);
+  if (mesh->material_revision)
+  {
+    ldk_asset_manager_material_update(context.assets, mesh->material_asset, &desc);
+    ldk_mesh_source_material_sync(mesh, context.assets);
+  }
+  else
+    ldk_mesh_source_set_material(mesh, &desc);
+
+  const LDKAssetMaterialData *data = mesh->material_revision
+      ? ldk_asset_manager_material_get_const(context.assets, mesh->material_asset)
+      : NULL;
+  s_editor_material_row_begin(ui, data ? (data->dirty ? "Shared *" : "Shared") : "");
+  if (data && ldk_ui_button(ui, "Save Material"))
+  {
+    LDKMaterialIOResult result;
+    if (!ldk_asset_manager_material_save(&context, mesh->material_asset, &result))
+      ldki_editor_log_error(editor, result.error);
+  }
+  if (ldk_ui_button(ui, "Save As..."))
+  {
+    XFSPath path = {0};
+    if (ldk_os_dialog_show_save_file(editor->window, "Create material",
+            "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
+    {
+      LDKMaterialIOResult result;
+      LDKAssetMaterial asset = ldk_asset_manager_material_create(
+          &context, path.buf, &desc, &result);
+      if (x_handle_is_null(asset.h))
+        ldki_editor_log_error(editor, result.error);
+      else
+      {
+        ldk_mesh_source_set_material_asset(mesh, context.assets, asset);
+        if (!ldk_asset_manager_material_save(&context, asset, &result))
+          ldki_editor_log_error(editor, result.error);
+      }
+    }
+  }
+  ldk_ui_end_horizontal(ui);
   ldk_ui_pop_id(ui);
 }
 

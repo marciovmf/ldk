@@ -2486,6 +2486,7 @@ bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme)
 bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
 {
   rgba32 text;
+  rgba32 input_border;
   rgba32 text_disabled;
   rgba32 window_bg;
   rgba32 panel_bg;
@@ -2533,6 +2534,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   {
     text = 0xFFFFFFFFu;
     text_disabled = 0xABABABFFu;
+    input_border = text;
 
     window_bg = 0x383838FFu;
     panel_bg = 0x383838FFu;
@@ -2541,6 +2543,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
     control_bg_hovered = 0x585858FFu;
     control_bg_active = 0x46607CFFu;
     control_bg_active_hovered = 0x4F657FFFu;
+    input_border = text;
 
     control_text = 0xFFFFFFFFu;
     control_border = 0x303030FFu;
@@ -2574,6 +2577,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   {
     text = 0x090909FFu;
     text_disabled = 0x707070FFu;
+    input_border = text;
 
     window_bg = 0xC8C8C8FFu;
     panel_bg = 0xC8C8C8FFu;
@@ -2673,8 +2677,9 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BG] = tab_active_bg;
   theme->colors[LDK_UI_COLOR_TAB_ACTIVE_TEXT] = tab_text;
   theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER] = border;
+  theme->colors[LDK_UI_COLOR_INPUT_BORDER] = input_border;
 
-  theme->control_border_size = 1.0f;
+  theme->control_border_size = 0.45f;
   theme->window_border_size = 1.0f;
   theme->window_interaction_border_size = 4.0f;
 

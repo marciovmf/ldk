@@ -855,7 +855,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   text_size = s_ui_widget_text_size(ctx, buffer);
 
   bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
-  border = s_ui_render_control_border_color(ctx, frame.visual_state);
+  border = ctx->theme.colors[LDK_UI_COLOR_INPUT_BORDER];
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
   if (visual_mode == LDK_UI_INPUT_VISUAL_BOX)

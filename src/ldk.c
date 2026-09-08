@@ -1096,6 +1096,8 @@ void ldk_engine_frame(void)
         continue;
       }
 
+      ldk_mesh_source_material_sync(mesh, &e->asset_manager);
+
       if (!ldk_renderer_material_is_valid(
               &e->renderer, mesh->renderer_material))
       {

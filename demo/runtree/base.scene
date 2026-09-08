@@ -13,9 +13,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
-            material_type: 2
-            material_color: 4294967295
-            material_texture: "assets\\dev_other_bl.jpg"
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 1
       parent: 2
       name: "Cone"
@@ -28,8 +26,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
-            material_type: 4
-            material_color: 4278190335
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 2
       parent: 0
       name: "Capsule"
@@ -42,8 +39,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
-            material_type: 4
-            material_color: 4294967295
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 3
       parent: 0
       name: "Capsule"
@@ -56,8 +52,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
-            material_type: 4
-            material_color: 4294967295
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 4
       parent: 3
       name: "Cone"
@@ -70,8 +65,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
-            material_type: 4
-            material_color: 4278190335
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 5
       parent: -1
       name: "Quad"
