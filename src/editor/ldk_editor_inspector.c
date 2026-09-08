@@ -748,7 +748,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   LDKGame *game;
   LDKEntity entity;
   LDKEntityInfo *info;
-  char entity_name[LDK_ENTITY_NAME_MAX_LEN + 32];
+  char entity_name[LDK_ENTITY_NAME_MAX_LEN];
 
   if (!editor)
   {
@@ -776,8 +776,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  ldki_editor_entity_display_name(
-      info, entity, entity_name, sizeof(entity_name));
+  const char *name = ldk_ecs_entity_name_get(entity);
+  snprintf(entity_name, sizeof(entity_name), "%s", name ? name : "");
 
   LDKUIIcon icon = {0};
   icon.size =
@@ -790,7 +790,23 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.color = flat_color;
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
-  ldk_ui_icon_label(ui, icon, entity_name);
+  ldk_ui_push_id_cstr(ui, "entity_name");
+  ldk_ui_push_id_u32(ui, entity.index);
+  ldk_ui_push_id_u32(ui, entity.version);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
+  ldk_ui_icon_label(ui, icon, "");
+  u32 name_result = ldk_ui_input_box(ui, entity_name, sizeof(entity_name));
+  if ((name_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+  {
+    if (!ldk_ecs_entity_name_set(entity, entity_name))
+      ldki_editor_log_error(editor, "Failed to rename the selected entity.");
+  }
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
   ldk_ui_horizontal_line(ui);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
