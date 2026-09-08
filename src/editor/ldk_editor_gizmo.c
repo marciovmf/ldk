@@ -965,6 +965,135 @@ static bool s_editor_gizmo_world_to_scene(
   return true;
 }
 
+typedef struct LDKEditorComponentIconRule
+{
+  u32 component_type;
+  LDKEditorIcon icon;
+} LDKEditorComponentIconRule;
+
+/* First matching component wins. Extend this table for lights and other
+ * components without changing projection, drawing or selection behavior. */
+static const LDKEditorComponentIconRule s_component_icon_rules[] = {
+    {LDK_COMPONENT_TYPE_CAMERA, LDK_EDITOR_ICON_GIZMO_CAMERA},
+};
+
+typedef struct LDKEditorComponentIconContext
+{
+  LDKEditorContext *editor;
+  Mat4 view_projection;
+  LDKUIPoint cursor;
+  LDKEntity hit;
+  float hit_depth;
+  LDKUIRect hit_rect;
+  LDKUIIcon hit_icon;
+  bool interactive;
+} LDKEditorComponentIconContext;
+
+static bool s_editor_component_icon_draw(LDKEntity entity, void *user)
+{
+  LDKEditorComponentIconContext *context = user;
+  LDKEditorContext *editor = context->editor;
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (ldk_entity_internal_flags_has(
+          &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+    return true;
+
+  const LDKEditorComponentIconRule *rule = NULL;
+  for (u32 i = 0; i < sizeof(s_component_icon_rules) /
+                            sizeof(s_component_icon_rules[0]); ++i)
+  {
+    if (ldk_ecs_component_get(entity, s_component_icon_rules[i].component_type))
+    {
+      rule = &s_component_icon_rules[i];
+      break;
+    }
+  }
+  Mat4 world;
+  if (!rule || !ldk_transform_get_world_matrix(entity, &world))
+    return true;
+  Vec3 position = vec3_make(world.m[12], world.m[13], world.m[14]);
+  Mat4 vp = context->view_projection;
+  float w = vp.m[3] * position.x + vp.m[7] * position.y +
+      vp.m[11] * position.z + vp.m[15];
+  float z = vp.m[2] * position.x + vp.m[6] * position.y +
+      vp.m[10] * position.z + vp.m[14];
+  /* Reject points behind the camera and outside its near/far planes. */
+  if (!isfinite(w) || !isfinite(z) || w <= 0.0f || z < -w || z > w)
+    return true;
+  LDKUIPoint screen;
+  if (!s_editor_gizmo_world_to_scene(editor, vp, position, &screen) ||
+      !isfinite(screen.x) || !isfinite(screen.y))
+    return true;
+
+  const float size = 24.0f;
+  LDKUIRect rect = {screen.x - size * 0.5f, screen.y - size * 0.5f, size, size};
+  LDKUIContext *ui = &editor->ui;
+  LDKUIRect visible = ldk_rectf_intersect(&rect, &ui->clip_rect);
+  if (visible.w <= 0.0f || visible.h <= 0.0f)
+    return true;
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(size, size);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.uv = ldk_editor_icon_rects[rule->icon];
+  icon.color = ldki_editor_entity_equal(editor->selected_entity, entity)
+      ? 0xFFD060FFu : 0xFFFFFFFFu;
+  /* UI composition over the scene image gives camera-facing icons with no
+   * scene depth test, at a constant screen size. */
+  ldk_ui_widget_icon_label(ui, 0, icon, "", rect);
+  if (context->interactive && z / w < context->hit_depth &&
+      ldk_rectf_contains(&visible, context->cursor.x, context->cursor.y))
+  {
+    context->hit = entity;
+    context->hit_depth = z / w;
+    context->hit_rect = rect;
+    context->hit_icon = icon;
+  }
+  return true;
+}
+
+bool ldki_editor_component_icons_show(LDKEditorContext *editor)
+{
+  if (!editor || !editor->renderer || !ldk_module_get(LDK_MODULE_ECS))
+    return false;
+  LDKUIContext *ui = &editor->ui;
+  Mat4 view, projection;
+  LDKUIRect scene = editor->gizmo.scene_view_rect;
+  if (scene.w <= 0.0f || scene.h <= 0.0f ||
+      !ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
+      !ldk_camera_get_projection_matrix(
+          editor->editor_camera, scene.w / scene.h, &projection))
+    return false;
+  LDKEditorComponentIconContext context = {0};
+  context.editor = editor;
+  context.view_projection = mat4_mul(projection, view);
+  context.hit = x_handle_null();
+  context.hit_depth = 2.0f;
+  context.interactive = ui->mouse && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ui->hot_id == 0 && !editor->gizmo.dragging;
+  if (ui->mouse)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    context.cursor = ldk_pointf((float)cursor.x, (float)cursor.y);
+  }
+  LDKUIRect previous_clip = ui->clip_rect;
+  ui->clip_rect = ldk_rectf_intersect(&previous_clip, &scene);
+  ldk_ecs_entity_foreach(s_editor_component_icon_draw, &context);
+  bool hovered = !x_handle_is_null(context.hit);
+  if (hovered)
+  {
+    /* In overlapping hit regions the nearest icon is drawn last and selected. */
+    context.hit_icon.color = 0xFFD060FFu;
+    ldk_ui_widget_icon_label(ui, 0, context.hit_icon, "", context.hit_rect);
+    editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
+    if (ui->active_id == 0 && ldk_os_mouse_button_down(
+            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+      editor->selected_entity = context.hit;
+  }
+  ui->clip_rect = previous_clip;
+  return hovered;
+}
+
 static float s_editor_gizmo_point_segment_distance(LDKUIPoint point,
     LDKUIPoint segment_start, LDKUIPoint segment_end)
 {

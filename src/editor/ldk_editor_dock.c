@@ -1182,7 +1182,8 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
           editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
   {
     ldki_editor_gizmo_scene_view_set(editor, image_rect);
-    ldki_editor_gizmo_hover_update(editor);
+    if (!ldki_editor_component_icons_show(editor))
+      ldki_editor_gizmo_hover_update(editor);
   }
 }
 

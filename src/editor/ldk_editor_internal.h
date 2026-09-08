@@ -225,6 +225,7 @@ void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
 void ldki_editor_gizmo_hover_update(LDKEditorContext *editor);
+bool ldki_editor_component_icons_show(LDKEditorContext *editor);
 void ldki_editor_gizmo_update(LDKEditorContext *editor);
 void ldki_editor_gizmo_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
