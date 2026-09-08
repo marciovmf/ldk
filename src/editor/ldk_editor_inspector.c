@@ -696,6 +696,17 @@ static void s_editor_inspector_material(
   ldk_ui_push_id_cstr(ui, "material");
   ldk_ui_horizontal_line(ui);
   s_editor_material_asset_field(editor, mesh, &context);
+  const LDKAssetMaterialData *bound = mesh->material_revision
+      ? ldk_asset_manager_material_get_const(context.assets, mesh->material_asset)
+      : NULL;
+  if (bound && bound->is_missing)
+  {
+    s_editor_material_row_begin(ui, "Status");
+    ldk_ui_label(ui, "Missing material (magenta checker)");
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_pop_id(ui);
+    return;
+  }
   LDKMaterialDesc desc = mesh->material;
   u32 selected = 3;
   for (u32 i = 0; i < 4; ++i)

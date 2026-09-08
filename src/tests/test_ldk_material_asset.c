@@ -17,7 +17,8 @@ static u32 s_diagnostics;
 static void s_diagnostic(const char *message, void *user)
 {
   (void)user;
-  if (strstr(message, "magenta checkerboard"))
+  if (strstr(message, "magenta checkerboard") ||
+      strstr(message, "unlit magenta checker material"))
     ++s_diagnostics;
 }
 
@@ -145,9 +146,38 @@ static int test_material_asset_failures(void)
   XFSPath path = {0};
   x_fs_path(&path, context.runtree_path.buf, name);
   ASSERT_FALSE(x_fs_path_exists(&path));
-  ASSERT_TRUE(x_handle_is_null(ldk_asset_manager_material_load_shared(
-      &context, name, &result).h));
-  ASSERT_EQ(ldk_asset_alive_count(&manager), 0u);
+  context.diagnostic = s_diagnostic;
+  s_diagnostics = 0;
+  LDKAssetMaterial missing = ldk_asset_manager_material_load_shared(
+      &context, name, &result);
+  ASSERT_FALSE(x_handle_is_null(missing.h));
+  ASSERT_EQ(s_diagnostics, 1u);
+  const LDKAssetMaterialData *fallback =
+      ldk_asset_manager_material_get_const(&manager, missing);
+  ASSERT_TRUE(fallback && fallback->is_missing && !fallback->dirty);
+  ASSERT_EQ(fallback->descriptor.type, LDK_MATERIAL_TYPE_TEXTURED_UNLIT);
+  ASSERT_EQ(fallback->descriptor.args.textured.color, 0xffffffffu);
+  const LDKAssetImageData *checker = ldk_asset_manager_image_get_const(
+      &manager, fallback->descriptor.args.textured.texture);
+  ASSERT_TRUE(checker && checker->image && checker->is_missing);
+  LDKAssetImage default_checker = ldk_asset_manager_image_missing(&manager, NULL);
+  ASSERT_EQ(default_checker.h.index, fallback->descriptor.args.textured.texture.h.index);
+  ASSERT_EQ(default_checker.h.version, fallback->descriptor.args.textured.texture.h.version);
+  LDKAssetMaterial cached = ldk_asset_manager_material_load_shared(
+      &context, name, &result);
+  ASSERT_EQ(cached.h.index, missing.h.index);
+  ASSERT_EQ(cached.h.version, missing.h.version);
+  ASSERT_EQ(s_diagnostics, 2u);
+  LDKAssetHandle handle = {missing.h};
+  XFSPath normalized = path;
+  x_fs_path_normalize(&normalized);
+  ASSERT_TRUE(strcmp(ldk_asset_get_info_const(&manager, handle)->asset_path.buf,
+      normalized.buf) == 0);
+  ASSERT_FALSE(ldk_asset_manager_material_save(&context, missing, &result));
+  ASSERT_FALSE(x_fs_path_exists(&path));
+  ASSERT_FALSE(ldk_asset_manager_material_update(
+      &manager, missing, &fallback->descriptor));
+  ldk_asset_manager_clear(&manager);
   FILE *file = fopen(path.buf, "wb");
   ASSERT_TRUE(file != NULL);
   fputs("material:\n  material_type: 99\n", file);

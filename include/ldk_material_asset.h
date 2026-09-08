@@ -13,6 +13,7 @@ extern "C"
     LDKMaterialDesc descriptor;
     u64 revision;
     bool dirty;
+    bool is_missing; /* Read-only procedural fallback; preserves the file path. */
   } LDKAssetMaterialData;
 
   /* Material assets are manager-owned until clear/termination. Image references
@@ -31,7 +32,9 @@ extern "C"
 
   /* Reuses an existing cached asset, including unsaved edits. Otherwise reads
    * a material: node containing the existing material_type/color/texture fields.
-   * Texture references remain relative to the project runtree. */
+   * Texture references remain relative to the project runtree. Missing files
+   * return a cached unlit magenta-checker placeholder and emit an error diagnostic.
+   * Invalid files and allocation failures still return a null handle. */
   LDK_API LDKAssetMaterial ldk_asset_manager_material_load_shared(
       const LDKMaterialIOContext *context, const char *path,
       LDKMaterialIOResult *result);

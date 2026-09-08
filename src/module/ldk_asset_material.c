@@ -1,4 +1,6 @@
 #include <ldk_material_asset.h>
+#include <ldk.h>
+#include <errno.h>
 #include <stdx/stdx_io.h>
 
 #include <stdio.h>
@@ -97,6 +99,7 @@ static LDKAssetMaterial s_insert(LDKAssetManager *manager, const XFSPath *path,
       data->descriptor = *descriptor;
       data->revision = 1;
       data->dirty = dirty;
+      data->is_missing = false;
       info->type = LDK_ASSET_TYPE_MATERIAL;
       info->asset_path = *path;
       info->data = data;
@@ -106,6 +109,41 @@ static LDKAssetMaterial s_insert(LDKAssetManager *manager, const XFSPath *path,
     free(data);
   }
   s_error(result, "failed to allocate material asset");
+  return asset;
+}
+
+static void s_report_missing(const LDKMaterialIOContext *context,
+    const char *path)
+{
+  char message[512];
+  snprintf(message, sizeof(message),
+      "Material '%s' is missing; using unlit magenta checker material.", path);
+  ldk_log_error("%s\n", message);
+  if (context->diagnostic)
+    context->diagnostic(message, context->user);
+}
+
+static LDKAssetMaterial s_missing(const LDKMaterialIOContext *context,
+    const XFSPath *path, LDKMaterialIOResult *result)
+{
+  /* Reuse the manager-owned procedural missing-image checker. */
+  LDKMaterialDesc descriptor;
+  ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED_UNLIT, &descriptor);
+  descriptor.args.textured.texture =
+      ldk_asset_manager_image_missing(context->assets, NULL);
+  if (x_handle_is_null(descriptor.args.textured.texture.h))
+  {
+    s_error(result, "failed to allocate missing material texture");
+    return ldk_asset_material_null();
+  }
+  LDKAssetMaterial asset = s_insert(
+      context->assets, path, &descriptor, false, result);
+  if (x_handle_is_null(asset.h))
+    return asset;
+  LDKAssetInfo *info = s_info(context->assets, asset);
+  ((LDKAssetMaterialData *)info->data)->is_missing = true;
+  info->load_timestamp = 0;
+  s_report_missing(context, path->buf);
   return asset;
 }
 
@@ -139,9 +177,16 @@ LDKAssetMaterial ldk_asset_manager_material_load_shared(
     return ldk_asset_material_null();
   LDKAssetMaterial asset = s_find(context->assets, &absolute);
   if (!x_handle_is_null(asset.h))
+  {
+    if (ldk_asset_manager_material_get_const(context->assets, asset)->is_missing)
+      s_report_missing(context, absolute.buf);
     return asset;
+  }
   size_t size = 0;
+  errno = 0;
   char *text = x_io_read_text(absolute.buf, &size);
+  if (!text && (errno == ENOENT || errno == ENOTDIR))
+    return s_missing(context, &absolute, result);
   if (!text || memchr(text, 0, size))
   {
     free(text);
@@ -174,6 +219,8 @@ bool ldk_asset_manager_material_update(LDKAssetManager *manager,
   if (!info || !ldk_material_desc_is_valid(descriptor))
     return false;
   LDKAssetMaterialData *data = info->data;
+  if (data->is_missing)
+    return false;
   if (ldk_material_desc_equal(&data->descriptor, descriptor))
     return true;
   if (data->revision == UINT64_MAX)
@@ -198,6 +245,11 @@ bool ldk_asset_manager_material_save(const LDKMaterialIOContext *context,
   if (!s_path(context, info->asset_path.buf, &absolute, result))
     return false;
   LDKAssetMaterialData *data = info->data;
+  if (data->is_missing)
+  {
+    s_error(result, "missing material placeholders cannot be saved");
+    return false;
+  }
   XStrBuilder *out = x_strbuilder_create();
   if (!out)
   {
