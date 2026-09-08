@@ -1,8 +1,10 @@
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_HPOOL
+#define X_IMPL_FILESYSTEM
 #endif
 
 #include <ldk_material.h>
+#include <component/ldk_mesh_source.h>
 #include <module/ldk_renderer.h>
 
 #define X_IMPL_TEST
@@ -299,6 +301,165 @@ static int test_renderer_material_rejects_invalid_input(void)
   return 0;
 }
 
+static int test_mesh_source_authored_material(void)
+{
+  LDKMeshSource mesh_source = {0};
+  LDKMaterialDesc material = {0};
+
+  ASSERT_TRUE(ldk_material_desc_defaults(
+      LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT, &material));
+  material.args.vertex_color.color = 0x204060ffu;
+
+  ASSERT_TRUE(ldk_mesh_source_set_material(&mesh_source, &material));
+  ASSERT_TRUE(mesh_source.material_dirty);
+  ASSERT_TRUE(ldk_material_desc_equal(&mesh_source.material, &material));
+
+  mesh_source.material_dirty = false;
+  ASSERT_TRUE(ldk_mesh_source_set_material(&mesh_source, &material));
+  ASSERT_FALSE(mesh_source.material_dirty);
+
+  LDKMaterialDesc invalid = {0};
+  ASSERT_FALSE(ldk_mesh_source_set_material(&mesh_source, &invalid));
+  ASSERT_FALSE(ldk_mesh_source_set_material(NULL, &material));
+  ASSERT_FALSE(ldk_mesh_source_set_material(&mesh_source, NULL));
+  ASSERT_TRUE(ldk_material_desc_equal(&mesh_source.material, &material));
+
+  LDKAssetMesh asset = {0};
+  asset.h.index = 3u;
+  asset.h.version = 7u;
+  mesh_source.renderer_mesh.id = 12u;
+  ASSERT_TRUE(ldk_mesh_source_set_data(&mesh_source, asset));
+  ASSERT_TRUE(mesh_source.dirty);
+  ASSERT_EQ(mesh_source.renderer_mesh.id, 12u);
+
+  return 0;
+}
+
+static LDKRHITexture s_test_image_upload(void* user, const LDKRHITextureDesc* desc)
+{
+  (void)desc;
+  return ++*(u32*)user;
+}
+
+static LDKRHISampler s_test_image_sampler(void* user, const LDKRHISamplerDesc* desc)
+{
+  (void)user;
+  (void)desc;
+  return 100u;
+}
+
+static void s_test_image_destroy(void* user, LDKRHIResource resource)
+{
+  (void)user;
+  (void)resource;
+}
+
+static int test_shared_image_cache(void)
+{
+  LDKAssetManager assets = {0};
+  XHPoolConfig config = {0};
+  config.page_capacity = 4;
+  config.initial_pages = 1;
+  ASSERT_TRUE(x_hpool_init(&assets.pool, sizeof(LDKAssetInfo), config,
+      NULL, NULL, NULL));
+  u32 pixel = 0xffffffffu;
+  LDKAssetImageData data = {ldk_image_create(1, 1, &pixel)};
+  ASSERT_TRUE(data.image != NULL);
+  LDKAssetImage image = {x_hpool_alloc(&assets.pool)};
+  LDKAssetInfo* info = x_hpool_get(&assets.pool, image.h);
+  memset(info, 0, sizeof(*info));
+  info->type = LDK_ASSET_TYPE_IMAGE;
+  info->data = &data;
+
+  u32 uploads = 0;
+  LDKRHIContext rhi = {0};
+  LDKRHIContextDesc rhi_desc = {0};
+  LDKRHIFunctions functions = {0};
+  rhi_desc.backend_type = LDK_RHI_BACKEND_OPENGL33;
+  rhi_desc.backend_user_data = &uploads;
+  functions.texture_create = s_test_image_upload;
+  functions.create_sampler = s_test_image_sampler;
+  functions.texture_destroy = s_test_image_destroy;
+  functions.destroy_sampler = s_test_image_destroy;
+  ASSERT_TRUE(ldk_rhi_initialize(&rhi, &rhi_desc, &functions));
+  LDKRenderer renderer = {0};
+  renderer.rhi = &rhi;
+  renderer.is_initialized = true;
+  LDKResourceTexture a = ldk_renderer_image_acquire(&renderer, &assets, image);
+  LDKResourceTexture b = ldk_renderer_image_acquire(&renderer, &assets, image);
+  ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, a));
+  ASSERT_EQ(a.id, b.id);
+  ASSERT_EQ(uploads, 1u);
+  ldk_renderer_texture_destroy(&renderer, a);
+  ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, a));
+  ldk_renderer_image_release(&renderer, a);
+  ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, b));
+
+  x_hpool_free(&assets.pool, image.h);
+  ASSERT_EQ(ldk_renderer_image_acquire(&renderer, &assets, image).id, 0u);
+  LDKAssetImage replacement = {x_hpool_alloc(&assets.pool)};
+  info = x_hpool_get(&assets.pool, replacement.h);
+  memset(info, 0, sizeof(*info));
+  info->type = LDK_ASSET_TYPE_IMAGE;
+  info->data = &data;
+  LDKResourceTexture c =
+      ldk_renderer_image_acquire(&renderer, &assets, replacement);
+  ASSERT_NEQ(c.id, b.id);
+  ASSERT_EQ(uploads, 2u);
+  ldk_renderer_image_release(&renderer, b);
+  ASSERT_FALSE(ldk_renderer_texture_is_valid(&renderer, b));
+  ldk_renderer_image_release(&renderer, c);
+  ASSERT_FALSE(ldk_renderer_texture_is_valid(&renderer, c));
+  ldk_renderer_image_release(&renderer, c);
+  ldk_rhi_terminate(&rhi);
+  free(renderer.textures);
+  ldk_image_destroy(data.image);
+  x_hpool_term(&assets.pool);
+  return 0;
+}
+
+static int test_missing_image_checker(void)
+{
+  LDKAssetManager assets = {0};
+  XHPoolConfig config = {0};
+  config.page_capacity = 4;
+  config.initial_pages = 1;
+  ASSERT_TRUE(x_hpool_init(&assets.pool, sizeof(LDKAssetInfo), config,
+      NULL, NULL, NULL));
+  LDKAssetImage a = ldk_asset_manager_image_missing(
+      &assets, "/project/runtree/missing.png");
+  LDKAssetImage b = ldk_asset_manager_image_missing(
+      &assets, "/project/runtree/missing.png");
+  ASSERT_FALSE(x_handle_is_null(a.h));
+  ASSERT_EQ(a.h.index, b.h.index);
+  ASSERT_EQ(a.h.version, b.h.version);
+  LDKAssetHandle handle = {a.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(&assets, handle);
+  XFSPath expected = {0};
+  x_fs_path_set(&expected, "/project/runtree/missing.png");
+  x_fs_path_normalize(&expected);
+  ASSERT_TRUE(strcmp(info->asset_path.buf, expected.buf) == 0);
+  LDKAssetImageData *data = ldk_asset_manager_image_get(&assets, a);
+  ASSERT_TRUE(data->is_missing);
+  ASSERT_EQ(ldk_image_get_width(data->image), 8u);
+  ASSERT_EQ(ldk_image_get_height(data->image), 8u);
+  const u8 *pixels = ldk_image_get_pixels(data->image);
+  for (u32 y = 0; y < 8; ++y)
+    for (u32 x = 0; x < 8; ++x)
+    {
+      u32 offset = (y * 8 + x) * 4;
+      u8 bright = ((x / 2) ^ (y / 2)) & 1 ? 255 : 0;
+      ASSERT_EQ(pixels[offset], bright);
+      ASSERT_EQ(pixels[offset + 1], 0);
+      ASSERT_EQ(pixels[offset + 2], bright);
+      ASSERT_EQ(pixels[offset + 3], 255);
+    }
+  ldk_image_destroy(data->image);
+  free(data);
+  x_hpool_term(&assets.pool);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -311,6 +472,9 @@ int main(void)
       X_TEST(test_renderer_textured_material),
       X_TEST(test_renderer_material_selection_and_render_key),
       X_TEST(test_renderer_material_rejects_invalid_input),
+      X_TEST(test_mesh_source_authored_material),
+      X_TEST(test_shared_image_cache),
+      X_TEST(test_missing_image_checker),
   };
 
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

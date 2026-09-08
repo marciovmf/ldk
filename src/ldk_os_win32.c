@@ -2505,6 +2505,30 @@ float ldk_os_joystick_vibration_right_get(LDKJoystickID id)
 // Dialogs
 // ---------------------------------------------------------------------------
 
+bool ldk_os_dialog_color_picker_show(LDKWindow owner, rgba32 *color)
+{
+  static COLORREF custom_colors[16];
+  if (!color)
+  {
+    return false;
+  }
+  CHOOSECOLORW dialog = {0};
+  dialog.lStructSize = sizeof(dialog);
+  dialog.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
+  dialog.rgbResult = RGB((*color >> 24) & 255, (*color >> 16) & 255,
+      (*color >> 8) & 255);
+  dialog.lpCustColors = custom_colors;
+  dialog.Flags = CC_FULLOPEN | CC_RGBINIT;
+  if (!ChooseColorW(&dialog))
+  {
+    return false;
+  }
+  *color = ((u32)GetRValue(dialog.rgbResult) << 24) |
+      ((u32)GetGValue(dialog.rgbResult) << 16) |
+      ((u32)GetBValue(dialog.rgbResult) << 8) | (*color & 255);
+  return true;
+}
+
 bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
     const char *filter, char *out_path, size_t out_path_size)
 {

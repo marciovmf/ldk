@@ -422,6 +422,7 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
   }
 
   image_data->image = image;
+  image_data->is_missing = false;
 
   XHandle h = x_hpool_alloc(&manager->pool);
 
@@ -479,6 +480,7 @@ LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char*
   }
 
   image_data->image = image;
+  image_data->is_missing = false;
 
   XHandle h = x_hpool_alloc(&manager->pool);
 
@@ -502,12 +504,93 @@ LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char*
   info->type = LDK_ASSET_TYPE_IMAGE;
   info->data = image_data;
 
-#ifdef LDK_DEBUG
   x_fs_path_set(&info->asset_path, path);
+  x_fs_path_normalize(&info->asset_path);
+#ifdef LDK_DEBUG
   info->load_timestamp = (u64)time(NULL);
 #endif
 
   return s_ldk_asset_image_from_handle(h);
+}
+
+typedef struct LDKSharedImageLookup
+{
+  XFSPath path;
+  LDKAssetImage image;
+} LDKSharedImageLookup;
+
+static bool s_shared_image_find(
+    LDKAssetHandle asset, LDKAssetInfo *info, void *user)
+{
+  LDKSharedImageLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_IMAGE &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->image.h = asset.h;
+    return false;
+  }
+  return true;
+}
+
+LDKAssetImage ldk_asset_manager_image_load_shared(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedImageLookup lookup = {0};
+  lookup.image = ldk_asset_image_null();
+  if (!manager || !path || !x_fs_path_is_absolute_cstr(path) ||
+      strlen(path) >= sizeof(lookup.path.buf))
+  {
+    return lookup.image;
+  }
+  x_fs_path_set(&lookup.path, path);
+  x_fs_path_normalize(&lookup.path);
+  ldk_asset_foreach(manager, s_shared_image_find, &lookup);
+  if (x_handle_is_null(lookup.image.h))
+  {
+    lookup.image = ldk_asset_manager_image_load(manager, lookup.path.buf);
+    if (!x_handle_is_null(lookup.image.h))
+    {
+      LDKAssetHandle generic = {lookup.image.h};
+      ldk_asset_get_info(manager, generic)->asset_path = lookup.path;
+    }
+  }
+  return lookup.image;
+}
+
+LDKAssetImage ldk_asset_manager_image_missing(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedImageLookup lookup = {0};
+  lookup.image = ldk_asset_image_null();
+  if (!manager || (path && strlen(path) >= sizeof(lookup.path.buf)))
+    return lookup.image;
+  x_fs_path_set(&lookup.path, path ? path : "builtin:missing-image");
+  x_fs_path_normalize(&lookup.path);
+  ldk_asset_foreach(manager, s_shared_image_find, &lookup);
+  if (!x_handle_is_null(lookup.image.h))
+    return lookup.image;
+
+  u8 pixels[8 * 8 * 4];
+  for (u32 y = 0; y < 8; ++y)
+  {
+    for (u32 x = 0; x < 8; ++x)
+    {
+      u32 offset = (y * 8 + x) * 4;
+      u8 bright = ((x / 2) ^ (y / 2)) & 1 ? 255 : 0;
+      pixels[offset] = bright;
+      pixels[offset + 1] = 0;
+      pixels[offset + 2] = bright;
+      pixels[offset + 3] = 255;
+    }
+  }
+  lookup.image = ldk_asset_manager_image_create(manager, 8, 8, pixels);
+  if (!x_handle_is_null(lookup.image.h))
+  {
+    LDKAssetHandle generic = {lookup.image.h};
+    ldk_asset_get_info(manager, generic)->asset_path = lookup.path;
+    ldk_asset_manager_image_get(manager, lookup.image)->is_missing = true;
+  }
+  return lookup.image;
 }
 
 void ldk_asset_manager_image_unload(LDKAssetManager* manager, LDKAssetImage asset)

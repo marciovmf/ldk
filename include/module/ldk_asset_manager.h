@@ -73,6 +73,7 @@ extern "C" {
   typedef struct LDKAssetImageData
   {
     LDKImage* image;
+    bool is_missing; /* Procedural substitute for an unavailable image. */
   } LDKAssetImageData;
 
   LDK_API LDKAssetImage ldk_asset_image_null(void);
@@ -85,6 +86,16 @@ extern "C" {
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
       const char* path);
+  /* Reuse a loaded image by normalized absolute path, or load it once.
+   * The returned asset is shared and lives until manager clear/termination;
+   * callers must not individually unload it. No file hot reload is performed. */
+  LDK_API LDKAssetImage ldk_asset_manager_image_load_shared(
+      LDKAssetManager* manager, const char* path);
+  /* Shared magenta/black checkerboard for an unavailable image. Preserve the
+   * missing absolute path for scene saves; NULL selects the unassigned fallback.
+   * Manager-owned, like image_load_shared. */
+  LDK_API LDKAssetImage ldk_asset_manager_image_missing(
+      LDKAssetManager* manager, const char* path);
   LDK_API void ldk_asset_manager_image_unload(
       LDKAssetManager* manager,
       LDKAssetImage asset);

@@ -1,5 +1,6 @@
 #include <ldk_common.h>
 #include <module/ldk_renderer.h>
+#include <module/ldk_asset_manager.h>
 
 #include <stddef.h>
 #include <string.h>
@@ -2298,6 +2299,11 @@ void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture text
     return;
   }
 
+  if (resource->image_references != 0)
+  {
+    return;
+  }
+
   s_renderer_mesh_pass_remove_texture_bindings(
       &renderer->mesh_pass, resource->texture);
   s_renderer_ui_pass_remove_texture_bindings(
@@ -2310,6 +2316,65 @@ void ldk_renderer_texture_destroy(LDKRenderer* renderer, LDKResourceTexture text
 // ---------------------------------------------------------------------------
 // Material resources
 // ---------------------------------------------------------------------------
+
+LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
+    LDKAssetManager* assets, LDKAssetImage image)
+{
+  if (!renderer || !renderer->is_initialized || !assets)
+  {
+    return ldk_renderer_texture_null();
+  }
+  const LDKAssetImageData* data =
+      ldk_asset_manager_image_get_const(assets, image);
+  if (!data || !data->image)
+  {
+    return ldk_renderer_texture_null();
+  }
+  for (u32 i = 0; i < renderer->texture_count; i++)
+  {
+    LDKRendererTextureResource* entry = &renderer->textures[i];
+    if (entry->alive && entry->image_references != 0 &&
+        entry->asset_manager == assets &&
+        entry->image_asset.h.index == image.h.index &&
+        entry->image_asset.h.version == image.h.version)
+    {
+      if (entry->image_references == UINT32_MAX)
+      {
+        return ldk_renderer_texture_null();
+      }
+      entry->image_references++;
+      LDKResourceTexture result = {i + 1u};
+      return result;
+    }
+  }
+  LDKResourceTexture result =
+      ldk_renderer_texture_create_from_image(renderer, data->image, NULL);
+  LDKRendererTextureResource* entry =
+      s_renderer_texture_get_resource(renderer, result);
+  if (entry)
+  {
+    entry->asset_manager = assets;
+    entry->image_asset = image;
+    entry->image_references = 1;
+  }
+  return result;
+}
+
+void ldk_renderer_image_release(
+    LDKRenderer* renderer, LDKResourceTexture texture)
+{
+  LDKRendererTextureResource* entry =
+      s_renderer_texture_get_resource(renderer, texture);
+  if (!entry || entry->image_references == 0)
+  {
+    return;
+  }
+  entry->image_references--;
+  if (entry->image_references == 0)
+  {
+    ldk_renderer_texture_destroy(renderer, texture);
+  }
+}
 
 LDKResourceMaterial ldk_renderer_material_null(void)
 {
@@ -2510,6 +2575,7 @@ static void s_renderer_destroy_texture_resources(LDKRenderer* renderer)
     {
       LDKResourceTexture texture = {0};
       texture.id = (LDKRHITexture)(i + 1u);
+      renderer->textures[i].image_references = 0;
       ldk_renderer_texture_destroy(renderer, texture);
     }
   }

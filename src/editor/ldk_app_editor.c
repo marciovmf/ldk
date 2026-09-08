@@ -17,6 +17,7 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
+#include "ldk_ui_drag_n_drop.h"
 
 #include <stdio.h>
 
@@ -696,7 +697,15 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
       &editor->text_input_state, ui_viewport);
+  if (ldk_os_mouse_button_down(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
+  }
   s_draw_editor_ui(editor, delta_time);
+  if (!ldk_os_mouse_button_is_pressed(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
+  }
   ldk_ui_end_frame(&editor->ui);
   const LDKUIRenderData *ui_data = ldk_ui_get_render_data(&editor->ui);
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
@@ -1716,6 +1725,7 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  ldk_scene_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
 
   if (editor->project_build.active)
@@ -1982,10 +1992,18 @@ void ldk_editor_quit(LDKEditor *editor)
 // Entrypoint
 //----------------------------------------------------------
 
+static void s_editor_scene_diagnostic(const char *message, void *user)
+{
+  /* The scene loader already emitted this to the engine logger. */
+  ldki_editor_console_append(
+      user, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
+}
+
 static i32 s_editor_main(const char *project_file_path)
 {
   LDKEditorContext *editor = s_editor_instance();
   editor->console_sb = x_strbuilder_create();
+  ldk_scene_diagnostic_handler_set(s_editor_scene_diagnostic, editor);
 
   ldki_editor_register_commands(editor);
 

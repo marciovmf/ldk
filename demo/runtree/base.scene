@@ -13,6 +13,9 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
+            material_type: 2
+            material_color: 4294967295
+            material_texture: "assets\\dev_other_bl.jpg"
     - entity: 1
       parent: 2
       name: "Cone"
@@ -25,6 +28,8 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
+            material_type: 4
+            material_color: 4278190335
     - entity: 2
       parent: 0
       name: "Capsule"
@@ -37,6 +42,8 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
+            material_type: 4
+            material_color: 4294967295
     - entity: 3
       parent: 0
       name: "Capsule"
@@ -49,15 +56,33 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
+            material_type: 4
+            material_color: 4294967295
     - entity: 4
       parent: 3
       name: "Cone"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 1.12865114, -0.0118175745
+            local_position: 0.00000000, 1.12865114, 0.00103080273
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
+            material_type: 4
+            material_color: 4278190335
+    - entity: 5
+      parent: -1
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.0769772530
+            local_scale: 6.52587891, 6.52587891, 6.52587891
+            local_rotation: -0.711974084, 0.00000000, 0.00000000, 0.702205777
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            material_type: 4
+            material_color: 11010303

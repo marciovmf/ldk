@@ -251,6 +251,9 @@ extern "C" {
     LDKRHIFormat format;
     u32 flags;
     bool alive;
+    struct LDKAssetManager* asset_manager;
+    LDKAssetImage image_asset;
+    u32 image_references;
   } LDKRendererTextureResource;
 
   typedef struct LDKRendererMaterialDesc
@@ -643,6 +646,17 @@ extern "C" {
    * @return Invalid material resource handle.
    */
   LDK_API LDKResourceMaterial ldk_renderer_material_null(void);
+
+  /* Acquire a shared GPU snapshot of a live image asset. Uses default texture
+   * options. Identity includes manager, asset index and generation. Release
+   * once per acquisition; do not destroy the borrowed texture directly.
+   * In-place image edits/hot reload are not tracked by this snapshot cache.
+   */
+  LDK_API LDKResourceTexture ldk_renderer_image_acquire(
+      LDKRenderer* renderer, struct LDKAssetManager* assets,
+      LDKAssetImage image);
+  LDK_API void ldk_renderer_image_release(
+      LDKRenderer* renderer, LDKResourceTexture texture);
 
   /**
    * @brief Check whether a material handle refers to a live renderer material.

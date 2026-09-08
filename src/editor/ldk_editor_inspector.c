@@ -1,7 +1,10 @@
 #include "ldk_editor_internal.h"
+#include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
+#include <component/ldk_mesh_source.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -614,6 +617,130 @@ static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
   ldk_ui_pop_id(ui);
 }
 
+static void s_editor_material_row_begin(LDKUIContext *ui, const char *title)
+{
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_label(ui, title);
+}
+
+static void s_editor_inspector_material(
+    LDKEditorContext *editor, LDKMeshSource *mesh)
+{
+  static const char *const names[] = {
+      "Textured Unlit", "Textured", "Vertex Color Unlit", "Vertex Color"};
+  static const LDKMaterialType types[] = {
+      LDK_MATERIAL_TYPE_TEXTURED_UNLIT, LDK_MATERIAL_TYPE_TEXTURED,
+      LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT, LDK_MATERIAL_TYPE_VERTEX_COLOR};
+  LDKUIContext *ui = &editor->ui;
+  LDKMaterialDesc desc = mesh->material;
+  u32 selected = 3;
+  for (u32 i = 0; i < 4; ++i)
+  {
+    if (desc.type == types[i])
+      selected = i;
+  }
+
+  ldk_ui_push_id_cstr(ui, "material");
+  ldk_ui_horizontal_line(ui);
+  s_editor_material_row_begin(ui, "Material");
+  u32 next = ldk_ui_combo_box(ui, names, 4, selected);
+  ldk_ui_end_horizontal(ui);
+  if (next < 4 && next != selected)
+  {
+    ldk_material_desc_defaults(types[next], &desc);
+  }
+
+  bool textured = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc.type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  rgba32 *color = textured ? &desc.args.textured.color
+                          : &desc.args.vertex_color.color;
+  char color_label[40];
+  s_editor_material_row_begin(ui, "Tint");
+  snprintf(color_label, sizeof(color_label), "#%08X...", (u32)*color);
+  if (ldk_ui_button(ui, color_label))
+  {
+    ldk_os_dialog_color_picker_show(editor->window, color);
+  }
+  ldk_ui_end_horizontal(ui);
+  s_editor_material_row_begin(ui, "Alpha");
+  u32 alpha = (u32)(ldk_ui_slider(ui, (float)(*color & 255), 0, 255) + 0.5f);
+  *color = (*color & 0xffffff00u) | alpha;
+  ldk_ui_end_horizontal(ui);
+
+  if (textured)
+  {
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    LDKAssetHandle asset = {desc.args.textured.texture.h};
+    const LDKAssetInfo *info = ldk_asset_get_info_const(assets, asset);
+    XFSPath path = {0};
+    char display_path[sizeof(path.buf)];
+    snprintf(display_path, sizeof(display_path), "%s",
+        info ? (info->asset_path.length ? info->asset_path.buf
+                                       : "Generated image") : "");
+    s_editor_material_row_begin(ui, "Texture");
+    ldk_ui_begin_disabled(ui, true);
+    ldk_ui_input_box(ui, display_path, sizeof(display_path));
+    LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+    ldk_ui_end_disabled(ui);
+    bool assign = false;
+    /* Disabled text is read-only. Resolve its drop explicitly because disabled
+     * input controls do not participate in the UI's hot-id hit testing. */
+    if (ui->mouse && ui->active_id && ui->current_window &&
+        ui->hovered_window_id == ui->current_window->id &&
+        ldk_os_mouse_button_up(
+            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+      if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+          ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+      {
+        u32 payload_type = 0;
+        assign = ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
+            payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+      }
+    }
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    if (ldk_ui_button(ui, "..."))
+    {
+      assign = ldk_os_dialog_show_open_file(editor->window, "Choose material image",
+          "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0",
+          path.buf, sizeof(path.buf));
+    }
+    ldk_ui_end_horizontal(ui);
+    if (assign)
+    {
+        XFSPath normalized = {0};
+        XFSPath root = editor->project.run_root_path;
+        XFSPath relative = {0};
+        x_fs_path_set(&normalized, path.buf);
+        x_fs_path_normalize(&normalized);
+        x_fs_path_normalize(&root);
+        if (!editor->project.loaded || !root.length ||
+            !x_fs_path_common_prefix(root.buf, normalized.buf, &relative) ||
+            !relative.length || strcmp(relative.buf, ".") == 0)
+        {
+          ldk_os_dialog_show_error(editor->window, "Material image",
+              "Choose an image inside the project's runtree folder.");
+        }
+        else
+        {
+          LDKAssetImage image =
+              ldk_asset_manager_image_load_shared(assets, normalized.buf);
+          if (x_handle_is_null(image.h))
+            ldk_os_dialog_show_error(editor->window, "Material image",
+                "The selected image could not be loaded.");
+          else
+            desc.args.textured.texture = image;
+        }
+    }
+  }
+
+  ldk_mesh_source_set_material(mesh, &desc);
+  ldk_ui_pop_id(ui);
+}
+
 void ldki_editor_inspector_show(LDKEditorContext *editor)
 {
   static LDKUIPoint scroll = {0};
@@ -748,6 +875,10 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         s_editor_inspector_field_draw(ui, entity, component_type, meta,
             &meta->fields[field_i], component);
       }
+      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+      {
+        s_editor_inspector_material(editor, component);
+      }
     }
 
     if (has_delete_button && ldk_ui_widget_icon_button(ui, id, icon, "", r))
@@ -765,6 +896,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
     ldk_ui_end_area(ui);
     ldk_ui_spacer(ui);
+    ldk_ui_pop_id(ui);
     ldk_ui_pop_id(ui);
   }
 

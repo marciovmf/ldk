@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
 #include <ldk_scene.h>
@@ -1228,6 +1229,18 @@ static ProjectExplorerTileResult s_project_explorer_tile(
   return result;
 }
 
+static void s_project_explorer_file_drag_source(LDKUIContext *ui,
+    const ProjectExplorerEntry *entry, bool is_directory)
+{
+  if (!is_directory && ui->mouse && ui->active_id == ui->last_id &&
+      ldk_os_mouse_button_down(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_ui_drag_n_drop_payload_set(
+        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, &entry->path);
+  }
+}
+
 static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon,
     LDKUIIcon file_icon)
@@ -1257,6 +1270,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
+      s_project_explorer_file_drag_source(ui, entry, is_directory);
       bool renaming = s_project_explorer_rename_matches(
           state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
       bool label_clicked = false;
@@ -1267,6 +1281,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       else
       {
         label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+        s_project_explorer_file_drag_source(ui, entry, is_directory);
       }
 
       ldk_ui_end_horizontal(ui);
@@ -1324,6 +1339,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
+      s_project_explorer_file_drag_source(ui, entry, is_directory);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {

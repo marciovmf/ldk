@@ -363,7 +363,7 @@ if (WIN32)
   list(APPEND LDK_SOURCE
     src/ldk_os_win32.c
   )
-  set(LIBS dbghelp.lib)
+  set(LIBS dbghelp.lib comdlg32.lib)
 
   list(APPEND Release_LIBS ${LIBS})
   list(APPEND Release_DEFINITIONS)
