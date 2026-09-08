@@ -212,6 +212,7 @@ static void s_renderer_destroy_views(LDKRenderer* renderer)
   for (u32 i = 0; i < renderer->view_count; i++)
   {
     s_renderer_target_destroy(renderer, &renderer->views[i].target);
+    s_renderer_target_destroy(renderer, &renderer->views[i].overlay_target);
   }
 
   LDK_RENDERER_FREE(renderer->views);
@@ -233,11 +234,13 @@ static void s_renderer_finish_views(LDKRenderer* renderer)
     {
       view->submitted = false;
       view->grid_submitted = false;
+      view->separate_overlay = false;
       index += 1;
       continue;
     }
 
     s_renderer_target_destroy(renderer, &view->target);
+    s_renderer_target_destroy(renderer, &view->overlay_target);
     renderer->view_count -= 1;
 
     if (index != renderer->view_count)
@@ -1330,6 +1333,15 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   s_renderer_mesh_pass_draw(renderer, &renderer->mesh_pass, view,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
   s_renderer_grid_pass_draw(&renderer->grid_pass, view);
+  if (view->separate_overlay)
+  {
+    ldk_rhi_pass_end(renderer->rhi);
+    pass_desc.color_attachments[0].texture = view->overlay_target.color_texture;
+    pass_desc.color_attachments[0].clear_color =
+        ldk_renderer_color_from_rgba32(0x00000000u);
+    pass_desc.depth_attachment.texture = view->overlay_target.depth_texture;
+    ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
+  }
   s_renderer_mesh_pass_draw(renderer, &renderer->mesh_pass, view,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
   ldk_rhi_pass_end(renderer->rhi);
@@ -2779,6 +2791,7 @@ bool ldk_renderer_game_resolution_set(
   for (u32 i = 0; i < renderer->view_count; i++)
   {
     s_renderer_target_destroy(renderer, &renderer->views[i].target);
+    s_renderer_target_destroy(renderer, &renderer->views[i].overlay_target);
   }
 
   renderer->game_width = width;
@@ -2879,6 +2892,18 @@ LDKUITextureHandle ldk_renderer_view_texture_get(
   }
 
   return (LDKUITextureHandle)view->target.color_texture;
+}
+
+LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
+    LDKRenderer* renderer, LDKRendererViewId view_id)
+{
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+  if (!view || !view->submitted ||
+      !s_renderer_target_ensure(renderer, &view->overlay_target,
+          (i32)renderer->game_width, (i32)renderer->game_height))
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  view->separate_overlay = true;
+  return (LDKUITextureHandle)view->overlay_target.color_texture;
 }
 
 bool ldk_renderer_submit_view(LDKRenderer* renderer,

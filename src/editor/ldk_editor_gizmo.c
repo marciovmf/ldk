@@ -1025,7 +1025,7 @@ static bool s_editor_component_icon_draw(LDKEntity entity, void *user)
       !isfinite(screen.x) || !isfinite(screen.y))
     return true;
 
-  const float size = 24.0f;
+  const float size = 64.0f;
   LDKUIRect rect = {screen.x - size * 0.5f, screen.y - size * 0.5f, size, size};
   LDKUIContext *ui = &editor->ui;
   LDKUIRect visible = ldk_rectf_intersect(&rect, &ui->clip_rect);
@@ -1051,8 +1051,11 @@ static bool s_editor_component_icon_draw(LDKEntity entity, void *user)
   return true;
 }
 
-bool ldki_editor_component_icons_show(LDKEditorContext *editor)
+bool ldki_editor_component_icons_show(
+    LDKEditorContext *editor, LDKEntity *out_hovered)
 {
+  if (out_hovered)
+    *out_hovered = x_handle_null();
   if (!editor || !editor->renderer || !ldk_module_get(LDK_MODULE_ECS))
     return false;
   LDKUIContext *ui = &editor->ui;
@@ -1070,7 +1073,8 @@ bool ldki_editor_component_icons_show(LDKEditorContext *editor)
   context.hit_depth = 2.0f;
   context.interactive = ui->mouse && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
-      ui->hot_id == 0 && !editor->gizmo.dragging;
+      ui->hot_id == 0 && !editor->gizmo.dragging &&
+      editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE;
   if (ui->mouse)
   {
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
@@ -1086,9 +1090,8 @@ bool ldki_editor_component_icons_show(LDKEditorContext *editor)
     context.hit_icon.color = 0xFFD060FFu;
     ldk_ui_widget_icon_label(ui, 0, context.hit_icon, "", context.hit_rect);
     editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
-    if (ui->active_id == 0 && ldk_os_mouse_button_down(
-            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-      editor->selected_entity = context.hit;
+    if (out_hovered)
+      *out_hovered = context.hit;
   }
   ui->clip_rect = previous_clip;
   return hovered;

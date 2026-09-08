@@ -204,6 +204,8 @@ extern "C" {
     Mat4 view;
     Mat4 projection;
     LDKRendererTarget target;
+    LDKRendererTarget overlay_target;
+    bool separate_overlay;
     Vec3 grid_center;
     float grid_extent;
     float grid_spacing;
@@ -423,6 +425,10 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+  /* Route overlay meshes to a transparent texture for this frame. Request
+   * before rendering and compose the texture above other viewer UI layers. */
+  LDK_API LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
+      LDKRenderer* renderer, LDKRendererViewId view_id);
 
   // ---------------------------------------------------------------------------
   // Mesh Resource
