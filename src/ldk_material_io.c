@@ -4,6 +4,21 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * Extending materials:
+ * - Add typed parameters to LDKMaterialDesc; give new material types stable IDs.
+ * - Update defaults, validation, equality and hashing for every new field.
+ *   Equality drives shared-asset revision changes and renderer updates.
+ * - Extend material read/write and inspector controls. Default absent fields
+ *   so existing files remain compatible.
+ * - Extend renderer resolution, bindings, shaders and render selection as needed.
+ *   Additional maps require matching texture acquisition/release and suitable
+ *   fallbacks (e.g. a neutral normal map).
+ *
+ * Asset paths, sharing and revision tracking remain unchanged. As the parameter
+ * set grows, consider shared metadata for serialization and inspector controls.
+ */
+
 static void s_result_error(LDKMaterialIOResult *result, const char *message)
 {
   if (result)
