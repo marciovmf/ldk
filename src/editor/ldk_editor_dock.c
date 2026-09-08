@@ -1182,7 +1182,38 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
           editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
   {
     ldki_editor_gizmo_scene_view_set(editor, image_rect);
+    /* Rendered after the scene but composed after component icons. */
+    LDKUITextureHandle overlay = ldk_renderer_view_overlay_texture_request(
+        editor->renderer, editor->scene_view);
     ldki_editor_gizmo_hover_update(editor);
+    LDKEntity icon_entity = x_handle_null();
+    bool icon_hovered = ldki_editor_component_icons_show(editor, &icon_entity);
+    if (overlay != (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_ui_widget_image(&editor->ui, 0x47495A4Fu, overlay,
+          ldk_ui_rect(0.0f, 1.0f, 1.0f, -1.0f), image_rect);
+    }
+
+    /* One MouseUP decision for scene selection. An icon hit takes priority
+     * over mesh picking, so a second picker cannot overwrite its selection. */
+    LDKUIContext *ui = &editor->ui;
+    if (ui->mouse && ui->current_window && ui->active_id == 0 &&
+        ui->hot_id == 0 &&
+        ui->hovered_window_id == ui->current_window->id &&
+        !editor->gizmo.dragging &&
+        editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
+        ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+      if (ldk_rectf_contains(&image_rect, (float)cursor.x, (float)cursor.y) &&
+          ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+      {
+        if (icon_hovered)
+          editor->selected_entity = icon_entity;
+        else
+          ldki_editor_scene_view_pick(editor, cursor);
+      }
+    }
   }
 }
 

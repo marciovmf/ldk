@@ -92,6 +92,29 @@ bool game_start(LDKGame* game)
 
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);
+
+  // Set material
+  LDKMaterialDesc material;
+  ldk_material_desc_defaults(
+    LDK_MATERIAL_TYPE_VERTEX_COLOR, &material);
+  material.args.vertex_color.color = 0xff0000ffu;
+  ldk_mesh_source_set_material(&mesh_source, &material);
+  // Set Texture to material descriptor
+/* RGBA bytes: white/blue checkerboard. */
+const u8 pixels[] = {
+    255, 255, 255, 255,    0, 80, 255, 255,
+      0,  80, 255, 255,  255, 255, 255, 255,
+};
+
+LDKAssetImage image =
+  ldk_asset_manager_image_create(assets, 2, 2, pixels);
+
+ldk_material_desc_defaults(
+  LDK_MATERIAL_TYPE_TEXTURED, &material);
+material.args.textured.texture = image;
+
+ldk_mesh_source_set_material(&mesh_source, &material);
+  
   ldk_ecs_component_add(cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
   ldk_ecs_component_add(cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
 

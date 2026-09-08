@@ -321,7 +321,7 @@ bool ldk_entity_internal_flags_has(LDKEntityRegistry* module, LDKEntity entity, 
 
 bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char* name)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(LDK_EDITOR)
   LDKEntityInfo* info = ldk_entity_info_get(module, entity);
   size_t len = 0;
 
@@ -357,7 +357,7 @@ bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char
 
 const char* ldk_entity_name_get(LDKEntityRegistry* module, LDKEntity entity)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(LDK_EDITOR)
   const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
 
   if (!info)

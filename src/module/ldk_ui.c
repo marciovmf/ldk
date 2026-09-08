@@ -2532,7 +2532,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   if (type == LDK_UI_THEME_DEFAULT_DARK)
   {
     text = 0xFFFFFFFFu;
-    text_disabled = 0x707070FFu;
+    text_disabled = 0xABABABFFu;
 
     window_bg = 0x383838FFu;
     panel_bg = 0x383838FFu;

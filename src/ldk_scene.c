@@ -11,6 +11,7 @@
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
+#include <module/ldk_scene_manager.h>
 
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_tml.h>
@@ -63,6 +64,27 @@ static bool s_scene_entity_is_editor_only(LDKEntity entity)
       registry, entity, LDK_ENTITY_INTERNAL_EDITOR);
 }
 #endif
+
+static LDKSceneDiagnosticFn s_scene_diagnostic_handler;
+static void *s_scene_diagnostic_user;
+
+void ldk_scene_diagnostic_handler_set(
+    LDKSceneDiagnosticFn handler, void *user)
+{
+  s_scene_diagnostic_handler = handler;
+  s_scene_diagnostic_user = user;
+}
+
+static void s_scene_report_missing_image(const char *path)
+{
+  char message[512];
+  snprintf(message, sizeof(message),
+      "Material texture '%s' is unavailable; using magenta checkerboard.",
+      path ? path : "<unassigned>");
+  ldk_log_error("%s\n", message);
+  if (s_scene_diagnostic_handler)
+    s_scene_diagnostic_handler(message, s_scene_diagnostic_user);
+}
 
 void ldk_scene_result_clear(LDKSceneResult *result)
 {
@@ -207,8 +229,13 @@ bool ldk_scene_component_field_is_serializable(
 
   if (meta->name && strcmp(meta->name, "LDKMeshSource") == 0)
   {
-    if (strcmp(field->name, "renderer_mesh") == 0 ||
-        strcmp(field->name, "dirty") == 0)
+    if (strcmp(field->name, "material") == 0 ||
+        strcmp(field->name, "renderer_mesh") == 0 ||
+        strcmp(field->name, "renderer_material") == 0 ||
+        strcmp(field->name, "renderer_texture") == 0 ||
+        strcmp(field->name, "renderer") == 0 ||
+        strcmp(field->name, "dirty") == 0 ||
+        strcmp(field->name, "material_dirty") == 0)
     {
       return false;
     }
@@ -454,7 +481,8 @@ static bool s_node_get_u32(const TMLDocument *doc, const TMLNode *node,
   }
 
   entry = s_node_find_entry(doc, node, name);
-  if (!entry || !tml_entry_get_i64(entry, &value) || value < 0)
+  if (!entry || !tml_entry_get_i64(entry, &value) || value < 0 ||
+      (u64)value > UINT32_MAX)
   {
     return false;
   }
@@ -906,6 +934,98 @@ static bool s_apply_component_fields(const TMLDocument *doc,
   return true;
 }
 
+/* Material image paths are relative to the configured project runtree. */
+static bool s_material_image_path(const char *path, XFSPath *absolute,
+    XFSPath *relative)
+{
+  LDKSceneManager *scenes = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (!scenes || !scenes->runtree_path.length || !path || !path[0])
+    return false;
+  XFSPath root = scenes->runtree_path;
+  x_fs_path_normalize(&root);
+  if (x_fs_path_is_absolute_cstr(path))
+  {
+    if (strlen(path) >= sizeof(absolute->buf))
+      return false;
+    x_fs_path_set(absolute, path);
+  }
+  else
+  {
+    if (root.length + 1 + strlen(path) >= sizeof(absolute->buf))
+      return false;
+    x_fs_path(absolute, root.buf, path);
+  }
+  x_fs_path_normalize(absolute);
+  return x_fs_path_common_prefix(root.buf, absolute->buf, relative) &&
+      relative->length && strcmp(relative->buf, ".") != 0;
+}
+
+static bool s_apply_material(const TMLDocument *doc, const TMLNode *fields,
+    LDKMeshSource *mesh, LDKSceneResult *result)
+{
+  if (!fields || !s_node_find_entry(doc, fields, "material_type"))
+    return true; /* Older scenes retain the component's default material. */
+  u32 type, color = 0xffffffffu;
+  LDKMaterialDesc desc;
+  if (!s_node_get_u32(doc, fields, "material_type", &type) ||
+      !ldk_material_desc_defaults((LDKMaterialType)type, &desc) ||
+      (s_node_find_entry(doc, fields, "material_color") &&
+          !s_node_get_u32(doc, fields, "material_color", &color)))
+  {
+    s_result_error(result, "invalid material type or color");
+    return false;
+  }
+  bool textured = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc.type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  if (textured)
+  {
+    desc.args.textured.color = color;
+    if (s_node_find_entry(doc, fields, "material_texture"))
+    {
+      TMLString image_path;
+      XFSPath path = {0}, absolute = {0}, relative = {0};
+      if (!tml_node_get_string(doc, fields, "material_texture", &image_path) ||
+          image_path.size >= sizeof(path.buf) ||
+          memchr(image_path.data, 0, image_path.size))
+      {
+        s_result_error(result, "invalid material image path");
+        return false;
+      }
+      memcpy(path.buf, image_path.data, image_path.size);
+      if (path.buf[0])
+      {
+        if (x_fs_path_is_absolute_cstr(path.buf) ||
+            !s_material_image_path(path.buf, &absolute, &relative))
+        {
+          s_result_error(result, "material image must be inside the runtree");
+          return false;
+        }
+        desc.args.textured.texture = ldk_asset_manager_image_load_shared(
+            ldk_module_get(LDK_MODULE_ASSET_MANAGER), absolute.buf);
+        if (x_handle_is_null(desc.args.textured.texture.h))
+        {
+          desc.args.textured.texture = ldk_asset_manager_image_missing(
+              ldk_module_get(LDK_MODULE_ASSET_MANAGER), absolute.buf);
+          if (x_handle_is_null(desc.args.textured.texture.h))
+          {
+            s_result_error(result, "failed to allocate missing texture");
+            return false;
+          }
+        }
+        const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
+            ldk_module_get(LDK_MODULE_ASSET_MANAGER), desc.args.textured.texture);
+        if (image && image->is_missing)
+          s_scene_report_missing_image(absolute.buf);
+      }
+    }
+    if (x_handle_is_null(desc.args.textured.texture.h))
+      s_scene_report_missing_image(NULL);
+  }
+  else
+    desc.args.vertex_color.color = color;
+  return ldk_mesh_source_set_material(mesh, &desc);
+}
+
 static bool s_apply_entity_components(const TMLDocument *doc,
     const TMLNode *entities_node, LDKGame *game,
     const LDKSceneEntityMap *map, LDKSceneResult *result)
@@ -991,6 +1111,11 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       fields_node = s_node_find_child(doc, component_node, "fields");
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
+      {
+        return false;
+      }
+      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
+          !s_apply_material(doc, fields_node, component, result))
       {
         return false;
       }
@@ -1496,6 +1621,48 @@ static bool s_collect_entity_id_callback(LDKEntity entity, void *user)
   return true;
 }
 
+static bool s_write_material(LDKSceneSaveContext *context,
+    const LDKMeshSource *mesh)
+{
+  const LDKMaterialDesc *desc = &mesh->material;
+  if (!ldk_material_desc_is_valid(desc))
+  {
+    s_result_error(context->result, "cannot save an invalid material");
+    return false;
+  }
+  bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  rgba32 color = textured ? desc->args.textured.color
+                         : desc->args.vertex_color.color;
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append_format(context->out, "material_type: %u\n",
+      (u32)desc->type);
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append_format(context->out, "material_color: %u\n", color);
+  if (textured)
+  {
+    XFSPath absolute = {0}, relative = {0};
+    if (!x_handle_is_null(desc->args.textured.texture.h))
+    {
+      LDKAssetHandle handle = {desc->args.textured.texture.h};
+      const LDKAssetInfo *info = ldk_asset_get_info_const(
+          ldk_module_get(LDK_MODULE_ASSET_MANAGER), handle);
+      if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
+          !s_material_image_path(info->asset_path.buf, &absolute, &relative))
+      {
+        s_result_error(context->result,
+            "material image needs a file inside the project runtree to save");
+        return false;
+      }
+    }
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "material_texture: ");
+    s_append_escaped_string(context->out, relative.buf);
+    x_strbuilder_append_char(context->out, '\n');
+  }
+  return true;
+}
+
 static bool s_write_component(LDKSceneSaveContext *context,
     LDKEntity entity, u32 component_type, bool *out_wrote_any)
 {
@@ -1555,6 +1722,13 @@ static bool s_write_component(LDKSceneSaveContext *context,
     }
 
     x_strbuilder_append_char(context->out, '\n');
+    wrote_any_field = true;
+  }
+
+  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+  {
+    if (!s_write_material(context, component))
+      return false;
     wrote_any_field = true;
   }
 

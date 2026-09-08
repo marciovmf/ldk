@@ -71,6 +71,64 @@ static LDKRendererViewId s_renderer_view_id_from_entity(LDKEntity entity)
   return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
 }
 
+static bool s_mesh_source_material_resolve(
+    LDKRoot* engine, LDKMeshSource* mesh_source)
+{
+  if (!engine || !mesh_source ||
+      !ldk_material_desc_is_valid(&mesh_source->material))
+  {
+    return false;
+  }
+
+  LDKRendererMaterialDesc desc = {0};
+  desc.type = mesh_source->material.type;
+  desc.texture = ldk_renderer_texture_null();
+
+  switch (mesh_source->material.type)
+  {
+    case LDK_MATERIAL_TYPE_VERTEX_COLOR:
+    case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
+      desc.color = mesh_source->material.args.vertex_color.color;
+      break;
+    case LDK_MATERIAL_TYPE_TEXTURED:
+    case LDK_MATERIAL_TYPE_TEXTURED_UNLIT:
+      desc.color = mesh_source->material.args.textured.color;
+      desc.texture = ldk_renderer_image_acquire(&engine->renderer,
+          &engine->asset_manager, mesh_source->material.args.textured.texture);
+      if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
+      {
+        ldk_log_error("Material image unavailable; using missing texture.\n");
+        LDKAssetImage fallback =
+            ldk_asset_manager_image_missing(&engine->asset_manager, NULL);
+        desc.texture = ldk_renderer_image_acquire(
+            &engine->renderer, &engine->asset_manager, fallback);
+        if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
+          return false;
+      }
+      break;
+    case LDK_MATERIAL_TYPE_INVALID:
+    default:
+      return false;
+  }
+
+  LDKResourceMaterial material =
+      ldk_renderer_material_create(&engine->renderer, &desc);
+  if (!ldk_renderer_material_is_valid(&engine->renderer, material))
+  {
+    ldk_renderer_image_release(&engine->renderer, desc.texture);
+    return false;
+  }
+
+  ldk_renderer_material_destroy(
+      &engine->renderer, mesh_source->renderer_material);
+  ldk_renderer_image_release(
+      &engine->renderer, mesh_source->renderer_texture);
+  mesh_source->renderer_texture = desc.texture;
+  mesh_source->renderer_material = material;
+  mesh_source->material_dirty = false;
+  return true;
+}
+
 // Stub game callbacks
 static bool s_stub_game_initialize(LDKGame *game)
 {
@@ -258,6 +316,7 @@ static void s_terminate_all_modules(LDKRoot *e)
 
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
+  ldk_renderer_terminate(&e->renderer);
   ldk_asset_manager_terminate(&e->asset_manager);
   ldk_scene_manager_terminate(&e->scene_manager);
   ldk_rhi_terminate(&e->rhi);
@@ -998,6 +1057,8 @@ void ldk_engine_frame(void)
         continue;
       }
 
+      mesh->renderer = &e->renderer;
+
       Mat4 mesh_world = mat4_identity();
 
       if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
@@ -1035,7 +1096,20 @@ void ldk_engine_frame(void)
         continue;
       }
 
-      ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh, mesh_world);
+      if (!ldk_renderer_material_is_valid(
+              &e->renderer, mesh->renderer_material))
+      {
+        mesh->material_dirty = true;
+      }
+
+      if (mesh->material_dirty &&
+          !s_mesh_source_material_resolve(e, mesh))
+      {
+        continue;
+      }
+
+      ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh,
+          mesh->renderer_material, mesh_world);
     }
   }
   s_broadcast_frame_event(

@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include <ldk_common.h>
+#include <ldk_material.h>
 #include <ldk_mesh.h>
 #include <ldk_resource.h>
 #include <ldk_ttf.h>
@@ -44,7 +45,9 @@ extern "C" {
     LDK_SHADER_PRESENT_PASS,
     LDK_SHADER_MESH_PASS_INSTANCED,
     LDK_SHADER_GRID_PASS,
-    LDK_SHADER_MESH_PASS_UNLIT
+    LDK_SHADER_MESH_PASS_UNLIT,
+    LDK_SHADER_MESH_PASS_TEXTURED,
+    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -78,6 +81,7 @@ extern "C" {
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
+    LDKResourceMaterial material;
     Mat4 world;
     LDKRendererViewId view_id;
     u32 flags;
@@ -134,12 +138,22 @@ extern "C" {
     LDKRHIShaderModule vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule overlay_fragment_shader_module;
+    LDKRHIShaderModule textured_fragment_shader_module;
+    LDKRHIShaderModule textured_unlit_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
-    LDKRHIPipeline pipeline;
+    LDKRHIPipeline vertex_color_pipeline;
+    LDKRHIPipeline vertex_color_unlit_pipeline;
     LDKRHIPipeline overlay_pipeline;
+    LDKRHIPipeline textured_pipeline;
+    LDKRHIPipeline textured_unlit_pipeline;
+    LDKRHIPipeline textured_overlay_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
+    LDKRHIBuffer material_buffer;
     LDKRHIBindings bindings;
+    LDKRendererBindingsCacheEntry* textured_bindings_cache;
+    u32 textured_bindings_cache_count;
+    u32 textured_bindings_cache_capacity;
     bool is_initialized;
   } LDKRendererMeshPass;
 
@@ -190,6 +204,8 @@ extern "C" {
     Mat4 view;
     Mat4 projection;
     LDKRendererTarget target;
+    LDKRendererTarget overlay_target;
+    bool separate_overlay;
     Vec3 grid_center;
     float grid_extent;
     float grid_spacing;
@@ -237,7 +253,36 @@ extern "C" {
     LDKRHIFormat format;
     u32 flags;
     bool alive;
+    struct LDKAssetManager* asset_manager;
+    LDKAssetImage image_asset;
+    u32 image_references;
   } LDKRendererTextureResource;
+
+  typedef struct LDKRendererMaterialDesc
+  {
+    LDKMaterialType type;
+    LDKResourceTexture texture;
+    rgba32 color;
+  } LDKRendererMaterialDesc;
+
+  typedef enum LDKRendererMaterialSelection
+  {
+    LDK_RENDERER_MATERIAL_SELECTION_INVALID = 0,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED,
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT,
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR
+  } LDKRendererMaterialSelection;
+
+  typedef u64 LDKRendererRenderKey;
+
+  typedef struct LDKRendererMaterialResource
+  {
+    LDKRendererMaterialDesc desc;
+    LDKRendererMaterialSelection selection;
+    LDKRendererRenderKey render_key;
+    bool alive;
+  } LDKRendererMaterialResource;
 
   typedef struct LDKRenderer
   {
@@ -265,6 +310,12 @@ extern "C" {
     LDKRendererTextureResource* textures;
     u32 texture_count;
     u32 texture_capacity;
+
+    // Material cache
+    LDKRendererMaterialResource* materials;
+    u32 material_count;
+    u32 material_capacity;
+    LDKResourceMaterial default_material;
 
     // Font atlas cache
     LDKRendererFontPageCacheEntry* font_pages;
@@ -374,6 +425,10 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+  /* Route overlay meshes to a transparent texture for this frame. Request
+   * before rendering and compose the texture above other viewer UI layers. */
+  LDK_API LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
+      LDKRenderer* renderer, LDKRendererViewId view_id);
 
   // ---------------------------------------------------------------------------
   // Mesh Resource
@@ -589,6 +644,77 @@ extern "C" {
       LDKRendererTextureOptions const* options);
 
   // ---------------------------------------------------------------------------
+  // Material Resource
+  // ---------------------------------------------------------------------------
+
+  /**
+   * @brief Return an invalid material resource handle.
+   * @return Invalid material resource handle.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_null(void);
+
+  /* Acquire a shared GPU snapshot of a live image asset. Uses default texture
+   * options. Identity includes manager, asset index and generation. Release
+   * once per acquisition; do not destroy the borrowed texture directly.
+   * In-place image edits/hot reload are not tracked by this snapshot cache.
+   */
+  LDK_API LDKResourceTexture ldk_renderer_image_acquire(
+      LDKRenderer* renderer, struct LDKAssetManager* assets,
+      LDKAssetImage image);
+  LDK_API void ldk_renderer_image_release(
+      LDKRenderer* renderer, LDKResourceTexture texture);
+
+  /**
+   * @brief Check whether a material handle refers to a live renderer material.
+   * @param renderer Renderer that owns the material resource.
+   * @param material Material resource handle to validate.
+   * @return true if the material is valid and alive, false otherwise.
+   */
+  LDK_API bool ldk_renderer_material_is_valid(
+      LDKRenderer* renderer,
+      LDKResourceMaterial material);
+
+  /**
+   * @brief Create a renderer-owned material resource.
+   *
+   * Textured materials require a live renderer texture. The referenced texture
+   * must remain alive until the material is destroyed. Vertex-color materials
+   * ignore desc->texture and store a canonical null texture handle.
+   *
+   * @param renderer Renderer that will own the material resource.
+   * @param desc Resolved renderer material description.
+   * @return New material handle, or an invalid handle on failure.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_create(
+      LDKRenderer* renderer,
+      LDKRendererMaterialDesc const* desc);
+
+  /**
+   * @brief Destroy a renderer-owned material resource.
+   *
+   * Destroying an invalid or already-dead material is a no-op. Material
+   * resources are also destroyed automatically when the renderer terminates.
+   *
+   * @param renderer Renderer that owns the material resource.
+   * @param material Material resource to destroy.
+   */
+  LDK_API void ldk_renderer_material_destroy(
+      LDKRenderer* renderer,
+      LDKResourceMaterial material);
+
+  /**
+   * @brief Return the renderer-owned default mesh material.
+   *
+   * The default material is a white vertex-color material created during
+   * renderer initialization and destroyed during renderer termination.
+   *
+   * @param renderer Renderer that owns the default material.
+   * @return Default material handle, or an invalid handle when unavailable.
+   */
+  LDK_API LDKResourceMaterial ldk_renderer_material_default_get(
+      LDKRenderer* renderer);
+
+  // ---------------------------------------------------------------------------
   // Font cache Resources
   // ---------------------------------------------------------------------------
   /**
@@ -681,21 +807,23 @@ extern "C" {
   /**
    * @brief Submit a mesh instance for scene rendering this frame.
    *
-   * The mesh handle is validated against the renderer mesh cache, then queued
-   * with the supplied world transform. The queued mesh is rendered during
-   * ldk_renderer_render_frame() for every submitted view.
+   * The mesh and material handles are validated against their renderer caches,
+   * then queued with the supplied world transform. The queued mesh is rendered
+   * during ldk_renderer_render_frame() for every submitted view.
    *
    * Submitted mesh instances are transient frame data. After rendering, the
    * renderer clears the submitted mesh queue.
    *
    * @param renderer Renderer instance.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was submitted, false otherwise.
    */
   LDK_API bool ldk_renderer_submit_mesh(
       LDKRenderer* renderer,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
   /**
@@ -711,6 +839,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id ID of the only view that should draw this mesh.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
    */
@@ -718,6 +847,7 @@ extern "C" {
       LDKRenderer* renderer,
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
   /**
@@ -751,6 +881,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id ID of the only view that should draw this mesh.
    * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
    */
@@ -758,6 +889,7 @@ extern "C" {
       LDKRenderer* renderer,
       LDKRendererViewId view_id,
       LDKResourceMesh mesh,
+      LDKResourceMaterial material,
       Mat4 world);
 
 

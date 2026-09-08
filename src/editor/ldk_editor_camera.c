@@ -85,7 +85,7 @@ static bool s_editor_scene_view_ray_get(
       near_position, vec3_sub(far_position, near_position), out_ray);
 }
 
-static void s_editor_scene_view_pick(
+void ldki_editor_scene_view_pick(
     LDKEditorContext *editor, LDKPoint cursor)
 {
   LDKECS *ecs;
@@ -285,7 +285,12 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
 
   (void)delta_time;
 
-  if (editor == NULL || !editor->gizmo.scene_view_visible ||
+  if (editor == NULL)
+    return;
+
+  ldk_os_mouse_state_get(&mouse);
+
+  if (!editor->gizmo.scene_view_visible ||
       x_handle_is_null(editor->editor_camera))
   {
     return;
@@ -308,7 +313,6 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
     return;
   }
 
-  ldk_os_mouse_state_get(&mouse);
   cursor = ldk_os_mouse_cursor(&mouse);
   inside = s_editor_camera_rect_contains(
       &editor->gizmo.scene_view_rect, cursor);
@@ -387,10 +391,4 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
     s_editor_camera_apply(editor);
   }
 
-  if (inside && !editor->gizmo.dragging &&
-      editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
-      ldk_os_mouse_button_up(&mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    s_editor_scene_view_pick(editor, cursor);
-  }
 }

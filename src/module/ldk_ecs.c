@@ -169,6 +169,21 @@ void ldk_ecs_terminate(void)
 
   if (component_registry)
   {
+    /* Registry storage teardown does not invoke component callbacks. Release
+     * mesh-owned renderer resources while their owners and renderer live.
+     * Do not detach here: iteration must not swap/remove store entries.
+     */
+    XArray* owners = ldk_component_owners_get(
+        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    if (owners && entity_registry)
+    {
+      for (u32 i = 0; i < x_array_count(owners); i++)
+      {
+        LDKEntity* owner = x_array_get(owners, i);
+        ldk_component_destroy_data(component_registry, entity_registry,
+            *owner, LDK_COMPONENT_TYPE_MESH_SOURCE, i);
+      }
+    }
     ldk_component_registry_terminate(component_registry);
   }
 

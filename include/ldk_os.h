@@ -541,6 +541,10 @@ extern "C"
 
   LDK_API bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
       const char *filter, char *out_path, size_t out_path_size);
+  /* Edit RGB in a native dialog, preserving the alpha byte of 0xRRGGBBAA.
+   * Returns false on cancel/error and leaves *color unchanged. */
+  LDK_API bool ldk_os_dialog_color_picker_show(
+      LDKWindow owner, rgba32 *color);
   LDK_API bool ldk_os_dialog_show_open_folder(LDKWindow owner,
       const char *title, const char *filter, char *out_path,
       size_t out_path_size);

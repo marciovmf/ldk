@@ -191,6 +191,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "};\n"
 "#endif\n"
 "out vec3 v_normal;\n"
+"out vec2 v_uv;\n"
 "out vec4 v_color;\n"
 "void main()\n"
 "{\n"
@@ -201,6 +202,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "#endif\n"
 "  vec4 world_position = world * vec4(a_position, 1.0);\n"
 "  v_normal = mat3(world) * a_normal;\n"
+"  v_uv = a_uv;\n"
 "  v_color = a_color;\n"
 "  gl_Position = u_projection * u_view * world_position;\n"
 "}\n";
@@ -209,22 +211,64 @@ static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec3 v_normal;\n"
 "in vec4 v_color;\n"
+"layout(std140) uniform LDK_UBO_2\n"
+"{\n"
+"  vec4 u_material_color;\n"
+"};\n"
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
 "  vec3 n = normalize(v_normal);\n"
 "  vec3 light_dir = normalize(vec3(0.4, 0.8, 0.3));\n"
 "  float light = max(dot(n, light_dir), 0.0) * 0.75 + 0.25;\n"
-"  out_color = vec4(v_color.rgb * light, v_color.a);\n"
+"  vec4 color = v_color * u_material_color;\n"
+"  out_color = vec4(color.rgb * light, color.a);\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec4 v_color;\n"
+"layout(std140) uniform LDK_UBO_2\n"
+"{\n"
+"  vec4 u_material_color;\n"
+"};\n"
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  out_color = v_color;\n"
+"  out_color = v_color * u_material_color;\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec3 v_normal;\n"
+"in vec2 v_uv;\n"
+"layout(std140) uniform LDK_UBO_2\n"
+"{\n"
+"  vec4 u_material_color;\n"
+"};\n"
+"uniform sampler2D LDK_TEXTURE_3;\n"
+"out vec4 out_color;\n"
+"void main()\n"
+"{\n"
+"  vec3 n = normalize(v_normal);\n"
+"  vec3 light_dir = normalize(vec3(0.4, 0.8, 0.3));\n"
+"  float light = max(dot(n, light_dir), 0.0) * 0.75 + 0.25;\n"
+"  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+"  out_color = vec4(color.rgb * light, color.a);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"layout(std140) uniform LDK_UBO_2\n"
+"{\n"
+"  vec4 u_material_color;\n"
+"};\n"
+"uniform sampler2D LDK_TEXTURE_3;\n"
+"out vec4 out_color;\n"
+"void main()\n"
+"{\n"
+"  out_color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER =
@@ -368,6 +412,18 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_TEXTURED &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_TEXTURED_UNLIT &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_GRID_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)

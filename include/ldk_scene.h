@@ -50,6 +50,13 @@ LDK_API void ldk_scene_result_clear(LDKSceneResult *result);
 LDK_API void ldk_scene_result_set_error(
     LDKSceneResult *result, const char *error);
 
+/* Optional main-thread observer for recoverable scene-load errors. Messages
+ * are also written to the engine logger. The message is valid during the call.
+ * Pass NULL to unregister before destroying the observer's user data. */
+typedef void (*LDKSceneDiagnosticFn)(const char *message, void *user);
+LDK_API void ldk_scene_diagnostic_handler_set(
+    LDKSceneDiagnosticFn handler, void *user);
+
 /**
  * Loads entities and components from a TML string into the current ECS.
  *

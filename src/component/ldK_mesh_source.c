@@ -5,13 +5,19 @@
 
 #include <component/ldk_mesh_source.h>
 #include <ldk_resource.h>
+#include <module/ldk_renderer.h>
 
 static LDKMeshSource s_mesh_source_make_default(void)
 {
   LDKMeshSource mesh_source = {0};
 
   mesh_source.source_asset = ldk_asset_mesh_null();
+  ldk_material_desc_defaults(
+      LDK_MATERIAL_TYPE_VERTEX_COLOR, &mesh_source.material);
   mesh_source.renderer_mesh = LDK_RESOURCE_MESH_INVALID;
+  mesh_source.renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
+  mesh_source.dirty = true;
+  mesh_source.material_dirty = true;
   return mesh_source;
 }
 
@@ -38,6 +44,21 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry, LDKComponen
   {
     *mesh_source = s_mesh_source_make_default();
   }
+  else
+  {
+    if (!ldk_material_desc_is_valid(&mesh_source->material))
+    {
+      ldk_material_desc_defaults(
+          LDK_MATERIAL_TYPE_VERTEX_COLOR, &mesh_source->material);
+    }
+
+    mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
+    mesh_source->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
+    mesh_source->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer = NULL;
+    mesh_source->dirty = true;
+    mesh_source->material_dirty = true;
+  }
 
   ldk_entity_internal_flags_add(
       entity_registry,
@@ -50,14 +71,29 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry, LDKComponen
 static void s_mesh_source_destroy(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry,
     LDKEntity entity, void* component, u32 component_index, void* user)
 {
+  LDKMeshSource* mesh_source = (LDKMeshSource*)component;
+
   (void)component_registry;
-  (void)component;
   (void)component_index;
   (void)user;
 
   if (!entity_registry)
   {
     return;
+  }
+
+  if (mesh_source && mesh_source->renderer)
+  {
+    ldk_renderer_material_destroy(
+        mesh_source->renderer, mesh_source->renderer_material);
+    ldk_renderer_image_release(
+        mesh_source->renderer, mesh_source->renderer_texture);
+    mesh_source->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+    ldk_renderer_mesh_destroy(
+        mesh_source->renderer, mesh_source->renderer_mesh);
+    mesh_source->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
+    mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
+    mesh_source->renderer = NULL;
   }
 
   ldk_entity_internal_flags_remove(
@@ -79,8 +115,25 @@ bool ldk_mesh_source_set_data(LDKMeshSource* mesh_source, LDKAssetMesh asset)
   }
 
   mesh_source->source_asset = asset;
-  mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
   mesh_source->dirty = true;
+  return true;
+}
+
+bool ldk_mesh_source_set_material(
+    LDKMeshSource* mesh_source, LDKMaterialDesc const* material)
+{
+  if (!mesh_source || !ldk_material_desc_is_valid(material))
+  {
+    return false;
+  }
+
+  if (ldk_material_desc_equal(&mesh_source->material, material))
+  {
+    return true;
+  }
+
+  mesh_source->material = *material;
+  mesh_source->material_dirty = true;
   return true;
 }
 
