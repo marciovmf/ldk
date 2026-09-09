@@ -53,6 +53,15 @@ extern "C" {
   LDK_API bool ldk_ecs_system_register(const LDKSystemDesc* desc);
   LDK_API bool ldk_ecs_system_unregister(u64 id);
 
+  /** Start/stop an individual registered system without changing the catalog. */
+  LDK_API bool ldk_ecs_system_start(u64 id);
+  LDK_API bool ldk_ecs_system_stop(u64 id);
+  LDK_API bool ldk_ecs_system_is_started(u64 id);
+
+  /** Suspend/resume execution without destroying individual system state. */
+  LDK_API bool ldk_ecs_system_pause(void);
+  LDK_API bool ldk_ecs_system_resume(void);
+  LDK_API bool ldk_ecs_system_is_paused(void);
 
   // ---------------------------------------------------------------------------
   // Entity iteraction

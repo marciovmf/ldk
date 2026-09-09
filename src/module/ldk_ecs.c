@@ -226,6 +226,7 @@ LDKEntity ldk_ecs_entity_create(void)
   return entity;
 }
 
+
 void ldk_ecs_entity_destroy(LDKEntity entity)
 {
   LDKEntityRegistry* entity_registry = ldk_ecs_entity_registry_get();
@@ -393,7 +394,7 @@ bool ldk_ecs_component_remove(LDKEntity entity, u32 component_type)
     return false;
   }
 
-
+  
   return ldk_entity_component_remove(
       entity_registry,
       component_registry,
@@ -441,6 +442,42 @@ bool ldk_ecs_system_unregister(u64 id)
   return ldk_system_registry_unregister(system_registry, id);
 }
 
+
+bool ldk_ecs_system_start(u64 id)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_system_start(registry, id);
+}
+
+bool ldk_ecs_system_stop(u64 id)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_system_stop(registry, id);
+}
+
+bool ldk_ecs_system_is_started(u64 id)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_system_is_started(registry, id);
+}
+
+bool ldk_ecs_system_pause(void)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_pause(registry);
+}
+
+bool ldk_ecs_system_resume(void)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_resume(registry);
+}
+
+bool ldk_ecs_system_is_paused(void)
+{
+  LDKSystemRegistry* registry = ldk_ecs_system_registry_get();
+  return registry && ldk_system_registry_is_paused(registry);
+}
 
 // ---------------------------------------------------------------------------
 //  Engine internal utility
