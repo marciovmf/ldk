@@ -376,13 +376,7 @@ static bool s_ecs_reinitialize(LDKRoot *e)
     return false;
   }
 
-  if (!ldk_ecs_system_registry_start(&e->ecs))
-  {
-    ldk_log_error("Failed to restart ECS system registry.\n");
-    ldk_ecs_terminate();
-    return false;
-  }
-
+  // The new registry remains unprepared until a game module is initialized.
   return true;
 }
 
@@ -865,12 +859,7 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
   LDK_ASSERT(!e->game.initialized);
   LDK_ASSERT(!e->ecs.system.is_started);
 
-  if (!ldk_ecs_system_registry_start(&e->ecs))
-  {
-    ldk_log_error("Failed to start ECS system registry.");
-    engine_init_failed = true;
-  }
-
+  // The registry is initialized, but no game systems are prepared or active.
   if (engine_init_failed)
   {
     ldk_engine_terminate();

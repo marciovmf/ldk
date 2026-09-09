@@ -1,33 +1,20 @@
 /**
  * @file   ldk_system.h
  * @brief  System Registry module.
- * 
- * This module manages registration and execution of engine systems. Systems are
- * units of executable logic that operate on engine entities and components and are
- * scheduled into execution buckets.
  *
- * System execution order is determined per bucket using order values,
- * with registration order as a stable tie-breaker.
- * 
- * Systems are not meant to be passed around or referenced by pointer.
- * They are registered as descriptors and owned by the registry.
+ * Systems are registered as descriptors and owned by the registry. They are
+ * identified by unique, compile-time known u64 ids.
  *
- * Systems are identified by a unique, compile-time known u64 id.
- * Registration, unregistration, and clear are only allowed while stopped.
+ * The registry has a structural lifecycle:
+ *   initialize -> register -> start -> stop -> clear/terminate
  *
- * This module has a very explicit lifecycle, and some actions are only possible
- * depending on its current state:
- * 
- *   initialize  -> prepares the registry context
- *   register    -> adds system descriptors (only allowed while stopped)
- *   start       -> builds execution lists and initializes systems
- *   run_bucket  -> executes systems in a given bucket (only while started)
- *   stop        -> terminates systems and clears runtime state
- *   clear       -> removes all registered systems (only while stopped)
- *   terminate   -> releases all resources
- * 
+ * Registry start builds the ordered bucket lists, but does not initialize
+ * individual systems. Individual systems are started and stopped by id while
+ * the registry is prepared. Registration and structural changes are only
+ * allowed while the registry is stopped.
+ *
  * The registry is owned by the engine root and should not be instantiated or
- * managed independently.
+ * managed independently by game code.
  */
 
 #ifndef LDK_SYSTEM_H
@@ -40,13 +27,11 @@
 extern "C" {
 #endif
 
-/**
- * IDs of builtin systems
- */
+/** IDs of builtin systems. */
 typedef enum LDKBuiltinSystemId
 {
   LDK_SYSTEM_ID_SCENEGRAPH = 0x1,
-  LDK_SYSTEM_ID_USER = 0x100  // Use this as a base for user defined systems
+  LDK_SYSTEM_ID_USER = 0x100
 } LDKBuiltinSystemId;
 
 typedef enum LDKSystemBucket
@@ -102,7 +87,8 @@ typedef struct LDKSystemRegistry
   void* internal;
   struct LDKRoot* root;
   u8 is_initialized;
-  u8 is_started;
+  u8 is_started;  /* Bucket lists are prepared. */
+  u8 is_paused;   /* Execution is suspended, not individual state. */
 } LDKSystemRegistry;
 
 LDK_API bool ldk_system_registry_initialize(LDKSystemRegistry* registry);
@@ -113,8 +99,33 @@ LDK_API bool ldk_system_registry_find_by_id(LDKSystemRegistry* registry, u64 id,
 LDK_API u32 ldk_system_registry_count(const LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_at(const LDKSystemRegistry* registry, u32 index, LDKSystemDesc* out);
 LDK_API bool ldk_system_registry_clear(LDKSystemRegistry* registry);
+
+/** Prepare the bucket lists without initializing individual systems. */
 LDK_API bool ldk_system_registry_start(LDKSystemRegistry* registry);
+
+/** Terminate all active systems in reverse registration order and unprepare. */
 LDK_API bool ldk_system_registry_stop(LDKSystemRegistry* registry);
+
+/**
+ * Start/stop a registered system without changing the bucket lists.
+ * Repeated start/stop calls succeed without repeating callbacks. A failed
+ * initialize callback is followed by terminate to release partial userdata.
+ * A failed start leaves other systems unchanged.
+ */
+LDK_API bool ldk_system_registry_system_start(LDKSystemRegistry* registry, u64 id);
+LDK_API bool ldk_system_registry_system_stop(LDKSystemRegistry* registry, u64 id);
+LDK_API bool ldk_system_registry_system_is_started(const LDKSystemRegistry* registry, u64 id);
+
+/** Suspend/resume execution without terminating individual systems. */
+LDK_API bool ldk_system_registry_pause(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_resume(LDKSystemRegistry* registry);
+LDK_API bool ldk_system_registry_is_paused(const LDKSystemRegistry* registry);
+
+/**
+ * Run only initialized, enabled systems. While paused, only systems with
+ * RUN_WHEN_PAUSED execute. Structural and lifecycle changes are forbidden
+ * during bucket execution and system initialize/terminate callbacks.
+ */
 LDK_API bool ldk_system_registry_run_bucket(LDKSystemRegistry* registry, LDKSystemBucket bucket, float dt);
 LDK_API bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id);
 
