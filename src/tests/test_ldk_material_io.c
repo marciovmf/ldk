@@ -43,11 +43,12 @@ static int test_material_io_round_trip(void)
   ASSERT_EQ(desc.args.vertex_color.color, 0xffffffffu);
   XStrBuilder *out = x_strbuilder_create();
   ASSERT_TRUE(out != NULL);
-  desc.args.vertex_color.color = 0x12345678u;
+  desc.args.vertex_color.color = 0xAABBCCFFu;
   x_strbuilder_append(out, "material:\n");
   ASSERT_TRUE(ldk_material_desc_write(&context, &desc, out, 1, &result));
+
   ASSERT_TRUE(strcmp(out->data,
-      "material:\n  material_type: 4\n  material_color: 305419896\n") == 0);
+      "material:\n  material_type: 4\n  material_color: 0xaabbccff\n") == 0);
   ASSERT_TRUE(s_read(out->data, &context, &loaded, &result));
   ASSERT_TRUE(ldk_material_desc_equal(&desc, &loaded));
   x_strbuilder_destroy(out);
@@ -95,7 +96,7 @@ static int test_material_io_missing_texture(void)
   LDKMaterialDesc first, second;
   s_diagnostics = 0;
   const char *text = "material:\n  material_type: 2\n"
-      "  material_color: 4294967295\n"
+      "  material_color: 0xa1b2c3ff\n"
       "  material_texture: \"missing.png\"\n";
   ASSERT_TRUE(s_read(text, &context, &first, &result));
   ASSERT_EQ(s_diagnostics, 1u);

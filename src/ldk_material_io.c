@@ -2,6 +2,7 @@
 #include <ldk.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -241,7 +242,7 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
   x_strbuilder_append_format(out, "material_type: %u\n",
       (u32)desc->type);
   s_append_indent(out, indent);
-  x_strbuilder_append_format(out, "material_color: %u\n", color);
+  x_strbuilder_append_format(out, "material_color: 0x%x\n", color);
   if (textured)
   {
     XFSPath absolute = {0}, relative = {0};

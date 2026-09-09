@@ -79,4 +79,4 @@ scene:
           fields:
             source_asset: "builtin:mesh/quad"
             material_type: 4
-            material_color: 11010303
+            material_color: 0xa800ff
