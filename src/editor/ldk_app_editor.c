@@ -17,6 +17,7 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
+#include "ldk_editor_theme.h"
 #include "ldk_ui_drag_n_drop.h"
 
 #include <stdio.h>
@@ -1737,6 +1738,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldk_event_handler_remove(eq, on_event_keyboard);
   ldk_event_handler_remove(eq, on_event_window);
   ldki_editor_gizmo_terminate(editor);
+  ldki_editor_theme_terminate(editor);
   ldk_editor_dock_terminate(editor);
 }
 
@@ -2119,6 +2121,18 @@ static i32 s_editor_main(const char *project_file_path)
   {
     ldk_engine_terminate();
     return 1;
+  }
+
+  if (!ldki_editor_theme_initialize(editor, editor_config_directory.buf))
+  {
+    ldk_log_warning("Could not initialize the theme catalog. "
+                    "Using the built-in Dark theme.\n");
+    LDKUITheme theme;
+    if (ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme))
+    {
+      ldki_editor_theme_icons_set(editor, &theme);
+      ldk_ui_theme_set(&editor->ui, &theme);
+    }
   }
 
   LDKEditorWindow game_window = {.id = LDK_EDITOR_WINDOW_GAME,

@@ -9,6 +9,7 @@
 #include <module/ldk_renderer.h>
 #include <editor/ldk_editor.h>
 #include "ldk_editor_atlas.h"
+#include "ldk_editor_theme.h"
 #include "../ldk_stdx.h"
 
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
@@ -209,6 +210,8 @@ typedef struct LDKEditorContext
   bool create_project_window_show;
   bool create_project_window_open_requested;
   bool create_project_window_close_requested;
+
+  LDKEditorThemeCatalog *theme_catalog;
 
   // config
   XFSPath editor_font;

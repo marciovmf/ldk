@@ -450,6 +450,8 @@ if (OPTION_BUILD_EDITOR)
   add_executable(ldk_editor src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_theme.h
+    src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
     src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_grid.c

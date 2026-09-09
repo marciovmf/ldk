@@ -94,3 +94,4 @@ ldk_editor_theme:
     COLOR_TAB_ACTIVE_BG: "${tab_active_bg}"
     COLOR_TAB_ACTIVE_TEXT: "${tab_text}"
     COLOR_TAB_ACTIVE_BORDER: "${border}"
+    COLOR_INPUT_BORDER: "${input_border}"

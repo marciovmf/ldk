@@ -1,5 +1,6 @@
 #include "ldk_editor_atlas.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_theme.h"
 #include "ldk_os.h"
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
@@ -73,6 +74,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button_flat(ui, "Theme"))
   {
+    ldki_editor_theme_refresh(editor);
     ldk_ui_open_popup(ui, MENU_ID_THEME);
   }
   LDKUIRect theme_button_rect = ldk_ui_last_rect(ui);
@@ -206,8 +208,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Plane"))
     {
-      ldki_editor_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_PLANE, "Plane");
+      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_PLANE, "Plane");
       ldk_ui_close_current_popup(ui);
     }
 
@@ -249,23 +250,8 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
   ldk_ui_begin_popup(ui, MENU_ID_THEME);
   {
-    LDKUITheme theme;
     LDKUIMark mark = ldk_ui_mark(ui);
-    if (ldk_ui_button_flat(ui, "Dark"))
-    {
-      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_DARK, &theme);
-      ldki_editor_theme_icons_set(editor, &theme);
-      ldk_ui_theme_set(ui, &theme);
-      ldk_ui_close_current_popup(ui);
-    }
-    if (ldk_ui_button_flat(ui, "Light"))
-    {
-      ldk_ui_theme_get(LDK_UI_THEME_DEFAULT_LIGHT, &theme);
-      ldki_editor_theme_icons_set(editor, &theme);
-      ldk_ui_theme_set(ui, &theme);
-      ldk_ui_close_current_popup(ui);
-    }
-
+    ldki_editor_theme_menu_show(editor);
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
   }
   ldk_ui_end_popup(ui);
@@ -524,7 +510,7 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
 }
 
 static bool s_editor_push_button(
-  LDKUIContext *ui, const char *text, LDKUIIcon icon, bool pushed)
+    LDKUIContext *ui, const char *text, bool pushed)
 {
   if (ui == NULL)
   {
@@ -540,8 +526,6 @@ static bool s_editor_push_button(
   rgba32 control_border = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
   rgba32 control_border_hovered =
       ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
-
-  icon.color = control_text;
 
   if (pushed)
   {
@@ -559,7 +543,7 @@ static bool s_editor_push_button(
         ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
   }
 
-  bool clicked = ldk_ui_icon_button(ui, icon, text);
+  bool clicked = ldk_ui_button(ui, text);
 
   ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = control_bg;
   ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = control_bg_hovered;
@@ -574,10 +558,7 @@ static bool s_editor_push_button(
 
 static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 {
-  static const LDKEditorIcon items[] = {
-    LDK_EDITOR_ICON_TOOL_MODE_GLOBAL,
-    LDK_EDITOR_ICON_TOOL_MODE_LOCAL,
-  };
+  static const char *items[] = {"GLOBAL", "LOCAL"};
 
   if (editor == NULL)
   {
@@ -600,16 +581,10 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
       editor->gizmo.dragging ||
           editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
 
-  LDKUIIcon icon;
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.size.w = icon.size.h = 24;
-
   for (u32 i = 0; i < item_count; ++i)
   {
-    icon.uv = ldk_editor_icon_rects[items[i]];
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
+    ldk_ui_set_next_width(ui, ldk_ui_px(76.0f));
+    if (s_editor_push_button(ui, items[i], i == selected_index))
     {
       editor->gizmo.space = (LDKEditorGizmoSpace)i;
     }
@@ -621,7 +596,7 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 
 static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
 {
-  static const LDKEditorIcon items[] = {LDK_EDITOR_ICON_MOVETOOL, LDK_EDITOR_ICON_ROTATETOOL, LDK_EDITOR_ICON_SCALETOOL};
+  static const char *items[] = {"TRANSLATE", "ROTATE", "SCALE"};
 
   if (editor == NULL)
   {
@@ -629,10 +604,6 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
-  LDKUIIcon icon;
-  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.size.w = icon.size.h = 24;
-
   u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
   u32 selected_index = (u32)editor->gizmo.mode;
 
@@ -646,9 +617,8 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
 
   for (u32 i = 0; i < item_count; ++i)
   {
-    icon.uv = ldk_editor_icon_rects[items[i]];
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
+    ldk_ui_set_next_width(ui, ldk_ui_px(96.0f));
+    if (s_editor_push_button(ui, items[i], i == selected_index))
     {
       editor->gizmo.mode = (LDKEditorGizmoMode)i;
     }
@@ -667,7 +637,7 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
 
   LDKUIContext *ui = &editor->ui;
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING) );
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   s_editor_gizmo_mode_buttons(editor);
   ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
@@ -675,6 +645,7 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   s_editor_gizmo_space_buttons(editor);
   ldk_ui_spacer(ui);
   ldk_ui_end_horizontal(ui);
+  ldk_ui_horizontal_line(ui);
 }
 
 static void s_editor_tool_bar(LDKEditorContext *editor)

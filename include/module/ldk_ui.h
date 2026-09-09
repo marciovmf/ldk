@@ -837,7 +837,6 @@ extern "C"
   //----------------------------------------------------------
   // Theme IO
   //----------------------------------------------------------
-
   /** A resolved UI theme and its display name. Contains no owned resources. */
   typedef struct LDKUIThemeFile
   {
