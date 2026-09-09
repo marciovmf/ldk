@@ -1,0 +1,97 @@
+# LDK UI theme format, version 1.
+# Colors are packed 0xRRGGBBAA. References must be quoted strings.
+# Only COLOR_* entries override the inherited palette.
+ldk_editor_theme:
+    version: 1
+    base: "dark"
+    theme_name: "LDK Dark"
+
+    text: 0xFFFFFFFF
+    text_disabled: 0xABABABFF
+    input_border: "${text}"
+    window_bg: 0x383838FF
+    panel_bg: 0x383838FF
+    control_bg: 0x515151FF
+    control_bg_hovered: 0x585858FF
+    control_bg_active: 0x46607CFF
+    control_bg_active_hovered: 0x4F657FFF
+    control_text: 0xFFFFFFFF
+    control_border: 0x303030FF
+    control_border_hovered: 0x656565FF
+    control_border_active: 0x0D0D0DFF
+    control_border_disabled: 0x333333FF
+    border: 0x242424FF
+    focus: 0x2C5D87FF
+    separator: 0x232323FF
+    slider_track: 0x5E5E5EFF
+    slider_thumb: 0x999999FF
+    slider_thumb_hovered: 0xEAEAEAFF
+    title: 0xBDBDBDFF
+    title_bar: 0x353535FF
+    title_bar_focused: 0x3C3C3CFF
+    scrollbar_track: 0x0000000D
+    scrollbar_thumb: 0x5F5F5FFF
+    scrollbar_thumb_hovered: 0x686868FF
+    tab_bar_bg: 0x3C3C3CFF
+    tab_bg: 0x353535FF
+    tab_bg_hovered: 0x303030FF
+    tab_text: 0xBDBDBDFF
+    tab_active_bg: 0x3C3C3CFF
+
+    control_border_size: 0.45
+    window_border_size: 1.0
+    window_interaction_border_size: 4.0
+    slider_track_height: 0.27272728
+    slider_thumb_width: 0.63636363
+    text_cursor_blink: true
+    text_cursor_blink_interval: 1.0
+    text_cursor_width: 2.0
+    text_cursor_padding_y: 4.0
+
+    COLOR_TEXT: "${text}"
+    COLOR_TEXT_DISABLED: "${text_disabled}"
+    COLOR_WINDOW_BG: "${window_bg}"
+    COLOR_PANEL_BG: "${panel_bg}"
+    COLOR_CONTROL_BG: "${control_bg}"
+    COLOR_CONTROL_BG_HOVERED: "${control_bg_hovered}"
+    COLOR_CONTROL_BG_ACTIVE: "${control_bg_active}"
+    COLOR_CONTROL_BG_ACTIVE_HOVERED: "${control_bg_active_hovered}"
+    COLOR_CONTROL_TEXT: "${control_text}"
+    COLOR_CONTROL_TEXT_HOVERED: "${control_text}"
+    COLOR_CONTROL_TEXT_ACTIVE: "${control_text}"
+    COLOR_CONTROL_TEXT_ACTIVE_HOVERED: "${control_text}"
+    COLOR_CONTROL_TEXT_DISABLED: "${text_disabled}"
+    COLOR_CONTROL_BORDER: "${control_border}"
+    COLOR_CONTROL_BORDER_HOVERED: "${control_border_hovered}"
+    COLOR_CONTROL_BORDER_ACTIVE: "${control_border_active}"
+    COLOR_CONTROL_BORDER_ACTIVE_HOVERED: "${control_border_active}"
+    COLOR_CONTROL_BORDER_DISABLED: "${control_border_disabled}"
+    COLOR_BORDER: "${border}"
+    COLOR_FOCUS: "${focus}"
+    COLOR_SEPARATOR: "${separator}"
+    COLOR_SLIDER_TRACK: "${slider_track}"
+    COLOR_SLIDER_TRACK_HOVERED: "${slider_track}"
+    COLOR_SLIDER_TRACK_ACTIVE: "${slider_track}"
+    COLOR_SLIDER_FILL: "${slider_track}"
+    COLOR_SLIDER_THUMB: "${slider_thumb}"
+    COLOR_SLIDER_THUMB_HOVERED: "${slider_thumb_hovered}"
+    COLOR_SLIDER_THUMB_ACTIVE: "${slider_thumb_hovered}"
+    COLOR_TITLE: "${title}"
+    COLOR_TITLE_BAR: "${title_bar}"
+    COLOR_TITLE_BAR_FOCUSED: "${title_bar_focused}"
+    COLOR_SCROLLBAR_TRACK: "${scrollbar_track}"
+    COLOR_SCROLLBAR_THUMB: "${scrollbar_thumb}"
+    COLOR_SCROLLBAR_THUMB_HOVERED: "${scrollbar_thumb_hovered}"
+    COLOR_SCROLLBAR_THUMB_ACTIVE: "${scrollbar_thumb_hovered}"
+    COLOR_TAB_BAR_BG: "${tab_bar_bg}"
+    COLOR_TAB_BAR_SEPARATOR: "${separator}"
+    COLOR_TAB_BG: "${tab_bg}"
+    COLOR_TAB_BG_HOVERED: "${tab_bg_hovered}"
+    COLOR_TAB_TEXT: "${tab_text}"
+    COLOR_TAB_TEXT_HOVERED: "${tab_text}"
+    COLOR_TAB_BORDER: "${border}"
+    COLOR_TAB_BORDER_HOVERED: "${border}"
+    COLOR_TAB_ACTIVE_BG: "${tab_active_bg}"
+    COLOR_TAB_ACTIVE_TEXT: "${tab_text}"
+    COLOR_TAB_ACTIVE_BORDER: "${border}"
+    COLOR_INPUT_BORDER: "${input_border}"

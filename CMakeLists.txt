@@ -350,9 +350,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_ecs.h             src/module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h        src/module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h             src/module/ldk_rhi.c
-  ${INCLUDE_DIR}/module/ldk_system.h         src/module/ldk_system.c
-  ${INCLUDE_DIR}/module/ldk_ui.h             src/module/ldk_ui.c
-  ${INCLUDE_DIR}/module/ldk_scenegraph.h       src/module/ldk_scenegraph.c
+  ${INCLUDE_DIR}/module/ldk_system.h          src/module/ldk_system.c
+  ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c src/module/ldk_ui_theme_io.c
+  ${INCLUDE_DIR}/module/ldk_scenegraph.h      src/module/ldk_scenegraph.c
   ${INCLUDE_DIR}/module/ldk_scene_manager.h   src/module/ldk_scene_manager.c
 
   # Components
@@ -450,6 +450,8 @@ if (OPTION_BUILD_EDITOR)
   add_executable(ldk_editor src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_theme.h
+    src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
     src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_grid.c
@@ -595,4 +597,5 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)
   ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
+  ldk_test_build(TARGET test_ui_theme_io SOURCES src/tests/test_ldk_ui_theme_io.c)
 endif()

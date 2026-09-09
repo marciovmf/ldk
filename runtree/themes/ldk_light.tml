@@ -1,0 +1,4 @@
+ldk_editor_theme:
+    version: 1
+    base: "light"
+    theme_name: "LDK Light"
