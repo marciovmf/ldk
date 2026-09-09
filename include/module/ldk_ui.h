@@ -752,7 +752,7 @@ extern "C"
   //----------------------------------------------------------
 
   LDK_API bool ldk_ui_begin_area_ex(
-    LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
+      LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
   LDK_API bool ldk_ui_begin_area(
       LDKUIContext *ctx, char const *title, bool expanded);
   LDK_API void ldk_ui_end_area(LDKUIContext *ctx);
@@ -833,6 +833,36 @@ extern "C"
       char *buffer, u32 buffer_size, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       char const *text, LDKUIRect rect, bool active);
+
+  //----------------------------------------------------------
+  // Theme IO
+  //----------------------------------------------------------
+
+  /** A resolved UI theme and its display name. Contains no owned resources. */
+  typedef struct LDKUIThemeFile
+  {
+    LDKUITheme theme;
+    char name[128];
+  } LDKUIThemeFile;
+
+  /**
+   * Parse an LDK theme from a null-terminated TML string.
+   *
+   * The output is replaced only on success. The theme inherits the selected
+   * built-in palette, and its icon handles are not loaded from the document.
+   * On failure, error receives a diagnostic when a buffer is provided.
+   */
+  LDK_API bool ldk_ui_theme_tml_parse(char const *source,
+      LDKUIThemeFile *out_theme, char *error, size_t error_size);
+
+  /**
+   * Read and parse a UTF-8 TML theme file.
+   *
+   * The path is an ordinary filesystem path; discovery and application of the
+   * theme are separate responsibilities. The output is unchanged on failure.
+   */
+  LDK_API bool ldk_ui_theme_tml_load(char const *path,
+      LDKUIThemeFile *out_theme, char *error, size_t error_size);
 
 #ifdef __cplusplus
 }
