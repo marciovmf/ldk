@@ -1840,10 +1840,17 @@ static void s_renderer_ui_pass(
     }
 
     LDKRHIRect scissor = {0};
-    scissor.x = (i32)cmd->clip_rect.x;
-    scissor.y = (i32)cmd->clip_rect.y;
-    scissor.width = (i32)cmd->clip_rect.w;
-    scissor.height = (i32)cmd->clip_rect.h;
+    float x0 = floorf(cmd->clip_rect.x);
+    float y0 = floorf(cmd->clip_rect.y);
+    float x1 = ceilf(cmd->clip_rect.x + cmd->clip_rect.w);
+    float y1 = ceilf(cmd->clip_rect.y + cmd->clip_rect.h);
+
+    scissor.x = (i32)x0;
+    scissor.y = (i32)y0;
+    scissor.width = (i32)(x1 - x0);
+    scissor.height = (i32)(y1 - y0);
+
+    
     ldk_rhi_scissor_set(renderer->rhi, &scissor);
 
 

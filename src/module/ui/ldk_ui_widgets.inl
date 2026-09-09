@@ -599,6 +599,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   u32 result = LDK_UI_INPUT_BOX_NONE;
   LDKUIWidgetBox box = {0};
   LDKUIFrameState frame;
+  LDKUIRect parent_clip;
   u32 buffer_len;
   LDKUISize text_size;
   u32 bg;
@@ -617,6 +618,8 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   }
 
   buffer[buffer_size - 1] = 0;
+
+  parent_clip = s_ui_current_clip_rect(ctx);
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
   {
@@ -897,8 +900,8 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   if (visual_mode == LDK_UI_INPUT_VISUAL_BOX)
   {
-    s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
-    s_ui_render_border(ctx, box.rect, border_size, border, box.clip);
+    s_ui_render_quad(ctx, box.rect, bg, parent_clip, 0);
+    s_ui_render_border(ctx, box.rect, border_size, border, parent_clip);
   }
 
   text_x = s_ui_input_box_text_x(
