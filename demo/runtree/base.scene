@@ -7,7 +7,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.671746492, -0.00414329767
+            local_position: 0.00000000, 0.569439650, -0.00414329767
             local_scale: 1.16555500, 1.16555500, 2.06512880
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -33,7 +33,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.290288210, -0.576774299
+            local_position: 0.00000000, -0.133486927, -0.576774240
             local_scale: 0.857960343, 0.857960343, 0.484231263
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -46,7 +46,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.305315256, 0.442302346
+            local_position: 0.00000000, -0.146292210, 0.442302287
             local_scale: 0.857960343, 0.857960343, 0.484231263
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource

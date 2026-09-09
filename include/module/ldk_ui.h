@@ -23,6 +23,10 @@ extern "C"
 #define LDK_UI_DEFAULT_CONTROL_HEIGHT 22.0f
 #endif
 
+#ifndef LDK_UI_DEFAULT_CONTROL_WIDTH
+#define LDK_UI_DEFAULT_CONTROL_WIDTH 16.0f
+#endif
+
 #ifndef LDK_UI_LAYOUT_STACK_CAPACITY
 #define LDK_UI_LAYOUT_STACK_CAPACITY 64
 #endif
@@ -190,6 +194,10 @@ extern "C"
 
     LDK_UI_COLOR_SEPARATOR,
     LDK_UI_COLOR_INPUT_BORDER,
+    LDK_UI_COLOR_INPUT_BG,
+    LDK_UI_COLOR_INPUT_BG_HOVERED,
+    LDK_UI_COLOR_INPUT_BG_ACTIVE,
+    LDK_UI_COLOR_INPUT_BG_ACTIVE_HOVERED,
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
 
@@ -218,6 +226,7 @@ extern "C"
     rgba32 colors[LDK_UI_COLOR_COUNT];
     LDKUIIcon icons[LDK_UI_THEME_ICON_COUNT];
     float control_border_size;
+    float input_border_size;
     float window_border_size;
     float window_interaction_border_size;
     float slider_track_height;

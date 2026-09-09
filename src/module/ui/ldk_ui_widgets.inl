@@ -544,6 +544,39 @@ float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx, LDKUIId id,
       ctx, id, scroll, visible_size, content_size, rect, true);
 }
 
+/**
+ * Selects the background color used by input boxes.
+ * @arg ctx UI context that owns the active theme.
+ * @arg state Current visual state of the input box.
+ * @return Dedicated input background, or the legacy control background when
+ *         input-specific styling is not enabled by the theme.
+ */
+static u32 s_ui_render_input_bg_color(
+    LDKUIContext *ctx, LDKUIControlVisualState state)
+{
+  if (ctx->theme.input_border_size <= 0.0f)
+  {
+    return s_ui_render_control_bg_color(ctx, state);
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_INPUT_BG_ACTIVE_HOVERED];
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_INPUT_BG_ACTIVE];
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_INPUT_BG_HOVERED];
+  }
+
+  return ctx->theme.colors[LDK_UI_COLOR_INPUT_BG];
+}
+
 typedef enum LDKUIInputVisualMode
 {
   LDK_UI_INPUT_VISUAL_BOX = 0,
@@ -571,6 +604,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   u32 bg;
   u32 border;
   u32 text_color;
+  float border_size;
   float text_x;
   float text_y;
   u32 previous_text_cursor;
@@ -854,15 +888,17 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   text_size = s_ui_widget_text_size(ctx, buffer);
 
-  bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+  bg = s_ui_render_input_bg_color(ctx, frame.visual_state);
   border = ctx->theme.colors[LDK_UI_COLOR_INPUT_BORDER];
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+  border_size = ctx->theme.input_border_size > 0.0f
+                    ? ctx->theme.input_border_size
+                    : ctx->theme.control_border_size;
 
   if (visual_mode == LDK_UI_INPUT_VISUAL_BOX)
   {
     s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
-    s_ui_render_border(
-        ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+    s_ui_render_border(ctx, box.rect, border_size, border, box.clip);
   }
 
   text_x = s_ui_input_box_text_x(
@@ -1231,13 +1267,6 @@ bool ldk_ui_toggle(LDKUIContext *ctx, bool value)
   LDKUIRect rect;
   LDKUIId id;
 
-  // if (text == NULL)
-  //{
-  //   text = "";
-  // }
-
-  // text_size = s_ui_layout_text_size(ctx, text);
-  // min_size.w = text_size.w + 16.0f;
   min_size.w = 32;
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
@@ -1579,7 +1608,7 @@ float ldk_ui_slider(
   LDKUIId id;
   LDKUISize min_size;
 
-  min_size.w = 140.0f;
+  min_size.w = LDK_UI_DEFAULT_CONTROL_WIDTH;
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request = s_ui_layout_request_make(LDK_UI_ITEM_SLIDER, min_size, 1.0f, true);
@@ -1599,7 +1628,7 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   LDKUIId id;
   LDKUISize min_size;
 
-  min_size.w = 140.0f;
+  min_size.w = LDK_UI_DEFAULT_CONTROL_WIDTH;
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =
@@ -1620,7 +1649,7 @@ u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   LDKUIId id;
   LDKUISize min_size;
 
-  min_size.w = 140.0f;
+  min_size.w = LDK_UI_DEFAULT_CONTROL_WIDTH;
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   request =

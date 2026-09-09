@@ -68,6 +68,10 @@ static LDKUIThemeColorEntry const s_ui_theme_tml_colors[] = {
     S_UI_THEME_COLOR(TAB_ACTIVE_BORDER),
     S_UI_THEME_COLOR(SEPARATOR),
     S_UI_THEME_COLOR(INPUT_BORDER),
+    S_UI_THEME_COLOR(INPUT_BG),
+    S_UI_THEME_COLOR(INPUT_BG_HOVERED),
+    S_UI_THEME_COLOR(INPUT_BG_ACTIVE),
+    S_UI_THEME_COLOR(INPUT_BG_ACTIVE_HOVERED),
 };
 
 #undef S_UI_THEME_COLOR
@@ -99,6 +103,7 @@ typedef struct LDKUIThemeMetricEntry
 
 static LDKUIThemeMetricEntry const s_ui_theme_tml_metrics[] = {
     S_UI_THEME_FLOAT(control_border_size, false),
+    S_UI_THEME_FLOAT(input_border_size, false),
     S_UI_THEME_FLOAT(window_border_size, false),
     S_UI_THEME_FLOAT(window_interaction_border_size, false),
     S_UI_THEME_FLOAT(slider_track_height, false),

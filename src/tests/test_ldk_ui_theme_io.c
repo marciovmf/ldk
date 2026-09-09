@@ -78,7 +78,12 @@ static int test_overrides_and_references(void)
       "    first: 0x12345678\n"
       "    COLOR_CONTROL_BORDER: \"${COLOR_TEXT}\"\n"
       "    COLOR_INPUT_BORDER: \"${COLOR_TEXT}\"\n"
+      "    COLOR_INPUT_BG: 0x01020304\n"
+      "    COLOR_INPUT_BG_HOVERED: 0x11121314\n"
+      "    COLOR_INPUT_BG_ACTIVE: 0x21222324\n"
+      "    COLOR_INPUT_BG_ACTIVE_HOVERED: 0x31323334\n"
       "    control_border_size: 0.45\n"
+      "    input_border_size: 1.25\n"
       "    slider_track_height: 1\n"
       "    text_cursor_blink: false\n";
 
@@ -87,7 +92,12 @@ static int test_overrides_and_references(void)
   expected.colors[LDK_UI_COLOR_TEXT] = 0x12345678u;
   expected.colors[LDK_UI_COLOR_CONTROL_BORDER] = 0x12345678u;
   expected.colors[LDK_UI_COLOR_INPUT_BORDER] = 0x12345678u;
+  expected.colors[LDK_UI_COLOR_INPUT_BG] = 0x01020304u;
+  expected.colors[LDK_UI_COLOR_INPUT_BG_HOVERED] = 0x11121314u;
+  expected.colors[LDK_UI_COLOR_INPUT_BG_ACTIVE] = 0x21222324u;
+  expected.colors[LDK_UI_COLOR_INPUT_BG_ACTIVE_HOVERED] = 0x31323334u;
   expected.control_border_size = 0.45f;
+  expected.input_border_size = 1.25f;
   expected.slider_track_height = 1.0f;
   expected.text_cursor_blink = false;
   TEST_CHECK(memcmp(&result.theme, &expected, sizeof(expected)) == 0);
@@ -172,6 +182,8 @@ static int test_invalid_values(void)
       "ldk_editor_theme:\n    text: \"hello\"\n", "reference") == 0);
   TEST_CHECK(s_test_rejected(
       "ldk_editor_theme:\n    control_border_size: -1\n", "Metric") == 0);
+  TEST_CHECK(s_test_rejected(
+      "ldk_editor_theme:\n    input_border_size: -1\n", "Metric") == 0);
   TEST_CHECK(s_test_rejected(
       "ldk_editor_theme:\n    control_border_size: \"1\"\n", "number") == 0);
   TEST_CHECK(s_test_rejected(
