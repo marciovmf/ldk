@@ -8,6 +8,7 @@
 
 #include <ldk_common.h>
 #include <ldk_scene.h>
+#include <ldk_scene_systems.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -26,6 +27,10 @@ typedef struct LDKSceneManager
   LDKScene *scenes;
   u32 scene_count;
   const LDKScene *current_scene;
+  /* Loaded .scene associations, not catalog data. */
+  LDKSceneSystems current_systems;
+  u32 pending_scene_index;
+  bool has_pending_scene;
   XFSPath runtree_path;
   bool is_initialized;
 } LDKSceneManager;
@@ -69,11 +74,18 @@ LDK_API const LDKScene *ldk_scene_manager_find(
 // Scene loading
 // ---------------------------------------------------------------------------
 
-/** Replaces all current ECS contents with the registered scene at index. */
+/**
+ * Replaces all current ECS contents with the registered scene at index.
+ * During an engine update the request is deferred to the safe frame boundary.
+ * A successful deferred request returns the target descriptor, but current()
+ * continues to report the old scene until the switch completes. Failures
+ * during deferred execution are logged. A failed target preflight leaves the
+ * old scene running; a failure after replacement begins ends the session.
+ */
 LDK_API const LDKScene *ldk_scene_manager_load(
     LDKSceneManager *manager, u32 index, LDKSceneResult *result);
 
-/** Replaces all current ECS contents with a registered scene matching path. */
+/** Loads a registered path, with the same deferred semantics as load(). */
 LDK_API const LDKScene *ldk_scene_manager_load_path(
     LDKSceneManager *manager, const char *path, LDKSceneResult *result);
 
@@ -86,6 +98,21 @@ LDK_API bool ldk_scene_manager_unload(LDKSceneManager *manager);
 
 LDK_API const LDKScene *ldk_scene_manager_current(
     const LDKSceneManager *manager);
+
+/** The associations of the scene currently open in the ECS. */
+LDK_API const LDKSceneSystems *ldk_scene_manager_systems_get(
+    const LDKSceneManager *manager);
+
+/**
+ * Forgets which catalog scene owns the ECS without modifying ECS contents.
+ * Use this when another loader, such as the editor direct-file loader, takes
+ * ownership of the current ECS while gameplay is stopped.
+ */
+LDK_API bool ldk_scene_manager_current_reset(LDKSceneManager *manager);
+
+/** Process/cancel a scene switch requested during an update callback. */
+LDK_API bool ldk_scene_manager_process_pending(LDKSceneManager *manager);
+LDK_API void ldk_scene_manager_pending_clear(LDKSceneManager *manager);
 
 #ifdef __cplusplus
 }

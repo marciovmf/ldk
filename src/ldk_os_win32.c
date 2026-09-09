@@ -442,7 +442,7 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor,
       // uncomment for multisampeld framebuffer, from WGL_ARB_multisample
       // extension
       // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_multisample.txt
-      WGL_SAMPLE_BUFFERS_ARB, 1, WGL_SAMPLES_ARB, 4, // 4x MSAA
+      WGL_SAMPLE_BUFFERS_ARB, 1, WGL_SAMPLES_ARB, 16, // 4x MSAA
       0};
 
   const int context_attribs[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, glVersionMajor,

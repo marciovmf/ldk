@@ -2679,7 +2679,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER] = border;
   theme->colors[LDK_UI_COLOR_INPUT_BORDER] = input_border;
 
-  theme->control_border_size = 0.45f;
+  theme->control_border_size = 0.5f;
   theme->window_border_size = 1.0f;
   theme->window_interaction_border_size = 4.0f;
 

@@ -4,6 +4,7 @@
 #include <ldk_common.h>
 #include <ldk_game.h>
 #include <ldk_project.h>
+#include <ldk_scene_systems.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
@@ -192,7 +193,7 @@ typedef struct LDKEditorContext
   XFSPath engine_runtree;
   XFSPath engine_root;
   XFSPath cmake_path;
-  LDKGameUpdateFunc original_game_update_fn;
+  LDKSceneSystems current_scene_systems;
   LDKResourceTexture ui_atlas;
 
   // Console output string builder
@@ -296,6 +297,7 @@ bool ldki_editor_selected_entity_get(
 
 void ldki_editor_scene_state_sync(LDKEditorContext *editor);
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
+bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
 bool ldki_editor_scene_new(LDKEditorContext *editor);

@@ -45,6 +45,7 @@
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
     i32 window_height, float delta_time);
 static bool s_editor_state_set_play(LDKEditorContext *editor);
+static void s_editor_state_set_stop(LDKEditorContext *editor);
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path);
 static bool s_project_unload(LDKEditorContext *editor);
@@ -291,6 +292,17 @@ static bool on_event_frame(const LDKEvent *event, void *state)
 
   if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_AFTER)
   {
+    if (editor->editor_state != LDK_EDITOR_STATE_STOPED &&
+        !ldk_game_instance_is_started())
+    {
+      s_editor_state_set_stop(editor);
+    }
+    else if (editor->editor_state == LDK_EDITOR_STATE_STEPPING &&
+             !ldk_game_instance_is_stepping())
+    {
+      editor->editor_state = LDK_EDITOR_STATE_PAUSED;
+    }
+
     s_editor_camera_ensure(editor);
     ldki_editor_camera_update(editor, event->frame_event.delta_time);
     ldki_editor_gizmo_update(editor);
@@ -849,46 +861,84 @@ static bool s_editor_gui_initialize(
 // Play / Stop
 //----------------------------------------------------------
 
-/**
- * This function replaces the original game_update function.
- * It is prevents the engine from updating the game when
- * the editor is not on PLAY mode
- */
-
-static inline void s_game_update(LDKGame *game, float delta_time)
+static void s_editor_scene_missing_systems_report(LDKEditorContext *editor)
 {
-  LDKEditorContext *editor = s_editor_instance();
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
 
-  if (editor->editor_state == LDK_EDITOR_STATE_STEPPING)
+  if (!editor || !ecs)
   {
-    editor->original_game_update_fn(game, delta_time);
-    editor->editor_state = LDK_EDITOR_STATE_PAUSED;
+    return;
   }
 
-  if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
-    editor->original_game_update_fn(game, delta_time);
+  for (u32 i = 0; i < editor->current_scene_systems.count; ++i)
+  {
+    u64 id = editor->current_scene_systems.ids[i];
+    LDKSystemDesc desc = {0};
+
+    if (!ldk_system_registry_find_by_id(&ecs->system, id, &desc))
+    {
+      char message[128];
+      snprintf(message, sizeof(message),
+          "Scene references unregistered system 0x%016llx. Skipping.",
+          (unsigned long long)id);
+      ldki_editor_console_append(
+          editor, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
+    }
+  }
 }
 
-/**
- * Change Editor mode to PLAY
- */
+/** Change Editor mode to PLAY. */
 static bool s_editor_state_set_play(LDKEditorContext *editor)
 {
-  if (!editor->project.loaded)
+  LDKECS *ecs;
+
+  if (!editor || !editor->project.loaded)
+  {
     return false;
+  }
 
   if (editor->editor_state == LDK_EDITOR_STATE_PAUSED)
   {
+    if (!ldk_game_instance_resume())
+    {
+      return false;
+    }
+
     editor->editor_state = LDK_EDITOR_STATE_PLAYING;
     return true;
   }
 
   if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
-    return true;
-
-  LDKGame *game = ldk_game_get();
-  if (!game->start(game))
   {
+    return true;
+  }
+
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (!ecs || !ecs->system.is_started)
+  {
+    return false;
+  }
+
+  s_editor_scene_missing_systems_report(editor);
+
+  /* Direct editor scenes remain independent from the Scene Manager catalog.
+   * Their associations are started explicitly before the game session. */
+  if (!ldk_scene_systems_start(
+          &ecs->system, &editor->current_scene_systems))
+  {
+    ldk_scene_systems_stop_missing(&ecs->system, NULL);
+    ldki_editor_log_error(editor, "Failed to initialize scene systems.");
+    return false;
+  }
+
+  if (!ldk_game_instance_start())
+  {
+    ldk_scene_systems_stop_missing(&ecs->system, NULL);
     return false;
   }
 
@@ -898,30 +948,76 @@ static bool s_editor_state_set_play(LDKEditorContext *editor)
 
 static void s_editor_state_set_stop(LDKEditorContext *editor)
 {
-  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
-    return;
+  XFSPath scene_path = {0};
+  bool restore_scene;
 
-  LDKGame *game = ldk_game_get();
-  game->stop(game);
+  if (!editor)
+  {
+    return;
+  }
+
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+      !ldk_game_instance_is_started())
+  {
+    return;
+  }
+
+  restore_scene = editor->project.loaded &&
+                  editor->current_scene_path.length != 0;
+  if (restore_scene)
+  {
+    x_fs_path(&scene_path, editor->project.run_root_path.buf,
+        x_fs_path_cstr(&editor->current_scene_path));
+    x_fs_path_normalize(&scene_path);
+  }
+
+  if (!ldk_game_instance_stop())
+  {
+    ldki_editor_log_error(editor, "Failed to stop the game session.");
+    return;
+  }
+
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
+
+  if (restore_scene)
+  {
+    if (!ldki_editor_scene_load(editor, &scene_path))
+    {
+      /* STOP must still leave a clean ECS if the source file disappeared or
+       * became invalid while the game was running. */
+      ldki_editor_scene_clear(editor);
+    }
+  }
+  else
+  {
+    ldki_editor_scene_clear(editor);
+  }
 }
 
 static void s_editor_state_set_pause(LDKEditorContext *editor)
 {
-  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_PLAYING)
+  {
     return;
+  }
 
-  LDKGame *game = ldk_game_get();
-  editor->editor_state = LDK_EDITOR_STATE_PAUSED;
+  if (ldk_game_instance_pause())
+  {
+    editor->editor_state = LDK_EDITOR_STATE_PAUSED;
+  }
 }
 
 static void s_editor_state_set_step(LDKEditorContext *editor)
 {
-  if (editor->editor_state != LDK_EDITOR_STATE_PAUSED)
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_PAUSED)
+  {
     return;
+  }
 
-  LDKGame *game = ldk_game_get();
-  editor->editor_state = LDK_EDITOR_STATE_STEPPING;
+  if (ldk_game_instance_step())
+  {
+    editor->editor_state = LDK_EDITOR_STATE_STEPPING;
+  }
 }
 
 //----------------------------------------------------------
@@ -962,6 +1058,7 @@ static bool s_project_unload(LDKEditorContext *editor)
   if (!editor->project.loaded)
   {
     editor->selected_entity = x_handle_null();
+    ldk_scene_systems_clear(&editor->current_scene_systems);
     if (editor->hierarchy_expanded_entities != NULL)
     {
       x_array_clear(editor->hierarchy_expanded_entities);
@@ -992,12 +1089,12 @@ static bool s_project_unload(LDKEditorContext *editor)
   editor->selected_entity = x_handle_null();
   editor->editor_camera = x_handle_null();
   editor->scene_view = LDK_RENDERER_VIEW_INVALID;
+  ldk_scene_systems_clear(&editor->current_scene_systems);
   if (editor->hierarchy_expanded_entities != NULL)
   {
     x_array_clear(editor->hierarchy_expanded_entities);
   }
   ldk_project_unload(&editor->project);
-  editor->original_game_update_fn = NULL;
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   s_editor_set_title(editor);
   return true;
@@ -1068,12 +1165,7 @@ static bool s_project_load(
     goto fail;
   }
 
-  // we change the game update function to call us so we can
-  // update the game only in PLAY mode.
-  LDKGame *game = ldk_game_get();
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
-  editor->original_game_update_fn = game->update;
-  game->update = s_game_update;
   s_editor_set_title(editor);
   return true;
 
@@ -1726,6 +1818,7 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  ldk_scene_systems_clear(&editor->current_scene_systems);
   ldk_scene_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
 

@@ -121,6 +121,9 @@ LDK_API bool ldk_system_registry_pause(LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_resume(LDKSystemRegistry* registry);
 LDK_API bool ldk_system_registry_is_paused(const LDKSystemRegistry* registry);
 
+/** True while a bucket or a system lifecycle callback is executing. */
+LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
+
 /**
  * Run only initialized, enabled systems. While paused, only systems with
  * RUN_WHEN_PAUSED execute. Structural and lifecycle changes are forbidden

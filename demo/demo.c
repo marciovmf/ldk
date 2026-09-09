@@ -20,6 +20,23 @@
 #include <stdx/stdx_math.h>
 
 LDKGame game = {0};
+
+static void s_hello_system_update(void* userdata, float dt)
+{
+  (void)userdata;
+  (void)dt;
+  ldk_log_info("HELLO\n");
+}
+
+static const LDKSystemDesc s_hello_system = {
+  .id = LDK_SYSTEM_ID_USER,
+  .name = "Hello",
+  .flags = LDK_SYSTEM_FLAG_ENABLED,
+  .callbacks = {
+    .update = s_hello_system_update
+  }
+};
+
 typedef struct GameData
 {
   LDKEntity cube_entity_0; 
@@ -44,6 +61,13 @@ bool on_window_event(const LDKEvent* event, void* state)
 bool game_initialize(LDKGame* game)
 {
   ldk_log_info("Game initialize!!\n");
+
+  if (!ldk_ecs_system_register(&s_hello_system))
+  {
+    ldk_log_error("Failed to register Hello system.\n");
+    return false;
+  }
+
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(q, on_window_event, LDK_EVENT_TYPE_WINDOW, NULL);
   return true;
@@ -114,7 +138,7 @@ ldk_material_desc_defaults(
 material.args.textured.texture = image;
 
 ldk_mesh_source_set_material(&mesh_source, &material);
-  
+
   ldk_ecs_component_add(cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
   ldk_ecs_component_add(cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
 

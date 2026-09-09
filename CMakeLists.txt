@@ -340,6 +340,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
+  ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
 
   # Modules
