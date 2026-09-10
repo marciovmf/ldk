@@ -260,38 +260,54 @@ static bool s_project_create_required_dirs(const LDKProject *project)
 static void s_project_append_project_file_text(
     XStrBuilder *builder, const LDKProject *project)
 {
-  x_strbuilder_append(builder, "[.project]\n");
+  bool has_arch = !s_string_is_empty(project->cmake_arch.buf);
+
   x_strbuilder_append_format(
-      builder, "project_name = \"%s\"\n", project->name.buf);
-  x_strbuilder_append(builder, "project_game_root = \".\"\n");
-  x_strbuilder_append(builder, "project_cmake_root = \"workspace\"\n");
-  x_strbuilder_append(builder, "project_run_root = \"runtree\"\n");
-  x_strbuilder_append_format(builder, "project_cmake_generator = \"%s\"\n",
-      project->cmake_generator.buf);
-
-  if (!s_string_is_empty(project->cmake_arch.buf))
-  {
-    x_strbuilder_append_format(builder, "project_cmake_arch = \"%s\"\n",
-        project->cmake_arch.buf);
-  }
-
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "[general]\n");
-  x_strbuilder_append(builder, "asset_root = \"assets\"\n");
-  x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
-  x_strbuilder_append(builder, "\n");
-
-  x_strbuilder_append(builder, "[graphics]\n");
-  x_strbuilder_append(builder, "resolution_width = 1280\n");
-  x_strbuilder_append(builder, "resolution_height = 720\n");
-  x_strbuilder_append(builder, "\n");
-
-  x_strbuilder_append(builder, "[display]\n");
-  x_strbuilder_append_format(
-      builder, "title = \"%s\"\n", project->name.buf);
-  x_strbuilder_append(builder, "width = 1280\n");
-  x_strbuilder_append(builder, "height = 720\n");
-  x_strbuilder_append(builder, "fullscreen = false\n");
+    builder,
+    "[.project]\n"
+    "project_name = \"%s\"\n"
+    "project_game_root = \".\"\n"
+    "project_cmake_root = \"workspace\"\n"
+    "project_run_root = \"runtree\"\n"
+    "project_cmake_generator = \"%s\"\n"
+    "project_cmake_arch = \"%s\"\n"
+    "\n"
+    "[.flags]\n"
+    "tag_0 = \"tag_0\"\n"
+    "tag_1 = \"tag_1\"\n"
+    "tag_2 = \"tag_2\"\n"
+    "tag_3 = \"tag_3\"\n"
+    "tag_4 = \"tag_4\"\n"
+    "tag_5 = \"tag_5\"\n"
+    "tag_6 = \"tag_6\"\n"
+    "tag_7 = \"tag_7\"\n"
+    "tag_8 = \"tag_8\"\n"
+    "tag_9 = \"tag_9\"\n"
+    "tag_10 = \"tag_10\"\n"
+    "tag_11 = \"tag_11\"\n"
+    "tag_12 = \"tag_12\"\n"
+    "tag_13 = \"tag_13\"\n"
+    "tag_14 = \"tag_14\"\n"
+    "tag_15 = \"tag_15\"\n"
+    "\n"
+    "[general]\n"
+    "asset_root = \"assets\"\n"
+    "log_file = \"ldk.log\"\n"
+    "\n"
+    "[graphics]\n"
+    "resolution_width = 1280\n"
+    "resolution_height = 720\n"
+    "\n"
+    "[display]\n"
+    "title = \"%s\"\n"
+    "width = 1280\n"
+    "height = 720\n"
+    "fullscreen = false\n",
+    project->name.buf,
+    project->cmake_generator.buf,
+    has_arch ? project->cmake_arch.buf : "\"\"",
+    project->name.buf
+  );
 }
 
 static void s_project_append_game_cmake_text(XStrBuilder *builder)

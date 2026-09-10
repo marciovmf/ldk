@@ -855,6 +855,26 @@ static bool s_read_entity_headers(const TMLDocument *doc,
     }
 #endif
 
+    {
+      const TMLEntry *flags_entry =
+          s_node_find_entry(doc, entity_node, "flags");
+
+      if (flags_entry)
+      {
+        u32 flags;
+
+        if (!s_node_get_u32(doc, entity_node, "flags", &flags) ||
+            flags > UINT16_MAX)
+        {
+          s_result_error(result, "entity flags are invalid");
+          return false;
+        }
+
+        ldk_entity_flags_set(
+            ldk_ecs_entity_registry_get(), entity, (u16)flags);
+      }
+    }
+
     if (!s_map_push(map, entity, scene_id))
     {
       s_result_error(result, "failed to allocate scene entity map");
@@ -1740,6 +1760,10 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
 
   s_append_indent(context->out, 3u);
   x_strbuilder_append_format(context->out, "parent: %d\n", parent_id);
+
+  s_append_indent(context->out, 3u);
+  x_strbuilder_append_format(context->out, "flags: %u\n",
+      (u32)ldk_entity_flags_get(ldk_ecs_entity_registry_get(), entity));
 
   {
     const char *name = ldk_ecs_entity_name_get(entity);

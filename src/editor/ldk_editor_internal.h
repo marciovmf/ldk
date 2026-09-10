@@ -19,6 +19,14 @@
 #define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
 #define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
 
+#ifndef LDK_EDITOR_TAG_COUNT
+#define LDK_EDITOR_TAG_COUNT 16
+#endif
+
+#ifndef LDK_EDITOR_TAG_NAME_CAPACITY
+#define LDK_EDITOR_TAG_NAME_CAPACITY 64
+#endif
+
 typedef enum LDKEditorState
 {
   LDK_EDITOR_STATE_STOPED = 0,
@@ -312,6 +320,12 @@ void ldki_editor_scene_catalog_open(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_close(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_show(LDKEditor *editor, void *data);
 void ldki_editor_scene_catalog_sync(LDKEditorContext *editor);
+
+void ldki_editor_tag_catalog_open(LDKEditorContext *editor);
+void ldki_editor_tag_catalog_show(LDKEditor *editor, void *data);
+void ldki_editor_tag_catalog_sync(LDKEditorContext *editor);
+const char *ldki_editor_tag_name_get(LDKEditorContext *editor, u32 bit);
+
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
@@ -354,7 +368,8 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
 #define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
-#define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
+#define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
+#define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
 
 #endif // LDK_EDITOR_INTERNAL

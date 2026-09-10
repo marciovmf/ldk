@@ -2,9 +2,523 @@
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include <module/ldk_scene_manager.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+
+typedef struct LDKEditorTagCatalogState
+{
+  XFSPath project_path;
+  char names[LDK_EDITOR_TAG_COUNT][LDK_EDITOR_TAG_NAME_CAPACITY];
+  char draft[LDK_EDITOR_TAG_COUNT][LDK_EDITOR_TAG_NAME_CAPACITY];
+  LDKUIPoint scroll;
+  char error[256];
+  bool cache_loaded;
+  bool draft_loaded;
+  bool close_requested;
+} LDKEditorTagCatalogState;
+
+static LDKEditorTagCatalogState s_tag_catalog = {0};
+static bool s_tag_catalog_window_registered = false;
+
+static void s_tag_catalog_defaults(
+    char names[LDK_EDITOR_TAG_COUNT][LDK_EDITOR_TAG_NAME_CAPACITY])
+{
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    snprintf(names[i], LDK_EDITOR_TAG_NAME_CAPACITY, "tag_%u", i);
+  }
+}
+
+static void s_tag_catalog_cache_clear(void)
+{
+  memset(&s_tag_catalog, 0, sizeof(s_tag_catalog));
+}
+
+static bool s_tag_catalog_same_project(const LDKEditorContext *editor)
+{
+  if (!editor || !editor->project.loaded || !s_tag_catalog.cache_loaded)
+  {
+    return false;
+  }
+
+  XFSPath current = editor->project.project_file_path;
+  XFSPath cached = s_tag_catalog.project_path;
+  x_fs_path_normalize(&current);
+  x_fs_path_normalize(&cached);
+  return x_fs_path_compare(&current, &cached) == 0;
+}
+
+static bool s_tag_catalog_cache_load(LDKEditorContext *editor)
+{
+  XIni ini = {0};
+  XIniError ini_error = {0};
+
+  if (!editor || !editor->project.loaded)
+  {
+    s_tag_catalog_cache_clear();
+    return false;
+  }
+
+  if (s_tag_catalog_same_project(editor))
+  {
+    return true;
+  }
+
+  s_tag_catalog_cache_clear();
+  s_tag_catalog.project_path = editor->project.project_file_path;
+  s_tag_catalog_defaults(s_tag_catalog.names);
+  s_tag_catalog.cache_loaded = true;
+
+  if (!x_ini_load_file(
+          editor->project.project_file_path.buf, &ini, &ini_error))
+  {
+    snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+        "Could not read tag names from project file: %s",
+        ini_error.message ? ini_error.message : "invalid project file");
+    return true;
+  }
+
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    char key[16];
+    snprintf(key, sizeof(key), "tag_%u", i);
+    const char *name = x_ini_get(&ini, ".flags", key, NULL);
+    if (name && name[0])
+    {
+      snprintf(s_tag_catalog.names[i], sizeof(s_tag_catalog.names[i]),
+          "%s", name);
+    }
+  }
+
+  x_ini_free(&ini);
+  return true;
+}
+
+static void s_tag_catalog_ini_string(FILE *out, const char *text)
+{
+  fputc('"', out);
+  for (; text && *text; ++text)
+  {
+    switch (*text)
+    {
+    case '\\':
+      fputs("\\\\", out);
+      break;
+    case '"':
+      fputs("\\\"", out);
+      break;
+    case '\n':
+      fputs("\\n", out);
+      break;
+    case '\r':
+      break;
+    case '\t':
+      fputs("\\t", out);
+      break;
+    default:
+      fputc((unsigned char)*text, out);
+      break;
+    }
+  }
+  fputc('"', out);
+}
+
+static bool s_tag_catalog_section_is_flags(const char *line, const char *end)
+{
+  const char *p = line;
+  const char *close;
+
+  while (p < end && (*p == ' ' || *p == '\t'))
+    ++p;
+  if (p >= end || *p != '[')
+    return false;
+
+  close = memchr(p, ']', (size_t)(end - p));
+  if (!close)
+    return false;
+
+  ++p;
+  while (p < close && isspace((unsigned char)*p))
+    ++p;
+  while (close > p && isspace((unsigned char)close[-1]))
+    --close;
+
+  return close - p == 6 && memcmp(p, ".flags", 6) == 0;
+}
+
+static bool s_tag_catalog_line_is_section(const char *line, const char *end)
+{
+  while (line < end && (*line == ' ' || *line == '\t'))
+    ++line;
+  return line < end && *line == '[' &&
+      memchr(line, ']', (size_t)(end - line)) != NULL;
+}
+
+static bool s_tag_catalog_file_path_with_suffix(
+    const XFSPath *source, const char *suffix, XFSPath *out)
+{
+  size_t length;
+  size_t suffix_length;
+  char buffer[sizeof(out->buf)];
+
+  if (!source || !suffix || !out)
+    return false;
+
+  length = strlen(source->buf);
+  suffix_length = strlen(suffix);
+  if (length + suffix_length >= sizeof(buffer))
+    return false;
+
+  memcpy(buffer, source->buf, length);
+  memcpy(buffer + length, suffix, suffix_length + 1);
+  x_fs_path_set(out, buffer);
+  return true;
+}
+
+static bool s_tag_catalog_manifest_save(LDKEditorContext *editor,
+    char names[LDK_EDITOR_TAG_COUNT][LDK_EDITOR_TAG_NAME_CAPACITY])
+{
+  XFSPath path;
+  XFSPath temporary = {0};
+  XFSPath backup = {0};
+  FILE *in = NULL;
+  FILE *out = NULL;
+  char *source = NULL;
+  bool skip = false;
+  bool backed_up = false;
+  bool installed = false;
+  bool ok = false;
+  long file_size;
+
+  if (!editor || !editor->project.loaded)
+    return false;
+
+  path = editor->project.project_file_path;
+  if (!s_tag_catalog_file_path_with_suffix(&path, ".flags.tmp", &temporary) ||
+      !s_tag_catalog_file_path_with_suffix(&path, ".flags.bak", &backup))
+  {
+    snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+        "Project path is too long to save the tag catalog.");
+    return false;
+  }
+
+  if (x_fs_path_exists_cstr(temporary.buf) || x_fs_path_exists_cstr(backup.buf))
+  {
+    snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+        "Tag catalog save blocked by stale .flags.tmp/.flags.bak files.");
+    return false;
+  }
+
+  in = fopen(path.buf, "rb");
+  if (!in || fseek(in, 0, SEEK_END) != 0)
+    goto done;
+
+  file_size = ftell(in);
+  if (file_size < 0 || fseek(in, 0, SEEK_SET) != 0)
+    goto done;
+
+  source = malloc((size_t)file_size + 1u);
+  if (!source || fread(source, 1, (size_t)file_size, in) != (size_t)file_size)
+    goto done;
+  source[file_size] = 0;
+  fclose(in);
+  in = NULL;
+
+  out = fopen(temporary.buf, "wbx");
+  if (!out)
+    goto done;
+
+  const char *begin = source;
+  if ((size_t)file_size >= 3 && memcmp(begin, "\xef\xbb\xbf", 3) == 0)
+  {
+    if (fwrite(begin, 1, 3, out) != 3)
+      goto done;
+    begin += 3;
+  }
+
+  for (const char *line = begin; *line;)
+  {
+    const char *end = strchr(line, '\n');
+    end = end ? end + 1 : line + strlen(line);
+
+    if (s_tag_catalog_line_is_section(line, end))
+      skip = s_tag_catalog_section_is_flags(line, end);
+
+    if (!skip && fwrite(line, 1, (size_t)(end - line), out) !=
+                     (size_t)(end - line))
+      goto done;
+
+    line = end;
+  }
+
+  fputs("\n[.flags]\n", out);
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    fprintf(out, "tag_%u = ", i);
+    s_tag_catalog_ini_string(out, names[i]);
+    fputc('\n', out);
+  }
+
+  if (ferror(out) || fclose(out) != 0)
+  {
+    out = NULL;
+    goto done;
+  }
+  out = NULL;
+
+  {
+    XIni check = {0};
+    XIniError check_error = {0};
+    if (!x_ini_load_file(temporary.buf, &check, &check_error))
+    {
+      snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+          "Generated project file is invalid: %s",
+          check_error.message ? check_error.message : "INI parse error");
+      goto done;
+    }
+    x_ini_free(&check);
+  }
+
+  if (!x_fs_file_rename(path.buf, backup.buf))
+    goto done;
+  backed_up = true;
+
+  if (!x_fs_file_rename(temporary.buf, path.buf))
+    goto done;
+  installed = true;
+
+  if (!x_fs_file_delete(backup.buf))
+  {
+    ldki_editor_log_warning(editor,
+        "Tag catalog saved, but its temporary backup could not be deleted.");
+  }
+
+  ok = true;
+
+done:
+  if (in)
+    fclose(in);
+  if (out)
+    fclose(out);
+  free(source);
+
+  if (!ok)
+  {
+    if (installed)
+      x_fs_file_delete(path.buf);
+    if (backed_up)
+      x_fs_file_rename(backup.buf, path.buf);
+    x_fs_file_delete(temporary.buf);
+
+    if (!s_tag_catalog.error[0])
+    {
+      snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+          "Failed to save tag catalog.");
+    }
+  }
+
+  return ok;
+}
+
+static bool s_tag_catalog_validate(void)
+{
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    const char *begin = s_tag_catalog.draft[i];
+    const char *end = begin + strlen(begin);
+    while (*begin && isspace((unsigned char)*begin))
+      ++begin;
+    while (end > begin && isspace((unsigned char)end[-1]))
+      --end;
+
+    if (begin == end)
+    {
+      snprintf(s_tag_catalog.error, sizeof(s_tag_catalog.error),
+          "Bit %u must have a tag name.", i);
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool s_tag_catalog_apply(LDKEditorContext *editor)
+{
+  if (!s_tag_catalog_validate())
+    return false;
+
+  if (!s_tag_catalog_manifest_save(editor, s_tag_catalog.draft))
+    return false;
+
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    snprintf(s_tag_catalog.names[i], sizeof(s_tag_catalog.names[i]), "%s",
+        s_tag_catalog.draft[i]);
+  }
+
+  s_tag_catalog.error[0] = 0;
+  ldki_editor_log_info(editor, "Tag catalog saved.");
+  return true;
+}
+
+static void s_tag_catalog_draft_load(LDKEditorContext *editor)
+{
+  if (!s_tag_catalog_cache_load(editor) || s_tag_catalog.draft_loaded)
+    return;
+
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    snprintf(s_tag_catalog.draft[i], sizeof(s_tag_catalog.draft[i]), "%s",
+        s_tag_catalog.names[i]);
+  }
+  s_tag_catalog.error[0] = 0;
+  s_tag_catalog.draft_loaded = true;
+}
+
+static void s_tag_catalog_window_register(LDKEditorContext *editor)
+{
+  if (s_tag_catalog_window_registered || !editor)
+    return;
+
+  LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_TAG_CATALOG,
+      .title = "Tag Catalog",
+      .function = ldki_editor_tag_catalog_show,
+      .data = NULL};
+
+  if (ldk_editor_window_add((LDKEditor *)editor, &window))
+  {
+    s_tag_catalog_window_registered = true;
+    ldki_editor_window_hide(LDK_EDITOR_WINDOW_TAG_CATALOG);
+  }
+}
+
+void ldki_editor_tag_catalog_open(LDKEditorContext *editor)
+{
+  if (!editor)
+    return;
+
+  s_tag_catalog_window_register(editor);
+  ldki_editor_window_show(LDK_EDITOR_WINDOW_TAG_CATALOG);
+}
+
+const char *ldki_editor_tag_name_get(LDKEditorContext *editor, u32 bit)
+{
+  static const char *fallback = "tag";
+
+  if (bit >= LDK_EDITOR_TAG_COUNT || !s_tag_catalog_cache_load(editor))
+    return fallback;
+
+  return s_tag_catalog.names[bit];
+}
+
+void ldki_editor_tag_catalog_sync(LDKEditorContext *editor)
+{
+  if (!editor)
+    return;
+
+  s_tag_catalog_window_register(editor);
+
+  if (!editor->project.loaded)
+  {
+    s_tag_catalog_cache_clear();
+    return;
+  }
+
+  s_tag_catalog_cache_load(editor);
+
+  if (s_tag_catalog.close_requested)
+  {
+    ldki_editor_window_hide(LDK_EDITOR_WINDOW_TAG_CATALOG);
+    s_tag_catalog.close_requested = false;
+  }
+
+  if (!ldki_editor_window_is_open(LDK_EDITOR_WINDOW_TAG_CATALOG))
+  {
+    s_tag_catalog.draft_loaded = false;
+  }
+}
+
+void ldki_editor_tag_catalog_show(LDKEditor *instance, void *data)
+{
+  (void)data;
+  LDKEditorContext *editor = (LDKEditorContext *)instance;
+  LDKUIContext *ui = &editor->ui;
+
+  if (!editor->project.loaded)
+  {
+    ldk_ui_label(ui, "Open a project to edit its tag catalog.");
+    return;
+  }
+
+  s_tag_catalog_draft_load(editor);
+  if (!s_tag_catalog.draft_loaded)
+  {
+    ldk_ui_label(ui, "Tag catalog is unavailable.");
+    return;
+  }
+
+  bool editable = !editor->project_build.active &&
+      editor->editor_state == LDK_EDITOR_STATE_STOPED;
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui,
+      "Names below are editor-only aliases for LDKEntityInfo::flags bits 0-15.\n"
+      "Runtime/game code continues to use the u16 bit mask directly.");
+
+  ldk_ui_begin_disabled(ui, !editable);
+  s_tag_catalog.scroll = ldk_ui_begin_scrollview(
+      ui, s_tag_catalog.scroll,
+      LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  for (u32 i = 0; i < LDK_EDITOR_TAG_COUNT; ++i)
+  {
+    char bit_label[16];
+    snprintf(bit_label, sizeof(bit_label), "Bit %u", i);
+
+    ldk_ui_push_id_u32(ui, i);
+    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
+    ldk_ui_label(ui, bit_label);
+    ldk_ui_input_box(ui, s_tag_catalog.draft[i],
+        (u32)sizeof(s_tag_catalog.draft[i]));
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_pop_id(ui);
+  }
+
+  ldk_ui_end_scrollview(ui);
+
+  if (s_tag_catalog.error[0])
+  {
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, s_tag_catalog.error);
+  }
+
+  if (!editable)
+  {
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui,
+        "Tag catalog editing is available only in STOP, outside a build.");
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool saved = ldk_ui_button(ui, "Save") && s_tag_catalog_apply(editor);
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool canceled = ldk_ui_button(ui, "Cancel");
+  ldk_ui_end_horizontal(ui);
+
+  if (saved || canceled)
+    s_tag_catalog.close_requested = true;
+}
 
 void ldki_editor_scene_catalog_close(LDKEditorContext *editor)
 {
@@ -260,6 +774,8 @@ void ldki_editor_scene_catalog_open(LDKEditorContext *editor)
 
 void ldki_editor_scene_catalog_sync(LDKEditorContext *editor)
 {
+  ldki_editor_tag_catalog_sync(editor);
+
   if (editor->scene_catalog.close_requested)
     ldki_editor_window_hide(LDK_EDITOR_WINDOW_SCENE_CATALOG);
   if (!ldki_editor_window_is_open(LDK_EDITOR_WINDOW_SCENE_CATALOG))
