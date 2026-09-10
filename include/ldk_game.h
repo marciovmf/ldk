@@ -34,6 +34,7 @@
 
 #include <ldk.h>
 #include <editor/ldk_component_metadata.h>
+#include <editor/ldk_system_metadata.h>
 
 #if defined(LDK_GAME_STATIC) && (LDK_EDITOR)
 #error "Incompatible defines: LDK_GAME_STATIC and LDK_EDITOR"
@@ -46,6 +47,13 @@ LDK_GAME_API void game_stop(struct LDKGame* game);
 LDK_GAME_API void game_terminate(struct LDKGame* game);
 LDK_GAME_API u32 game_component_metadata_count(void);
 LDK_GAME_API const LDKComponentMeta* game_component_metadata_get(u32 index);
+
+LDK_GAME_API u32 game_system_metadata_count(void);
+LDK_GAME_API const LDKSystemMeta *game_system_metadata_get(u32 index);
+typedef u32 (*LDKGameSystemMetadataCountFunc)(void);
+typedef const LDKSystemMeta *(*LDKGameSystemMetadataGetFunc)(u32 index);
+#define LDK_GAME_SYSTEM_METADATA_COUNT_NAME "game_system_metadata_count"
+#define LDK_GAME_SYSTEM_METADATA_GET_NAME "game_system_metadata_get"
 
 typedef bool (*LDKGameInitializeFunc)(struct LDKGame* game);
 typedef bool (*LDKGameStartFunc)(struct LDKGame* game);
@@ -95,6 +103,8 @@ typedef struct LDKGame
   LDKGameTerminateFunc  terminate;
   LDKGameComponentMetadataCountFunc metadata_count;
   LDKGameComponentMetadataGetFunc metadata_get;
+  LDKGameSystemMetadataCountFunc system_metadata_count;
+  LDKGameSystemMetadataGetFunc system_metadata_get;
 
 } LDKGame;
 

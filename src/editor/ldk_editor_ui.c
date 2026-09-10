@@ -142,6 +142,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
 
     ldk_ui_set_next_disabled(ui, can_not_build);
+    if (ldk_ui_button_flat(ui, "Scene Catalog..."))
+    {
+      ldki_editor_scene_catalog_open(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, can_not_build);
     if (ldk_ui_button_flat(ui, "Build"))
     {
       ldki_editor_project_build_request(editor);
@@ -684,10 +691,25 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     icon.texture =
         ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
+    ldk_ui_set_next_disabled(
+        ui, !editor->project.loaded ||
+                editor->editor_state != LDK_EDITOR_STATE_STOPED);
+    static const char *const play_sources[] = {
+        "Play Project", "Play Current Scene"};
+    ldk_ui_set_next_width(ui, ldk_ui_px(168.0f));
+    editor->project.play_current_scene =
+        ldk_ui_combo_box(ui, play_sources, 2,
+            editor->project.play_current_scene ? 1 : 0) == 1;
+
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
-      bool can_play = editor->project.loaded;
+      LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+      bool can_play = editor->project.loaded &&
+                      (editor->editor_state == LDK_EDITOR_STATE_PAUSED ||
+                          (editor->project.play_current_scene
+                                  ? editor->current_scene_path.length != 0
+                                  : ldk_scene_manager_count(manager) != 0));
       ldk_ui_set_next_disabled(ui, !can_play);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
 
@@ -698,6 +720,16 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
     else
+    {
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
+      ldk_ui_set_next_weight(ui, 0.0f);
+      if (ldk_ui_icon_button(ui, icon, NULL))
+      {
+        ldk_editor_state_set_stop(editor);
+      }
+    }
+
+    if (editor->editor_state == LDK_EDITOR_STATE_PAUSED)
     {
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
       ldk_ui_set_next_weight(ui, 0.0f);

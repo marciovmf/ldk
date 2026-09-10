@@ -116,6 +116,8 @@ extern "C"
 
 #ifndef LDK_MONOLITHIC
   LDK_API LDKGame *ldk_game_get(void);
+#endif
+#ifdef LDK_MONOLITHIC
   LDK_API bool ldk_game_instance_load_static(void);
 #endif
   LDK_API void ldk_engine_terminate(void); // finalizes the engine

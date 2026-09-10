@@ -170,6 +170,17 @@ typedef struct LDKEditorProjectBuild
   bool cancel_sent;
 } LDKEditorProjectBuild;
 
+typedef struct LDKEditorSceneCatalog
+{
+  LDKScene *scenes;
+  u32 count;
+  u32 selected;
+  bool open;
+  bool close_requested;
+  LDKUIPoint scroll;
+  char error[256];
+} LDKEditorSceneCatalog;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -181,6 +192,7 @@ typedef struct LDKEditorContext
 
   LDKUITextInputState text_input_state;
   LDKProject project;
+  LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
   LDKEntity editor_camera;
@@ -296,6 +308,10 @@ bool ldki_editor_selected_entity_get(
     LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
 
 void ldki_editor_scene_state_sync(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_open(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_close(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_show(LDKEditor *editor, void *data);
+void ldki_editor_scene_catalog_sync(LDKEditorContext *editor);
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
@@ -327,6 +343,8 @@ typedef struct LDKEditorWindow
 u32 ldki_editor_window_count(void);
 const LDKEditorWindow *ldki_editor_window_at(u32 index);
 bool ldki_editor_window_show(LDKEditorWindowId window_id);
+bool ldki_editor_window_is_open(LDKEditorWindowId window_id);
+bool ldki_editor_window_hide(LDKEditorWindowId window_id);
 bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 
 // Stable IDs reserved by the editor. User tools should define their own
@@ -336,6 +354,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
 #define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
+#define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
 
 #endif // LDK_EDITOR_INTERNAL

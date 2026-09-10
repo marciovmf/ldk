@@ -19,6 +19,9 @@
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
 
+#include "src/system/hello.h"
+#include <generated_component_metadata.h>
+
 LDKGame game = {0};
 
 static void s_hello_system_update(void* userdata, float dt)
@@ -28,14 +31,10 @@ static void s_hello_system_update(void* userdata, float dt)
   ldk_log_info("HELLO\n");
 }
 
-static const LDKSystemDesc s_hello_system = {
-  .id = LDK_SYSTEM_ID_USER,
-  .name = "Hello",
-  .flags = LDK_SYSTEM_FLAG_ENABLED,
-  .callbacks = {
-    .update = s_hello_system_update
-  }
-};
+const LDKSystemDesc Hello = {.id = ldk_system_id(Hello),
+    .name = "Hello",
+    .flags = LDK_SYSTEM_FLAG_ENABLED,
+    .callbacks = {.update = s_hello_system_update}};
 
 typedef struct GameData
 {
@@ -45,6 +44,8 @@ typedef struct GameData
   i32 game_height;
 
 }GameData;
+
+static GameData s_game_data;
 
 bool on_window_event(const LDKEvent* event, void* state)
 {
@@ -61,8 +62,9 @@ bool on_window_event(const LDKEvent* event, void* state)
 bool game_initialize(LDKGame* game)
 {
   ldk_log_info("Game initialize!!\n");
+  game->user_data = &s_game_data;
 
-  if (!ldk_ecs_system_register(&s_hello_system))
+  if (!ldk_ecs_system_register(&Hello))
   {
     ldk_log_error("Failed to register Hello system.\n");
     return false;
@@ -76,7 +78,7 @@ bool game_initialize(LDKGame* game)
 bool game_start(LDKGame* game)
 {
   ldk_log_info("Game start\n");
-  GameData* game_data = (GameData*) game;
+  GameData *game_data = (GameData *)game->user_data;
   const LDKConfig* cfg = ldk_engine_config_get();
   game_data->game_width = cfg->resolution_width;
   game_data->game_height = cfg->resolution_height;
@@ -149,7 +151,7 @@ ldk_mesh_source_set_material(&mesh_source, &material);
 
 void game_update(LDKGame* game, float delta_time)
 {
-  GameData* game_data = (GameData*) game;
+  GameData *game_data = (GameData *)game->user_data;
   LDKMouseState mouse_state;
   ldk_input_mouse_state_get(&mouse_state);
 

@@ -19,3 +19,11 @@ title = "My Awesome Game"
 width = 1280
 height = 720
 fullscreen = false
+
+[scenes]
+count = 1
+0.path = base.scene
+0.name = Base
+
+[.editor]
+play_current_scene = false

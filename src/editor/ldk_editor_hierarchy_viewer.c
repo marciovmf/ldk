@@ -1,6 +1,7 @@
 #include "ldk_editor_internal.h"
 #include <component/ldk_transform.h>
 #include <module/ldk_scenegraph.h>
+#include <module/ldk_scene_manager.h>
 #include "ldk_ui_drag_n_drop.h"
 #include <inttypes.h> // for PRIu64
 #include <stdio.h>
@@ -309,10 +310,19 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
 }
 
 static void s_editor_hierarchy_systems_draw(
-    LDKEditorContext *editor, LDKECS *ecs, LDKUIIcon icon)
+    LDKEditorContext *editor, LDKUIIcon icon)
 {
   LDKUIContext *ui = &editor->ui;
   LDKSceneSystems *systems = &editor->current_scene_systems;
+  LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED && manager &&
+      ldk_scene_manager_current(manager))
+  {
+    systems = &manager->current_systems;
+  }
+  LDKGame *game = ldk_game_get();
+  u32 metadata_count =
+      game && game->system_metadata_count ? game->system_metadata_count() : 0;
   static bool systems_expanded = true;
   const LDKUIId ADD_SYSTEM_POPUP = 0x53595341u;
   bool can_edit = editor->project.loaded &&
@@ -338,14 +348,23 @@ static void s_editor_hierarchy_systems_draw(
     for (u32 i = 0; i < systems->count; ++i)
     {
       u64 id = systems->ids[i];
-      LDKSystemDesc desc = {0};
+      const LDKSystemMeta *meta = NULL;
       char label[256];
-      bool found = ldk_system_registry_find_by_id(&ecs->system, id, &desc);
+      for (u32 j = 0; j < metadata_count && game->system_metadata_get; ++j)
+      {
+        const LDKSystemMeta *candidate = game->system_metadata_get(j);
+        if (candidate && candidate->id == id)
+        {
+          meta = candidate;
+          break;
+        }
+      }
+      bool found = meta != NULL;
 
       if (found)
       {
         snprintf(label, sizeof(label), "%s",
-            desc.name != NULL ? desc.name : "<unnamed system>");
+            meta->name != NULL ? meta->name : "<unnamed system>");
       }
       else
       {
@@ -385,24 +404,24 @@ static void s_editor_hierarchy_systems_draw(
   ldk_ui_begin_popup(ui, ADD_SYSTEM_POPUP);
   {
     bool has_available = false;
-    u32 count = ldk_system_registry_count(&ecs->system);
+    u32 count = metadata_count;
 
     for (u32 i = 0; i < count; ++i)
     {
-      LDKSystemDesc desc = {0};
-      if (!ldk_system_registry_at(&ecs->system, i, &desc) ||
-          ldk_scene_systems_contains(systems, desc.id))
+      const LDKSystemMeta *meta =
+          game->system_metadata_get ? game->system_metadata_get(i) : NULL;
+      if (!meta || ldk_scene_systems_contains(systems, meta->id))
       {
         continue;
       }
 
       has_available = true;
-      ldk_ui_push_id_u32(ui, (u32)desc.id);
-      ldk_ui_push_id_u32(ui, (u32)(desc.id >> 32));
-      if (ldk_ui_button_flat(ui,
-              desc.name != NULL ? desc.name : "<unnamed system>"))
+      ldk_ui_push_id_u32(ui, (u32)meta->id);
+      ldk_ui_push_id_u32(ui, (u32)(meta->id >> 32));
+      if (ldk_ui_button_flat(
+              ui, meta->name != NULL ? meta->name : "<unnamed system>"))
       {
-        if (!can_edit || !ldk_scene_systems_add(systems, desc.id))
+        if (!can_edit || !ldk_scene_systems_add(systems, meta->id))
         {
           ldki_editor_log_error(editor, "Failed to associate scene system.");
         }
@@ -418,7 +437,7 @@ static void s_editor_hierarchy_systems_draw(
 
     if (!has_available)
     {
-      ldk_ui_label(ui, "No more registered systems.");
+      ldk_ui_label(ui, "No more systems in game metadata.");
     }
   }
   ldk_ui_end_popup(ui);
@@ -473,7 +492,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   static bool entities_expanded = true;
 
-  s_editor_hierarchy_systems_draw(editor, ecs, icon);
+  s_editor_hierarchy_systems_draw(editor, icon);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
   ldk_ui_push_id_cstr(ui, "entity");

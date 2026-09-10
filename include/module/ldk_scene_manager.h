@@ -20,6 +20,9 @@ typedef struct LDKSceneManagerConfig
   const XFSPath *scenes;
   u32 scene_count;
   XFSPath runtree_path;
+  /* Optional friendly names, parallel to scenes. Empty names use the filename.
+   */
+  const XSmallstr *names;
 } LDKSceneManagerConfig;
 
 typedef struct LDKSceneManager
@@ -54,6 +57,29 @@ LDK_API bool ldk_scene_manager_initialize(LDKSceneManager *manager);
  */
 LDK_API bool ldk_scene_manager_override(
     LDKSceneManager *manager, const LDKSceneManagerConfig *config);
+
+/** Validate editable catalog entries without loading any scene. */
+LDK_API bool ldk_scene_manager_catalog_validate(
+    const LDKScene *scenes, u32 count);
+
+/**
+ * Exchange ownership of catalog arrays while stopped, without touching ECS,
+ * systems or pending scene contents. The caller receives the old catalog and
+ * must free it. The current scene is remapped by path, or detached if removed.
+ * No allocation is performed. On failure neither array changes ownership.
+ */
+LDK_API bool ldk_scene_manager_catalog_exchange(
+    LDKSceneManager *manager, LDKScene **scenes, u32 *count);
+
+/**
+ * Reads [scenes] from a project manifest or runtime INI.
+ * count=N, 0.path=relative.scene, 0.name=Friendly name, ...
+ * Indices are contiguous from zero; names are optional. Paths are relative to
+ * runtree_path. An absent/empty catalog configures no scenes. On parse failure
+ * the existing catalog and scene remain unchanged.
+ */
+LDK_API bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
+    const char *ini_path, const XFSPath *runtree_path, LDKSceneResult *result);
 
 /** Unloads the current scene and frees the copied catalog. */
 LDK_API void ldk_scene_manager_terminate(LDKSceneManager *manager);

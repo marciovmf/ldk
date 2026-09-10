@@ -679,6 +679,7 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 
   ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
+  ldki_editor_scene_catalog_sync(editor);
   ldki_editor_menubar_show(editor);
 
   if (editor->show_input_window)
@@ -861,7 +862,8 @@ static bool s_editor_gui_initialize(
 // Play / Stop
 //----------------------------------------------------------
 
-static void s_editor_scene_missing_systems_report(LDKEditorContext *editor)
+static void s_editor_scene_missing_systems_report(
+    LDKEditorContext *editor, const LDKSceneSystems *systems)
 {
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
 
@@ -870,21 +872,53 @@ static void s_editor_scene_missing_systems_report(LDKEditorContext *editor)
     return;
   }
 
-  for (u32 i = 0; i < editor->current_scene_systems.count; ++i)
+  for (u32 i = 0; i < systems->count; ++i)
   {
-    u64 id = editor->current_scene_systems.ids[i];
+    u64 id = systems->ids[i];
     LDKSystemDesc desc = {0};
 
     if (!ldk_system_registry_find_by_id(&ecs->system, id, &desc))
     {
-      char message[128];
+      char message[256];
+      const char *name = "<unknown>";
+      LDKGame *game = ldk_game_get();
+      if (game && game->system_metadata_count && game->system_metadata_get)
+      {
+        for (u32 j = 0; j < game->system_metadata_count(); ++j)
+        {
+          const LDKSystemMeta *meta = game->system_metadata_get(j);
+          if (meta && meta->id == id)
+          {
+            name = meta->name ? meta->name : name;
+            break;
+          }
+        }
+      }
       snprintf(message, sizeof(message),
-          "Scene references unregistered system 0x%016llx. Skipping.",
-          (unsigned long long)id);
+          "Scene references system %s (0x%016llx), but the game did not "
+          "register it. Skipping.",
+          name, (unsigned long long)id);
       ldki_editor_console_append(
           editor, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
     }
   }
+}
+
+/* Restore the direct editor scene after a session or failed start. */
+static void s_editor_play_scene_restore(LDKEditorContext *editor)
+{
+  XFSPath path = {0};
+  if (editor->current_scene_path.length)
+  {
+    x_fs_path(&path, editor->project.run_root_path.buf,
+        editor->current_scene_path.buf);
+    x_fs_path_normalize(&path);
+    if (ldki_editor_scene_load(editor, &path))
+    {
+      return;
+    }
+  }
+  ldki_editor_scene_clear(editor);
 }
 
 /** Change Editor mode to PLAY. */
@@ -924,21 +958,47 @@ static bool s_editor_state_set_play(LDKEditorContext *editor)
     return false;
   }
 
-  s_editor_scene_missing_systems_report(editor);
-
-  /* Direct editor scenes remain independent from the Scene Manager catalog.
-   * Their associations are started explicitly before the game session. */
-  if (!ldk_scene_systems_start(
-          &ecs->system, &editor->current_scene_systems))
+  LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (editor->project.play_current_scene)
   {
-    ldk_scene_systems_stop_missing(&ecs->system, NULL);
-    ldki_editor_log_error(editor, "Failed to initialize scene systems.");
-    return false;
+    if (editor->current_scene_path.length == 0)
+    {
+      ldki_editor_log_error(editor, "Open a scene before Play Current Scene.");
+      return false;
+    }
+    /* Use the scene already open in the editor, including unsaved edits.
+     * It remains independent of the project catalog. */
+    if (!ldk_scene_manager_current_reset(manager))
+    {
+      return false;
+    }
+    s_editor_scene_missing_systems_report(
+        editor, &editor->current_scene_systems);
+    if (!ldk_scene_systems_start(&ecs->system, &editor->current_scene_systems))
+    {
+      ldk_scene_systems_stop_missing(&ecs->system, NULL);
+      ldki_editor_log_error(editor, "Failed to initialize scene systems.");
+      s_editor_play_scene_restore(editor);
+      return false;
+    }
+  }
+  else
+  {
+    LDKSceneResult result;
+    if (!ldk_scene_manager_load(manager, 0, &result))
+    {
+      ldki_editor_log_error(editor, result.error);
+      /* A failed load may have cleared the ECS after its preflight. */
+      s_editor_play_scene_restore(editor);
+      return false;
+    }
+    s_editor_scene_missing_systems_report(editor, &manager->current_systems);
   }
 
   if (!ldk_game_instance_start())
   {
     ldk_scene_systems_stop_missing(&ecs->system, NULL);
+    s_editor_play_scene_restore(editor);
     return false;
   }
 
@@ -1049,6 +1109,7 @@ static bool s_project_editor_game_dll_path_get(
 
 static bool s_project_unload(LDKEditorContext *editor)
 {
+  ldki_editor_scene_catalog_close(editor);
   XFSPath editor_game_dll_path = {0};
   bool has_editor_game_dll_path;
 
@@ -1149,19 +1210,12 @@ static bool s_project_load(
 
   LDKSceneManager *scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
 
-  // TODO: This is hardcoded for now. This should become an asset we load in
-  // runtime or somethign we request from the game module.
-  LDKSceneManagerConfig scene_config = {0};
-  static XFSPath scene0 = {0};
-  scene_config.scene_count = 1;
-  scene_config.scenes = &scene0;
-  x_fs_path_join(&scene0, "scenes", "default.tml");
-  x_fs_path_set(&scene_config.runtree_path, editor->project.run_root_path.buf);
-
-  if (!ldk_scene_manager_override(scene_manager, &scene_config))
+  LDKSceneResult scene_result;
+  if (!ldk_scene_manager_configure_file(scene_manager,
+          editor->project.project_file_path.buf, &editor->project.run_root_path,
+          &scene_result))
   {
-    ldk_log_error("Failed to configure Scene Manager for project '%s'.\n",
-        editor->project.name.buf);
+    ldki_editor_log_error(editor, scene_result.error);
     goto fail;
   }
 
@@ -1818,6 +1872,7 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  ldki_editor_scene_catalog_close(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   ldk_scene_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
@@ -2263,6 +2318,19 @@ static i32 s_editor_main(const char *project_file_path)
     ldk_engine_terminate();
     return 1;
   }
+
+  LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
+      .title = "Scene Catalog",
+      .function = ldki_editor_scene_catalog_show,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &catalog_window))
+  {
+    ldk_log_error("Failed to register the Scene Catalog editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_SCENE_CATALOG);
 
   if (!ldk_editor_dock_init(editor))
   {

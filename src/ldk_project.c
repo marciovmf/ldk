@@ -1,5 +1,6 @@
 #include <ldk_common.h>
 #include <ldk_project.h>
+#include <module/ldk_scene_manager.h>
 
 #ifdef LDK_EDITOR
 #include <ldk_os.h>
@@ -11,6 +12,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifndef LDK_PROJECT_DEFAULT_CMAKE_GENERATOR
 #define LDK_PROJECT_DEFAULT_CMAKE_GENERATOR "Visual Studio 18 2026"
@@ -164,6 +166,10 @@ static bool s_line_is_private_section(const char *line, bool *out_is_section)
   }
 
   p = line;
+  if (strncmp(p, "\xef\xbb\xbf", 3) == 0)
+  {
+    p += 3;
+  }
   while (*p && isspace((unsigned char)*p))
   {
     p++;
@@ -307,9 +313,13 @@ static void s_project_append_game_cmake_text(XStrBuilder *builder)
       "  \"\"\n"
       ")\n\n");
   x_strbuilder_append(builder, "# Where to look for game components\n");
+  x_strbuilder_append(builder, "list(APPEND LDK_GAME_COMPONENT_DIRS\n"
+                               "  \"${OPTION_GAME_DIR}/components\"\n"
+                               ")\n\n");
   x_strbuilder_append(builder,
-      "list(APPEND LDK_GAME_COMPONENT_DIRS\n"
-      "  \"${OPTION_GAME_DIR}/components\"\n"
+      "# Where to look for annotated system declarations\n"
+      "list(APPEND LDK_GAME_SYSTEM_DIRS\n"
+      "  \"${OPTION_GAME_DIR}/systems\"\n"
       ")\n\n");
 }
 
@@ -554,6 +564,9 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
       LDK_PROJECT_DEFAULT_CMAKE_GENERATOR);
   cmake_arch = x_ini_get(&ini, ".project", "project_cmake_arch", "");
 
+  project->play_current_scene =
+      x_ini_get_bool(&ini, ".editor", "play_current_scene", false);
+
   project->project_resolution_width =
       x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
   project->project_resolution_height =
@@ -626,6 +639,234 @@ bool ldk_project_write_runtime_ini(const LDKProject *project)
 
   fclose(out_file);
   fclose(in_file);
+  return ok;
+}
+
+typedef struct LDKCatalogFile
+{
+  XFSPath path;
+  XFSPath temporary;
+  XFSPath backup;
+  bool backed_up;
+  bool installed;
+} LDKCatalogFile;
+
+static bool s_catalog_file_prepare(LDKCatalogFile *file, const XFSPath *path)
+{
+  file->path = *path;
+  if (x_fs_path_exists_cstr(path->buf) && !x_fs_path_is_file(path))
+  {
+    return false;
+  }
+  if (strlen(path->buf) + strlen(".scene-catalog.tmp") >=
+      sizeof(file->temporary.buf))
+  {
+    return false;
+  }
+  char buffer[sizeof(file->temporary.buf)];
+  size_t length = strlen(path->buf);
+  memcpy(buffer, path->buf, length);
+  memcpy(buffer + length, ".scene-catalog.tmp", sizeof(".scene-catalog.tmp"));
+  x_fs_path_set(&file->temporary, buffer);
+  memcpy(buffer + length, ".scene-catalog.bak", sizeof(".scene-catalog.bak"));
+  x_fs_path_set(&file->backup, buffer);
+  return !x_fs_path_exists_cstr(file->temporary.buf) &&
+         !x_fs_path_exists_cstr(file->backup.buf);
+}
+
+static bool s_catalog_file_install(LDKCatalogFile *file)
+{
+  if (x_fs_path_exists_cstr(file->path.buf))
+  {
+    if (!x_fs_file_rename(file->path.buf, file->backup.buf))
+    {
+      return false;
+    }
+    file->backed_up = true;
+  }
+  file->installed = x_fs_file_rename(file->temporary.buf, file->path.buf);
+  return file->installed;
+}
+
+static bool s_catalog_file_rollback(LDKCatalogFile *file)
+{
+  if (file->installed && !x_fs_file_delete(file->path.buf))
+  {
+    return false;
+  }
+  return !file->backed_up || x_fs_file_rename(file->backup.buf, file->path.buf);
+}
+
+static void s_catalog_ini_string(FILE *out, const char *text)
+{
+  fputc('"', out);
+  for (; *text; ++text)
+  {
+    switch (*text)
+    {
+    case '\\':
+      fputs("\\\\", out);
+      break;
+    case '"':
+      fputs("\\\"", out);
+      break;
+    case '\n':
+      fputs("\\n", out);
+      break;
+    case '\r':
+      break;
+    case '\t':
+      fputs("\\t", out);
+      break;
+    default:
+      fputc((unsigned char)*text, out);
+      break;
+    }
+  }
+  fputc('"', out);
+}
+
+bool ldk_project_scene_catalog_save(const LDKProject *project,
+    const LDKScene *scenes, u32 count, LDKSceneResult *result)
+{
+  LDKCatalogFile manifest = {0}, runtime = {0};
+  FILE *in = NULL, *out = NULL;
+  char *source = NULL;
+  bool ok = false, skip = false;
+  bool manifest_temp = false, runtime_temp = false;
+  ldk_scene_result_clear(result);
+  if (!project || !project->loaded ||
+      !ldk_scene_manager_catalog_validate(scenes, count))
+  {
+    ldk_scene_result_set_error(result, "Invalid scene catalog.");
+    return false;
+  }
+  if (!s_catalog_file_prepare(&manifest, &project->project_file_path) ||
+      !s_catalog_file_prepare(&runtime, &project->runtime_ini_path))
+  {
+    ldk_scene_result_set_error(result,
+        "Catalog save blocked: invalid target/path or .scene-catalog.tmp/.bak "
+        "already exists. Preserve/recover those files before retrying.");
+    return false;
+  }
+  in = fopen(manifest.path.buf, "rb");
+  if (!in || fseek(in, 0, SEEK_END) != 0)
+  {
+    goto done;
+  }
+  long size = ftell(in);
+  if (size < 0 || (source = malloc((size_t)size + 1)) == NULL ||
+      fseek(in, 0, SEEK_SET) != 0 ||
+      fread(source, 1, (size_t)size, in) != (size_t)size)
+  {
+    goto done;
+  }
+  source[size] = 0;
+  fclose(in);
+  in = NULL;
+  out = fopen(manifest.temporary.buf, "wbx");
+  if (!out)
+  {
+    goto done;
+  }
+  manifest_temp = true;
+  const char *begin = source;
+  if ((size_t)size >= 3 && memcmp(begin, "\xef\xbb\xbf", 3) == 0)
+  {
+    if (fwrite(begin, 1, 3, out) != 3)
+      goto done;
+    begin += 3;
+  }
+  /* Keep all bytes outside [scenes], including comments and line endings. */
+  for (const char *line = begin; *line;)
+  {
+    const char *end = strchr(line, '\n');
+    end = end ? end + 1 : line + strlen(line);
+    const char *p = line;
+    while (p < end && (*p == ' ' || *p == '\t'))
+      ++p;
+    if (p < end && *p == '[')
+    {
+      const char *close = memchr(p, ']', (size_t)(end - p));
+      if (close)
+      {
+        ++p;
+        while (p < close && isspace((unsigned char)*p))
+          ++p;
+        while (close > p && isspace((unsigned char)close[-1]))
+          --close;
+        skip = close - p == 6 && memcmp(p, "scenes", 6) == 0;
+      }
+    }
+    if (!skip &&
+        fwrite(line, 1, (size_t)(end - line), out) != (size_t)(end - line))
+      goto done;
+    line = end;
+  }
+  fprintf(out, "\n[scenes]\ncount = %u\n", count);
+  for (u32 i = 0; i < count; ++i)
+  {
+    fprintf(out, "%u.path = ", i);
+    s_catalog_ini_string(out, scenes[i].path.buf);
+    fprintf(out, "\n%u.name = ", i);
+    s_catalog_ini_string(out, scenes[i].name.buf);
+    fputc('\n', out);
+  }
+  bool write_ok = !ferror(out);
+  if (fclose(out) != 0)
+    write_ok = false;
+  out = NULL;
+  if (!write_ok)
+    goto done;
+  XIni check = {0};
+  XIniError check_error = {0};
+  if (!x_ini_load_file(manifest.temporary.buf, &check, &check_error))
+    goto done;
+  x_ini_free(&check);
+  in = fopen(manifest.temporary.buf, "rb");
+  out = fopen(runtime.temporary.buf, "wbx");
+  runtime_temp = out != NULL;
+  if (!in || !out || !s_copy_runtime_sections(in, out) || ferror(in) ||
+      ferror(out))
+    goto done;
+  write_ok = fclose(out) == 0;
+  out = NULL;
+  fclose(in);
+  in = NULL;
+  if (!write_ok)
+    goto done;
+
+  if (!s_catalog_file_install(&manifest) || !s_catalog_file_install(&runtime))
+  {
+    bool runtime_ok = s_catalog_file_rollback(&runtime);
+    bool manifest_ok = s_catalog_file_rollback(&manifest);
+    if (!runtime_ok || !manifest_ok)
+    {
+      ldk_scene_result_set_error(result,
+          "Catalog save/rollback failed. Recover the originals from the "
+          ".scene-catalog.bak files; the in-memory catalog was not changed.");
+    }
+    goto done;
+  }
+  ok = true;
+  if (manifest.backed_up)
+    x_fs_file_delete(manifest.backup.buf);
+  if (runtime.backed_up)
+    x_fs_file_delete(runtime.backup.buf);
+done:
+  if (in)
+    fclose(in);
+  if (out)
+    fclose(out);
+  free(source);
+  if (manifest_temp)
+    x_fs_file_delete(manifest.temporary.buf);
+  if (runtime_temp)
+    x_fs_file_delete(runtime.temporary.buf);
+  if (!ok && (!result || result->ok))
+  {
+    ldk_scene_result_set_error(result, "Failed to save scene catalog files.");
+  }
   return ok;
 }
 

@@ -404,6 +404,8 @@ void s_game_instance_init_default(LDKGame *game)
   game->terminate = s_stub_game_terminate;
   game->metadata_count = NULL;
   game->metadata_get = NULL;
+  game->system_metadata_count = NULL;
+  game->system_metadata_get = NULL;
 }
 
 #ifdef LDK_MONOLITHIC
@@ -425,6 +427,10 @@ bool ldk_game_instance_load_static(void)
   game->update = game_update;
   game->stop = game_stop;
   game->terminate = game_terminate;
+  game->metadata_count = game_component_metadata_count;
+  game->metadata_get = game_component_metadata_get;
+  game->system_metadata_count = game_system_metadata_count;
+  game->system_metadata_get = game_system_metadata_get;
 
   return true;
 }
@@ -515,7 +521,20 @@ bool ldk_game_instance_load_from_shared_lib(const char *path)
         "Game module does not export LDK_GAME_COMPONENT_METADATA_COUNT_NAME\n");
   }
 
-  if (!game->metadata_get || !game->metadata_count)
+  game->system_metadata_count =
+      (LDKGameSystemMetadataCountFunc)ldk_os_library_fuction_ptr_get(
+          lib, LDK_GAME_SYSTEM_METADATA_COUNT_NAME);
+  game->system_metadata_get =
+      (LDKGameSystemMetadataGetFunc)ldk_os_library_fuction_ptr_get(
+          lib, LDK_GAME_SYSTEM_METADATA_GET_NAME);
+  if (!game->system_metadata_count || !game->system_metadata_get)
+  {
+    ldk_log_error(
+        "Game module is missing system metadata. Rebuild the game.\n");
+  }
+
+  if (!game->metadata_get || !game->metadata_count ||
+      !game->system_metadata_count || !game->system_metadata_get)
   {
     if (!ldk_os_library_unload(lib))
     {
