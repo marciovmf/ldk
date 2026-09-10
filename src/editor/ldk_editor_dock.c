@@ -329,6 +329,13 @@ const LDKEditorWindow *ldki_editor_window_at(u32 index)
   return &s_editor_dock.windows[index].window;
 }
 
+bool ldki_editor_window_is_open(LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+      s_editor_dock_window_get(&s_editor_dock, window_id);
+  return window != NULL && window->open;
+}
+
 bool ldki_editor_window_show(LDKEditorWindowId window_id)
 {
   LDKEditorDockWindow *window =
@@ -742,6 +749,18 @@ static bool s_editor_dock_window_detach(
   if (leaf->data.leaf.window_count == 0)
     s_editor_dock_empty_leaf_collapse(dock, leaf_index);
   s_editor_dock_window_locations_refresh(dock);
+  return true;
+}
+
+bool ldki_editor_window_hide(LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+      s_editor_dock_window_get(&s_editor_dock, window_id);
+  if (!window || !s_editor_dock_window_detach(&s_editor_dock, window_id))
+    return false;
+  window->open = false;
+  if (s_editor_dock.drag.window == window_id)
+    s_editor_dock_drag_reset(&s_editor_dock.drag);
   return true;
 }
 

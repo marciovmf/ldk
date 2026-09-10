@@ -116,6 +116,8 @@ extern "C"
 
 #ifndef LDK_MONOLITHIC
   LDK_API LDKGame *ldk_game_get(void);
+#endif
+#ifdef LDK_MONOLITHIC
   LDK_API bool ldk_game_instance_load_static(void);
 #endif
   LDK_API void ldk_engine_terminate(void); // finalizes the engine
@@ -124,6 +126,20 @@ extern "C"
   LDK_API bool ldk_game_instance_load_from_shared_lib(const char *path);
   LDK_API bool ldk_game_instance_initialize(void);
   LDK_API bool ldk_game_instance_start(void);
+
+  /**
+   * Stop gameplay without unloading the game module or clearing the ECS.
+   * The editor may then reload the original scene from disk. A stop requested
+   * during an update is completed at the safe frame boundary.
+   */
+  LDK_API bool ldk_game_instance_stop(void);
+  LDK_API bool ldk_game_instance_pause(void);
+  LDK_API bool ldk_game_instance_resume(void);
+  LDK_API bool ldk_game_instance_step(void);
+  LDK_API bool ldk_game_instance_is_started(void);
+  LDK_API bool ldk_game_instance_is_paused(void);
+  LDK_API bool ldk_game_instance_is_stepping(void);
+  LDK_API bool ldk_game_instance_is_updating(void);
   LDK_API void ldk_game_instance_terminate(void);
   LDK_API bool ldk_game_instance_unload(void);
   LDK_API LDKGame *ldk_game_get(void);

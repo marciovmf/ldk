@@ -11,6 +11,7 @@
 #include <component/ldk_transform.h>
 
 #include <module/ldk_system.h>
+#include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
@@ -39,6 +40,11 @@ struct LDKRoot
   XLogger logger;
   i32 exit_code;
   bool running;
+  bool game_started;
+  bool game_paused;
+  bool game_step_requested;
+  bool game_updating;
+  bool game_stop_requested;
   LDKWindow window;
   LDKGCtx graphics;
   u64 previous_ticks;
@@ -314,11 +320,12 @@ static void s_terminate_all_modules(LDKRoot *e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
 
+  /* Scene Manager owns scene state backed by the ECS. */
+  ldk_scene_manager_terminate(&e->scene_manager);
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
   ldk_renderer_terminate(&e->renderer);
   ldk_asset_manager_terminate(&e->asset_manager);
-  ldk_scene_manager_terminate(&e->scene_manager);
   ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
@@ -397,6 +404,8 @@ void s_game_instance_init_default(LDKGame *game)
   game->terminate = s_stub_game_terminate;
   game->metadata_count = NULL;
   game->metadata_get = NULL;
+  game->system_metadata_count = NULL;
+  game->system_metadata_get = NULL;
 }
 
 #ifdef LDK_MONOLITHIC
@@ -418,6 +427,10 @@ bool ldk_game_instance_load_static(void)
   game->update = game_update;
   game->stop = game_stop;
   game->terminate = game_terminate;
+  game->metadata_count = game_component_metadata_count;
+  game->metadata_get = game_component_metadata_get;
+  game->system_metadata_count = game_system_metadata_count;
+  game->system_metadata_get = game_system_metadata_get;
 
   return true;
 }
@@ -508,7 +521,20 @@ bool ldk_game_instance_load_from_shared_lib(const char *path)
         "Game module does not export LDK_GAME_COMPONENT_METADATA_COUNT_NAME\n");
   }
 
-  if (!game->metadata_get || !game->metadata_count)
+  game->system_metadata_count =
+      (LDKGameSystemMetadataCountFunc)ldk_os_library_fuction_ptr_get(
+          lib, LDK_GAME_SYSTEM_METADATA_COUNT_NAME);
+  game->system_metadata_get =
+      (LDKGameSystemMetadataGetFunc)ldk_os_library_fuction_ptr_get(
+          lib, LDK_GAME_SYSTEM_METADATA_GET_NAME);
+  if (!game->system_metadata_count || !game->system_metadata_get)
+  {
+    ldk_log_error(
+        "Game module is missing system metadata. Rebuild the game.\n");
+  }
+
+  if (!game->metadata_get || !game->metadata_count ||
+      !game->system_metadata_count || !game->system_metadata_get)
   {
     if (!ldk_os_library_unload(lib))
     {
@@ -606,6 +632,10 @@ bool ldk_game_instance_initialize(void)
   }
 
   e->game.initialized = true;
+  e->game_started = false;
+  e->game_paused = false;
+  e->game_step_requested = false;
+  e->game_stop_requested = false;
   return true;
 }
 
@@ -620,7 +650,8 @@ void ldk_game_instance_terminate(void)
     return;
   }
 
-  if (!ldk_ecs_system_registry_stop(&e->ecs))
+  if (!ldk_game_instance_stop() ||
+      !ldk_ecs_system_registry_stop(&e->ecs))
   {
     ldk_log_error(
         "Failed to stop ECS system registry before game termination.\n");
@@ -639,12 +670,7 @@ bool ldk_game_instance_unload(void)
 
   X_ASSERT(g_engine_initialized);
 
-  if (!ldk_scene_manager_override(&e->scene_manager, NULL))
-  {
-    ldk_log_error("Failed to clear Scene Manager before unloading game.\n");
-    return false;
-  }
-
+  /* Game-owned data and callbacks must be released before their ECS is gone. */
   if (e->game.initialized)
   {
     ldk_game_instance_terminate();
@@ -655,6 +681,12 @@ bool ldk_game_instance_unload(void)
   }
   else if (!ldk_ecs_system_registry_stop(&e->ecs))
   {
+    return false;
+  }
+
+  if (!ldk_scene_manager_override(&e->scene_manager, NULL))
+  {
+    ldk_log_error("Failed to clear Scene Manager before unloading game.\n");
     return false;
   }
 
@@ -675,6 +707,10 @@ bool ldk_game_instance_unload(void)
     s_game_instance_init_default(&e->game);
   }
 
+  e->game_started = false;
+  e->game_paused = false;
+  e->game_step_requested = false;
+  e->game_stop_requested = false;
   return result;
 }
 
@@ -694,9 +730,191 @@ bool ldk_engine_is_initialized(void)
 
 bool ldk_game_instance_start(void)
 {
-  LDK_ASSERT(g_engine_initialized);
   LDKRoot *e = &g_engine;
-  return e->game.start(&e->game);
+  bool ok;
+  bool game_start_called = false;
+
+  LDK_ASSERT(g_engine_initialized);
+
+  if (!e->game.initialized || !e->ecs.system.is_started ||
+      ldk_game_instance_is_updating())
+  {
+    return false;
+  }
+
+  if (e->game_started)
+  {
+    return true;
+  }
+
+  e->game_started = true;
+  e->game_paused = true;
+  e->game_step_requested = false;
+  e->game_stop_requested = false;
+  e->game_updating = true;
+
+  ok = ldk_scene_systems_start(
+      &e->ecs.system, &e->scene_manager.current_systems);
+  if (ok && !e->game_stop_requested)
+  {
+    game_start_called = true;
+    ok = e->game.start(&e->game);
+  }
+
+  if (!ok || e->game_stop_requested)
+  {
+    /* A failed initializer did not call game_start. */
+    if (game_start_called)
+    {
+      e->game.stop(&e->game);
+    }
+
+    e->game_updating = false;
+    e->game_started = false;
+    e->game_paused = false;
+    ldk_scene_systems_stop_missing(&e->ecs.system, NULL);
+    ldk_system_registry_pause(&e->ecs.system);
+    ldk_scene_manager_pending_clear(&e->scene_manager);
+    e->game_stop_requested = false;
+    return false;
+  }
+
+  e->game_updating = false;
+  e->game_paused = false;
+  if (!ldk_system_registry_resume(&e->ecs.system))
+  {
+    ldk_game_instance_stop();
+    return false;
+  }
+
+  /* Scene requests made by game_start are applied after its callback. */
+  if (!ldk_scene_manager_process_pending(&e->scene_manager) &&
+      !e->game_started)
+  {
+    return false;
+  }
+
+  return e->game_started;
+}
+
+bool ldk_game_instance_stop(void)
+{
+  LDKRoot *e = &g_engine;
+  bool ok = true;
+
+  if (!g_engine_initialized)
+  {
+    return false;
+  }
+
+  if (ldk_game_instance_is_updating())
+  {
+    e->game_stop_requested = true;
+    return true;
+  }
+
+  e->game_stop_requested = false;
+  e->game_step_requested = false;
+  ldk_scene_manager_pending_clear(&e->scene_manager);
+
+  if (e->game_started)
+  {
+    e->game_started = false;
+    e->game_updating = true;
+    e->game.stop(&e->game);
+    e->game_updating = false;
+  }
+
+  if (e->ecs.system.is_started)
+  {
+    ok = ldk_scene_systems_stop_missing(&e->ecs.system, NULL);
+    if (ok)
+    {
+      ok = ldk_system_registry_pause(&e->ecs.system);
+    }
+  }
+
+  ldk_scene_manager_pending_clear(&e->scene_manager);
+  e->game_paused = false;
+  e->game_stop_requested = false;
+  return ok;
+}
+
+bool ldk_game_instance_pause(void)
+{
+  LDKRoot *e = &g_engine;
+
+  if (!g_engine_initialized || !e->game_started)
+  {
+    return false;
+  }
+
+  if (!ldk_game_instance_is_updating() &&
+      !ldk_system_registry_pause(&e->ecs.system))
+  {
+    return false;
+  }
+
+  e->game_paused = true;
+  e->game_step_requested = false;
+  return true;
+}
+
+bool ldk_game_instance_resume(void)
+{
+  LDKRoot *e = &g_engine;
+
+  if (!g_engine_initialized || !e->game_started)
+  {
+    return false;
+  }
+
+  if (!ldk_game_instance_is_updating() &&
+      !ldk_system_registry_resume(&e->ecs.system))
+  {
+    return false;
+  }
+
+  e->game_paused = false;
+  e->game_step_requested = false;
+  return true;
+}
+
+bool ldk_game_instance_step(void)
+{
+  LDKRoot *e = &g_engine;
+
+  if (!g_engine_initialized || !e->game_started || !e->game_paused ||
+      ldk_game_instance_is_updating())
+  {
+    return false;
+  }
+
+  e->game_step_requested = true;
+  return true;
+}
+
+bool ldk_game_instance_is_started(void)
+{
+  return g_engine_initialized && g_engine.game_started;
+}
+
+bool ldk_game_instance_is_paused(void)
+{
+  return g_engine_initialized && g_engine.game_started &&
+         g_engine.game_paused;
+}
+
+bool ldk_game_instance_is_stepping(void)
+{
+  return g_engine_initialized && g_engine.game_step_requested;
+}
+
+bool ldk_game_instance_is_updating(void)
+{
+  return g_engine_initialized &&
+         (g_engine.game_updating ||
+          ldk_system_registry_is_busy(&g_engine.ecs.system));
 }
 
 void *ldk_module_get(LDKModuleType module_type)
@@ -954,19 +1172,84 @@ void ldk_engine_frame(void)
   e->previous_ticks = current_ticks;
   LDKSize window_size = ldk_os_window_client_area_size_get(e->window);
 
+  e->game_updating = true;
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_UPDATE_BEFORE, current_ticks, delta_time);
   { // Update simulation
-    ldk_ecs_system_bucket_run(
-        &e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
+    bool step = e->game_step_requested;
+    bool tick = e->game_started && !e->game_stop_requested &&
+                (!e->game_paused || step);
 
-    e->game.update(&e->game, delta_time);
+    if (tick)
+    {
+      if (!ldk_system_registry_resume(&e->ecs.system))
+      {
+        e->game_stop_requested = true;
+        tick = false;
+      }
+    }
+    else if (e->game_started && e->ecs.system.is_started)
+    {
+      ldk_system_registry_pause(&e->ecs.system);
+    }
+
+    /* No gameplay bucket runs outside a session. The scenegraph and renderer
+     * remain available to the editor independently of gameplay systems. */
+    if (e->game_started && !e->game_stop_requested &&
+        e->ecs.system.is_started)
+    {
+      ldk_ecs_system_bucket_run(
+          &e->ecs, LDK_SYSTEM_BUCKET_PRE_UPDATE, delta_time);
+    }
+
+    if (tick && !e->game_stop_requested)
+    {
+      e->game.update(&e->game, delta_time);
+    }
 
     ldk_scenegraph_update(delta_time); // Update scenegraph
-    ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
-    ldk_ecs_system_bucket_run(
-        &e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
+
+    if (e->game_started && !e->game_stop_requested &&
+        e->ecs.system.is_started)
+    {
+      ldk_ecs_system_bucket_run(&e->ecs, LDK_SYSTEM_BUCKET_UPDATE, delta_time);
+      if (!e->game_stop_requested)
+      {
+        ldk_ecs_system_bucket_run(
+            &e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
+      }
+    }
+
+    if (step)
+    {
+      e->game_step_requested = false;
+      if (e->ecs.system.is_started)
+      {
+        ldk_system_registry_pause(&e->ecs.system);
+      }
+    }
   }
+  e->game_updating = false;
+
+  if (e->game_stop_requested)
+  {
+    ldk_game_instance_stop();
+  }
+  else
+  {
+    bool transition_ok =
+        ldk_scene_manager_process_pending(&e->scene_manager);
+
+    if (e->game_stop_requested)
+    {
+      ldk_game_instance_stop();
+    }
+    else if (!transition_ok && !e->game_started)
+    {
+      ldk_log_error("Scene transition stopped the game session.\n");
+    }
+  }
+
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_UPDATE_AFTER, current_ticks, delta_time);
 

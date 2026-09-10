@@ -19,7 +19,23 @@
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
 
+#include "src/system/hello.h"
+#include <generated_component_metadata.h>
+
 LDKGame game = {0};
+
+static void s_hello_system_update(void* userdata, float dt)
+{
+  (void)userdata;
+  (void)dt;
+  ldk_log_info("HELLO\n");
+}
+
+const LDKSystemDesc Hello = {.id = ldk_system_id(Hello),
+    .name = "Hello",
+    .flags = LDK_SYSTEM_FLAG_ENABLED,
+    .callbacks = {.update = s_hello_system_update}};
+
 typedef struct GameData
 {
   LDKEntity cube_entity_0; 
@@ -28,6 +44,8 @@ typedef struct GameData
   i32 game_height;
 
 }GameData;
+
+static GameData s_game_data;
 
 bool on_window_event(const LDKEvent* event, void* state)
 {
@@ -44,6 +62,14 @@ bool on_window_event(const LDKEvent* event, void* state)
 bool game_initialize(LDKGame* game)
 {
   ldk_log_info("Game initialize!!\n");
+  game->user_data = &s_game_data;
+
+  if (!ldk_ecs_system_register(&Hello))
+  {
+    ldk_log_error("Failed to register Hello system.\n");
+    return false;
+  }
+
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_add(q, on_window_event, LDK_EVENT_TYPE_WINDOW, NULL);
   return true;
@@ -52,7 +78,7 @@ bool game_initialize(LDKGame* game)
 bool game_start(LDKGame* game)
 {
   ldk_log_info("Game start\n");
-  GameData* game_data = (GameData*) game;
+  GameData *game_data = (GameData *)game->user_data;
   const LDKConfig* cfg = ldk_engine_config_get();
   game_data->game_width = cfg->resolution_width;
   game_data->game_height = cfg->resolution_height;
@@ -114,7 +140,7 @@ ldk_material_desc_defaults(
 material.args.textured.texture = image;
 
 ldk_mesh_source_set_material(&mesh_source, &material);
-  
+
   ldk_ecs_component_add(cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
   ldk_ecs_component_add(cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
 
@@ -125,7 +151,7 @@ ldk_mesh_source_set_material(&mesh_source, &material);
 
 void game_update(LDKGame* game, float delta_time)
 {
-  GameData* game_data = (GameData*) game;
+  GameData *game_data = (GameData *)game->user_data;
   LDKMouseState mouse_state;
   ldk_input_mouse_state_get(&mouse_state);
 

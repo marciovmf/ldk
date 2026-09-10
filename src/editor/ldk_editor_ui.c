@@ -7,6 +7,7 @@
 #include <ldk_mesh.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <module/ldk_scene_manager.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
 #include <stddef.h>
@@ -141,6 +142,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
 
     ldk_ui_set_next_disabled(ui, can_not_build);
+    if (ldk_ui_button_flat(ui, "Scene Catalog..."))
+    {
+      ldki_editor_scene_catalog_open(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, can_not_build);
     if (ldk_ui_button_flat(ui, "Build"))
     {
       ldki_editor_project_build_request(editor);
@@ -200,8 +208,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(ui, !can_add);
     if (ldk_ui_button_flat(ui, "Add Capsule"))
     {
-      ldki_editor_scene_add_primitive(
-          editor, LDK_MESH_PRIMITIVE_CAPSULE, "Capsule");
+      ldki_editor_scene_add_primitive(editor, LDK_MESH_PRIMITIVE_CAPSULE, "Capsule");
       ldk_ui_close_current_popup(ui);
     }
 
@@ -684,10 +691,25 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     icon.texture =
         ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
 
+    ldk_ui_set_next_disabled(
+        ui, !editor->project.loaded ||
+                editor->editor_state != LDK_EDITOR_STATE_STOPED);
+    static const char *const play_sources[] = {
+        "Play Project", "Play Current Scene"};
+    ldk_ui_set_next_width(ui, ldk_ui_px(168.0f));
+    editor->project.play_current_scene =
+        ldk_ui_combo_box(ui, play_sources, 2,
+            editor->project.play_current_scene ? 1 : 0) == 1;
+
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
-      bool can_play = editor->project.loaded;
+      LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+      bool can_play = editor->project.loaded &&
+                      (editor->editor_state == LDK_EDITOR_STATE_PAUSED ||
+                          (editor->project.play_current_scene
+                                  ? editor->current_scene_path.length != 0
+                                  : ldk_scene_manager_count(manager) != 0));
       ldk_ui_set_next_disabled(ui, !can_play);
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_PLAY];
 
@@ -698,6 +720,16 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
     else
+    {
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
+      ldk_ui_set_next_weight(ui, 0.0f);
+      if (ldk_ui_icon_button(ui, icon, NULL))
+      {
+        ldk_editor_state_set_stop(editor);
+      }
+    }
+
+    if (editor->editor_state == LDK_EDITOR_STATE_PAUSED)
     {
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_STOP];
       ldk_ui_set_next_weight(ui, 0.0f);
@@ -824,6 +856,7 @@ void ldki_editor_scene_state_sync(LDKEditorContext *editor)
   {
     memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
     memset(&s_editor_scene_runtree, 0, sizeof(s_editor_scene_runtree));
+    ldk_scene_systems_clear(&editor->current_scene_systems);
     return;
   }
 
@@ -835,6 +868,7 @@ void ldki_editor_scene_state_sync(LDKEditorContext *editor)
   {
     s_editor_scene_runtree = runtree;
     memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+    ldk_scene_systems_clear(&editor->current_scene_systems);
     s_editor_scene_selection_clear(editor);
   }
 }
@@ -912,9 +946,37 @@ static bool s_editor_scene_full_path(
   return true;
 }
 
+bool ldki_editor_scene_clear(LDKEditorContext *editor)
+{
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
+  {
+    return false;
+  }
+
+  if (!s_editor_scene_ecs_clear())
+  {
+    ldki_editor_log_error(editor, "Failed to clear the current scene.");
+    return false;
+  }
+
+  LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (!manager || !ldk_scene_manager_current_reset(manager))
+  {
+    ldki_editor_log_error(editor, "Failed to reset Scene Manager state.");
+    return false;
+  }
+
+  ldk_scene_systems_clear(&editor->current_scene_systems);
+  s_editor_scene_selection_clear(editor);
+  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
+  return true;
+}
+
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
 {
   LDKSceneResult result;
+  LDKSceneSystems systems = {0};
   XFSPath relative = {0};
 
   ldki_editor_scene_state_sync(editor);
@@ -926,22 +988,28 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
     return false;
   }
 
-  if (!s_editor_scene_ecs_clear())
+  /* Validate the association list before destroying the open scene. */
+  if (!ldk_scene_systems_load_tml_file(x_fs_path_cstr(path), &systems, &result))
   {
-    ldki_editor_log_error(editor, "Failed to clear the current scene.");
-    return false;
-  }
-
-  s_editor_scene_selection_clear(editor);
-  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
-  {
-    s_editor_scene_ecs_clear();
     ldki_editor_log_error(editor, result.error);
     return false;
   }
 
+  if (!ldki_editor_scene_clear(editor))
+  {
+    ldk_scene_systems_clear(&systems);
+    return false;
+  }
+
+  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
+  {
+    s_editor_scene_ecs_clear();
+    ldk_scene_systems_clear(&systems);
+    ldki_editor_log_error(editor, result.error);
+    return false;
+  }
+
+  editor->current_scene_systems = systems;
   editor->current_scene_path = relative;
   ldki_editor_log_info(editor, "Scene loaded.");
   return true;
@@ -961,7 +1029,8 @@ bool ldki_editor_scene_save(LDKEditorContext *editor)
     return false;
   }
 
-  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
+  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
+          &editor->current_scene_systems, &result))
   {
     ldki_editor_log_error(editor, result.error);
     return false;
@@ -1003,16 +1072,13 @@ bool ldki_editor_scene_new(LDKEditorContext *editor)
     return false;
   }
 
-  if (!s_editor_scene_ecs_clear())
+  if (!ldki_editor_scene_clear(editor))
   {
-    ldki_editor_log_error(editor, "Failed to clear the current scene.");
     return false;
   }
 
-  s_editor_scene_selection_clear(editor);
-  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-
-  if (!ldk_scene_save_tml_file(x_fs_path_cstr(&path), &result))
+  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
+          &editor->current_scene_systems, &result))
   {
     ldki_editor_log_error(editor, result.error);
     return false;

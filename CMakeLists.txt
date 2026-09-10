@@ -153,6 +153,7 @@ function(ldk_game_build)
     DEFINITIONS
     LIBRARIES
     COMPONENT_DIRS
+    SYSTEM_DIRS
   )
   
   cmake_parse_arguments(
@@ -206,10 +207,10 @@ function(ldk_game_build)
   # Component metadata generation
   # ------------------------------------------------------------
 
-  if (GAME_COMPONENT_DIRS)
+  if (GAME_COMPONENT_DIRS OR GAME_SYSTEM_DIRS)
     set(GAME_COMPONENT_HEADERS "")
     
-    foreach(component_dir IN LISTS GAME_COMPONENT_DIRS)
+    foreach(component_dir IN LISTS GAME_COMPONENT_DIRS GAME_SYSTEM_DIRS)
       ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
       list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
     endforeach()
@@ -225,7 +226,7 @@ function(ldk_game_build)
         ${GAME_COMPONENT_HEADERS}
       COMMAND_EXPAND_LISTS
       VERBATIM
-      COMMENT "Running component metadata extraction tool..."
+      COMMENT "Running component and system metadata extraction tool..."
     )
 
     add_custom_target(${GAME_TARGET}_metadata
@@ -340,6 +341,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
+  ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
 
   # Modules
@@ -450,6 +452,7 @@ if (OPTION_BUILD_EDITOR)
   add_executable(ldk_editor src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_scene_catalog.c
     src/editor/ldk_editor_theme.h
     src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
@@ -521,6 +524,7 @@ if (OPTION_BUILD_GAME)
     SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     COMPONENT_DIRS ${ENGINE_COMPONENT_DIR} ${LDK_GAME_COMPONENT_DIRS}
+    SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}
     LDK_GAME_DLL
@@ -550,7 +554,9 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     TARGET game_static
     TYPE STATIC
     ENGINE_TARGET ldk_monolithic
-    SOURCES ${LDK_GAME_SOURCES}
+    SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
+    COMPONENT_DIRS "${INCLUDE_DIR}/component" ${LDK_GAME_COMPONENT_DIRS}
+    SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}

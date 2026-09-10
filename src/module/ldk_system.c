@@ -684,3 +684,10 @@ bool ldk_system_registry_has(const LDKSystemRegistry* registry, u64 id)
 {
   return s_system_registry_find_by_id_const(registry, id) != NULL;
 }
+
+bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry)
+{
+  const LDKSystemRegistryInternal* internal =
+      s_system_registry_internal_const(registry);
+  return internal && internal->in_callback != 0;
+}

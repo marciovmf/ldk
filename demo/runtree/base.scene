@@ -3,6 +3,7 @@ scene:
   entities:
     - entity: 0
       parent: -1
+      flags: 0
       name: "Cube"
       components:
         - type: 4294967294 # LDKTransform
@@ -16,6 +17,7 @@ scene:
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 1
       parent: 2
+      flags: 0
       name: "Cone"
       components:
         - type: 4294967294 # LDKTransform
@@ -29,6 +31,7 @@ scene:
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 2
       parent: 0
+      flags: 0
       name: "Capsule"
       components:
         - type: 4294967294 # LDKTransform
@@ -42,6 +45,7 @@ scene:
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 3
       parent: 0
+      flags: 0
       name: "Capsule"
       components:
         - type: 4294967294 # LDKTransform
@@ -55,6 +59,7 @@ scene:
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 4
       parent: 3
+      flags: 0
       name: "Cone"
       components:
         - type: 4294967294 # LDKTransform
@@ -68,6 +73,7 @@ scene:
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 5
       parent: -1
+      flags: 4
       name: "Quad"
       components:
         - type: 4294967294 # LDKTransform
@@ -80,3 +86,5 @@ scene:
             source_asset: "builtin:mesh/quad"
             material_type: 4
             material_color: 0xa800ff
+  systems:
+    - id: "0x63f0bfacf2c00f6b"

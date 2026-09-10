@@ -142,6 +142,30 @@ bool ldk_ui_widget_button(
   return frame.clicked;
 }
 
+bool ldk_ui_widget_color_view(
+  LDKUIContext *ctx, LDKUIId id, rgba32 color, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  LDKUIFrameState frame;
+  LDKUISize text_size;
+  u32 bg;
+  u32 border;
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  //bg = s_ui_render_control_bg_color(ctx, color);
+  border = s_ui_render_control_border_color(ctx, frame.visual_state);
+
+  s_ui_render_quad(ctx, box.rect, color, box.clip, 0);
+  s_ui_render_border(
+      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  return frame.clicked;
+}
+
 bool ldk_ui_widget_button_flat(
     LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect)
 {
@@ -1233,6 +1257,27 @@ void ldk_ui_label(LDKUIContext *ctx, char const *text)
   }
 
   ldk_ui_widget_label(ctx, id, text, rect);
+}
+
+bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color)
+{
+  LDKUISize text_size;
+  LDKUISize min_size;
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+
+  min_size.w = 64.0f;
+  min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  request = s_ui_layout_request_make(LDK_UI_ITEM_BUTTON, min_size, 1.0f, true);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return false;
+  }
+
+  return ldk_ui_widget_color_view(ctx, id, color, rect);
 }
 
 bool ldk_ui_button(LDKUIContext *ctx, char const *text)

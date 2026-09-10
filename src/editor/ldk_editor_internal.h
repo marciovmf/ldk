@@ -4,6 +4,7 @@
 #include <ldk_common.h>
 #include <ldk_game.h>
 #include <ldk_project.h>
+#include <ldk_scene_systems.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
@@ -17,6 +18,14 @@
 #define LDK_EDITOR_COLOR_FOLDER 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
 #define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
+
+#ifndef LDK_EDITOR_TAG_COUNT
+#define LDK_EDITOR_TAG_COUNT 16
+#endif
+
+#ifndef LDK_EDITOR_TAG_NAME_CAPACITY
+#define LDK_EDITOR_TAG_NAME_CAPACITY 64
+#endif
 
 typedef enum LDKEditorState
 {
@@ -169,6 +178,17 @@ typedef struct LDKEditorProjectBuild
   bool cancel_sent;
 } LDKEditorProjectBuild;
 
+typedef struct LDKEditorSceneCatalog
+{
+  LDKScene *scenes;
+  u32 count;
+  u32 selected;
+  bool open;
+  bool close_requested;
+  LDKUIPoint scroll;
+  char error[256];
+} LDKEditorSceneCatalog;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
@@ -180,6 +200,7 @@ typedef struct LDKEditorContext
 
   LDKUITextInputState text_input_state;
   LDKProject project;
+  LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
   LDKEntity editor_camera;
@@ -192,7 +213,7 @@ typedef struct LDKEditorContext
   XFSPath engine_runtree;
   XFSPath engine_root;
   XFSPath cmake_path;
-  LDKGameUpdateFunc original_game_update_fn;
+  LDKSceneSystems current_scene_systems;
   LDKResourceTexture ui_atlas;
 
   // Console output string builder
@@ -295,7 +316,18 @@ bool ldki_editor_selected_entity_get(
     LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
 
 void ldki_editor_scene_state_sync(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_open(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_close(LDKEditorContext *editor);
+void ldki_editor_scene_catalog_show(LDKEditor *editor, void *data);
+void ldki_editor_scene_catalog_sync(LDKEditorContext *editor);
+
+void ldki_editor_tag_catalog_open(LDKEditorContext *editor);
+void ldki_editor_tag_catalog_show(LDKEditor *editor, void *data);
+void ldki_editor_tag_catalog_sync(LDKEditorContext *editor);
+const char *ldki_editor_tag_name_get(LDKEditorContext *editor, u32 bit);
+
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
+bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
 bool ldki_editor_scene_new(LDKEditorContext *editor);
@@ -325,6 +357,8 @@ typedef struct LDKEditorWindow
 u32 ldki_editor_window_count(void);
 const LDKEditorWindow *ldki_editor_window_at(u32 index);
 bool ldki_editor_window_show(LDKEditorWindowId window_id);
+bool ldki_editor_window_is_open(LDKEditorWindowId window_id);
+bool ldki_editor_window_hide(LDKEditorWindowId window_id);
 bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 
 // Stable IDs reserved by the editor. User tools should define their own
@@ -335,5 +369,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
 #define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
+#define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
+#define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
 
 #endif // LDK_EDITOR_INTERNAL

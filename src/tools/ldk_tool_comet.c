@@ -38,6 +38,12 @@ typedef struct LDKMetaComponent
   u32 field_count;
 } LDKMetaComponent;
 
+typedef struct LDKMetaSystem
+{
+  char name[128];
+  u64 id;
+} LDKMetaSystem;
+
 typedef struct LDKMetaState
 {
   LDKMetaComponent* components;
@@ -47,6 +53,9 @@ typedef struct LDKMetaState
   LDKMetaField* fields;
   u32 field_count;
   u32 field_capacity;
+
+  LDKMetaSystem *systems;
+  u32 system_count;
 
   char error[512];
 } LDKMetaState;
@@ -627,6 +636,95 @@ static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
   return true;
 }
 
+/* A system annotation applies to one exported descriptor declaration. */
+static bool ldk_meta_parse_system_at(LDKMetaState *state, const char *marker)
+{
+  const char *cursor = marker + strlen("//@system");
+  const char *tokens[] = {"extern", "const", "LDKSystemDesc"};
+  LDKMetaSystem system = {0};
+  const char *begin;
+  size_t length;
+
+  for (u32 i = 0; i < 3; ++i)
+  {
+    while (isspace((unsigned char)*cursor))
+    {
+      ++cursor;
+    }
+    length = strlen(tokens[i]);
+    if (strncmp(cursor, tokens[i], length) != 0 ||
+        ldk_meta_is_ident_char(cursor[length]))
+    {
+      ldk_meta_set_error(
+          state, "expected extern const LDKSystemDesc Name; after //@system");
+      return false;
+    }
+    cursor += length;
+  }
+  while (isspace((unsigned char)*cursor))
+  {
+    ++cursor;
+  }
+  begin = cursor;
+  if (!isalpha((unsigned char)*cursor) && *cursor != '_')
+  {
+    ldk_meta_set_error(state, "expected system identifier");
+    return false;
+  }
+  while (ldk_meta_is_ident_char(*cursor))
+  {
+    ++cursor;
+  }
+  length = (size_t)(cursor - begin);
+  if (length >= sizeof(system.name))
+  {
+    ldk_meta_set_error(state, "system identifier is too long");
+    return false;
+  }
+  memcpy(system.name, begin, length);
+  while (isspace((unsigned char)*cursor))
+  {
+    ++cursor;
+  }
+  if (*cursor != ';')
+  {
+    ldk_meta_set_error(state, "expected ';' after system identifier");
+    return false;
+  }
+
+  system.id = UINT64_C(14695981039346656037);
+  for (const char *c = system.name; *c; ++c)
+  {
+    system.id ^= (unsigned char)*c;
+    system.id *= UINT64_C(1099511628211);
+  }
+  /* Keep generated IDs outside the engine-reserved range. */
+  if (system.id < UINT64_C(0x100))
+  {
+    ldk_meta_set_error(state, "system hash falls in the reserved ID range");
+    return false;
+  }
+  for (u32 i = 0; i < state->system_count; ++i)
+  {
+    if (state->systems[i].id == system.id)
+    {
+      ldk_meta_set_error(
+          state, "duplicate system name or system hash collision");
+      return false;
+    }
+  }
+  LDKMetaSystem *systems = realloc(
+      state->systems, ((size_t)state->system_count + 1) * sizeof(*systems));
+  if (!systems)
+  {
+    ldk_meta_set_error(state, "failed to allocate system metadata");
+    return false;
+  }
+  state->systems = systems;
+  state->systems[state->system_count++] = system;
+  return true;
+}
+
 static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
 {
   char* text = NULL;
@@ -656,6 +754,17 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
     }
 
     cursor = marker + strlen("//@component");
+  }
+
+  cursor = text;
+  while ((cursor = strstr(cursor, "//@system")) != NULL)
+  {
+    if (!ldk_meta_parse_system_at(state, cursor))
+    {
+      free(text);
+      return false;
+    }
+    cursor += strlen("//@system");
   }
 
   free(text);
@@ -743,6 +852,12 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   }
 
   fprintf(out, "\n#define ldk_component_type(T) LDK_COMPONENT_##T\n\n");
+  for (i = 0; i < state->system_count; ++i)
+  {
+    fprintf(out, "#define LDK_SYSTEM_%s 0x%016llxULL\n", state->systems[i].name,
+        (unsigned long long)state->systems[i].id);
+  }
+  fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n\n");
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
   
 
@@ -812,6 +927,25 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
 
+  fprintf(out, "u32 game_system_metadata_count(void)\n{\n  return %uu;\n}\n\n",
+      state->system_count);
+  fprintf(out, "const LDKSystemMeta *game_system_metadata_get(u32 index)\n{\n");
+  if (state->system_count)
+  {
+    fprintf(out, "  static const LDKSystemMeta systems[] =\n  {\n");
+    for (i = 0; i < state->system_count; ++i)
+    {
+      fprintf(out, "    {\"%s\", ldk_system_id(%s)},\n", state->systems[i].name,
+          state->systems[i].name);
+    }
+    fprintf(out, "  };\n  return index < %uu ? &systems[index] : NULL;\n",
+        state->system_count);
+  }
+  else
+  {
+    fprintf(out, "  (void)index;\n  return NULL;\n");
+  }
+  fprintf(out, "}\n\n");
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
@@ -869,6 +1003,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 
   free(state.components);
   free(state.fields);
+  free(state.systems);
 
   return ok;
 }

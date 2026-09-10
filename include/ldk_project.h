@@ -12,6 +12,7 @@
 #include <ldk_common.h>
 #include <stdx/stdx_filesystem.h>
 #include <stdx/stdx_string.h>
+#include <ldk_scene.h>
 
 #ifdef LDK_EDITOR
 #include "ldk_os.h"
@@ -43,6 +44,7 @@ extern "C"
   typedef struct LDKProject
   {
     bool loaded;
+    bool play_current_scene;
     XSmallstr name;
     XSmallstr cmake_generator;
     XSmallstr cmake_arch;
@@ -65,6 +67,9 @@ extern "C"
       LDKProject *project, const char *project_file_path);
   LDK_API void ldk_project_unload(LDKProject *project);
   LDK_API bool ldk_project_write_runtime_ini(const LDKProject *project);
+  /** Replace only [scenes] and export public sections. No ECS operations. */
+  LDK_API bool ldk_project_scene_catalog_save(const LDKProject *project,
+      const LDKScene *scenes, u32 count, LDKSceneResult *result);
   LDK_API bool ldk_project_generate_game_module(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
   LDK_API bool ldk_project_build_game_module(

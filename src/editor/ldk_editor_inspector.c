@@ -33,8 +33,19 @@ typedef struct LDKEditorInspectorAreaState
   bool valid;
 } LDKEditorInspectorAreaState;
 
+typedef struct LDKEditorInspectorFlagsState
+{
+  LDKEntity entity;
+  LDKUIId input_id;
+  char input[16];
+  u16 draft_value;
+  bool valid;
+  bool selector_open;
+} LDKEditorInspectorFlagsState;
+
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
+static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
@@ -250,6 +261,252 @@ static bool s_editor_inspector_parse_float(const char *text, float *out_value)
 
   *out_value = value;
   return true;
+}
+
+static bool s_editor_inspector_parse_flags(const char *text, u16 *out_value)
+{
+  char *end = NULL;
+  unsigned long value;
+
+  if (!text || !out_value)
+  {
+    return false;
+  }
+
+  value = strtoul(text, &end, 0);
+
+  if (end == text || value > 0xfffful)
+  {
+    return false;
+  }
+
+  *out_value = (u16)value;
+  return true;
+}
+
+static void s_editor_inspector_flags_format(
+    char *out, size_t out_size, u16 value)
+{
+  snprintf(out, out_size, "0x%04X", (u32)value);
+}
+
+static bool s_editor_inspector_flag_button(
+    LDKUIContext *ui, const char *label, bool active)
+{
+  rgba32 bg;
+  rgba32 bg_hovered;
+  rgba32 border;
+  rgba32 border_hovered;
+  rgba32 text;
+  rgba32 text_hovered;
+  bool clicked;
+
+  if (!active)
+  {
+    return ldk_ui_button(ui, label);
+  }
+
+  bg = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+  bg_hovered = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
+  border = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
+  border_hovered = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
+  text = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  text_hovered = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED];
+
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] =
+      ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE_HOVERED];
+
+  clicked = ldk_ui_button(ui, label);
+
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = bg;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = bg_hovered;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] = border;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] = border_hovered;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] = text;
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] = text_hovered;
+
+  return clicked;
+}
+
+static void s_editor_inspector_flags_state_sync(LDKEntity entity, u16 value)
+{
+  if (s_editor_inspector_flags_state.valid &&
+      ldki_editor_entity_equal(s_editor_inspector_flags_state.entity, entity))
+  {
+    return;
+  }
+
+  memset(&s_editor_inspector_flags_state, 0,
+      sizeof(s_editor_inspector_flags_state));
+  s_editor_inspector_flags_state.entity = entity;
+  s_editor_inspector_flags_state.draft_value = value;
+  s_editor_inspector_flags_state.valid = true;
+  s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+      sizeof(s_editor_inspector_flags_state.input), value);
+}
+
+static void s_editor_inspector_flags_selector(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity entity)
+{
+  LDKUIContext *ui = &editor->ui;
+
+  ldk_ui_push_id_cstr(ui, "entity_flags_selector");
+
+  for (u32 row = 0; row < 8; row++)
+  {
+    ldk_ui_begin_horizontal(ui);
+
+    for (u32 column = 0; column < 2; column++)
+    {
+      u32 bit = row * 2u + column;
+      u16 mask = (u16)(1u << bit);
+      char label[LDK_EDITOR_TAG_NAME_CAPACITY + 16];
+
+      snprintf(label, sizeof(label), "%u: %s", bit,
+          ldki_editor_tag_name_get(editor, bit));
+
+      ldk_ui_push_id_u32(ui, bit);
+      ldk_ui_set_next_width(ui, ldk_ui_fill());
+      if (s_editor_inspector_flag_button(ui, label,
+              (s_editor_inspector_flags_state.draft_value & mask) != 0))
+      {
+        s_editor_inspector_flags_state.draft_value ^= mask;
+        s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+            sizeof(s_editor_inspector_flags_state.input),
+            s_editor_inspector_flags_state.draft_value);
+      }
+      ldk_ui_pop_id(ui);
+    }
+
+    ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+  bool cancel = ldk_ui_button(ui, "Cancel");
+  ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+  bool ok = ldk_ui_button(ui, "OK");
+  ldk_ui_end_horizontal(ui);
+
+  if (cancel)
+  {
+    s_editor_inspector_flags_state.selector_open = false;
+    s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+        sizeof(s_editor_inspector_flags_state.input),
+        ldk_entity_flags_get(&ecs->entity, entity));
+  }
+  else if (ok)
+  {
+    ldk_entity_flags_set(&ecs->entity, entity,
+        s_editor_inspector_flags_state.draft_value);
+    s_editor_inspector_flags_state.selector_open = false;
+    s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+        sizeof(s_editor_inspector_flags_state.input),
+        s_editor_inspector_flags_state.draft_value);
+  }
+
+  ldk_ui_pop_id(ui);
+}
+
+static void s_editor_inspector_flags_draw(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity entity)
+{
+  LDKUIContext *ui = &editor->ui;
+  u16 flags = ldk_entity_flags_get(&ecs->entity, entity);
+  u16 shown_value;
+  u32 result;
+
+  s_editor_inspector_flags_state_sync(entity, flags);
+  shown_value = s_editor_inspector_flags_state.selector_open
+      ? s_editor_inspector_flags_state.draft_value
+      : flags;
+
+  if (s_editor_inspector_flags_state.input_id == 0 ||
+      ui->focused_id != s_editor_inspector_flags_state.input_id)
+  {
+    s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+        sizeof(s_editor_inspector_flags_state.input), shown_value);
+  }
+
+  ldk_ui_push_id_cstr(ui, "entity_flags");
+  ldk_ui_push_id_u32(ui, entity.index);
+  ldk_ui_push_id_u32(ui, entity.version);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_label(ui, "Flags");
+
+  result = ldk_ui_input_box(ui, s_editor_inspector_flags_state.input,
+      (u32)sizeof(s_editor_inspector_flags_state.input));
+  s_editor_inspector_flags_state.input_id = ui->last_id;
+
+  if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+  {
+    u16 parsed;
+
+    if (s_editor_inspector_parse_flags(
+            s_editor_inspector_flags_state.input, &parsed))
+    {
+      if (s_editor_inspector_flags_state.selector_open)
+      {
+        s_editor_inspector_flags_state.draft_value = parsed;
+      }
+      else
+      {
+        ldk_entity_flags_set(&ecs->entity, entity, parsed);
+      }
+    }
+  }
+
+  if ((result & (LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED)) != 0)
+  {
+    u16 value = s_editor_inspector_flags_state.selector_open
+        ? s_editor_inspector_flags_state.draft_value
+        : ldk_entity_flags_get(&ecs->entity, entity);
+    s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+        sizeof(s_editor_inspector_flags_state.input), value);
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  if (ldk_ui_button(ui, "..."))
+  {
+    if (s_editor_inspector_flags_state.selector_open)
+    {
+      s_editor_inspector_flags_state.selector_open = false;
+      s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+          sizeof(s_editor_inspector_flags_state.input),
+          ldk_entity_flags_get(&ecs->entity, entity));
+    }
+    else
+    {
+      s_editor_inspector_flags_state.draft_value =
+          ldk_entity_flags_get(&ecs->entity, entity);
+      s_editor_inspector_flags_state.selector_open = true;
+      s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
+          sizeof(s_editor_inspector_flags_state.input),
+          s_editor_inspector_flags_state.draft_value);
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+
+  if (s_editor_inspector_flags_state.selector_open)
+  {
+    s_editor_inspector_flags_selector(editor, ecs, entity);
+  }
 }
 
 static void s_editor_inspector_field_value_format(char *out, size_t out_size,
@@ -717,7 +974,7 @@ static void s_editor_inspector_material(
   char color_label[40];
   s_editor_material_row_begin(ui, "Tint");
   snprintf(color_label, sizeof(color_label), "#%08X...", (u32)*color);
-  if (ldk_ui_button(ui, color_label))
+  if (ldk_ui_color_view(ui, *color))
   {
     ldk_os_dialog_color_picker_show(editor->window, color);
   }
@@ -902,6 +1159,9 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_pop_id(ui);
   ldk_ui_pop_id(ui);
   ldk_ui_pop_id(ui);
+
+  s_editor_inspector_flags_draw(editor, ecs, entity);
+
   ldk_ui_horizontal_line(ui);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
