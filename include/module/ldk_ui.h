@@ -790,6 +790,7 @@ extern "C"
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
   LDK_API void ldk_ui_icon_label(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
+  LDK_API bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color);
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
   LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
@@ -821,6 +822,8 @@ extern "C"
       LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_color_view(
+    LDKUIContext *ctx, LDKUIId id, rgba32 color, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,

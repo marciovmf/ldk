@@ -528,9 +528,14 @@ static bool s_editor_theme_menu_button(LDKEditorContext *editor,
 
 void ldki_editor_theme_menu_show(LDKEditorContext *editor)
 {
+  static LDKUIPoint scroll = {0};
+
   LDKEditorThemeCatalog *catalog;
   LDKUIContext *ui;
   u32 count;
+  bool use_scroll = false;
+  float scroll_height = 0.0f;
+  float scroll_width = 160.0f;
 
   if (editor == NULL || editor->theme_catalog == NULL)
   {
@@ -546,27 +551,122 @@ void ldki_editor_theme_menu_show(LDKEditorContext *editor)
   count = x_array_count(catalog->entries);
   if (count > 0)
   {
+    const float popup_top =
+        LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING;
+    const float popup_available_height =
+        ui->viewport.h - popup_top - LDK_UI_DEFAULT_PADDING;
+
+    const float full_menu_height =
+        LDK_UI_DEFAULT_PADDING * 2.0f +
+        LDK_UI_DEFAULT_CONTROL_HEIGHT * (float)(count + 4) +
+        2.0f +
+        LDK_UI_DEFAULT_SPACING * (float)(count + 5);
+
+    const float fixed_scroll_menu_height =
+        LDK_UI_DEFAULT_PADDING * 2.0f +
+        LDK_UI_DEFAULT_CONTROL_HEIGHT * 4.0f +
+        2.0f +
+        LDK_UI_DEFAULT_SPACING * 6.0f;
+
+    const float minimum_scroll_height =
+        LDK_UI_DEFAULT_CONTROL_HEIGHT +
+        LDK_UI_DEFAULT_PADDING * 2.0f;
+
+    scroll_height =
+        popup_available_height - fixed_scroll_menu_height;
+
+    if (scroll_height < minimum_scroll_height)
+    {
+      scroll_height = minimum_scroll_height;
+    }
+
+    use_scroll = full_menu_height > popup_available_height;
+
     ldk_ui_horizontal_line(ui);
+  }
+
+  if (use_scroll)
+  {
+    if (ui->font != NULL)
+    {
+      for (u32 i = 0; i < count; ++i)
+      {
+        const LDKEditorThemeEntry *entry =
+            x_array_get(catalog->entries, i);
+        XSmallstr identifier = {0};
+        char label[192];
+        char button_label[512];
+
+        if (entry == NULL ||
+            !s_editor_theme_identifier_make(
+                entry->filename.buf, &identifier))
+        {
+          continue;
+        }
+
+        snprintf(label, sizeof(label), "%s%s", entry->name,
+            entry->valid ? "" : " (invalid)");
+
+        bool selected =
+            strcmp(catalog->active.buf, identifier.buf) == 0;
+
+        snprintf(button_label, sizeof(button_label), "%s%s",
+            selected ? "* " : "  ", label);
+
+        LDKTextSize text_size =
+            ldk_ttf_measure_text_cstr(ui->font, button_label);
+
+        float width =
+            text_size.w +
+            LDK_UI_DEFAULT_SPACING * 4.0f +
+            LDK_UI_DEFAULT_PADDING * 2.0f +
+            LDK_UI_SCROLLBAR_SIZE;
+
+        if (width > scroll_width)
+        {
+          scroll_width = width;
+        }
+      }
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(scroll_width));
+    ldk_ui_set_next_height(ui, ldk_ui_px(scroll_height));
+
+    scroll = ldk_ui_begin_scrollview(ui, scroll,
+        LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  }
+  else
+  {
+    scroll = (LDKUIPoint){0};
   }
 
   for (u32 i = 0; i < count; ++i)
   {
-    const LDKEditorThemeEntry *entry = x_array_get(catalog->entries, i);
+    const LDKEditorThemeEntry *entry =
+        x_array_get(catalog->entries, i);
     XSmallstr identifier = {0};
     char label[192];
 
-    if (entry == NULL || !s_editor_theme_identifier_make(
-                             entry->filename.buf, &identifier))
+    if (entry == NULL ||
+        !s_editor_theme_identifier_make(
+            entry->filename.buf, &identifier))
     {
       continue;
     }
 
     snprintf(label, sizeof(label), "%s%s", entry->name,
         entry->valid ? "" : " (invalid)");
+
     s_editor_theme_menu_button(editor, identifier.buf, label);
   }
 
+  if (use_scroll)
+  {
+    ldk_ui_end_scrollview(ui);
+  }
+
   ldk_ui_horizontal_line(ui);
+
   if (ldk_ui_button_flat(ui, "Refresh themes"))
   {
     ldki_editor_theme_refresh(editor);

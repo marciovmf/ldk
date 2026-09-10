@@ -717,7 +717,7 @@ static void s_editor_inspector_material(
   char color_label[40];
   s_editor_material_row_begin(ui, "Tint");
   snprintf(color_label, sizeof(color_label), "#%08X...", (u32)*color);
-  if (ldk_ui_button(ui, color_label))
+  if (ldk_ui_color_view(ui, *color))
   {
     ldk_os_dialog_color_picker_show(editor->window, color);
   }

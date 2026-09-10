@@ -336,11 +336,11 @@ static void s_editor_hierarchy_systems_draw(
   {
     systems_expanded = !systems_expanded;
   }
-
+  
   if (systems_expanded)
   {
     ldk_ui_set_next_disabled(ui, !can_edit);
-    if (ldk_ui_button_flat(ui, "+ Add System"))
+    if (ldk_ui_button(ui, "+ Add System"))
     {
       ldk_ui_open_popup(ui, ADD_SYSTEM_POPUP);
     }
@@ -380,7 +380,8 @@ static void s_editor_hierarchy_systems_draw(
           ui, label, icon, false, 1, LDK_UI_TREE_NODE_LEAF);
       ldk_ui_set_next_disabled(ui, !can_edit);
       ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-      if (ldk_ui_button_flat(ui, "Remove"))
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+      if (ldk_ui_icon_button(ui, icon, NULL))
       {
         if (!ldk_scene_systems_remove(systems, id))
         {
