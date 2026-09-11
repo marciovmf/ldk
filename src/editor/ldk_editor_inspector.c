@@ -997,7 +997,12 @@ static void s_editor_inspector_mesh_selector(
 
   if (mesh_count == 1)
   {
-    ldk_ui_label(ui, selected_data->name[0] ? selected_data->name : "<unnamed>");
+    char display[LDK_MESH_NAME_CAPACITY];
+    snprintf(display, sizeof(display), "%s",
+        selected_data->name[0] ? selected_data->name : "<unnamed>");
+    ldk_ui_begin_disabled(ui, true);
+    ldk_ui_input_box(ui, display, (u32)sizeof(display));
+    ldk_ui_end_disabled(ui);
     ldk_ui_end_horizontal(ui);
     return;
   }

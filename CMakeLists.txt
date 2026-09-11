@@ -389,6 +389,72 @@ else()
   message(FATAL_ERROR "UNSUPPORTED PLATFORM")
 endif()
 
+# --- COMET TOOL -------------------------------------------------------------
+
+# component meta generator tool
+add_executable(comet src/tools/ldk_tool_comet.c)
+ldk_target_defaults(comet)
+target_include_directories(comet PRIVATE ${INCLUDE_DIR})
+ldk_target_output_dirs(comet
+  RUNTIME "${LDK_OUTPUT_DIR}"
+  LIBRARY "${LDK_OUTPUT_DIR}"
+  ARCHIVE "${LDK_LIBRARY_DIR}"
+)
+
+# --- ENGINE COMPONENT METADATA ---------------------------------------------
+if (NOT OPTION_LDK_USE_PREBUILT)
+  set(LDK_ENGINE_METADATA_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk"
+  )
+  set(LDK_ENGINE_METADATA_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_component_metadata.h"
+  )
+  set(LDK_ENGINE_COMPONENT_INCLUDES_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_component_includes.h"
+  )
+
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_COMPONENT_HEADERS
+    "${INCLUDE_DIR}/component"
+  )
+  list(REMOVE_DUPLICATES LDK_ENGINE_COMPONENT_HEADERS)
+
+  file(MAKE_DIRECTORY "${LDK_ENGINE_METADATA_DIR}")
+  file(WRITE "${LDK_ENGINE_COMPONENT_INCLUDES_HEADER}" "")
+
+  foreach(component_header IN LISTS LDK_ENGINE_COMPONENT_HEADERS)
+    file(STRINGS "${component_header}" component_markers
+      REGEX "//@component"
+    )
+
+    if (component_markers)
+      file(APPEND "${LDK_ENGINE_COMPONENT_INCLUDES_HEADER}"
+        "#include \"${component_header}\"\n"
+      )
+    endif()
+  endforeach()
+
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${LDK_ENGINE_METADATA_HEADER}"
+      ${LDK_ENGINE_COMPONENT_HEADERS}
+    DEPENDS
+      comet
+      ${LDK_ENGINE_COMPONENT_HEADERS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running engine component metadata extraction tool..."
+  )
+
+  add_custom_target(ldk_engine_metadata
+    DEPENDS
+      "${LDK_ENGINE_METADATA_HEADER}"
+      "${LDK_ENGINE_COMPONENT_INCLUDES_HEADER}"
+  )
+endif()
+
 # --- ENGINE SHARED / IMPORTED -----------------------------------------------
 if (OPTION_LDK_USE_PREBUILT)
   if (NOT OPTION_LDK_PREBUILT_DIR)
@@ -431,18 +497,6 @@ else()
 
   add_dependencies(ldk print_options)
 endif()
-
-# --- COMET TOOL ---------------------------------------------------------------
-
-# component meta generator tool
-add_executable(comet src/tools/ldk_tool_comet.c)
-ldk_target_defaults(comet)
-target_include_directories(comet PRIVATE ${INCLUDE_DIR})
-ldk_target_output_dirs(comet
-  RUNTIME "${LDK_OUTPUT_DIR}"
-  LIBRARY "${LDK_OUTPUT_DIR}"
-  ARCHIVE "${LDK_LIBRARY_DIR}"
-)
 
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)

@@ -1,0 +1,42 @@
+scene:
+  version: 1
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "Turret"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+    - entity: 1
+      parent: 0
+      flags: 0
+      name: "Base"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.25000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "turret.mesh"
+            mesh: "Base"
+    - entity: 2
+      parent: 1
+      flags: 0
+      name: "Cannon"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.45000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "turret.mesh"
+            mesh: "Cannon"
+  systems:

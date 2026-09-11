@@ -1,0 +1,53 @@
+# LDK mesh file
+# Example multi-mesh asset: Base and Cannon live in the same .mesh file.
+# Scene hierarchy is intentionally not encoded here; each node selects one
+# named Mesh from this asset through its MeshSource.
+version 3.0
+vertex_format STATIC
+mesh_count 2
+
+mesh "Base"
+vertex_count 8
+index_count 36
+material_slot_count 1
+submesh_count 1
+material_slot 0 "Base"
+vertex -0.8 -0.25 -0.8 0 1 0 0 0 0x6B6F78FF
+vertex 0.8 -0.25 -0.8 0 1 0 1 0 0x6B6F78FF
+vertex 0.8 0.25 -0.8 0 1 0 1 1 0x6B6F78FF
+vertex -0.8 0.25 -0.8 0 1 0 0 1 0x6B6F78FF
+vertex -0.8 -0.25 0.8 0 1 0 0 0 0x6B6F78FF
+vertex 0.8 -0.25 0.8 0 1 0 1 0 0x6B6F78FF
+vertex 0.8 0.25 0.8 0 1 0 1 1 0x6B6F78FF
+vertex -0.8 0.25 0.8 0 1 0 0 1 0x6B6F78FF
+index_list 0 2 1 0 3 2
+index_list 4 5 6 4 6 7
+index_list 0 1 5 0 5 4
+index_list 3 7 6 3 6 2
+index_list 0 4 7 0 7 3
+index_list 1 2 6 1 6 5
+submesh 0 36 0
+end_mesh
+
+mesh "Cannon"
+vertex_count 8
+index_count 36
+material_slot_count 1
+submesh_count 1
+material_slot 0 "Cannon"
+vertex -0.18 -0.18 -0.2 0 1 0 0 0 0x454A52FF
+vertex 0.18 -0.18 -0.2 0 1 0 1 0 0x454A52FF
+vertex 0.18 0.18 -0.2 0 1 0 1 1 0x454A52FF
+vertex -0.18 0.18 -0.2 0 1 0 0 1 0x454A52FF
+vertex -0.18 -0.18 1.6 0 1 0 0 0 0x454A52FF
+vertex 0.18 -0.18 1.6 0 1 0 1 0 0x454A52FF
+vertex 0.18 0.18 1.6 0 1 0 1 1 0x454A52FF
+vertex -0.18 0.18 1.6 0 1 0 0 1 0x454A52FF
+index_list 0 2 1 0 3 2
+index_list 4 5 6 4 6 7
+index_list 0 1 5 0 5 4
+index_list 3 7 6 3 6 2
+index_list 0 4 7 0 7 3
+index_list 1 2 6 1 6 5
+submesh 0 36 0
+end_mesh
