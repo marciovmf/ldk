@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "ldk_editor_package_catalog.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
@@ -155,6 +156,8 @@ static void s_project_explorer_on_right_click(LDKUIContext *ui,
     bool is_directory, ProjectExplorerSurface surface);
 static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
+static void s_project_explorer_path_drag_source(
+    LDKUIContext *ui, const XFSPath *path);
 
 static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
     const XFSPath *path, ProjectExplorerSurface surface)
@@ -412,6 +415,11 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
   LDKUIRect row_rect = ldk_ui_last_bounding_rect(ui);
   LDKUIId node_id = ui->last_id;
   bool expanded = was_expanded;
+
+  if (!renaming)
+  {
+    s_project_explorer_path_drag_source(ui, &node->path);
+  }
 
   if (renaming)
   {
@@ -933,6 +941,47 @@ static void s_project_explorer_context_menu_draw(
       ldk_ui_close_current_popup(ui);
     }
 
+    if (editor->project.loaded)
+    {
+      bool can_package = !editor->project_build.active &&
+                         editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+                         ldki_editor_package_catalog_path_is_packageable(
+                             editor, &state->context_target.path);
+      u32 package_count = ldki_editor_package_catalog_count(editor);
+
+      ldk_ui_horizontal_line(ui);
+      ldk_ui_label(ui, "Add to Package...");
+      ldk_ui_begin_disabled(ui, !can_package);
+      for (u32 package_i = 0; package_i < package_count; ++package_i)
+      {
+        const char *package_name =
+            ldki_editor_package_catalog_name_get(editor, package_i);
+        if (package_name && ldk_ui_button_flat(ui, package_name))
+        {
+          if (!ldki_editor_package_catalog_add_path(editor, package_i,
+                  &state->context_target.path, is_directory))
+          {
+            ldki_editor_log_error(
+                editor, "Failed to add path to package.");
+          }
+          ldk_ui_close_current_popup(ui);
+        }
+      }
+      ldk_ui_end_disabled(ui);
+
+      if (package_count == 0)
+      {
+        ldk_ui_label(ui, "No packages defined.");
+      }
+
+      if (ldk_ui_button_flat(ui, "Manage Packages..."))
+      {
+        ldki_editor_package_catalog_open(editor);
+        ldk_ui_close_current_popup(ui);
+      }
+      ldk_ui_horizontal_line(ui);
+    }
+
     ldk_ui_begin_disabled(ui, is_root);
 
     if (ldk_ui_button_flat(ui, "Duplicate"))
@@ -1229,15 +1278,15 @@ static ProjectExplorerTileResult s_project_explorer_tile(
   return result;
 }
 
-static void s_project_explorer_file_drag_source(LDKUIContext *ui,
-    const ProjectExplorerEntry *entry, bool is_directory)
+static void s_project_explorer_path_drag_source(
+    LDKUIContext *ui, const XFSPath *path)
 {
-  if (!is_directory && ui->mouse && ui->active_id == ui->last_id &&
+  if (ui && path && ui->mouse && ui->active_id == ui->last_id &&
       ldk_os_mouse_button_down(
           (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     ldk_ui_drag_n_drop_payload_set(
-        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, &entry->path);
+        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, path);
   }
 }
 
@@ -1270,7 +1319,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
-      s_project_explorer_file_drag_source(ui, entry, is_directory);
+      s_project_explorer_path_drag_source(ui, &entry->path);
       bool renaming = s_project_explorer_rename_matches(
           state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
       bool label_clicked = false;
@@ -1281,7 +1330,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       else
       {
         label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
-        s_project_explorer_file_drag_source(ui, entry, is_directory);
+        s_project_explorer_path_drag_source(ui, &entry->path);
       }
 
       ldk_ui_end_horizontal(ui);
@@ -1339,7 +1388,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
-      s_project_explorer_file_drag_source(ui, entry, is_directory);
+      s_project_explorer_path_drag_source(ui, &entry->path);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
@@ -1514,5 +1563,7 @@ static void s_editor_project_explorer(
 
 void ldk_editor_file_explorer_show(LDKEditor *editor, const char *root_path)
 {
-  s_editor_project_explorer((LDKEditorContext *)editor, root_path);
+  LDKEditorContext *context = (LDKEditorContext *)editor;
+  ldki_editor_package_catalog_sync(context);
+  s_editor_project_explorer(context, root_path);
 }

@@ -45,3 +45,6 @@ tag_15 = "tag_15"
 count = 1
 0.path = "base.scene"
 0.name = "base"
+
+[.packages]
+main.box = "assets/**"

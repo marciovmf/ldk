@@ -12,6 +12,7 @@ option(OPTION_BUILD_EDITOR                "Build the editor executable" OFF)
 option(OPTION_BUILD_GAME                  "Build the game as a DLL. Requires OPTION_GAME_DIR to be set." OFF)
 option(OPTION_BUILD_GAME_LAUNCHER         "Build the game launcher executable. Requires OPTION_GAME_DIR to be set." OFF)
 set(OPTION_GAME_DIR                    "" CACHE PATH "Game project root folder")
+set(OPTION_GAME_PROJECT_FILE           "" CACHE FILEPATH "Optional explicit .ldk project file")
 option(OPTION_LDK_USE_PREBUILT            "Use prebuilt LDK instead of building engine" OFF)
 set(OPTION_LDK_PREBUILT_DIR            "" CACHE PATH "Prebuilt LDK root folder")
 
@@ -26,6 +27,8 @@ set(LDK_LIBRARY_DIR "${LDK_ROOT_DIR}/lib/$<CONFIG>/")
 set(LDK_RUNTREE_DIR "${LDK_ROOT_DIR}/runtree")
 set(INCLUDE_DIR "${LDK_ROOT_DIR}/include")
 
+include("${LDK_ROOT_DIR}/cmake/ldk_packages.cmake")
+
 # --- PRINT OPTIONS ----------------------------------------------------------
 add_custom_target(print_options ALL
   COMMAND ${CMAKE_COMMAND} -E echo ""
@@ -39,6 +42,7 @@ add_custom_target(print_options ALL
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_BUILD_GAME                ${OPTION_BUILD_GAME}"
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_BUILD_GAME_LAUNCHER       ${OPTION_BUILD_GAME_LAUNCHER}"
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_GAME_DIR                  ${OPTION_GAME_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_GAME_PROJECT_FILE         ${OPTION_GAME_PROJECT_FILE}"
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_LDK_USE_PREBUILT          ${OPTION_LDK_USE_PREBUILT}"
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_LDK_PREBUILT_DIR          ${OPTION_LDK_PREBUILT_DIR}"
   COMMAND ${CMAKE_COMMAND} -E echo ""
@@ -339,6 +343,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
   ${INCLUDE_DIR}/ldk_ttf.h          src/ldk_ttf.c
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
+  ${INCLUDE_DIR}/ldk_package.h      src/ldk_package.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
   ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
@@ -443,6 +448,21 @@ ldk_target_output_dirs(comet
   ARCHIVE "${LDK_LIBRARY_DIR}"
 )
 
+# --- BOX TOOL -----------------------------------------------------------------
+
+add_executable(ldk_box
+  src/tools/ldk_tool_box.c
+  src/ldk_package.c
+)
+ldk_target_defaults(ldk_box)
+target_include_directories(ldk_box PRIVATE ${INCLUDE_DIR})
+set_target_properties(ldk_box PROPERTIES OUTPUT_NAME box)
+ldk_target_output_dirs(ldk_box
+  RUNTIME "${LDK_OUTPUT_DIR}"
+  LIBRARY "${LDK_OUTPUT_DIR}"
+  ARCHIVE "${LDK_LIBRARY_DIR}"
+)
+
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)
   if (OPTION_LDK_USE_PREBUILT)
@@ -453,6 +473,8 @@ if (OPTION_BUILD_EDITOR)
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_scene_catalog.c
+    src/editor/ldk_editor_package_catalog.h
+    src/editor/ldk_editor_package_catalog.c
     src/editor/ldk_editor_theme.h
     src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
@@ -586,12 +608,22 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     LIBRARY "${OPTION_GAME_DIR}/bin/$<CONFIG>"
     ARCHIVE "${OPTION_GAME_DIR}/bin/$<CONFIG>"
   )
+
+  ldk_game_project_file_resolve(LDK_GAME_PROJECT_FILE)
+  ldk_game_packages_target_add(ldk_game_packages
+    "${OPTION_GAME_DIR}/runtree"
+    "${OPTION_GAME_DIR}/bin/$<CONFIG>"
+    "${LDK_GAME_PROJECT_FILE}"
+  )
+  if (TARGET ldk_game_packages)
+    add_dependencies(ldk_launcher ldk_game_packages)
+  endif()
 endif()
 
 # --- TESTS ------------------------------------------------------------------
 if (OPTION_BUILD_TESTS AND TARGET ldk)
   if (OPTION_LDK_USE_PREBUILT)
-    message(FATAL_ERROR "OPTION_BUILD_TESTS cannot use OPTION_LDK_USE_PREBUILT. Tests require building the engine target.")
+    message(FATAL_ERROR "OPTION_BUILD_TESTS cannot use OPTION_LDK_PREBUILT. Tests require building the engine target.")
   endif()
 
   ldk_test_build(TARGET test_module_entity SOURCES src/tests/test_ldk_entity.c)
@@ -602,6 +634,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)
+  ldk_test_build(TARGET test_package SOURCES src/tests/test_ldk_package.c)
   ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
   ldk_test_build(TARGET test_ui_theme_io SOURCES src/tests/test_ldk_ui_theme_io.c)
 endif()
