@@ -98,7 +98,7 @@ scene:
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
-            source_asset: "tree.mesh"
+            source_asset: "mesh\\tree.mesh"
             material_type: 4
             material_color: 0xffffffff
     - entity: 7
@@ -113,7 +113,7 @@ scene:
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
-            source_asset: "rock.mesh"
+            source_asset: "mesh\\rock.mesh"
             material_type: 4
             material_color: 0xffffffff
     - entity: 8
@@ -128,7 +128,7 @@ scene:
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
-            source_asset: "bush.mesh"
+            source_asset: "mesh\\bush.mesh"
             material_type: 4
             material_color: 0xffffffff
   systems:

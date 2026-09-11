@@ -5,6 +5,9 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
+#include <ctype.h>
+#include <errno.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +28,21 @@ typedef struct LDKEditorInspectorInputState
   char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
   bool valid;
 } LDKEditorInspectorInputState;
+
+typedef struct LDKEditorInspectorEulerState
+{
+  LDKEntity entity;
+  u32 component_type;
+  u32 field_offset;
+  const void *component;
+  Vec3 degrees;
+  Quat rotation;
+  Vec3 edit_original_degrees;
+  Quat edit_original_rotation;
+  LDKUIId edit_widget_id;
+  bool editing;
+  bool valid;
+} LDKEditorInspectorEulerState;
 
 typedef struct LDKEditorInspectorAreaState
 {
@@ -47,8 +65,11 @@ typedef struct LDKEditorInspectorFlagsState
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
+static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
+
+static void s_editor_inspector_input_state_clear(void);
 
 static void s_editor_inspector_area_state_sync(LDKEntity entity)
 {
@@ -58,6 +79,9 @@ static void s_editor_inspector_area_state_sync(LDKEntity entity)
     return;
   }
 
+  memset(&s_editor_inspector_euler_state, 0,
+      sizeof(s_editor_inspector_euler_state));
+  s_editor_inspector_input_state_clear();
   memset(
       &s_editor_inspector_area_state, 0, sizeof(s_editor_inspector_area_state));
   s_editor_inspector_area_state.entity = entity;
@@ -643,6 +667,293 @@ static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
   return false;
 }
 
+static bool s_editor_inspector_euler_quat_equal(Quat a, Quat b)
+{
+  return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+static bool s_editor_inspector_euler_quat_finite(Quat q)
+{
+  return isfinite(q.x) && isfinite(q.y) && isfinite(q.z) && isfinite(q.w);
+}
+
+static Vec3 s_editor_inspector_euler_radians(Quat rotation)
+{
+  double x = (double)rotation.x;
+  double y = (double)rotation.y;
+  double z = (double)rotation.z;
+  double w = (double)rotation.w;
+  double length = sqrt(x * x + y * y + z * z + w * w);
+  double sinp;
+
+  if (!isfinite(length) || length <= (double)STDXM_EPS)
+  {
+    return vec3_make(0.0f, 0.0f, 0.0f);
+  }
+
+  x /= length;
+  y /= length;
+  z /= length;
+  w /= length;
+  sinp = 2.0 * (w * y - z * x);
+  sinp = fmax(-1.0, fmin(1.0, sinp));
+
+  if (1.0 - fabs(sinp) > 1e-10)
+  {
+    return quat_to_euler_xyz(quat_norm(rotation));
+  }
+
+  return vec3_make((float)atan2(copysign(1.0, sinp) *
+                                    2.0 * (x * y - w * z),
+                                1.0 - 2.0 * (x * x + z * z)),
+      (float)copysign((double)STDXM_PI * 0.5, sinp), 0.0f);
+}
+
+static Vec3 s_editor_inspector_euler_degrees(Quat rotation)
+{
+  Vec3 radians = s_editor_inspector_euler_radians(rotation);
+  return vec3_make(rad_to_deg(radians.x), rad_to_deg(radians.y),
+      rad_to_deg(radians.z));
+}
+
+static Quat s_editor_inspector_euler_from_degrees(Vec3 degrees)
+{
+  float x = deg_to_rad(remainderf(degrees.x, 360.0f));
+  float y = deg_to_rad(remainderf(degrees.y, 360.0f));
+  float z = deg_to_rad(remainderf(degrees.z, 360.0f));
+  Quat qx = quat_axis_angle(vec3_make(1.0f, 0.0f, 0.0f), x);
+  Quat qy = quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), y);
+  Quat qz = quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), z);
+
+  return quat_norm(quat_mul(qz, quat_mul(qy, qx)));
+}
+
+static float s_editor_inspector_euler_axis_get(Vec3 degrees, u32 axis)
+{
+  if (axis == 0)
+  {
+    return degrees.x;
+  }
+  if (axis == 1)
+  {
+    return degrees.y;
+  }
+  return degrees.z;
+}
+
+static void s_editor_inspector_euler_axis_set(
+    Vec3 *degrees, u32 axis, float value)
+{
+  if (axis == 0)
+  {
+    degrees->x = value;
+  }
+  else if (axis == 1)
+  {
+    degrees->y = value;
+  }
+  else
+  {
+    degrees->z = value;
+  }
+}
+
+static bool s_editor_inspector_euler_parse_float(
+    const char *text, float *out_value)
+{
+  char *end = NULL;
+  float value;
+
+  if (!text || !out_value)
+  {
+    return false;
+  }
+
+  errno = 0;
+  value = strtof(text, &end);
+  if (end == text || errno == ERANGE || !isfinite(value))
+  {
+    return false;
+  }
+
+  while (isspace((unsigned char)*end))
+  {
+    end++;
+  }
+
+  if (*end != '\0')
+  {
+    return false;
+  }
+
+  *out_value = value;
+  return true;
+}
+
+static bool s_editor_inspector_euler_state_matches(
+    const LDKEditorInspectorEulerState *state, LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field,
+    const void *component)
+{
+  return state->valid && ldki_editor_entity_equal(state->entity, entity) &&
+         state->component_type == component_type &&
+         state->field_offset == field->offset &&
+         state->component == component;
+}
+
+static void s_editor_inspector_euler_state_init(
+    LDKEditorInspectorEulerState *state, LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field,
+    const void *component, Quat rotation)
+{
+  memset(state, 0, sizeof(*state));
+  state->entity = entity;
+  state->component_type = component_type;
+  state->field_offset = field->offset;
+  state->component = component;
+  state->rotation = rotation;
+  state->degrees = s_editor_inspector_euler_degrees(rotation);
+  state->valid = true;
+}
+
+static bool s_editor_inspector_euler_rotation_apply(LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field,
+    void *field_value, Quat rotation)
+{
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM &&
+      field->offset == offsetof(LDKTransform, local_rotation))
+  {
+    return ldk_transform_set_local_rotation(entity, rotation);
+  }
+
+  *(Quat *)field_value = rotation;
+  return true;
+}
+
+static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
+    LDKEntity entity, u32 component_type,
+    const LDKComponentFieldMeta *field, void *component,
+    void *field_value, bool readonly)
+{
+  static const char *const axis_names[3] = {"X", "Y", "Z"};
+  LDKEditorInspectorEulerState local_state;
+  LDKEditorInspectorEulerState *state = &local_state;
+  Quat source = *(const Quat *)field_value;
+
+  if (s_editor_inspector_euler_state_matches(
+          &s_editor_inspector_euler_state, entity, component_type, field,
+          component))
+  {
+    state = &s_editor_inspector_euler_state;
+    if (!s_editor_inspector_euler_quat_equal(source, state->rotation))
+    {
+      /* A gizmo, script, or another editor operation changed the source. */
+      s_editor_inspector_euler_state_init(
+          state, entity, component_type, field, component, source);
+      if (s_editor_inspector_input_state_matches(
+              entity, component_type, field,
+              s_editor_inspector_input_state.value_index))
+      {
+        s_editor_inspector_input_state_clear();
+      }
+    }
+  }
+  else
+  {
+    s_editor_inspector_euler_state_init(
+        state, entity, component_type, field, component, source);
+  }
+
+  if (readonly || (state->editing &&
+                      ui->focused_id != state->edit_widget_id))
+  {
+    state->editing = false;
+  }
+
+  for (u32 axis = 0; axis < 3; axis++)
+  {
+    char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+    float parsed;
+    u32 result;
+    bool focused;
+
+    ldk_ui_push_id_u32(ui, axis);
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, axis_names[axis]);
+    ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
+    snprintf(buffer, sizeof(buffer), "%.9g",
+        (double)s_editor_inspector_euler_axis_get(state->degrees, axis));
+
+    ldk_ui_begin_disabled(ui, readonly);
+    result = s_editor_inspector_field_input_box(ui, entity, component_type,
+        field, axis, buffer, (u32)sizeof(buffer));
+    ldk_ui_end_disabled(ui);
+
+    focused = ui->focused_id == ui->last_id;
+    if (!readonly &&
+        (focused || (result & LDK_UI_INPUT_BOX_CHANGED) != 0))
+    {
+      if (state != &s_editor_inspector_euler_state)
+      {
+        s_editor_inspector_euler_state = *state;
+        state = &s_editor_inspector_euler_state;
+      }
+
+      if (!state->editing || state->edit_widget_id != ui->last_id)
+      {
+        state->edit_original_degrees = state->degrees;
+        state->edit_original_rotation = state->rotation;
+        state->edit_widget_id = ui->last_id;
+        state->editing = true;
+      }
+    }
+
+    if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
+        s_editor_inspector_euler_parse_float(buffer, &parsed) &&
+        parsed != s_editor_inspector_euler_axis_get(state->degrees, axis))
+    {
+      Vec3 degrees = state->degrees;
+      Quat rotation;
+
+      s_editor_inspector_euler_axis_set(&degrees, axis, parsed);
+      rotation = s_editor_inspector_euler_from_degrees(degrees);
+      if (s_editor_inspector_euler_quat_finite(rotation) &&
+          (s_editor_inspector_euler_quat_equal(
+               *(const Quat *)field_value, rotation) ||
+              s_editor_inspector_euler_rotation_apply(
+                  entity, component_type, field, field_value, rotation)))
+      {
+        state->degrees = degrees;
+        state->rotation = *(const Quat *)field_value;
+      }
+    }
+
+    if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0 && state->editing &&
+        state->edit_widget_id == ui->last_id)
+    {
+      if (s_editor_inspector_euler_quat_equal(
+              *(const Quat *)field_value, state->rotation) &&
+          (s_editor_inspector_euler_quat_equal(
+               *(const Quat *)field_value, state->edit_original_rotation) ||
+              s_editor_inspector_euler_rotation_apply(entity, component_type,
+                  field, field_value, state->edit_original_rotation)))
+      {
+        state->degrees = state->edit_original_degrees;
+        state->rotation = *(const Quat *)field_value;
+      }
+      state->editing = false;
+    }
+    else if ((result & LDK_UI_INPUT_BOX_COMMITTED) != 0 &&
+             state->editing && state->edit_widget_id == ui->last_id)
+    {
+      state->editing = false;
+      s_editor_inspector_input_state_clear();
+    }
+
+    ldk_ui_pop_id(ui);
+  }
+}
+
 static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
     const char *label, LDKMeshSource *mesh, bool readonly)
 {
@@ -932,6 +1243,13 @@ static void s_editor_inspector_field_draw(
 
   case LDK_FIELD_QUAT:
   {
+    if (field->widget == LDK_FIELD_WIDGET_EULER)
+    {
+      s_editor_inspector_euler_field_draw(ui, entity, component_type, field,
+          component, field_value, readonly);
+      break;
+    }
+
     Quat value = *(Quat *)field_value;
 
     bool changed = false;
@@ -1219,6 +1537,9 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
   if (!ecs || !game || !ldki_editor_selected_entity_get(editor, ecs, &entity))
   {
+    memset(&s_editor_inspector_euler_state, 0,
+        sizeof(s_editor_inspector_euler_state));
+    s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
     return;
   }
@@ -1227,6 +1548,9 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   if (!info)
   {
     editor->selected_entity = x_handle_null();
+    memset(&s_editor_inspector_euler_state, 0,
+        sizeof(s_editor_inspector_euler_state));
+    s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
     return;
   }
