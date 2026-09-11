@@ -86,5 +86,50 @@ scene:
             source_asset: "builtin:mesh/quad"
             material_type: 4
             material_color: 0xa800ff
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 5.79187489, 0.00000000, 2.53763485
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "tree.mesh"
+            material_type: 4
+            material_color: 0xffffffff
+    - entity: 7
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 5.39600039, 0.00000000, -4.53235579
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "rock.mesh"
+            material_type: 4
+            material_color: 0xffffffff
+    - entity: 8
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 6.97577000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "bush.mesh"
+            material_type: 4
+            material_color: 0xffffffff
   systems:
     - id: "0x63f0bfacf2c00f6b"
