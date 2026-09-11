@@ -51,6 +51,7 @@ static bool s_project_load(
 static bool s_project_unload(LDKEditorContext *editor);
 static bool s_editor_project_action_process(LDKEditorContext *editor);
 static bool s_editor_camera_ensure(LDKEditorContext *editor);
+static void s_project_game_module_watch_update(LDKEditorContext *editor);
 
 /**
  * Tiny function to return a static editor instance.
@@ -312,6 +313,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   if (event->frame_event.type == LDK_FRAME_EVENT_RENDER_AFTER)
   {
     s_editor_project_action_process(editor);
+    s_project_game_module_watch_update(editor);
 
     if (editor->create_project_window_close_requested)
     {
@@ -1084,11 +1086,27 @@ static void s_editor_state_set_step(LDKEditorContext *editor)
 // Project handling
 //----------------------------------------------------------
 
-static bool s_project_editor_game_dll_path_get(
-    const LDKProject *project, XFSPath *out_path)
+typedef enum LDKEditorGameModuleReloadResult
 {
-  if (project == NULL || out_path == NULL ||
-      project->game_dll_path.length == 0)
+  LDK_EDITOR_GAME_MODULE_RELOAD_RETRY = 0,
+  LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE
+} LDKEditorGameModuleReloadResult;
+
+typedef struct LDKEditorGameModuleWatch
+{
+  XFSWatch *handle;
+  XFSPath directory;
+  XFSPath filename;
+  bool reload_pending;
+} LDKEditorGameModuleWatch;
+
+static LDKEditorGameModuleWatch s_game_module_watch = {0};
+
+static bool s_project_game_module_sibling_path_get(
+    const LDKProject *project, const char *filename, XFSPath *out_path)
+{
+  if (project == NULL || filename == NULL || filename[0] == 0 ||
+      out_path == NULL || project->game_dll_path.length == 0)
   {
     return false;
   }
@@ -1098,7 +1116,7 @@ static bool s_project_editor_game_dll_path_get(
     return false;
   }
 
-  if (x_fs_path_join(out_path, "game_editor.dll") == 0)
+  if (x_fs_path_join(out_path, filename) == 0)
   {
     return false;
   }
@@ -1107,11 +1125,362 @@ static bool s_project_editor_game_dll_path_get(
   return true;
 }
 
+static bool s_project_editor_game_dll_path_get(
+    const LDKProject *project, XFSPath *out_path)
+{
+  return s_project_game_module_sibling_path_get(
+      project, "game_editor.dll", out_path);
+}
+
+static void s_project_game_module_watch_close(void)
+{
+  if (s_game_module_watch.handle != NULL)
+  {
+    x_fs_watch_close(s_game_module_watch.handle);
+  }
+
+  memset(&s_game_module_watch, 0, sizeof(s_game_module_watch));
+}
+
+static bool s_project_game_module_watch_open(LDKEditorContext *editor)
+{
+  if (editor == NULL || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  s_project_game_module_watch_close();
+
+  if (x_fs_path_dirname(&editor->project.game_dll_path,
+          &s_game_module_watch.directory) == 0 ||
+      x_fs_path_basename(
+          &editor->project.game_dll_path, &s_game_module_watch.filename) == 0)
+  {
+    return false;
+  }
+
+  s_game_module_watch.handle =
+      x_fs_watch_open(x_fs_path_cstr(&s_game_module_watch.directory));
+  if (s_game_module_watch.handle == NULL)
+  {
+    ldki_editor_log_warning(editor, "Failed to watch the game module output.");
+    memset(&s_game_module_watch, 0, sizeof(s_game_module_watch));
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_project_game_module_watch_event_matches(
+    const XFSWatchEvent *event)
+{
+  XFSPath event_path = {0};
+  XFSPath event_filename = {0};
+
+  if (event == NULL || event->filename == NULL || event->filename[0] == 0 ||
+      s_game_module_watch.filename.length == 0)
+  {
+    return false;
+  }
+
+  x_fs_path_set(&event_path, event->filename);
+  if (x_fs_path_basename(&event_path, &event_filename) == 0)
+  {
+    return false;
+  }
+
+  return strcmp(event_filename.buf, s_game_module_watch.filename.buf) == 0;
+}
+
+static void s_project_game_module_handles_invalidate(
+    LDKEditorContext *editor)
+{
+  editor->selected_entity = x_handle_null();
+  editor->editor_camera = x_handle_null();
+  editor->scene_view = LDK_RENDERER_VIEW_INVALID;
+
+  if (editor->hierarchy_expanded_entities != NULL)
+  {
+    x_array_clear(editor->hierarchy_expanded_entities);
+  }
+}
+
+static bool s_project_game_module_runtime_load(LDKEditorContext *editor,
+    const XFSPath *dll_path, const char *scene_snapshot)
+{
+  LDKSceneManager *scene_manager;
+  LDKSceneResult scene_result;
+
+  if (!ldk_game_instance_load_from_shared_lib(x_fs_path_cstr(dll_path)))
+  {
+    return false;
+  }
+
+  if (!ldk_game_instance_initialize())
+  {
+    ldk_game_instance_unload();
+    return false;
+  }
+
+  scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (!ldk_scene_manager_configure_file(scene_manager,
+          editor->project.project_file_path.buf, &editor->project.run_root_path,
+          &scene_result))
+  {
+    ldki_editor_log_error(editor, scene_result.error);
+    ldk_game_instance_unload();
+    return false;
+  }
+
+  if (scene_snapshot != NULL &&
+      !ldk_scene_from_tml(scene_snapshot, &scene_result))
+  {
+    ldki_editor_log_error(editor, scene_result.error);
+    ldk_game_instance_unload();
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_project_game_module_restore_file(
+    const XFSPath *active_path, const XFSPath *previous_path)
+{
+  if (x_fs_path_is_file(active_path) &&
+      !x_fs_file_delete(x_fs_path_cstr(active_path)))
+  {
+    return false;
+  }
+
+  if (x_fs_file_rename(previous_path->buf, active_path->buf))
+  {
+    return true;
+  }
+
+  return x_fs_file_copy(previous_path->buf, active_path->buf);
+}
+
+static LDKEditorGameModuleReloadResult s_project_game_module_reload(
+    LDKEditorContext *editor)
+{
+  XFSPath active_path = {0};
+  XFSPath next_path = {0};
+  XFSPath previous_path = {0};
+  XStrBuilder *scene_snapshot = NULL;
+  LDKSceneResult scene_result;
+  const char *scene_snapshot_text = NULL;
+
+  if (editor == NULL || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      ldk_game_instance_is_started())
+  {
+    return LDK_EDITOR_GAME_MODULE_RELOAD_RETRY;
+  }
+
+  if (!s_project_editor_game_dll_path_get(
+          &editor->project, &active_path) ||
+      !s_project_game_module_sibling_path_get(
+          &editor->project, "game_editor_next.dll", &next_path) ||
+      !s_project_game_module_sibling_path_get(
+          &editor->project, "game_editor_previous.dll", &previous_path))
+  {
+    ldki_editor_log_error(editor, "Failed to resolve game module paths.");
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  if (!x_fs_path_is_file(&editor->project.game_dll_path))
+  {
+    return LDK_EDITOR_GAME_MODULE_RELOAD_RETRY;
+  }
+
+  if (x_fs_path_is_file(&next_path) &&
+      !x_fs_file_delete(next_path.buf))
+  {
+    return LDK_EDITOR_GAME_MODULE_RELOAD_RETRY;
+  }
+
+  if (!x_fs_file_copy(editor->project.game_dll_path.buf, next_path.buf))
+  {
+    return LDK_EDITOR_GAME_MODULE_RELOAD_RETRY;
+  }
+
+  if (editor->current_scene_path.length != 0)
+  {
+    scene_snapshot = x_strbuilder_create();
+    if (scene_snapshot == NULL ||
+        !ldk_scene_to_tml(scene_snapshot, &scene_result))
+    {
+      ldki_editor_log_error(editor, scene_snapshot == NULL
+          ? "Failed to allocate scene snapshot for game module reload."
+          : scene_result.error);
+      x_strbuilder_destroy(scene_snapshot);
+      x_fs_file_delete(next_path.buf);
+      return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+    }
+
+    scene_snapshot_text = x_strbuilder_to_string(scene_snapshot);
+  }
+
+  if (x_fs_path_is_file(&previous_path) &&
+      !x_fs_file_delete(previous_path.buf))
+  {
+    ldki_editor_log_error(
+        editor, "Failed to remove the previous game module backup.");
+    x_strbuilder_destroy(scene_snapshot);
+    x_fs_file_delete(next_path.buf);
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  if (!x_fs_path_is_file(&active_path) ||
+      !x_fs_file_copy(active_path.buf, previous_path.buf))
+  {
+    ldki_editor_log_error(
+        editor, "Failed to preserve the current editor game module.");
+    x_strbuilder_destroy(scene_snapshot);
+    x_fs_file_delete(next_path.buf);
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  if (!ldk_game_instance_unload())
+  {
+    ldki_editor_log_error(editor, "Failed to unload the current game module.");
+    x_strbuilder_destroy(scene_snapshot);
+    x_fs_file_delete(next_path.buf);
+    x_fs_file_delete(previous_path.buf);
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  s_project_game_module_handles_invalidate(editor);
+
+  if (!x_fs_file_delete(active_path.buf))
+  {
+    ldki_editor_log_error(editor, "Failed to replace the editor game module.");
+
+    if (!s_project_game_module_runtime_load(
+            editor, &active_path, scene_snapshot_text))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to restore the previous game module.");
+      s_project_game_module_watch_close();
+    }
+
+    x_fs_file_delete(next_path.buf);
+    x_fs_file_delete(previous_path.buf);
+    x_strbuilder_destroy(scene_snapshot);
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  if (!x_fs_file_rename(next_path.buf, active_path.buf))
+  {
+    ldki_editor_log_error(editor, "Failed to replace the editor game module.");
+
+    if (!s_project_game_module_restore_file(&active_path, &previous_path) ||
+        !s_project_game_module_runtime_load(
+            editor, &active_path, scene_snapshot_text))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to restore the previous game module.");
+      s_project_game_module_watch_close();
+    }
+    else if (x_fs_path_is_file(&previous_path))
+    {
+      x_fs_file_delete(previous_path.buf);
+    }
+
+    x_fs_file_delete(next_path.buf);
+    x_strbuilder_destroy(scene_snapshot);
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  if (s_project_game_module_runtime_load(
+          editor, &active_path, scene_snapshot_text))
+  {
+    x_fs_file_delete(previous_path.buf);
+    x_strbuilder_destroy(scene_snapshot);
+    ldki_editor_log_info(editor, "Game module reloaded.");
+    return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+  }
+
+  ldki_editor_log_error(
+      editor, "Failed to load the new game module. Restoring previous module.");
+
+  if (!s_project_game_module_restore_file(&active_path, &previous_path) ||
+      !s_project_game_module_runtime_load(
+          editor, &active_path, scene_snapshot_text))
+  {
+    ldki_editor_log_error(
+        editor, "Failed to restore the previous game module.");
+    s_project_game_module_watch_close();
+  }
+  else
+  {
+    if (x_fs_path_is_file(&previous_path))
+    {
+      x_fs_file_delete(previous_path.buf);
+    }
+    ldki_editor_log_warning(editor, "Previous game module restored.");
+  }
+
+  x_strbuilder_destroy(scene_snapshot);
+  return LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE;
+}
+
+static void s_project_game_module_watch_update(LDKEditorContext *editor)
+{
+  XFSWatchEvent events[16];
+  i32 event_count;
+
+  if (editor == NULL || !editor->project.loaded ||
+      s_game_module_watch.handle == NULL)
+  {
+    return;
+  }
+
+  do
+  {
+    event_count = x_fs_watch_poll(s_game_module_watch.handle, events,
+        (i32)(sizeof(events) / sizeof(events[0])));
+    if (event_count < 0)
+    {
+      ldki_editor_log_warning(editor, "Game module file watcher failed.");
+      s_project_game_module_watch_close();
+      return;
+    }
+
+    for (i32 i = 0; i < event_count; ++i)
+    {
+      if (s_project_game_module_watch_event_matches(&events[i]))
+      {
+        s_game_module_watch.reload_pending = true;
+      }
+    }
+  } while (event_count == (i32)(sizeof(events) / sizeof(events[0])));
+
+  if (!s_game_module_watch.reload_pending ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      ldk_game_instance_is_started() || editor->project_build.active)
+  {
+    return;
+  }
+
+  if (s_project_game_module_reload(editor) ==
+      LDK_EDITOR_GAME_MODULE_RELOAD_COMPLETE)
+  {
+    s_game_module_watch.reload_pending = false;
+  }
+}
+
 static bool s_project_unload(LDKEditorContext *editor)
 {
-  ldki_editor_scene_catalog_close(editor);
   XFSPath editor_game_dll_path = {0};
+  XFSPath editor_next_dll_path = {0};
+  XFSPath editor_previous_dll_path = {0};
   bool has_editor_game_dll_path;
+  bool has_editor_next_dll_path;
+  bool has_editor_previous_dll_path;
+
+  s_project_game_module_watch_close();
+  ldki_editor_scene_catalog_close(editor);
 
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
@@ -1131,6 +1500,11 @@ static bool s_project_unload(LDKEditorContext *editor)
   has_editor_game_dll_path =
       s_project_editor_game_dll_path_get(
           &editor->project, &editor_game_dll_path);
+  has_editor_next_dll_path = s_project_game_module_sibling_path_get(
+      &editor->project, "game_editor_next.dll", &editor_next_dll_path);
+  has_editor_previous_dll_path = s_project_game_module_sibling_path_get(
+      &editor->project, "game_editor_previous.dll",
+      &editor_previous_dll_path);
 
   if (!ldk_game_instance_unload())
   {
@@ -1145,6 +1519,22 @@ static bool s_project_unload(LDKEditorContext *editor)
   {
     ldk_log_warning("Failed to delete editor game module copy '%s'.\n",
         editor_game_dll_path.buf);
+  }
+
+  if (has_editor_next_dll_path &&
+      x_fs_path_is_file(&editor_next_dll_path) &&
+      !x_fs_file_delete(editor_next_dll_path.buf))
+  {
+    ldk_log_warning("Failed to delete editor game module copy '%s'.\n",
+        editor_next_dll_path.buf);
+  }
+
+  if (has_editor_previous_dll_path &&
+      x_fs_path_is_file(&editor_previous_dll_path) &&
+      !x_fs_file_delete(editor_previous_dll_path.buf))
+  {
+    ldk_log_warning("Failed to delete editor game module copy '%s'.\n",
+        editor_previous_dll_path.buf);
   }
 
   editor->selected_entity = x_handle_null();
@@ -1221,6 +1611,7 @@ static bool s_project_load(
 
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   s_editor_set_title(editor);
+  s_project_game_module_watch_open(editor);
   return true;
 
 fail:
@@ -1872,6 +2263,7 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  s_project_game_module_watch_close();
   ldki_editor_scene_catalog_close(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   ldk_scene_diagnostic_handler_set(NULL, NULL);
