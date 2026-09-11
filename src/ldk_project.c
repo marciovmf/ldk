@@ -110,7 +110,7 @@ static void s_project_game_dll_path_set(
   x_fs_path_normalize(&game_dll_path);
 
   x_fs_path(&legacy_game_dll_path, x_fs_path_cstr(&project->cache_path),
-      build_config, "game_shared.dll");
+      build_config, "game.dll");
   x_fs_path_normalize(&legacy_game_dll_path);
 
   if (x_fs_path_is_file(&game_dll_path) ||
