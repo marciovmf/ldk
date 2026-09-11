@@ -229,7 +229,9 @@ bool ldk_scene_component_field_is_serializable(
         strcmp(field->name, "renderer_texture") == 0 ||
         strcmp(field->name, "renderer") == 0 ||
         strcmp(field->name, "dirty") == 0 ||
-        strcmp(field->name, "material_dirty") == 0)
+        strcmp(field->name, "material_dirty") == 0 ||
+        strcmp(field->name, "additional_materials") == 0 ||
+        strcmp(field->name, "material_count") == 0)
     {
       return false;
     }
@@ -1005,8 +1007,62 @@ static LDKMaterialIOContext s_material_io_context(void)
   return context;
 }
 
-static bool s_apply_material(const TMLDocument *doc, const TMLNode *fields,
-    LDKMeshSource *mesh, LDKSceneResult *result)
+static bool s_apply_mesh_selection(const TMLDocument *doc,
+    const TMLNode *fields, LDKMeshSource *mesh, LDKSceneResult *result)
+{
+  LDKAssetManager *assets;
+  const TMLEntry *entry;
+
+  if (!mesh)
+  {
+    return false;
+  }
+
+  assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets)
+  {
+    s_result_error(result, "mesh source requires an asset manager");
+    return false;
+  }
+
+  entry = fields ? s_node_find_entry(doc, fields, "mesh") : NULL;
+  if (entry)
+  {
+    TMLString value;
+    char name[LDK_MESH_NAME_CAPACITY];
+    LDKAssetMesh selected;
+
+    if (!tml_entry_get_string(entry, &value) || !value.size ||
+        value.size >= sizeof(name) || memchr(value.data, 0, value.size))
+    {
+      s_result_error(result, "invalid mesh selection");
+      return false;
+    }
+
+    memcpy(name, value.data, value.size);
+    name[value.size] = 0;
+    selected = ldk_asset_manager_mesh_file_mesh_find(
+        assets, mesh->source_asset, name);
+    if (x_handle_is_null(selected.h) ||
+        !ldk_mesh_source_set_data(mesh, selected))
+    {
+      s_result_error(result, "selected mesh is not present in mesh asset");
+      return false;
+    }
+  }
+
+  if (!ldk_mesh_source_materials_sync(mesh, assets))
+  {
+    s_result_error(result, "failed to initialize mesh material bindings");
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_apply_material_slot(const TMLDocument *doc,
+    const TMLNode *fields, LDKMeshSource *mesh, u32 material_slot,
+    LDKSceneResult *result)
 {
   if (fields && s_node_find_entry(doc, fields, "material_asset"))
   {
@@ -1034,10 +1090,15 @@ static bool s_apply_material(const TMLDocument *doc, const TMLNode *fields,
       s_result_error(result, io_result.error);
       return false;
     }
-    return ldk_mesh_source_set_material_asset(mesh, context.assets, asset);
+    return ldk_mesh_source_set_material_asset_at(
+        mesh, context.assets, material_slot, asset);
   }
+
   if (!fields || !s_node_find_entry(doc, fields, "material_type"))
-    return true; /* Older scenes retain the component's default material. */
+  {
+    return true;
+  }
+
   LDKMaterialIOContext context = s_material_io_context();
   LDKMaterialIOResult io_result;
   LDKMaterialDesc desc;
@@ -1046,7 +1107,66 @@ static bool s_apply_material(const TMLDocument *doc, const TMLNode *fields,
     s_result_error(result, io_result.error);
     return false;
   }
-  return ldk_mesh_source_set_material(mesh, &desc);
+  return ldk_mesh_source_set_material_at(mesh, material_slot, &desc);
+}
+
+static bool s_apply_materials(const TMLDocument *doc, const TMLNode *fields,
+    LDKMeshSource *mesh, LDKSceneResult *result)
+{
+  const TMLNode *materials;
+  u32 material_count;
+  bool *assigned;
+
+  if (!mesh)
+  {
+    return false;
+  }
+
+  material_count = ldk_mesh_source_material_count(mesh);
+  if (material_count == 0)
+  {
+    s_result_error(result, "mesh source has no material bindings");
+    return false;
+  }
+
+  materials = fields ? s_node_find_child(doc, fields, "materials") : NULL;
+  if (!materials)
+  {
+    /* Legacy/single-material scenes author slot zero directly in fields. */
+    return s_apply_material_slot(doc, fields, mesh, 0, result);
+  }
+
+  assigned = (bool *)calloc(material_count, sizeof(bool));
+  if (!assigned)
+  {
+    s_result_error(result, "failed to allocate material binding map");
+    return false;
+  }
+
+  for (u32 i = 0; i < materials->child_count; i++)
+  {
+    const TMLNode *material_node =
+        tml_node_child_at(doc, materials, i);
+    u32 slot;
+
+    if (!material_node || !s_node_get_u32(doc, material_node, "slot", &slot) ||
+        slot >= material_count || assigned[slot])
+    {
+      free(assigned);
+      s_result_error(result, "invalid mesh material slot");
+      return false;
+    }
+
+    assigned[slot] = true;
+    if (!s_apply_material_slot(doc, material_node, mesh, slot, result))
+    {
+      free(assigned);
+      return false;
+    }
+  }
+
+  free(assigned);
+  return true;
 }
 
 static bool s_apply_entity_components(const TMLDocument *doc,
@@ -1137,10 +1257,13 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       {
         return false;
       }
-      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
-          !s_apply_material(doc, fields_node, component, result))
+      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
       {
-        return false;
+        if (!s_apply_mesh_selection(doc, fields_node, component, result) ||
+            !s_apply_materials(doc, fields_node, component, result))
+        {
+          return false;
+        }
       }
     }
   }
@@ -1669,18 +1792,61 @@ static bool s_collect_entity_id_callback(LDKEntity entity, void *user)
   return true;
 }
 
-static bool s_write_material(LDKSceneSaveContext *context,
+static bool s_write_mesh_selection(LDKSceneSaveContext *context,
     const LDKMeshSource *mesh)
+{
+  LDKAssetManager *assets;
+  const LDKAssetMeshData *data;
+
+  if (!context || !mesh)
+  {
+    return false;
+  }
+
+  assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  data = assets ? ldk_asset_manager_mesh_get_const(assets, mesh->source_asset)
+                : NULL;
+  if (!data)
+  {
+    s_result_error(context->result, "invalid mesh source asset");
+    return false;
+  }
+
+  if (data->source_mesh_count <= 1)
+  {
+    return true;
+  }
+
+  if (!data->name[0])
+  {
+    s_result_error(context->result, "named mesh asset has no mesh name");
+    return false;
+  }
+
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append(context->out, "mesh: ");
+  s_append_escaped_string(context->out, data->name);
+  x_strbuilder_append_char(context->out, '\n');
+  return true;
+}
+
+static bool s_write_material_binding(LDKSceneSaveContext *context,
+    const LDKMaterialDesc *material, LDKAssetMaterial material_asset,
+    u64 material_revision, u32 indent)
 {
   LDKMaterialIOContext io_context = s_material_io_context();
   LDKMaterialIOResult io_result;
-  if (mesh->material_revision)
+
+  if (material_revision)
   {
-    LDKAssetHandle handle = {mesh->material_asset.h};
-    const LDKAssetInfo *info = ldk_asset_get_info_const(io_context.assets, handle);
+    LDKAssetHandle handle = {material_asset.h};
+    const LDKAssetInfo *info =
+        ldk_asset_get_info_const(io_context.assets, handle);
     const LDKAssetMaterialData *data = ldk_asset_manager_material_get_const(
-        io_context.assets, mesh->material_asset);
-    XFSPath relative = {0}, root = io_context.runtree_path;
+        io_context.assets, material_asset);
+    XFSPath relative = {0};
+    XFSPath root = io_context.runtree_path;
+
     x_fs_path_normalize(&root);
     if (!info || !data || !x_fs_path_common_prefix(
             root.buf, info->asset_path.buf, &relative) || !relative.length)
@@ -1688,24 +1854,91 @@ static bool s_write_material(LDKSceneSaveContext *context,
       s_result_error(context->result, "invalid material asset reference");
       return false;
     }
+
     if (data->dirty && !ldk_asset_manager_material_save(
-            &io_context, mesh->material_asset, &io_result))
+            &io_context, material_asset, &io_result))
     {
       s_result_error(context->result, io_result.error);
       return false;
     }
-    s_append_indent(context->out, 6u);
+
+    s_append_indent(context->out, indent);
     x_strbuilder_append(context->out, "material_asset: ");
     s_append_escaped_string(context->out, relative.buf);
     x_strbuilder_append_char(context->out, '\n');
     return true;
   }
-  if (!ldk_material_desc_write(&io_context, &mesh->material,
-          context->out, 6u, &io_result))
+
+  if (!ldk_material_desc_write(&io_context, material,
+          context->out, indent, &io_result))
   {
     s_result_error(context->result, io_result.error);
     return false;
   }
+
+  return true;
+}
+
+static bool s_write_materials(LDKSceneSaveContext *context,
+    const LDKMeshSource *mesh)
+{
+  u32 material_count;
+
+  if (!context || !mesh)
+  {
+    return false;
+  }
+
+  material_count = ldk_mesh_source_material_count(mesh);
+  if (material_count == 0)
+  {
+    material_count = 1;
+  }
+
+  if (material_count == 1)
+  {
+    return s_write_material_binding(context, &mesh->material,
+        mesh->material_asset, mesh->material_revision, 6u);
+  }
+
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append(context->out, "materials:\n");
+
+  for (u32 slot = 0; slot < material_count; slot++)
+  {
+    const LDKMaterialDesc *material;
+    LDKAssetMaterial material_asset;
+    u64 material_revision;
+
+    if (slot == 0)
+    {
+      material = &mesh->material;
+      material_asset = mesh->material_asset;
+      material_revision = mesh->material_revision;
+    }
+    else
+    {
+      const LDKMeshSourceMaterialBinding *binding =
+          ldk_mesh_source_additional_material_binding_const(mesh, slot);
+      if (!binding)
+      {
+        s_result_error(context->result, "invalid mesh material binding");
+        return false;
+      }
+      material = &binding->material;
+      material_asset = binding->material_asset;
+      material_revision = binding->material_revision;
+    }
+
+    s_append_indent(context->out, 7u);
+    x_strbuilder_append_format(context->out, "- slot: %u\n", slot);
+    if (!s_write_material_binding(context, material, material_asset,
+            material_revision, 8u))
+    {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -1773,8 +2006,11 @@ static bool s_write_component(LDKSceneSaveContext *context,
 
   if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
   {
-    if (!s_write_material(context, component))
+    if (!s_write_mesh_selection(context, component) ||
+        !s_write_materials(context, component))
+    {
       return false;
+    }
     wrote_any_field = true;
   }
 

@@ -1,0 +1,23 @@
+scene:
+  version: 1
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "examples\\tree.mesh"
+            materials:
+              - slot: 0
+                material_type: 4
+                material_color: 0xffffffff
+              - slot: 1
+                material_type: 4
+                material_color: 0xffffffff

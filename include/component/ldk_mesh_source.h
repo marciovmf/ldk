@@ -18,6 +18,16 @@
 extern "C" {
 #endif
 
+  typedef struct LDKMeshSourceMaterialBinding
+  {
+    LDKMaterialDesc material;
+    LDKAssetMaterial material_asset;
+    u64 material_revision;
+    LDKResourceMaterial renderer_material;
+    LDKResourceTexture renderer_texture;
+    bool material_dirty;
+  } LDKMeshSourceMaterialBinding;
+
   //@component
   typedef struct LDKMeshSource
   {
@@ -40,17 +50,46 @@ extern "C" {
     bool dirty;
     //@inspect hidden
     bool material_dirty;
+    //@inspect hidden
+    LDKMeshSourceMaterialBinding* additional_materials;
+    //@inspect hidden
+    u32 material_count;
   } LDKMeshSource;
 
-  LDK_API bool ldk_mesh_source_set_data(LDKMeshSource* mesh_source, LDKAssetMesh asset);
-  /* Assign an inline descriptor, detaching any shared material asset. */
+  LDK_API bool ldk_mesh_source_set_data(
+      LDKMeshSource* mesh_source, LDKAssetMesh asset);
+
+  /* Resize material bindings to match the selected Mesh's material slots. */
+  LDK_API bool ldk_mesh_source_materials_sync(
+      LDKMeshSource* mesh_source, LDKAssetManager* assets);
+  LDK_API u32 ldk_mesh_source_material_count(
+      const LDKMeshSource* mesh_source);
+
+  /* Slots greater than zero are stored here. Slot zero uses the historical
+   * material/material_asset/runtime fields directly on LDKMeshSource. */
+  LDK_API LDKMeshSourceMaterialBinding*
+      ldk_mesh_source_additional_material_binding(
+          LDKMeshSource* mesh_source, u32 material_slot);
+  LDK_API const LDKMeshSourceMaterialBinding*
+      ldk_mesh_source_additional_material_binding_const(
+          const LDKMeshSource* mesh_source, u32 material_slot);
+
+  /* Assign an inline descriptor. The historical helper addresses slot zero. */
   LDK_API bool ldk_mesh_source_set_material(
       LDKMeshSource* mesh_source,
+      LDKMaterialDesc const* material);
+  LDK_API bool ldk_mesh_source_set_material_at(
+      LDKMeshSource* mesh_source,
+      u32 material_slot,
       LDKMaterialDesc const* material);
 
   /* Binding validates the asset and copies its current descriptor. */
   LDK_API bool ldk_mesh_source_set_material_asset(LDKMeshSource* mesh_source,
       LDKAssetManager* assets, LDKAssetMaterial asset);
+  LDK_API bool ldk_mesh_source_set_material_asset_at(
+      LDKMeshSource* mesh_source, LDKAssetManager* assets,
+      u32 material_slot, LDKAssetMaterial asset);
+
   /* Refresh authored values after shared edits, without invalidating geometry. */
   LDK_API bool ldk_mesh_source_material_sync(LDKMeshSource* mesh_source,
       LDKAssetManager* assets);

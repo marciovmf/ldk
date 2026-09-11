@@ -131,7 +131,14 @@ extern "C" {
 
   typedef struct LDKAssetMeshData
   {
+    char name[LDK_MESH_NAME_CAPACITY];
     LDKMeshData mesh;
+    LDKMeshSubmesh* submeshes;
+    u32 submesh_count;
+    LDKMeshMaterialSlot* material_slots;
+    u32 material_slot_count;
+    u32 source_mesh_index;
+    u32 source_mesh_count;
   } LDKAssetMeshData;
 
   LDK_API LDKAssetMesh ldk_asset_mesh_null(void);
