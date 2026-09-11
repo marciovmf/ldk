@@ -2,6 +2,7 @@
 #include <ldk.h>
 #include <ldk_game.h>
 #include <ldk_mesh.h>
+#include <ldk_mesh_asset.h>
 #include <ldk_material_io.h>
 #include <ldk_material_asset.h>
 
@@ -753,17 +754,19 @@ static bool s_apply_field_value(const TMLDocument *doc,
     if (entry->type == TML_VALUE_STRING)
     {
       TMLString reference;
+      XFSPath reference_path = {0};
       LDKMeshPrimitive primitive;
       LDKAssetManager *asset_manager;
       LDKAssetMesh asset;
 
-      if (!tml_entry_get_string(entry, &reference) ||
-          !s_mesh_primitive_from_asset_reference(
-              reference.data, &primitive))
+      if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+          reference.size >= sizeof(reference_path.buf) ||
+          memchr(reference.data, 0, reference.size))
       {
         return false;
       }
 
+      memcpy(reference_path.buf, reference.data, reference.size);
       asset_manager = (LDKAssetManager *)ldk_module_get(
           LDK_MODULE_ASSET_MANAGER);
       if (!asset_manager)
@@ -771,7 +774,50 @@ static bool s_apply_field_value(const TMLDocument *doc,
         return false;
       }
 
-      asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
+      if (s_mesh_primitive_from_asset_reference(
+              reference_path.buf, &primitive))
+      {
+        asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
+      }
+      else
+      {
+        LDKSceneManager *scenes;
+        XFSPath root;
+        XFSPath absolute = {0};
+        XFSPath relative = {0};
+        LDKMeshAssetResult mesh_result;
+
+        if (x_fs_path_is_absolute_cstr(reference_path.buf))
+        {
+          return false;
+        }
+
+        scenes = (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+        if (!scenes)
+        {
+          return false;
+        }
+
+        root = scenes->runtree_path;
+        x_fs_path_normalize(&root);
+        if (!root.length ||
+            !x_fs_path(&absolute, root.buf, reference_path.buf))
+        {
+          return false;
+        }
+        x_fs_path_normalize(&absolute);
+
+        if (!x_fs_path_common_prefix(
+                root.buf, absolute.buf, &relative) ||
+            !relative.length || strcmp(relative.buf, ".") == 0)
+        {
+          return false;
+        }
+
+        asset = ldk_asset_manager_mesh_load_shared(
+            asset_manager, absolute.buf, &mesh_result);
+      }
+
       if (x_handle_is_null(asset.h))
       {
         return false;
@@ -1552,12 +1598,37 @@ static bool s_write_field_value(XStrBuilder *out,
     }
 
     reference = x_fs_path_cstr(&info->asset_path);
-    if (!s_mesh_primitive_from_asset_reference(reference, NULL))
+    if (s_mesh_primitive_from_asset_reference(reference, NULL))
     {
-      return false;
+      s_append_escaped_string(out, reference);
     }
+    else
+    {
+      LDKSceneManager *scenes =
+          (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+      XFSPath root;
+      XFSPath asset_path;
+      XFSPath relative = {0};
 
-    s_append_escaped_string(out, reference);
+      if (!scenes || !x_fs_path_is_absolute_cstr(reference))
+      {
+        return false;
+      }
+
+      root = scenes->runtree_path;
+      asset_path = info->asset_path;
+      x_fs_path_normalize(&root);
+      x_fs_path_normalize(&asset_path);
+
+      if (!root.length ||
+          !x_fs_path_common_prefix(root.buf, asset_path.buf, &relative) ||
+          !relative.length || strcmp(relative.buf, ".") == 0)
+      {
+        return false;
+      }
+
+      s_append_escaped_string(out, relative.buf);
+    }
   }
   break;
 

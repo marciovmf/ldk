@@ -331,6 +331,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_game.h
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
+  ${INCLUDE_DIR}/ldk_mesh_asset.h   src/module/ldk_asset_mesh.c
   ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
   ${INCLUDE_DIR}/ldk_material_io.h src/ldk_material_io.c
   ${INCLUDE_DIR}/ldk_material_asset.h src/module/ldk_asset_material.c

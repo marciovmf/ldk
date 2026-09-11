@@ -1,4 +1,5 @@
 #include <ldk_material_asset.h>
+#include <ldk_mesh_asset.h>
 #include "ldk_editor_internal.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
@@ -642,23 +643,128 @@ static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
   return false;
 }
 
-static void s_editor_inspector_field_draw(LDKUIContext *ui, LDKEntity entity,
+static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
+    const char *label, LDKMeshSource *mesh, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetHandle handle = {mesh->source_asset.h};
+  const LDKAssetInfo *info = assets && !x_handle_is_null(mesh->source_asset.h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_label(ui, label);
+
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose mesh",
+        "Meshes\0*.mesh\0\0", path.buf, sizeof(path.buf));
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  XFSPath normalized = {0};
+  XFSPath root = editor->project.run_root_path;
+  XFSPath relative = {0};
+  x_fs_path_set(&normalized, path.buf);
+  x_fs_path_normalize(&normalized);
+  x_fs_path_normalize(&root);
+
+  if (!editor->project.loaded || !root.length ||
+      !x_fs_path_common_prefix(root.buf, normalized.buf, &relative) ||
+      !relative.length || strcmp(relative.buf, ".") == 0)
+  {
+    ldk_os_dialog_show_error(editor->window, "Mesh",
+        "Choose a mesh inside the project's runtree folder.");
+    return false;
+  }
+
+  LDKMeshAssetResult result;
+  LDKAssetMesh asset =
+      ldk_asset_manager_mesh_load_shared(assets, normalized.buf, &result);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, result.error);
+    return false;
+  }
+
+  if (!ldk_mesh_source_set_data(mesh, asset))
+  {
+    ldki_editor_log_error(editor, "Failed to assign mesh asset.");
+    return false;
+  }
+
+  return true;
+}
+
+static void s_editor_inspector_field_draw(
+    LDKEditorContext *editor, LDKEntity entity,
     u32 component_type, const LDKComponentMeta *meta,
     const LDKComponentFieldMeta *field, void *component)
 {
+  LDKUIContext *ui;
   char value_text[128];
   u8 *field_value;
   bool readonly;
 
-  if (!ui || !meta || !field || !component || field->offset >= meta->size)
+  if (!editor || !meta || !field || !component || field->offset >= meta->size)
   {
     return;
   }
+
+  ui = &editor->ui;
 
   field_value = (u8 *)component + field->offset;
   readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
 
   ldk_ui_push_id_cstr(ui, field->name);
+
+  if (field->type == LDK_FIELD_ASSET_MESH &&
+      component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
+      field->offset == offsetof(LDKMeshSource, source_asset))
+  {
+    s_editor_inspector_mesh_asset_field(
+        editor, field->name, (LDKMeshSource *)component, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
@@ -1243,7 +1349,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
        */
       for (u32 field_i = 0; field_i < meta->field_count; field_i++)
       {
-        s_editor_inspector_field_draw(ui, entity, component_type, meta,
+        s_editor_inspector_field_draw(editor, entity, component_type, meta,
             &meta->fields[field_i], component);
       }
       if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
