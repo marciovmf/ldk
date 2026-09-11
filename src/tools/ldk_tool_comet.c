@@ -487,6 +487,7 @@ static bool ldk_meta_parse_struct_body(
     char* inspect = NULL;
     const char* next = cursor;
     size_t len = 0;
+    bool field_ended;
 
     while (next < body_end && *next != '\n')
     {
@@ -501,6 +502,7 @@ static bool ldk_meta_parse_struct_body(
 
     memcpy(line, cursor, len);
     line[len] = 0;
+    field_ended = strchr(line, ';') != NULL;
 
     inspect = strstr(line, "//@inspect");
     if (inspect)
@@ -514,7 +516,7 @@ static bool ldk_meta_parse_struct_body(
         return false;
       }
 
-      if (strchr(line, ';'))
+      if (field_ended)
       {
         pending_annotation[0] = 0;
       }
