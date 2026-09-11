@@ -1,0 +1,24 @@
+#include <ldk_game.h>
+
+#define game_component_metadata_count ldk_engine_generated_component_metadata_count
+#define game_component_metadata_get ldk_engine_generated_component_metadata_get
+#define game_system_metadata_count ldk_engine_generated_system_metadata_count
+#define game_system_metadata_get ldk_engine_generated_system_metadata_get
+
+#define LDK_COMPONENT_METADATA_IMPLEMENTATION
+#include <generated_engine_component_metadata.h>
+
+#undef game_component_metadata_count
+#undef game_component_metadata_get
+#undef game_system_metadata_count
+#undef game_system_metadata_get
+
+LDK_API u32 ldk_engine_component_metadata_count(void)
+{
+  return ldk_engine_generated_component_metadata_count();
+}
+
+LDK_API const LDKComponentMeta *ldk_engine_component_metadata_get(u32 index)
+{
+  return ldk_engine_generated_component_metadata_get(index);
+}
