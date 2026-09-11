@@ -505,11 +505,6 @@ endif()
 
 # --- GAME MODULE ------------------------------------------------------------
 if (OPTION_BUILD_GAME)
-  if (OPTION_LDK_USE_PREBUILT)
-    set(LDK_GAME_TARGET_NAME game)
-  else()
-    set(LDK_GAME_TARGET_NAME game_shared)
-  endif()
 
   list(APPEND LDK_GAME_COMPONENT_DIRS
   "${INCLUDE_DIR}/component")
@@ -518,7 +513,7 @@ if (OPTION_BUILD_GAME)
   list(APPEND LDK_GAME_SOURCES )
   
   ldk_game_build(
-    TARGET ${LDK_GAME_TARGET_NAME}
+    TARGET game
     TYPE SHARED
     ENGINE_TARGET ldk
     SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
