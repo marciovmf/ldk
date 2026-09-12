@@ -203,6 +203,7 @@ typedef struct LDKEditorContext
   LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
+  u64 selected_system_id;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
   LDKEditorCameraControllerState camera_controller;

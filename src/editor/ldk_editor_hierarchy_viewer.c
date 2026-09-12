@@ -262,6 +262,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   if (s_editor_hierarchy_node_pressed(ui, node_id))
   {
     editor->selected_entity = entity;
+    editor->selected_system_id = 0;
     *selected_entity = entity;
     *has_selection = true;
     s_editor_hierarchy_entity_payload_set(entity);
@@ -309,77 +310,6 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   }
 }
 
-static void s_editor_system_grouping_draw(LDKUIContext *ui,
-    LDKSceneSystems *systems, u64 system_id, bool can_edit)
-{
-  u64 current_id = ldk_scene_systems_grouping_get(systems, system_id);
-  u32 grouping_count = ldk_ecs_grouping_count();
-  bool current_found = current_id == 0;
-
-  for (u32 i = 0; i < grouping_count; ++i)
-  {
-    LDKGroupingDesc desc = {0};
-    if (ldk_ecs_grouping_at(i, &desc) && desc.id == current_id)
-    {
-      current_found = true;
-      break;
-    }
-  }
-
-  u32 item_count = grouping_count + 1u + (!current_found ? 1u : 0u);
-  const char **labels = (const char **)calloc(item_count, sizeof(*labels));
-  u64 *ids = (u64 *)calloc(item_count, sizeof(*ids));
-  if (!labels || !ids)
-  {
-    free(labels);
-    free(ids);
-    ldk_ui_label(ui, "<grouping unavailable>");
-    return;
-  }
-
-  labels[0] = "<No Grouping>";
-  ids[0] = 0;
-  u32 selected = 0;
-  u32 write_index = 1;
-  for (u32 i = 0; i < grouping_count; ++i)
-  {
-    LDKGroupingDesc desc = {0};
-    if (!ldk_ecs_grouping_at(i, &desc))
-    {
-      continue;
-    }
-    labels[write_index] = desc.name;
-    ids[write_index] = desc.id;
-    if (desc.id == current_id)
-    {
-      selected = write_index;
-    }
-    ++write_index;
-  }
-
-  char missing_label[64];
-  if (!current_found)
-  {
-    snprintf(missing_label, sizeof(missing_label),
-        "<missing 0x%016" PRIx64 ">", current_id);
-    labels[write_index] = missing_label;
-    ids[write_index] = current_id;
-    selected = write_index;
-    ++write_index;
-  }
-
-  ldk_ui_begin_disabled(ui, !can_edit);
-  u32 new_selected = ldk_ui_combo_box(ui, labels, write_index, selected);
-  ldk_ui_end_disabled(ui);
-  if (can_edit && new_selected < write_index && new_selected != selected)
-  {
-    ldk_scene_systems_grouping_set(systems, system_id, ids[new_selected]);
-  }
-
-  free(ids);
-  free(labels);
-}
-
 static void s_editor_hierarchy_systems_draw(
     LDKEditorContext *editor, LDKUIIcon icon)
 {
@@ -391,6 +321,7 @@ static void s_editor_hierarchy_systems_draw(
   {
     systems = &manager->current_systems;
   }
+
   LDKGame *game = ldk_game_get();
   u32 metadata_count =
       game && game->system_metadata_count ? game->system_metadata_count() : 0;
@@ -428,6 +359,7 @@ static void s_editor_hierarchy_systems_draw(
       u64 id = systems->ids[i];
       const LDKSystemMeta *meta = NULL;
       char label[256];
+
       for (u32 j = 0; j < metadata_count && game->system_metadata_get; ++j)
       {
         const LDKSystemMeta *candidate = game->system_metadata_get(j);
@@ -437,9 +369,8 @@ static void s_editor_hierarchy_systems_draw(
           break;
         }
       }
-      bool found = meta != NULL;
 
-      if (found)
+      if (meta)
       {
         snprintf(label, sizeof(label), "%s",
             meta->name != NULL ? meta->name : "<unnamed system>");
@@ -449,17 +380,32 @@ static void s_editor_hierarchy_systems_draw(
         snprintf(label, sizeof(label), "<missing system> 0x%016" PRIx64, id);
       }
 
+      LDKUIIcon system_icon = icon;
+      system_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
+      LDKUIIcon delete_icon = icon;
+      delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+      u32 node_flags = LDK_UI_TREE_NODE_LEAF;
+      if (editor->selected_system_id == id)
+      {
+        node_flags |= LDK_UI_TREE_NODE_SELECTED;
+      }
+
       ldk_ui_push_id_u32(ui, (u32)id);
       ldk_ui_push_id_u32(ui, (u32)(id >> 32));
       ldk_ui_begin_horizontal(ui);
       ldk_ui_set_next_weight(ui, 1.0f);
-      ldk_ui_tree_node_ex(ui, label, icon, false, 1, LDK_UI_TREE_NODE_LEAF);
-      ldk_ui_set_next_width(ui, ldk_ui_px(180.0f));
-      s_editor_system_grouping_draw(ui, systems, id, can_edit);
+      ldk_ui_tree_node_ex(ui, label, system_icon, false, 1, node_flags);
+      LDKUIId node_id = ui->last_id;
+
+      if (s_editor_hierarchy_node_pressed(ui, node_id))
+      {
+        editor->selected_system_id = id;
+        editor->selected_entity = x_handle_null();
+      }
+
       ldk_ui_set_next_disabled(ui, !can_edit);
       ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, delete_icon, NULL))
       {
         if (!ldk_scene_systems_remove(systems, id))
         {
@@ -467,6 +413,10 @@ static void s_editor_hierarchy_systems_draw(
         }
         else
         {
+          if (editor->selected_system_id == id)
+          {
+            editor->selected_system_id = 0;
+          }
           ldki_editor_log_info(editor, "Scene system removed.");
         }
         ldk_ui_end_horizontal(ui);
@@ -506,6 +456,8 @@ static void s_editor_hierarchy_systems_draw(
         }
         else
         {
+          editor->selected_system_id = meta->id;
+          editor->selected_entity = x_handle_null();
           ldki_editor_log_info(editor, "Scene system associated.");
         }
         ldk_ui_close_current_popup(ui);

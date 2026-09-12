@@ -800,6 +800,7 @@ static void s_editor_scene_selection_clear(LDKEditorContext *editor)
   }
 
   editor->selected_entity = x_handle_null();
+  editor->selected_system_id = 0;
   if (editor->hierarchy_expanded_entities != NULL)
   {
     x_array_clear(editor->hierarchy_expanded_entities);
@@ -1151,6 +1152,7 @@ bool ldki_editor_scene_add_primitive(
   }
 
   editor->selected_entity = entity;
+  editor->selected_system_id = 0;
   return true;
 }
 

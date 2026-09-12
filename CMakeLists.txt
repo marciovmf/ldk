@@ -207,23 +207,38 @@ function(ldk_game_build)
   # Component metadata generation
   # ------------------------------------------------------------
 
-  if (GAME_COMPONENT_DIRS OR GAME_SYSTEM_DIRS)
-    set(GAME_COMPONENT_HEADERS "")
-    
+  if (GAME_COMPONENT_DIRS OR GAME_SYSTEM_DIRS OR GAME_SOURCES)
+    set(GAME_METADATA_INPUTS "")
+
     foreach(component_dir IN LISTS GAME_COMPONENT_DIRS GAME_SYSTEM_DIRS)
       ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
-      list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
+      list(APPEND GAME_METADATA_INPUTS ${headers_in_dir})
     endforeach()
 
-    list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
+    # Function systems can be declared directly in game source files. Feed
+    # existing C/C++ sources to Comet as metadata inputs as well as headers.
+    foreach(game_source IN LISTS GAME_SOURCES)
+      if (IS_ABSOLUTE "${game_source}")
+        set(game_source_abs "${game_source}")
+      else()
+        get_filename_component(game_source_abs "${game_source}" ABSOLUTE
+          BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+      endif()
+
+      if (EXISTS "${game_source_abs}")
+        list(APPEND GAME_METADATA_INPUTS "${game_source_abs}")
+      endif()
+    endforeach()
+
+    list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
 
     add_custom_command(
       OUTPUT "${GAME_METADATA_HEADER}"
       COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
-      COMMAND $<TARGET_FILE:comet> "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
+      COMMAND $<TARGET_FILE:comet> "${GAME_METADATA_HEADER}" ${GAME_METADATA_INPUTS}
       DEPENDS
         comet
-        ${GAME_COMPONENT_HEADERS}
+        ${GAME_METADATA_INPUTS}
       COMMAND_EXPAND_LISTS
       VERBATIM
       COMMENT "Running component and system metadata extraction tool..."

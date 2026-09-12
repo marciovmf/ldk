@@ -27,18 +27,21 @@ LDKGame game = {0};
 static void s_hello_system_update(
     void *data, const LDKEntityGroup *group, float dt)
 {
-  (void)data;
+  Hello *system = (Hello *)data;
   (void)dt;
-  ldk_log_info("HELLO! Received %d entities\n", group->count);
-}
 
-const LDKSystemDesc Hello = {.id = ldk_system_id(Hello),
-    .name = "Hello",
-    .flags = LDK_SYSTEM_FLAG_ENABLED,
-    .bucket = LDK_SYSTEM_BUCKET_UPDATE,
-    .order = 0,
-    .data_size = 0,
-    .update = s_hello_system_update};
+  if (!system)
+  {
+    return;
+  }
+
+  system->update_count += 1u;
+  if (system->log_every_n_updates == 0u ||
+      system->update_count % system->log_every_n_updates == 0u)
+  {
+    ldk_log_info("HELLO! Received %d entities\n", group->count);
+  }
+}
 
 typedef struct GameData
 {
@@ -68,7 +71,7 @@ bool game_initialize(LDKGame *game)
   ldk_log_info("Game initialize!!\n");
   game->user_data = &s_game_data;
 
-  if (!ldk_ecs_system_register(&Hello))
+  if (!ldk_ecs_system_register(ldk_system_desc(Hello)))
   {
     ldk_log_error("Failed to register Hello system.\n");
     return false;
