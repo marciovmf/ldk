@@ -23,9 +23,6 @@ fullscreen = false
 [.editor]
 play_current_scene = false
 
-[scenes]
-count = 0
-
 [.flags]
 tag_0 = "Hero"
 tag_1 = "Vegetation"
@@ -43,3 +40,8 @@ tag_12 = "tag_12"
 tag_13 = "tag_13"
 tag_14 = "tag_14"
 tag_15 = "tag_15"
+
+[scenes]
+count = 1
+0.path = "base.scene"
+0.name = "base"

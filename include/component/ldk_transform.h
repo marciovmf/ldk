@@ -34,6 +34,7 @@ extern "C"
     u32 flags;
     Vec3 local_position;
     Vec3 local_scale;
+    //@inspect widget=EULER
     Quat local_rotation;
     //@inspect hidden
     Mat4 world_matrix;
