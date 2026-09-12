@@ -85,7 +85,6 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_horizontal(ui);
   ldk_ui_horizontal_line(ui);
 
-
   LDKUIRect popup_pos = {
       file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
 
@@ -102,7 +101,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
       ldki_editor_project_create_window_open(editor);
       ldk_ui_close_current_popup(ui);
     }
-    
+
     ldk_ui_set_next_disabled(ui, !can_edit_scene);
     if (ldk_ui_button_flat(ui, "New Scene"))
     {
@@ -236,12 +235,26 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_begin_popup(ui, MENU_ID_WINDOW);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
+
+    if (ldk_ui_button_flat(ui, "Entity Group"))
+    {
+      ldki_editor_grouping_catalog_open(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
     u32 window_count = ldki_editor_window_count();
 
     for (u32 i = 0; i < window_count; ++i)
     {
       const LDKEditorWindow *window = ldki_editor_window_at(i);
-      if (window != NULL && ldk_ui_button_flat(ui, window->title))
+
+      if (window == NULL ||
+          window->id == LDK_EDITOR_WINDOW_GROUPING_CATALOG)
+      {
+        continue;
+      }
+
+      if (ldk_ui_button_flat(ui, window->title))
       {
         ldki_editor_window_show(window->id);
         ldk_ui_close_current_popup(ui);

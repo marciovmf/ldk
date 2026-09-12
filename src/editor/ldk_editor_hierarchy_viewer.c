@@ -5,6 +5,7 @@
 #include "ldk_ui_drag_n_drop.h"
 #include <inttypes.h> // for PRIu64
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
@@ -242,8 +243,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color =
-      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
   ldki_editor_entity_display_name(info, entity, label, sizeof(label));
@@ -309,6 +309,77 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   }
 }
 
+static void s_editor_system_grouping_draw(LDKUIContext *ui,
+    LDKSceneSystems *systems, u64 system_id, bool can_edit)
+{
+  u64 current_id = ldk_scene_systems_grouping_get(systems, system_id);
+  u32 grouping_count = ldk_ecs_grouping_count();
+  bool current_found = current_id == 0;
+
+  for (u32 i = 0; i < grouping_count; ++i)
+  {
+    LDKGroupingDesc desc = {0};
+    if (ldk_ecs_grouping_at(i, &desc) && desc.id == current_id)
+    {
+      current_found = true;
+      break;
+    }
+  }
+
+  u32 item_count = grouping_count + 1u + (!current_found ? 1u : 0u);
+  const char **labels = (const char **)calloc(item_count, sizeof(*labels));
+  u64 *ids = (u64 *)calloc(item_count, sizeof(*ids));
+  if (!labels || !ids)
+  {
+    free(labels);
+    free(ids);
+    ldk_ui_label(ui, "<grouping unavailable>");
+    return;
+  }
+
+  labels[0] = "<No Grouping>";
+  ids[0] = 0;
+  u32 selected = 0;
+  u32 write_index = 1;
+  for (u32 i = 0; i < grouping_count; ++i)
+  {
+    LDKGroupingDesc desc = {0};
+    if (!ldk_ecs_grouping_at(i, &desc))
+    {
+      continue;
+    }
+    labels[write_index] = desc.name;
+    ids[write_index] = desc.id;
+    if (desc.id == current_id)
+    {
+      selected = write_index;
+    }
+    ++write_index;
+  }
+
+  char missing_label[64];
+  if (!current_found)
+  {
+    snprintf(missing_label, sizeof(missing_label),
+        "<missing 0x%016" PRIx64 ">", current_id);
+    labels[write_index] = missing_label;
+    ids[write_index] = current_id;
+    selected = write_index;
+    ++write_index;
+  }
+
+  ldk_ui_begin_disabled(ui, !can_edit);
+  u32 new_selected = ldk_ui_combo_box(ui, labels, write_index, selected);
+  ldk_ui_end_disabled(ui);
+  if (can_edit && new_selected < write_index && new_selected != selected)
+  {
+    ldk_scene_systems_grouping_set(systems, system_id, ids[new_selected]);
+  }
+
+  free(ids);
+  free(labels);
+}
+
 static void s_editor_hierarchy_systems_draw(
     LDKEditorContext *editor, LDKUIIcon icon)
 {
@@ -336,14 +407,21 @@ static void s_editor_hierarchy_systems_draw(
   {
     systems_expanded = !systems_expanded;
   }
-  
+
   if (systems_expanded)
   {
+    ldk_ui_begin_horizontal(ui);
     ldk_ui_set_next_disabled(ui, !can_edit);
     if (ldk_ui_button(ui, "+ Add System"))
     {
       ldk_ui_open_popup(ui, ADD_SYSTEM_POPUP);
     }
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button(ui, "Edit Groupings..."))
+    {
+      ldki_editor_grouping_catalog_open(editor);
+    }
+    ldk_ui_end_horizontal(ui);
 
     for (u32 i = 0; i < systems->count; ++i)
     {
@@ -368,16 +446,16 @@ static void s_editor_hierarchy_systems_draw(
       }
       else
       {
-        snprintf(label, sizeof(label),
-            "<missing system> 0x%016" PRIx64, id);
+        snprintf(label, sizeof(label), "<missing system> 0x%016" PRIx64, id);
       }
 
       ldk_ui_push_id_u32(ui, (u32)id);
       ldk_ui_push_id_u32(ui, (u32)(id >> 32));
       ldk_ui_begin_horizontal(ui);
       ldk_ui_set_next_weight(ui, 1.0f);
-      ldk_ui_tree_node_ex(
-          ui, label, icon, false, 1, LDK_UI_TREE_NODE_LEAF);
+      ldk_ui_tree_node_ex(ui, label, icon, false, 1, LDK_UI_TREE_NODE_LEAF);
+      ldk_ui_set_next_width(ui, ldk_ui_px(180.0f));
+      s_editor_system_grouping_draw(ui, systems, id, can_edit);
       ldk_ui_set_next_disabled(ui, !can_edit);
       ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
@@ -460,8 +538,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color =
-      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
 
   if (editor == NULL || ecs == NULL)
@@ -469,8 +546,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     return;
   }
 
-  has_selection =
-      ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
+  has_selection = ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
 
   if (owns_window)
   {
@@ -562,3 +638,4 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
+

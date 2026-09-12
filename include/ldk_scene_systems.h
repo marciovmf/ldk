@@ -10,36 +10,50 @@
 #include <module/ldk_system.h>
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 /**
- * System ids belonging to the open scene, not to the scene catalog.
- * Initialize with {0}. The list owns its storage and must be cleared when
- * the scene is discarded. Unknown ids are retained.
+ * System associations belonging to the open scene, not to the scene catalog.
+ * Initialize with {0}. The list owns its storage and must be cleared when the
+ * scene is discarded. Unknown system and grouping ids are retained.
+ *
+ * grouping_ids mirrors ids by index. A grouping id of 0 means the system is
+ * not bound to an entity grouping. Keeping ids as its own array preserves the
+ * existing scene-system API and storage semantics for callers that only care
+ * about the selected systems.
  */
 typedef struct LDKSceneSystems
 {
   u64 *ids;
+  u64 *grouping_ids;
   u32 count;
   u32 capacity;
 } LDKSceneSystems;
 
 LDK_API void ldk_scene_systems_clear(LDKSceneSystems *systems);
 LDK_API bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id);
+/** Adds an unbound system (grouping id 0). */
 LDK_API bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id);
+LDK_API bool ldk_scene_systems_add_with_grouping(
+    LDKSceneSystems *systems, u64 id, u64 grouping_id);
 LDK_API bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id);
+LDK_API bool ldk_scene_systems_grouping_set(
+    LDKSceneSystems *systems, u64 system_id, u64 grouping_id);
+LDK_API u64 ldk_scene_systems_grouping_get(
+    const LDKSceneSystems *systems, u64 system_id);
 
 /**
  * Reads the optional scene.systems node without creating ECS entities.
  * An absent node produces an empty list. On failure, out is unchanged.
  * Accepted ids are positive signed integers or strings representing u64s.
  * The writer uses quoted hexadecimal strings to support the full u64 range.
+ * The optional grouping entry defaults to 0 for old scene files.
  *
  *   scene:
  *     systems:
  *       - id: "0x0000000000000100"
+ *         grouping: "0x0000000000000200"
  */
 LDK_API bool ldk_scene_systems_from_tml(
     const char *source, LDKSceneSystems *out, LDKSceneResult *result);
@@ -52,7 +66,13 @@ LDK_API bool ldk_scene_systems_load_tml_file(
  * start is called after the new scene's entities have been loaded.
  * Start callbacks follow registry registration order; the scene list itself
  * is an association set, not an initialization-order list.
+ *
+ * start also updates each system's grouping binding, including systems that
+ * remained initialized while switching between two scenes.
  */
+/** Validate registered system/grouping bindings without changing runtime state. */
+LDK_API bool ldk_scene_systems_validate_bindings(
+    LDKSystemRegistry *registry, const LDKSceneSystems *systems);
 LDK_API bool ldk_scene_systems_stop_missing(
     LDKSystemRegistry *registry, const LDKSceneSystems *systems);
 LDK_API bool ldk_scene_systems_start(

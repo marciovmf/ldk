@@ -88,3 +88,4 @@ scene:
             material_color: 0xa800ff
   systems:
     - id: "0x63f0bfacf2c00f6b"
+      grouping: "0x8000000000000000"

@@ -24,11 +24,13 @@
 
 LDKGame game = {0};
 
-static void s_hello_system_update(void* userdata, float dt)
+static void s_hello_system_update(
+    void *userdata, const LDKEntityGroup *group, float dt)
 {
   (void)userdata;
+  (void)group;
   (void)dt;
-  ldk_log_info("HELLO\n");
+ldk_log_info("HELLO! Received %d entitiesn", group->count);
 }
 
 const LDKSystemDesc Hello = {.id = ldk_system_id(Hello),

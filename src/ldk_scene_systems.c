@@ -1,5 +1,6 @@
 #include <ldk_scene_systems.h>
 #include <ldk.h>
+#include <module/ldk_ecs.h>
 
 #include <stdx/stdx_tml.h>
 
@@ -9,18 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void ldk_scene_systems_clear(LDKSceneSystems *systems)
-{
-  if (!systems)
-  {
-    return;
-  }
-
-  free(systems->ids);
-  memset(systems, 0, sizeof(*systems));
-}
-
-bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id)
+static bool s_scene_system_find_index(
+    const LDKSceneSystems *systems, u64 id, u32 *out_index)
 {
   if (!systems || id == 0)
   {
@@ -31,6 +22,10 @@ bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id)
   {
     if (systems->ids[i] == id)
     {
+      if (out_index)
+      {
+        *out_index = i;
+      }
       return true;
     }
   }
@@ -38,7 +33,102 @@ bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id)
   return false;
 }
 
+static bool s_scene_systems_reserve(
+    LDKSceneSystems *systems, u32 min_capacity)
+{
+  u64 *ids;
+  u64 *grouping_ids;
+  u32 capacity;
+
+  if (!systems)
+  {
+    return false;
+  }
+
+  if (systems->capacity >= min_capacity && systems->ids &&
+      systems->grouping_ids)
+  {
+    return true;
+  }
+
+  capacity = systems->capacity ? systems->capacity : 8u;
+  if (systems->ids && systems->grouping_ids && capacity < min_capacity &&
+      capacity <= UINT32_MAX / 2u)
+  {
+    capacity *= 2u;
+  }
+  while (capacity < min_capacity)
+  {
+    if (capacity > UINT32_MAX / 2u)
+    {
+      capacity = min_capacity;
+      break;
+    }
+    capacity *= 2u;
+  }
+
+  if (capacity < min_capacity ||
+      (size_t)capacity > SIZE_MAX / sizeof(*ids))
+  {
+    return false;
+  }
+
+  ids = (u64 *)malloc(sizeof(*ids) * (size_t)capacity);
+  grouping_ids = (u64 *)malloc(sizeof(*grouping_ids) * (size_t)capacity);
+  if (!ids || !grouping_ids)
+  {
+    free(grouping_ids);
+    free(ids);
+    return false;
+  }
+
+  if (systems->count)
+  {
+    memcpy(ids, systems->ids, sizeof(*ids) * (size_t)systems->count);
+    if (systems->grouping_ids)
+    {
+      memcpy(grouping_ids, systems->grouping_ids,
+          sizeof(*grouping_ids) * (size_t)systems->count);
+    }
+    else
+    {
+      memset(grouping_ids, 0,
+          sizeof(*grouping_ids) * (size_t)systems->count);
+    }
+  }
+
+  free(systems->ids);
+  free(systems->grouping_ids);
+  systems->ids = ids;
+  systems->grouping_ids = grouping_ids;
+  systems->capacity = capacity;
+  return true;
+}
+
+void ldk_scene_systems_clear(LDKSceneSystems *systems)
+{
+  if (!systems)
+  {
+    return;
+  }
+
+  free(systems->ids);
+  free(systems->grouping_ids);
+  memset(systems, 0, sizeof(*systems));
+}
+
+bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id)
+{
+  return s_scene_system_find_index(systems, id, NULL);
+}
+
 bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id)
+{
+  return ldk_scene_systems_add_with_grouping(systems, id, 0);
+}
+
+bool ldk_scene_systems_add_with_grouping(
+    LDKSceneSystems *systems, u64 id, u64 grouping_id)
 {
   if (!systems || id == 0)
   {
@@ -50,54 +140,71 @@ bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id)
     return true;
   }
 
-  if (systems->count == systems->capacity)
+  if (!s_scene_systems_reserve(systems, systems->count + 1u))
   {
-    u32 capacity = systems->capacity ? systems->capacity * 2u : 8u;
-    u64 *ids;
-
-    if (capacity < systems->capacity ||
-        (size_t)capacity > SIZE_MAX / sizeof(u64))
-    {
-      return false;
-    }
-
-    ids = (u64 *)realloc(systems->ids, sizeof(u64) * (size_t)capacity);
-    if (!ids)
-    {
-      return false;
-    }
-
-    systems->ids = ids;
-    systems->capacity = capacity;
+    return false;
   }
 
-  systems->ids[systems->count++] = id;
+  systems->ids[systems->count] = id;
+  systems->grouping_ids[systems->count] = grouping_id;
+  systems->count += 1u;
   return true;
 }
 
 bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id)
 {
-  if (!systems || id == 0)
+  u32 index;
+
+  if (!s_scene_system_find_index(systems, id, &index))
   {
     return false;
   }
 
-  for (u32 i = 0; i < systems->count; ++i)
+  memmove(&systems->ids[index], &systems->ids[index + 1u],
+      sizeof(*systems->ids) * (size_t)(systems->count - index - 1u));
+  if (systems->grouping_ids)
   {
-    if (systems->ids[i] == id)
-    {
-      memmove(&systems->ids[i], &systems->ids[i + 1u],
-          sizeof(u64) * (size_t)(systems->count - i - 1u));
-      systems->count--;
-      return true;
-    }
+    memmove(&systems->grouping_ids[index],
+        &systems->grouping_ids[index + 1u],
+        sizeof(*systems->grouping_ids) *
+            (size_t)(systems->count - index - 1u));
+  }
+  systems->count -= 1u;
+  return true;
+}
+
+bool ldk_scene_systems_grouping_set(
+    LDKSceneSystems *systems, u64 system_id, u64 grouping_id)
+{
+  u32 index;
+
+  if (!s_scene_system_find_index(systems, system_id, &index))
+  {
+    return false;
   }
 
-  return false;
+  if (!systems->grouping_ids &&
+      !s_scene_systems_reserve(systems, systems->count))
+  {
+    return false;
+  }
+
+  systems->grouping_ids[index] = grouping_id;
+  return true;
+}
+
+u64 ldk_scene_systems_grouping_get(
+    const LDKSceneSystems *systems, u64 system_id)
+{
+  u32 index;
+  return s_scene_system_find_index(systems, system_id, &index) &&
+             systems->grouping_ids
+             ? systems->grouping_ids[index]
+             : 0;
 }
 
 static bool s_scene_system_id_parse(
-    const TMLEntry *entry, u64 *out_id)
+    const TMLEntry *entry, bool allow_zero, u64 *out_id)
 {
   i64 integer;
   TMLString string;
@@ -111,7 +218,7 @@ static bool s_scene_system_id_parse(
 
   if (tml_entry_get_i64(entry, &integer))
   {
-    if (integer <= 0)
+    if (integer < 0 || (!allow_zero && integer == 0))
     {
       return false;
     }
@@ -128,7 +235,8 @@ static bool s_scene_system_id_parse(
 
   errno = 0;
   value = strtoull(string.data, &end, 0);
-  if (errno == ERANGE || end == string.data || *end != 0 || value == 0)
+  if (errno == ERANGE || end == string.data || *end != 0 ||
+      (!allow_zero && value == 0))
   {
     return false;
   }
@@ -157,8 +265,8 @@ bool ldk_scene_systems_from_tml(
   if (!parse.ok)
   {
     char error[256];
-    snprintf(error, sizeof(error), "TML parse error at %u:%u: %s",
-        parse.line, parse.column, parse.error);
+    snprintf(error, sizeof(error), "TML parse error at %u:%u: %s", parse.line,
+        parse.column, parse.error);
     ldk_scene_result_set_error(result, error);
     return false;
   }
@@ -183,8 +291,8 @@ bool ldk_scene_systems_from_tml(
   {
     if (node->entry_count != 0)
     {
-      ldk_scene_result_set_error(result,
-          "scene.systems must contain system nodes");
+      ldk_scene_result_set_error(
+          result, "scene.systems must contain system nodes");
       goto failed;
     }
 
@@ -193,6 +301,7 @@ bool ldk_scene_systems_from_tml(
       const TMLNode *child = tml_node_child_at(parse.document, node, i);
       const TMLEntry *entry;
       u64 id;
+      u64 grouping_id = 0;
 
       if (!child)
       {
@@ -201,9 +310,16 @@ bool ldk_scene_systems_from_tml(
       }
 
       entry = tml_node_find_entry(parse.document, child, "id");
-      if (!s_scene_system_id_parse(entry, &id))
+      if (!s_scene_system_id_parse(entry, false, &id))
       {
         ldk_scene_result_set_error(result, "invalid scene system id");
+        goto failed;
+      }
+
+      entry = tml_node_find_entry(parse.document, child, "grouping");
+      if (entry && !s_scene_system_id_parse(entry, true, &grouping_id))
+      {
+        ldk_scene_result_set_error(result, "invalid scene system grouping id");
         goto failed;
       }
 
@@ -213,7 +329,7 @@ bool ldk_scene_systems_from_tml(
         goto failed;
       }
 
-      if (!ldk_scene_systems_add(&systems, id))
+      if (!ldk_scene_systems_add_with_grouping(&systems, id, grouping_id))
       {
         ldk_scene_result_set_error(result, "failed to allocate scene systems");
         goto failed;
@@ -286,6 +402,39 @@ bool ldk_scene_systems_load_tml_file(
   return ok;
 }
 
+bool ldk_scene_systems_validate_bindings(
+    LDKSystemRegistry *registry, const LDKSceneSystems *systems)
+{
+  if (!registry || !systems)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < systems->count; ++i)
+  {
+    u64 id = systems->ids[i];
+    u64 grouping_id = systems->grouping_ids ? systems->grouping_ids[i] : 0;
+
+    if (!ldk_system_registry_has(registry, id))
+    {
+      ldk_log_error("Scene references unregistered system 0x%016" PRIx64
+                    ". Skipping.\n",
+          id);
+      continue;
+    }
+
+    if (grouping_id != 0 && !ldk_ecs_grouping_get(grouping_id))
+    {
+      ldk_log_error("Scene system 0x%016" PRIx64
+                    " references unknown grouping 0x%016" PRIx64 ".\n",
+          id, grouping_id);
+      return false;
+    }
+  }
+
+  return true;
+}
+
 bool ldk_scene_systems_stop_missing(
     LDKSystemRegistry *registry, const LDKSceneSystems *systems)
 {
@@ -306,7 +455,7 @@ bool ldk_scene_systems_stop_missing(
     }
 
     if (!ldk_system_registry_system_is_started(registry, desc.id) ||
-        ldk_scene_systems_contains(systems, desc.id))
+        (systems && ldk_scene_systems_contains(systems, desc.id)))
     {
       continue;
     }
@@ -314,6 +463,11 @@ bool ldk_scene_systems_stop_missing(
     if (!ldk_system_registry_system_stop(registry, desc.id))
     {
       ldk_log_error("Failed to stop system 0x%016" PRIx64 ".\n", desc.id);
+      return false;
+    }
+
+    if (!ldk_system_registry_system_group_set(registry, desc.id, NULL))
+    {
       return false;
     }
   }
@@ -331,15 +485,37 @@ bool ldk_scene_systems_start(
     return false;
   }
 
-  /* The scene list is an association set, not an initialization-order list.
-   * Report missing ids first, then preserve registry registration order for
-   * lifecycle callbacks, matching the registry's original start semantics. */
+  if (!ldk_scene_systems_validate_bindings(registry, systems))
+  {
+    return false;
+  }
+
+  /* Update bindings even for systems already initialized by the previous
+   * scene. Group selection is scene state, not system lifecycle state.
+   */
   for (u32 i = 0; i < systems->count; ++i)
   {
-    if (!ldk_system_registry_has(registry, systems->ids[i]))
+    u64 id = systems->ids[i];
+    u64 grouping_id = systems->grouping_ids ? systems->grouping_ids[i] : 0;
+    const LDKEntityGroup *group = NULL;
+
+    if (!ldk_system_registry_has(registry, id))
     {
-      ldk_log_error("Scene references unregistered system 0x%016" PRIx64
-                    ". Skipping.\n", systems->ids[i]);
+      continue;
+    }
+
+    if (grouping_id != 0)
+    {
+      group = ldk_ecs_grouping_get(grouping_id);
+      if (!group)
+      {
+        return false;
+      }
+    }
+
+    if (!ldk_system_registry_system_group_set(registry, id, group))
+    {
+      return false;
     }
   }
 
@@ -395,12 +571,20 @@ bool ldk_scene_systems_to_tml(XStrBuilder *out,
 
   /* ldk_scene_to_tml leaves the builder at the end of scene.entities.
    * A two-space indent returns to the scene root, so the optional systems
-   * node can be appended without coupling this serializer to entity output. */
+   * node can be appended without coupling this serializer to entity output.
+   */
   x_strbuilder_append(out, "  systems:\n");
   for (u32 i = 0; i < systems->count; ++i)
   {
     x_strbuilder_append_format(out, "    - id: \"0x%016" PRIx64 "\"\n",
         systems->ids[i]);
+    u64 grouping_id =
+        systems->grouping_ids ? systems->grouping_ids[i] : 0;
+    if (grouping_id != 0)
+    {
+      x_strbuilder_append_format(out,
+          "      grouping: \"0x%016" PRIx64 "\"\n", grouping_id);
+    }
   }
 
   return true;

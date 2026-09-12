@@ -453,6 +453,7 @@ if (OPTION_BUILD_EDITOR)
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_scene_catalog.c
+    src/editor/ldk_editor_grouping_catalog.c
     src/editor/ldk_editor_theme.h
     src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
