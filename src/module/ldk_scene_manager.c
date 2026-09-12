@@ -333,7 +333,7 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   }
 
   if (ecs && ecs->system.is_started &&
-      !ldk_scene_systems_stop_missing(&ecs->system, &systems))
+      !ldk_scene_systems_stop_missing(&ecs->system, NULL))
   {
     ldk_scene_result_set_error(result, "failed to stop previous scene systems");
     ldk_scene_systems_clear(&systems);
@@ -354,7 +354,8 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   manager->current_scene = NULL;
   ldk_scene_systems_clear(&manager->current_systems);
 
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(&path), result))
+  if (!ldk_scene_load_tml_file_with_systems(
+          x_fs_path_cstr(&path), &systems, result))
   {
     /* The low-level loader can leave partially deserialized entities. */
     if (session_started)
@@ -905,3 +906,4 @@ void ldk_scene_manager_pending_clear(LDKSceneManager *manager)
   manager->has_pending_scene = false;
   manager->pending_scene_index = 0;
 }
+

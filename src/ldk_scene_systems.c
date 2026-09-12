@@ -38,6 +38,8 @@ static bool s_scene_systems_reserve(
 {
   u64 *ids;
   u64 *grouping_ids;
+  void **data;
+  u32 *data_sizes;
   u32 capacity;
 
   if (!systems)
@@ -46,7 +48,7 @@ static bool s_scene_systems_reserve(
   }
 
   if (systems->capacity >= min_capacity && systems->ids &&
-      systems->grouping_ids)
+      systems->grouping_ids && systems->data && systems->data_sizes)
   {
     return true;
   }
@@ -68,15 +70,19 @@ static bool s_scene_systems_reserve(
   }
 
   if (capacity < min_capacity ||
-      (size_t)capacity > SIZE_MAX / sizeof(*ids))
+      (capacity && sizeof(*ids) > SIZE_MAX / (size_t)capacity))
   {
     return false;
   }
 
   ids = (u64 *)malloc(sizeof(*ids) * (size_t)capacity);
   grouping_ids = (u64 *)malloc(sizeof(*grouping_ids) * (size_t)capacity);
-  if (!ids || !grouping_ids)
+  data = (void **)calloc(capacity, sizeof(*data));
+  data_sizes = (u32 *)calloc(capacity, sizeof(*data_sizes));
+  if (!ids || !grouping_ids || !data || !data_sizes)
   {
+    free(data_sizes);
+    free(data);
     free(grouping_ids);
     free(ids);
     return false;
@@ -84,6 +90,12 @@ static bool s_scene_systems_reserve(
 
   if (systems->count)
   {
+    if (systems->data)
+    {
+      memcpy(data, systems->data, sizeof(*data) * (size_t)systems->count);
+      memcpy(data_sizes, systems->data_sizes,
+          sizeof(*data_sizes) * (size_t)systems->count);
+    }
     memcpy(ids, systems->ids, sizeof(*ids) * (size_t)systems->count);
     if (systems->grouping_ids)
     {
@@ -99,9 +111,83 @@ static bool s_scene_systems_reserve(
 
   free(systems->ids);
   free(systems->grouping_ids);
+  free(systems->data);
+  free(systems->data_sizes);
+  systems->data = data;
+  systems->data_sizes = data_sizes;
   systems->ids = ids;
   systems->grouping_ids = grouping_ids;
   systems->capacity = capacity;
+  return true;
+}
+
+static bool s_scene_system_data_release(LDKSceneSystems *systems, u32 index)
+{
+  void *data = systems->data ? systems->data[index] : NULL;
+  LDKSystemRegistry *registry =
+      ldk_engine_is_initialized() ? ldk_ecs_system_registry_get() : NULL;
+  if (data && registry &&
+      ldk_system_registry_system_data_get(
+          registry, systems->ids[index]) == data)
+  {
+    if ((ldk_system_registry_system_is_started(registry, systems->ids[index]) &&
+         !ldk_system_registry_system_stop(registry, systems->ids[index])) ||
+        !ldk_system_registry_system_data_set(
+            registry, systems->ids[index], NULL) ||
+        !ldk_system_registry_system_group_set(
+            registry, systems->ids[index], NULL))
+    {
+      return false;
+    }
+  }
+  free(data);
+  if (systems->data)
+  {
+    systems->data[index] = NULL;
+    systems->data_sizes[index] = 0;
+  }
+  return true;
+}
+
+void *ldk_scene_systems_data_get(const LDKSceneSystems *systems, u64 system_id)
+{
+  u32 index;
+  return s_scene_system_find_index(systems, system_id, &index) && systems->data
+      ? systems->data[index] : NULL;
+}
+
+bool ldk_scene_systems_prepare(
+    LDKSystemRegistry *registry, LDKSceneSystems *systems)
+{
+  if (!registry || !systems || ldk_system_registry_is_busy(registry))
+  {
+    return false;
+  }
+  for (u32 i = 0; i < systems->count; ++i)
+  {
+    LDKSystemDesc desc = {0};
+    if (!ldk_system_registry_find_by_id(registry, systems->ids[i], &desc))
+    {
+      continue;
+    }
+    if (systems->data[i])
+    {
+      if (systems->data_sizes[i] != desc.data_size)
+      {
+        return false;
+      }
+      continue;
+    }
+    if (desc.data_size)
+    {
+      systems->data[i] = calloc(1, desc.data_size);
+      if (!systems->data[i])
+      {
+        return false;
+      }
+      systems->data_sizes[i] = desc.data_size;
+    }
+  }
   return true;
 }
 
@@ -112,6 +198,21 @@ void ldk_scene_systems_clear(LDKSceneSystems *systems)
     return;
   }
 
+  LDKSystemRegistry *registry =
+      ldk_engine_is_initialized() ? ldk_ecs_system_registry_get() : NULL;
+  if (registry && ldk_system_registry_is_busy(registry))
+  {
+    return;
+  }
+  for (u32 i = systems->count; i > 0; --i)
+  {
+    if (!s_scene_system_data_release(systems, i - 1u))
+    {
+      return;
+    }
+  }
+  free(systems->data);
+  free(systems->data_sizes);
   free(systems->ids);
   free(systems->grouping_ids);
   memset(systems, 0, sizeof(*systems));
@@ -140,14 +241,32 @@ bool ldk_scene_systems_add_with_grouping(
     return true;
   }
 
-  if (!s_scene_systems_reserve(systems, systems->count + 1u))
+  if (systems->count == UINT32_MAX ||
+      !s_scene_systems_reserve(systems, systems->count + 1u))
   {
     return false;
   }
 
   systems->ids[systems->count] = id;
   systems->grouping_ids[systems->count] = grouping_id;
+  systems->data[systems->count] = NULL;
+  systems->data_sizes[systems->count] = 0;
   systems->count += 1u;
+  LDKSystemRegistry *registry =
+      ldk_engine_is_initialized() ? ldk_ecs_system_registry_get() : NULL;
+  LDKSystemDesc desc = {0};
+  if (registry && ldk_system_registry_find_by_id(registry, id, &desc) &&
+      desc.data_size)
+  {
+    void *data = calloc(1, desc.data_size);
+    if (!data)
+    {
+      systems->count -= 1u;
+      return false;
+    }
+    systems->data[systems->count - 1u] = data;
+    systems->data_sizes[systems->count - 1u] = desc.data_size;
+  }
   return true;
 }
 
@@ -155,11 +274,22 @@ bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id)
 {
   u32 index;
 
-  if (!s_scene_system_find_index(systems, id, &index))
+  LDKSystemRegistry *registry =
+      ldk_engine_is_initialized() ? ldk_ecs_system_registry_get() : NULL;
+  if ((registry && ldk_system_registry_is_busy(registry)) ||
+      !s_scene_system_find_index(systems, id, &index))
   {
     return false;
   }
 
+  if (!s_scene_system_data_release(systems, index))
+  {
+    return false;
+  }
+  memmove(&systems->data[index], &systems->data[index + 1u],
+      sizeof(*systems->data) * (size_t)(systems->count - index - 1u));
+  memmove(&systems->data_sizes[index], &systems->data_sizes[index + 1u],
+      sizeof(*systems->data_sizes) * (size_t)(systems->count - index - 1u));
   memmove(&systems->ids[index], &systems->ids[index + 1u],
       sizeof(*systems->ids) * (size_t)(systems->count - index - 1u));
   if (systems->grouping_ids)
@@ -255,7 +385,9 @@ bool ldk_scene_systems_from_tml(
 
   ldk_scene_result_clear(result);
 
-  if (!source || !out)
+  LDKSystemRegistry *registry =
+      ldk_engine_is_initialized() ? ldk_ecs_system_registry_get() : NULL;
+  if (!source || !out || (registry && ldk_system_registry_is_busy(registry)))
   {
     ldk_scene_result_set_error(result, "invalid scene systems arguments");
     return false;
@@ -454,8 +586,7 @@ bool ldk_scene_systems_stop_missing(
       return false;
     }
 
-    if (!ldk_system_registry_system_is_started(registry, desc.id) ||
-        (systems && ldk_scene_systems_contains(systems, desc.id)))
+    if (systems && ldk_scene_systems_contains(systems, desc.id))
     {
       continue;
     }
@@ -466,7 +597,8 @@ bool ldk_scene_systems_stop_missing(
       return false;
     }
 
-    if (!ldk_system_registry_system_group_set(registry, desc.id, NULL))
+    if (!ldk_system_registry_system_data_set(registry, desc.id, NULL) ||
+        !ldk_system_registry_system_group_set(registry, desc.id, NULL))
     {
       return false;
     }
@@ -476,74 +608,87 @@ bool ldk_scene_systems_stop_missing(
 }
 
 bool ldk_scene_systems_start(
-    LDKSystemRegistry *registry, const LDKSceneSystems *systems)
+    LDKSystemRegistry *registry, LDKSceneSystems *systems)
 {
   u32 count;
+  u32 started_count = 0;
+  u64 *started;
 
-  if (!registry || !registry->is_started || !systems)
+  if (!registry || !registry->is_started || !systems ||
+      !ldk_scene_systems_validate_bindings(registry, systems) ||
+      !ldk_scene_systems_prepare(registry, systems))
   {
     return false;
   }
-
-  if (!ldk_scene_systems_validate_bindings(registry, systems))
+  if (!systems->count)
+  {
+    return true;
+  }
+  started = (u64 *)calloc(systems->count, sizeof(*started));
+  if (!started)
   {
     return false;
   }
-
-  /* Update bindings even for systems already initialized by the previous
-   * scene. Group selection is scene state, not system lifecycle state.
-   */
-  for (u32 i = 0; i < systems->count; ++i)
-  {
-    u64 id = systems->ids[i];
-    u64 grouping_id = systems->grouping_ids ? systems->grouping_ids[i] : 0;
-    const LDKEntityGroup *group = NULL;
-
-    if (!ldk_system_registry_has(registry, id))
-    {
-      continue;
-    }
-
-    if (grouping_id != 0)
-    {
-      group = ldk_ecs_grouping_get(grouping_id);
-      if (!group)
-      {
-        return false;
-      }
-    }
-
-    if (!ldk_system_registry_system_group_set(registry, id, group))
-    {
-      return false;
-    }
-  }
-
   count = ldk_system_registry_count(registry);
   for (u32 i = 0; i < count; ++i)
   {
     LDKSystemDesc desc = {0};
-
+    u32 index;
+    const LDKEntityGroup *group;
+    u64 grouping_id;
     if (!ldk_system_registry_at(registry, i, &desc))
     {
-      return false;
+      goto failed;
     }
-
-    if (!ldk_scene_systems_contains(systems, desc.id))
+    if (!s_scene_system_find_index(systems, desc.id, &index))
     {
       continue;
     }
-
+    grouping_id = systems->grouping_ids[index];
+    group = grouping_id ? ldk_ecs_grouping_get(grouping_id) : NULL;
+    if (ldk_system_registry_system_data_get(registry, desc.id) !=
+            systems->data[index] &&
+        !ldk_system_registry_system_stop(registry, desc.id))
+    {
+      goto failed;
+    }
+    if (!ldk_system_registry_system_group_set(registry, desc.id, group))
+    {
+      goto failed;
+    }
+    if (ldk_system_registry_system_is_started(registry, desc.id))
+    {
+      continue;
+    }
+    if (!ldk_system_registry_system_data_set(
+            registry, desc.id, systems->data[index]))
+    {
+      goto failed;
+    }
+    /* Include a failed initializer in unbinding. The registry itself invokes
+     * its terminate callback exactly once on initialization failure. */
+    started[started_count++] = desc.id;
     if (!ldk_system_registry_system_start(registry, desc.id))
     {
       ldk_log_error("Failed to initialize scene system '%s' "
                     "(0x%016" PRIx64 ").\n",
           desc.name ? desc.name : "<unnamed system>", desc.id);
-      return false;
+      goto failed;
     }
   }
-
+  free(started);
   return true;
+
+failed:
+  while (started_count)
+  {
+    u64 id = started[--started_count];
+    ldk_system_registry_system_stop(registry, id);
+    ldk_system_registry_system_data_set(registry, id, NULL);
+    ldk_system_registry_system_group_set(registry, id, NULL);
+  }
+  free(started);
+  return false;
 }
 
 #ifdef LDK_EDITOR
@@ -553,41 +698,7 @@ bool ldk_scene_systems_start(
 bool ldk_scene_systems_to_tml(XStrBuilder *out,
     const LDKSceneSystems *systems, LDKSceneResult *result)
 {
-  if (!out || !systems)
-  {
-    ldk_scene_result_set_error(result, "invalid scene systems arguments");
-    return false;
-  }
-
-  if (!ldk_scene_to_tml(out, result))
-  {
-    return false;
-  }
-
-  if (systems->count == 0)
-  {
-    return true;
-  }
-
-  /* ldk_scene_to_tml leaves the builder at the end of scene.entities.
-   * A two-space indent returns to the scene root, so the optional systems
-   * node can be appended without coupling this serializer to entity output.
-   */
-  x_strbuilder_append(out, "  systems:\n");
-  for (u32 i = 0; i < systems->count; ++i)
-  {
-    x_strbuilder_append_format(out, "    - id: \"0x%016" PRIx64 "\"\n",
-        systems->ids[i]);
-    u64 grouping_id =
-        systems->grouping_ids ? systems->grouping_ids[i] : 0;
-    if (grouping_id != 0)
-    {
-      x_strbuilder_append_format(out,
-          "      grouping: \"0x%016" PRIx64 "\"\n", grouping_id);
-    }
-  }
-
-  return true;
+  return ldk_scene_to_tml_with_systems(out, systems, result);
 }
 
 bool ldk_scene_systems_save_tml_file(const char *path,
@@ -645,3 +756,4 @@ bool ldk_scene_systems_save_tml_file(const char *path,
 }
 
 #endif // LDK_EDITOR
+

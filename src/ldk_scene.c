@@ -1,4 +1,6 @@
 #include <ldk_scene.h>
+#include <ldk_scene_systems.h>
+#include <inttypes.h>
 #include <ldk.h>
 #include <ldk_game.h>
 #include <ldk_mesh.h>
@@ -1140,8 +1142,192 @@ static bool s_resolve_parent_links(const LDKSceneEntityMap *map,
   return true;
 }
 
-bool ldk_scene_from_tml(
-    const char *source, LDKSceneResult *result)
+static const LDKSystemMeta *s_system_meta_find(LDKGame *game, u64 id)
+{
+  if (game && game->system_metadata_count && game->system_metadata_get)
+  {
+    for (u32 i = 0; i < game->system_metadata_count(); ++i)
+    {
+      const LDKSystemMeta *meta = game->system_metadata_get(i);
+      if (meta && meta->id == id)
+      {
+        return meta;
+      }
+    }
+  }
+  return NULL;
+}
+
+static bool s_system_field_is_serializable(const LDKComponentFieldMeta *field)
+{
+  return !(field->flags & LDK_FIELD_FLAG_RUNTIME) &&
+      field->type != LDK_FIELD_RESOURCE_MESH;
+}
+
+static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
+{
+  if (!meta || meta->size != size || (meta->field_count && !meta->fields))
+  {
+    return false;
+  }
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    u32 field_size;
+    u32 alignment;
+    if (!field->name || !field->name[0])
+    {
+      return false;
+    }
+    if (!s_system_field_is_serializable(field))
+    {
+      continue;
+    }
+    switch (field->type)
+    {
+    case LDK_FIELD_BOOL:
+      field_size = sizeof(bool);
+      alignment = _Alignof(bool);
+      break;
+    case LDK_FIELD_I32:
+    case LDK_FIELD_ENUM:
+      field_size = sizeof(i32);
+      alignment = _Alignof(i32);
+      break;
+    case LDK_FIELD_U32:
+      field_size = sizeof(u32);
+      alignment = _Alignof(u32);
+      break;
+    case LDK_FIELD_FLOAT:
+      field_size = sizeof(float);
+      alignment = _Alignof(float);
+      break;
+    case LDK_FIELD_VEC2:
+      field_size = sizeof(Vec2);
+      alignment = _Alignof(Vec2);
+      break;
+    case LDK_FIELD_VEC3:
+      field_size = sizeof(Vec3);
+      alignment = _Alignof(Vec3);
+      break;
+    case LDK_FIELD_VEC4:
+      field_size = sizeof(Vec4);
+      alignment = _Alignof(Vec4);
+      break;
+    case LDK_FIELD_QUAT:
+      field_size = sizeof(Quat);
+      alignment = _Alignof(Quat);
+      break;
+    case LDK_FIELD_MAT4:
+      field_size = sizeof(Mat4);
+      alignment = _Alignof(Mat4);
+      break;
+    case LDK_FIELD_ENTITY:
+      field_size = sizeof(LDKEntity);
+      alignment = _Alignof(LDKEntity);
+      break;
+    case LDK_FIELD_ASSET_MESH:
+      field_size = sizeof(LDKAssetMesh);
+      alignment = _Alignof(LDKAssetMesh);
+      break;
+    default:
+      return false;
+    }
+    if (field->offset > size || field_size > size - field->offset ||
+        field->offset % alignment != 0)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool s_apply_system_fields(const TMLDocument *doc,
+    const TMLNode *scene, const LDKSceneEntityMap *map, LDKGame *game,
+    LDKSceneSystems *systems, LDKSceneResult *result)
+{
+  const TMLNode *node = tml_node_find_child(doc, scene, "systems");
+  LDKSystemRegistry *registry = ldk_ecs_system_registry_get();
+  if (systems->count &&
+      (!registry || !ldk_scene_systems_prepare(registry, systems)))
+  {
+    s_result_error(result, "failed to allocate scene system data");
+    return false;
+  }
+  for (u32 i = 0; i < systems->count; ++i)
+  {
+    const TMLNode *child = tml_node_child_at(doc, node, i);
+    const TMLNode *data = tml_node_find_child(doc, child, "data");
+    const LDKSystemMeta *meta = s_system_meta_find(game, systems->ids[i]);
+    if (!systems->data_sizes[i])
+    {
+      if (data && (data->entry_count || data->child_count))
+      {
+        s_result_error(result, "system data has no registered stateful system");
+        return false;
+      }
+      continue;
+    }
+    if (!s_system_meta_validate(meta, systems->data_sizes[i]))
+    {
+      s_result_error(result, "missing or incompatible system field metadata");
+      return false;
+    }
+    if (!data)
+    {
+      continue;
+    }
+    if (data->child_count)
+    {
+      s_result_error(result,
+          "system data must contain reflected field entries");
+      return false;
+    }
+    for (u32 j = 0; j < data->entry_count; ++j)
+    {
+      const TMLEntry *entry = tml_node_entry_at(doc, data, j);
+      const LDKComponentFieldMeta *field = NULL;
+      for (u32 k = 0; k < meta->field_count; ++k)
+      {
+        if (strlen(meta->fields[k].name) == entry->name.size &&
+            memcmp(meta->fields[k].name, entry->name.data,
+                entry->name.size) == 0)
+        {
+          field = &meta->fields[k];
+          break;
+        }
+      }
+      if (!field || !s_system_field_is_serializable(field))
+      {
+        continue;
+      }
+      /* Reject narrowing integers instead of silently truncating scene data. */
+      if ((field->type == LDK_FIELD_I32 || field->type == LDK_FIELD_ENUM) &&
+          (entry->type != TML_VALUE_I64 || entry->integer < INT32_MIN ||
+           entry->integer > INT32_MAX))
+      {
+        s_result_error(result, "system integer field is out of range");
+        return false;
+      }
+      if (field->type == LDK_FIELD_U32 &&
+          (entry->type != TML_VALUE_I64 || entry->integer < 0 ||
+           (u64)entry->integer > UINT32_MAX))
+      {
+        s_result_error(result, "system unsigned field is out of range");
+        return false;
+      }
+      if (!s_apply_field_value(doc, entry, map, field, systems->data[i]))
+      {
+        s_result_error(result, "failed to parse system field");
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+static bool s_scene_from_tml(const char *source,
+    LDKSceneSystems *systems, LDKSceneResult *result)
 {
   LDKGame *game;
   TMLParseResult parse;
@@ -1150,6 +1336,7 @@ bool ldk_scene_from_tml(
   const TMLNode *entities_node;
   LDKSceneEntityMap map;
   LDKScenePendingParentList parents;
+  LDKSceneSystems loaded_systems = {0};
   bool ok;
 
   if (result)
@@ -1160,6 +1347,12 @@ bool ldk_scene_from_tml(
   if (!source)
   {
     s_result_error(result, "invalid scene load arguments");
+    return false;
+  }
+
+  if (systems && ldk_system_registry_is_busy(ldk_ecs_system_registry_get()))
+  {
+    s_result_error(result, "cannot load system data during a system callback");
     return false;
   }
 
@@ -1204,6 +1397,11 @@ bool ldk_scene_from_tml(
     goto cleanup;
   }
 
+  if (systems && !ldk_scene_systems_from_tml(source, &loaded_systems, result))
+  {
+    goto cleanup;
+  }
+
   if (!s_read_entity_headers(doc, entities_node, &map, &parents, result))
   {
     goto cleanup;
@@ -1219,13 +1417,41 @@ bool ldk_scene_from_tml(
     goto cleanup;
   }
 
+  if (systems)
+  {
+    if (!s_apply_system_fields(
+            doc, scene_node, &map, game, &loaded_systems, result))
+    {
+      goto cleanup;
+    }
+    ldk_scene_systems_clear(systems);
+    *systems = loaded_systems;
+    memset(&loaded_systems, 0, sizeof(loaded_systems));
+  }
   ok = true;
 
 cleanup:
+  ldk_scene_systems_clear(&loaded_systems);
   s_map_free(&map);
   s_pending_parent_free(&parents);
   tml_document_free(doc);
   return ok;
+}
+
+bool ldk_scene_from_tml(const char *source, LDKSceneResult *result)
+{
+  return s_scene_from_tml(source, NULL, result);
+}
+
+bool ldk_scene_from_tml_with_systems(const char *source,
+    LDKSceneSystems *systems, LDKSceneResult *result)
+{
+  if (!systems)
+  {
+    s_result_error(result, "invalid scene systems argument");
+    return false;
+  }
+  return s_scene_from_tml(source, systems, result);
 }
 
 static bool s_file_read_text(const char *path, char **out_text)
@@ -1300,6 +1526,22 @@ bool ldk_scene_load_tml_file(
   }
 
   ok = ldk_scene_from_tml(text, result);
+  free(text);
+  return ok;
+}
+
+bool ldk_scene_load_tml_file_with_systems(const char *path,
+    LDKSceneSystems *systems, LDKSceneResult *result)
+{
+  char *text;
+  bool ok;
+  ldk_scene_result_clear(result);
+  if (!path || !systems || !s_file_read_text(path, &text))
+  {
+    s_result_error(result, "failed to read scene TML file");
+    return false;
+  }
+  ok = ldk_scene_from_tml_with_systems(text, systems, result);
   free(text);
   return ok;
 }
@@ -1812,8 +2054,69 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
   return true;
 }
 
-bool ldk_scene_to_tml(
-    XStrBuilder *out, LDKSceneResult *result)
+static bool s_write_systems(LDKSceneSaveContext *context,
+    const LDKSceneSystems *systems)
+{
+  if (!systems || !systems->count)
+  {
+    return true;
+  }
+  x_strbuilder_append(context->out, "  systems:\n");
+  for (u32 i = 0; i < systems->count; ++i)
+  {
+    const LDKSystemMeta *meta =
+        s_system_meta_find(context->game, systems->ids[i]);
+    u32 size = systems->data_sizes ? systems->data_sizes[i] : 0;
+    LDKSystemDesc desc = {0};
+    LDKSystemRegistry *registry = ldk_ecs_system_registry_get();
+    if (registry &&
+        ldk_system_registry_find_by_id(registry, systems->ids[i], &desc) &&
+        size != desc.data_size)
+    {
+      s_result_error(context->result, "scene system data has not been prepared");
+      return false;
+    }
+    x_strbuilder_append_format(context->out,
+        "    - id: \"0x%016" PRIx64 "\"\n", systems->ids[i]);
+    if (systems->grouping_ids && systems->grouping_ids[i])
+    {
+      x_strbuilder_append_format(context->out,
+          "      grouping: \"0x%016" PRIx64 "\"\n", systems->grouping_ids[i]);
+    }
+    if (!size)
+    {
+      continue;
+    }
+    if (!systems->data || !systems->data[i] ||
+        !s_system_meta_validate(meta, size))
+    {
+      s_result_error(context->result,
+          "missing or incompatible system field metadata");
+      return false;
+    }
+    x_strbuilder_append(context->out, "      data:\n");
+    for (u32 j = 0; j < meta->field_count; ++j)
+    {
+      const LDKComponentFieldMeta *field = &meta->fields[j];
+      if (!s_system_field_is_serializable(field))
+      {
+        continue;
+      }
+      x_strbuilder_append_format(context->out, "        %s: ", field->name);
+      if (!s_write_field_value(
+              context->out, &context->map, field, systems->data[i]))
+      {
+        s_result_error(context->result, "failed to serialize system field");
+        return false;
+      }
+      x_strbuilder_append_char(context->out, '\n');
+    }
+  }
+  return true;
+}
+
+static bool s_scene_to_tml(XStrBuilder *out,
+    const LDKSceneSystems *systems, LDKSceneResult *result)
 {
   LDKGame *game;
   LDKSceneSaveContext context;
@@ -1868,8 +2171,28 @@ bool ldk_scene_to_tml(
     return false;
   }
 
+  if (context.ok && !s_write_systems(&context, systems))
+  {
+    context.ok = false;
+  }
   s_map_free(&context.map);
   return context.ok;
+}
+
+bool ldk_scene_to_tml(XStrBuilder *out, LDKSceneResult *result)
+{
+  return s_scene_to_tml(out, NULL, result);
+}
+
+bool ldk_scene_to_tml_with_systems(XStrBuilder *out,
+    const LDKSceneSystems *systems, LDKSceneResult *result)
+{
+  if (!systems)
+  {
+    s_result_error(result, "invalid scene systems argument");
+    return false;
+  }
+  return s_scene_to_tml(out, systems, result);
 }
 
 static bool s_file_write_text(const char *path, const char *text)
@@ -1942,3 +2265,4 @@ bool ldk_scene_save_tml_file(
 }
 
 #endif // LDK_EDITOR
+

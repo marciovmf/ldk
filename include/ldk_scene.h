@@ -22,6 +22,7 @@ extern "C"
 #endif
 
 typedef struct LDKGame LDKGame;
+struct LDKSceneSystems;
 
 #define LDK_SCENE_TML_VERSION 1
 #define LDK_SCENE_NULL_ENTITY_ID (-1)
@@ -76,7 +77,18 @@ LDK_API bool ldk_scene_from_tml(
 LDK_API bool ldk_scene_load_tml_file(
     const char *path, LDKSceneResult *result);
 
+/** Load entities and scene-owned system data together, resolving references
+ * with the same entity map. Systems is initialized with {0}; on failure its
+ * previous contents are unchanged. The caller owns ECS cleanup on failure,
+ * and must stop old systems before replacing a scene. No initialize runs. */
+LDK_API bool ldk_scene_from_tml_with_systems(const char *source,
+    struct LDKSceneSystems *systems, LDKSceneResult *result);
+LDK_API bool ldk_scene_load_tml_file_with_systems(const char *path,
+    struct LDKSceneSystems *systems, LDKSceneResult *result);
+
 #ifdef LDK_EDITOR
+LDK_API bool ldk_scene_to_tml_with_systems(XStrBuilder *out,
+    const struct LDKSceneSystems *systems, LDKSceneResult *result);
 /** Serializes the current ECS contents to TML. */
 LDK_API bool ldk_scene_to_tml(
     XStrBuilder *out, LDKSceneResult *result);
@@ -103,3 +115,4 @@ LDK_API bool ldk_scene_component_field_is_serializable(
 #endif
 
 #endif // LDK_SCENE_H
+

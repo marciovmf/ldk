@@ -1013,7 +1013,8 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
     return false;
   }
 
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
+  if (!ldk_scene_load_tml_file_with_systems(
+          x_fs_path_cstr(path), &systems, &result))
   {
     s_editor_scene_ecs_clear();
     ldk_scene_systems_clear(&systems);
@@ -1309,3 +1310,4 @@ void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
   ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
   ldk_log_info(msg);
 }
+

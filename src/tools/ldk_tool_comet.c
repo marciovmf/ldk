@@ -937,7 +937,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "  static const LDKSystemMeta systems[] =\n  {\n");
     for (i = 0; i < state->system_count; ++i)
     {
-      fprintf(out, "    {\"%s\", ldk_system_id(%s)},\n", state->systems[i].name,
+      fprintf(out, "    {\"%s\", ldk_system_id(%s), 0, NULL, 0},\n", state->systems[i].name,
           state->systems[i].name);
     }
     fprintf(out, "  };\n  return index < %uu ? &systems[index] : NULL;\n",
@@ -1043,3 +1043,4 @@ int main(i32 argc, const char** argv)
   fprintf(stderr, "Metadata extraction failed.\n");
   return 1;
 }
+
