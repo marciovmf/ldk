@@ -110,4 +110,3 @@ LDK_API bool ldk_scene_systems_save_tml_file(const char *path,
 #endif
 
 #endif // LDK_SCENE_SYSTEMS_H
-

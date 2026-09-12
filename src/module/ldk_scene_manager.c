@@ -906,4 +906,3 @@ void ldk_scene_manager_pending_clear(LDKSceneManager *manager)
   manager->has_pending_scene = false;
   manager->pending_scene_index = 0;
 }
-

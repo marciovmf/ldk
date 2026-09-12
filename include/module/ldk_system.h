@@ -146,6 +146,9 @@ LDK_API bool ldk_system_registry_system_stop(
 LDK_API bool ldk_system_registry_system_is_started(
     const LDKSystemRegistry *registry, u64 id);
 
+/** True while a bucket or a system lifecycle callback is executing. */
+LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
+
 /**
  * Bind scene-owned system instance data. The registry never allocates or frees
  * this pointer. Data cannot be replaced while the system is initialized.

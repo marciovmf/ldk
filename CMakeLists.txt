@@ -155,7 +155,7 @@ function(ldk_game_build)
     COMPONENT_DIRS
     SYSTEM_DIRS
   )
-  
+
   cmake_parse_arguments(
     GAME
     "${options}"
@@ -204,54 +204,79 @@ function(ldk_game_build)
   set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/generated_component_metadata.h")
 
   # ------------------------------------------------------------
-  # Component metadata generation
+  # Component and system metadata generation
   # ------------------------------------------------------------
 
-  if (GAME_COMPONENT_DIRS OR GAME_SYSTEM_DIRS OR GAME_SOURCES)
-    set(GAME_METADATA_INPUTS "")
+  set(GAME_COMPONENT_HEADERS "")
+  foreach(component_dir IN LISTS GAME_COMPONENT_DIRS)
+    ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
+    list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
+  endforeach()
+  list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
 
-    foreach(component_dir IN LISTS GAME_COMPONENT_DIRS GAME_SYSTEM_DIRS)
-      ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
-      list(APPEND GAME_METADATA_INPUTS ${headers_in_dir})
-    endforeach()
+  set(GAME_SYSTEM_HEADERS "")
+  foreach(system_dir IN LISTS GAME_SYSTEM_DIRS)
+    ldk_collect_headers_from_dir(headers_in_dir "${system_dir}")
+    list(APPEND GAME_SYSTEM_HEADERS ${headers_in_dir})
+  endforeach()
+  list(REMOVE_DUPLICATES GAME_SYSTEM_HEADERS)
 
-    # Function systems can be declared directly in game source files. Feed
-    # existing C/C++ sources to Comet as metadata inputs as well as headers.
-    foreach(game_source IN LISTS GAME_SOURCES)
-      if (IS_ABSOLUTE "${game_source}")
-        set(game_source_abs "${game_source}")
-      else()
-        get_filename_component(game_source_abs "${game_source}" ABSOLUTE
-          BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-      endif()
+  set(GAME_METADATA_INPUTS
+    ${GAME_COMPONENT_HEADERS}
+    ${GAME_SYSTEM_HEADERS}
+  )
 
-      if (EXISTS "${game_source_abs}")
-        list(APPEND GAME_METADATA_INPUTS "${game_source_abs}")
-      endif()
-    endforeach()
+  # Function systems can be declared directly in game source files.
+  # Feed existing C/C++ sources to Comet as metadata inputs as well.
+  foreach(game_source IN LISTS GAME_SOURCES)
+    if (IS_ABSOLUTE "${game_source}")
+      set(game_source_abs "${game_source}")
+    else()
+      get_filename_component(game_source_abs "${game_source}" ABSOLUTE
+        BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
 
-    list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
+    if (EXISTS "${game_source_abs}")
+      list(APPEND GAME_METADATA_INPUTS "${game_source_abs}")
+    endif()
+  endforeach()
 
-    add_custom_command(
-      OUTPUT "${GAME_METADATA_HEADER}"
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
-      COMMAND $<TARGET_FILE:comet> "${GAME_METADATA_HEADER}" ${GAME_METADATA_INPUTS}
-      DEPENDS
-        comet
-        ${GAME_METADATA_INPUTS}
-      COMMAND_EXPAND_LISTS
-      VERBATIM
-      COMMENT "Running component and system metadata extraction tool..."
-    )
+  list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
 
-    add_custom_target(${GAME_TARGET}_metadata
-      DEPENDS "${GAME_METADATA_HEADER}"
-    )
+  set(GAME_METADATA_INCLUDE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/${GAME_TARGET}")
+  set(GAME_METADATA_INCLUDES_HEADER
+    "${GAME_METADATA_INCLUDE_DIR}/generated_component_metadata_includes.h")
 
-    add_dependencies(${GAME_TARGET}
-      ${GAME_TARGET}_metadata
-    )
-  endif()
+  file(MAKE_DIRECTORY "${GAME_METADATA_INCLUDE_DIR}")
+  file(WRITE "${GAME_METADATA_INCLUDES_HEADER}" "")
+
+  foreach(component_header IN LISTS GAME_COMPONENT_HEADERS)
+    string(REPLACE "\\" "/" component_header "${component_header}")
+    file(APPEND "${GAME_METADATA_INCLUDES_HEADER}"
+      "#include \"${component_header}\"\n")
+  endforeach()
+
+  add_custom_command(
+    OUTPUT "${GAME_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${GAME_METADATA_HEADER}" ${GAME_METADATA_INPUTS}
+    DEPENDS
+      comet
+      ${GAME_METADATA_INPUTS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running component and system metadata extraction tool..."
+  )
+
+  add_custom_target(${GAME_TARGET}_metadata
+    DEPENDS "${GAME_METADATA_HEADER}"
+  )
+
+  add_dependencies(${GAME_TARGET}
+    ${GAME_TARGET}_metadata
+  )
 
   # ------------------------------------------------------------
   # Normal game target setup
@@ -260,6 +285,7 @@ function(ldk_game_build)
   target_include_directories(${GAME_TARGET} PRIVATE
     "${INCLUDE_DIR}"
     "${GAME_METADATA_DIR}"
+    "${GAME_METADATA_INCLUDE_DIR}"
     ${GAME_INCLUDE_DIRS}
   )
 
@@ -344,6 +370,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_asset.h
   ${INCLUDE_DIR}/ldk_color.h
   ${INCLUDE_DIR}/ldk_game.h
+  src/ldk_engine_metadata.c
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
   ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
@@ -419,6 +446,7 @@ if (OPTION_LDK_USE_PREBUILT)
     IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/lib/Debug/ldk.lib"
     IMPORTED_LOCATION_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/ldk.dll"
 
+
     IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/lib/Release/ldk.lib"
     IMPORTED_LOCATION_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/ldk.dll"
 
@@ -457,6 +485,36 @@ ldk_target_output_dirs(comet
   LIBRARY "${LDK_OUTPUT_DIR}"
   ARCHIVE "${LDK_LIBRARY_DIR}"
 )
+
+if (NOT OPTION_LDK_USE_PREBUILT)
+  set(LDK_ENGINE_METADATA_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk_engine")
+  set(LDK_ENGINE_METADATA_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata.h")
+
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_COMPONENT_HEADERS "${INCLUDE_DIR}/component")
+
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_COMPONENT_HEADERS}
+    DEPENDS
+      comet
+      ${LDK_ENGINE_COMPONENT_HEADERS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running engine component metadata extraction tool..."
+  )
+
+  add_custom_target(ldk_engine_metadata
+    DEPENDS "${LDK_ENGINE_METADATA_HEADER}"
+  )
+
+  add_dependencies(ldk ldk_engine_metadata)
+  target_include_directories(ldk PRIVATE "${LDK_ENGINE_METADATA_DIR}")
+endif()
 
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)
@@ -527,14 +585,14 @@ if (OPTION_BUILD_GAME)
 
   # Includes game metadata source
   list(APPEND LDK_GAME_SOURCES )
-  
+
   ldk_game_build(
     TARGET game
     TYPE SHARED
     ENGINE_TARGET ldk
     SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
-    COMPONENT_DIRS ${ENGINE_COMPONENT_DIR} ${LDK_GAME_COMPONENT_DIRS}
+    COMPONENT_DIRS ${LDK_GAME_COMPONENT_DIRS}
     SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}
@@ -551,8 +609,10 @@ if (OPTION_BUILD_GAME_LAUNCHER)
   endif()
 
   add_library(ldk_monolithic STATIC ${LDK_SOURCE})
-  add_dependencies(ldk_monolithic print_options)
+  add_dependencies(ldk_monolithic print_options ldk_engine_metadata)
   ldk_engine_target_defaults(ldk_monolithic)
+  target_include_directories(
+    ldk_monolithic PRIVATE "${LDK_ENGINE_METADATA_DIR}")
   target_compile_definitions(ldk_monolithic PRIVATE LDK_MONOLITHIC)
 
   ldk_target_output_dirs(ldk_monolithic
@@ -566,7 +626,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     TYPE STATIC
     ENGINE_TARGET ldk_monolithic
     SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
-    COMPONENT_DIRS "${INCLUDE_DIR}/component" ${LDK_GAME_COMPONENT_DIRS}
+    COMPONENT_DIRS ${LDK_GAME_COMPONENT_DIRS}
     SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     DEFINITIONS
