@@ -5,6 +5,14 @@
  * Systems are registered as descriptors and owned by the registry. They are
  * identified by unique, compile-time known u64 ids.
  *
+ * A system has at most one scheduled update callback. The bucket stored in the
+ * descriptor selects where that callback executes. initialize and terminate
+ * are optional lifecycle callbacks and do not participate in scheduling.
+ *
+ * System instance data is not owned by the registry. Scene integration binds a
+ * data pointer before starting a stateful system and keeps that memory alive
+ * until the system is stopped and unbound.
+ *
  * The registry has a structural lifecycle:
  *   initialize -> register -> start -> stop -> clear/terminate
  *
@@ -35,10 +43,16 @@ typedef enum LDKBuiltinSystemId
   LDK_SYSTEM_ID_USER = 0x100
 } LDKBuiltinSystemId;
 
+/**
+ * Execution bucket for a system update callback.
+ *
+ * UPDATE is zero intentionally so a zero-initialized descriptor gets the
+ * normal/default gameplay bucket.
+ */
 typedef enum LDKSystemBucket
 {
-  LDK_SYSTEM_BUCKET_PRE_UPDATE = 0,
-  LDK_SYSTEM_BUCKET_UPDATE,
+  LDK_SYSTEM_BUCKET_UPDATE = 0,
+  LDK_SYSTEM_BUCKET_PRE_UPDATE,
   LDK_SYSTEM_BUCKET_POST_UPDATE,
   LDK_SYSTEM_BUCKET_RENDER,
   LDK_SYSTEM_BUCKET_COUNT
@@ -55,7 +69,7 @@ typedef enum LDKSystemFlags
 /**
  * Stable read-only view of the entity membership bound to a system.
  *
- * The view is valid for the duration of a system bucket callback. Structural
+ * The view is valid for the duration of a system update callback. Structural
  * ECS changes performed by a callback are reflected before the next system
  * callback executes.
  * A grouping_id of 0 identifies the empty, unbound group.
@@ -71,37 +85,22 @@ struct LDKRoot;
 
 typedef bool (*LDKSystemCallbackSyncFn)(void *user);
 
-typedef int (*LDKSystemInitializeFn)(void **userdata);
-typedef void (*LDKSystemTerminateFn)(void *userdata);
-typedef void (*LDKSystemPreUpdateFn)(
-    void *userdata, const LDKEntityGroup *group, float dt);
+typedef int (*LDKSystemInitializeFn)(void *data);
 typedef void (*LDKSystemUpdateFn)(
-    void *userdata, const LDKEntityGroup *group, float dt);
-typedef void (*LDKSystemPostUpdateFn)(
-    void *userdata, const LDKEntityGroup *group, float dt);
-typedef void (*LDKSystemRenderFn)(
-    void *userdata, const LDKEntityGroup *group, float dt);
-
-typedef struct LDKSystemCallbacks
-{
-  LDKSystemInitializeFn initialize;
-  LDKSystemTerminateFn terminate;
-  LDKSystemPreUpdateFn pre_update;
-  LDKSystemUpdateFn update;
-  LDKSystemPostUpdateFn post_update;
-  LDKSystemRenderFn render;
-} LDKSystemCallbacks;
+    void *data, const LDKEntityGroup *group, float dt);
+typedef void (*LDKSystemTerminateFn)(void *data);
 
 typedef struct LDKSystemDesc
 {
   u64 id;
   const char *name;
   u32 flags;
-  i32 pre_update_order;
-  i32 update_order;
-  i32 post_update_order;
-  i32 render_order;
-  LDKSystemCallbacks callbacks;
+  LDKSystemBucket bucket;
+  i32 order;
+  u32 data_size;
+  LDKSystemInitializeFn initialize;
+  LDKSystemUpdateFn update;
+  LDKSystemTerminateFn terminate;
 } LDKSystemDesc;
 
 typedef struct LDKSystemRegistry
@@ -135,8 +134,10 @@ LDK_API bool ldk_system_registry_stop(LDKSystemRegistry *registry);
 /**
  * Start/stop a registered system without changing the bucket lists.
  * Repeated start/stop calls succeed without repeating callbacks. A failed
- * initialize callback is followed by terminate to release partial userdata.
- * A failed start leaves other systems unchanged.
+ * initialize callback is followed by terminate so partially initialized state
+ * can be released. A failed start leaves other systems unchanged.
+ *
+ * Stateful systems (data_size > 0) must have data bound before start.
  */
 LDK_API bool ldk_system_registry_system_start(
     LDKSystemRegistry *registry, u64 id);
@@ -146,7 +147,17 @@ LDK_API bool ldk_system_registry_system_is_started(
     const LDKSystemRegistry *registry, u64 id);
 
 /**
- * Change the entity group delivered to a registered system's bucket callbacks.
+ * Bind scene-owned system instance data. The registry never allocates or frees
+ * this pointer. Data cannot be replaced while the system is initialized.
+ * Passing NULL unbinds the current instance.
+ */
+LDK_API bool ldk_system_registry_system_data_set(
+    LDKSystemRegistry *registry, u64 id, void *data);
+LDK_API void *ldk_system_registry_system_data_get(
+    const LDKSystemRegistry *registry, u64 id);
+
+/**
+ * Change the entity group delivered to a registered system's update callback.
  * This is scene binding state, not part of LDKSystemDesc or system lifecycle.
  * Passing NULL binds the system to the empty group.
  */
@@ -157,7 +168,7 @@ LDK_API const LDKEntityGroup *ldk_system_registry_system_group_get(
 
 /**
  * Install an engine-side synchronization point invoked after each executed
- * bucket callback. The system registry does not interpret the callback; the
+ * update callback. The system registry does not interpret the callback; the
  * ECS uses it to commit deferred grouping membership changes safely between
  * systems. Passing NULL clears the handler.
  */
@@ -174,9 +185,10 @@ LDK_API bool ldk_system_registry_is_paused(
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry *registry);
 
 /**
- * Run only initialized, enabled systems. While paused, only systems with
- * RUN_WHEN_PAUSED execute. Structural and lifecycle changes are forbidden
- * during bucket execution and system initialize/terminate callbacks.
+ * Run initialized, enabled systems whose single update callback belongs to the
+ * requested bucket. While paused, only systems with RUN_WHEN_PAUSED execute.
+ * Structural and lifecycle changes are forbidden during update and lifecycle
+ * callbacks.
  */
 LDK_API bool ldk_system_registry_run_bucket(
     LDKSystemRegistry *registry, LDKSystemBucket bucket, float dt);
