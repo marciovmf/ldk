@@ -72,6 +72,10 @@ extern "C"
     u32 field_count;
   } LDKComponentMeta;
 
+  LDK_API u32 ldk_engine_component_metadata_count(void);
+  LDK_API const LDKComponentMeta *ldk_engine_component_metadata_get(
+      u32 index);
+
 #ifdef __cplusplus
 }
 #endif
