@@ -248,8 +248,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     {
       const LDKEditorWindow *window = ldki_editor_window_at(i);
 
-      if (window == NULL ||
-          window->id == LDK_EDITOR_WINDOW_GROUPING_CATALOG)
+      if (window == NULL)
       {
         continue;
       }
