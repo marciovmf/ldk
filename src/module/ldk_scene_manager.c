@@ -158,16 +158,14 @@ static bool s_catalog_is_valid(const LDKSceneManagerConfig *config)
   return true;
 }
 
-static LDKScene *s_catalog_copy(
-    const LDKSceneManagerConfig *config)
+static LDKScene *s_catalog_copy(const LDKSceneManagerConfig *config)
 {
   LDKScene *scenes;
   u32 i;
 
   X_ASSERT(config != NULL);
 
-  scenes = (LDKScene *)calloc(
-      (size_t)config->scene_count, sizeof(LDKScene));
+  scenes = (LDKScene *)calloc((size_t)config->scene_count, sizeof(LDKScene));
 
   if (!scenes)
   {
@@ -186,8 +184,7 @@ static LDKScene *s_catalog_copy(
   return scenes;
 }
 
-static bool s_entity_list_reserve(
-    LDKSceneEntityList *list, u32 min_capacity)
+static bool s_entity_list_reserve(LDKSceneEntityList *list, u32 min_capacity)
 {
   LDKEntity *entities;
   u32 capacity;
@@ -272,8 +269,8 @@ static bool s_ecs_clear(void)
 
 static bool s_manager_is_configured(const LDKSceneManager *manager)
 {
-  return manager && manager->is_initialized &&
-      manager->scenes && manager->scene_count > 0;
+  return manager && manager->is_initialized && manager->scenes &&
+         manager->scene_count > 0;
 }
 
 static void s_scene_resolve_path(const LDKSceneManager *manager,
@@ -328,8 +325,15 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   ecs = ldk_module_get(LDK_MODULE_ECS);
   session_started = ldk_game_instance_is_started();
 
+  if (ecs && !ldk_scene_systems_validate_bindings(&ecs->system, &systems))
+  {
+    ldk_scene_result_set_error(result, "invalid scene system grouping binding");
+    ldk_scene_systems_clear(&systems);
+    return NULL;
+  }
+
   if (ecs && ecs->system.is_started &&
-      !ldk_scene_systems_stop_missing(&ecs->system, &systems))
+      !ldk_scene_systems_stop_missing(&ecs->system, NULL))
   {
     ldk_scene_result_set_error(result, "failed to stop previous scene systems");
     ldk_scene_systems_clear(&systems);
@@ -350,7 +354,8 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   manager->current_scene = NULL;
   ldk_scene_systems_clear(&manager->current_systems);
 
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(&path), result))
+  if (!ldk_scene_load_tml_file_with_systems(
+          x_fs_path_cstr(&path), &systems, result))
   {
     /* The low-level loader can leave partially deserialized entities. */
     if (session_started)
@@ -398,8 +403,8 @@ bool ldk_scene_manager_override(
   XFSPath new_runtree_path;
   u32 new_scene_count = 0;
 
-  if (!manager || !manager->is_initialized ||
-      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
+  if (!manager || !manager->is_initialized || ldk_game_instance_is_started() ||
+      ldk_game_instance_is_updating())
   {
     return false;
   }
@@ -495,9 +500,9 @@ bool ldk_scene_manager_catalog_exchange(
   u32 old_count = manager->scene_count;
   manager->scenes = *scenes;
   manager->scene_count = *count;
-  manager->current_scene =
-      current_path.length ? ldk_scene_manager_find(manager, current_path.buf)
-                          : NULL;
+  manager->current_scene = current_path.length
+                               ? ldk_scene_manager_find(manager, current_path.buf)
+                               : NULL;
   *scenes = old_scenes;
   *count = old_count;
   ldk_scene_manager_pending_clear(manager);
@@ -528,6 +533,8 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     ldk_scene_result_set_error(result, "failed to read scene catalog INI");
     return false;
   }
+
+
   for (int i = 0; i < x_ini_section_count(&ini); ++i)
   {
     if (strcmp(x_ini_section_name(&ini, i), "scenes") == 0)
@@ -614,6 +621,17 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   {
     goto invalid;
   }
+
+  /* Groupings depend on game component registration, so load them only after
+   * the whole scene catalog has been validated. This prevents a malformed
+   * [scenes] section from replacing an otherwise valid grouping catalog.
+   */
+  if (ldk_game_get() && !ldk_ecs_grouping_configure_file(ini_path))
+  {
+    ldk_scene_result_set_error(result, "failed to load [groupings]");
+    goto done;
+  }
+
   ok = ldk_scene_manager_override(manager, &config);
   if (!ok)
   {
@@ -798,14 +816,12 @@ bool ldk_scene_manager_unload(LDKSceneManager *manager)
 {
   LDKECS *ecs;
 
-  if (!manager || !manager->is_initialized ||
-      ldk_game_instance_is_updating())
+  if (!manager || !manager->is_initialized || ldk_game_instance_is_updating())
   {
     return false;
   }
 
-  ecs = ldk_engine_is_initialized()
-            ? ldk_module_get(LDK_MODULE_ECS) : NULL;
+  ecs = ldk_engine_is_initialized() ? ldk_module_get(LDK_MODULE_ECS) : NULL;
   if (ecs && ecs->system.is_started &&
       !ldk_scene_systems_stop_missing(&ecs->system, NULL))
   {
@@ -823,8 +839,7 @@ bool ldk_scene_manager_unload(LDKSceneManager *manager)
   return true;
 }
 
-const LDKScene *ldk_scene_manager_current(
-    const LDKSceneManager *manager)
+const LDKScene *ldk_scene_manager_current(const LDKSceneManager *manager)
 {
   if (!manager || !manager->is_initialized)
   {
@@ -834,18 +849,16 @@ const LDKScene *ldk_scene_manager_current(
   return manager->current_scene;
 }
 
-
 const LDKSceneSystems *ldk_scene_manager_systems_get(
     const LDKSceneManager *manager)
 {
-  return manager && manager->is_initialized
-             ? &manager->current_systems : NULL;
+  return manager && manager->is_initialized ? &manager->current_systems : NULL;
 }
 
 bool ldk_scene_manager_current_reset(LDKSceneManager *manager)
 {
-  if (!manager || !manager->is_initialized ||
-      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
+  if (!manager || !manager->is_initialized || ldk_game_instance_is_started() ||
+      ldk_game_instance_is_updating())
   {
     return false;
   }

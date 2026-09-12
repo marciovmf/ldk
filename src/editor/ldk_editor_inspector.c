@@ -4,8 +4,10 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
+#include <module/ldk_scene_manager.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -1411,6 +1413,281 @@ static void s_editor_inspector_material(
   ldk_ui_pop_id(ui);
 }
 
+static LDKSceneSystems *s_editor_inspector_scene_systems(
+    LDKEditorContext *editor)
+{
+  LDKSceneManager *manager;
+
+  if (!editor)
+  {
+    return NULL;
+  }
+
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    return &editor->current_scene_systems;
+  }
+
+  manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (!manager || !ldk_scene_manager_current(manager))
+  {
+    return NULL;
+  }
+
+  return &manager->current_systems;
+}
+
+static bool s_editor_inspector_system_index(
+    const LDKSceneSystems *systems, u64 id, u32 *out_index)
+{
+  if (!systems || id == 0)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < systems->count; ++i)
+  {
+    if (systems->ids[i] == id)
+    {
+      if (out_index)
+      {
+        *out_index = i;
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static const LDKSystemMeta *s_editor_inspector_system_meta(
+    LDKGame *game, u64 id)
+{
+  if (!game || !game->system_metadata_count || !game->system_metadata_get)
+  {
+    return NULL;
+  }
+
+  u32 count = game->system_metadata_count();
+  for (u32 i = 0; i < count; ++i)
+  {
+    const LDKSystemMeta *meta = game->system_metadata_get(i);
+    if (meta && meta->id == id)
+    {
+      return meta;
+    }
+  }
+
+  return NULL;
+}
+
+static LDKEntity s_editor_inspector_system_key(u64 id)
+{
+  LDKEntity key = x_handle_null();
+  key.index = (u32)id;
+  key.version = (u32)(id >> 32u);
+  return key;
+}
+
+static void s_editor_inspector_system_grouping_draw(
+    LDKEditorContext *editor, LDKSceneSystems *systems, u64 system_id)
+{
+  LDKUIContext *ui;
+  u64 current_id;
+  u32 grouping_count;
+  bool current_found;
+  u32 item_count;
+  const char **labels;
+  u64 *ids;
+  u32 selected = 0;
+  u32 write_index = 1;
+  bool can_edit;
+  char missing_label[64];
+
+  if (!editor || !systems)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  current_id = ldk_scene_systems_grouping_get(systems, system_id);
+  grouping_count = ldk_ecs_grouping_count();
+  current_found = current_id == 0;
+
+  for (u32 i = 0; i < grouping_count; ++i)
+  {
+    LDKGroupingDesc desc = {0};
+    if (ldk_ecs_grouping_at(i, &desc) && desc.id == current_id)
+    {
+      current_found = true;
+      break;
+    }
+  }
+
+  item_count = grouping_count + 1u + (!current_found ? 1u : 0u);
+  labels = (const char **)calloc(item_count, sizeof(*labels));
+  ids = (u64 *)calloc(item_count, sizeof(*ids));
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_label(ui, "Grouping");
+
+  if (!labels || !ids)
+  {
+    free(labels);
+    free(ids);
+    ldk_ui_label(ui, "<grouping unavailable>");
+    ldk_ui_end_horizontal(ui);
+    return;
+  }
+
+  labels[0] = "<No Grouping>";
+  ids[0] = 0;
+
+  for (u32 i = 0; i < grouping_count; ++i)
+  {
+    LDKGroupingDesc desc = {0};
+    if (!ldk_ecs_grouping_at(i, &desc))
+    {
+      continue;
+    }
+
+    labels[write_index] = desc.name;
+    ids[write_index] = desc.id;
+    if (desc.id == current_id)
+    {
+      selected = write_index;
+    }
+    ++write_index;
+  }
+
+  if (!current_found)
+  {
+    snprintf(missing_label, sizeof(missing_label),
+        "<missing 0x%016" PRIx64 ">", current_id);
+    labels[write_index] = missing_label;
+    ids[write_index] = current_id;
+    selected = write_index;
+    ++write_index;
+  }
+
+  can_edit = editor->project.loaded &&
+             editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+             editor->current_scene_path.length != 0;
+
+  ldk_ui_begin_disabled(ui, !can_edit);
+  u32 new_selected = ldk_ui_combo_box(ui, labels, write_index, selected);
+  ldk_ui_end_disabled(ui);
+  if (can_edit && new_selected < write_index && new_selected != selected &&
+      !ldk_scene_systems_grouping_set(
+          systems, system_id, ids[new_selected]))
+  {
+    ldki_editor_log_error(editor, "Failed to change scene system grouping.");
+  }
+
+  free(ids);
+  free(labels);
+  ldk_ui_end_horizontal(ui);
+}
+
+static bool s_editor_inspector_system_draw(
+    LDKEditorContext *editor, LDKGame *game, u64 system_id)
+{
+  LDKSceneSystems *systems;
+  const LDKSystemMeta *meta;
+  u32 system_index;
+  LDKUIContext *ui;
+  LDKUIIcon icon = {0};
+  char name[256];
+
+  if (!editor || system_id == 0)
+  {
+    return false;
+  }
+
+  systems = s_editor_inspector_scene_systems(editor);
+  if (!s_editor_inspector_system_index(systems, system_id, &system_index))
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  meta = s_editor_inspector_system_meta(game, system_id);
+  if (meta && meta->name)
+  {
+    snprintf(name, sizeof(name), "%s", meta->name);
+  }
+  else
+  {
+    snprintf(name, sizeof(name), "<missing system> 0x%016" PRIx64, system_id);
+  }
+
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
+
+  ldk_ui_push_id_cstr(ui, "system");
+  ldk_ui_push_id_u32(ui, (u32)system_id);
+  ldk_ui_push_id_u32(ui, (u32)(system_id >> 32u));
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
+  ldk_ui_icon_label(ui, icon, "");
+  ldk_ui_label(ui, name);
+  ldk_ui_end_horizontal(ui);
+
+  s_editor_inspector_system_grouping_draw(editor, systems, system_id);
+  ldk_ui_horizontal_line(ui);
+
+  if (!meta)
+  {
+    ldk_ui_label(ui, "System metadata unavailable.");
+  }
+  else if (meta->size == 0)
+  {
+    ldk_ui_label(ui, "This system has no data fields.");
+  }
+  else
+  {
+    void *data = ldk_scene_systems_data_get(systems, system_id);
+    u32 data_size = systems->data_sizes ? systems->data_sizes[system_index] : 0;
+
+    if (!data || data_size != meta->size)
+    {
+      ldk_ui_label(ui, "System data unavailable.");
+    }
+    else if (!meta->fields || meta->field_count == 0)
+    {
+      ldk_ui_label(ui, "No inspectable data fields.");
+    }
+    else
+    {
+      LDKComponentMeta field_meta = {0};
+      LDKEntity key = s_editor_inspector_system_key(system_id);
+      field_meta.name = meta->name;
+      field_meta.size = meta->size;
+      field_meta.fields = meta->fields;
+      field_meta.field_count = meta->field_count;
+
+      for (u32 i = 0; i < meta->field_count; ++i)
+      {
+        s_editor_inspector_field_draw(
+            ui, key, 0, &field_meta, &meta->fields[i], data);
+      }
+    }
+  }
+
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+  return true;
+}
+
 void ldki_editor_inspector_show(LDKEditorContext *editor)
 {
   static LDKUIPoint scroll = {0};
@@ -1428,6 +1705,22 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   LDKUIContext *ui = &editor->ui;
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
+
+  if (editor->selected_system_id != 0)
+  {
+    LDKSceneSystems *systems = s_editor_inspector_scene_systems(editor);
+    if (s_editor_inspector_system_index(
+            systems, editor->selected_system_id, NULL))
+    {
+      scroll = ldk_ui_begin_scrollview(
+          ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      (void)s_editor_inspector_system_draw(
+          editor, game, editor->selected_system_id);
+      ldk_ui_end_scrollview(ui);
+      return;
+    }
+    editor->selected_system_id = 0;
+  }
 
   if (!ecs || !game || !ldki_editor_selected_entity_get(editor, ecs, &entity))
   {

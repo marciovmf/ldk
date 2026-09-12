@@ -8,7 +8,6 @@
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define DELTA_TIME 0.016f
@@ -17,7 +16,8 @@ enum
 {
   TEST_SYSTEM_ID_A = 1001,
   TEST_SYSTEM_ID_B = 1002,
-  TEST_SYSTEM_ID_C = 1003
+  TEST_SYSTEM_ID_C = 1003,
+  TEST_SYSTEM_ID_STATELESS = 1004
 };
 
 typedef struct TestSystemState
@@ -27,37 +27,38 @@ typedef struct TestSystemState
 } TestSystemState;
 
 static LDKSystemRegistry *g_registry;
+static const LDKEntityGroup *g_expected_group;
 static int g_initialize_count;
 static int g_terminate_count;
 static int g_update_count;
-static int g_pre_update_count;
-static int g_post_update_count;
-static int g_render_count;
 static int g_callback_ok;
 static int g_fail_initialize;
 static int g_check_mutation;
+static int g_check_group;
+static int g_sync_count;
 static int g_order_log[64];
 static int g_order_log_count;
 
 static void test_reset_counters(void)
 {
   g_registry = NULL;
+  g_expected_group = NULL;
   g_initialize_count = 0;
   g_terminate_count = 0;
   g_update_count = 0;
-  g_pre_update_count = 0;
-  g_post_update_count = 0;
-  g_render_count = 0;
   g_callback_ok = 1;
   g_fail_initialize = 0;
   g_check_mutation = 0;
+  g_check_group = 0;
+  g_sync_count = 0;
   g_order_log_count = 0;
   memset(g_order_log, 0, sizeof(g_order_log));
 }
 
-static int test_system_initialize(void **userdata)
+static int test_system_initialize(void *data)
 {
-  TestSystemState *state = (TestSystemState *)malloc(sizeof(*state));
+  TestSystemState *state = (TestSystemState *)data;
+
   if (!state)
   {
     g_callback_ok = 0;
@@ -66,14 +67,15 @@ static int test_system_initialize(void **userdata)
 
   state->marker = 123;
   state->generation = ++g_initialize_count;
-  *userdata = state;
 
   if (g_check_mutation)
   {
     if (ldk_system_registry_system_start(g_registry, TEST_SYSTEM_ID_A) ||
         ldk_system_registry_stop(g_registry) ||
         ldk_system_registry_pause(g_registry) ||
-        ldk_system_registry_clear(g_registry))
+        ldk_system_registry_clear(g_registry) ||
+        ldk_system_registry_system_data_set(
+            g_registry, TEST_SYSTEM_ID_A, state))
     {
       g_callback_ok = 0;
     }
@@ -82,9 +84,10 @@ static int test_system_initialize(void **userdata)
   return g_fail_initialize ? 1 : 0;
 }
 
-static void test_system_terminate(void *userdata)
+static void test_system_terminate(void *data)
 {
-  TestSystemState *state = (TestSystemState *)userdata;
+  TestSystemState *state = (TestSystemState *)data;
+
   if (!state || state->marker != 123)
   {
     g_callback_ok = 0;
@@ -93,29 +96,42 @@ static void test_system_terminate(void *userdata)
 
   if (g_check_mutation &&
       (ldk_system_registry_system_start(g_registry, TEST_SYSTEM_ID_A) ||
-          ldk_system_registry_stop(g_registry)))
+          ldk_system_registry_stop(g_registry) ||
+          ldk_system_registry_system_data_set(
+              g_registry, TEST_SYSTEM_ID_A, state)))
   {
     g_callback_ok = 0;
   }
 
-  free(state);
   g_terminate_count++;
 }
 
-static void test_system_update(void *userdata, float dt)
+static void test_system_update(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  TestSystemState *state = (TestSystemState *)userdata;
-  if (!state || state->marker != 123 || dt <= 0.0f)
+  TestSystemState *state = (TestSystemState *)data;
+
+  if (!state || state->marker != 123 || !group || dt <= 0.0f)
   {
     g_callback_ok = 0;
     return;
+  }
+
+  if (g_check_group && group != g_expected_group)
+  {
+    g_callback_ok = 0;
   }
 
   if (g_check_mutation &&
       (ldk_system_registry_system_stop(g_registry, TEST_SYSTEM_ID_A) ||
           ldk_system_registry_run_bucket(
               g_registry, LDK_SYSTEM_BUCKET_UPDATE, dt) ||
-          ldk_system_registry_resume(g_registry)))
+          ldk_system_registry_resume(g_registry) ||
+          ldk_system_registry_system_group_set(
+              g_registry, TEST_SYSTEM_ID_A, NULL) ||
+          ldk_system_registry_system_data_set(
+              g_registry, TEST_SYSTEM_ID_A, state) ||
+          ldk_system_registry_callback_sync_set(g_registry, NULL, NULL)))
   {
     g_callback_ok = 0;
   }
@@ -123,73 +139,79 @@ static void test_system_update(void *userdata, float dt)
   g_update_count++;
 }
 
-static void test_system_update_a(void *userdata, float dt)
+static void test_system_update_a(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  test_system_update(userdata, dt);
+  test_system_update(data, group, dt);
   g_order_log[g_order_log_count++] = 1;
 }
 
-static void test_system_update_b(void *userdata, float dt)
+static void test_system_update_b(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  test_system_update(userdata, dt);
+  test_system_update(data, group, dt);
   g_order_log[g_order_log_count++] = 2;
 }
 
-static void test_system_update_c(void *userdata, float dt)
+static void test_system_update_c(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  test_system_update(userdata, dt);
+  test_system_update(data, group, dt);
   g_order_log[g_order_log_count++] = 3;
 }
 
-static void test_system_pre_update(void *userdata, float dt)
+static void test_stateless_update(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  if (!userdata || dt <= 0.0f)
+  if (data != NULL || !group || dt <= 0.0f)
   {
     g_callback_ok = 0;
     return;
   }
-  g_pre_update_count++;
+
+  g_update_count++;
 }
 
-static void test_system_post_update(void *userdata, float dt)
+static bool test_system_callback_sync(void *user)
 {
-  if (!userdata || dt <= 0.0f)
+  int *count = (int *)user;
+  if (!count)
   {
-    g_callback_ok = 0;
-    return;
+    return false;
   }
-  g_post_update_count++;
-}
 
-static void test_system_render(void *userdata, float dt)
-{
-  if (!userdata || dt <= 0.0f)
-  {
-    g_callback_ok = 0;
-    return;
-  }
-  g_render_count++;
+  *count += 1;
+  return true;
 }
 
 static LDKSystemDesc test_system_desc(
-    u64 id, i32 order, LDKSystemUpdateFn update)
+    u64 id, LDKSystemBucket bucket, i32 order, LDKSystemUpdateFn update)
 {
   LDKSystemDesc desc = {0};
   desc.id = id;
   desc.name = "test_system";
   desc.flags = LDK_SYSTEM_FLAG_ENABLED;
-  desc.update_order = order;
-  desc.callbacks.initialize = test_system_initialize;
-  desc.callbacks.terminate = test_system_terminate;
-  desc.callbacks.update = update;
+  desc.bucket = bucket;
+  desc.order = order;
+  desc.data_size = sizeof(TestSystemState);
+  desc.initialize = test_system_initialize;
+  desc.update = update;
+  desc.terminate = test_system_terminate;
   return desc;
+}
+
+static bool test_system_data_bind(
+    LDKSystemRegistry *registry, u64 id, TestSystemState *state)
+{
+  memset(state, 0, sizeof(*state));
+  return ldk_system_registry_system_data_set(registry, id, state);
 }
 
 int test_system_registry_register_has_unregister(void)
 {
   LDKSystemRegistry registry = {0};
   LDKSystemDesc desc = test_system_desc(
-      TEST_SYSTEM_ID_A, 10, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 10, test_system_update_a);
   LDKSystemDesc found;
 
   test_reset_counters();
@@ -199,6 +221,9 @@ int test_system_registry_register_has_unregister(void)
   ASSERT_TRUE(ldk_system_registry_find_by_id(
       &registry, TEST_SYSTEM_ID_A, &found));
   ASSERT_TRUE(found.id == TEST_SYSTEM_ID_A);
+  ASSERT_TRUE(found.bucket == LDK_SYSTEM_BUCKET_UPDATE);
+  ASSERT_TRUE(found.order == 10);
+  ASSERT_TRUE(found.update == test_system_update_a);
   ASSERT_TRUE(ldk_system_registry_count(&registry) == 1);
   ASSERT_TRUE(ldk_system_registry_at(&registry, 0, &found));
   ASSERT_TRUE(found.id == TEST_SYSTEM_ID_A);
@@ -212,67 +237,103 @@ int test_system_registry_register_has_unregister(void)
   return 0;
 }
 
-int test_system_registry_start_run_stop(void)
+int test_system_registry_single_bucket(void)
 {
   LDKSystemRegistry registry = {0};
-  LDKSystemDesc desc = test_system_desc(
-      TEST_SYSTEM_ID_A, 2, test_system_update_a);
+  TestSystemState state;
+  LDKSystemDesc desc = test_system_desc(TEST_SYSTEM_ID_A,
+      LDK_SYSTEM_BUCKET_PRE_UPDATE, 2, test_system_update_a);
 
   test_reset_counters();
-  desc.pre_update_order = 1;
-  desc.post_update_order = 3;
-  desc.render_order = 4;
-  desc.callbacks.pre_update = test_system_pre_update;
-  desc.callbacks.post_update = test_system_post_update;
-  desc.callbacks.render = test_system_render;
-
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &desc));
-  ASSERT_TRUE(!ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
-  ASSERT_TRUE(g_initialize_count == 0);
-  ASSERT_TRUE(!ldk_system_registry_system_is_started(
-      &registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+
   ASSERT_TRUE(ldk_system_registry_run_bucket(
       &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
   ASSERT_TRUE(g_update_count == 0);
-
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(g_initialize_count == 1);
-  ASSERT_TRUE(ldk_system_registry_system_is_started(
-      &registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(!ldk_system_registry_system_start(&registry, 9999));
-  ASSERT_TRUE(!ldk_system_registry_system_stop(&registry, 9999));
-
   ASSERT_TRUE(ldk_system_registry_run_bucket(
       &registry, LDK_SYSTEM_BUCKET_PRE_UPDATE, DELTA_TIME));
-  ASSERT_TRUE(ldk_system_registry_run_bucket(
-      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
+  ASSERT_TRUE(g_update_count == 1);
   ASSERT_TRUE(ldk_system_registry_run_bucket(
       &registry, LDK_SYSTEM_BUCKET_POST_UPDATE, DELTA_TIME));
   ASSERT_TRUE(ldk_system_registry_run_bucket(
       &registry, LDK_SYSTEM_BUCKET_RENDER, DELTA_TIME));
-  ASSERT_TRUE(g_callback_ok);
-  ASSERT_TRUE(g_pre_update_count == 1);
   ASSERT_TRUE(g_update_count == 1);
-  ASSERT_TRUE(g_post_update_count == 1);
-  ASSERT_TRUE(g_render_count == 1);
 
-  ASSERT_TRUE(ldk_system_registry_system_stop(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(ldk_system_registry_system_stop(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(ldk_system_registry_stop(&registry));
+  ASSERT_TRUE(g_initialize_count == 1);
   ASSERT_TRUE(g_terminate_count == 1);
+  ASSERT_TRUE(g_callback_ok);
+  ldk_system_registry_terminate(&registry);
+  return 0;
+}
+
+int test_system_registry_data_binding_and_lifecycle(void)
+{
+  LDKSystemRegistry registry = {0};
+  TestSystemState state;
+  TestSystemState replacement;
+  LDKSystemDesc desc = test_system_desc(
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 0, test_system_update_a);
+
+  test_reset_counters();
+  memset(&state, 0, sizeof(state));
+  memset(&replacement, 0, sizeof(replacement));
+
+  ASSERT_TRUE(ldk_system_registry_initialize(&registry));
+  ASSERT_TRUE(ldk_system_registry_register(&registry, &desc));
+  ASSERT_TRUE(ldk_system_registry_start(&registry));
+  ASSERT_TRUE(!ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(ldk_system_registry_system_data_set(
+      &registry, TEST_SYSTEM_ID_A, &state));
+  ASSERT_TRUE(ldk_system_registry_system_data_get(
+                  &registry, TEST_SYSTEM_ID_A) == &state);
+  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(!ldk_system_registry_system_data_set(
+      &registry, TEST_SYSTEM_ID_A, &replacement));
+  ASSERT_TRUE(ldk_system_registry_run_bucket(
+      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
+  ASSERT_TRUE(state.generation == 1);
+  ASSERT_TRUE(ldk_system_registry_system_stop(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(ldk_system_registry_system_data_set(
+      &registry, TEST_SYSTEM_ID_A, &replacement));
+  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(replacement.generation == 2);
+  ASSERT_TRUE(ldk_system_registry_stop(&registry));
+  ASSERT_TRUE(g_initialize_count == 2);
+  ASSERT_TRUE(g_terminate_count == 2);
+  ASSERT_TRUE(g_callback_ok);
+  ldk_system_registry_terminate(&registry);
+  return 0;
+}
+
+int test_system_registry_stateless_system(void)
+{
+  LDKSystemRegistry registry = {0};
+  LDKSystemDesc desc = {0};
+
+  test_reset_counters();
+  desc.id = TEST_SYSTEM_ID_STATELESS;
+  desc.name = "stateless";
+  desc.flags = LDK_SYSTEM_FLAG_ENABLED;
+  desc.bucket = LDK_SYSTEM_BUCKET_UPDATE;
+  desc.update = test_stateless_update;
+
+  ASSERT_TRUE(ldk_system_registry_initialize(&registry));
+  ASSERT_TRUE(ldk_system_registry_register(&registry, &desc));
+  ASSERT_TRUE(!ldk_system_registry_system_data_set(
+      &registry, TEST_SYSTEM_ID_STATELESS, (void *)&registry));
+  ASSERT_TRUE(ldk_system_registry_start(&registry));
+  ASSERT_TRUE(
+      ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_STATELESS));
   ASSERT_TRUE(ldk_system_registry_run_bucket(
       &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
   ASSERT_TRUE(g_update_count == 1);
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(g_initialize_count == 2);
+  ASSERT_TRUE(g_callback_ok);
   ASSERT_TRUE(ldk_system_registry_stop(&registry));
-  ASSERT_TRUE(g_terminate_count == 2);
-  ASSERT_TRUE(ldk_system_registry_stop(&registry));
-  ASSERT_TRUE(ldk_system_registry_count(&registry) == 1);
-  ASSERT_TRUE(!ldk_system_registry_run_bucket(
-      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
   ldk_system_registry_terminate(&registry);
   return 0;
 }
@@ -280,18 +341,24 @@ int test_system_registry_start_run_stop(void)
 int test_system_registry_update_order(void)
 {
   LDKSystemRegistry registry = {0};
+  TestSystemState state_a;
+  TestSystemState state_b;
+  TestSystemState state_c;
   LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 30, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 30, test_system_update_a);
   LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 10, test_system_update_b);
+      TEST_SYSTEM_ID_B, LDK_SYSTEM_BUCKET_UPDATE, 10, test_system_update_b);
   LDKSystemDesc c = test_system_desc(
-      TEST_SYSTEM_ID_C, 20, test_system_update_c);
+      TEST_SYSTEM_ID_C, LDK_SYSTEM_BUCKET_UPDATE, 20, test_system_update_c);
 
   test_reset_counters();
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &c));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state_a));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_B, &state_b));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_C, &state_c));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
@@ -311,15 +378,19 @@ int test_system_registry_update_order(void)
 int test_system_registry_equal_order_uses_registration_order(void)
 {
   LDKSystemRegistry registry = {0};
+  TestSystemState state_a;
+  TestSystemState state_b;
   LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 10, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 10, test_system_update_a);
   LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 10, test_system_update_b);
+      TEST_SYSTEM_ID_B, LDK_SYSTEM_BUCKET_UPDATE, 10, test_system_update_b);
 
   test_reset_counters();
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state_a));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_B, &state_b));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
@@ -333,61 +404,23 @@ int test_system_registry_equal_order_uses_registration_order(void)
   return 0;
 }
 
-int test_system_registry_individual_activation(void)
-{
-  LDKSystemRegistry registry = {0};
-  LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 30, test_system_update_a);
-  LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 10, test_system_update_b);
-  LDKSystemDesc c = test_system_desc(
-      TEST_SYSTEM_ID_C, 20, test_system_update_c);
-
-  test_reset_counters();
-  ASSERT_TRUE(ldk_system_registry_initialize(&registry));
-  ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
-  ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
-  ASSERT_TRUE(ldk_system_registry_register(&registry, &c));
-  ASSERT_TRUE(ldk_system_registry_start(&registry));
-  ASSERT_TRUE(!ldk_system_registry_register(&registry, &a));
-  ASSERT_TRUE(!ldk_system_registry_unregister(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(!ldk_system_registry_clear(&registry));
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_C));
-  ASSERT_TRUE(ldk_system_registry_run_bucket(
-      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
-  ASSERT_TRUE(g_order_log_count == 2);
-  ASSERT_TRUE(g_order_log[0] == 3);
-  ASSERT_TRUE(g_order_log[1] == 1);
-  ASSERT_TRUE(ldk_system_registry_system_stop(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
-  ASSERT_TRUE(ldk_system_registry_run_bucket(
-      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
-  ASSERT_TRUE(g_order_log[2] == 2);
-  ASSERT_TRUE(g_order_log[3] == 3);
-  ASSERT_TRUE(g_initialize_count == 3);
-  ASSERT_TRUE(g_terminate_count == 1);
-  ASSERT_TRUE(ldk_system_registry_system_is_started(&registry, TEST_SYSTEM_ID_B));
-  ASSERT_TRUE(ldk_system_registry_system_is_started(&registry, TEST_SYSTEM_ID_C));
-  ASSERT_TRUE(ldk_system_registry_stop(&registry));
-  ASSERT_TRUE(g_terminate_count == 3);
-  ldk_system_registry_terminate(&registry);
-  return 0;
-}
-
 int test_system_registry_pause_resume(void)
 {
   LDKSystemRegistry registry = {0};
+  TestSystemState state_a;
+  TestSystemState state_b;
   LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 10, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 10, test_system_update_a);
   LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 20, test_system_update_b);
+      TEST_SYSTEM_ID_B, LDK_SYSTEM_BUCKET_UPDATE, 20, test_system_update_b);
 
   test_reset_counters();
   b.flags |= LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED;
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state_a));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_B, &state_b));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
@@ -416,14 +449,16 @@ int test_system_registry_pause_resume(void)
 int test_system_registry_mutation_rejected_in_callbacks(void)
 {
   LDKSystemRegistry registry = {0};
+  TestSystemState state;
   LDKSystemDesc desc = test_system_desc(
-      TEST_SYSTEM_ID_A, 0, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 0, test_system_update_a);
 
   test_reset_counters();
   g_registry = &registry;
   g_check_mutation = 1;
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &desc));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
   ASSERT_TRUE(ldk_system_registry_run_bucket(
@@ -438,22 +473,28 @@ int test_system_registry_mutation_rejected_in_callbacks(void)
 int test_system_registry_failed_initialize(void)
 {
   LDKSystemRegistry registry = {0};
+  TestSystemState state_a;
+  TestSystemState state_b;
   LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 0, test_system_update_a);
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 0, test_system_update_a);
   LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 0, test_system_update_b);
+      TEST_SYSTEM_ID_B, LDK_SYSTEM_BUCKET_UPDATE, 0, test_system_update_b);
 
   test_reset_counters();
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
   ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state_a));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_B, &state_b));
   ASSERT_TRUE(ldk_system_registry_start(&registry));
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
   g_fail_initialize = 1;
   ASSERT_TRUE(!ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
   ASSERT_TRUE(g_initialize_count == 2 && g_terminate_count == 1);
-  ASSERT_TRUE(!ldk_system_registry_system_is_started(&registry, TEST_SYSTEM_ID_B));
-  ASSERT_TRUE(ldk_system_registry_system_is_started(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(!ldk_system_registry_system_is_started(
+      &registry, TEST_SYSTEM_ID_B));
+  ASSERT_TRUE(ldk_system_registry_system_is_started(
+      &registry, TEST_SYSTEM_ID_A));
   g_fail_initialize = 0;
   ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_B));
   ASSERT_TRUE(ldk_system_registry_stop(&registry));
@@ -463,22 +504,64 @@ int test_system_registry_failed_initialize(void)
   return 0;
 }
 
-int test_system_registry_clear_while_stopped(void)
+int test_system_registry_group_binding_and_sync(void)
 {
   LDKSystemRegistry registry = {0};
-  LDKSystemDesc a = test_system_desc(
-      TEST_SYSTEM_ID_A, 0, test_system_update_a);
-  LDKSystemDesc b = test_system_desc(
-      TEST_SYSTEM_ID_B, 0, test_system_update_b);
+  TestSystemState state;
+  LDKSystemDesc desc = test_system_desc(
+      TEST_SYSTEM_ID_A, LDK_SYSTEM_BUCKET_UPDATE, 0, test_system_update_a);
+  LDKEntity entities[2] = {0};
+  LDKEntityGroup group = {0};
+  const LDKEntityGroup *empty_group;
 
   test_reset_counters();
+  entities[0].index = 3;
+  entities[0].version = 7;
+  entities[1].index = 4;
+  entities[1].version = 9;
+  group.grouping_id = 0x1234u;
+  group.entities = entities;
+  group.count = 2;
+
   ASSERT_TRUE(ldk_system_registry_initialize(&registry));
-  ASSERT_TRUE(ldk_system_registry_register(&registry, &a));
-  ASSERT_TRUE(ldk_system_registry_register(&registry, &b));
-  ASSERT_TRUE(ldk_system_registry_clear(&registry));
-  ASSERT_TRUE(ldk_system_registry_count(&registry) == 0);
-  ASSERT_TRUE(!ldk_system_registry_has(&registry, TEST_SYSTEM_ID_A));
-  ASSERT_TRUE(!ldk_system_registry_has(&registry, TEST_SYSTEM_ID_B));
+  ASSERT_TRUE(ldk_system_registry_register(&registry, &desc));
+  ASSERT_TRUE(test_system_data_bind(&registry, TEST_SYSTEM_ID_A, &state));
+  ASSERT_TRUE(ldk_system_registry_start(&registry));
+  ASSERT_TRUE(ldk_system_registry_system_start(&registry, TEST_SYSTEM_ID_A));
+  ASSERT_TRUE(ldk_system_registry_system_group_set(
+      &registry, TEST_SYSTEM_ID_A, &group));
+  ASSERT_TRUE(ldk_system_registry_system_group_get(
+                  &registry, TEST_SYSTEM_ID_A) == &group);
+  ASSERT_TRUE(ldk_system_registry_callback_sync_set(
+      &registry, test_system_callback_sync, &g_sync_count));
+
+  g_expected_group = &group;
+  g_check_group = 1;
+  ASSERT_TRUE(ldk_system_registry_run_bucket(
+      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
+  ASSERT_TRUE(g_callback_ok);
+  ASSERT_TRUE(g_update_count == 1);
+  ASSERT_TRUE(g_sync_count == 1);
+
+  ASSERT_TRUE(ldk_system_registry_pause(&registry));
+  ASSERT_TRUE(ldk_system_registry_run_bucket(
+      &registry, LDK_SYSTEM_BUCKET_UPDATE, DELTA_TIME));
+  ASSERT_TRUE(g_update_count == 1);
+  ASSERT_TRUE(g_sync_count == 1);
+  ASSERT_TRUE(ldk_system_registry_resume(&registry));
+
+  g_check_group = 0;
+  ASSERT_TRUE(ldk_system_registry_system_group_set(
+      &registry, TEST_SYSTEM_ID_A, NULL));
+  empty_group =
+      ldk_system_registry_system_group_get(&registry, TEST_SYSTEM_ID_A);
+  ASSERT_TRUE(empty_group != NULL);
+  ASSERT_TRUE(empty_group->grouping_id == 0);
+  ASSERT_TRUE(empty_group->entities == NULL);
+  ASSERT_TRUE(empty_group->count == 0);
+
+  ASSERT_TRUE(ldk_system_registry_callback_sync_set(&registry, NULL, NULL));
+  ASSERT_TRUE(ldk_system_registry_stop(&registry));
   ldk_system_registry_terminate(&registry);
   return 0;
 }
@@ -488,14 +571,15 @@ int main(void)
   STDXTestCase tests[] =
   {
     X_TEST(test_system_registry_register_has_unregister),
-    X_TEST(test_system_registry_start_run_stop),
+    X_TEST(test_system_registry_single_bucket),
+    X_TEST(test_system_registry_data_binding_and_lifecycle),
+    X_TEST(test_system_registry_stateless_system),
     X_TEST(test_system_registry_update_order),
     X_TEST(test_system_registry_equal_order_uses_registration_order),
-    X_TEST(test_system_registry_individual_activation),
     X_TEST(test_system_registry_pause_resume),
     X_TEST(test_system_registry_mutation_rejected_in_callbacks),
     X_TEST(test_system_registry_failed_initialize),
-    X_TEST(test_system_registry_clear_while_stopped),
+    X_TEST(test_system_registry_group_binding_and_sync),
   };
 
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

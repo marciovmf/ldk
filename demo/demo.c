@@ -24,30 +24,37 @@
 
 LDKGame game = {0};
 
-static void s_hello_system_update(void* userdata, float dt)
+static void s_hello_system_update(
+    void *data, const LDKEntityGroup *group, float dt)
 {
-  (void)userdata;
+  Hello *system = (Hello *)data;
   (void)dt;
-  ldk_log_info("HELLO\n");
-}
 
-const LDKSystemDesc Hello = {.id = ldk_system_id(Hello),
-    .name = "Hello",
-    .flags = LDK_SYSTEM_FLAG_ENABLED,
-    .callbacks = {.update = s_hello_system_update}};
+  if (!system)
+  {
+    return;
+  }
+
+  system->update_count += 1u;
+  if (system->log_every_n_updates == 0u ||
+      system->update_count % system->log_every_n_updates == 0u)
+  {
+    ldk_log_info("HELLO! Received %d entities\n", group->count);
+  }
+}
 
 typedef struct GameData
 {
-  LDKEntity cube_entity_0; 
-  LDKEntity cube_entity_1; 
+  LDKEntity cube_entity_0;
+  LDKEntity cube_entity_1;
   i32 game_width;
   i32 game_height;
 
-}GameData;
+} GameData;
 
 static GameData s_game_data;
 
-bool on_window_event(const LDKEvent* event, void* state)
+bool on_window_event(const LDKEvent *event, void *state)
 {
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
@@ -59,12 +66,12 @@ bool on_window_event(const LDKEvent* event, void* state)
   return false;
 }
 
-bool game_initialize(LDKGame* game)
+bool game_initialize(LDKGame *game)
 {
   ldk_log_info("Game initialize!!\n");
   game->user_data = &s_game_data;
 
-  if (!ldk_ecs_system_register(&Hello))
+  if (!ldk_ecs_system_register(ldk_system_desc(Hello)))
   {
     ldk_log_error("Failed to register Hello system.\n");
     return false;
@@ -75,17 +82,18 @@ bool game_initialize(LDKGame* game)
   return true;
 }
 
-bool game_start(LDKGame* game)
+bool game_start(LDKGame *game)
 {
   ldk_log_info("Game start\n");
   GameData *game_data = (GameData *)game->user_data;
-  const LDKConfig* cfg = ldk_engine_config_get();
+  const LDKConfig *cfg = ldk_engine_config_get();
   game_data->game_width = cfg->resolution_width;
   game_data->game_height = cfg->resolution_height;
 
-  LDKAssetManager* assets = (LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  LDKAssetMesh cube_asset = ldk_mesh_primitive_asset_get(
-      assets, LDK_MESH_PRIMITIVE_CUBE);
+  LDKAssetManager *assets =
+      (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetMesh cube_asset =
+      ldk_mesh_primitive_asset_get(assets, LDK_MESH_PRIMITIVE_CUBE);
 
   if (x_handle_is_null(cube_asset.h))
   {
@@ -94,7 +102,8 @@ bool game_start(LDKGame* game)
   }
 
   LDKEntity camera_entity = ldk_ecs_entity_create();
-  ldk_transform_set_local_position(camera_entity, vec3_make(0.0f, 0.0f, 0.0f));
+  ldk_transform_set_local_position(
+      camera_entity, vec3_make(0.0f, 0.0f, 0.0f));
 
   LDKCamera camera = {0};
   camera.projection = LDK_CAMERA_PROJECTION_PERSPECTIVE;
@@ -107,49 +116,54 @@ bool game_start(LDKGame* game)
   ldk_camera_look_at(camera_entity, vec3_make(0.0f, 0.0f, -1.0f));
 
   LDKEntity cube_entity_0 = ldk_ecs_entity_create();
-  ldk_transform_set_local_position(cube_entity_0, vec3_make(0.0f, 0.0f, -3.0f));
-  ldk_transform_set_local_rotation(cube_entity_0, quat_axis_angle(vec3_make(0.0f, 1.0f, 1.0f), 10.0f));
+  ldk_transform_set_local_position(
+      cube_entity_0, vec3_make(0.0f, 0.0f, -3.0f));
+  ldk_transform_set_local_rotation(cube_entity_0,
+      quat_axis_angle(vec3_make(0.0f, 1.0f, 1.0f), 10.0f));
 
   LDKEntity cube_entity_1 = ldk_ecs_entity_create();
   ldk_transform_set_parent(cube_entity_1, cube_entity_0);
-  ldk_transform_set_local_position(cube_entity_1, vec3_make(0.0f, 0.0f, 1.2f));
-  ldk_transform_set_local_scale(cube_entity_1, vec3_make(0.4f, 0.4f, 0.4f));
-  ldk_transform_set_local_rotation(cube_entity_1, quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), 10.0f));
+  ldk_transform_set_local_position(
+      cube_entity_1, vec3_make(0.0f, 0.0f, 1.2f));
+  ldk_transform_set_local_scale(
+      cube_entity_1, vec3_make(0.4f, 0.4f, 0.4f));
+  ldk_transform_set_local_rotation(cube_entity_1,
+      quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), 10.0f));
 
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);
 
   // Set material
   LDKMaterialDesc material;
-  ldk_material_desc_defaults(
-    LDK_MATERIAL_TYPE_VERTEX_COLOR, &material);
+  ldk_material_desc_defaults(LDK_MATERIAL_TYPE_VERTEX_COLOR, &material);
   material.args.vertex_color.color = 0xff0000ffu;
   ldk_mesh_source_set_material(&mesh_source, &material);
+
   // Set Texture to material descriptor
-/* RGBA bytes: white/blue checkerboard. */
-const u8 pixels[] = {
-    255, 255, 255, 255,    0, 80, 255, 255,
-      0,  80, 255, 255,  255, 255, 255, 255,
-};
+  /* RGBA bytes: white/blue checkerboard. */
+  const u8 pixels[] = {
+      255, 255, 255, 255, 0, 80, 255, 255,
+      0, 80, 255, 255, 255, 255, 255, 255,
+  };
 
-LDKAssetImage image =
-  ldk_asset_manager_image_create(assets, 2, 2, pixels);
+  LDKAssetImage image = ldk_asset_manager_image_create(assets, 2, 2, pixels);
 
-ldk_material_desc_defaults(
-  LDK_MATERIAL_TYPE_TEXTURED, &material);
-material.args.textured.texture = image;
+  ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &material);
+  material.args.textured.texture = image;
 
-ldk_mesh_source_set_material(&mesh_source, &material);
+  ldk_mesh_source_set_material(&mesh_source, &material);
 
-  ldk_ecs_component_add(cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
-  ldk_ecs_component_add(cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
+  ldk_ecs_component_add(
+      cube_entity_0, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
+  ldk_ecs_component_add(
+      cube_entity_1, LDK_COMPONENT_TYPE_MESH_SOURCE, &mesh_source);
 
   game_data->cube_entity_0 = cube_entity_0;
   game_data->cube_entity_1 = cube_entity_1;
   return true;
 }
 
-void game_update(LDKGame* game, float delta_time)
+void game_update(LDKGame *game, float delta_time)
 {
   GameData *game_data = (GameData *)game->user_data;
   LDKMouseState mouse_state;
@@ -170,21 +184,21 @@ void game_update(LDKGame* game, float delta_time)
 
   if (ldk_input_mouse_button_down(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
   {
-    ldk_log_info("Game input click at %d, %d\n",
-        mouse_state.cursor.x, mouse_state.cursor.y);
+    ldk_log_info("Game input click at %d, %d\n", mouse_state.cursor.x,
+        mouse_state.cursor.y);
   }
 
   (void)delta_time;
 }
 
-void game_terminate(LDKGame* game)
+void game_terminate(LDKGame *game)
 {
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_remove(q, on_window_event);
   ldk_log_info("Game terminate\n");
 }
 
-void game_stop(LDKGame* game)
+void game_stop(LDKGame *game)
 {
   ldk_log_info("Game stop\n");
 }

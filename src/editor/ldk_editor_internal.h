@@ -203,6 +203,7 @@ typedef struct LDKEditorContext
   LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
+  u64 selected_system_id;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
   LDKEditorCameraControllerState camera_controller;
@@ -326,6 +327,9 @@ void ldki_editor_tag_catalog_show(LDKEditor *editor, void *data);
 void ldki_editor_tag_catalog_sync(LDKEditorContext *editor);
 const char *ldki_editor_tag_name_get(LDKEditorContext *editor, u32 bit);
 
+void ldki_editor_grouping_catalog_open(LDKEditorContext *editor);
+void ldki_editor_grouping_catalog_show(LDKEditor *editor, void *data);
+
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
@@ -334,7 +338,6 @@ bool ldki_editor_scene_new(LDKEditorContext *editor);
 
 bool ldki_editor_scene_add_primitive(
     LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
-
 
 // Editor window IDs are stored in the docking layout and must therefore be
 // stable across runs. The value is intentionally just an application-defined
@@ -371,5 +374,6 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
 #define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
+#define LDK_EDITOR_WINDOW_GROUPING_CATALOG ((LDKEditorWindowId)0x4C444B0Au)
 
 #endif // LDK_EDITOR_INTERNAL

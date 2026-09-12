@@ -85,7 +85,6 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_horizontal(ui);
   ldk_ui_horizontal_line(ui);
 
-
   LDKUIRect popup_pos = {
       file_button_rect.x, file_button_rect.y + file_button_rect.h, 120, 10};
 
@@ -102,7 +101,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
       ldki_editor_project_create_window_open(editor);
       ldk_ui_close_current_popup(ui);
     }
-    
+
     ldk_ui_set_next_disabled(ui, !can_edit_scene);
     if (ldk_ui_button_flat(ui, "New Scene"))
     {
@@ -236,12 +235,25 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_begin_popup(ui, MENU_ID_WINDOW);
   {
     LDKUIMark mark = ldk_ui_mark(ui);
+
+    if (ldk_ui_button_flat(ui, "Entity Group"))
+    {
+      ldki_editor_grouping_catalog_open(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
     u32 window_count = ldki_editor_window_count();
 
     for (u32 i = 0; i < window_count; ++i)
     {
       const LDKEditorWindow *window = ldki_editor_window_at(i);
-      if (window != NULL && ldk_ui_button_flat(ui, window->title))
+
+      if (window == NULL)
+      {
+        continue;
+      }
+
+      if (ldk_ui_button_flat(ui, window->title))
       {
         ldki_editor_window_show(window->id);
         ldk_ui_close_current_popup(ui);
@@ -788,6 +800,7 @@ static void s_editor_scene_selection_clear(LDKEditorContext *editor)
   }
 
   editor->selected_entity = x_handle_null();
+  editor->selected_system_id = 0;
   if (editor->hierarchy_expanded_entities != NULL)
   {
     x_array_clear(editor->hierarchy_expanded_entities);
@@ -1001,7 +1014,8 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
     return false;
   }
 
-  if (!ldk_scene_load_tml_file(x_fs_path_cstr(path), &result))
+  if (!ldk_scene_load_tml_file_with_systems(
+          x_fs_path_cstr(path), &systems, &result))
   {
     s_editor_scene_ecs_clear();
     ldk_scene_systems_clear(&systems);
@@ -1138,6 +1152,7 @@ bool ldki_editor_scene_add_primitive(
   }
 
   editor->selected_entity = entity;
+  editor->selected_system_id = 0;
   return true;
 }
 
@@ -1297,3 +1312,4 @@ void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
   ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
   ldk_log_info(msg);
 }
+

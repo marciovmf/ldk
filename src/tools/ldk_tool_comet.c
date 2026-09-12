@@ -40,8 +40,20 @@ typedef struct LDKMetaComponent
 
 typedef struct LDKMetaSystem
 {
+  char symbol_name[128];
   char name[128];
+  char type_name[128];
+  char update[128];
+  char initialize[128];
+  char terminate[128];
+  char flags[256];
+  char bucket[128];
+  char order[64];
+  char source_path[1024];
   u64 id;
+  u32 first_field;
+  u32 field_count;
+  bool stateful;
 } LDKMetaSystem;
 
 typedef struct LDKMetaState
@@ -78,6 +90,20 @@ static u32 ldk_meta_hash_fnv1a32(const char* text)
   if (hash == 0u)
   {
     hash = 1u;
+  }
+
+  return hash;
+}
+
+static u64 ldk_meta_hash_fnv1a64(const char *text)
+{
+  u64 hash = UINT64_C(14695981039346656037);
+
+  while (*text)
+  {
+    hash ^= (u8)*text;
+    hash *= UINT64_C(1099511628211);
+    text += 1;
   }
 
   return hash;
@@ -638,93 +664,457 @@ static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
   return true;
 }
 
-/* A system annotation applies to one exported descriptor declaration. */
-static bool ldk_meta_parse_system_at(LDKMetaState *state, const char *marker)
+static bool ldk_meta_system_name_is_valid(const char *name)
 {
-  const char *cursor = marker + strlen("//@system");
-  const char *tokens[] = {"extern", "const", "LDKSystemDesc"};
-  LDKMetaSystem system = {0};
-  const char *begin;
-  size_t length;
+  const char *cursor;
 
-  for (u32 i = 0; i < 3; ++i)
+  if (!name || (!isalpha((unsigned char)name[0]) && name[0] != '_'))
   {
-    while (isspace((unsigned char)*cursor))
+    return false;
+  }
+
+  cursor = name + 1;
+  while (*cursor)
+  {
+    if (!ldk_meta_is_ident_char(*cursor))
     {
-      ++cursor;
-    }
-    length = strlen(tokens[i]);
-    if (strncmp(cursor, tokens[i], length) != 0 ||
-        ldk_meta_is_ident_char(cursor[length]))
-    {
-      ldk_meta_set_error(
-          state, "expected extern const LDKSystemDesc Name; after //@system");
       return false;
     }
-    cursor += length;
-  }
-  while (isspace((unsigned char)*cursor))
-  {
     ++cursor;
   }
-  begin = cursor;
-  if (!isalpha((unsigned char)*cursor) && *cursor != '_')
+
+  return true;
+}
+
+static bool ldk_meta_system_callbacks_are_valid(
+    LDKMetaState *state, const LDKMetaSystem *system)
+{
+  if (!state || !system)
   {
-    ldk_meta_set_error(state, "expected system identifier");
-    return false;
-  }
-  while (ldk_meta_is_ident_char(*cursor))
-  {
-    ++cursor;
-  }
-  length = (size_t)(cursor - begin);
-  if (length >= sizeof(system.name))
-  {
-    ldk_meta_set_error(state, "system identifier is too long");
-    return false;
-  }
-  memcpy(system.name, begin, length);
-  while (isspace((unsigned char)*cursor))
-  {
-    ++cursor;
-  }
-  if (*cursor != ';')
-  {
-    ldk_meta_set_error(state, "expected ';' after system identifier");
     return false;
   }
 
-  system.id = UINT64_C(14695981039346656037);
-  for (const char *c = system.name; *c; ++c)
+  if ((system->update[0] && !ldk_meta_system_name_is_valid(system->update)) ||
+      (system->initialize[0] &&
+          !ldk_meta_system_name_is_valid(system->initialize)) ||
+      (system->terminate[0] &&
+          !ldk_meta_system_name_is_valid(system->terminate)))
   {
-    system.id ^= (unsigned char)*c;
-    system.id *= UINT64_C(1099511628211);
+    ldk_meta_set_error(
+        state, "system callbacks must be C identifiers");
+    return false;
   }
-  /* Keep generated IDs outside the engine-reserved range. */
-  if (system.id < UINT64_C(0x100))
+
+  return true;
+}
+
+static bool ldk_meta_system_option_copy(char *out, size_t out_size,
+    const char *value, const char *error, LDKMetaState *state)
+{
+  size_t length;
+
+  if (!out || out_size == 0 || !value || !value[0])
+  {
+    ldk_meta_set_error(state, error);
+    return false;
+  }
+
+  length = strlen(value);
+  if (length >= out_size)
+  {
+    ldk_meta_set_error(state, error);
+    return false;
+  }
+
+  memcpy(out, value, length + 1u);
+  return true;
+}
+
+static bool ldk_meta_parse_system_options(LDKMetaState *state,
+    const char *begin, const char *end, LDKMetaSystem *system)
+{
+  char buffer[1024];
+  char *token;
+  size_t length;
+
+  if (!state || !begin || !end || !system || end < begin)
+  {
+    return false;
+  }
+
+  length = (size_t)(end - begin);
+  if (length >= sizeof(buffer))
+  {
+    ldk_meta_set_error(state, "system annotation is too long");
+    return false;
+  }
+
+  memcpy(buffer, begin, length);
+  buffer[length] = 0;
+  token = strtok(buffer, " \t\r");
+  while (token)
+  {
+    char *equals = strchr(token, '=');
+    char *key;
+    char *value;
+
+    if (!equals)
+    {
+      ldk_meta_set_error(state, "expected key=value in //@system annotation");
+      return false;
+    }
+
+    *equals = 0;
+    key = token;
+    value = equals + 1;
+    if (!value[0])
+    {
+      ldk_meta_set_error(state, "empty //@system option value");
+      return false;
+    }
+
+    if (strcmp(key, "name") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->name, sizeof(system->name),
+              value, "system name is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "update") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->update, sizeof(system->update),
+              value, "system update callback is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "initialize") == 0 || strcmp(key, "init") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->initialize,
+              sizeof(system->initialize), value,
+              "system initialize callback is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "terminate") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->terminate,
+              sizeof(system->terminate), value,
+              "system terminate callback is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "flags") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->flags, sizeof(system->flags),
+              value, "system flags expression is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "bucket") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->bucket, sizeof(system->bucket),
+              value, "system bucket expression is too long", state))
+      {
+        return false;
+      }
+    }
+    else if (strcmp(key, "order") == 0)
+    {
+      if (!ldk_meta_system_option_copy(system->order, sizeof(system->order),
+              value, "system order expression is too long", state))
+      {
+        return false;
+      }
+    }
+    else
+    {
+      ldk_meta_set_error(state, "unknown //@system option");
+      return false;
+    }
+
+    token = strtok(NULL, " \t\r");
+  }
+
+  return true;
+}
+
+static bool ldk_meta_push_system(LDKMetaState *state, LDKMetaSystem *system)
+{
+  LDKMetaSystem *systems;
+  const char *identity;
+
+  if (!state || !system)
+  {
+    return false;
+  }
+
+  identity = system->symbol_name;
+  system->id = ldk_meta_hash_fnv1a64(identity);
+  if (system->id < UINT64_C(0x100))
   {
     ldk_meta_set_error(state, "system hash falls in the reserved ID range");
     return false;
   }
+
   for (u32 i = 0; i < state->system_count; ++i)
   {
-    if (state->systems[i].id == system.id)
+    if (strcmp(state->systems[i].symbol_name, system->symbol_name) == 0 ||
+        state->systems[i].id == system->id)
     {
-      ldk_meta_set_error(
-          state, "duplicate system name or system hash collision");
+      ldk_meta_set_error(state, "duplicate system name or system hash collision");
       return false;
     }
   }
-  LDKMetaSystem *systems = realloc(
-      state->systems, ((size_t)state->system_count + 1) * sizeof(*systems));
+
+  systems = (LDKMetaSystem *)realloc(state->systems,
+      ((size_t)state->system_count + 1u) * sizeof(*systems));
   if (!systems)
   {
     ldk_meta_set_error(state, "failed to allocate system metadata");
     return false;
   }
+
   state->systems = systems;
-  state->systems[state->system_count++] = system;
+  state->systems[state->system_count++] = *system;
   return true;
+}
+
+static bool ldk_meta_path_is_header(const char *path)
+{
+  const char *dot = path ? strrchr(path, '.') : NULL;
+  return dot && (strcmp(dot, ".h") == 0 || strcmp(dot, ".hpp") == 0 ||
+                    strcmp(dot, ".hh") == 0);
+}
+
+static bool ldk_meta_parse_system_struct(LDKMetaState *state,
+    const char *declaration, const char *path, LDKMetaSystem *system)
+{
+  const char *cursor = declaration;
+  const char *open_brace;
+  const char *close_brace;
+  const char *name_begin;
+  const char *name_end;
+  u32 first_field;
+
+  if (strncmp(cursor, "typedef", strlen("typedef")) != 0 ||
+      ldk_meta_is_ident_char(cursor[strlen("typedef")]))
+  {
+    return false;
+  }
+  cursor += strlen("typedef");
+  while (isspace((unsigned char)*cursor))
+  {
+    ++cursor;
+  }
+  if (strncmp(cursor, "struct", strlen("struct")) != 0 ||
+      ldk_meta_is_ident_char(cursor[strlen("struct")]))
+  {
+    return false;
+  }
+
+  if (!ldk_meta_path_is_header(path))
+  {
+    ldk_meta_set_error(state, "stateful //@system structs must be declared in a header");
+    return false;
+  }
+
+  open_brace = strchr(cursor, '{');
+  if (!open_brace)
+  {
+    ldk_meta_set_error(state, "expected '{' in system struct");
+    return false;
+  }
+  close_brace = ldk_meta_find_matching_brace(open_brace);
+  if (!close_brace)
+  {
+    ldk_meta_set_error(state, "unclosed system struct");
+    return false;
+  }
+
+  name_begin = close_brace + 1;
+  while (*name_begin && isspace((unsigned char)*name_begin))
+  {
+    ++name_begin;
+  }
+  name_end = name_begin;
+  while (*name_end && ldk_meta_is_ident_char(*name_end))
+  {
+    ++name_end;
+  }
+  if (name_begin == name_end)
+  {
+    ldk_meta_set_error(state, "expected typedef name after system struct");
+    return false;
+  }
+
+  ldk_meta_copy_ident(system->type_name, sizeof(system->type_name),
+      name_begin, name_end);
+  snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
+      system->type_name);
+  if (!system->name[0])
+  {
+    snprintf(system->name, sizeof(system->name), "%s", system->type_name);
+  }
+  if (!ldk_meta_system_name_is_valid(system->name))
+  {
+    ldk_meta_set_error(state, "system name must be a C identifier");
+    return false;
+  }
+  if (!ldk_meta_system_callbacks_are_valid(state, system))
+  {
+    return false;
+  }
+  snprintf(system->source_path, sizeof(system->source_path), "%s", path);
+  for (char *c = system->source_path; *c; ++c)
+  {
+    if (*c == '\\')
+    {
+      *c = '/';
+    }
+    else if (*c == '"')
+    {
+      ldk_meta_set_error(state, "system header path contains a quote");
+      return false;
+    }
+  }
+  system->stateful = true;
+  system->first_field = state->field_count;
+  first_field = state->field_count;
+  if (!ldk_meta_parse_struct_body(
+          state, system->type_name, open_brace + 1, close_brace))
+  {
+    return false;
+  }
+  system->field_count = state->field_count - first_field;
+
+  if (!system->update[0] && !system->initialize[0] && !system->terminate[0])
+  {
+    ldk_meta_set_error(state,
+        "stateful //@system requires update, initialize/init or terminate");
+    return false;
+  }
+
+  return true;
+}
+
+static bool ldk_meta_parse_system_function(LDKMetaState *state,
+    const char *declaration, LDKMetaSystem *system)
+{
+  const char *open_paren = strchr(declaration, '(');
+  const char *name_end;
+  const char *name_begin;
+  char function_name[128];
+
+  if (!open_paren)
+  {
+    ldk_meta_set_error(state, "expected function declaration after //@system");
+    return false;
+  }
+
+  name_end = open_paren;
+  while (name_end > declaration && isspace((unsigned char)name_end[-1]))
+  {
+    --name_end;
+  }
+  name_begin = name_end;
+  while (name_begin > declaration && ldk_meta_is_ident_char(name_begin[-1]))
+  {
+    --name_begin;
+  }
+  if (name_begin == name_end ||
+      (!isalpha((unsigned char)*name_begin) && *name_begin != '_'))
+  {
+    ldk_meta_set_error(state, "expected function identifier after //@system");
+    return false;
+  }
+
+  ldk_meta_copy_ident(function_name, sizeof(function_name), name_begin, name_end);
+  if (system->update[0])
+  {
+    ldk_meta_set_error(state,
+        "function //@system uses the annotated function as update; remove update=");
+    return false;
+  }
+  snprintf(system->update, sizeof(system->update), "%s", function_name);
+  if (!ldk_meta_system_callbacks_are_valid(state, system))
+  {
+    return false;
+  }
+
+  if (system->name[0])
+  {
+    if (!ldk_meta_system_name_is_valid(system->name))
+    {
+      ldk_meta_set_error(state,
+          "function //@system name must be a C identifier");
+      return false;
+    }
+    snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
+        system->name);
+  }
+  else
+  {
+    snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
+        function_name);
+    snprintf(system->name, sizeof(system->name), "%s", function_name);
+  }
+
+  system->stateful = false;
+  return true;
+}
+
+static bool ldk_meta_parse_system_at(
+    LDKMetaState *state, const char *marker, const char *path)
+{
+  const char *annotation_begin = marker + strlen("//@system");
+  const char *annotation_end = strchr(annotation_begin, '\n');
+  const char *declaration;
+  LDKMetaSystem system;
+
+  memset(&system, 0, sizeof(system));
+  snprintf(system.flags, sizeof(system.flags), "LDK_SYSTEM_FLAG_ENABLED");
+  snprintf(system.bucket, sizeof(system.bucket), "LDK_SYSTEM_BUCKET_UPDATE");
+  snprintf(system.order, sizeof(system.order), "0");
+
+  if (!annotation_end)
+  {
+    annotation_end = annotation_begin + strlen(annotation_begin);
+  }
+  if (!ldk_meta_parse_system_options(
+          state, annotation_begin, annotation_end, &system))
+  {
+    return false;
+  }
+
+  declaration = annotation_end;
+  while (*declaration && isspace((unsigned char)*declaration))
+  {
+    ++declaration;
+  }
+  if (!*declaration)
+  {
+    ldk_meta_set_error(state, "missing declaration after //@system");
+    return false;
+  }
+
+  if (!ldk_meta_parse_system_struct(state, declaration, path, &system))
+  {
+    if (state->error[0])
+    {
+      return false;
+    }
+    if (!ldk_meta_parse_system_function(state, declaration, &system))
+    {
+      return false;
+    }
+  }
+
+  return ldk_meta_push_system(state, &system);
 }
 
 static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
@@ -761,7 +1151,7 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
   cursor = text;
   while ((cursor = strstr(cursor, "//@system")) != NULL)
   {
-    if (!ldk_meta_parse_system_at(state, cursor))
+    if (!ldk_meta_parse_system_at(state, cursor, path))
     {
       free(text);
       return false;
@@ -856,12 +1246,65 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "\n#define ldk_component_type(T) LDK_COMPONENT_##T\n\n");
   for (i = 0; i < state->system_count; ++i)
   {
-    fprintf(out, "#define LDK_SYSTEM_%s 0x%016llxULL\n", state->systems[i].name,
-        (unsigned long long)state->systems[i].id);
+    LDKMetaSystem *system = &state->systems[i];
+    const char *initialize = system->initialize[0] ? system->initialize : "NULL";
+    const char *update = system->update[0] ? system->update : "NULL";
+    const char *terminate = system->terminate[0] ? system->terminate : "NULL";
+    fprintf(out, "#define LDK_SYSTEM_%s 0x%016llxULL\n",
+        system->symbol_name, (unsigned long long)system->id);
+    if (system->stateful)
+    {
+      fprintf(out,
+          "#define LDK_SYSTEM_DESC_%s "
+          "(&(const LDKSystemDesc){.id = LDK_SYSTEM_%s, .name = \"%s\", "
+          ".flags = %s, .bucket = %s, .order = %s, .data_size = sizeof(%s), "
+          ".initialize = %s, .update = %s, .terminate = %s})\n",
+          system->symbol_name, system->symbol_name, system->name,
+          system->flags, system->bucket, system->order, system->type_name,
+          initialize, update, terminate);
+    }
+    else
+    {
+      fprintf(out,
+          "#define LDK_SYSTEM_DESC_%s "
+          "(&(const LDKSystemDesc){.id = LDK_SYSTEM_%s, .name = \"%s\", "
+          ".flags = %s, .bucket = %s, .order = %s, .data_size = 0u, "
+          ".initialize = %s, .update = %s, .terminate = %s})\n",
+          system->symbol_name, system->symbol_name, system->name,
+          system->flags, system->bucket, system->order,
+          initialize, update, terminate);
+    }
   }
-  fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n\n");
+  fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n");
+  fprintf(out, "#define ldk_system_desc(T) LDK_SYSTEM_DESC_##T\n\n");
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
-  
+
+  for (i = 0; i < state->system_count; ++i)
+  {
+    LDKMetaSystem *system = &state->systems[i];
+    bool already_included = false;
+    if (!system->stateful)
+    {
+      continue;
+    }
+    for (u32 j = 0; j < i; ++j)
+    {
+      if (state->systems[j].stateful &&
+          strcmp(state->systems[j].source_path, system->source_path) == 0)
+      {
+        already_included = true;
+        break;
+      }
+    }
+    if (!already_included)
+    {
+      fprintf(out, "#include \"%s\"\n", system->source_path);
+    }
+  }
+  if (state->system_count)
+  {
+    fprintf(out, "\n");
+  }
 
   for (i = 0; i < state->component_count; i++)
   {
@@ -929,24 +1372,77 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
 
-  fprintf(out, "u32 game_system_metadata_count(void)\n{\n  return %uu;\n}\n\n",
-      state->system_count);
-  fprintf(out, "const LDKSystemMeta *game_system_metadata_get(u32 index)\n{\n");
-  if (state->system_count)
+  for (i = 0; i < state->system_count; ++i)
   {
-    fprintf(out, "  static const LDKSystemMeta systems[] =\n  {\n");
-    for (i = 0; i < state->system_count; ++i)
+    LDKMetaSystem *system = &state->systems[i];
+
+    fprintf(out, "static inline const LDKSystemMeta *%s_system_meta(void)\n",
+        system->symbol_name);
+    fprintf(out, "{\n");
+    if (system->stateful && system->field_count)
     {
-      fprintf(out, "    {\"%s\", ldk_system_id(%s)},\n", state->systems[i].name,
-          state->systems[i].name);
+      fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
+      fprintf(out, "  {\n");
+      for (u32 field_index = 0; field_index < system->field_count; ++field_index)
+      {
+        LDKMetaField *field =
+            &state->fields[system->first_field + field_index];
+        u32 emitted_flags = ldk_meta_emit_flags(field->flags);
+        float min_value = field->has_min ? field->min_value : 0.0f;
+        float max_value = field->has_max ? field->max_value : 0.0f;
+
+        fprintf(out,
+            "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff },\n",
+            field->field_name, field->field_kind, system->type_name,
+            field->field_name, emitted_flags, field->widget, min_value,
+            max_value);
+      }
+      fprintf(out, "  };\n\n");
     }
-    fprintf(out, "  };\n  return index < %uu ? &systems[index] : NULL;\n",
-        state->system_count);
+
+    fprintf(out, "  static const LDKSystemMeta meta =\n");
+    fprintf(out, "  {\n");
+    fprintf(out, "    \"%s\",\n", system->name);
+    fprintf(out, "    ldk_system_id(%s),\n", system->symbol_name);
+    if (system->stateful)
+    {
+      fprintf(out, "    sizeof(%s),\n", system->type_name);
+    }
+    else
+    {
+      fprintf(out, "    0u,\n");
+    }
+    if (system->stateful && system->field_count)
+    {
+      fprintf(out, "    fields,\n");
+    }
+    else
+    {
+      fprintf(out, "    NULL,\n");
+    }
+    fprintf(out, "    %uu\n", system->field_count);
+    fprintf(out, "  };\n\n");
+    fprintf(out, "  return &meta;\n");
+    fprintf(out, "}\n\n");
   }
-  else
+
+  fprintf(out, "u32 game_system_metadata_count(void)\n");
+  fprintf(out, "{\n");
+  fprintf(out, "  return %uu;\n", state->system_count);
+  fprintf(out, "}\n\n");
+  fprintf(out, "const LDKSystemMeta *game_system_metadata_get(u32 index)\n");
+  fprintf(out, "{\n");
+  fprintf(out, "  switch (index)\n");
+  fprintf(out, "  {\n");
+  for (i = 0; i < state->system_count; ++i)
   {
-    fprintf(out, "  (void)index;\n  return NULL;\n");
+    fprintf(out, "    case %uu:\n", i);
+    fprintf(out, "      return %s_system_meta();\n\n",
+        state->systems[i].symbol_name);
   }
+  fprintf(out, "    default:\n");
+  fprintf(out, "      return NULL;\n");
+  fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
@@ -994,9 +1490,14 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
            (const char*)&meta->type_name[0],
            state.components[i].type_id);
   }
-  
-         
-  
+
+  for (u32 i = 0; i < state.system_count; ++i)
+  {
+    printf(" System %u/%u - %s : 0x%016llX\n", i + 1u,
+        state.system_count, state.systems[i].name,
+        (unsigned long long)state.systems[i].id);
+  }
+
   if (ok && !ldk_meta_write_header(&state, output_header_path))
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
@@ -1014,7 +1515,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 void show_usage()
 {
   printf("usage\ncmg output_file <files>\n");
-  printf("<files> is a list of .h files");
+  printf("<files> is a list of C headers and sources\n");
 }
 
 int main(i32 argc, const char** argv)
@@ -1036,10 +1537,11 @@ int main(i32 argc, const char** argv)
 
   if (success)
   {
-    printf("Component metadata extraction finished in %f milliseconds\n", milliseconds);
+    printf("Component/system metadata extraction finished in %f milliseconds\n", milliseconds);
     return 0;
   }
 
   fprintf(stderr, "Metadata extraction failed.\n");
   return 1;
 }
+

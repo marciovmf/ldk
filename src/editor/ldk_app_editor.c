@@ -670,15 +670,6 @@ static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
-  // LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-  // ldki_editor_toolbar_show((LDKEditor *)editor);
-  // ldk_editor_hierarchy_show((LDKEditor *)editor, ecs);
-  // s_editor_test_b(editor);
-  // s_editor_test_treeview(editor);
-  // ldki_editor_menubar_show(editor);
-  // ldk_editor_console_show(editor);
-  // ldk_editor_file_explorer_show(editor, "c:\\work\\ldk");
-
   ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
   ldki_editor_scene_catalog_sync(editor);
@@ -1472,6 +1463,7 @@ static void s_project_game_module_watch_update(LDKEditorContext *editor)
 
 static bool s_project_unload(LDKEditorContext *editor)
 {
+  ldki_editor_scene_catalog_close(editor);
   XFSPath editor_game_dll_path = {0};
   XFSPath editor_next_dll_path = {0};
   XFSPath editor_previous_dll_path = {0};

@@ -5,6 +5,7 @@
 #include "ldk_ui_drag_n_drop.h"
 #include <inttypes.h> // for PRIu64
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
@@ -242,8 +243,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color =
-      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
   ldki_editor_entity_display_name(info, entity, label, sizeof(label));
@@ -262,6 +262,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   if (s_editor_hierarchy_node_pressed(ui, node_id))
   {
     editor->selected_entity = entity;
+    editor->selected_system_id = 0;
     *selected_entity = entity;
     *has_selection = true;
     s_editor_hierarchy_entity_payload_set(entity);
@@ -320,6 +321,7 @@ static void s_editor_hierarchy_systems_draw(
   {
     systems = &manager->current_systems;
   }
+
   LDKGame *game = ldk_game_get();
   u32 metadata_count =
       game && game->system_metadata_count ? game->system_metadata_count() : 0;
@@ -336,20 +338,28 @@ static void s_editor_hierarchy_systems_draw(
   {
     systems_expanded = !systems_expanded;
   }
-  
+
   if (systems_expanded)
   {
+    ldk_ui_begin_horizontal(ui);
     ldk_ui_set_next_disabled(ui, !can_edit);
     if (ldk_ui_button(ui, "+ Add System"))
     {
       ldk_ui_open_popup(ui, ADD_SYSTEM_POPUP);
     }
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button(ui, "Edit Groupings..."))
+    {
+      ldki_editor_grouping_catalog_open(editor);
+    }
+    ldk_ui_end_horizontal(ui);
 
     for (u32 i = 0; i < systems->count; ++i)
     {
       u64 id = systems->ids[i];
       const LDKSystemMeta *meta = NULL;
       char label[256];
+
       for (u32 j = 0; j < metadata_count && game->system_metadata_get; ++j)
       {
         const LDKSystemMeta *candidate = game->system_metadata_get(j);
@@ -359,29 +369,43 @@ static void s_editor_hierarchy_systems_draw(
           break;
         }
       }
-      bool found = meta != NULL;
 
-      if (found)
+      if (meta)
       {
         snprintf(label, sizeof(label), "%s",
             meta->name != NULL ? meta->name : "<unnamed system>");
       }
       else
       {
-        snprintf(label, sizeof(label),
-            "<missing system> 0x%016" PRIx64, id);
+        snprintf(label, sizeof(label), "<missing system> 0x%016" PRIx64, id);
+      }
+
+      LDKUIIcon system_icon = icon;
+      system_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
+      LDKUIIcon delete_icon = icon;
+      delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+      u32 node_flags = LDK_UI_TREE_NODE_LEAF;
+      if (editor->selected_system_id == id)
+      {
+        node_flags |= LDK_UI_TREE_NODE_SELECTED;
       }
 
       ldk_ui_push_id_u32(ui, (u32)id);
       ldk_ui_push_id_u32(ui, (u32)(id >> 32));
       ldk_ui_begin_horizontal(ui);
       ldk_ui_set_next_weight(ui, 1.0f);
-      ldk_ui_tree_node_ex(
-          ui, label, icon, false, 1, LDK_UI_TREE_NODE_LEAF);
+      ldk_ui_tree_node_ex(ui, label, system_icon, false, 1, node_flags);
+      LDKUIId node_id = ui->last_id;
+
+      if (s_editor_hierarchy_node_pressed(ui, node_id))
+      {
+        editor->selected_system_id = id;
+        editor->selected_entity = x_handle_null();
+      }
+
       ldk_ui_set_next_disabled(ui, !can_edit);
       ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
-      if (ldk_ui_icon_button(ui, icon, NULL))
+      if (ldk_ui_icon_button(ui, delete_icon, NULL))
       {
         if (!ldk_scene_systems_remove(systems, id))
         {
@@ -389,6 +413,10 @@ static void s_editor_hierarchy_systems_draw(
         }
         else
         {
+          if (editor->selected_system_id == id)
+          {
+            editor->selected_system_id = 0;
+          }
           ldki_editor_log_info(editor, "Scene system removed.");
         }
         ldk_ui_end_horizontal(ui);
@@ -428,6 +456,8 @@ static void s_editor_hierarchy_systems_draw(
         }
         else
         {
+          editor->selected_system_id = meta->id;
+          editor->selected_entity = x_handle_null();
           ldki_editor_log_info(editor, "Scene system associated.");
         }
         ldk_ui_close_current_popup(ui);
@@ -460,8 +490,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color =
-      editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT]; // same color as text
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
 
   if (editor == NULL || ecs == NULL)
@@ -469,8 +498,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     return;
   }
 
-  has_selection =
-      ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
+  has_selection = ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
 
   if (owns_window)
   {
@@ -562,3 +590,4 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
+

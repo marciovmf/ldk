@@ -3,7 +3,13 @@
 
 #include <module/ldk_system.h>
 
-//@system
-extern const LDKSystemDesc Hello;
+//@system update=s_hello_system_update
+typedef struct Hello
+{
+  u32 log_every_n_updates;
+
+  //@inspect runtime
+  u32 update_count;
+} Hello;
 
 #endif
