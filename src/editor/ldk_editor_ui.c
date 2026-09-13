@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 //------------------------------------------------------------
 // Menu bar
@@ -277,6 +278,48 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
   ldk_ui_end_window(ui);
 }
+
+static void s_editor_status_bar(LDKEditorContext *editor)
+{
+  static u8 alpha = 0;
+  static double acc = 0.0f;
+
+  LDKUIIcon icon = {0};
+  LDKUIContext *ui = &editor->ui;
+  ui = &editor->ui;
+  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
+
+  LDKUIRect rect = {
+    0,
+    ui->viewport.h - LDK_UI_DEFAULT_CONTROL_HEIGHT,
+    ui->viewport.w,
+    LDK_UI_DEFAULT_CONTROL_HEIGHT};
+  ldk_ui_begin_window(ui, "", rect, 0);
+
+  if (editor->project_build.active)
+  {
+    // pulse alpha
+    ldk_ui_begin_horizontal(ui);
+    acc += editor->ui.delta_time * 2;
+    alpha = (u8) (127 + (127 * sinf(acc)));
+    //ldk_ui_label(ui, "Building...");
+    ldk_ui_spacer(ui);
+    icon.color &= 0xFFFFFF00;
+    icon.color |= alpha;
+    ldk_ui_set_next_weight(ui, 0);
+    ldk_ui_icon_button(ui, icon, NULL);
+  }
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_end_window(ui);
+
+}
+
 
 //------------------------------------------------------------
 // Toolbar
@@ -1163,6 +1206,11 @@ bool ldki_editor_scene_add_primitive(
 void ldki_editor_menubar_show(LDKEditorContext *editor)
 {
   s_editor_menu_bar(editor);
+}
+
+void ldki_editor_status_show(LDKEditorContext *editor)
+{
+  s_editor_status_bar(editor);
 }
 
 void ldki_editor_project_create_show(LDKEditorContext *editor)

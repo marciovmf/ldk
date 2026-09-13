@@ -686,6 +686,7 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
     }
   }
 
+  ldki_editor_status_show(editor);
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,

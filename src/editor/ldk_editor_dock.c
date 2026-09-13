@@ -433,7 +433,7 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
   }
 
   return (LDKUIRect){ui->viewport.x,
-      ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP, ui->viewport.w, height};
+                     ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP, ui->viewport.w, height - LDK_UI_DEFAULT_CONTROL_HEIGHT}; // give space for the status bar at the bottom
 }
 
 static void s_editor_dock_resize_reset(LDKEditorDockResize *resize)
