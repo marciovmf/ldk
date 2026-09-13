@@ -1189,6 +1189,7 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
       "NMake",
       "MinGW Make",
   };
+  static bool need_clean = false;
   static XSmallstr s_project_name = {0};
   static XFSPath s_project_path = {0};
   static u32 s_generator = 0;
@@ -1201,7 +1202,17 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     return;
   }
 
+  bool is_busy = editor->project_build.active;
+  if (need_clean && !is_busy)
+  {
+    x_smallstr_clear(&s_project_name);
+    x_smallstr_clear(&s_project_path);
+    s_generator = 0;
+    need_clean = false;
+  }
+ 
   ui = &editor->ui;
+  ldk_ui_begin_disabled(ui, is_busy);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
@@ -1258,10 +1269,11 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
   ldk_ui_begin_horizontal(ui);
   {
     ldk_ui_spacer(ui);
-
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+
     if (ldk_ui_button(ui, "OK"))
     {
+      need_clean = true;
       cmake_arch = generator->uses_platform
                        ? ldki_editor_cmake_native_arch_get()
                        : "";
@@ -1274,14 +1286,15 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
     }
 
     ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    
     if (ldk_ui_button(ui, "CANCEL"))
     {
+      need_clean = true;
       editor->create_project_window_close_requested = true;
-      x_smallstr_clear(&s_project_name);
-      x_smallstr_clear(&s_project_path);
     }
   }
   ldk_ui_end_horizontal(ui);
+  ldk_ui_end_disabled(ui);
 }
 
 void ldki_editor_project_create_window(LDKEditor *opaque_editor, void *data)
