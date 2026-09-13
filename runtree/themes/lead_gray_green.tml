@@ -1,0 +1,116 @@
+# LDK UI theme format, version 1.
+# Colors are packed 0xRRGGBBAA.
+# Only COLOR_* entries override the inherited theme.
+# Neutral lead-gray surfaces, close in brightness to LDK Dark but with stronger panel separation.
+# Accent variant: green.
+ldk_editor_theme:
+    version: 1
+    base: "dark"
+    theme_name: "Lead Gray Green"
+
+    # Palette
+    text: 0xF0F0F0FF
+    text_disabled: 0xA4A6A8FF
+    window_bg: 0x37393BFF
+    panel_bg: 0x3F4245FF
+    control_bg: 0x51555AFF
+    control_bg_hovered: 0x5E6266FF
+    control_bg_active: 0x54695DFF
+    control_bg_active_hovered: 0x55705EFF
+    control_text: 0xF0F0F0FF
+    control_text_hovered: 0xD8E1D9FF
+    control_text_active: 0xC5D5C7FF
+    control_text_active_hovered: 0xD4DFD5FF
+    control_border: 0x666A70FF
+    control_border_hovered: 0x617C6BFF
+    control_border_active: 0x5B9463FF
+    control_border_active_hovered: 0x75A57CFF
+    control_border_disabled: 0x4F5257FF
+    border: 0x27292BFF
+    focus: 0x5B946392
+    separator: 0x2C2E30FF
+    slider_track: 0x62666AFF
+    slider_track_hovered: 0x53635CFF
+    slider_track_active: 0x556C5DFF
+    slider_fill: 0x5B9463FF
+    slider_thumb: 0x6D9F74FF
+    slider_thumb_hovered: 0x77A67EFF
+    slider_thumb_active: 0x89B28FFF
+    title: 0xDDDEDEFF
+    title_bar: 0x333537FF
+    title_bar_focused: 0x39443EFF
+    scrollbar_track: 0x00000012
+    scrollbar_thumb: 0x64686DFF
+    scrollbar_thumb_hovered: 0x61766AFF
+    scrollbar_thumb_active: 0x5F8167FF
+    tab_bar_bg: 0x3A3D40FF
+    tab_bg: 0x36383AFF
+    tab_bg_hovered: 0x3C4841FF
+    tab_text: 0xCACBCCFF
+    tab_text_hovered: 0xD7E0D8FF
+    tab_border: 0x27292BFF
+    tab_border_hovered: 0x63766CFF
+    tab_active_bg: 0x3B4540FF
+    tab_active_text: 0xCBD9CDFF
+    tab_active_border: 0x5B9463FF
+    input_border: 0x86898DFF
+
+    # Metrics
+    control_border_size: 0.45
+    window_border_size: 1.0
+    window_interaction_border_size: 4.0
+    slider_track_height: 0.27272728
+    slider_thumb_width: 0.63636363
+    text_cursor_blink: true
+    text_cursor_blink_interval: 1.0
+    text_cursor_width: 2.0
+    text_cursor_padding_y: 4.0
+
+    # Explicit UI color slot mappings
+    COLOR_TEXT: "${text}"
+    COLOR_TEXT_DISABLED: "${text_disabled}"
+    COLOR_WINDOW_BG: "${window_bg}"
+    COLOR_PANEL_BG: "${panel_bg}"
+    COLOR_CONTROL_BG: "${control_bg}"
+    COLOR_CONTROL_BG_HOVERED: "${control_bg_hovered}"
+    COLOR_CONTROL_BG_ACTIVE: "${control_bg_active}"
+    COLOR_CONTROL_BG_ACTIVE_HOVERED: "${control_bg_active_hovered}"
+    COLOR_CONTROL_TEXT: "${control_text}"
+    COLOR_CONTROL_TEXT_HOVERED: "${control_text_hovered}"
+    COLOR_CONTROL_TEXT_ACTIVE: "${control_text_active}"
+    COLOR_CONTROL_TEXT_ACTIVE_HOVERED: "${control_text_active_hovered}"
+    COLOR_CONTROL_TEXT_DISABLED: "${text_disabled}"
+    COLOR_CONTROL_BORDER: "${control_border}"
+    COLOR_CONTROL_BORDER_HOVERED: "${control_border_hovered}"
+    COLOR_CONTROL_BORDER_ACTIVE: "${control_border_active}"
+    COLOR_CONTROL_BORDER_ACTIVE_HOVERED: "${control_border_active_hovered}"
+    COLOR_CONTROL_BORDER_DISABLED: "${control_border_disabled}"
+    COLOR_BORDER: "${border}"
+    COLOR_FOCUS: "${focus}"
+    COLOR_SLIDER_TRACK: "${slider_track}"
+    COLOR_SLIDER_TRACK_HOVERED: "${slider_track_hovered}"
+    COLOR_SLIDER_TRACK_ACTIVE: "${slider_track_active}"
+    COLOR_SLIDER_FILL: "${slider_fill}"
+    COLOR_SLIDER_THUMB: "${slider_thumb}"
+    COLOR_SLIDER_THUMB_HOVERED: "${slider_thumb_hovered}"
+    COLOR_SLIDER_THUMB_ACTIVE: "${slider_thumb_active}"
+    COLOR_TITLE: "${title}"
+    COLOR_TITLE_BAR: "${title_bar}"
+    COLOR_TITLE_BAR_FOCUSED: "${title_bar_focused}"
+    COLOR_SCROLLBAR_TRACK: "${scrollbar_track}"
+    COLOR_SCROLLBAR_THUMB: "${scrollbar_thumb}"
+    COLOR_SCROLLBAR_THUMB_HOVERED: "${scrollbar_thumb_hovered}"
+    COLOR_SCROLLBAR_THUMB_ACTIVE: "${scrollbar_thumb_active}"
+    COLOR_TAB_BAR_BG: "${tab_bar_bg}"
+    COLOR_TAB_BAR_SEPARATOR: "${separator}"
+    COLOR_TAB_BG: "${tab_bg}"
+    COLOR_TAB_BG_HOVERED: "${tab_bg_hovered}"
+    COLOR_TAB_TEXT: "${tab_text}"
+    COLOR_TAB_TEXT_HOVERED: "${tab_text_hovered}"
+    COLOR_TAB_BORDER: "${tab_border}"
+    COLOR_TAB_BORDER_HOVERED: "${tab_border_hovered}"
+    COLOR_TAB_ACTIVE_BG: "${tab_active_bg}"
+    COLOR_TAB_ACTIVE_TEXT: "${tab_active_text}"
+    COLOR_TAB_ACTIVE_BORDER: "${tab_active_border}"
+    COLOR_SEPARATOR: "${separator}"
+    COLOR_INPUT_BORDER: "${input_border}"
