@@ -1688,6 +1688,101 @@ static bool s_editor_inspector_system_draw(
   return true;
 }
 
+static void s_editor_inspector_add_component_draw(
+    LDKEditorContext *editor, LDKECS *ecs, LDKGame *game, LDKEntity entity)
+{
+  const LDKUIId popup_id = 0x41434D50u;
+  LDKUIContext *ui;
+  u32 available_count = 0;
+  bool added = false;
+
+  if (!editor || !ecs || !game)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+
+  ldk_ui_set_next_width(ui, ldk_ui_fill());
+  if (ldk_ui_button(ui, "+ Add Component"))
+  {
+    ldk_ui_open_popup(ui, popup_id);
+  }
+
+  if (!ldk_ui_begin_popup(ui, popup_id))
+  {
+    return;
+  }
+
+  if (!game->metadata_count || !game->metadata_get)
+  {
+    ldk_ui_label(ui, "Component metadata unavailable.");
+    ldk_ui_end_popup(ui);
+    return;
+  }
+
+  u32 metadata_count = game->metadata_count();
+  for (u32 i = 0; i < metadata_count; ++i)
+  {
+    const LDKComponentMeta *meta = game->metadata_get(i);
+    const char *component_name;
+    u32 component_type;
+
+    if (!meta)
+    {
+      continue;
+    }
+
+    component_type = ldk_scene_component_meta_runtime_type(meta);
+    if (!ldk_component_is_registered(&ecs->component, component_type) ||
+        ldk_entity_component_has(&ecs->entity, entity, component_type))
+    {
+      continue;
+    }
+
+    component_name = meta->name;
+    if (!component_name || component_name[0] == 0)
+    {
+      component_name = ldk_component_name_get(&ecs->component, component_type);
+    }
+
+    if (!component_name || component_name[0] == 0)
+    {
+      continue;
+    }
+
+    ++available_count;
+    ldk_ui_push_id_u32(ui, component_type);
+    if (ldk_ui_button_flat(ui, component_name))
+    {
+      if (ldk_ecs_component_add(entity, component_type, NULL))
+      {
+        s_editor_inspector_component_expanded_set(component_type, true);
+        ldk_ui_close_current_popup(ui);
+        added = true;
+      }
+      else
+      {
+        ldk_os_dialog_show_error(editor->window, "Add Component",
+            "Failed to add the selected component.");
+      }
+    }
+    ldk_ui_pop_id(ui);
+
+    if (added)
+    {
+      break;
+    }
+  }
+
+  if (!added && available_count == 0)
+  {
+    ldk_ui_label(ui, "No components available.");
+  }
+
+  ldk_ui_end_popup(ui);
+}
+
 void ldki_editor_inspector_show(LDKEditorContext *editor)
 {
   static LDKUIPoint scroll = {0};
@@ -1887,6 +1982,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     ldk_ui_pop_id(ui);
     ldk_ui_pop_id(ui);
   }
+
+  s_editor_inspector_add_component_draw(editor, ecs, game, entity);
 
   ldk_ui_end_scrollview(ui);
 }

@@ -580,9 +580,6 @@ endif()
 # --- GAME MODULE ------------------------------------------------------------
 if (OPTION_BUILD_GAME)
 
-  list(APPEND LDK_GAME_COMPONENT_DIRS
-  "${INCLUDE_DIR}/component")
-
   # Includes game metadata source
   list(APPEND LDK_GAME_SOURCES )
 
