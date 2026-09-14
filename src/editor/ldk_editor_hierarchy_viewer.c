@@ -249,6 +249,30 @@ bool ldki_editor_entity_add(
   return true;
 }
 
+static void s_editor_hierarchy_entity_destroy_subtree(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity entity)
+{
+  const LDKTransform *transform =
+      ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
+  LDKEntity child =
+      transform != NULL ? transform->first_child : x_handle_null();
+
+  while (!x_handle_is_null(child))
+  {
+    const LDKTransform *child_transform =
+        ldk_entity_transform_get_const(&ecs->entity, &ecs->component, child);
+    LDKEntity next_sibling = child_transform != NULL
+                                 ? child_transform->next_sibling
+                                 : x_handle_null();
+
+    s_editor_hierarchy_entity_destroy_subtree(editor, ecs, child);
+    child = next_sibling;
+  }
+
+  s_editor_hierarchy_expanded_set(editor, entity, false);
+  ldk_ecs_entity_destroy(entity);
+}
+
 bool ldki_editor_selected_entity_remove(
     LDKEditorContext *editor, LDKECS *ecs)
 {
@@ -262,8 +286,7 @@ bool ldki_editor_selected_entity_remove(
     return false;
   }
 
-  s_editor_hierarchy_expanded_set(editor, entity, false);
-  ldk_ecs_entity_destroy(entity);
+  s_editor_hierarchy_entity_destroy_subtree(editor, ecs, entity);
   editor->selected_entity = x_handle_null();
   editor->selected_system_id = 0;
   return true;
