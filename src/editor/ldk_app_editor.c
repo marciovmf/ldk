@@ -251,19 +251,21 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
+    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE))
     {
-      editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
+      {
+        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_E)
+      {
+        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_ROTATE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_R)
+      {
+        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
+      }
     }
-    else if (event->keyboard_event.keyCode == LDK_KEYCODE_E)
-    {
-      editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_ROTATE;
-    }
-    else if (event->keyboard_event.keyCode == LDK_KEYCODE_R)
-    {
-      editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
-    }
-
   }
   return false;
 }

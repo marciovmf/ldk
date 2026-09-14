@@ -349,6 +349,8 @@ typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
 bool ldki_editor_window_remove(LDKEditorWindowId window_id);
+bool ldki_editor_window_is_focused(
+  LDKEditorContext *editor, LDKEditorWindowId window_id);
 
 typedef struct LDKEditorWindow
 {

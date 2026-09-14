@@ -3343,6 +3343,45 @@ bool ldki_editor_dock_layout_load(const char *layout_name)
   return loaded;
 }
 
+bool ldki_editor_window_is_focused(
+    LDKEditorContext *editor, LDKEditorWindowId window_id)
+{
+  const LDKEditorDockWindow *window;
+
+  if (editor == NULL || !s_editor_dock.initialized ||
+      window_id == LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    return false;
+  }
+
+  window = s_editor_dock_window_get_const(&s_editor_dock, window_id);
+  if (window == NULL || !window->open || window->ui_window_id == 0)
+  {
+    return false;
+  }
+
+  if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    const LDKEditorDockNode *node;
+
+    if (window->leaf < 0 ||
+        window->leaf >= LDK_EDITOR_DOCK_NODE_CAPACITY)
+    {
+      return false;
+    }
+
+    node = &s_editor_dock.nodes[window->leaf];
+    if (!node->used ||
+        node->type != LDK_EDITOR_DOCK_NODE_LEAF ||
+        node->data.leaf.active_window != window_id)
+    {
+      return false;
+    }
+  }
+
+  return editor->ui.focused_window_id == window->ui_window_id;
+}
+
 //----------------------------------------------------------
 // Lifecycle
 //----------------------------------------------------------
