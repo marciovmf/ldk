@@ -49,6 +49,35 @@ static bool s_editor_hierarchy_window_empty_drop(LDKUIContext *ui)
              (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
 }
 
+static bool s_editor_hierarchy_window_focused(const LDKUIContext *ui)
+{
+  return ui != NULL && ui->current_window != NULL &&
+         ui->focused_window_id == ui->current_window->id;
+}
+
+static bool s_editor_hierarchy_key_down(
+    const LDKUIContext *ui, LDKKeycode keycode)
+{
+  return ui != NULL && ui->keyboard != NULL &&
+         ldk_os_keyboard_key_down(
+             (LDKKeyboardState *)ui->keyboard, keycode);
+}
+
+static bool s_editor_hierarchy_key_pressed(
+    const LDKUIContext *ui, LDKKeycode keycode)
+{
+  return ui != NULL && ui->keyboard != NULL &&
+         ldk_os_keyboard_key_is_pressed(
+             (LDKKeyboardState *)ui->keyboard, keycode);
+}
+
+static bool s_editor_hierarchy_can_edit(const LDKEditorContext *editor)
+{
+  return editor != NULL && editor->project.loaded &&
+         editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+         editor->current_scene_path.length != 0;
+}
+
 static void s_editor_hierarchy_entity_payload_set(LDKEntity entity)
 {
   XSmallstr payload = {0};
@@ -212,6 +241,53 @@ static void s_editor_hierarchy_expanded_set(
   {
     x_array_delete_at(editor->hierarchy_expanded_entities, (u32)index);
   }
+}
+
+static bool s_editor_hierarchy_entity_add(
+    LDKEditorContext *editor, LDKECS *ecs)
+{
+  LDKEntity entity;
+
+  if (!editor || !ecs || !s_editor_hierarchy_can_edit(editor))
+  {
+    return false;
+  }
+
+  entity = ldk_ecs_entity_create();
+  if (x_handle_is_null(entity))
+  {
+    ldki_editor_log_error(editor, "Failed to create entity.");
+    return false;
+  }
+
+  if (!ldk_ecs_entity_name_set(entity, "Entity"))
+  {
+    ldki_editor_log_warning(editor, "Failed to name new entity.");
+  }
+
+  editor->selected_entity = entity;
+  editor->selected_system_id = 0;
+  return true;
+}
+
+static bool s_editor_hierarchy_selected_entity_remove(
+    LDKEditorContext *editor, LDKECS *ecs)
+{
+  LDKEntity entity;
+
+  if (!editor || !ecs || !s_editor_hierarchy_can_edit(editor) ||
+      !ldki_editor_selected_entity_get(editor, ecs, &entity) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return false;
+  }
+
+  s_editor_hierarchy_expanded_set(editor, entity, false);
+  ldk_ecs_entity_destroy(entity);
+  editor->selected_entity = x_handle_null();
+  editor->selected_system_id = 0;
+  return true;
 }
 
 static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
@@ -516,6 +592,24 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     return;
   }
 
+  bool add_entity_requested = false;
+  bool remove_entity_requested = false;
+  bool can_edit = s_editor_hierarchy_can_edit(editor);
+
+  if (s_editor_hierarchy_window_focused(ui) && ui->keyboard != NULL)
+  {
+    bool control = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_CONTROL);
+    bool shift = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_SHIFT);
+    bool alt = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_ALT);
+
+    add_entity_requested =
+        control && shift && !alt &&
+        s_editor_hierarchy_key_down(ui, LDK_KEYCODE_N);
+    remove_entity_requested =
+        !control && !shift && !alt &&
+        s_editor_hierarchy_key_down(ui, LDK_KEYCODE_DELETE);
+  }
+
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
@@ -540,6 +634,49 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     entities_expanded = !entities_expanded;
   }
   ldk_ui_pop_id(ui);
+
+  LDKUIIcon delete_icon = icon;
+  delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+
+  ldk_ui_push_id_cstr(ui, "entity-actions");
+  ldk_ui_begin_horizontal(ui);
+
+  ldk_ui_set_next_disabled(ui, !can_edit);
+  if (ldk_ui_button(ui, "+ Entity"))
+  {
+    add_entity_requested = true;
+  }
+
+  ldk_ui_set_next_disabled(ui, !can_edit || !has_selection);
+  ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
+  if (ldk_ui_icon_button(ui, delete_icon, NULL))
+  {
+    remove_entity_requested = true;
+  }
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+
+  /*
+   * Create/delete before starting the entity iterator. Both operations can
+   * change ECS storage and must not invalidate an active iterator.
+   */
+  if (add_entity_requested && can_edit)
+  {
+    if (s_editor_hierarchy_entity_add(editor, ecs))
+    {
+      selected_entity = editor->selected_entity;
+      has_selection = true;
+    }
+  }
+  else if (remove_entity_requested && can_edit && has_selection)
+  {
+    if (s_editor_hierarchy_selected_entity_remove(editor, ecs))
+    {
+      selected_entity = x_handle_null();
+      has_selection = false;
+    }
+  }
 
   if (entities_expanded)
   {
@@ -590,4 +727,3 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
-
