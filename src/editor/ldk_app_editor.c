@@ -223,6 +223,10 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
   LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
   {
+    bool entity_window_focused =
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
+
     if (event->keyboard_event.ctrl_is_down &&
         event->keyboard_event.shift_is_down)
     {
@@ -230,6 +234,15 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
       {
         ldk_editor_state_set_stop(editor);
+        return true;
+      }
+
+      // CTRL+SHIFT+N
+      if (!event->keyboard_event.alt_is_down && entity_window_focused &&
+          event->keyboard_event.keyCode == LDK_KEYCODE_N)
+      {
+        LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+        ldki_editor_entity_add(editor, ecs);
         return true;
       }
     }
@@ -248,6 +261,17 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
         ldki_editor_show_open_project_dialog(editor, NULL);
         return true;
       }
+    }
+
+    // Entity shortcuts
+    if (!event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.shift_is_down &&
+        !event->keyboard_event.alt_is_down && entity_window_focused &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_DELETE)
+    {
+      LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+      ldki_editor_selected_entity_remove(editor, ecs);
+      return true;
     }
 
     // Scene Viewer Tools shortcuts
@@ -569,9 +593,6 @@ static void s_editor_test_b(LDKEditor *editor)
   ldk_ui_end_scrollview(ui);
   ldk_ui_end_window(ui);
 }
-
-#define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
-#define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
 
 bool ldki_editor_view_texture_show(LDKEditorContext *editor,
     LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,

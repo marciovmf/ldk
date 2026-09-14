@@ -50,28 +50,6 @@ static bool s_editor_hierarchy_window_empty_drop(LDKUIContext *ui)
              (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
 }
 
-static bool s_editor_hierarchy_window_focused(const LDKUIContext *ui)
-{
-  return ui != NULL && ui->current_window != NULL &&
-         ui->focused_window_id == ui->current_window->id;
-}
-
-static bool s_editor_hierarchy_key_down(
-    const LDKUIContext *ui, LDKKeycode keycode)
-{
-  return ui != NULL && ui->keyboard != NULL &&
-         ldk_os_keyboard_key_down(
-             (LDKKeyboardState *)ui->keyboard, keycode);
-}
-
-static bool s_editor_hierarchy_key_pressed(
-    const LDKUIContext *ui, LDKKeycode keycode)
-{
-  return ui != NULL && ui->keyboard != NULL &&
-         ldk_os_keyboard_key_is_pressed(
-             (LDKKeyboardState *)ui->keyboard, keycode);
-}
-
 static bool s_editor_hierarchy_can_edit(const LDKEditorContext *editor)
 {
   return editor != NULL && editor->project.loaded &&
@@ -244,7 +222,7 @@ static void s_editor_hierarchy_expanded_set(
   }
 }
 
-static bool s_editor_hierarchy_entity_add(
+bool ldki_editor_entity_add(
     LDKEditorContext *editor, LDKECS *ecs)
 {
   LDKEntity entity;
@@ -271,7 +249,7 @@ static bool s_editor_hierarchy_entity_add(
   return true;
 }
 
-static bool s_editor_hierarchy_selected_entity_remove(
+bool ldki_editor_selected_entity_remove(
     LDKEditorContext *editor, LDKECS *ecs)
 {
   LDKEntity entity;
@@ -613,20 +591,6 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   bool remove_entity_requested = false;
   bool can_edit = s_editor_hierarchy_can_edit(editor);
 
-  if (s_editor_hierarchy_window_focused(ui) && ui->keyboard != NULL)
-  {
-    bool control = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_CONTROL);
-    bool shift = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_SHIFT);
-    bool alt = s_editor_hierarchy_key_pressed(ui, LDK_KEYCODE_ALT);
-
-    add_entity_requested =
-        control && shift && !alt &&
-        s_editor_hierarchy_key_down(ui, LDK_KEYCODE_N);
-    remove_entity_requested =
-        !control && !shift && !alt &&
-        s_editor_hierarchy_key_down(ui, LDK_KEYCODE_DELETE);
-  }
-
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
@@ -688,7 +652,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
    */
   if (add_entity_requested && can_edit)
   {
-    if (s_editor_hierarchy_entity_add(editor, ecs))
+    if (ldki_editor_entity_add(editor, ecs))
     {
       selected_entity = editor->selected_entity;
       has_selection = true;
@@ -696,7 +660,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   }
   else if (remove_entity_requested && can_edit && has_selection)
   {
-    if (s_editor_hierarchy_selected_entity_remove(editor, ecs))
+    if (ldki_editor_selected_entity_remove(editor, ecs))
     {
       selected_entity = x_handle_null();
       has_selection = false;

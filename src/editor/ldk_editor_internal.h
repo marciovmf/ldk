@@ -316,6 +316,9 @@ void ldki_editor_entity_display_name(
     const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size);
 bool ldki_editor_selected_entity_get(
     LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity);
+bool ldki_editor_entity_add(LDKEditorContext *editor, LDKECS *ecs);
+bool ldki_editor_selected_entity_remove(
+    LDKEditorContext *editor, LDKECS *ecs);
 
 void ldki_editor_scene_state_sync(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_open(LDKEditorContext *editor);
@@ -374,6 +377,8 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SCENE ((LDKEditorWindowId)0x4C444B02u)
 #define LDK_EDITOR_WINDOW_INSPECTOR ((LDKEditorWindowId)0x4C444B03u)
 #define LDK_EDITOR_WINDOW_CONSOLE ((LDKEditorWindowId)0x4C444B04u)
+#define LDK_EDITOR_WINDOW_GAME ((LDKEditorWindowId)0x4C444B05u)
+#define LDK_EDITOR_WINDOW_HIERARCHY ((LDKEditorWindowId)0x4C444B06u)
 #define LDK_EDITOR_WINDOW_CREATE_PROJECT ((LDKEditorWindowId)0x4C444B07u)
 #define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
