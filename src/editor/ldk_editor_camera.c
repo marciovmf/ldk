@@ -385,7 +385,8 @@ void ldki_editor_scene_view_pick(
     return;
   }
 
-  if (editor == NULL ||
+  if (editor == NULL || editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
+      editor->camera_controller.pan_block_pick ||
       !s_editor_scene_view_ray_get(editor, cursor, &ray))
   {
     return;
@@ -562,11 +563,13 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
 {
   LDKEditorCameraControllerState *controller;
   LDKMouseState mouse;
+  LDKKeyboardState keyboard;
   LDKCamera *camera;
   LDKPoint cursor;
   bool inside;
   bool orbit_pressed;
   bool pan_pressed;
+  bool pan_modifier;
   bool changed = false;
   float cursor_x;
   float cursor_y;
@@ -577,7 +580,14 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
     return;
 
   s_editor_scene_view_drop_block_pick = false;
+  // Keep the release frame blocked so a pan cannot select an object/icon.
+  editor->camera_controller.pan_block_pick =
+      editor->camera_controller.panning &&
+      editor->camera_controller.pan_with_left;
   ldk_os_mouse_state_get(&mouse);
+  ldk_os_keyboard_state_get(&keyboard);
+  pan_modifier = ldk_os_keyboard_key_is_pressed(
+      &keyboard, LDK_KEYCODE_LEFT_CONTROL);
 
   if (!editor->gizmo.scene_view_visible ||
       x_handle_is_null(editor->editor_camera))
@@ -615,8 +625,8 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
 
   orbit_pressed = ldk_os_mouse_button_is_pressed(
       &mouse, LDK_MOUSE_BUTTON_RIGHT);
-  pan_pressed = ldk_os_mouse_button_is_pressed(
-      &mouse, LDK_MOUSE_BUTTON_MIDDLE);
+  pan_pressed = ldk_os_mouse_button_is_pressed(&mouse,
+      controller->pan_with_left ? LDK_MOUSE_BUTTON_LEFT : LDK_MOUSE_BUTTON_MIDDLE);
 
   if (!orbit_pressed)
   {
@@ -635,11 +645,17 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
     controller->last_cursor = cursor;
   }
   else if (!editor->gizmo.dragging && inside &&
-           ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_MIDDLE))
+      (ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_MIDDLE) ||
+          ((editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN || pan_modifier) &&
+              ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_LEFT))))
   {
+    controller->pan_with_left =
+        !ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_MIDDLE);
     controller->panning = true;
+    controller->pan_block_pick = controller->pan_with_left;
     controller->orbiting = false;
     controller->last_cursor = cursor;
+    pan_pressed = true;
   }
 
   cursor_x = (float)(cursor.x - controller->last_cursor.x);

@@ -1079,6 +1079,8 @@ bool ldki_editor_component_icons_show(
   context.interactive = ui->mouse && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
       ui->hot_id == 0 && !editor->gizmo.dragging &&
+      editor->gizmo.mode != LDK_EDITOR_GIZMO_MODE_PAN &&
+      !editor->camera_controller.pan_block_pick &&
       editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE;
   if (ui->mouse)
   {
@@ -1309,7 +1311,9 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   }
 
   editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
-  if (!editor->gizmo.scene_view_visible || editor->renderer == NULL ||
+  if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
+      editor->camera_controller.pan_block_pick ||
+      !editor->gizmo.scene_view_visible || editor->renderer == NULL ||
       editor->renderer->game_width == 0 ||
       editor->renderer->game_height == 0)
   {
@@ -1930,7 +1934,8 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   }
 
   s_editor_selected_component_draw(editor, selected, selected_world);
-  if (!s_editor_gizmo_initialize(editor))
+  if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
+      !s_editor_gizmo_initialize(editor))
   {
     return;
   }

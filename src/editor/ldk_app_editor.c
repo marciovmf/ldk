@@ -363,9 +363,18 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE))
+    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) &&
+        !event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.shift_is_down &&
+        !event->keyboard_event.alt_is_down && !editor->gizmo.dragging &&
+        !editor->camera_controller.panning &&
+        !editor->camera_controller.orbiting)
     {
-      if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_Q)
+      {
+        editor->gizmo.mode = LDK_EDITOR_GIZMO_MODE_PAN;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
       {
         editor->gizmo.mode =
             (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
