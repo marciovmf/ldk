@@ -897,7 +897,6 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
     ldk_ui_push_id_u32(ui, axis);
     ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
     ldk_ui_label(ui, axis_names[axis]);
-    ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
     snprintf(buffer, sizeof(buffer), "%.9g",
         (double)s_editor_inspector_euler_axis_get(state->degrees, axis));
 
@@ -1350,10 +1349,18 @@ static void s_editor_inspector_field_draw(
 
     bool changed = false;
 
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "X");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 0, &value.x, readonly);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "Y");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 1, &value.y, readonly);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "Z");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 2, &value.z, readonly);
 

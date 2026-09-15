@@ -52,6 +52,7 @@ static bool s_project_unload(LDKEditorContext *editor);
 static bool s_editor_project_action_process(LDKEditorContext *editor);
 static bool s_editor_camera_ensure(LDKEditorContext *editor);
 static void s_project_game_module_watch_update(LDKEditorContext *editor);
+static bool s_editor_selected_entity_duplicate(LDKEditorContext *editor);
 
 /**
  * Tiny function to return a static editor instance.
@@ -218,7 +219,7 @@ const char *ldki_editor_cmake_native_arch_get(void)
 // Event Handlers
 //----------------------------------------------------------
 
-static bool on_event_keyboard(const LDKEvent *event, void *state)
+static bool _on_event_keyboard(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
@@ -293,6 +294,97 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
   }
   return false;
 }
+
+static bool on_event_keyboard(const LDKEvent *event, void *state)
+{
+  LDKEditorContext *editor = (LDKEditorContext *)state;
+  if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
+  {
+    bool entity_window_focused =
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
+    bool duplicate_window_focused =
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_INSPECTOR) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
+
+    if (event->keyboard_event.ctrl_is_down &&
+        event->keyboard_event.shift_is_down)
+    {
+      // CTRL+SHIFT+P
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
+      {
+        ldk_editor_state_set_stop(editor);
+        return true;
+      }
+
+      // CTRL+SHIFT+N
+      if (!event->keyboard_event.alt_is_down && entity_window_focused &&
+          event->keyboard_event.keyCode == LDK_KEYCODE_N)
+      {
+        LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+        ldki_editor_entity_add(editor, ecs);
+        return true;
+      }
+    }
+    else if (event->keyboard_event.ctrl_is_down)
+    {
+      // CTRL+D
+      if (!event->keyboard_event.alt_is_down && duplicate_window_focused &&
+          event->keyboard_event.keyCode == LDK_KEYCODE_D)
+      {
+        s_editor_selected_entity_duplicate(editor);
+        return true;
+      }
+
+      // CTRL+P
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
+      {
+        s_editor_state_set_play(editor);
+        return true;
+      }
+
+      // CTRL+O
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
+      {
+        ldki_editor_show_open_project_dialog(editor, NULL);
+        return true;
+      }
+    }
+
+    // Entity shortcuts
+    if (!event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.shift_is_down &&
+        !event->keyboard_event.alt_is_down && entity_window_focused &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_DELETE)
+    {
+      LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+      ldki_editor_selected_entity_remove(editor, ecs);
+      return true;
+    }
+
+    // Scene Viewer Tools shortcuts
+    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE))
+    {
+      if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
+      {
+        editor->gizmo.mode =
+            (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_E)
+      {
+        editor->gizmo.mode =
+            (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_ROTATE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_R)
+      {
+        editor->gizmo.mode =
+            (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
+      }
+    }
+  }
+  return false;
+}
+
 
 static bool on_event_text(const LDKEvent *event, void *state)
 {
@@ -404,194 +496,441 @@ static void s_editor_set_title(LDKEditorContext *editor)
   ldk_os_window_title_set(editor->window, title.buf);
 }
 
-/*
- *  Test functions
- */
-
-static void s_editor_test_treeview(LDKEditorContext *editor)
+// Clone entity
+static bool s_editor_entity_component_copy(LDKECS *ecs, LDKEntity source,
+    LDKEntity duplicate, u32 component_type)
 {
-  LDKUIContext *ui = &editor->ui;
-  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
-  static LDKUIPoint scroll = {0};
-  static bool s_root_open[10] = {0};
-  static bool s_child_open[10] = {0};
-  static char const *s_root_labels[10] = {
-      "Root 0",
-      "Root 1",
-      "Root 2",
-      "Root 3",
-      "Root 4",
-      "Root 5",
-      "Root 6",
-      "Root 7",
-      "Root 8",
-      "Root 9",
-  };
+  LDKRegisteredComponent registered = {0};
+  const void *source_component;
+  const void *initial_value;
+  XArray *snapshot;
+  bool result;
 
-  s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-
-  static u32 s_active_tab = 0;
-  LDKUIIcon icon = {0};
-  icon.color = 0xFFFFFFFF;
-  icon.size = ldk_sizef(24, 24);
-  icon.texture =
-      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FILE];
-
-  LDKUITabBarItem tabs[] = {
-      {1, icon, "Primitives"},
-      {2, icon, "Canvas"},
-      {3, icon, "BG/FG draw lists"},
-  };
-
-  LDKUITabBarResult tab_result = ldk_ui_tab_bar(ui, tabs, 3, s_active_tab);
-
-  if (tab_result.changed)
+  if (!ecs || component_type == LDK_COMPONENT_TYPE_TRANSFORM ||
+      !ecs->component.table ||
+      !x_hashtable_u32_registered_component_get(
+          ecs->component.table, component_type, &registered) ||
+      registered.desc.entry_size == 0)
   {
-    s_active_tab = tab_result.active_index;
+    return component_type == LDK_COMPONENT_TYPE_TRANSFORM;
   }
 
-  if (s_active_tab == 0)
+  source_component = ldk_ecs_component_get_const(source, component_type);
+  if (!source_component)
   {
-    ldk_ui_label(ui, "Primitives tab");
+    return false;
   }
-  else if (s_active_tab == 1)
-  {
-    ldk_ui_label(ui, "Canvas tab");
-  }
-  else if (s_active_tab == 2)
-  {
-    scroll = ldk_ui_begin_scrollview(
-        ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-    for (u32 i = 0; i < 10; i++)
+  /*
+   * Adding a component can grow its packed store and invalidate a pointer to
+   * the source component. Snapshot it before calling ldk_ecs_component_add().
+   * Component attach callbacks still receive an ordinary initial_value and
+   * can perform any component-specific deep copy they require.
+   */
+  snapshot = x_array_create(registered.desc.entry_size, 1);
+  if (!snapshot)
+  {
+    return false;
+  }
+
+  if (x_array_add(snapshot, (void *)source_component) != XARRAY_OK)
+  {
+    x_array_destroy(snapshot);
+    return false;
+  }
+
+  initial_value = x_array_get(snapshot, 0);
+  result = initial_value != NULL &&
+           ldk_ecs_component_add(duplicate, component_type, initial_value) !=
+               NULL;
+  x_array_destroy(snapshot);
+  return result;
+}
+
+static bool s_editor_entity_duplicate_data(LDKECS *ecs, LDKEntity source,
+    LDKEntity duplicate, LDKEntity parent)
+{
+  const LDKEntityInfo *source_info;
+  const LDKTransform *source_transform;
+  u32 component_types[LDK_ENTITY_MAX_COMPONENTS] = {0};
+  char source_name[LDK_ENTITY_NAME_MAX_LEN] = {0};
+  u32 component_count;
+  u16 source_flags;
+  Vec3 local_position;
+  Quat local_rotation;
+  Vec3 local_scale;
+  const char *name;
+
+  if (!ecs)
+  {
+    return false;
+  }
+
+  source_info = ldk_entity_info_get(&ecs->entity, source);
+  source_transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, source);
+  if (!source_info || !source_transform)
+  {
+    return false;
+  }
+
+  component_count = source_info->components.component_count;
+  for (u32 i = 0; i < component_count; ++i)
+  {
+    component_types[i] = source_info->components.component_type[i];
+  }
+
+  name = ldk_ecs_entity_name_get(source);
+  if (name)
+  {
+    snprintf(source_name, sizeof(source_name), "%s", name);
+  }
+
+  source_flags = ldk_entity_flags_get(&ecs->entity, source);
+  local_position = source_transform->local_position;
+  local_rotation = source_transform->local_rotation;
+  local_scale = source_transform->local_scale;
+
+  /*
+   * Preserve authored local TRS. Do not use ldk_scenegraph_set_parent() here:
+   * that operation preserves world space and would rewrite the copied local
+   * transform.
+   */
+  if ((source_name[0] != 0 &&
+          !ldk_ecs_entity_name_set(duplicate, source_name)) ||
+      !ldk_transform_set_local_position(duplicate, local_position) ||
+      !ldk_transform_set_local_rotation(duplicate, local_rotation) ||
+      !ldk_transform_set_local_scale(duplicate, local_scale) ||
+      (!x_handle_is_null(parent) &&
+          !ldk_transform_set_parent(duplicate, parent)))
+  {
+    return false;
+  }
+
+  ldk_entity_flags_set(&ecs->entity, duplicate, source_flags);
+
+  for (u32 i = 0; i < component_count; ++i)
+  {
+    if (!s_editor_entity_component_copy(
+            ecs, source, duplicate, component_types[i]))
     {
-      ldk_ui_push_id_u32(ui, i);
+      return false;
+    }
+  }
 
-      s_root_open[i] =
-          ldk_ui_tree_node(ui, s_root_labels[i], s_root_open[i], 0, 0);
-      if (s_root_open[i])
+  return true;
+}
+
+static bool s_editor_entity_duplicate_recursive(LDKECS *ecs,
+    LDKEntity source, LDKEntity parent, XArray *sources, XArray *duplicates,
+    LDKEntity *out_duplicate)
+{
+  LDKEntity duplicate;
+  const LDKTransform *source_transform;
+  LDKEntity child;
+  LDKEntity last_child = x_handle_null();
+
+  if (!ecs || !sources || !duplicates ||
+      !ldk_entity_is_alive(&ecs->entity, source) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, source, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return false;
+  }
+
+  duplicate = ldk_ecs_entity_create();
+  if (x_handle_is_null(duplicate))
+  {
+    return false;
+  }
+
+  if (x_array_add(sources, &source) != XARRAY_OK)
+  {
+    ldk_ecs_entity_destroy(duplicate);
+    return false;
+  }
+
+  if (x_array_add(duplicates, &duplicate) != XARRAY_OK)
+  {
+    x_array_pop(sources);
+    ldk_ecs_entity_destroy(duplicate);
+    return false;
+  }
+
+  if (!s_editor_entity_duplicate_data(ecs, source, duplicate, parent))
+  {
+    return false;
+  }
+
+  if (out_duplicate)
+  {
+    *out_duplicate = duplicate;
+  }
+
+  source_transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, source);
+  if (!source_transform)
+  {
+    return false;
+  }
+
+  child = source_transform->first_child;
+  while (!x_handle_is_null(child))
+  {
+    const LDKTransform *child_transform;
+
+    if (!ldk_entity_is_alive(&ecs->entity, child))
+    {
+      return false;
+    }
+
+    child_transform = ldk_entity_transform_get_const(
+        &ecs->entity, &ecs->component, child);
+    if (!child_transform)
+    {
+      return false;
+    }
+
+    last_child = child;
+    child = child_transform->next_sibling;
+  }
+
+  /*
+   * ldk_transform_set_parent() inserts at first_child. Duplicate siblings from
+   * last to first so the authored hierarchy order remains unchanged.
+   */
+  child = last_child;
+  while (!x_handle_is_null(child))
+  {
+    const LDKTransform *child_transform =
+        ldk_entity_transform_get_const(
+            &ecs->entity, &ecs->component, child);
+    LDKEntity previous_child;
+
+    if (!child_transform)
+    {
+      return false;
+    }
+
+    previous_child = child_transform->prev_sibling;
+    if (!ldk_entity_internal_flags_has(
+            &ecs->entity, child, LDK_ENTITY_INTERNAL_EDITOR) &&
+        !s_editor_entity_duplicate_recursive(
+            ecs, child, duplicate, sources, duplicates, NULL))
+    {
+      return false;
+    }
+
+    child = previous_child;
+  }
+
+  return true;
+}
+
+static bool s_editor_entity_duplicate_references(LDKGame *game, LDKECS *ecs,
+    XArray *sources, XArray *duplicates)
+{
+  u32 pair_count;
+
+  if (!game || !ecs || !sources || !duplicates)
+  {
+    return true;
+  }
+
+  pair_count = x_array_count(sources);
+  if (pair_count != x_array_count(duplicates))
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < pair_count; ++i)
+  {
+    LDKEntity *duplicate = x_array_get(duplicates, i);
+    const LDKEntityInfo *duplicate_info;
+    u32 component_types[LDK_ENTITY_MAX_COMPONENTS] = {0};
+    u32 component_count;
+
+    if (!duplicate)
+    {
+      return false;
+    }
+
+    duplicate_info = ldk_entity_info_get(&ecs->entity, *duplicate);
+    if (!duplicate_info)
+    {
+      return false;
+    }
+
+    component_count = duplicate_info->components.component_count;
+    for (u32 component_i = 0; component_i < component_count; ++component_i)
+    {
+      component_types[component_i] =
+          duplicate_info->components.component_type[component_i];
+    }
+
+    for (u32 component_i = 0; component_i < component_count; ++component_i)
+    {
+      u32 component_type = component_types[component_i];
+      const LDKComponentMeta *meta;
+      LDKRegisteredComponent registered = {0};
+      void *component;
+
+      if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
       {
-        if (ldk_ui_tree_node(ui, "Position", false, 1, LDK_UI_TREE_NODE_LEAF))
-        {
-          ldk_log_info("Clicked!");
-        }
-
-        ldk_ui_tree_node(ui, "Rotation", false, 1, LDK_UI_TREE_NODE_LEAF);
-        ldk_ui_tree_node(ui, "Scale", false, 1, LDK_UI_TREE_NODE_LEAF);
-
-        s_child_open[i] = ldk_ui_tree_node(ui, "Nested", s_child_open[i], 1, 0);
-
-        if (s_child_open[i])
-        {
-          ldk_ui_tree_node(
-              ui, "Nested Position", false, 2, LDK_UI_TREE_NODE_LEAF);
-          ldk_ui_tree_node(
-              ui, "Nested Rotation", false, 2, LDK_UI_TREE_NODE_LEAF);
-          ldk_ui_tree_node(ui, "Nested Scale", false, 2, LDK_UI_TREE_NODE_LEAF);
-        }
+        continue;
       }
 
-      ldk_ui_pop_id(ui);
-    }
+      meta = ldk_scene_component_meta_find_by_type(game, component_type);
+      if (!meta)
+      {
+        continue;
+      }
 
-    ldk_ui_spacer(ui);
-    ldk_ui_end_scrollview(ui);
+      if (!ecs->component.table ||
+          !x_hashtable_u32_registered_component_get(
+              ecs->component.table, component_type, &registered) ||
+          registered.desc.entry_size == 0)
+      {
+        return false;
+      }
+
+      component = ldk_ecs_component_get(*duplicate, component_type);
+      if (!component)
+      {
+        return false;
+      }
+
+      for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
+      {
+        const LDKComponentFieldMeta *field = &meta->fields[field_i];
+        LDKEntity *entity_ref;
+
+        if (field->type != LDK_FIELD_ENTITY ||
+            field->offset > registered.desc.entry_size ||
+            sizeof(LDKEntity) > registered.desc.entry_size - field->offset)
+        {
+          continue;
+        }
+
+        entity_ref = (LDKEntity *)((u8 *)component + field->offset);
+        if (x_handle_is_null(*entity_ref))
+        {
+          continue;
+        }
+
+        for (u32 pair_i = 0; pair_i < pair_count; ++pair_i)
+        {
+          LDKEntity *mapped_source = x_array_get(sources, pair_i);
+          LDKEntity *mapped_duplicate = x_array_get(duplicates, pair_i);
+
+          if (mapped_source && mapped_duplicate &&
+              ldki_editor_entity_equal(*entity_ref, *mapped_source))
+          {
+            *entity_ref = *mapped_duplicate;
+            break;
+          }
+        }
+      }
+    }
   }
-  ldk_ui_end_window(ui);
+
+  return true;
 }
 
-static void s_editor_save_scene(LDKEditor *editor)
+static void s_editor_entity_duplicate_rollback(
+    LDKECS *ecs, XArray *duplicates)
 {
-  LDKGame *game = ldk_game_get();
-  LDKSceneResult result;
-  const char *path = "scene.tml";
-
-  (void)editor;
-
-  if (!game)
+  if (!ecs || !duplicates)
   {
-    ldk_log_error("Failed to save scene: game is not available.");
     return;
   }
 
-  if (!ldk_scene_save_tml_file(path, &result))
+  for (u32 i = x_array_count(duplicates); i > 0; --i)
   {
-    ldk_log_error("Failed to save scene: %s", result.error);
-    return;
+    LDKEntity *duplicate = x_array_get(duplicates, i - 1u);
+    if (duplicate && ldk_entity_is_alive(&ecs->entity, *duplicate))
+    {
+      ldk_ecs_entity_destroy(*duplicate);
+    }
   }
-
-  ldk_log_info("Saved scene: %s", path);
 }
 
-static void s_editor_test_a(LDKEditor *editor)
+static bool s_editor_selected_entity_duplicate(LDKEditorContext *editor)
 {
-  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
-  static LDKUIRect s_entity_list_rect = {150, 90, 200, 180};
-  s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-  static LDKUIPoint scroll = {0};
-  scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  LDKECS *ecs;
+  LDKEntity source = x_handle_null();
+  LDKEntity duplicate = x_handle_null();
+  const LDKTransform *source_transform;
+  LDKEntity source_parent;
+  XArray *sources;
+  XArray *duplicates;
+  bool result;
 
-  for (u32 i = 0; i < 10; i++)
+  if (!editor || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->current_scene_path.length == 0)
   {
-    ldk_ui_button(ui, "btn");
+    return false;
   }
 
-  ldk_ui_end_scrollview(ui);
-  ldk_ui_end_window(ui);
-}
-
-static void s_editor_test_b(LDKEditor *editor)
-{
-  static bool check = false;
-  LDKUIContext *ui = &((LDKEditorContext *)editor)->ui;
-  static LDKUIRect s_entity_list_rect = {10, 90, 100, 300};
-  s_entity_list_rect = ldk_ui_begin_window_fixed(
-      ui, "test A", s_entity_list_rect, LDK_UI_WINDOW_TOOL);
-
-  static LDKUIPoint scroll = {0};
-  scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-
-  static bool open_a = true;
-  open_a = ldk_ui_begin_area(ui, "Transform", open_a);
-  if (open_a)
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (!ecs || !ldki_editor_selected_entity_get(editor, ecs, &source) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, source, LDK_ENTITY_INTERNAL_EDITOR))
   {
-    ldk_ui_label(ui, "Hello, Sailor!");
-    ldk_ui_button(ui, "Click me");
-    check = ldk_ui_toggle(ui, check);
+    return false;
   }
-  ldk_ui_end_area(ui);
 
-  static bool open_b = true;
-  static bool open_b1 = true;
-  static bool open_b2 = true;
-  open_b = ldk_ui_begin_area(ui, "Transform", open_b);
-  if (open_b)
+  source_transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, source);
+  if (!source_transform)
   {
-    open_b1 = ldk_ui_begin_area(ui, "Transform", open_b1);
-    if (open_b1)
+    return false;
+  }
+  source_parent = source_transform->parent;
+
+  sources = x_array_create(sizeof(LDKEntity), 16);
+  duplicates = x_array_create(sizeof(LDKEntity), 16);
+  if (!sources || !duplicates)
+  {
+    if (sources)
     {
-      ldk_ui_label(ui, "Hello, Sailor!");
-      ldk_ui_button(ui, "Click me");
+      x_array_destroy(sources);
     }
-    ldk_ui_end_area(ui);
-
-    open_b2 = ldk_ui_begin_area(ui, "Transform", open_b2);
-    if (open_b2)
+    if (duplicates)
     {
-      ldk_ui_label(ui, "Hello, Sailor!");
-      ldk_ui_button(ui, "Click me");
+      x_array_destroy(duplicates);
     }
-    ldk_ui_end_area(ui);
+    ldki_editor_log_error(editor, "Failed to duplicate selected entity.");
+    return false;
   }
 
-  ldk_ui_end_area(ui);
-  ldk_ui_end_scrollview(ui);
-  ldk_ui_end_window(ui);
+  result = s_editor_entity_duplicate_recursive(
+      ecs, source, source_parent, sources, duplicates, &duplicate);
+  if (result)
+  {
+    result = s_editor_entity_duplicate_references(
+        ldk_game_get(), ecs, sources, duplicates);
+  }
+  if (result)
+  {
+    result = ldk_scenegraph_update_entity(duplicate);
+  }
+
+  if (!result)
+  {
+    s_editor_entity_duplicate_rollback(ecs, duplicates);
+    ldki_editor_log_error(editor, "Failed to duplicate selected entity.");
+  }
+  else
+  {
+    editor->selected_entity = duplicate;
+    editor->selected_system_id = 0;
+  }
+
+  x_array_destroy(duplicates);
+  x_array_destroy(sources);
+  return result;
 }
 
 bool ldki_editor_view_texture_show(LDKEditorContext *editor,

@@ -116,7 +116,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"ogg", LDK_EDITOR_ICON_AUDIO_FILE},
     {"mp3", LDK_EDITOR_ICON_AUDIO_FILE},
     {"flac", LDK_EDITOR_ICON_AUDIO_FILE},
-    {"scene", LDK_EDITOR_ICON_HIERARCHY},
+    {"scene", LDK_EDITOR_ICON_PROJECT},
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
     {"json", LDK_EDITOR_ICON_DATA_OBJECT},
@@ -1401,7 +1401,6 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
     XFSPath up_path = {0};
     x_fs_directory_parent(&state->selected_directory, &up_path);
     s_project_explorer_directory_select(state, &up_path, true);
-    printf("UP to %.*s\n", (i32) up_path.length, up_path.buf);
     return;
   }
   ldk_ui_end_disabled(ui);
