@@ -1,17 +1,18 @@
 #include <ldk_common.h>
 #include <ldk_project.h>
+#include <module/ldk_scene_manager.h>
 
 #ifdef LDK_EDITOR
-
-#include <stdx/stdx_ini.h>
+#include <ldk_os.h>
 #include <stdx/stdx_filesystem.h>
+#include <stdx/stdx_ini.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
 
 #include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifndef LDK_PROJECT_DEFAULT_CMAKE_GENERATOR
 #define LDK_PROJECT_DEFAULT_CMAKE_GENERATOR "Visual Studio 18 2026"
@@ -21,14 +22,14 @@
 #define LDK_PROJECT_DEFAULT_CONFIG "Debug"
 #endif
 
-static bool s_string_is_empty(const char* str)
+static bool s_string_is_empty(const char *str)
 {
   return str == NULL || str[0] == 0;
 }
 
-static bool s_file_write_text(const XFSPath* path, const char* text)
+static bool s_file_write_text(const XFSPath *path, const char *text)
 {
-  FILE* file;
+  FILE *file;
   size_t len;
 
   if (path == NULL || text == NULL)
@@ -37,7 +38,7 @@ static bool s_file_write_text(const XFSPath* path, const char* text)
   }
 
   file = fopen(x_fs_path_cstr(path), "wb");
-  if (!file)
+  if (file == NULL)
   {
     return false;
   }
@@ -53,7 +54,8 @@ static bool s_file_write_text(const XFSPath* path, const char* text)
   return true;
 }
 
-static bool s_builder_write_text(const XFSPath* path, const XStrBuilder* builder)
+static bool s_builder_write_text(
+    const XFSPath *path, const XStrBuilder *builder)
 {
   if (builder == NULL)
   {
@@ -63,7 +65,8 @@ static bool s_builder_write_text(const XFSPath* path, const XStrBuilder* builder
   return s_file_write_text(path, x_strbuilder_to_string(builder));
 }
 
-static void s_project_resolve_path(XFSPath* out_path, const XFSPath* base_path, const char* value)
+static void s_project_resolve_path(
+    XFSPath *out_path, const XFSPath *base_path, const char *value)
 {
   X_ASSERT(out_path != NULL);
   X_ASSERT(base_path != NULL);
@@ -86,30 +89,72 @@ static void s_project_resolve_path(XFSPath* out_path, const XFSPath* base_path, 
   x_fs_path_normalize(out_path);
 }
 
-static void s_project_set_default_paths(LDKProject* project, const char* config)
+static const char *s_project_build_config(const char *config)
 {
-  const char* build_config;
+  return s_string_is_empty(config) ? LDK_PROJECT_DEFAULT_CONFIG : config;
+}
+
+static void s_project_game_dll_path_set(
+    LDKProject *project, const char *config)
+{
+  XFSPath game_dll_path;
+  XFSPath legacy_game_dll_path;
+  const char *build_config;
 
   X_ASSERT(project != NULL);
 
-  build_config = s_string_is_empty(config) ? LDK_PROJECT_DEFAULT_CONFIG : config;
+  build_config = s_project_build_config(config);
 
-  x_fs_path(&project->cache_path, x_fs_path_cstr(&project->project_root_path), ".ldk");
-  x_fs_path_normalize(&project->cache_path);
+  x_fs_path(&game_dll_path, x_fs_path_cstr(&project->cache_path), build_config,
+      "game.dll");
+  x_fs_path_normalize(&game_dll_path);
 
-  x_fs_path(&project->runtime_ini_path, x_fs_path_cstr(&project->run_root_path), "game.ini");
-  x_fs_path_normalize(&project->runtime_ini_path);
+  x_fs_path(&legacy_game_dll_path, x_fs_path_cstr(&project->cache_path),
+      build_config, "game.dll");
+  x_fs_path_normalize(&legacy_game_dll_path);
 
-  x_fs_path(&project->game_cmake_path, x_fs_path_cstr(&project->project_root_path), "ldk_game.cmake");
-  x_fs_path_normalize(&project->game_cmake_path);
-
-  x_fs_path(&project->game_dll_path, x_fs_path_cstr(&project->cache_path), build_config, "game_shared.dll");
-  x_fs_path_normalize(&project->game_dll_path);
+  if (x_fs_path_is_file(&game_dll_path) ||
+      !x_fs_path_is_file(&legacy_game_dll_path))
+  {
+    project->game_dll_path = game_dll_path;
+  }
+  else
+  {
+    project->game_dll_path = legacy_game_dll_path;
+  }
 }
 
-static bool s_line_is_private_section(const char* line, bool* out_is_section)
+static void s_project_set_derived_paths(
+    LDKProject *project, const char *config)
 {
-  const char* p;
+  X_ASSERT(project != NULL);
+
+  x_fs_path(&project->source_root_path,
+      x_fs_path_cstr(&project->project_root_path), "src");
+  x_fs_path_normalize(&project->source_root_path);
+
+  x_fs_path(&project->assets_path, x_fs_path_cstr(&project->run_root_path),
+      "assets");
+  x_fs_path_normalize(&project->assets_path);
+
+  x_fs_path(&project->cache_path, x_fs_path_cstr(&project->project_root_path),
+      ".ldk");
+  x_fs_path_normalize(&project->cache_path);
+
+  x_fs_path(&project->runtime_ini_path,
+      x_fs_path_cstr(&project->run_root_path), "game.ini");
+  x_fs_path_normalize(&project->runtime_ini_path);
+
+  x_fs_path(&project->game_cmake_path,
+      x_fs_path_cstr(&project->project_root_path), "ldk_game.cmake");
+  x_fs_path_normalize(&project->game_cmake_path);
+
+  s_project_game_dll_path_set(project, config);
+}
+
+static bool s_line_is_private_section(const char *line, bool *out_is_section)
+{
+  const char *p;
 
   X_ASSERT(out_is_section != NULL);
 
@@ -121,6 +166,10 @@ static bool s_line_is_private_section(const char* line, bool* out_is_section)
   }
 
   p = line;
+  if (strncmp(p, "\xef\xbb\xbf", 3) == 0)
+  {
+    p += 3;
+  }
   while (*p && isspace((unsigned char)*p))
   {
     p++;
@@ -142,14 +191,11 @@ static bool s_line_is_private_section(const char* line, bool* out_is_section)
   return *p == '.';
 }
 
-static bool s_copy_runtime_sections(FILE* in_file, FILE* out_file)
+static bool s_copy_runtime_sections(FILE *in_file, FILE *out_file)
 {
   char line[4096];
-  bool skip_section;
-  bool wrote_any_line;
-
-  skip_section = false;
-  wrote_any_line = false;
+  bool skip_section = false;
+  bool wrote_any_line = false;
 
   while (fgets(line, sizeof(line), in_file))
   {
@@ -172,9 +218,10 @@ static bool s_copy_runtime_sections(FILE* in_file, FILE* out_file)
   return wrote_any_line;
 }
 
-static bool s_project_create_required_dirs(LDKProject *project)
+static bool s_project_create_required_dirs(const LDKProject *project)
 {
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->project_root_path)))
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->project_root_path)))
   {
     return false;
   }
@@ -184,17 +231,20 @@ static bool s_project_create_required_dirs(LDKProject *project)
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->cmake_root_path)))
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->cmake_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->source_root_path)))
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->source_root_path)))
   {
     return false;
   }
 
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->run_root_path)))
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->run_root_path)))
   {
     return false;
   }
@@ -208,126 +258,159 @@ static bool s_project_create_required_dirs(LDKProject *project)
 }
 
 static void s_project_append_project_file_text(
-    XStrBuilder* builder,
-    LDKProject* project)
+    XStrBuilder *builder, const LDKProject *project)
 {
-  x_strbuilder_append(builder, "[.project]\n");
-  x_strbuilder_append_format(builder, "project_name = \"%s\"\n", project->name.buf);
-  x_strbuilder_append(builder, "project_cmake_root = \"workspace\"\n");
-  x_strbuilder_append(builder, "project_run_root = \"runtree\"\n");
-  x_strbuilder_append_format(builder, "project_cmake_generator = \"%s\"\n", project->cmake_generator.buf);
+  bool has_arch = !s_string_is_empty(project->cmake_arch.buf);
 
-  x_strbuilder_append_cstr(builder, "project_source_root_path = \".\"\n");
-  x_strbuilder_append_cstr(builder, "project_assets_path = \"runtree/assets\"\n");
-  x_strbuilder_append_cstr(builder, "project_runtime_ini_path = \"runtree/game.ini\"\n");
-  x_strbuilder_append_cstr(builder, "project_cache_path = \".ldk\"\n");
-  x_strbuilder_append_cstr(builder, "project_game_dll_path = \".ldk/Debug/game_shared.dll\"\n");
-  x_strbuilder_append_cstr(builder, "project_workspace_path = \"workspace\"\n");
-  
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "[general]\n");
-  x_strbuilder_append(builder, "asset_root = \"assets\"\n");
-  x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
-  x_strbuilder_append(builder, "\n");
-
-  x_strbuilder_append(builder, "[graphics]\n");
-  x_strbuilder_append(builder, "resolution_width = 1280\n");
-  x_strbuilder_append(builder, "resolution_height = 720\n");
-  
-  x_strbuilder_append(builder, "[display]\n");
-  x_strbuilder_append_format(builder, "title = \"%s\"\n", project->name.buf);
-  x_strbuilder_append(builder, "width = 1280\n");
-  x_strbuilder_append(builder, "height = 720\n");
-  x_strbuilder_append(builder, "fullscreen = false\n");
+  x_strbuilder_append_format(
+    builder,
+    "[.project]\n"
+    "project_name = \"%s\"\n"
+    "project_game_root = \".\"\n"
+    "project_cmake_root = \"workspace\"\n"
+    "project_run_root = \"runtree\"\n"
+    "project_cmake_generator = \"%s\"\n"
+    "project_cmake_arch = \"%s\"\n"
+    "\n"
+    "[.flags]\n"
+    "tag_0 = \"tag_0\"\n"
+    "tag_1 = \"tag_1\"\n"
+    "tag_2 = \"tag_2\"\n"
+    "tag_3 = \"tag_3\"\n"
+    "tag_4 = \"tag_4\"\n"
+    "tag_5 = \"tag_5\"\n"
+    "tag_6 = \"tag_6\"\n"
+    "tag_7 = \"tag_7\"\n"
+    "tag_8 = \"tag_8\"\n"
+    "tag_9 = \"tag_9\"\n"
+    "tag_10 = \"tag_10\"\n"
+    "tag_11 = \"tag_11\"\n"
+    "tag_12 = \"tag_12\"\n"
+    "tag_13 = \"tag_13\"\n"
+    "tag_14 = \"tag_14\"\n"
+    "tag_15 = \"tag_15\"\n"
+    "\n"
+    "[general]\n"
+    "asset_root = \"assets\"\n"
+    "log_file = \"ldk.log\"\n"
+    "\n"
+    "[graphics]\n"
+    "resolution_width = 1280\n"
+    "resolution_height = 720\n"
+    "\n"
+    "[display]\n"
+    "title = \"%s\"\n"
+    "width = 1280\n"
+    "height = 720\n"
+    "fullscreen = false\n",
+    project->name.buf,
+    project->cmake_generator.buf,
+    has_arch ? project->cmake_arch.buf : "\"\"",
+    project->name.buf
+  );
 }
 
-static void s_project_append_game_ini_text(XStrBuilder* builder, const char* project_name)
+static void s_project_append_game_cmake_text(XStrBuilder *builder)
 {
-  x_strbuilder_append(builder, "[general]\n");
-  x_strbuilder_append(builder, "asset_root = \"assets\"\n");
-  x_strbuilder_append(builder, "log_file = \"ldk.log\"\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "[display]\n");
-  x_strbuilder_append_format(builder, "title = \"%s\"\n", project_name);
-  x_strbuilder_append(builder, "width = 1280\n");
-  x_strbuilder_append(builder, "height = 720\n");
-  x_strbuilder_append(builder, "fullscreen = false\n");
+x_strbuilder_append(builder,
+    "# Add system headers here; compile their .c files too when not header-only.\n"
+    "list(APPEND LDK_GAME_SOURCES\n"
+    "  \"${CMAKE_CURRENT_LIST_DIR}/src/game.c\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_INCLUDE_DIRS\n"
+    "  \"${CMAKE_CURRENT_LIST_DIR}/src\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_DEFINITIONS\n"
+    "  \"LDK_GAME\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_LIBRARIES\n"
+    "  \"\"\n"
+    ")\n\n"
+    "# Where to look for game components\n"
+    "list(APPEND LDK_GAME_COMPONENT_DIRS\n"
+    "  \"${OPTION_GAME_DIR}/src/component\"\n"
+    ")\n\n"
+    "# Where to look for annotated system declarations\n"
+    "list(APPEND LDK_GAME_SYSTEM_DIRS\n"
+    "  \"${OPTION_GAME_DIR}/src/system\"\n"
+    ")\n\n");
 }
 
-static void s_project_append_game_cmake_text(XStrBuilder* builder)
+static void s_project_append_game_c_text(XStrBuilder *builder)
 {
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_SOURCES\n  \"${CMAKE_CURRENT_LIST_DIR}/src/game.c\"\n)\n\n");
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_INCLUDE_DIRS\n  \"${CMAKE_CURRENT_LIST_DIR}/src\"\n)\n\n");
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_DEFINITIONS\n  \"LDK_GAME\"\n)\n\n");
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_LIBRARIES\n  \"\"\n)\n\n");
-  x_strbuilder_append(builder, "# Where to look for game components\n");
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_COMPONENT_DIRS\n  \"${OPTION_GAME_DIR}\\components\"\n)\n\n");
-}
-
-static void s_project_append_game_c_text(XStrBuilder* builder)
-{
-  x_strbuilder_append(builder, "#include <ldk_game.h>\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "bool game_initialize(LDKGame* game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void) game;\n");
-  x_strbuilder_append(builder, "  return true;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "bool game_start(LDKGame* game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void) game;\n");
-  x_strbuilder_append(builder, "  return true;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "void game_update(LDKGame* game, float delta_time)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void) game;\n");
-  x_strbuilder_append(builder, "  (void) delta_time;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "void game_stop(LDKGame* game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void) game;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "void game_terminate(LDKGame* game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void) game;\n");
-  x_strbuilder_append(builder, "}\n");
+x_strbuilder_append(builder,
+    "#include <ldk_common.h>\n"
+    "\n"
+    "#if defined(LDK_SHAREDLIB)\n"
+    "#define X_IMPL_MATH\n"
+    "#define X_IMPL_ARRAY\n"
+    "#define X_IMPL_STRING\n"
+    "#define X_IMPL_FILESYSTEM\n"
+    "#define X_IMPL_LOG\n"
+    "#define X_IMPL_HASHTABLE\n"
+    "#define X_IMPL_HPOOL\n"
+    "#define X_IMPL_MATH\n"
+    "#define X_IMPL_FILESYSTEM\n"
+    "#endif // LDK_SHAREDLIB\n"
+    "\n"
+    "#include <ldk_game.h>\n"
+    "#include <generated_component_metadata_includes.h>\n"
+    "\n"
+    "bool game_initialize(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  return game_register_systems();\n"
+    "}\n"
+    "\n"
+    "bool game_start(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  return true;\n"
+    "}\n"
+    "\n"
+    "void game_update(LDKGame *game, float delta_time)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  (void)delta_time;\n"
+    "}\n"
+    "\n"
+    "void game_stop(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "}\n"
+    "\n"
+    "void game_terminate(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "}\n");
 }
 
 static bool s_project_create_files(
-  LDKProject *project, const XFSPath* game_c_path)
+    const LDKProject *project, const XFSPath *game_c_path)
 {
-  XStrBuilder* project_text;
-  XStrBuilder* game_ini_text;
-  XStrBuilder* game_cmake_text;
-  XStrBuilder* game_c_text;
+  XStrBuilder *project_text;
+  XStrBuilder *game_cmake_text;
+  XStrBuilder *game_c_text;
   bool result;
 
   project_text = x_strbuilder_create();
-  game_ini_text = x_strbuilder_create();
   game_cmake_text = x_strbuilder_create();
   game_c_text = x_strbuilder_create();
 
-  if (!project_text || !game_ini_text || !game_cmake_text || !game_c_text)
+  if (project_text == NULL || game_cmake_text == NULL || game_c_text == NULL)
   {
     x_strbuilder_destroy(project_text);
-    x_strbuilder_destroy(game_ini_text);
     x_strbuilder_destroy(game_cmake_text);
     x_strbuilder_destroy(game_c_text);
     return false;
   }
 
   s_project_append_project_file_text(project_text, project);
-  s_project_append_game_ini_text(game_ini_text, project->name.buf);
   s_project_append_game_cmake_text(game_cmake_text);
   s_project_append_game_c_text(game_c_text);
 
-  result = s_builder_write_text(&project->project_file_path, project_text)
-    && s_builder_write_text(&project->runtime_ini_path, game_ini_text)
-    && s_builder_write_text(&project->game_cmake_path, game_cmake_text);
+  result = s_builder_write_text(&project->project_file_path, project_text) &&
+           s_builder_write_text(&project->game_cmake_path, game_cmake_text);
 
   if (result && !x_fs_path_is_file(game_c_path))
   {
@@ -335,74 +418,132 @@ static bool s_project_create_files(
   }
 
   x_strbuilder_destroy(project_text);
-  x_strbuilder_destroy(game_ini_text);
   x_strbuilder_destroy(game_cmake_text);
   x_strbuilder_destroy(game_c_text);
-
   return result;
 }
 
-bool ldk_project_create(const LDKProjectCreateDesc* desc)
+static bool s_project_generator_supports_platform(const char *generator)
+{
+  return generator != NULL && strncmp(generator, "Visual Studio ", 14) == 0;
+}
+
+static bool s_project_process_succeeded(LDKOSProcessResult result)
+{
+  return result.started && result.completed && result.exit_code == 0;
+}
+
+static LDKOSProcess *s_project_process_start(const LDKProject *project,
+    const LDKProjectBuildDesc *desc, XStrBuilder *arguments,
+    LDKOSProcessResult *out_result)
+{
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcess *process;
+
+  if (project == NULL || desc == NULL || arguments == NULL)
+  {
+    x_strbuilder_destroy(arguments);
+    return NULL;
+  }
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process = ldk_os_process_start(&process_desc, out_result);
+  x_strbuilder_destroy(arguments);
+  return process;
+}
+
+bool ldk_project_create(const LDKProjectCreateDesc *desc)
 {
   LDKProject project = {0};
+  LDKProject loaded_project = {0};
   XFSPath game_c_path;
-  const char* project_name;
-  const char* cmake_generator;
+  const char *project_name;
+  const char *cmake_generator;
+  bool result;
 
   if (desc == NULL || s_string_is_empty(desc->project_root_path))
   {
     return false;
   }
 
-  project_name = s_string_is_empty(desc->project_name) ? "Game" : desc->project_name;
-  cmake_generator = s_string_is_empty(desc->cmake_generator) ? LDK_PROJECT_DEFAULT_CMAKE_GENERATOR : desc->cmake_generator;
+  project_name =
+      s_string_is_empty(desc->project_name) ? "Game" : desc->project_name;
+  cmake_generator = s_string_is_empty(desc->cmake_generator)
+                        ? LDK_PROJECT_DEFAULT_CMAKE_GENERATOR
+                        : desc->cmake_generator;
 
   x_smallstr_from_cstr(&project.name, project_name);
   x_smallstr_from_cstr(&project.cmake_generator, cmake_generator);
+  x_smallstr_from_cstr(&project.cmake_arch,
+      s_string_is_empty(desc->cmake_arch) ? "" : desc->cmake_arch);
 
   x_fs_path_set(&project.project_root_path, desc->project_root_path);
   x_fs_path_normalize(&project.project_root_path);
 
-  x_fs_path(&project.cache_path, x_fs_path_cstr(&project.project_root_path), ".ldk");
-  x_fs_path(&project.cmake_root_path, x_fs_path_cstr(&project.project_root_path), "workspace");
-  x_fs_path(&project.source_root_path, x_fs_path_cstr(&project.project_root_path), "src");
-  x_fs_path(&project.run_root_path, x_fs_path_cstr(&project.project_root_path), "runtree");
-  x_fs_path(&project.assets_path, x_fs_path_cstr(&project.run_root_path), "assets");
+  x_fs_path(&project.project_file_path,
+      x_fs_path_cstr(&project.project_root_path), project_name);
+  x_fs_path_change_extension(&project.project_file_path, "ldk");
+  x_fs_path_normalize(&project.project_file_path);
 
-  x_fs_path_normalize(&project.cache_path);
+  if (x_fs_path_exists(&project.project_file_path))
+  {
+    return false;
+  }
+
+  x_fs_path(&project.cmake_root_path,
+      x_fs_path_cstr(&project.project_root_path), "workspace");
   x_fs_path_normalize(&project.cmake_root_path);
-  x_fs_path_normalize(&project.source_root_path);
+
+  x_fs_path(&project.run_root_path, x_fs_path_cstr(&project.project_root_path),
+      "runtree");
   x_fs_path_normalize(&project.run_root_path);
-  x_fs_path_normalize(&project.assets_path);
+
+  s_project_set_derived_paths(&project, LDK_PROJECT_DEFAULT_CONFIG);
+
+  if (x_fs_path_exists(&project.game_cmake_path))
+  {
+    return false;
+  }
 
   if (!s_project_create_required_dirs(&project))
   {
     return false;
   }
 
-  x_fs_path(&project.project_file_path, x_fs_path_cstr(&project.project_root_path), project_name);
-  x_fs_path_change_extension(&project.project_file_path, "ldk");
-
-  x_fs_path(&project.runtime_ini_path, x_fs_path_cstr(&project.run_root_path), "game.ini");
-  x_fs_path(&project.game_cmake_path, x_fs_path_cstr(&project.project_root_path), "ldk_game.cmake");
   x_fs_path(&game_c_path, x_fs_path_cstr(&project.source_root_path), "game.c");
-
-  x_fs_path_normalize(&project.project_file_path);
-  x_fs_path_normalize(&project.runtime_ini_path);
-  x_fs_path_normalize(&project.game_cmake_path);
   x_fs_path_normalize(&game_c_path);
 
-  return s_project_create_files(&project, &game_c_path);
+  if (!s_project_create_files(&project, &game_c_path))
+  {
+    return false;
+  }
+
+  if (!ldk_project_load(
+          &loaded_project, x_fs_path_cstr(&project.project_file_path)))
+  {
+    return false;
+  }
+
+  result = ldk_project_write_runtime_ini(&loaded_project);
+  ldk_project_unload(&loaded_project);
+  return result;
 }
 
-bool ldk_project_load(LDKProject* project, const char* project_file_path)
+bool ldk_project_load(LDKProject *project, const char *project_file_path)
 {
-  XIni ini;
-  XIniError ini_error;
-  const char* project_name;
-  const char* cmake_root;
-  const char* run_root;
-  const char* cmake_generator;
+  XIni ini = {0};
+  XIniError ini_error = {0};
+  XFSPath manifest_root;
+  const char *project_name;
+  const char *project_game_root;
+  const char *cmake_root;
+  const char *run_root;
+  const char *cmake_generator;
+  const char *cmake_arch;
 
   if (project == NULL || s_string_is_empty(project_file_path))
   {
@@ -410,8 +551,6 @@ bool ldk_project_load(LDKProject* project, const char* project_file_path)
   }
 
   memset(project, 0, sizeof(*project));
-  memset(&ini, 0, sizeof(ini));
-  memset(&ini_error, 0, sizeof(ini_error));
 
   x_fs_path_set(&project->project_file_path, project_file_path);
   x_fs_path_normalize(&project->project_file_path);
@@ -421,28 +560,57 @@ bool ldk_project_load(LDKProject* project, const char* project_file_path)
     return false;
   }
 
-  x_fs_path_dirname(&project->project_file_path, &project->project_root_path);
-  x_fs_path_normalize(&project->project_root_path);
+  x_fs_path_dirname(&project->project_file_path, &manifest_root);
+  x_fs_path_normalize(&manifest_root);
 
-  if (!x_ini_load_file(x_fs_path_cstr(&project->project_file_path), &ini, &ini_error))
+  if (!x_ini_load_file(
+          x_fs_path_cstr(&project->project_file_path), &ini, &ini_error))
   {
     return false;
   }
 
   project_name = x_ini_get(&ini, ".project", "project_name", "Game");
-  cmake_root = x_ini_get(&ini, ".project", "project_cmake_root", "workspace");
-  run_root = x_ini_get(&ini, ".project", "project_run_root", "runtree");
-  cmake_generator = x_ini_get(&ini, ".project", "project_cmake_generator", LDK_PROJECT_DEFAULT_CMAKE_GENERATOR);
+  project_game_root =
+      x_ini_get(&ini, ".project", "project_game_root", NULL);
+  if (s_string_is_empty(project_game_root))
+  {
+    project_game_root =
+        x_ini_get(&ini, ".project", "project_source_root_path", ".");
+  }
 
-  project->project_resolution_width = x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
-  project->project_resolution_height = x_ini_get_i32(&ini, "graphics", "resolution_height", 760);
+  if (x_fs_path_is_absolute_cstr(project_game_root))
+  {
+    x_ini_free(&ini);
+    memset(project, 0, sizeof(*project));
+    return false;
+  }
+
+  cmake_root =
+      x_ini_get(&ini, ".project", "project_cmake_root", "workspace");
+  run_root = x_ini_get(&ini, ".project", "project_run_root", "runtree");
+  cmake_generator = x_ini_get(&ini, ".project", "project_cmake_generator",
+      LDK_PROJECT_DEFAULT_CMAKE_GENERATOR);
+  cmake_arch = x_ini_get(&ini, ".project", "project_cmake_arch", "");
+
+  project->play_current_scene =
+      x_ini_get_bool(&ini, ".editor", "play_current_scene", false);
+
+  project->project_resolution_width =
+      x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
+  project->project_resolution_height =
+      x_ini_get_i32(&ini, "graphics", "resolution_height", 760);
 
   x_smallstr_from_cstr(&project->name, project_name);
   x_smallstr_from_cstr(&project->cmake_generator, cmake_generator);
+  x_smallstr_from_cstr(&project->cmake_arch, cmake_arch);
 
-  s_project_resolve_path(&project->cmake_root_path, &project->project_root_path, cmake_root);
-  s_project_resolve_path(&project->run_root_path, &project->project_root_path, run_root);
-  s_project_set_default_paths(project, LDK_PROJECT_DEFAULT_CONFIG);
+  s_project_resolve_path(
+      &project->project_root_path, &manifest_root, project_game_root);
+  s_project_resolve_path(
+      &project->cmake_root_path, &project->project_root_path, cmake_root);
+  s_project_resolve_path(
+      &project->run_root_path, &project->project_root_path, run_root);
+  s_project_set_derived_paths(project, LDK_BUILD_TYPE);
 
   x_ini_free(&ini);
 
@@ -456,7 +624,7 @@ bool ldk_project_load(LDKProject* project, const char* project_file_path)
   return true;
 }
 
-void ldk_project_unload(LDKProject* project)
+void ldk_project_unload(LDKProject *project)
 {
   if (project == NULL)
   {
@@ -466,10 +634,10 @@ void ldk_project_unload(LDKProject* project)
   memset(project, 0, sizeof(*project));
 }
 
-bool ldk_project_write_runtime_ini(const LDKProject* project)
+bool ldk_project_write_runtime_ini(const LDKProject *project)
 {
-  FILE* in_file;
-  FILE* out_file;
+  FILE *in_file;
+  FILE *out_file;
   bool ok;
 
   if (project == NULL || !project->loaded)
@@ -483,13 +651,13 @@ bool ldk_project_write_runtime_ini(const LDKProject* project)
   }
 
   in_file = fopen(x_fs_path_cstr(&project->project_file_path), "rb");
-  if (!in_file)
+  if (in_file == NULL)
   {
     return false;
   }
 
   out_file = fopen(x_fs_path_cstr(&project->runtime_ini_path), "wb");
-  if (!out_file)
+  if (out_file == NULL)
   {
     fclose(in_file);
     return false;
@@ -502,76 +670,681 @@ bool ldk_project_write_runtime_ini(const LDKProject* project)
   return ok;
 }
 
-bool ldk_project_build_game_dll(const LDKProject* project, const LDKProjectBuildDesc* desc)
+typedef struct LDKCatalogFile
 {
-  XStrBuilder* configure_command;
-  XStrBuilder* build_command;
-  const char* config;
-  bool result;
+  XFSPath path;
+  XFSPath temporary;
+  XFSPath backup;
+  bool backed_up;
+  bool installed;
+} LDKCatalogFile;
 
-  if (project == NULL || desc == NULL || !project->loaded)
+static bool s_catalog_file_prepare(LDKCatalogFile *file, const XFSPath *path)
+{
+  file->path = *path;
+  if (x_fs_path_exists_cstr(path->buf) && !x_fs_path_is_file(path))
   {
     return false;
   }
-
-  if (s_string_is_empty(desc->ldk_source_root_path))
+  if (strlen(path->buf) + strlen(".scene-catalog.tmp") >=
+      sizeof(file->temporary.buf))
   {
     return false;
   }
+  char buffer[sizeof(file->temporary.buf)];
+  size_t length = strlen(path->buf);
+  memcpy(buffer, path->buf, length);
+  memcpy(buffer + length, ".scene-catalog.tmp", sizeof(".scene-catalog.tmp"));
+  x_fs_path_set(&file->temporary, buffer);
+  memcpy(buffer + length, ".scene-catalog.bak", sizeof(".scene-catalog.bak"));
+  x_fs_path_set(&file->backup, buffer);
+  return !x_fs_path_exists_cstr(file->temporary.buf) &&
+         !x_fs_path_exists_cstr(file->backup.buf);
+}
 
-  config = s_string_is_empty(desc->config) ? LDK_PROJECT_DEFAULT_CONFIG : desc->config;
-
-  if (!x_fs_directory_create_recursive(x_fs_path_cstr(&project->cmake_root_path)))
+static bool s_catalog_file_install(LDKCatalogFile *file)
+{
+  if (x_fs_path_exists_cstr(file->path.buf))
   {
-    return false;
-  }
-
-  configure_command = x_strbuilder_create();
-  build_command = x_strbuilder_create();
-
-  if (!configure_command || !build_command)
-  {
-    x_strbuilder_destroy(configure_command);
-    x_strbuilder_destroy(build_command);
-    return false;
-  }
-
-  x_strbuilder_append_format(configure_command,
-      "cmake -S \"%s\" -B \"%s\" -G \"%s\" "
-      "-DOPTION_BUILD_GAME=ON "
-      "-DOPTION_GAME_DIR=\"%s\"",
-      desc->ldk_source_root_path,
-      x_fs_path_cstr(&project->cmake_root_path),
-      project->cmake_generator.buf,
-      x_fs_path_cstr(&project->project_root_path));
-
-  if (desc->use_prebuilt_ldk)
-  {
-    if (s_string_is_empty(desc->prebuilt_ldk_path))
+    if (!x_fs_file_rename(file->path.buf, file->backup.buf))
     {
-      x_strbuilder_destroy(configure_command);
-      x_strbuilder_destroy(build_command);
       return false;
     }
+    file->backed_up = true;
+  }
+  file->installed = x_fs_file_rename(file->temporary.buf, file->path.buf);
+  return file->installed;
+}
 
-    x_strbuilder_append_format(configure_command,
-        " -DOPTION_LDK_USE_PREBUILT=ON "
-        "-DOPTION_LDK_PREBUILT_DIR=\"%s\"",
-        desc->prebuilt_ldk_path);
+static bool s_catalog_file_rollback(LDKCatalogFile *file)
+{
+  if (file->installed && !x_fs_file_delete(file->path.buf))
+  {
+    return false;
+  }
+  return !file->backed_up || x_fs_file_rename(file->backup.buf, file->path.buf);
+}
+
+static void s_catalog_ini_string(FILE *out, const char *text)
+{
+  fputc('"', out);
+  for (; *text; ++text)
+  {
+    switch (*text)
+    {
+    case '\\':
+      fputs("\\\\", out);
+      break;
+    case '"':
+      fputs("\\\"", out);
+      break;
+    case '\n':
+      fputs("\\n", out);
+      break;
+    case '\r':
+      break;
+    case '\t':
+      fputs("\\t", out);
+      break;
+    default:
+      fputc((unsigned char)*text, out);
+      break;
+    }
+  }
+  fputc('"', out);
+}
+
+bool ldk_project_scene_catalog_save(const LDKProject *project,
+    const LDKScene *scenes, u32 count, LDKSceneResult *result)
+{
+  LDKCatalogFile manifest = {0}, runtime = {0};
+  FILE *in = NULL, *out = NULL;
+  char *source = NULL;
+  bool ok = false, skip = false;
+  bool manifest_temp = false, runtime_temp = false;
+  ldk_scene_result_clear(result);
+  if (!project || !project->loaded ||
+      !ldk_scene_manager_catalog_validate(scenes, count))
+  {
+    ldk_scene_result_set_error(result, "Invalid scene catalog.");
+    return false;
+  }
+  if (!s_catalog_file_prepare(&manifest, &project->project_file_path) ||
+      !s_catalog_file_prepare(&runtime, &project->runtime_ini_path))
+  {
+    ldk_scene_result_set_error(result,
+        "Catalog save blocked: invalid target/path or .scene-catalog.tmp/.bak "
+        "already exists. Preserve/recover those files before retrying.");
+    return false;
+  }
+  in = fopen(manifest.path.buf, "rb");
+  if (!in || fseek(in, 0, SEEK_END) != 0)
+  {
+    goto done;
+  }
+  long size = ftell(in);
+  if (size < 0 || (source = malloc((size_t)size + 1)) == NULL ||
+      fseek(in, 0, SEEK_SET) != 0 ||
+      fread(source, 1, (size_t)size, in) != (size_t)size)
+  {
+    goto done;
+  }
+  source[size] = 0;
+  fclose(in);
+  in = NULL;
+  out = fopen(manifest.temporary.buf, "wbx");
+  if (!out)
+  {
+    goto done;
+  }
+  manifest_temp = true;
+  const char *begin = source;
+  if ((size_t)size >= 3 && memcmp(begin, "\xef\xbb\xbf", 3) == 0)
+  {
+    if (fwrite(begin, 1, 3, out) != 3)
+      goto done;
+    begin += 3;
+  }
+  /* Keep all bytes outside [scenes], including comments and line endings. */
+  for (const char *line = begin; *line;)
+  {
+    const char *end = strchr(line, '\n');
+    end = end ? end + 1 : line + strlen(line);
+    const char *p = line;
+    while (p < end && (*p == ' ' || *p == '\t'))
+      ++p;
+    if (p < end && *p == '[')
+    {
+      const char *close = memchr(p, ']', (size_t)(end - p));
+      if (close)
+      {
+        ++p;
+        while (p < close && isspace((unsigned char)*p))
+          ++p;
+        while (close > p && isspace((unsigned char)close[-1]))
+          --close;
+        skip = close - p == 6 && memcmp(p, "scenes", 6) == 0;
+      }
+    }
+    if (!skip &&
+        fwrite(line, 1, (size_t)(end - line), out) != (size_t)(end - line))
+      goto done;
+    line = end;
+  }
+  fprintf(out, "\n[scenes]\ncount = %u\n", count);
+  for (u32 i = 0; i < count; ++i)
+  {
+    fprintf(out, "%u.path = ", i);
+    s_catalog_ini_string(out, scenes[i].path.buf);
+    fprintf(out, "\n%u.name = ", i);
+    s_catalog_ini_string(out, scenes[i].name.buf);
+    fputc('\n', out);
+  }
+  bool write_ok = !ferror(out);
+  if (fclose(out) != 0)
+    write_ok = false;
+  out = NULL;
+  if (!write_ok)
+    goto done;
+  XIni check = {0};
+  XIniError check_error = {0};
+  if (!x_ini_load_file(manifest.temporary.buf, &check, &check_error))
+    goto done;
+  x_ini_free(&check);
+  in = fopen(manifest.temporary.buf, "rb");
+  out = fopen(runtime.temporary.buf, "wbx");
+  runtime_temp = out != NULL;
+  if (!in || !out || !s_copy_runtime_sections(in, out) || ferror(in) ||
+      ferror(out))
+    goto done;
+  write_ok = fclose(out) == 0;
+  out = NULL;
+  fclose(in);
+  in = NULL;
+  if (!write_ok)
+    goto done;
+
+  if (!s_catalog_file_install(&manifest) || !s_catalog_file_install(&runtime))
+  {
+    bool runtime_ok = s_catalog_file_rollback(&runtime);
+    bool manifest_ok = s_catalog_file_rollback(&manifest);
+    if (!runtime_ok || !manifest_ok)
+    {
+      ldk_scene_result_set_error(result,
+          "Catalog save/rollback failed. Recover the originals from the "
+          ".scene-catalog.bak files; the in-memory catalog was not changed.");
+    }
+    goto done;
+  }
+  ok = true;
+  if (manifest.backed_up)
+    x_fs_file_delete(manifest.backup.buf);
+  if (runtime.backed_up)
+    x_fs_file_delete(runtime.backup.buf);
+done:
+  if (in)
+    fclose(in);
+  if (out)
+    fclose(out);
+  free(source);
+  if (manifest_temp)
+    x_fs_file_delete(manifest.temporary.buf);
+  if (runtime_temp)
+    x_fs_file_delete(runtime.temporary.buf);
+  if (!ok && (!result || result->ok))
+  {
+    ldk_scene_result_set_error(result, "Failed to save scene catalog files.");
+  }
+  return ok;
+}
+
+bool ldk_project_game_module_output_path_get(
+    const LDKProject *project, const char *config, XFSPath *out_path)
+{
+  if (project == NULL || out_path == NULL || !project->loaded)
+  {
+    return false;
   }
 
-  x_strbuilder_append_format(build_command,
-      "cmake --build \"%s\" --config \"%s\" --target game_shared",
-      x_fs_path_cstr(&project->cmake_root_path),
-      config);
+  x_fs_path(out_path, x_fs_path_cstr(&project->cache_path),
+      s_project_build_config(config), "game.dll");
+  x_fs_path_normalize(out_path);
+  return out_path->length > 0;
+}
 
-  result = system(x_strbuilder_to_string(configure_command)) == 0
-    && system(x_strbuilder_to_string(build_command)) == 0;
+bool ldk_project_generate_game_module(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
 
-  x_strbuilder_destroy(configure_command);
-  x_strbuilder_destroy(build_command);
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      s_string_is_empty(desc->ldk_root_path))
+  {
+    return false;
+  }
 
-  return result;
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->cmake_root_path)))
+  {
+    return false;
+  }
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments, "-S \"%s\" -B \"%s\"",
+      desc->ldk_root_path, x_fs_path_cstr(&project->cmake_root_path));
+
+  if (!s_string_is_empty(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -G \"%s\"", project->cmake_generator.buf);
+  }
+
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -A \"%s\"", project->cmake_arch.buf);
+  }
+
+  x_strbuilder_append_format(arguments,
+      " -DCMAKE_BUILD_TYPE=\"%s\""
+      " -DOPTION_LDK_USE_PREBUILT=ON"
+      " -DOPTION_LDK_PREBUILT_DIR=\"%s\""
+      " -DOPTION_BUILD_GAME=ON"
+      " -DOPTION_BUILD_GAME_LAUNCHER=OFF"
+      " -DOPTION_BUILD_EDITOR=OFF"
+      " -DOPTION_BUILD_TESTS=OFF"
+      " -DOPTION_GAME_DIR=\"%s\"",
+      s_project_build_config(desc->config), desc->ldk_root_path,
+      x_fs_path_cstr(&project->project_root_path));
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+  return s_project_process_succeeded(process_result);
+}
+
+bool ldk_project_build_game_module(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
+  XFSPath expected_game_dll_path;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path))
+  {
+    return false;
+  }
+
+  config = s_project_build_config(desc->config);
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target game",
+      x_fs_path_cstr(&project->cmake_root_path), config);
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+
+  if (!s_project_process_succeeded(process_result))
+  {
+    return false;
+  }
+
+  x_fs_path(&expected_game_dll_path, x_fs_path_cstr(&project->cache_path),
+      config, "game.dll");
+  x_fs_path_normalize(&expected_game_dll_path);
+  return x_fs_path_is_file(&expected_game_dll_path);
+}
+
+LDKOSProcess *ldk_project_generate_game_module_start(
+    const LDKProject *project, const LDKProjectBuildDesc *desc,
+    LDKOSProcessResult *out_result)
+{
+  XStrBuilder *arguments;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      s_string_is_empty(desc->ldk_root_path))
+  {
+    return NULL;
+  }
+
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&project->cmake_root_path)))
+  {
+    return NULL;
+  }
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return NULL;
+  }
+
+  x_strbuilder_append_format(arguments, "-S \"%s\" -B \"%s\"",
+      desc->ldk_root_path, x_fs_path_cstr(&project->cmake_root_path));
+
+  if (!s_string_is_empty(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -G \"%s\"", project->cmake_generator.buf);
+  }
+
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -A \"%s\"", project->cmake_arch.buf);
+  }
+
+  x_strbuilder_append_format(arguments,
+      " -DCMAKE_BUILD_TYPE=\"%s\""
+      " -DOPTION_LDK_USE_PREBUILT=ON"
+      " -DOPTION_LDK_PREBUILT_DIR=\"%s\""
+      " -DOPTION_BUILD_GAME=ON"
+      " -DOPTION_BUILD_GAME_LAUNCHER=OFF"
+      " -DOPTION_BUILD_EDITOR=OFF"
+      " -DOPTION_BUILD_TESTS=OFF"
+      " -DOPTION_GAME_DIR=\"%s\"",
+      s_project_build_config(desc->config), desc->ldk_root_path,
+      x_fs_path_cstr(&project->project_root_path));
+
+  return s_project_process_start(project, desc, arguments, out_result);
+}
+
+LDKOSProcess *ldk_project_build_game_module_start(
+    const LDKProject *project, const LDKProjectBuildDesc *desc,
+    LDKOSProcessResult *out_result)
+{
+  XStrBuilder *arguments;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path))
+  {
+    return NULL;
+  }
+
+  config = s_project_build_config(desc->config);
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return NULL;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target game",
+      x_fs_path_cstr(&project->cmake_root_path), config);
+
+  return s_project_process_start(project, desc, arguments, out_result);
+}
+
+static bool s_project_launcher_cmake_root_path_get(
+    const LDKProject *project, XFSPath *out_path)
+{
+  char path[X_FS_PATH_MAX_LENGTH];
+  int length;
+
+  if (project == NULL || out_path == NULL)
+  {
+    return false;
+  }
+
+  length = snprintf(path, sizeof(path), "%s_launcher",
+      x_fs_path_cstr(&project->cmake_root_path));
+  if (length < 0 || (size_t)length >= sizeof(path))
+  {
+    return false;
+  }
+
+  x_fs_path_set(out_path, path);
+  x_fs_path_normalize(out_path);
+  return true;
+}
+
+bool ldk_project_game_launcher_output_path_get(
+    const LDKProject *project, const char *config, XFSPath *out_path)
+{
+  if (project == NULL || out_path == NULL || !project->loaded)
+  {
+    return false;
+  }
+
+  x_fs_path(out_path, x_fs_path_cstr(&project->project_root_path), "bin",
+      s_project_build_config(config), "ldk_launcher.exe");
+  x_fs_path_normalize(out_path);
+  return out_path->length > 0;
+}
+
+bool ldk_project_generate_game_launcher(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
+  XFSPath launcher_cmake_root;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      s_string_is_empty(desc->ldk_root_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return false;
+  }
+
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&launcher_cmake_root)))
+  {
+    return false;
+  }
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments, "-S \"%s\" -B \"%s\"",
+      desc->ldk_root_path, x_fs_path_cstr(&launcher_cmake_root));
+
+  if (!s_string_is_empty(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -G \"%s\"", project->cmake_generator.buf);
+  }
+
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -A \"%s\"", project->cmake_arch.buf);
+  }
+
+  x_strbuilder_append_format(arguments,
+      " -DCMAKE_BUILD_TYPE=\"%s\""
+      " -DOPTION_LDK_USE_PREBUILT=OFF"
+      " -DOPTION_BUILD_GAME=OFF"
+      " -DOPTION_BUILD_GAME_LAUNCHER=ON"
+      " -DOPTION_BUILD_EDITOR=OFF"
+      " -DOPTION_BUILD_TESTS=OFF"
+      " -DOPTION_GAME_DIR=\"%s\"",
+      s_project_build_config(desc->config),
+      x_fs_path_cstr(&project->project_root_path));
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+  return s_project_process_succeeded(process_result);
+}
+
+bool ldk_project_build_game_launcher(
+    const LDKProject *project, const LDKProjectBuildDesc *desc)
+{
+  XStrBuilder *arguments;
+  LDKOSProcessDesc process_desc = {0};
+  LDKOSProcessResult process_result;
+  XFSPath launcher_cmake_root;
+  XFSPath expected_launcher_path;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return false;
+  }
+
+  config = s_project_build_config(desc->config);
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target ldk_launcher",
+      x_fs_path_cstr(&launcher_cmake_root), config);
+
+  process_desc.executable = desc->cmake_path;
+  process_desc.arguments = x_strbuilder_to_string(arguments);
+  process_desc.working_directory = x_fs_path_cstr(&project->project_root_path);
+  process_desc.new_console = desc->new_console;
+
+  process_result = ldk_os_process_run(&process_desc);
+  x_strbuilder_destroy(arguments);
+
+  if (!s_project_process_succeeded(process_result))
+  {
+    return false;
+  }
+
+  x_fs_path(&expected_launcher_path,
+      x_fs_path_cstr(&project->project_root_path), "bin", config,
+      "ldk_launcher.exe");
+  x_fs_path_normalize(&expected_launcher_path);
+  return x_fs_path_is_file(&expected_launcher_path);
+}
+
+LDKOSProcess *ldk_project_generate_game_launcher_start(
+    const LDKProject *project, const LDKProjectBuildDesc *desc,
+    LDKOSProcessResult *out_result)
+{
+  XStrBuilder *arguments;
+  XFSPath launcher_cmake_root;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      s_string_is_empty(desc->ldk_root_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return NULL;
+  }
+
+  if (!x_fs_directory_create_recursive(
+          x_fs_path_cstr(&launcher_cmake_root)))
+  {
+    return NULL;
+  }
+
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return NULL;
+  }
+
+  x_strbuilder_append_format(arguments, "-S \"%s\" -B \"%s\"",
+      desc->ldk_root_path, x_fs_path_cstr(&launcher_cmake_root));
+
+  if (!s_string_is_empty(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -G \"%s\"", project->cmake_generator.buf);
+  }
+
+  if (!s_string_is_empty(project->cmake_arch.buf) &&
+      s_project_generator_supports_platform(project->cmake_generator.buf))
+  {
+    x_strbuilder_append_format(
+        arguments, " -A \"%s\"", project->cmake_arch.buf);
+  }
+
+  x_strbuilder_append_format(arguments,
+      " -DCMAKE_BUILD_TYPE=\"%s\""
+      " -DOPTION_LDK_USE_PREBUILT=OFF"
+      " -DOPTION_BUILD_GAME=OFF"
+      " -DOPTION_BUILD_GAME_LAUNCHER=ON"
+      " -DOPTION_BUILD_EDITOR=OFF"
+      " -DOPTION_BUILD_TESTS=OFF"
+      " -DOPTION_GAME_DIR=\"%s\"",
+      s_project_build_config(desc->config),
+      x_fs_path_cstr(&project->project_root_path));
+
+  return s_project_process_start(project, desc, arguments, out_result);
+}
+
+LDKOSProcess *ldk_project_build_game_launcher_start(
+    const LDKProject *project, const LDKProjectBuildDesc *desc,
+    LDKOSProcessResult *out_result)
+{
+  XStrBuilder *arguments;
+  XFSPath launcher_cmake_root;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path) ||
+      !s_project_launcher_cmake_root_path_get(
+          project, &launcher_cmake_root))
+  {
+    return NULL;
+  }
+
+  config = s_project_build_config(desc->config);
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return NULL;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target ldk_launcher",
+      x_fs_path_cstr(&launcher_cmake_root), config);
+
+  return s_project_process_start(project, desc, arguments, out_result);
 }
 
 #endif // LDK_EDITOR
+

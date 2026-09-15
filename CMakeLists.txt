@@ -153,8 +153,9 @@ function(ldk_game_build)
     DEFINITIONS
     LIBRARIES
     COMPONENT_DIRS
+    SYSTEM_DIRS
   )
-  
+
   cmake_parse_arguments(
     GAME
     "${options}"
@@ -203,39 +204,84 @@ function(ldk_game_build)
   set(GAME_METADATA_HEADER "${GAME_METADATA_DIR}/generated_component_metadata.h")
 
   # ------------------------------------------------------------
-  # Component metadata generation
+  # Component and system metadata generation
   # ------------------------------------------------------------
 
-  if (GAME_COMPONENT_DIRS)
-    set(GAME_COMPONENT_HEADERS "")
-    
-    foreach(component_dir IN LISTS GAME_COMPONENT_DIRS)
-      ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
-      list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
-    endforeach()
+  set(GAME_COMPONENT_HEADERS "")
+  foreach(component_dir IN LISTS GAME_COMPONENT_DIRS)
+    ldk_collect_headers_from_dir(headers_in_dir "${component_dir}")
+    list(APPEND GAME_COMPONENT_HEADERS ${headers_in_dir})
+  endforeach()
+  list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
 
-    list(REMOVE_DUPLICATES GAME_COMPONENT_HEADERS)
+  set(GAME_SYSTEM_HEADERS "")
+  foreach(system_dir IN LISTS GAME_SYSTEM_DIRS)
+    ldk_collect_headers_from_dir(headers_in_dir "${system_dir}")
+    list(APPEND GAME_SYSTEM_HEADERS ${headers_in_dir})
+  endforeach()
+  list(REMOVE_DUPLICATES GAME_SYSTEM_HEADERS)
 
-    add_custom_command(
-      OUTPUT "${GAME_METADATA_HEADER}"
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
-      COMMAND $<TARGET_FILE:comet> "${GAME_METADATA_HEADER}" ${GAME_COMPONENT_HEADERS}
-      DEPENDS
-        comet
-        ${GAME_COMPONENT_HEADERS}
-      COMMAND_EXPAND_LISTS
-      VERBATIM
-      COMMENT "Running component metadata extraction tool..."
-    )
+  set(GAME_METADATA_INPUTS
+    ${GAME_COMPONENT_HEADERS}
+    ${GAME_SYSTEM_HEADERS}
+  )
 
-    add_custom_target(${GAME_TARGET}_metadata
-      DEPENDS "${GAME_METADATA_HEADER}"
-    )
+  # Function systems can be declared directly in game source files.
+  # Feed existing C/C++ sources to Comet as metadata inputs as well.
+  foreach(game_source IN LISTS GAME_SOURCES)
+    if (IS_ABSOLUTE "${game_source}")
+      set(game_source_abs "${game_source}")
+    else()
+      get_filename_component(game_source_abs "${game_source}" ABSOLUTE
+        BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
 
-    add_dependencies(${GAME_TARGET}
-      ${GAME_TARGET}_metadata
-    )
-  endif()
+    if (EXISTS "${game_source_abs}")
+      list(APPEND GAME_METADATA_INPUTS "${game_source_abs}")
+    endif()
+  endforeach()
+
+  list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
+
+  # Include every header passed to Comet, including headers explicitly listed
+  # in LDK_GAME_SOURCES. Never include .c/.cpp implementation files here.
+  set(GAME_METADATA_INCLUDES_HEADER
+    "${GAME_METADATA_DIR}/generated_component_metadata_includes.h")
+  set(GAME_METADATA_INCLUDES_TEXT "")
+  foreach(metadata_input IN LISTS GAME_METADATA_INPUTS)
+    get_filename_component(metadata_extension "${metadata_input}" LAST_EXT)
+    if (metadata_extension MATCHES "^[.](h|hpp|hh)$")
+      file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
+      string(APPEND GAME_METADATA_INCLUDES_TEXT
+        "#include \"${metadata_header}\"\n")
+    endif()
+  endforeach()
+
+  # OUTPUT_DIR may contain $<CONFIG>; generate the companion in the same
+  # configuration-specific directory as the Comet header.
+  file(GENERATE OUTPUT "${GAME_METADATA_INCLUDES_HEADER}"
+    CONTENT "${GAME_METADATA_INCLUDES_TEXT}")
+
+  add_custom_command(
+    OUTPUT "${GAME_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${GAME_METADATA_HEADER}" ${GAME_METADATA_INPUTS}
+    DEPENDS
+      comet
+      ${GAME_METADATA_INPUTS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running component and system metadata extraction tool..."
+  )
+
+  add_custom_target(${GAME_TARGET}_metadata
+    DEPENDS "${GAME_METADATA_HEADER}"
+  )
+
+  add_dependencies(${GAME_TARGET}
+    ${GAME_TARGET}_metadata
+  )
 
   # ------------------------------------------------------------
   # Normal game target setup
@@ -325,10 +371,16 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h
+  ${INCLUDE_DIR}/ldk_asset.h
   ${INCLUDE_DIR}/ldk_color.h
   ${INCLUDE_DIR}/ldk_game.h
+  src/ldk_engine_metadata.c
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
+  ${INCLUDE_DIR}/ldk_mesh_asset.h   src/module/ldk_asset_mesh.c
+  ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
+  ${INCLUDE_DIR}/ldk_material_io.h src/ldk_material_io.c
+  ${INCLUDE_DIR}/ldk_material_asset.h src/module/ldk_asset_material.c
   ${INCLUDE_DIR}/ldk_resource.h
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
@@ -336,6 +388,8 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
+  ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
+  ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
@@ -346,8 +400,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_renderer.h        src/module/ldk_renderer.c
   ${INCLUDE_DIR}/module/ldk_rhi.h             src/module/ldk_rhi.c
   ${INCLUDE_DIR}/module/ldk_system.h          src/module/ldk_system.c
-  ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c
+  ${INCLUDE_DIR}/module/ldk_ui.h              src/module/ldk_ui.c src/module/ldk_ui_theme_io.c
   ${INCLUDE_DIR}/module/ldk_scenegraph.h      src/module/ldk_scenegraph.c
+  ${INCLUDE_DIR}/module/ldk_scene_manager.h   src/module/ldk_scene_manager.c
 
   # Components
   ${INCLUDE_DIR}/component/ldk_transform.h    src/component/ldk_transform.c
@@ -356,8 +411,10 @@ list(APPEND LDK_SOURCE
 )
 
 if (WIN32)
-  list(APPEND LDK_SOURCE src/ldk_os_win32.c)
-  set(LIBS dbghelp.lib)
+  list(APPEND LDK_SOURCE
+    src/ldk_os_win32.c
+  )
+  set(LIBS dbghelp.lib comdlg32.lib)
 
   list(APPEND Release_LIBS ${LIBS})
   list(APPEND Release_DEFINITIONS)
@@ -391,16 +448,16 @@ if (OPTION_LDK_USE_PREBUILT)
 
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
 
-    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/lib/ldk.lib"
+    IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/lib/Debug/ldk.lib"
     IMPORTED_LOCATION_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/ldk.dll"
 
-    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/lib/ldk.lib"
+    IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/lib/Release/ldk.lib"
     IMPORTED_LOCATION_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/ldk.dll"
 
-    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/lib/ldk.lib"
+    IMPORTED_IMPLIB_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/lib/RelWithDebInfo/ldk.lib"
     IMPORTED_LOCATION_RELWITHDEBINFO "${OPTION_LDK_PREBUILT_DIR}/bin/RelWithDebInfo/ldk.dll"
 
-    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/lib/ldk.lib"
+    IMPORTED_IMPLIB_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/lib/MinSizeRel/ldk.lib"
     IMPORTED_LOCATION_MINSIZEREL "${OPTION_LDK_PREBUILT_DIR}/bin/MinSizeRel/ldk.dll"
   )
 else()
@@ -433,17 +490,60 @@ ldk_target_output_dirs(comet
   ARCHIVE "${LDK_LIBRARY_DIR}"
 )
 
+if (NOT OPTION_LDK_USE_PREBUILT)
+  set(LDK_ENGINE_METADATA_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk_engine")
+  set(LDK_ENGINE_METADATA_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata.h")
+
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_COMPONENT_HEADERS "${INCLUDE_DIR}/component")
+
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_COMPONENT_HEADERS}
+    DEPENDS
+      comet
+      ${LDK_ENGINE_COMPONENT_HEADERS}
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running engine component metadata extraction tool..."
+  )
+
+  add_custom_target(ldk_engine_metadata
+    DEPENDS "${LDK_ENGINE_METADATA_HEADER}"
+  )
+
+  add_dependencies(ldk ldk_engine_metadata)
+  target_include_directories(ldk PRIVATE "${LDK_ENGINE_METADATA_DIR}")
+endif()
+
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)
   if (OPTION_LDK_USE_PREBUILT)
     message(FATAL_ERROR "OPTION_BUILD_EDITOR cannot use OPTION_LDK_USE_PREBUILT. Build the editor with the engine sources.")
   endif()
 
-  add_executable(ldk_editor src/ldk_app_editor.c
+  add_executable(ldk_editor src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_scene_catalog.c
+    src/editor/ldk_editor_grouping_catalog.c
+    src/editor/ldk_editor_theme.h
+    src/editor/ldk_editor_theme.c
+    src/editor/ldk_editor_dock.c
+    src/editor/ldk_editor_camera.c
+    src/editor/ldk_editor_grid.c
+    src/editor/ldk_editor_gizmo.c
+    src/editor/ldk_editor_console.c
+    src/editor/ldk_editor_inspector.c
+    src/editor/ldk_editor_file_explorer.c
+    src/editor/ldk_editor_hierarchy_viewer.c
     src/editor/ldk_editor_cmd.c
-    src/editor/ldk_editor_scene.c
+    src/editor/ldk_ui_drag_n_drop.h
+    src/editor/ldk_ui_drag_n_drop.c
   )
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
@@ -483,25 +583,18 @@ endif()
 
 # --- GAME MODULE ------------------------------------------------------------
 if (OPTION_BUILD_GAME)
-  if (OPTION_LDK_USE_PREBUILT)
-    set(LDK_GAME_TARGET_NAME game)
-  else()
-    set(LDK_GAME_TARGET_NAME game_shared)
-  endif()
-
-  list(APPEND LDK_GAME_COMPONENT_DIRS
-  "${INCLUDE_DIR}/component")
 
   # Includes game metadata source
   list(APPEND LDK_GAME_SOURCES )
-  
+
   ldk_game_build(
-    TARGET ${LDK_GAME_TARGET_NAME}
+    TARGET game
     TYPE SHARED
     ENGINE_TARGET ldk
     SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
-    COMPONENT_DIRS ${ENGINE_COMPONENT_DIR} ${LDK_GAME_COMPONENT_DIRS}
+    COMPONENT_DIRS ${LDK_GAME_COMPONENT_DIRS}
+    SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}
     LDK_GAME_DLL
@@ -517,8 +610,10 @@ if (OPTION_BUILD_GAME_LAUNCHER)
   endif()
 
   add_library(ldk_monolithic STATIC ${LDK_SOURCE})
-  add_dependencies(ldk_monolithic print_options)
+  add_dependencies(ldk_monolithic print_options ldk_engine_metadata)
   ldk_engine_target_defaults(ldk_monolithic)
+  target_include_directories(
+    ldk_monolithic PRIVATE "${LDK_ENGINE_METADATA_DIR}")
   target_compile_definitions(ldk_monolithic PRIVATE LDK_MONOLITHIC)
 
   ldk_target_output_dirs(ldk_monolithic
@@ -531,7 +626,9 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     TARGET game_static
     TYPE STATIC
     ENGINE_TARGET ldk_monolithic
-    SOURCES ${LDK_GAME_SOURCES}
+    SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
+    COMPONENT_DIRS ${LDK_GAME_COMPONENT_DIRS}
+    SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}
@@ -540,7 +637,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
     OUTPUT_DIR "${OPTION_GAME_DIR}/bin/$<CONFIG>"
   )
 
-  add_executable(ldk_launcher src/ldk_app_launcher.c)
+  add_executable(ldk_launcher src/launcher/ldk_app_launcher.c)
   ldk_target_defaults(ldk_launcher)
 
   target_include_directories(ldk_launcher PRIVATE
@@ -574,4 +671,9 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
+  ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
+  ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
+  ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)
+  ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
+  ldk_test_build(TARGET test_ui_theme_io SOURCES src/tests/test_ldk_ui_theme_io.c)
 endif()

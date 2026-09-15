@@ -1,0 +1,44 @@
+dock:
+  version: 1
+  current: "default"
+  layouts:
+    - name: "default"
+      windows:
+        - id: 1279544069
+          floating_rect: [360, 207, 480, 320]
+        - id: 1279544065
+          floating_rect: [40, 90, 520, 400]
+        - id: 1279544066
+          floating_rect: [180, 100, 640, 420]
+        - id: 1279544067
+          floating_rect: [760, 100, 280, 420]
+        - id: 1279544068
+          floating_rect: [180, 540, 640, 240]
+      tree:
+        type: "split"
+        axis: "horizontal"
+        ratio: 0.711250007
+        first:
+          type: "split"
+          axis: "vertical"
+          ratio: 0.660000026
+          first:
+            type: "leaf"
+            active: 1279544069
+            windows: [1279544069, 1279544066]
+          second:
+            type: "split"
+            axis: "horizontal"
+            ratio: 0.5
+            first:
+              type: "leaf"
+              active: 1279544065
+              windows: [1279544065]
+            second:
+              type: "leaf"
+              active: 1279544068
+              windows: [1279544068]
+        second:
+          type: "leaf"
+          active: 1279544067
+          windows: [1279544067]

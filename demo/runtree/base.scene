@@ -1,0 +1,93 @@
+scene:
+  version: 1
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.569439650, -0.00414329767
+            local_scale: 1.16555500, 1.16555500, 2.06512880
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 1
+      parent: 2
+      flags: 0
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0302972794, 1.17998791, 0.000992655754
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 2
+      parent: 0
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, -0.133486927, -0.576774240
+            local_scale: 0.857960343, 0.857960343, 0.484231263
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 3
+      parent: 0
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, -0.146292210, 0.442302287
+            local_scale: 0.857960343, 0.857960343, 0.484231263
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 4
+      parent: 3
+      flags: 0
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 1.12865114, 0.00103080273
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 5
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.0769772530
+            local_scale: 6.52587891, 6.52587891, 6.52587891
+            local_rotation: -0.711974084, 0.00000000, 0.00000000, 0.702205777
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            material_type: 4
+            material_color: 0xa800ff
+  systems:
+    - id: "0x63f0bfacf2c00f6b"
+      grouping: "0x8000000000000000"
+      data:
+        log_every_n_updates: 100

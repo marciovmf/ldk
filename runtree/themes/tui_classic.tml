@@ -1,0 +1,142 @@
+# LDK UI theme format, version 1.
+# Colors are packed 0xRRGGBBAA.
+# A classic text-user-interface inspired theme:
+# dark screen, sparse fills, bright borders, and reverse-video for active state.
+ldk_editor_theme:
+    version: 1
+    base: "dark"
+    theme_name: "TUI"
+
+    # Palette
+    # Intention:
+    # - overall screen feels like a terminal/dialog application
+    # - panels are mostly dark and flat
+    # - borders do most of the visual work
+    # - active elements use reverse video
+    # - title/tab bars read like TUI status bars
+    text: 0xD8D8D8FF
+    text_disabled: 0x6D6D6DFF
+    window_bg: 0x000000FF
+    panel_bg: 0x000000FF
+
+    control_bg: 0x00000000
+    control_bg_hovered: 0x00008044
+    control_bg_active: 0xD8D8D866
+    control_bg_active_hovered: 0xFFFFFFFF
+
+    control_text: 0xD8D8D8FF
+    control_text_hovered: 0xFFFFFFFF
+    control_text_active: 0x000000FF
+    control_text_active_hovered: 0x000000FF
+
+    control_border: 0xB8B8B8FF
+    control_border_hovered: 0xFFFFFFFF
+    control_border_active: 0xFFFFFFFF
+    control_border_active_hovered: 0xFFFFFFFF
+    control_border_disabled: 0x444444FF
+
+    border: 0x8A8A8AFF
+    focus: 0xFFFFFF66
+
+    slider_track: 0x505050FF
+    slider_track_hovered: 0x787878FF
+    slider_track_active: 0xFFFFFFFF
+    slider_fill: 0xD8D8D8FF
+    slider_thumb: 0x000000FF
+    slider_thumb_hovered: 0x000000FF
+    slider_thumb_active: 0x000000FF
+
+    title: 0xFFFFFFFF
+    title_bar: 0x000080FF
+    title_bar_focused: 0x0000A8FF
+
+    scrollbar_track: 0x00000000
+    scrollbar_thumb: 0x5C5C5CFF
+    scrollbar_thumb_hovered: 0x9A9A9AFF
+    scrollbar_thumb_active: 0xFFFFFFFF
+
+    tab_bar_bg: 0x000080FF
+    separator: 0x8A8A8AFF
+
+    tab_bg: 0x00000000
+    tab_bg_hovered: 0x00008066
+    tab_text: 0xC8C8C8FF
+    tab_text_hovered: 0xFFFFFFFF
+    tab_border: 0x888888FF
+    tab_border_hovered: 0xFFFFFFFF
+
+    tab_active_bg: 0xD8D8D8FF
+    tab_active_text: 0x000000FF
+    tab_active_border: 0xFFFFFFFF
+
+    input_border: 0xB8B8B8FF
+    input_bg: 0x00000000
+    input_bg_hovered: 0x0A0A0AFF
+    input_bg_active: 0x101010FF
+    input_bg_active_hovered: 0x141414FF
+
+    # Metrics
+    # Slightly stronger lines help sell the TUI feel.
+    control_border_size: 1.0
+    input_border_size: 1.0
+    window_border_size: 1.0
+    window_interaction_border_size: 4.0
+    slider_track_height: 0.12
+    slider_thumb_width: 0.35
+    text_cursor_blink: true
+    text_cursor_blink_interval: 0.50
+    text_cursor_width: 2.0
+    text_cursor_padding_y: 4.0
+
+    # Explicit UI color slot mappings
+    COLOR_TEXT: "${text}"
+    COLOR_TEXT_DISABLED: "${text_disabled}"
+    COLOR_WINDOW_BG: "${window_bg}"
+    COLOR_PANEL_BG: "${panel_bg}"
+    COLOR_CONTROL_BG: "${control_bg}"
+    COLOR_CONTROL_BG_HOVERED: "${control_bg_hovered}"
+    COLOR_CONTROL_BG_ACTIVE: "${control_bg_active}"
+    COLOR_CONTROL_BG_ACTIVE_HOVERED: "${control_bg_active_hovered}"
+    COLOR_CONTROL_TEXT: "${control_text}"
+    COLOR_CONTROL_TEXT_HOVERED: "${control_text_hovered}"
+    COLOR_CONTROL_TEXT_ACTIVE: "${control_text_active}"
+    COLOR_CONTROL_TEXT_ACTIVE_HOVERED: "${control_text_active_hovered}"
+    COLOR_CONTROL_TEXT_DISABLED: "${text_disabled}"
+    COLOR_CONTROL_BORDER: "${control_border}"
+    COLOR_CONTROL_BORDER_HOVERED: "${control_border_hovered}"
+    COLOR_CONTROL_BORDER_ACTIVE: "${control_border_active}"
+    COLOR_CONTROL_BORDER_ACTIVE_HOVERED: "${control_border_active_hovered}"
+    COLOR_CONTROL_BORDER_DISABLED: "${control_border_disabled}"
+    COLOR_BORDER: "${border}"
+    COLOR_FOCUS: "${focus}"
+    COLOR_SLIDER_TRACK: "${slider_track}"
+    COLOR_SLIDER_TRACK_HOVERED: "${slider_track_hovered}"
+    COLOR_SLIDER_TRACK_ACTIVE: "${slider_track_active}"
+    COLOR_SLIDER_FILL: "${slider_fill}"
+    COLOR_SLIDER_THUMB: "${slider_thumb}"
+    COLOR_SLIDER_THUMB_HOVERED: "${slider_thumb_hovered}"
+    COLOR_SLIDER_THUMB_ACTIVE: "${slider_thumb_active}"
+    COLOR_TITLE: "${title}"
+    COLOR_TITLE_BAR: "${title_bar}"
+    COLOR_TITLE_BAR_FOCUSED: "${title_bar_focused}"
+    COLOR_SCROLLBAR_TRACK: "${scrollbar_track}"
+    COLOR_SCROLLBAR_THUMB: "${scrollbar_thumb}"
+    COLOR_SCROLLBAR_THUMB_HOVERED: "${scrollbar_thumb_hovered}"
+    COLOR_SCROLLBAR_THUMB_ACTIVE: "${scrollbar_thumb_active}"
+    COLOR_TAB_BAR_BG: "${tab_bar_bg}"
+    COLOR_TAB_BAR_SEPARATOR: "${separator}"
+    COLOR_TAB_BG: "${tab_bg}"
+    COLOR_TAB_BG_HOVERED: "${tab_bg_hovered}"
+    COLOR_TAB_TEXT: "${tab_text}"
+    COLOR_TAB_TEXT_HOVERED: "${tab_text_hovered}"
+    COLOR_TAB_BORDER: "${tab_border}"
+    COLOR_TAB_BORDER_HOVERED: "${tab_border_hovered}"
+    COLOR_TAB_ACTIVE_BG: "${tab_active_bg}"
+    COLOR_TAB_ACTIVE_TEXT: "${tab_active_text}"
+    COLOR_TAB_ACTIVE_BORDER: "${tab_active_border}"
+    COLOR_SEPARATOR: "${separator}"
+    COLOR_INPUT_BORDER: "${input_border}"
+    COLOR_INPUT_BG: "${input_bg}"
+    COLOR_INPUT_BG_HOVERED: "${input_bg_hovered}"
+    COLOR_INPUT_BG_ACTIVE: "${input_bg_active}"
+    COLOR_INPUT_BG_ACTIVE_HOVERED: "${input_bg_active_hovered}"

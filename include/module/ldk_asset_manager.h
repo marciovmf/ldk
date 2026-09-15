@@ -1,6 +1,7 @@
 #ifndef LDK_ASSET_MANAGER_H
 #define LDK_ASSET_MANAGER_H
 
+#include <ldk_asset.h>
 #include <ldk_common.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
@@ -11,23 +12,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef XHandle LDKHandle;
-
-  typedef enum LDKAssetType
-  {
-    LDK_ASSET_TYPE_NULL      = 0,
-    LDK_ASSET_TYPE_TEXT_FILE = 1,
-    LDK_ASSET_TYPE_FONT      = 2,
-    LDK_ASSET_TYPE_IMAGE     = 3,
-    LDK_ASSET_TYPE_MESH      = 4
-  } LDKAssetType;
-
-  typedef struct LDKAssetHandle
-  {
-    LDKHandle h;
-  } LDKAssetHandle;
-
 
   typedef struct LDKAssetInfo
   {
@@ -67,11 +51,6 @@ typedef XHandle LDKHandle;
   // Text file asset
   // ---------------------------------------------------------------------------
 
-  typedef struct LDKAssetTextFile
-  {
-    LDKHandle h;
-  } LDKAssetTextFile;
-
   typedef struct LDKAssetTextFileData
   {
     char* text;
@@ -91,14 +70,10 @@ typedef XHandle LDKHandle;
   // Image
   // ---------------------------------------------------------------------------
 
-  typedef struct LDKAssetImage
-  {
-    LDKHandle h;
-  } LDKAssetImage;
-
   typedef struct LDKAssetImageData
   {
     LDKImage* image;
+    bool is_missing; /* Procedural substitute for an unavailable image. */
   } LDKAssetImageData;
 
   LDK_API LDKAssetImage ldk_asset_image_null(void);
@@ -111,6 +86,16 @@ typedef XHandle LDKHandle;
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
       const char* path);
+  /* Reuse a loaded image by normalized absolute path, or load it once.
+   * The returned asset is shared and lives until manager clear/termination;
+   * callers must not individually unload it. No file hot reload is performed. */
+  LDK_API LDKAssetImage ldk_asset_manager_image_load_shared(
+      LDKAssetManager* manager, const char* path);
+  /* Shared magenta/black checkerboard for an unavailable image. Preserve the
+   * missing absolute path for scene saves; NULL selects the unassigned fallback.
+   * Manager-owned, like image_load_shared. */
+  LDK_API LDKAssetImage ldk_asset_manager_image_missing(
+      LDKAssetManager* manager, const char* path);
   LDK_API void ldk_asset_manager_image_unload(
       LDKAssetManager* manager,
       LDKAssetImage asset);
@@ -124,11 +109,6 @@ typedef XHandle LDKHandle;
   // ---------------------------------------------------------------------------
   // Font asset
   // ---------------------------------------------------------------------------
-
-  typedef struct LDKAssetFont
-  {
-    LDKHandle h;
-  } LDKAssetFont;
 
   typedef struct LDKAssetFontData
   {
@@ -149,14 +129,29 @@ typedef XHandle LDKHandle;
   // Mesh asset
   // ---------------------------------------------------------------------------
 
-  typedef struct LDKAssetMesh
+  typedef struct LDKAssetMeshEntry
   {
-    LDKHandle h;
-  } LDKAssetMesh;
+    char name[LDK_MESH_NAME_CAPACITY];
+    LDKMeshData mesh;
+    LDKMeshSubmesh* submeshes;
+    u32 submesh_count;
+    LDKMeshMaterialSlot* material_slots;
+    u32 material_slot_count;
+  } LDKAssetMeshEntry;
 
   typedef struct LDKAssetMeshData
   {
+    /*
+     * Ownership anchors used by the asset manager destructor. External mesh
+     * assets pack all vertex-side data in mesh.vertices and all indices in
+     * mesh.indices. For programmatic/built-in assets this is also the implicit
+     * mesh at index zero.
+     */
     LDKMeshData mesh;
+    LDKAssetMeshEntry* meshes;
+    u32 mesh_count;
+    LDKMeshNode* nodes;
+    u32 node_count;
   } LDKAssetMeshData;
 
   LDK_API LDKAssetMesh ldk_asset_mesh_null(void);

@@ -5,7 +5,8 @@
 // Areas
 //------------------------------------------------------------
 
-bool ldk_ui_begin_area(LDKUIContext *ctx, char const *title, bool expanded)
+bool ldk_ui_begin_area_ex(
+    LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded)
 {
   LDKUIAreaStackEntry *entry;
   bool clicked;
@@ -16,7 +17,15 @@ bool ldk_ui_begin_area(LDKUIContext *ctx, char const *title, bool expanded)
   }
 
   ldk_ui_set_next_height(ctx, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  clicked = ldk_ui_button_flat(ctx, title);
+  if (s_ui_icon_valid(icon))
+  {
+    u32 result = ldk_ui_tree_node_ex(ctx, title, icon, expanded, 0, 0);
+    clicked = (result & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0;
+  }
+  else
+  {
+    clicked = ldk_ui_button_flat(ctx, title);
+  }
 
   if (clicked)
   {
@@ -42,6 +51,12 @@ bool ldk_ui_begin_area(LDKUIContext *ctx, char const *title, bool expanded)
   }
 
   return expanded;
+}
+
+bool ldk_ui_begin_area(LDKUIContext *ctx, char const *title, bool expanded)
+{
+  LDKUIIcon icon = {0};
+  return ldk_ui_begin_area_ex(ctx, title, icon, expanded);
 }
 
 void ldk_ui_end_area(LDKUIContext *ctx)

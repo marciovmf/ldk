@@ -1,0 +1,144 @@
+# LDK UI theme format, version 1.
+# Colors are packed 0xRRGGBBAA.
+# Modern professional 3D/DCC editor theme:
+# layered neutral graphite surfaces, restrained blue interaction color,
+# low visual noise, and clear active/inactive hierarchy.
+ldk_editor_theme:
+    version: 1
+    base: "dark"
+    theme_name: "Studio Graphite Mid"
+
+    # Palette
+    text: 0xE3E5E7FF
+    text_disabled: 0x969BA0FF
+
+    # Layered surfaces: workspace -> panel -> control.
+    window_bg: 0x36393DFF
+    panel_bg: 0x41454AFF
+
+    control_bg: 0x50555BFF
+    control_bg_hovered: 0x5B6168FF
+    control_bg_active: 0x656C74FF
+    control_bg_active_hovered: 0x707881FF
+
+    control_text: 0xE1E3E5FF
+    control_text_hovered: 0xFFFFFFFF
+    control_text_active: 0xFFFFFFFF
+    control_text_active_hovered: 0xFFFFFFFF
+
+    # Borders are intentionally quiet; surface contrast carries most of the UI.
+    control_border: 0x34383CFF
+    control_border_hovered: 0x737A82FF
+    control_border_active: 0x7699BDFF
+    control_border_active_hovered: 0x88AED4FF
+    control_border_disabled: 0x3A3E43FF
+
+    border: 0x2E3135FF
+    #focus: 0x6E9CC9AA
+    focus: 0x2C5D87FF
+
+    # Compact DCC-style sliders.
+    slider_track: 0x373B40FF
+    slider_track_hovered: 0x41464CFF
+    slider_track_active: 0x4A5057FF
+    slider_fill: 0x6F94BAFF
+    slider_thumb: 0xD0D3D6FF
+    slider_thumb_hovered: 0xECEEEFFF
+    slider_thumb_active: 0xFFFFFFFF
+
+    # Title bars are only slightly darker than panels.
+    title: 0xECEEEFFF
+    title_bar: 0x3A3E43FF
+    title_bar_focused: 0x44494FFF
+
+    scrollbar_track: 0x00000000
+    scrollbar_thumb: 0x5A6066FF
+    scrollbar_thumb_hovered: 0x747B82FF
+    scrollbar_thumb_active: 0x8C949CFF
+
+    # Tabs rely on surface hierarchy, with a thin blue active indication.
+    tab_bar_bg: 0x3A3E43FF
+    separator: 0x2E3135FF
+
+    tab_bg: 0x3D4146FF
+    tab_bg_hovered: 0x4B5056FF
+    tab_text: 0xB3B7BBFF
+    tab_text_hovered: 0xF2F3F4FF
+    tab_border: 0x34383CFF
+    tab_border_hovered: 0x676E75FF
+
+    tab_active_bg: 0x50555BFF
+    tab_active_text: 0xFFFFFFFF
+    tab_active_border: 0x769CC3FF
+
+    # Inputs are slightly recessed relative to buttons and tool controls.
+    input_border: 0x303438FF
+    input_bg: 0x292C30FF
+    input_bg_hovered: 0x30343AFF
+    input_bg_active: 0x25282CFF
+    input_bg_active_hovered: 0x2D3136FF
+
+    # Metrics
+    control_border_size: 0.7
+    input_border_size: 0.8
+    window_border_size: 1.0
+    window_interaction_border_size: 4.0
+    slider_track_height: 0.16
+    slider_thumb_width: 0.30
+    text_cursor_blink: true
+    text_cursor_blink_interval: 0.50
+    text_cursor_width: 1.5
+    text_cursor_padding_y: 4.0
+
+    # Explicit UI color slot mappings
+    COLOR_TEXT: "${text}"
+    COLOR_TEXT_DISABLED: "${text_disabled}"
+    COLOR_WINDOW_BG: "${window_bg}"
+    COLOR_PANEL_BG: "${panel_bg}"
+    COLOR_CONTROL_BG: "${control_bg}"
+    COLOR_CONTROL_BG_HOVERED: "${control_bg_hovered}"
+    COLOR_CONTROL_BG_ACTIVE: "${control_bg_active}"
+    COLOR_CONTROL_BG_ACTIVE_HOVERED: "${control_bg_active_hovered}"
+    COLOR_CONTROL_TEXT: "${control_text}"
+    COLOR_CONTROL_TEXT_HOVERED: "${control_text_hovered}"
+    COLOR_CONTROL_TEXT_ACTIVE: "${control_text_active}"
+    COLOR_CONTROL_TEXT_ACTIVE_HOVERED: "${control_text_active_hovered}"
+    COLOR_CONTROL_TEXT_DISABLED: "${text_disabled}"
+    COLOR_CONTROL_BORDER: "${control_border}"
+    COLOR_CONTROL_BORDER_HOVERED: "${control_border_hovered}"
+    COLOR_CONTROL_BORDER_ACTIVE: "${control_border_active}"
+    COLOR_CONTROL_BORDER_ACTIVE_HOVERED: "${control_border_active_hovered}"
+    COLOR_CONTROL_BORDER_DISABLED: "${control_border_disabled}"
+    COLOR_BORDER: "${border}"
+    COLOR_FOCUS: "${focus}"
+    COLOR_SLIDER_TRACK: "${slider_track}"
+    COLOR_SLIDER_TRACK_HOVERED: "${slider_track_hovered}"
+    COLOR_SLIDER_TRACK_ACTIVE: "${slider_track_active}"
+    COLOR_SLIDER_FILL: "${slider_fill}"
+    COLOR_SLIDER_THUMB: "${slider_thumb}"
+    COLOR_SLIDER_THUMB_HOVERED: "${slider_thumb_hovered}"
+    COLOR_SLIDER_THUMB_ACTIVE: "${slider_thumb_active}"
+    COLOR_TITLE: "${title}"
+    COLOR_TITLE_BAR: "${title_bar}"
+    COLOR_TITLE_BAR_FOCUSED: "${title_bar_focused}"
+    COLOR_SCROLLBAR_TRACK: "${scrollbar_track}"
+    COLOR_SCROLLBAR_THUMB: "${scrollbar_thumb}"
+    COLOR_SCROLLBAR_THUMB_HOVERED: "${scrollbar_thumb_hovered}"
+    COLOR_SCROLLBAR_THUMB_ACTIVE: "${scrollbar_thumb_active}"
+    COLOR_TAB_BAR_BG: "${tab_bar_bg}"
+    COLOR_TAB_BAR_SEPARATOR: "${separator}"
+    COLOR_TAB_BG: "${tab_bg}"
+    COLOR_TAB_BG_HOVERED: "${tab_bg_hovered}"
+    COLOR_TAB_TEXT: "${tab_text}"
+    COLOR_TAB_TEXT_HOVERED: "${tab_text_hovered}"
+    COLOR_TAB_BORDER: "${tab_border}"
+    COLOR_TAB_BORDER_HOVERED: "${tab_border_hovered}"
+    COLOR_TAB_ACTIVE_BG: "${tab_active_bg}"
+    COLOR_TAB_ACTIVE_TEXT: "${tab_active_text}"
+    COLOR_TAB_ACTIVE_BORDER: "${tab_active_border}"
+    COLOR_SEPARATOR: "${separator}"
+    COLOR_INPUT_BORDER: "${input_border}"
+    COLOR_INPUT_BG: "${input_bg}"
+    COLOR_INPUT_BG_HOVERED: "${input_bg_hovered}"
+    COLOR_INPUT_BG_ACTIVE: "${input_bg_active}"
+    COLOR_INPUT_BG_ACTIVE_HOVERED: "${input_bg_active_hovered}"

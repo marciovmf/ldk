@@ -1,0 +1,745 @@
+#include "ldk.h"
+#include "ldk_editor_internal.h"
+#include <component/ldk_transform.h>
+#include <module/ldk_scenegraph.h>
+#include <module/ldk_scene_manager.h>
+#include "ldk_ui_drag_n_drop.h"
+#include <inttypes.h> // for PRIu64
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
+
+typedef struct LDKEditorHierarchyDropTarget
+{
+  LDKEntity entity;
+  bool detach;
+  bool valid;
+} LDKEditorHierarchyDropTarget;
+
+static u64 s_editor_entity_id(LDKEntity entity)
+{
+  u64 id = 0;
+  size_t copy_size = sizeof(entity) < sizeof(id) ? sizeof(entity) : sizeof(id);
+  memcpy(&id, &entity, copy_size);
+  return id;
+}
+
+static bool s_editor_hierarchy_node_pressed(LDKUIContext *ui, LDKUIId id)
+{
+  return ui != NULL && ui->mouse != NULL && ui->active_id == id &&
+         ldk_os_mouse_button_down(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static bool s_editor_hierarchy_node_drop(LDKUIContext *ui, LDKUIId id)
+{
+  return ui != NULL && ui->mouse != NULL && ui->active_id != 0 &&
+         ui->active_id != id && ui->hot_id == id &&
+         ldk_os_mouse_button_up(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static bool s_editor_hierarchy_window_empty_drop(LDKUIContext *ui)
+{
+  return ui != NULL && ui->mouse != NULL && ui->current_window != NULL &&
+         ui->active_id != 0 && ui->hot_id == 0 &&
+         ui->hovered_window_id == ui->current_window->id &&
+         ldk_os_mouse_button_up(
+             (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+static bool s_editor_hierarchy_can_edit(const LDKEditorContext *editor)
+{
+  return editor != NULL && editor->project.loaded &&
+         editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+         editor->current_scene_path.length != 0;
+}
+
+static void s_editor_hierarchy_entity_payload_set(LDKEntity entity)
+{
+  XSmallstr payload = {0};
+
+  x_smallstr_format(
+      &payload, "%" PRIu32 ":%" PRIu32, entity.index, entity.version);
+  ldk_ui_drag_n_drop_payload_set(
+      LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY, &payload);
+}
+
+static bool s_editor_hierarchy_entity_payload_parse(
+    const XSmallstr *payload, LDKEntity *out_entity)
+{
+  LDKEntity entity = x_handle_null();
+
+  if (payload == NULL || out_entity == NULL ||
+      sscanf(payload->buf, "%" SCNu32 ":%" SCNu32, &entity.index,
+          &entity.version) != 2)
+  {
+    return false;
+  }
+
+  *out_entity = entity;
+  return true;
+}
+
+static void s_editor_hierarchy_drop_commit(
+    LDKECS *ecs, const LDKEditorHierarchyDropTarget *target)
+{
+  XSmallstr payload = {0};
+  LDKEntity source = x_handle_null();
+  u32 type = 0;
+
+  if (ecs == NULL || target == NULL || !target->valid ||
+      !ldk_ui_drag_n_drop_payload_get_and_remove(&type, &payload) ||
+      type != LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY ||
+      !s_editor_hierarchy_entity_payload_parse(&payload, &source))
+  {
+    return;
+  }
+
+  if (!ldk_entity_is_alive(&ecs->entity, source))
+  {
+    return;
+  }
+
+  if (target->detach)
+  {
+    ldk_scenegraph_detach(source);
+    return;
+  }
+
+  if ((source.index == target->entity.index &&
+          source.version == target->entity.version) ||
+      !ldk_entity_is_alive(&ecs->entity, target->entity))
+  {
+    return;
+  }
+
+  ldk_scenegraph_set_parent(source, target->entity);
+}
+
+bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b)
+{
+  return memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+bool ldki_editor_selected_entity_get(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity *out_entity)
+{
+  if (!editor || !ecs ||
+      !ldk_entity_is_alive(&ecs->entity, editor->selected_entity))
+  {
+    if (editor)
+    {
+      editor->selected_entity = x_handle_null();
+    }
+    return false;
+  }
+
+  if (out_entity)
+  {
+    *out_entity = editor->selected_entity;
+  }
+  return true;
+}
+
+void ldki_editor_entity_display_name(
+    const LDKEntityInfo *info, LDKEntity entity, char *out, size_t out_size)
+{
+  const char *name = NULL;
+
+#if defined(_DEBUG) || defined(LDK_EDITOR)
+  if (info && info->name[0] != 0)
+  {
+    name = (const char *)info->name;
+  }
+#endif
+
+  if (name)
+  {
+    snprintf(out, out_size, "%s", name);
+  }
+  else
+  {
+    snprintf(out, out_size, "Entity 0x%016" PRIx64, s_editor_entity_id(entity));
+  }
+}
+
+static bool s_editor_hierarchy_initialize(LDKEditorContext *editor)
+{
+  if (editor->hierarchy_expanded_entities == NULL)
+  {
+    editor->hierarchy_expanded_entities = x_array_create(sizeof(LDKEntity), 32);
+  }
+
+  return editor->hierarchy_expanded_entities != NULL;
+}
+
+static i32 s_editor_hierarchy_expanded_index(
+    LDKEditorContext *editor, LDKEntity entity)
+{
+  if (editor->hierarchy_expanded_entities == NULL)
+  {
+    return -1;
+  }
+
+  for (u32 i = 0; i < x_array_count(editor->hierarchy_expanded_entities); ++i)
+  {
+    LDKEntity *expanded = x_array_get(editor->hierarchy_expanded_entities, i);
+    if (expanded != NULL && ldki_editor_entity_equal(*expanded, entity))
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static bool s_editor_hierarchy_expanded_get(
+    LDKEditorContext *editor, LDKEntity entity)
+{
+  return s_editor_hierarchy_expanded_index(editor, entity) >= 0;
+}
+
+static void s_editor_hierarchy_expanded_set(
+    LDKEditorContext *editor, LDKEntity entity, bool expanded)
+{
+  i32 index = s_editor_hierarchy_expanded_index(editor, entity);
+
+  if (expanded)
+  {
+    if (index < 0)
+    {
+      x_array_add(editor->hierarchy_expanded_entities, &entity);
+    }
+    return;
+  }
+
+  if (index >= 0)
+  {
+    x_array_delete_at(editor->hierarchy_expanded_entities, (u32)index);
+  }
+}
+
+bool ldki_editor_entity_add(
+    LDKEditorContext *editor, LDKECS *ecs)
+{
+  LDKEntity entity;
+
+  if (!editor || !ecs || !s_editor_hierarchy_can_edit(editor))
+  {
+    return false;
+  }
+
+  entity = ldk_ecs_entity_create();
+  if (x_handle_is_null(entity))
+  {
+    ldki_editor_log_error(editor, "Failed to create entity.");
+    return false;
+  }
+
+  if (!ldk_ecs_entity_name_set(entity, "Entity"))
+  {
+    ldki_editor_log_warning(editor, "Failed to name new entity.");
+  }
+
+  editor->selected_entity = entity;
+  editor->selected_system_id = 0;
+  return true;
+}
+
+static void s_editor_hierarchy_entity_destroy_subtree(
+    LDKEditorContext *editor, LDKECS *ecs, LDKEntity entity)
+{
+  const LDKTransform *transform =
+      ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
+  LDKEntity child =
+      transform != NULL ? transform->first_child : x_handle_null();
+
+  while (!x_handle_is_null(child))
+  {
+    const LDKTransform *child_transform =
+        ldk_entity_transform_get_const(&ecs->entity, &ecs->component, child);
+    LDKEntity next_sibling = child_transform != NULL
+                                 ? child_transform->next_sibling
+                                 : x_handle_null();
+
+    s_editor_hierarchy_entity_destroy_subtree(editor, ecs, child);
+    child = next_sibling;
+  }
+
+  s_editor_hierarchy_expanded_set(editor, entity, false);
+  ldk_ecs_entity_destroy(entity);
+}
+
+bool ldki_editor_selected_entity_remove(
+    LDKEditorContext *editor, LDKECS *ecs)
+{
+  LDKEntity entity;
+
+  if (!editor || !ecs || !s_editor_hierarchy_can_edit(editor) ||
+      !ldki_editor_selected_entity_get(editor, ecs, &entity) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return false;
+  }
+
+  s_editor_hierarchy_entity_destroy_subtree(editor, ecs, entity);
+  editor->selected_entity = x_handle_null();
+  editor->selected_system_id = 0;
+  return true;
+}
+
+static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
+    LDKECS *ecs, LDKEntity entity, u32 depth, LDKEntity *selected_entity,
+    bool *has_selection, LDKEditorHierarchyDropTarget *drop_target)
+{
+  if (ldk_entity_internal_flags_has(
+          &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  const LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, entity);
+  const LDKTransform *transform =
+      ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
+  LDKEntity first_child =
+      transform != NULL ? transform->first_child : x_handle_null();
+  bool has_children = !x_handle_is_null(first_child) &&
+                      ldk_entity_is_alive(&ecs->entity, first_child);
+  bool expanded =
+      has_children && s_editor_hierarchy_expanded_get(editor, entity);
+  u32 flags = has_children ? LDK_UI_TREE_NODE_NONE : LDK_UI_TREE_NODE_LEAF;
+  char label[LDK_ENTITY_NAME_MAX_LEN + 32];
+  u64 id = s_editor_entity_id(entity);
+
+  LDKUIIcon icon = {0};
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+
+  ldki_editor_entity_display_name(info, entity, label, sizeof(label));
+
+  if (*has_selection && ldki_editor_entity_equal(*selected_entity, entity))
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  ldk_ui_push_id_u32(ui, (u32)id);
+  ldk_ui_push_id_u32(ui, (u32)(id >> 32));
+
+  u32 result = ldk_ui_tree_node_ex(ui, label, icon, expanded, depth, flags);
+  LDKUIId node_id = ui->last_id;
+
+  if (s_editor_hierarchy_node_pressed(ui, node_id))
+  {
+    editor->selected_entity = entity;
+    editor->selected_system_id = 0;
+    *selected_entity = entity;
+    *has_selection = true;
+    s_editor_hierarchy_entity_payload_set(entity);
+  }
+
+  if (drop_target != NULL && s_editor_hierarchy_node_drop(ui, node_id))
+  {
+    drop_target->entity = entity;
+    drop_target->detach = false;
+    drop_target->valid = true;
+  }
+
+  if ((result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
+  {
+    expanded = !expanded;
+    s_editor_hierarchy_expanded_set(editor, entity, expanded);
+  }
+
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+
+  if (!has_children || !expanded)
+  {
+    return;
+  }
+
+  LDKEntity child = first_child;
+  while (!x_handle_is_null(child))
+  {
+    if (!ldk_entity_is_alive(&ecs->entity, child))
+    {
+      break;
+    }
+
+    const LDKTransform *child_transform =
+        ldk_entity_transform_get_const(&ecs->entity, &ecs->component, child);
+    LDKEntity next_sibling = child_transform != NULL
+                                 ? child_transform->next_sibling
+                                 : x_handle_null();
+
+    s_editor_hierarchy_entity_draw(editor, ecs, child, depth + 1,
+        selected_entity, has_selection, drop_target);
+
+    child = next_sibling;
+  }
+}
+
+static void s_editor_hierarchy_systems_draw(
+    LDKEditorContext *editor, LDKUIIcon icon)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKSceneSystems *systems = &editor->current_scene_systems;
+  LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED && manager &&
+      ldk_scene_manager_current(manager))
+  {
+    systems = &manager->current_systems;
+  }
+
+  LDKGame *game = ldk_game_get();
+  u32 metadata_count =
+      game && game->system_metadata_count ? game->system_metadata_count() : 0;
+  static bool systems_expanded = true;
+  const LDKUIId ADD_SYSTEM_POPUP = 0x53595341u;
+  bool can_edit = editor->project.loaded &&
+                  editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+                  editor->current_scene_path.length != 0;
+
+  const LDKUIId ADD_SYSTEM_BUTTON = 0x53595342u;
+  const LDKUIId EDIT_GROUPINGS_BUTTON = 0x53595347u;
+
+  ldk_ui_push_id_cstr(ui, "systems");
+  u32 systems_result = ldk_ui_tree_node_ex(
+      ui, "Systems", icon, systems_expanded, 0, LDK_UI_TREE_NODE_NONE);
+
+  LDKUIRect grouping_button_rect = ldk_ui_last_rect(ui);
+  grouping_button_rect.x +=
+      grouping_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+  grouping_button_rect.w = 24.0f;
+  grouping_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  LDKUIRect add_button_rect = grouping_button_rect;
+  add_button_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+
+  LDKUIIcon grouping_icon = icon;
+  grouping_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CATEGORY];
+ 
+  ldk_ui_begin_disabled(ui, !editor->project.loaded);
+  if (ldk_ui_widget_icon_button(
+          ui, EDIT_GROUPINGS_BUTTON, grouping_icon, "", grouping_button_rect))
+  {
+    ldki_editor_grouping_catalog_open(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(ui, !can_edit);
+  if (ldk_ui_widget_button(ui, ADD_SYSTEM_BUTTON, "+", add_button_rect))
+  {
+    ldk_ui_open_popup(ui, ADD_SYSTEM_POPUP);
+  }
+  ldk_ui_end_disabled(ui);
+
+  if ((systems_result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
+  {
+    systems_expanded = !systems_expanded;
+  }
+
+  if (systems_expanded)
+  {
+    for (u32 i = 0; i < systems->count; ++i)
+    {
+      u64 id = systems->ids[i];
+      const LDKSystemMeta *meta = NULL;
+      char label[256];
+
+      for (u32 j = 0; j < metadata_count && game->system_metadata_get; ++j)
+      {
+        const LDKSystemMeta *candidate = game->system_metadata_get(j);
+        if (candidate && candidate->id == id)
+        {
+          meta = candidate;
+          break;
+        }
+      }
+
+      if (meta)
+      {
+        snprintf(label, sizeof(label), "%s",
+            meta->name != NULL ? meta->name : "<unnamed system>");
+      }
+      else
+      {
+        snprintf(label, sizeof(label), "<missing system> 0x%016" PRIx64, id);
+      }
+
+      LDKUIIcon system_icon = icon;
+      system_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
+      LDKUIIcon delete_icon = icon;
+      delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+      u32 node_flags = LDK_UI_TREE_NODE_LEAF;
+      if (editor->selected_system_id == id)
+      {
+        node_flags |= LDK_UI_TREE_NODE_SELECTED;
+      }
+
+      ldk_ui_push_id_u32(ui, (u32)id);
+      ldk_ui_push_id_u32(ui, (u32)(id >> 32));
+      ldk_ui_begin_horizontal(ui);
+      ldk_ui_set_next_weight(ui, 1.0f);
+      ldk_ui_tree_node_ex(ui, label, system_icon, false, 1, node_flags);
+      LDKUIId node_id = ui->last_id;
+
+      if (s_editor_hierarchy_node_pressed(ui, node_id))
+      {
+        editor->selected_system_id = id;
+        editor->selected_entity = x_handle_null();
+      }
+
+      ldk_ui_set_next_disabled(ui, !can_edit);
+      ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
+
+      if (ldk_ui_icon_button(ui, delete_icon, NULL) && can_edit)
+      {
+        if (!ldk_scene_systems_remove(systems, id))
+        {
+          ldki_editor_log_error(editor, "Failed to remove scene system.");
+        }
+        else
+        {
+          if (editor->selected_system_id == id)
+          {
+            editor->selected_system_id = 0;
+          }
+          ldki_editor_log_info(editor, "Scene system removed.");
+        }
+        ldk_ui_end_horizontal(ui);
+        ldk_ui_pop_id(ui);
+        ldk_ui_pop_id(ui);
+        break;
+      }
+      ldk_ui_end_horizontal(ui);
+      ldk_ui_pop_id(ui);
+      ldk_ui_pop_id(ui);
+    }
+  }
+
+  ldk_ui_begin_popup(ui, ADD_SYSTEM_POPUP);
+  {
+    bool has_available = false;
+    u32 count = metadata_count;
+
+    for (u32 i = 0; i < count; ++i)
+    {
+      const LDKSystemMeta *meta =
+          game->system_metadata_get ? game->system_metadata_get(i) : NULL;
+      if (!meta || ldk_scene_systems_contains(systems, meta->id))
+      {
+        continue;
+      }
+
+      has_available = true;
+      ldk_ui_push_id_u32(ui, (u32)meta->id);
+      ldk_ui_push_id_u32(ui, (u32)(meta->id >> 32));
+      if (ldk_ui_button_flat(
+              ui, meta->name != NULL ? meta->name : "<unnamed system>"))
+      {
+        if (!can_edit || !ldk_scene_systems_add(systems, meta->id))
+        {
+          ldki_editor_log_error(editor, "Failed to associate scene system.");
+        }
+        else
+        {
+          editor->selected_system_id = meta->id;
+          editor->selected_entity = x_handle_null();
+          ldki_editor_log_info(editor, "Scene system associated.");
+        }
+        ldk_ui_close_current_popup(ui);
+      }
+      ldk_ui_pop_id(ui);
+      ldk_ui_pop_id(ui);
+    }
+
+    if (!has_available)
+    {
+      ldk_ui_label(ui, "No more systems in game metadata.");
+    }
+  }
+  ldk_ui_end_popup(ui);
+  ldk_ui_pop_id(ui);
+}
+
+void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
+{
+  LDKUIContext *ui = &editor->ui;
+  static LDKUIRect window_rect = {10, 60, 100, 100};
+  static LDKUIPoint scroll = {0};
+  bool owns_window = ui->current_window == NULL;
+  LDKEntity selected_entity = x_handle_null();
+  bool has_selection = false;
+  LDKEditorHierarchyDropTarget drop_target = {0};
+
+  LDKUIIcon icon = {0};
+  icon.size =
+      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_SYSTEM];
+
+  if (editor == NULL || ecs == NULL)
+  {
+    return;
+  }
+
+  has_selection = ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
+
+  if (owns_window)
+  {
+    window_rect =
+        ldk_ui_begin_window(ui, "HIERARCHY", window_rect, LDK_UI_WINDOW_TOOL);
+  }
+
+  if (!s_editor_hierarchy_initialize(editor))
+  {
+    ldk_ui_label(ui, "Hierarchy allocation failed.");
+    if (owns_window)
+    {
+      ldk_ui_end_window(ui);
+    }
+    return;
+  }
+
+  bool add_entity_requested = false;
+  bool remove_entity_requested = false;
+  bool can_edit = s_editor_hierarchy_can_edit(editor);
+
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  static bool entities_expanded = true;
+
+  s_editor_hierarchy_systems_draw(editor, icon);
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+  ldk_ui_push_id_cstr(ui, "entity");
+  u32 entities_result = ldk_ui_tree_node_ex(
+      ui, "Entity", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
+  LDKUIId entities_node_id = ui->last_id;
+
+  if (s_editor_hierarchy_node_drop(ui, entities_node_id))
+  {
+    drop_target.detach = true;
+    drop_target.valid = true;
+  }
+
+  const LDKUIId ADD_ENTITY_BUTTON = 0x454E5441u;
+  const LDKUIId DELETE_ENTITY_BUTTON = 0x454E5444u;
+
+  LDKUIRect delete_button_rect = ldk_ui_last_rect(ui);
+  delete_button_rect.x +=
+      delete_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+  delete_button_rect.w = 24.0f;
+  delete_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  LDKUIRect add_button_rect = delete_button_rect;
+  add_button_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+
+  LDKUIIcon delete_icon = icon;
+  delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+
+  ldk_ui_begin_disabled(ui, !can_edit || !has_selection);
+  if (ldk_ui_widget_icon_button(
+          ui, DELETE_ENTITY_BUTTON, delete_icon, "", delete_button_rect))
+  {
+    remove_entity_requested = true;
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(ui, !can_edit);
+  if (ldk_ui_widget_button(ui, ADD_ENTITY_BUTTON, "+", add_button_rect))
+  {
+    add_entity_requested = true;
+  }
+  ldk_ui_end_disabled(ui);
+
+  if ((entities_result & LDK_UI_TREE_NODE_RESULT_TOGGLED) != 0)
+  {
+    entities_expanded = !entities_expanded;
+  }
+  ldk_ui_pop_id(ui);
+
+  /*
+   * Create/delete before starting the entity iterator. Both operations can
+   * change ECS storage and must not invalidate an active iterator.
+   */
+  if (add_entity_requested && can_edit)
+  {
+    if (ldki_editor_entity_add(editor, ecs))
+    {
+      selected_entity = editor->selected_entity;
+      has_selection = true;
+    }
+  }
+  else if (remove_entity_requested && can_edit && has_selection)
+  {
+    if (ldki_editor_selected_entity_remove(editor, ecs))
+    {
+      selected_entity = x_handle_null();
+      has_selection = false;
+    }
+  }
+
+  if (entities_expanded)
+  {
+    LDKEntityIterator it = ldk_entity_iterator_begin(&ecs->entity);
+    LDKEntity entity;
+
+    while (ldk_entity_iterator_next(&it, &entity))
+    {
+      if (ldk_entity_internal_flags_has(
+              &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR))
+      {
+        continue;
+      }
+
+      const LDKTransform *transform =
+          ldk_entity_transform_get_const(&ecs->entity, &ecs->component, entity);
+
+      if (transform != NULL && !x_handle_is_null(transform->parent) &&
+          ldk_entity_is_alive(&ecs->entity, transform->parent))
+      {
+        continue;
+      }
+
+      s_editor_hierarchy_entity_draw(editor, ecs, entity, 1, &selected_entity,
+          &has_selection, &drop_target);
+    }
+
+    ldk_entity_iterator_end(&it);
+  }
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+
+  if (!drop_target.valid && s_editor_hierarchy_window_empty_drop(ui))
+  {
+    drop_target.detach = true;
+    drop_target.valid = true;
+  }
+
+  s_editor_hierarchy_drop_commit(ecs, &drop_target);
+
+  if (owns_window)
+  {
+    ldk_ui_end_window(ui);
+  }
+}
+
+void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
+{
+  s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
+}
+

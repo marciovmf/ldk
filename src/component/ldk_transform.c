@@ -378,7 +378,8 @@ bool ldk_transform_set_parent(LDKEntity child_entity, LDKEntity parent_entity)
 
     if (!x_handle_is_null(parent_transform->first_child))
     {
-      LDKTransform* first_child_transform = s_transform_get_ptr(parent_transform->first_child);
+      LDKTransform* first_child_transform =
+          s_transform_get_ptr(parent_transform->first_child);
 
       if (first_child_transform)
       {

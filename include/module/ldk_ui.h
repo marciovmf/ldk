@@ -23,6 +23,10 @@ extern "C"
 #define LDK_UI_DEFAULT_CONTROL_HEIGHT 22.0f
 #endif
 
+#ifndef LDK_UI_DEFAULT_CONTROL_WIDTH
+#define LDK_UI_DEFAULT_CONTROL_WIDTH 16.0f
+#endif
+
 #ifndef LDK_UI_LAYOUT_STACK_CAPACITY
 #define LDK_UI_LAYOUT_STACK_CAPACITY 64
 #endif
@@ -85,6 +89,14 @@ extern "C"
 
 #ifndef LDK_UI_DEFAULT_PADDING
 #define LDK_UI_DEFAULT_PADDING 4.0f
+#endif
+
+#ifndef LDK_UI_TREE_NODE_INDENT_WIDTH
+#define LDK_UI_TREE_NODE_INDENT_WIDTH 8.0f
+#endif
+
+#ifndef LDK_UI_TREE_NODE_CHEVRON_WIDTH
+#define LDK_UI_TREE_NODE_CHEVRON_WIDTH 10.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_TAB_HEIGHT
@@ -181,6 +193,11 @@ extern "C"
     LDK_UI_COLOR_TAB_ACTIVE_BORDER,
 
     LDK_UI_COLOR_SEPARATOR,
+    LDK_UI_COLOR_INPUT_BORDER,
+    LDK_UI_COLOR_INPUT_BG,
+    LDK_UI_COLOR_INPUT_BG_HOVERED,
+    LDK_UI_COLOR_INPUT_BG_ACTIVE,
+    LDK_UI_COLOR_INPUT_BG_ACTIVE_HOVERED,
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
 
@@ -209,6 +226,7 @@ extern "C"
     rgba32 colors[LDK_UI_COLOR_COUNT];
     LDKUIIcon icons[LDK_UI_THEME_ICON_COUNT];
     float control_border_size;
+    float input_border_size;
     float window_border_size;
     float window_interaction_border_size;
     float slider_track_height;
@@ -546,6 +564,7 @@ extern "C"
   typedef struct LDKUITabBarResult
   {
     u32 active_index;
+    u32 pressed_index;
     bool changed;
   } LDKUITabBarResult;
 
@@ -650,6 +669,7 @@ extern "C"
     i32 next_z_order;
 
     bool next_disabled;
+    bool next_focus;
     bool last_window_close_requested;
 
     float delta_time;
@@ -682,6 +702,7 @@ extern "C"
   LDK_API void ldk_ui_pop_id(LDKUIContext *ctx);
 
   LDK_API void ldk_ui_set_next_disabled(LDKUIContext *ctx, bool disabled);
+  LDK_API void ldk_ui_set_next_focus(LDKUIContext *ctx);
   LDK_API void ldk_ui_begin_disabled(LDKUIContext *ctx, bool disabled);
   LDK_API void ldk_ui_end_disabled(LDKUIContext *ctx);
 
@@ -725,7 +746,6 @@ extern "C"
   //----------------------------------------------------------
   LDK_API void ldk_ui_begin_vertical(LDKUIContext *ctx);
   LDK_API void ldk_ui_begin_horizontal(LDKUIContext *ctx);
-  LDK_API void ldk_ui_end(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_vertical(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_horizontal(LDKUIContext *ctx);
 
@@ -739,6 +759,9 @@ extern "C"
   //----------------------------------------------------------
   // Areas
   //----------------------------------------------------------
+
+  LDK_API bool ldk_ui_begin_area_ex(
+      LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
   LDK_API bool ldk_ui_begin_area(
       LDKUIContext *ctx, char const *title, bool expanded);
   LDK_API void ldk_ui_end_area(LDKUIContext *ctx);
@@ -767,6 +790,7 @@ extern "C"
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
   LDK_API void ldk_ui_icon_label(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
+  LDK_API bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color);
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
   LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
@@ -798,6 +822,8 @@ extern "C"
       LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_color_view(
+    LDKUIContext *ctx, LDKUIId id, rgba32 color, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
@@ -819,6 +845,35 @@ extern "C"
       char *buffer, u32 buffer_size, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       char const *text, LDKUIRect rect, bool active);
+
+  //----------------------------------------------------------
+  // Theme IO
+  //----------------------------------------------------------
+  /** A resolved UI theme and its display name. Contains no owned resources. */
+  typedef struct LDKUIThemeFile
+  {
+    LDKUITheme theme;
+    char name[128];
+  } LDKUIThemeFile;
+
+  /**
+   * Parse an LDK theme from a null-terminated TML string.
+   *
+   * The output is replaced only on success. The theme inherits the selected
+   * built-in palette, and its icon handles are not loaded from the document.
+   * On failure, error receives a diagnostic when a buffer is provided.
+   */
+  LDK_API bool ldk_ui_theme_tml_parse(char const *source,
+      LDKUIThemeFile *out_theme, char *error, size_t error_size);
+
+  /**
+   * Read and parse a UTF-8 TML theme file.
+   *
+   * The path is an ordinary filesystem path; discovery and application of the
+   * theme are separate responsibilities. The output is unchanged on failure.
+   */
+  LDK_API bool ldk_ui_theme_tml_load(char const *path,
+      LDKUIThemeFile *out_theme, char *error, size_t error_size);
 
 #ifdef __cplusplus
 }
