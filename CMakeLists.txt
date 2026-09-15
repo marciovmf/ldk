@@ -407,6 +407,7 @@ list(APPEND LDK_SOURCE
   # Components
   ${INCLUDE_DIR}/component/ldk_transform.h    src/component/ldk_transform.c
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
+  ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
 )
 

@@ -1,4 +1,6 @@
 #include <ldk_common.h>
+#include <ldk.h>
+#include <math.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
 
@@ -494,6 +496,11 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->mesh_count = 0;
   renderer->mesh_capacity = 0;
 
+  LDK_RENDERER_FREE(renderer->submitted_lights);
+  renderer->submitted_lights = NULL;
+  renderer->submitted_light_count = 0;
+  renderer->submitted_light_capacity = 0;
+
   LDK_RENDERER_FREE(renderer->submitted_meshes);
   renderer->submitted_meshes = NULL;
   renderer->submitted_mesh_count = 0;
@@ -537,6 +544,129 @@ typedef struct LDKRendererMeshMaterialParams
 {
   LDKRHIColor color;
 } LDKRendererMeshMaterialParams;
+
+typedef struct LDKRendererLightParams
+{
+  float position_type[4];
+  float direction_range[4];
+  float color_intensity[4];
+  float cone[4];
+} LDKRendererLightParams;
+
+typedef struct LDKRendererLightingParams
+{
+  i32 count[4];
+  LDKRendererLightParams lights[LDK_RENDERER_MAX_LIGHTS_PER_VIEW];
+} LDKRendererLightingParams;
+
+LDK_STATIC_ASSERT(sizeof(LDKRendererLightParams) == 64, light_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 16,
+    lighting_std140_offset);
+
+bool ldk_renderer_submit_light(LDKRenderer *renderer,
+    const LDKRendererLightSubmit *light)
+{
+  if (!renderer || !renderer->is_initialized || !light ||
+      light->view_id == LDK_RENDERER_VIEW_INVALID ||
+      light->type < LDK_RENDERER_LIGHT_POINT ||
+      light->type > LDK_RENDERER_LIGHT_DIRECTIONAL ||
+      !isfinite(light->intensity) || light->intensity < 0.0f)
+  {
+    return false;
+  }
+  LDKRendererLightSubmit submit = *light;
+  if (light->type != LDK_RENDERER_LIGHT_DIRECTIONAL &&
+      (!isfinite(light->range) || light->range <= 0.0f ||
+          !isfinite(light->position.x) || !isfinite(light->position.y) ||
+          !isfinite(light->position.z)))
+  {
+    return false;
+  }
+  if (light->type != LDK_RENDERER_LIGHT_POINT)
+  {
+    float length_squared = vec3_dot(light->direction, light->direction);
+    if (!isfinite(length_squared) || length_squared < 1e-12f)
+    {
+      return false;
+    }
+    submit.direction = vec3_mul(light->direction,
+        1.0f / sqrtf(length_squared));
+  }
+  if (light->type == LDK_RENDERER_LIGHT_SPOT &&
+      (!isfinite(light->inner_angle) || !isfinite(light->outer_angle) ||
+          light->inner_angle < 0.0f ||
+          light->outer_angle <= 0.0f ||
+          light->outer_angle > STDXM_PI * 0.5f ||
+          light->inner_angle > light->outer_angle))
+  {
+    return false;
+  }
+  if (renderer->submitted_light_count == renderer->submitted_light_capacity)
+  {
+    u32 capacity = renderer->submitted_light_capacity == 0
+        ? 16 : renderer->submitted_light_capacity * 2;
+    if (capacity <= renderer->submitted_light_capacity)
+    {
+      return false;
+    }
+    LDKRendererLightSubmit *lights = LDK_RENDERER_REALLOC(
+        renderer->submitted_lights, (size_t)capacity * sizeof(*lights));
+    if (!lights)
+    {
+      return false;
+    }
+    renderer->submitted_lights = lights;
+    renderer->submitted_light_capacity = capacity;
+  }
+  renderer->submitted_lights[renderer->submitted_light_count++] = submit;
+  return true;
+}
+
+static void s_renderer_lighting_update(LDKRenderer *renderer,
+    LDKRendererMeshPass *pass, LDKRendererViewId view_id)
+{
+  LDKRendererLightingParams params = {0};
+  for (u32 i = 0; i < renderer->submitted_light_count; i++)
+  {
+    const LDKRendererLightSubmit *light = &renderer->submitted_lights[i];
+    if (light->view_id != LDK_RENDERER_VIEW_ALL && light->view_id != view_id)
+    {
+      continue;
+    }
+    if (light->intensity == 0.0f)
+    {
+      continue;
+    }
+    if (params.count[0] == LDK_RENDERER_MAX_LIGHTS_PER_VIEW)
+    {
+      if (!renderer->light_limit_reported)
+      {
+        ldk_log_warning("Renderer light limit exceeded: first %u lights per view are used.",
+            (u32)LDK_RENDERER_MAX_LIGHTS_PER_VIEW);
+        renderer->light_limit_reported = true;
+      }
+      break;
+    }
+    LDKRendererLightParams *out = &params.lights[params.count[0]++];
+    out->position_type[0] = light->position.x;
+    out->position_type[1] = light->position.y;
+    out->position_type[2] = light->position.z;
+    out->position_type[3] = (float)light->type;
+    out->direction_range[0] = light->direction.x;
+    out->direction_range[1] = light->direction.y;
+    out->direction_range[2] = light->direction.z;
+    out->direction_range[3] = light->range;
+    LDKRHIColor color = ldk_renderer_color_from_rgba32(light->color);
+    out->color_intensity[0] = color.r;
+    out->color_intensity[1] = color.g;
+    out->color_intensity[2] = color.b;
+    out->color_intensity[3] = light->intensity;
+    out->cone[0] = cosf(light->inner_angle);
+    out->cone[1] = cosf(light->outer_angle);
+  }
+  ldk_rhi_buffer_update(pass->rhi, pass->lighting_buffer, 0,
+      sizeof(params), &params);
+}
 
 static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
 {
@@ -594,7 +724,7 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
-  desc.entry_count = 4;
+  desc.entry_count = 5;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
@@ -607,6 +737,10 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[3].slot = 3;
   desc.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+
+  desc.entries[4].slot = 4;
+  desc.entries[4].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  desc.entries[4].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &desc);
@@ -745,34 +879,17 @@ static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
   material_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
   pass->material_buffer = ldk_rhi_buffer_create(pass->rhi, &material_desc);
-  return pass->material_buffer != LDK_RHI_INVALID_RESOURCE;
+  if (pass->material_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+  LDKRHIBufferDesc lighting_desc = material_desc;
+  lighting_desc.size = sizeof(LDKRendererLightingParams);
+  pass->lighting_buffer = ldk_rhi_buffer_create(pass->rhi, &lighting_desc);
+  return pass->lighting_buffer != LDK_RHI_INVALID_RESOURCE;
 }
 
 static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
-{
-  LDKRHIBindingsDesc desc = {0};
-  ldk_rhi_bindings_desc_defaults(&desc);
-  desc.layout = pass->bindings_layout;
-  desc.binding_count = 3;
-  desc.bindings[0].slot = 0;
-  desc.bindings[0].buffer = pass->camera_buffer;
-  desc.bindings[0].buffer_offset = 0;
-  desc.bindings[0].buffer_size = sizeof(LDKRendererMeshCameraParams);
-  desc.bindings[1].slot = 1;
-  desc.bindings[1].buffer = pass->object_buffer;
-  desc.bindings[1].buffer_offset = 0;
-  desc.bindings[1].buffer_size = sizeof(LDKRendererMeshObjectParams);
-  desc.bindings[2].slot = 2;
-  desc.bindings[2].buffer = pass->material_buffer;
-  desc.bindings[2].buffer_offset = 0;
-  desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
-
-  pass->bindings = ldk_rhi_bindings_create(pass->rhi, &desc);
-  return pass->bindings != LDK_RHI_INVALID_RESOURCE;
-}
-
-static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
-    LDKRendererMeshPass* pass, LDKRHITexture texture, LDKRHISampler sampler)
 {
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
@@ -790,9 +907,40 @@ static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
   desc.bindings[2].buffer = pass->material_buffer;
   desc.bindings[2].buffer_offset = 0;
   desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
+
+  desc.bindings[3].slot = 4;
+  desc.bindings[3].buffer = pass->lighting_buffer;
+  desc.bindings[3].buffer_size = sizeof(LDKRendererLightingParams);
+
+  pass->bindings = ldk_rhi_bindings_create(pass->rhi, &desc);
+  return pass->bindings != LDK_RHI_INVALID_RESOURCE;
+}
+
+static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
+    LDKRendererMeshPass* pass, LDKRHITexture texture, LDKRHISampler sampler)
+{
+  LDKRHIBindingsDesc desc = {0};
+  ldk_rhi_bindings_desc_defaults(&desc);
+  desc.layout = pass->bindings_layout;
+  desc.binding_count = 5;
+  desc.bindings[0].slot = 0;
+  desc.bindings[0].buffer = pass->camera_buffer;
+  desc.bindings[0].buffer_offset = 0;
+  desc.bindings[0].buffer_size = sizeof(LDKRendererMeshCameraParams);
+  desc.bindings[1].slot = 1;
+  desc.bindings[1].buffer = pass->object_buffer;
+  desc.bindings[1].buffer_offset = 0;
+  desc.bindings[1].buffer_size = sizeof(LDKRendererMeshObjectParams);
+  desc.bindings[2].slot = 2;
+  desc.bindings[2].buffer = pass->material_buffer;
+  desc.bindings[2].buffer_offset = 0;
+  desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
   desc.bindings[3].slot = 3;
   desc.bindings[3].texture = texture;
   desc.bindings[3].sampler = sampler;
+  desc.bindings[4].slot = 4;
+  desc.bindings[4].buffer = pass->lighting_buffer;
+  desc.bindings[4].buffer_size = sizeof(LDKRendererLightingParams);
   return ldk_rhi_bindings_create(pass->rhi, &desc);
 }
 
@@ -950,6 +1098,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     }
 
     ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->lighting_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->camera_buffer);
@@ -1100,6 +1249,7 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0,
       sizeof(camera_params), &camera_params);
 
+  s_renderer_lighting_update(renderer, pass, view->id);
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
 }
 // ---------------------------------------------------------------------------
@@ -2896,6 +3046,7 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   ldk_rhi_frame_end(renderer->rhi);
 
   renderer->submitted_mesh_count = 0;
+  renderer->submitted_light_count = 0;
   renderer->submitted_ui = NULL;
   s_renderer_finish_views(renderer);
 }

@@ -43,6 +43,7 @@ extern "C"
     LDK_FIELD_WIDGET_ASSET_MESH,
     LDK_FIELD_WIDGET_RESOURCE_MESH,
     LDK_FIELD_WIDGET_EULER,
+    LDK_FIELD_WIDGET_COLOR,
   } LDKFieldWidget;
 
   typedef enum LDKFieldFlags

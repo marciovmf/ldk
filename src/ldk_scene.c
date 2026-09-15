@@ -133,6 +133,21 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
       return LDK_COMPONENT_TYPE_CAMERA;
     }
 
+    if (strcmp(meta->name, "LDKPointLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_POINT_LIGHT;
+    }
+
+    if (strcmp(meta->name, "LDKSpotLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_SPOT_LIGHT;
+    }
+
+    if (strcmp(meta->name, "LDKDirectionalLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT;
+    }
+
     if (strcmp(meta->name, "LDKMeshSource") == 0)
     {
       return LDK_COMPONENT_TYPE_MESH_SOURCE;

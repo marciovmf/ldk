@@ -8,6 +8,7 @@
 
 #include <ldk_event.h>
 #include <component/ldk_camera.h>
+#include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
 
@@ -1359,7 +1360,6 @@ void ldk_engine_frame(void)
 
     // Active cameras
     bool has_main_camera = false;
-    static bool warned_missing_main_camera = false;
     Mat4 camera_view;
     Mat4 camera_projection;
     XArray *all_camera =
@@ -1400,17 +1400,80 @@ void ldk_engine_frame(void)
 
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {
-        warned_missing_main_camera = false;
         has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
       }
     }
 
     if (!has_main_camera && e->game.initialized)
     {
-      if (!warned_missing_main_camera)
+      ldk_log_error("No main camera found!\n");
+    }
+
+    // Collect all scene lights before editor views are submitted.
+    const u32 light_types[] = {LDK_COMPONENT_TYPE_POINT_LIGHT,
+        LDK_COMPONENT_TYPE_SPOT_LIGHT, LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT};
+    for (u32 type = 0; type < 3; type++)
+    {
+      XArray *lights = ldk_component_store_get(component_registry,
+          light_types[type]);
+      XArray *owners = ldk_component_owners_get(component_registry,
+          light_types[type]);
+      if (!lights || !owners)
       {
-        warned_missing_main_camera = true;
-        ldk_log_error("No main camera found!\n");
+        continue;
+      }
+      for (u32 i = 0; i < x_array_count(lights); i++)
+      {
+        LDKEntity *owner = x_array_get(owners, i);
+        void *component = x_array_get(lights, i);
+        Mat4 world;
+        if (!owner || !component ||
+            !ldk_transform_get_world_matrix(*owner, &world))
+        {
+          continue;
+        }
+        LDKRendererLightSubmit light = {0};
+        light.view_id = LDK_RENDERER_VIEW_ALL;
+        light.position = mat4_mul_point(world, vec3_make(0, 0, 0));
+        light.direction = mat4_mul_dir(world, vec3_make(0, 0, -1));
+        if (light_types[type] == LDK_COMPONENT_TYPE_POINT_LIGHT)
+        {
+          const LDKPointLight *point = component;
+          if (!point->enabled)
+          {
+            continue;
+          }
+          light.type = LDK_RENDERER_LIGHT_POINT;
+          light.color = point->color;
+          light.intensity = point->intensity;
+          light.range = point->range;
+        }
+        else if (light_types[type] == LDK_COMPONENT_TYPE_SPOT_LIGHT)
+        {
+          const LDKSpotLight *spot = component;
+          if (!spot->enabled)
+          {
+            continue;
+          }
+          light.type = LDK_RENDERER_LIGHT_SPOT;
+          light.color = spot->color;
+          light.intensity = spot->intensity;
+          light.range = spot->range;
+          light.inner_angle = spot->inner_angle;
+          light.outer_angle = spot->outer_angle;
+        }
+        else
+        {
+          const LDKDirectionalLight *directional = component;
+          if (!directional->enabled)
+          {
+            continue;
+          }
+          light.type = LDK_RENDERER_LIGHT_DIRECTIONAL;
+          light.color = directional->color;
+          light.intensity = directional->intensity;
+        }
+        ldk_renderer_submit_light(&e->renderer, &light);
       }
     }
 

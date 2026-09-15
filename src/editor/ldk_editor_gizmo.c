@@ -975,6 +975,9 @@ typedef struct LDKEditorComponentIconRule
  * components without changing projection, drawing or selection behavior. */
 static const LDKEditorComponentIconRule s_component_icon_rules[] = {
     {LDK_COMPONENT_TYPE_CAMERA, LDK_EDITOR_ICON_GIZMO_CAMERA},
+    {LDK_COMPONENT_TYPE_POINT_LIGHT, LDK_EDITOR_ICON_LIGHT_POINT},
+    {LDK_COMPONENT_TYPE_SPOT_LIGHT, LDK_EDITOR_ICON_LIGHT_SPOT},
+    {LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT, LDK_EDITOR_ICON_LIGHT_DIRECTIONAL},
 };
 
 typedef struct LDKEditorComponentIconContext

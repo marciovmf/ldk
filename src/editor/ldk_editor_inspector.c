@@ -1273,6 +1273,18 @@ static void s_editor_inspector_field_draw(
 
   case LDK_FIELD_U32:
   {
+    if (field->widget == LDK_FIELD_WIDGET_COLOR)
+    {
+      rgba32 color = *(u32 *)field_value;
+      ldk_ui_begin_disabled(ui, readonly);
+      if (ldk_ui_color_view(ui, color) && !readonly)
+      {
+        ldk_os_dialog_color_picker_show(editor->window, &color);
+        *(u32 *)field_value = color;
+      }
+      ldk_ui_end_disabled(ui);
+      break;
+    }
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
     u32 original = *(u32 *)field_value;
     u32 parsed;

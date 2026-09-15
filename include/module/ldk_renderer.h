@@ -72,6 +72,28 @@ extern "C" {
 #define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
 #define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
 
+#define LDK_RENDERER_MAX_LIGHTS_PER_VIEW 16
+
+  typedef enum LDKRendererLightType
+  {
+    LDK_RENDERER_LIGHT_POINT = 0,
+    LDK_RENDERER_LIGHT_SPOT,
+    LDK_RENDERER_LIGHT_DIRECTIONAL
+  } LDKRendererLightType;
+
+  typedef struct LDKRendererLightSubmit
+  {
+    LDKRendererLightType type;
+    LDKRendererViewId view_id;
+    Vec3 position;
+    Vec3 direction;
+    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    float intensity;
+    float range;
+    float inner_angle; // Half-cone angle, radians.
+    float outer_angle; // Half-cone angle, radians.
+  } LDKRendererLightSubmit;
+
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
@@ -152,6 +174,7 @@ extern "C" {
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
+    LDKRHIBuffer lighting_buffer;
     LDKRHIBindings bindings;
     LDKRendererBindingsCacheEntry* textured_bindings_cache;
     u32 textured_bindings_cache_count;
@@ -324,6 +347,11 @@ extern "C" {
     u32 font_page_count;
     u32 font_page_capacity;
 
+    LDKRendererLightSubmit *submitted_lights;
+    u32 submitted_light_count;
+    u32 submitted_light_capacity;
+    bool light_limit_reported;
+
     // Submitted meshes
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
@@ -331,6 +359,14 @@ extern "C" {
 
     bool is_initialized;
   } LDKRenderer;
+
+  /** Submit transient world-space lighting. Views need not exist yet.
+   * The first 16 matching lights illuminate each view, in submission order.
+   * Returns false for invalid data or allocation failure.
+   */
+  LDK_API bool ldk_renderer_submit_light(LDKRenderer *renderer,
+      const LDKRendererLightSubmit *light);
+
 
   /**
    * @brief Initialize the renderer.

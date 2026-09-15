@@ -191,6 +191,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "};\n"
 "#endif\n"
 "out vec3 v_normal;\n"
+"out vec3 v_world_position;\n"
 "out vec2 v_uv;\n"
 "out vec4 v_color;\n"
 "void main()\n"
@@ -201,15 +202,71 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "  mat4 world = u_world;\n"
 "#endif\n"
 "  vec4 world_position = world * vec4(a_position, 1.0);\n"
-"  v_normal = mat3(world) * a_normal;\n"
+"  mat3 basis = mat3(world);\n"
+"  v_normal = abs(determinant(basis)) > 1e-8\n"
+"      ? transpose(inverse(basis)) * a_normal : basis * a_normal;\n"
+"  v_world_position = world_position.xyz;\n"
 "  v_uv = a_uv;\n"
 "  v_color = a_color;\n"
 "  gl_Position = u_projection * u_view * world_position;\n"
 "}\n";
 
+LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
+
+#define LDK_GL33_LIGHTING_GLSL \
+"in vec3 v_world_position;\n" \
+"struct LDKLight\n" \
+"{\n" \
+"  vec4 position_type;\n" \
+"  vec4 direction_range;\n" \
+"  vec4 color_intensity;\n" \
+"  vec4 cone;\n" \
+"};\n" \
+"layout(std140) uniform LDK_UBO_4\n" \
+"{\n" \
+"  ivec4 u_light_count;\n" \
+"  LDKLight u_lights[16];\n" \
+"};\n" \
+"vec3 ldk_lighting(vec3 normal)\n" \
+"{\n" \
+"  vec3 n = normal / max(length(normal), 1e-6);\n" \
+"  vec3 result = vec3(0.0);\n" \
+"  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n" \
+"  {\n" \
+"    LDKLight light = u_lights[i];\n" \
+"    int type = int(light.position_type.w);\n" \
+"    vec3 to_light;\n" \
+"    float attenuation = 1.0;\n" \
+"    if (type == 2)\n" \
+"    {\n" \
+"      to_light = -light.direction_range.xyz;\n" \
+"    }\n" \
+"    else\n" \
+"    {\n" \
+"      vec3 delta = light.position_type.xyz - v_world_position;\n" \
+"      float distance_to_light = length(delta);\n" \
+"      to_light = delta / max(distance_to_light, 1e-6);\n" \
+"      float falloff = max(1.0 - distance_to_light / light.direction_range.w, 0.0);\n" \
+"      attenuation = falloff * falloff;\n" \
+"      if (type == 1)\n" \
+"      {\n" \
+"        float cosine = dot(-to_light, light.direction_range.xyz);\n" \
+"        float width = light.cone.x - light.cone.y;\n" \
+"        attenuation *= width > 1e-6\n" \
+"            ? smoothstep(light.cone.y, light.cone.x, cosine)\n" \
+"            : step(light.cone.y, cosine);\n" \
+"      }\n" \
+"    }\n" \
+"    result += light.color_intensity.rgb * light.color_intensity.a\n" \
+"        * attenuation * max(dot(n, to_light), 0.0);\n" \
+"  }\n" \
+"  return result;\n" \
+"}\n"
+
 static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec3 v_normal;\n"
+LDK_GL33_LIGHTING_GLSL
 "in vec4 v_color;\n"
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
@@ -218,9 +275,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  vec3 n = normalize(v_normal);\n"
-"  vec3 light_dir = normalize(vec3(0.4, 0.8, 0.3));\n"
-"  float light = max(dot(n, light_dir), 0.0) * 0.75 + 0.25;\n"
+"  vec3 light = ldk_lighting(v_normal);\n"
 "  vec4 color = v_color * u_material_color;\n"
 "  out_color = vec4(color.rgb * light, color.a);\n"
 "}\n";
@@ -241,6 +296,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec3 v_normal;\n"
+LDK_GL33_LIGHTING_GLSL
 "in vec2 v_uv;\n"
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
@@ -250,9 +306,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  vec3 n = normalize(v_normal);\n"
-"  vec3 light_dir = normalize(vec3(0.4, 0.8, 0.3));\n"
-"  float light = max(dot(n, light_dir), 0.0) * 0.75 + 0.25;\n"
+"  vec3 light = ldk_lighting(v_normal);\n"
 "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
 "  out_color = vec4(color.rgb * light, color.a);\n"
 "}\n";
