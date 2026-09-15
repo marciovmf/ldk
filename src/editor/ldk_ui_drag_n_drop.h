@@ -2,6 +2,7 @@
 #define LDK_UI_DRAG_N_DROP_H
 
 #include <ldk_common.h>
+#include <module/ldk_ui.h>
 #include <stdx/stdx_string.h>
 
 #include <stdbool.h>
@@ -22,6 +23,14 @@ extern "C"
    */
   void ldk_ui_drag_n_drop_payload_set(
       u32 type, const XSmallstr *payload);
+
+  /**
+   * Draws the drag-and-drop preview icon at the current mouse position.
+   *
+   * The preview is non-interactive and is submitted to the late UI draw
+   * buffers so it is not clipped by the source window.
+   */
+  void ldk_ui_drag_n_drop_preview_draw(LDKUIContext *ui, LDKUIIcon icon);
 
   /**
    * Copies the current drag-and-drop payload and removes it from the mailbox.

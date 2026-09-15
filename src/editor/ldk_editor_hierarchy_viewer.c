@@ -347,6 +347,13 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
     s_editor_hierarchy_entity_payload_set(entity);
   }
 
+  if (ui->mouse != NULL && ui->active_id == node_id &&
+      ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_ui_drag_n_drop_preview_draw(ui, icon);
+  }
+
   if (drop_target != NULL && s_editor_hierarchy_node_drop(ui, node_id))
   {
     drop_target->entity = entity;
@@ -428,7 +435,7 @@ static void s_editor_hierarchy_systems_draw(
 
   LDKUIIcon grouping_icon = icon;
   grouping_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CATEGORY];
- 
+
   ldk_ui_begin_disabled(ui, !editor->project.loaded);
   if (ldk_ui_widget_icon_button(
           ui, EDIT_GROUPINGS_BUTTON, grouping_icon, "", grouping_button_rect))
@@ -562,6 +569,11 @@ static void s_editor_hierarchy_systems_draw(
       ldk_ui_pop_id(ui);
       ldk_ui_pop_id(ui);
     }
+
+    if (!has_available)
+    {
+      ldk_ui_label(ui, "No more systems in game metadata.");
+    }
   }
   ldk_ui_end_popup(ui);
   ldk_ui_pop_id(ui);
@@ -643,6 +655,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   LDKUIRect add_button_rect = delete_button_rect;
   add_button_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+
   LDKUIIcon delete_icon = icon;
   delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
 
@@ -737,4 +750,3 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
-

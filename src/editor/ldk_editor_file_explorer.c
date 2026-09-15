@@ -2,7 +2,6 @@
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
-#include "stdx/stdx_string.h"
 #include <ldk_scene.h>
 
 #include <stdio.h>
@@ -121,6 +120,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
     {"json", LDK_EDITOR_ICON_DATA_OBJECT},
+    {"mesh", LDK_EDITOR_ICON_MESH},
     {"obj", LDK_EDITOR_ICON_OBJECT},
     {"fbx", LDK_EDITOR_ICON_OBJECT},
     {"gltf", LDK_EDITOR_ICON_OBJECT},
@@ -784,8 +784,7 @@ static void s_project_explorer_rename_end(ProjectExplorerState *state)
 
   state->rename_active = false;
   state->rename_focus_requested = false;
-  state->rename_had_focus = false;
-  state->rename_input_id = 0;
+  state->rename_had_focus = false;  state->rename_input_id = 0;
   memset(&state->rename_input_rect, 0, sizeof(state->rename_input_rect));
   state->rename_buffer[0] = 0;
 }
@@ -1063,8 +1062,7 @@ static void s_project_explorer_context_menu_draw(
   }
 }
 
-static u32 s_project_explorer_text_prefix_fit(
-    LDKFontInstance *font, const char *text, float max_width)
+static u32 s_project_explorer_text_prefix_fit(    LDKFontInstance *font, const char *text, float max_width)
 {
   const char *cursor = text;
   const char *last_fit = text;
@@ -1296,15 +1294,23 @@ static ProjectExplorerTileResult s_project_explorer_tile(
 }
 
 static void s_project_explorer_file_drag_source(LDKUIContext *ui,
-    const ProjectExplorerEntry *entry, bool is_directory)
+    const ProjectExplorerEntry *entry, bool is_directory, LDKUIIcon icon)
 {
-  if (!is_directory && ui->mouse && ui->active_id == ui->last_id &&
-      ldk_os_mouse_button_down(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  if (is_directory || ui == NULL || ui->mouse == NULL ||
+      ui->active_id != ui->last_id)
+  {
+    return;
+  }
+
+  LDKMouseState *mouse = (LDKMouseState *)ui->mouse;
+
+  if (ldk_os_mouse_button_down(mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     ldk_ui_drag_n_drop_payload_set(
         LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, &entry->path);
   }
+
+  ldk_ui_drag_n_drop_preview_draw(ui, icon);
 }
 
 static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
@@ -1336,7 +1342,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
-      s_project_explorer_file_drag_source(ui, entry, is_directory);
+      s_project_explorer_file_drag_source(
+          ui, entry, is_directory, entry_icon);
       bool renaming = s_project_explorer_rename_matches(
           state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
       bool label_clicked = false;
@@ -1347,7 +1354,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       else
       {
         label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
-        s_project_explorer_file_drag_source(ui, entry, is_directory);
+        s_project_explorer_file_drag_source(
+            ui, entry, is_directory, entry_icon);
       }
 
       ldk_ui_end_horizontal(ui);
@@ -1405,7 +1413,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
-      s_project_explorer_file_drag_source(ui, entry, is_directory);
+      s_project_explorer_file_drag_source(
+          ui, entry, is_directory, entry_icon);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
@@ -1463,10 +1472,10 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   bool toplevel = strncmp(path, ".", 1) == 0 || strlen(path) == 0;
   ldk_ui_begin_disabled(ui, toplevel);
   if (ldk_ui_icon_button(ui, up_dir_icon, NULL))
-  {
-    XFSPath up_path = {0};
+  {    XFSPath up_path = {0};
     x_fs_directory_parent(&state->selected_directory, &up_path);
     s_project_explorer_directory_select(state, &up_path, true);
+    printf("UP to %.*s\n", (i32) up_path.length, up_path.buf);
     return;
   }
   ldk_ui_end_disabled(ui);
