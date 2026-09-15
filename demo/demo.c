@@ -24,8 +24,7 @@
 
 LDKGame game = {0};
 
-static void s_hello_system_update(
-    void *data, const LDKEntityGroup *group, float dt)
+void hello_system_update(void *data, const LDKEntityGroup *group, float dt)
 {
   Hello *system = (Hello *)data;
   (void)dt;
@@ -71,9 +70,9 @@ bool game_initialize(LDKGame *game)
   ldk_log_info("Game initialize!!\n");
   game->user_data = &s_game_data;
 
-  if (!ldk_ecs_system_register(ldk_system_desc(Hello)))
+  if (!game_register_systems())
   {
-    ldk_log_error("Failed to register Hello system.\n");
+    ldk_log_error("Failed to register game systems.\n");
     return false;
   }
 
@@ -202,3 +201,4 @@ void game_stop(LDKGame *game)
 {
   ldk_log_info("Game stop\n");
 }
+

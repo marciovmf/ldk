@@ -312,65 +312,77 @@ static void s_project_append_project_file_text(
 
 static void s_project_append_game_cmake_text(XStrBuilder *builder)
 {
-  x_strbuilder_append(builder,
-      "list(APPEND LDK_GAME_SOURCES\n"
-      "  \"${CMAKE_CURRENT_LIST_DIR}/src/game.c\"\n"
-      ")\n\n");
-  x_strbuilder_append(builder,
-      "list(APPEND LDK_GAME_INCLUDE_DIRS\n"
-      "  \"${CMAKE_CURRENT_LIST_DIR}/src\"\n"
-      ")\n\n");
-  x_strbuilder_append(builder,
-      "list(APPEND LDK_GAME_DEFINITIONS\n"
-      "  \"LDK_GAME\"\n"
-      ")\n\n");
-  x_strbuilder_append(builder,
-      "list(APPEND LDK_GAME_LIBRARIES\n"
-      "  \"\"\n"
-      ")\n\n");
-  x_strbuilder_append(builder, "# Where to look for game components\n");
-  x_strbuilder_append(builder, "list(APPEND LDK_GAME_COMPONENT_DIRS\n"
-                               "  \"${OPTION_GAME_DIR}/components\"\n"
-                               ")\n\n");
-  x_strbuilder_append(builder,
-      "# Where to look for annotated system declarations\n"
-      "list(APPEND LDK_GAME_SYSTEM_DIRS\n"
-      "  \"${OPTION_GAME_DIR}/systems\"\n"
-      ")\n\n");
+x_strbuilder_append(builder,
+    "# Add system headers here; compile their .c files too when not header-only.\n"
+    "list(APPEND LDK_GAME_SOURCES\n"
+    "  \"${CMAKE_CURRENT_LIST_DIR}/src/game.c\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_INCLUDE_DIRS\n"
+    "  \"${CMAKE_CURRENT_LIST_DIR}/src\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_DEFINITIONS\n"
+    "  \"LDK_GAME\"\n"
+    ")\n\n"
+    "list(APPEND LDK_GAME_LIBRARIES\n"
+    "  \"\"\n"
+    ")\n\n"
+    "# Where to look for game components\n"
+    "list(APPEND LDK_GAME_COMPONENT_DIRS\n"
+    "  \"${OPTION_GAME_DIR}/src/component\"\n"
+    ")\n\n"
+    "# Where to look for annotated system declarations\n"
+    "list(APPEND LDK_GAME_SYSTEM_DIRS\n"
+    "  \"${OPTION_GAME_DIR}src/system\"\n"
+    ")\n\n");
 }
 
 static void s_project_append_game_c_text(XStrBuilder *builder)
 {
-  x_strbuilder_append(builder, "#include <ldk_game.h>\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "bool game_initialize(LDKGame *game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void)game;\n");
-  x_strbuilder_append(builder, "  return true;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "bool game_start(LDKGame *game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void)game;\n");
-  x_strbuilder_append(builder, "  return true;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder,
-      "void game_update(LDKGame *game, float delta_time)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void)game;\n");
-  x_strbuilder_append(builder, "  (void)delta_time;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "void game_stop(LDKGame *game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void)game;\n");
-  x_strbuilder_append(builder, "}\n");
-  x_strbuilder_append(builder, "\n");
-  x_strbuilder_append(builder, "void game_terminate(LDKGame *game)\n");
-  x_strbuilder_append(builder, "{\n");
-  x_strbuilder_append(builder, "  (void)game;\n");
-  x_strbuilder_append(builder, "}\n");
+x_strbuilder_append(builder,
+    "#include <ldk_common.h>\n"
+    "\n"
+    "#if defined(LDK_SHAREDLIB)\n"
+    "#define X_IMPL_MATH\n"
+    "#define X_IMPL_ARRAY\n"
+    "#define X_IMPL_STRING\n"
+    "#define X_IMPL_FILESYSTEM\n"
+    "#define X_IMPL_LOG\n"
+    "#define X_IMPL_HASHTABLE\n"
+    "#define X_IMPL_HPOOL\n"
+    "#define X_IMPL_MATH\n"
+    "#define X_IMPL_FILESYSTEM\n"
+    "#endif // LDK_SHAREDLIB\n"
+    "\n"
+    "#include <ldk_game.h>\n"
+    "#include <generated_component_metadata_includes.h>\n"
+    "\n"
+    "bool game_initialize(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  return game_register_systems();\n"
+    "}\n"
+    "\n"
+    "bool game_start(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  return true;\n"
+    "}\n"
+    "\n"
+    "void game_update(LDKGame *game, float delta_time)\n"
+    "{\n"
+    "  (void)game;\n"
+    "  (void)delta_time;\n"
+    "}\n"
+    "\n"
+    "void game_stop(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "}\n"
+    "\n"
+    "void game_terminate(LDKGame *game)\n"
+    "{\n"
+    "  (void)game;\n"
+    "}\n");
 }
 
 static bool s_project_create_files(
@@ -1335,3 +1347,4 @@ LDKOSProcess *ldk_project_build_game_launcher_start(
 }
 
 #endif // LDK_EDITOR
+

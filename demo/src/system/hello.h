@@ -3,7 +3,9 @@
 
 #include <module/ldk_system.h>
 
-//@system update=s_hello_system_update
+void hello_system_update(void *data, const LDKEntityGroup *group, float dt);
+
+//@system update=hello_system_update
 typedef struct Hello
 {
   u32 log_every_n_updates;
@@ -13,3 +15,4 @@ typedef struct Hello
 } Hello;
 
 #endif
+

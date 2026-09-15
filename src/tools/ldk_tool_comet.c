@@ -1279,33 +1279,6 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "#define ldk_system_desc(T) LDK_SYSTEM_DESC_##T\n\n");
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
 
-  for (i = 0; i < state->system_count; ++i)
-  {
-    LDKMetaSystem *system = &state->systems[i];
-    bool already_included = false;
-    if (!system->stateful)
-    {
-      continue;
-    }
-    for (u32 j = 0; j < i; ++j)
-    {
-      if (state->systems[j].stateful &&
-          strcmp(state->systems[j].source_path, system->source_path) == 0)
-      {
-        already_included = true;
-        break;
-      }
-    }
-    if (!already_included)
-    {
-      fprintf(out, "#include \"%s\"\n", system->source_path);
-    }
-  }
-  if (state->system_count)
-  {
-    fprintf(out, "\n");
-  }
-
   for (i = 0; i < state->component_count; i++)
   {
     LDKMetaComponent* component = &state->components[i];
@@ -1445,6 +1418,58 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
+
+  /* Registration belongs to the game TU, never the engine metadata TU.
+   * Headers have already been included by the CMake-generated companion.
+   * Prototypes also make externally linked callbacks in source files usable.
+   */
+  fprintf(out, "\n#ifdef LDK_GAME_SYSTEM_REGISTRATION_IMPLEMENTATION\n\n");
+  for (i = 0; i < state->system_count; ++i)
+  {
+    const LDKMetaSystem *system = &state->systems[i];
+    if (system->initialize[0])
+    {
+      fprintf(out, "extern int %s(void *data);\n", system->initialize);
+    }
+    if (system->update[0])
+    {
+      fprintf(out,
+          "extern void %s(void *data, "
+          "const LDKEntityGroup *group, float dt);\n",
+          system->update);
+    }
+    if (system->terminate[0])
+    {
+      fprintf(out, "extern void %s(void *data);\n", system->terminate);
+    }
+  }
+
+  fprintf(out, "\nbool game_register_systems(void)\n{\n");
+  if (state->system_count > 0u)
+  {
+    fprintf(out, "  const LDKSystemDesc *descriptors[] =\n  {\n");
+    for (i = 0; i < state->system_count; ++i)
+    {
+      fprintf(out, "    ldk_system_desc(%s),\n", state->systems[i].symbol_name);
+    }
+    fprintf(out, "  };\n\n");
+    fprintf(out, "  for (u32 i = 0; i < %uu; ++i)\n  {\n", state->system_count);
+    fprintf(out, "    if (!ldk_ecs_system_register(descriptors[i]))\n    {\n");
+    fprintf(out, "      ldk_log_error(\"Failed to register system %%s.\\n\", "
+                 "descriptors[i]->name);\n");
+    fprintf(out, "      while (i > 0u)\n      {\n");
+    fprintf(out, "        --i;\n");
+    fprintf(
+        out, "        if (!ldk_ecs_system_unregister(descriptors[i]->id))\n");
+    fprintf(out, "        {\n");
+    fprintf(out, "          ldk_log_error(\"Failed to unregister system %%s "
+                 "during rollback.\\n\", descriptors[i]->name);\n");
+    fprintf(out, "        }\n      }\n");
+    fprintf(out, "      return false;\n    }\n  }\n\n");
+  }
+  fprintf(out, "  return true;\n}\n\n");
+  fprintf(out, "#endif // LDK_GAME_SYSTEM_REGISTRATION_IMPLEMENTATION\n");
+
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
   fclose(out);
@@ -1544,4 +1569,5 @@ int main(i32 argc, const char** argv)
   fprintf(stderr, "Metadata extraction failed.\n");
   return 1;
 }
+
 

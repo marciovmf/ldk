@@ -155,7 +155,7 @@ function(ldk_game_build)
     COMPONENT_DIRS
     SYSTEM_DIRS
   )
-  
+
   cmake_parse_arguments(
     GAME
     "${options}"
@@ -243,19 +243,24 @@ function(ldk_game_build)
 
   list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
 
-  set(GAME_METADATA_INCLUDE_DIR
-    "${CMAKE_CURRENT_BINARY_DIR}/generated/${GAME_TARGET}")
+  # Include every header passed to Comet, including headers explicitly listed
+  # in LDK_GAME_SOURCES. Never include .c/.cpp implementation files here.
   set(GAME_METADATA_INCLUDES_HEADER
-    "${GAME_METADATA_INCLUDE_DIR}/generated_component_metadata_includes.h")
-
-  file(MAKE_DIRECTORY "${GAME_METADATA_INCLUDE_DIR}")
-  file(WRITE "${GAME_METADATA_INCLUDES_HEADER}" "")
-
-  foreach(component_header IN LISTS GAME_COMPONENT_HEADERS)
-    string(REPLACE "\\" "/" component_header "${component_header}")
-    file(APPEND "${GAME_METADATA_INCLUDES_HEADER}"
-      "#include \"${component_header}\"\n")
+    "${GAME_METADATA_DIR}/generated_component_metadata_includes.h")
+  set(GAME_METADATA_INCLUDES_TEXT "")
+  foreach(metadata_input IN LISTS GAME_METADATA_INPUTS)
+    get_filename_component(metadata_extension "${metadata_input}" LAST_EXT)
+    if (metadata_extension MATCHES "^[.](h|hpp|hh)$")
+      file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
+      string(APPEND GAME_METADATA_INCLUDES_TEXT
+        "#include \"${metadata_header}\"\n")
+    endif()
   endforeach()
+
+  # OUTPUT_DIR may contain $<CONFIG>; generate the companion in the same
+  # configuration-specific directory as the Comet header.
+  file(GENERATE OUTPUT "${GAME_METADATA_INCLUDES_HEADER}"
+    CONTENT "${GAME_METADATA_INCLUDES_TEXT}")
 
   add_custom_command(
     OUTPUT "${GAME_METADATA_HEADER}"
@@ -285,7 +290,6 @@ function(ldk_game_build)
   target_include_directories(${GAME_TARGET} PRIVATE
     "${INCLUDE_DIR}"
     "${GAME_METADATA_DIR}"
-    "${GAME_METADATA_INCLUDE_DIR}"
     ${GAME_INCLUDE_DIRS}
   )
 
