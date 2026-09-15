@@ -4,6 +4,7 @@
 #define game_component_metadata_count ldk_game_generated_component_metadata_count
 #define game_component_metadata_get ldk_game_generated_component_metadata_get
 
+#define LDK_GAME_SYSTEM_REGISTRATION_IMPLEMENTATION
 #define LDK_COMPONENT_METADATA_IMPLEMENTATION
 #include <generated_component_metadata.h>
 
@@ -27,3 +28,4 @@ LDK_GAME_API const LDKComponentMeta *game_component_metadata_get(u32 index)
 
   return ldk_game_generated_component_metadata_get(index - engine_count);
 }
+

@@ -1781,7 +1781,8 @@ static LDKSceneSystems *s_editor_inspector_scene_systems(
   manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   if (!manager || !ldk_scene_manager_current(manager))
   {
-    return NULL;
+    // Play Current Scene uses the editor's systems without a catalog scene.
+    return &editor->current_scene_systems;
   }
 
   return &manager->current_systems;

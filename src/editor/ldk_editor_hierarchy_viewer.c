@@ -502,22 +502,25 @@ static void s_editor_hierarchy_systems_draw(
       ldk_ui_set_next_disabled(ui, !can_edit);
       ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
 
-      if (!ldk_scene_systems_remove(systems, id))
+      if (ldk_ui_icon_button(ui, delete_icon, NULL) && can_edit)
       {
-        ldki_editor_log_error(editor, "Failed to remove scene system.");
-      }
-      else
-      {
-        if (editor->selected_system_id == id)
+        if (!ldk_scene_systems_remove(systems, id))
         {
-          editor->selected_system_id = 0;
+          ldki_editor_log_error(editor, "Failed to remove scene system.");
         }
-        ldki_editor_log_info(editor, "Scene system removed.");
+        else
+        {
+          if (editor->selected_system_id == id)
+          {
+            editor->selected_system_id = 0;
+          }
+          ldki_editor_log_info(editor, "Scene system removed.");
+        }
+        ldk_ui_end_horizontal(ui);
+        ldk_ui_pop_id(ui);
+        ldk_ui_pop_id(ui);
+        break;
       }
-      ldk_ui_end_horizontal(ui);
-      ldk_ui_pop_id(ui);
-      ldk_ui_pop_id(ui);
-      break;
       ldk_ui_end_horizontal(ui);
       ldk_ui_pop_id(ui);
       ldk_ui_pop_id(ui);
@@ -739,3 +742,4 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
+
