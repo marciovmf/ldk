@@ -4,6 +4,7 @@
 #include <module/ldk_entity.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_camera.h>
+#include <component/ldk_light.h>
 #include <ldk.h>
 
 #include <stdx/stdx_hashtable.h>
@@ -1096,6 +1097,19 @@ bool ldk_ecs_initialize(
     ldk_component_registry_terminate(component_registry);
     ldk_entity_module_terminate(entity_registry);
     return false;
+  }
+
+  LDKComponentDesc lights[] = {
+      ldk_point_light_component_desc(16),
+      ldk_spot_light_component_desc(16),
+      ldk_directional_light_component_desc(4)};
+  for (u32 i = 0; i < 3; i++)
+  {
+    if (!ldk_component_register(&context->component, &lights[i]))
+    {
+      ldk_log_error("Failed to register component: %s.", lights[i].name);
+      error = true;
+    }
   }
 
   // Register internal components

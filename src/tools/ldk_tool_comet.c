@@ -56,6 +56,13 @@ typedef struct LDKMetaSystem
   bool stateful;
 } LDKMetaSystem;
 
+typedef struct LDKMetaEnum
+{
+  char name[128];
+  char items[256][128];
+  u32 count;
+} LDKMetaEnum;
+
 typedef struct LDKMetaState
 {
   LDKMetaComponent* components;
@@ -68,6 +75,9 @@ typedef struct LDKMetaState
 
   LDKMetaSystem *systems;
   u32 system_count;
+
+  LDKMetaEnum *enums;
+  u32 enum_count;
 
   char error[512];
 } LDKMetaState;
@@ -403,6 +413,301 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
   }
 }
 
+/* Reflected enums use C identifiers as persistent names. Initializer
+ * expressions are left to the C compiler, never evaluated by Comet. */
+static bool ldk_meta_enum_token(const char **cursor, char token[128])
+{
+  const char *p = *cursor;
+  size_t n = 0;
+  for (;;)
+  {
+    while (isspace((unsigned char)*p))
+    {
+      ++p;
+    }
+    if (p[0] == '/' && p[1] == '/')
+    {
+      while (*p && *p != '\n')
+      {
+        ++p;
+      }
+      continue;
+    }
+    if (p[0] == '/' && p[1] == '*')
+    {
+      const char *end = strstr(p + 2, "*/");
+      if (!end)
+      {
+        return false;
+      }
+      p = end + 2;
+      continue;
+    }
+    break;
+  }
+  if (!*p)
+  {
+    return false;
+  }
+  if (*p == '\'' || *p == '"')
+  {
+    char quote = *p++;
+    while (*p && *p != quote)
+    {
+      if (*p == '\\' && p[1])
+      {
+        ++p;
+      }
+      ++p;
+    }
+    if (!*p)
+    {
+      return false;
+    }
+    ++p;
+    token[n++] = quote;
+  }
+  else if (ldk_meta_is_ident_char(*p))
+  {
+    while (ldk_meta_is_ident_char(*p))
+    {
+      if (n + 1 >= 128)
+      {
+        return false;
+      }
+      token[n++] = *p++;
+    }
+  }
+  else
+  {
+    token[n++] = *p++;
+  }
+  token[n] = 0;
+  *cursor = p;
+  return true;
+}
+
+static LDKMetaEnum *ldk_meta_enum_find(LDKMetaState *state, const char *type)
+{
+  for (u32 i = 0; i < state->enum_count; ++i)
+  {
+    if (strcmp(state->enums[i].name, type) == 0)
+    {
+      return &state->enums[i];
+    }
+  }
+  return NULL;
+}
+
+static bool ldk_meta_parse_enums(LDKMetaState *state, const char *path)
+{
+  char *text;
+  size_t size;
+  if (!ldk_meta_read_file(path, &text, &size))
+  {
+    return false;
+  }
+  const char *marker = text;
+  bool ok = true;
+  while ((marker = strstr(marker, "//@enum")) != NULL)
+  {
+    marker += strlen("//@enum");
+    if (ldk_meta_is_ident_char(*marker))
+    {
+      continue;
+    }
+    const char *p = strchr(marker, '\n');
+    char token[128];
+    LDKMetaEnum item = {0};
+    if (!p || !ldk_meta_enum_token(&p, token) || strcmp(token, "typedef") ||
+        !ldk_meta_enum_token(&p, token) || strcmp(token, "enum") ||
+        !ldk_meta_enum_token(&p, token))
+    {
+      goto invalid;
+    }
+    if (strcmp(token, "{") != 0)
+    {
+      if (!ldk_meta_enum_token(&p, token) || strcmp(token, "{"))
+      {
+        goto invalid;
+      }
+    }
+    if (!ldk_meta_enum_token(&p, token))
+    {
+      goto invalid;
+    }
+    while (strcmp(token, "}") != 0)
+    {
+      if (!(isalpha((unsigned char)token[0]) || token[0] == '_') ||
+          item.count == 256)
+      {
+        goto invalid;
+      }
+      snprintf(item.items[item.count++], 128, "%s", token);
+      if (!ldk_meta_enum_token(&p, token))
+      {
+        goto invalid;
+      }
+      if (strcmp(token, "=") == 0)
+      {
+        int depth = 0;
+        bool expression = false;
+        for (;;)
+        {
+          if (!ldk_meta_enum_token(&p, token) || !strcmp(token, "#"))
+          {
+            goto invalid;
+          }
+          if (!depth && (!strcmp(token, ",") || !strcmp(token, "}")))
+          {
+            break;
+          }
+          expression = true;
+          if (!strcmp(token, "(") || !strcmp(token, "["))
+          {
+            ++depth;
+          }
+          if (!strcmp(token, ")") || !strcmp(token, "]"))
+          {
+            --depth;
+          }
+          if (depth < 0)
+          {
+            goto invalid;
+          }
+        }
+        if (!expression)
+        {
+          goto invalid;
+        }
+      }
+      if (!strcmp(token, "}"))
+      {
+        break;
+      }
+      if (strcmp(token, ",") || !ldk_meta_enum_token(&p, token))
+      {
+        goto invalid;
+      }
+    }
+    if (!item.count || !ldk_meta_enum_token(&p, token) ||
+        !(isalpha((unsigned char)token[0]) || token[0] == '_'))
+    {
+      goto invalid;
+    }
+    snprintf(item.name, sizeof(item.name), "%s", token);
+    if (!ldk_meta_enum_token(&p, token) || strcmp(token, ";"))
+    {
+      goto invalid;
+    }
+    LDKMetaEnum *existing = ldk_meta_enum_find(state, item.name);
+    if (existing)
+    {
+      if (memcmp(existing, &item, sizeof(item)))
+      {
+        goto invalid;
+      }
+    }
+    else
+    {
+      LDKMetaEnum *items = realloc(state->enums,
+          (state->enum_count + 1u) * sizeof(*items));
+      if (!items)
+      {
+        goto invalid;
+      }
+      state->enums = items;
+      items[state->enum_count++] = item;
+    }
+    marker = p;
+    continue;
+  invalid:
+    ldk_meta_set_error(state,
+        "invalid //@enum: expected typedef enum with 1..256 options; "
+        "conditional declarations are unsupported");
+    ok = false;
+    break;
+  }
+  free(text);
+  return ok;
+}
+
+static void ldk_meta_write_enums(FILE *out, LDKMetaState *state)
+{
+  for (u32 i = 0; i < state->enum_count; ++i)
+  {
+    const LDKMetaEnum *item = &state->enums[i];
+    fprintf(out, "static i64 ldk_enum_%s_read(const void *ptr)\n{\n"
+        "  %s value;\n  memcpy(&value, ptr, sizeof(value));\n"
+        "  return (i64)value;\n}\n", item->name, item->name);
+    fprintf(out, "static void ldk_enum_%s_write(void *ptr, i64 raw)\n{\n"
+        "  %s value = (%s)raw;\n  memcpy(ptr, &value, sizeof(value));\n}\n",
+        item->name, item->name, item->name);
+    for (u32 j = 0; j < item->count; ++j)
+    {
+      fprintf(out, "X_STATIC_ASSERT((%s) <= INT64_MAX, "
+          "ldk_enum_%s_%s_fits_i64);\n",
+          item->items[j], item->name, item->items[j]);
+    }
+    size_t common = strlen(item->items[0]);
+    for (u32 j = 1; j < item->count; ++j)
+    {
+      size_t k = 0;
+      while (k < common && item->items[0][k] == item->items[j][k])
+      {
+        ++k;
+      }
+      common = k;
+    }
+    while (common && item->items[0][common - 1] != '_')
+    {
+      --common;
+    }
+    fprintf(out, "static const LDKEnumOption ldk_enum_%s_options[] =\n{\n",
+        item->name);
+    for (u32 j = 0; j < item->count; ++j)
+    {
+      char label[128];
+      snprintf(label, sizeof(label), "%s", item->items[j] + common);
+      bool word_start = true;
+      for (char *c = label; *c; ++c)
+      {
+        if (*c == '_')
+        {
+          *c = ' ';
+          word_start = true;
+        }
+        else
+        {
+          *c = word_start ? (char)toupper((unsigned char)*c)
+                          : (char)tolower((unsigned char)*c);
+          word_start = false;
+        }
+      }
+      fprintf(out, "  {\"%s\", \"%s\", (i64)%s},\n",
+          item->items[j], label, item->items[j]);
+    }
+    fprintf(out, "};\nstatic const LDKEnumMeta ldk_enum_%s =\n{\n"
+        "  \"%s\", ldk_enum_%s_options, %uu, sizeof(%s), _Alignof(%s),\n"
+        "  ldk_enum_%s_read, ldk_enum_%s_write\n};\n\n",
+        item->name, item->name, item->name, item->count, item->name,
+        item->name, item->name, item->name);
+  }
+}
+
+static void ldk_meta_write_enum_reference(FILE *out, LDKMetaState *state,
+    const LDKMetaField *field)
+{
+  if (ldk_meta_enum_find(state, field->type_name))
+  {
+    fprintf(out, "&ldk_enum_%s },\n", field->type_name);
+  }
+  else
+  {
+    fprintf(out, "NULL },\n");
+  }
+}
+
 static bool ldk_meta_parse_field_line(
     LDKMetaState* state,
     const char* component_name,
@@ -466,7 +771,8 @@ static bool ldk_meta_parse_field_line(
 
   if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
   {
-    if (pending_annotation && strstr(pending_annotation, "enum"))
+    if (ldk_meta_enum_find(state, type) ||
+        (pending_annotation && strstr(pending_annotation, "enum")))
     {
       snprintf(field.field_kind, sizeof(field.field_kind), "LDK_FIELD_ENUM");
       snprintf(field.widget, sizeof(field.widget), "LDK_FIELD_WIDGET_ENUM");
@@ -1228,7 +1534,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "// ----------------------------------------------------------\n\n");
   fprintf(out, "#include <ldk_common.h>\n");
   fprintf(out, "#include <ldk_game.h>\n");
-  fprintf(out, "#include <stddef.h>\n");
+  fprintf(out, "#include <stddef.h>\n#include <string.h>\n");
   fprintf(out, "#include <editor/ldk_component_metadata.h>\n\n");
 
 
@@ -1278,6 +1584,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n");
   fprintf(out, "#define ldk_system_desc(T) LDK_SYSTEM_DESC_##T\n\n");
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
+  ldk_meta_write_enums(out, state);
 
   for (i = 0; i < state->component_count; i++)
   {
@@ -1298,7 +1605,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 
       fprintf(
           out,
-          "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff },\n",
+          "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff, ",
           field->field_name,
           field->field_kind,
           component->type_name,
@@ -1307,6 +1614,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           field->widget,
           min_value,
           max_value);
+      ldk_meta_write_enum_reference(out, state, field);
     }
 
     fprintf(out, "  };\n\n");
@@ -1365,10 +1673,11 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
         float max_value = field->has_max ? field->max_value : 0.0f;
 
         fprintf(out,
-            "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff },\n",
+            "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff, ",
             field->field_name, field->field_kind, system->type_name,
             field->field_name, emitted_flags, field->widget, min_value,
             max_value);
+        ldk_meta_write_enum_reference(out, state, field);
       }
       fprintf(out, "  };\n\n");
     }
@@ -1490,7 +1799,18 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     return false;
   }
 
-  for (i = 0; i < input_file_count; i++)
+  /* Discover enum types before fields, independent of input order. */
+  for (i = 0; i < input_file_count; ++i)
+  {
+    if (!ldk_meta_parse_enums(&state, input_files[i]))
+    {
+      fprintf(stderr, "ldk_meta_gen: %s: %s\n", input_files[i], state.error);
+      ok = false;
+      break;
+    }
+  }
+
+  for (i = 0; ok && i < input_file_count; i++)
   {
     if (!ldk_meta_parse_file(&state, input_files[i]))
     {
@@ -1532,6 +1852,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   free(state.components);
   free(state.fields);
   free(state.systems);
+  free(state.enums);
 
   return ok;
 }
@@ -1569,5 +1890,3 @@ int main(i32 argc, const char** argv)
   fprintf(stderr, "Metadata extraction failed.\n");
   return 1;
 }
-
-

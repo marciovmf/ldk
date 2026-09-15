@@ -48,6 +48,40 @@ static LDKUIRect s_ui_popup_default_rect(LDKUIPoint position)
       position.x, position.y, 160.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT};
 }
 
+static LDKUIPoint s_ui_popup_clamp_position(
+    LDKUIContext *ctx, LDKUIPoint position, float width, float height)
+{
+  float min_x;
+  float min_y;
+  float max_x;
+  float max_y;
+
+  if (ctx == NULL)
+  {
+    return position;
+  }
+
+  min_x = ctx->viewport.x;
+  min_y = ctx->viewport.y;
+  max_x = ctx->viewport.x + ctx->viewport.w - width;
+  max_y = ctx->viewport.y + ctx->viewport.h - height;
+
+  if (max_x < min_x)
+  {
+    max_x = min_x;
+  }
+
+  if (max_y < min_y)
+  {
+    max_y = min_y;
+  }
+
+  position.x = s_ui_clampf(position.x, min_x, max_x);
+  position.y = s_ui_clampf(position.y, min_y, max_y);
+
+  return position;
+}
+
 static LDKUIPoint s_ui_popup_default_position(LDKUIContext *ctx)
 {
   LDKUIPoint position = {0};
@@ -120,6 +154,12 @@ void ldk_ui_open_popup_at(LDKUIContext *ctx, LDKUIId id, LDKUIPoint position)
 
   if (cache != NULL)
   {
+    float width = cache->has_rect ? cache->rect.w : 160.0f;
+    float height =
+        cache->has_rect ? cache->rect.h : LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+    position = s_ui_popup_clamp_position(ctx, position, width, height);
+
     cache->position = position;
     cache->rect.x = position.x;
     cache->rect.y = position.y;
@@ -312,10 +352,14 @@ void ldk_ui_end_popup(LDKUIContext *ctx)
 
   if (cache != NULL)
   {
-    rect.x = cache->position.x;
-    rect.y = cache->position.y;
     rect.w = s_ui_maxf(rect.w, 1.0f);
     rect.h = s_ui_maxf(rect.h, 1.0f);
+
+    cache->position = s_ui_popup_clamp_position(
+        ctx, cache->position, rect.w, rect.h);
+
+    rect.x = cache->position.x;
+    rect.y = cache->position.y;
 
     cache->rect = rect;
     cache->has_rect = true;

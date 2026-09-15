@@ -1416,7 +1416,24 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     i32 wasDown = (lParam & (1 << 30)) != 0;
     i32 state = (((isDown ^ wasDown) << 1) | isDown);
     i16 vkCode = (i16)wParam;
-    s_oswin32.keyboard_state.key[vkCode] = (u8)state;
+    if (vkCode == LDK_KEYCODE_CONTROL)
+    {
+      // Ctrl's extended-key bit distinguishes right from left Ctrl.
+      LDKKeycode side = (lParam & (1L << 24))
+          ? LDK_KEYCODE_RIGHT_CONTROL : LDK_KEYCODE_LEFT_CONTROL;
+      u8 previous = s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL] &
+          LDK_KEYBOARD_PRESSED_BIT;
+      s_oswin32.keyboard_state.key[side] = (u8)state;
+      u8 pressed = (s_oswin32.keyboard_state.key[LDK_KEYCODE_LEFT_CONTROL] |
+          s_oswin32.keyboard_state.key[LDK_KEYCODE_RIGHT_CONTROL]) &
+          LDK_KEYBOARD_PRESSED_BIT;
+      s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL] =
+          pressed | ((previous ^ pressed) << 1);
+    }
+    else
+    {
+      s_oswin32.keyboard_state.key[vkCode] = (u8)state;
+    }
 
     LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_KEYBOARD;
@@ -1428,7 +1445,8 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     e->keyboard_event.keyCode = vkCode;
     e->keyboard_event.ctrl_is_down =
-        s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL];
+        (s_oswin32.keyboard_state.key[LDK_KEYCODE_CONTROL] &
+            LDK_KEYBOARD_PRESSED_BIT) != 0;
     e->keyboard_event.shift_is_down =
         s_oswin32.keyboard_state.key[LDK_KEYCODE_SHIFT];
     e->keyboard_event.alt_is_down =

@@ -133,6 +133,21 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
       return LDK_COMPONENT_TYPE_CAMERA;
     }
 
+    if (strcmp(meta->name, "LDKPointLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_POINT_LIGHT;
+    }
+
+    if (strcmp(meta->name, "LDKSpotLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_SPOT_LIGHT;
+    }
+
+    if (strcmp(meta->name, "LDKDirectionalLight") == 0)
+    {
+      return LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT;
+    }
+
     if (strcmp(meta->name, "LDKMeshSource") == 0)
     {
       return LDK_COMPONENT_TYPE_MESH_SOURCE;
@@ -563,6 +578,41 @@ static bool s_read_scene_entity_reference(
   return s_map_find_entity_by_id(map, scene_id, out_entity);
 }
 
+static void s_result_error_format(LDKSceneResult *result,
+    const char *format, const char *first, const char *second)
+{
+  if (!result)
+  {
+    return;
+  }
+
+  result->ok = false;
+  snprintf(result->error, sizeof(result->error), format,
+      first ? first : "", second ? second : "");
+}
+
+static bool s_apply_enum_value(const TMLEntry *entry,
+    const LDKEnumMeta *meta, void *ptr)
+{
+  for (u32 i = 0; i < meta->count; ++i)
+  {
+    const LDKEnumOption *option = &meta->options[i];
+    TMLString name;
+    i64 raw;
+    bool matches = entry->type == TML_VALUE_STRING
+        ? (tml_entry_get_string(entry, &name) &&
+            name.size == strlen(option->name) &&
+            memcmp(name.data, option->name, name.size) == 0)
+        : (tml_entry_get_i64(entry, &raw) && raw == option->value);
+    if (matches)
+    {
+      meta->write(ptr, option->value);
+      return true;
+    }
+  }
+  return false; /* Unknown names/numbers must not silently become zero. */
+}
+
 static bool s_apply_field_value(const TMLDocument *doc,
     const TMLEntry *entry, const LDKSceneEntityMap *entity_map,
     const LDKComponentFieldMeta *field, void *component)
@@ -593,8 +643,14 @@ static bool s_apply_field_value(const TMLDocument *doc,
   }
   break;
 
-  case LDK_FIELD_I32:
   case LDK_FIELD_ENUM:
+    if (field->enum_meta)
+    {
+      return s_apply_enum_value(entry, field->enum_meta, ptr);
+    }
+    /* Legacy enum metadata uses i32 storage. */
+    /* fall through */
+  case LDK_FIELD_I32:
   {
     i64 value;
 
@@ -989,7 +1045,8 @@ static bool s_apply_component_fields(const TMLDocument *doc,
 
     if (!s_apply_field_value(doc, entry, map, field, component))
     {
-      s_result_error(result, "failed to parse component field");
+      s_result_error_format(result, "invalid value for component field: %s.%s",
+          meta->name, field->name);
       return false;
     }
   }
@@ -1309,8 +1366,15 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(bool);
       alignment = _Alignof(bool);
       break;
-    case LDK_FIELD_I32:
     case LDK_FIELD_ENUM:
+      if (field->enum_meta)
+      {
+        field_size = field->enum_meta->size;
+        alignment = field->enum_meta->alignment;
+        break;
+      }
+      /* fall through */
+    case LDK_FIELD_I32:
       field_size = sizeof(i32);
       alignment = _Alignof(i32);
       break;
@@ -1422,7 +1486,8 @@ static bool s_apply_system_fields(const TMLDocument *doc,
         continue;
       }
       /* Reject narrowing integers instead of silently truncating scene data. */
-      if ((field->type == LDK_FIELD_I32 || field->type == LDK_FIELD_ENUM) &&
+      if ((field->type == LDK_FIELD_I32 ||
+              (field->type == LDK_FIELD_ENUM && !field->enum_meta)) &&
           (entry->type != TML_VALUE_I64 || entry->integer < INT32_MIN ||
            entry->integer > INT32_MAX))
       {
@@ -1438,7 +1503,8 @@ static bool s_apply_system_fields(const TMLDocument *doc,
       }
       if (!s_apply_field_value(doc, entry, map, field, systems->data[i]))
       {
-        s_result_error(result, "failed to parse system field");
+        s_result_error_format(result, "invalid value for system field: %s.%s",
+            meta->name, field->name);
         return false;
       }
     }
@@ -1695,19 +1761,6 @@ static bool s_map_find_id_by_entity(
   return false;
 }
 
-static void s_result_error_format(LDKSceneResult *result,
-    const char *format, const char *first, const char *second)
-{
-  if (!result)
-  {
-    return;
-  }
-
-  result->ok = false;
-  snprintf(result->error, sizeof(result->error), format,
-      first ? first : "", second ? second : "");
-}
-
 static void s_append_indent(XStrBuilder *out, u32 indent)
 {
   u32 i;
@@ -1782,9 +1835,44 @@ static bool s_write_scene_entity_reference(XStrBuilder *out,
   return true;
 }
 
+static bool s_component_uses_engine_metadata(const LDKComponentMeta *meta)
+{
+  for (u32 i = 0; i < ldk_engine_component_metadata_count(); ++i)
+  {
+    const LDKComponentMeta *engine = ldk_engine_component_metadata_get(i);
+    if (engine && meta->name && engine->name &&
+        strcmp(meta->name, engine->name) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool s_write_enum_value(XStrBuilder *out,
+    const LDKEnumMeta *meta, const void *ptr, bool symbolic_enums)
+{
+  i64 raw = meta->read(ptr);
+  if (!symbolic_enums)
+  {
+    x_strbuilder_append_format(out, "%" PRId64, raw);
+    return true;
+  }
+  for (u32 i = 0; i < meta->count; ++i)
+  {
+    if (meta->options[i].value == raw)
+    {
+      s_append_escaped_string(out, meta->options[i].name);
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool s_write_field_value(XStrBuilder *out,
     const LDKSceneEntityMap *entity_map,
-    const LDKComponentFieldMeta *field, const void *component)
+    const LDKComponentFieldMeta *field, const void *component,
+    bool symbolic_enums)
 {
   const u8 *base;
   const void *ptr;
@@ -1806,8 +1894,13 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
-  case LDK_FIELD_I32:
   case LDK_FIELD_ENUM:
+    if (field->enum_meta)
+    {
+      return s_write_enum_value(out, field->enum_meta, ptr, symbolic_enums);
+    }
+    /* fall through */
+  case LDK_FIELD_I32:
   {
     const i32 *value = (const i32 *)ptr;
     x_strbuilder_append_format(out, "%d", *value);
@@ -2147,7 +2240,8 @@ static bool s_write_component(LDKSceneSaveContext *context,
     x_strbuilder_append_format(context->out, "%s: ", field->name);
 
     if (!s_write_field_value(
-            context->out, &context->map, field, component))
+            context->out, &context->map, field, component,
+            !s_component_uses_engine_metadata(meta)))
     {
       s_result_error_format(context->result,
           "failed to serialize component field: %s.%s", meta->name,
@@ -2323,7 +2417,7 @@ static bool s_write_systems(LDKSceneSaveContext *context,
       }
       x_strbuilder_append_format(context->out, "        %s: ", field->name);
       if (!s_write_field_value(
-              context->out, &context->map, field, systems->data[i]))
+              context->out, &context->map, field, systems->data[i], true))
       {
         s_result_error(context->result, "failed to serialize system field");
         return false;

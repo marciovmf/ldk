@@ -390,6 +390,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
   ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
+  ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
@@ -407,6 +408,7 @@ list(APPEND LDK_SOURCE
   # Components
   ${INCLUDE_DIR}/component/ldk_transform.h    src/component/ldk_transform.c
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
+  ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
 )
 

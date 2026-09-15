@@ -539,6 +539,21 @@ static void s_editor_inspector_flags_draw(
 static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     const LDKComponentFieldMeta *field, const void *value)
 {
+  if (field->type == LDK_FIELD_ENUM && field->enum_meta)
+  {
+    const LDKEnumMeta *meta = field->enum_meta;
+    i64 raw = meta->read(value);
+    for (u32 i = 0; i < meta->count; ++i)
+    {
+      if (meta->options[i].value == raw)
+      {
+        snprintf(out, out_size, "%s", meta->options[i].label);
+        return;
+      }
+    }
+    snprintf(out, out_size, "Unknown (%" PRId64 ")", raw);
+    return;
+  }
   switch (field->type)
   {
   case LDK_FIELD_BOOL:
@@ -882,7 +897,6 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
     ldk_ui_push_id_u32(ui, axis);
     ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
     ldk_ui_label(ui, axis_names[axis]);
-    ldk_ui_set_next_width(ui, ldk_ui_px(60.0f));
     snprintf(buffer, sizeof(buffer), "%.9g",
         (double)s_editor_inspector_euler_axis_get(state->degrees, axis));
 
@@ -1174,6 +1188,44 @@ static void s_editor_inspector_field_draw(
   ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
   ldk_ui_label(ui, field->name);
 
+  if (field->type == LDK_FIELD_ENUM && field->enum_meta)
+  {
+    const LDKEnumMeta *meta = field->enum_meta;
+    const char **labels = malloc((meta->count + 1u) * sizeof(*labels));
+    if (labels)
+    {
+      char unknown[64];
+      i64 raw = meta->read(field_value);
+      u32 selected = meta->count;
+      for (u32 i = 0; i < meta->count; ++i)
+      {
+        labels[i] = meta->options[i].label;
+        if (selected == meta->count && meta->options[i].value == raw)
+        {
+          selected = i;
+        }
+      }
+      snprintf(unknown, sizeof(unknown), "Unknown (%" PRId64 ")", raw);
+      labels[meta->count] = unknown;
+      u32 count = meta->count + (selected == meta->count ? 1u : 0u);
+      ldk_ui_begin_disabled(ui, readonly);
+      u32 next = ldk_ui_combo_box(ui, labels, count, selected);
+      ldk_ui_end_disabled(ui);
+      if (!readonly && next != selected && next < meta->count)
+      {
+        meta->write(field_value, meta->options[next].value);
+      }
+      free(labels);
+    }
+    else
+    {
+      ldk_ui_label(ui, "Enum options unavailable");
+    }
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   switch (field->type)
   {
   case LDK_FIELD_BOOL:
@@ -1221,6 +1273,18 @@ static void s_editor_inspector_field_draw(
 
   case LDK_FIELD_U32:
   {
+    if (field->widget == LDK_FIELD_WIDGET_COLOR)
+    {
+      rgba32 color = *(u32 *)field_value;
+      ldk_ui_begin_disabled(ui, readonly);
+      if (ldk_ui_color_view(ui, color) && !readonly)
+      {
+        ldk_os_dialog_color_picker_show(editor->window, &color);
+        *(u32 *)field_value = color;
+      }
+      ldk_ui_end_disabled(ui);
+      break;
+    }
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
     u32 original = *(u32 *)field_value;
     u32 parsed;
@@ -1297,10 +1361,18 @@ static void s_editor_inspector_field_draw(
 
     bool changed = false;
 
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "X");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 0, &value.x, readonly);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "Y");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 1, &value.y, readonly);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+    ldk_ui_label(ui, "Z");
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 2, &value.z, readonly);
 

@@ -10,6 +10,7 @@
 #include <string.h>
 
 #define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
+#define LDK_EDITOR_HIERARCHY_ICON_SIZE 18
 
 typedef struct LDKEditorHierarchyDropTarget
 {
@@ -318,7 +319,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
 
   LDKUIIcon icon = {0};
   icon.size =
-      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+      ldk_sizef(LDK_EDITOR_HIERARCHY_ICON_SIZE, LDK_EDITOR_HIERARCHY_ICON_SIZE);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
@@ -344,6 +345,13 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
     *selected_entity = entity;
     *has_selection = true;
     s_editor_hierarchy_entity_payload_set(entity);
+  }
+
+  if (ui->mouse != NULL && ui->active_id == node_id &&
+      ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    ldk_ui_drag_n_drop_preview_draw(ui, icon);
   }
 
   if (drop_target != NULL && s_editor_hierarchy_node_drop(ui, node_id))
@@ -427,7 +435,7 @@ static void s_editor_hierarchy_systems_draw(
 
   LDKUIIcon grouping_icon = icon;
   grouping_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CATEGORY];
- 
+
   ldk_ui_begin_disabled(ui, !editor->project.loaded);
   if (ldk_ui_widget_icon_button(
           ui, EDIT_GROUPINGS_BUTTON, grouping_icon, "", grouping_button_rect))
@@ -500,8 +508,7 @@ static void s_editor_hierarchy_systems_draw(
       }
 
       ldk_ui_set_next_disabled(ui, !can_edit);
-      ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-
+      ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + LDK_UI_DEFAULT_SPACING));
       if (ldk_ui_icon_button(ui, delete_icon, NULL) && can_edit)
       {
         if (!ldk_scene_systems_remove(systems, id))
@@ -584,7 +591,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   LDKUIIcon icon = {0};
   icon.size =
-      ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+      ldk_sizef(LDK_EDITOR_HIERARCHY_ICON_SIZE, LDK_EDITOR_HIERARCHY_ICON_SIZE);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
@@ -624,11 +631,12 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   s_editor_hierarchy_systems_draw(editor, icon);
 
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HIERARCHY];
   ldk_ui_push_id_cstr(ui, "entity");
   u32 entities_result = ldk_ui_tree_node_ex(
-      ui, "Entity", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
+      ui, "Entities", icon, entities_expanded, 0, LDK_UI_TREE_NODE_NONE);
   LDKUIId entities_node_id = ui->last_id;
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_OBJECT];
 
   if (s_editor_hierarchy_node_drop(ui, entities_node_id))
   {
@@ -742,4 +750,3 @@ void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs)
 {
   s_editor_entity_list_window((LDKEditorContext *)editor, ecs);
 }
-

@@ -393,6 +393,8 @@ extern "C"
   X(LDK_KEYCODE_F22, "F22", 0x85)                                              \
   X(LDK_KEYCODE_F23, "F23", 0x86)                                              \
   X(LDK_KEYCODE_F24, "F24", 0x87)                                              \
+  X(LDK_KEYCODE_LEFT_CONTROL, "LEFT_CONTROL", 0xA2)                          \
+  X(LDK_KEYCODE_RIGHT_CONTROL, "RIGHT_CONTROL", 0xA3)                        \
   X(LDK_KEYCODE_OEM1, "OEM1", 0xBA)                                            \
   X(LDK_KEYCODE_OEM2, "OEM2", 0xBF)                                            \
   X(LDK_KEYCODE_OEM3, "OEM3", 0xC0)                                            \

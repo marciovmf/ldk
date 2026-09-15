@@ -8,12 +8,13 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.569439650, -0.00414329767
+            local_position: 0.00000000, 0.569439650, 1.72827291
             local_scale: 1.16555500, 1.16555500, 2.06512880
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
+            mesh_index: 0
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 1
       parent: 2
@@ -28,6 +29,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
+            mesh_index: 0
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 2
       parent: 0
@@ -42,6 +44,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 3
       parent: 0
@@ -56,6 +59,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 4
       parent: 3
@@ -70,6 +74,7 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cone"
+            mesh_index: 0
             material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 5
       parent: -1
@@ -84,8 +89,153 @@ scene:
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/quad"
+            mesh_index: 0
             material_type: 4
             material_color: 0xa800ff
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "Camera"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 3.81798458, 1.52985072, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.0336645283, 0.683071613, 0.0359128267, 0.728690803
+        - type: 4294967293 # LDKCamera
+          fields:
+            projection: 0
+            role: 1
+            fov_y: 1.04719758
+            orthographic_height: 10.0000000
+            near_plane: 0.100000001
+            far_plane: 1000.00000
+            enabled: true
+    - entity: 7
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, -8.77603149
+            local_scale: 6.52587891, 6.52587891, 6.52587891
+            local_rotation: -0.711974084, 0.00000000, 0.00000000, 0.702205777
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            material_type: 4
+            material_color: 0xa800ff
+    - entity: 8
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.569439650, -8.01682472
+            local_scale: 1.16555500, 1.16555500, 2.06512880
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 9
+      parent: 8
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, -0.133486927, -0.576774240
+            local_scale: 0.857960343, 0.857960343, 0.484231263
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 10
+      parent: 9
+      flags: 0
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0302972794, 1.17998791, 0.000992655754
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
+            mesh_index: 0
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 11
+      parent: 8
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, -0.146292210, 0.442302287
+            local_scale: 0.857960343, 0.857960343, 0.484231263
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 12
+      parent: 11
+      flags: 0
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 1.12865114, 0.00103080273
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
+            mesh_index: 0
+            material_asset: "assets\\materials\\castle_checkers.tml"
+    - entity: 13
+      parent: -1
+      flags: 0
+      name: "Entity"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 2.72148752, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967291 # LDKPointLight
+          fields:
+            color: 4294967295
+            intensity: 6.00000000
+            range: 5.00000000
+            enabled: true
+    - entity: 14
+      parent: -1
+      flags: 0
+      name: "Entity"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 3.70023251, -4.41654682
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.471945256, 0.00000000, 0.00000000, 0.881627858
+        - type: 4294967290 # LDKSpotLight
+          fields:
+            color: 4294967295
+            intensity: 7.00000000
+            range: 7.00000000
+            inner_angle: 0.349065840
+            outer_angle: 0.523598790
+            enabled: true
   systems:
     - id: "0x63f0bfacf2c00f6b"
       grouping: "0x8000000000000000"

@@ -80,7 +80,8 @@ typedef enum LDKEditorGizmoMode
 {
   LDK_EDITOR_GIZMO_MODE_TRANSLATE = 0,
   LDK_EDITOR_GIZMO_MODE_ROTATE,
-  LDK_EDITOR_GIZMO_MODE_SCALE
+  LDK_EDITOR_GIZMO_MODE_SCALE,
+  LDK_EDITOR_GIZMO_MODE_PAN
 } LDKEditorGizmoMode;
 
 typedef enum LDKEditorGizmoSpace
@@ -134,6 +135,8 @@ typedef struct LDKEditorCameraControllerState
   float distance;
   bool orbiting;
   bool panning;
+  bool pan_with_left;
+  bool pan_block_pick;
   bool initialized;
 } LDKEditorCameraControllerState;
 

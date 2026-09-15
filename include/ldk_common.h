@@ -60,6 +60,7 @@
 #endif
 
 #define LDK_ASSERT(expr) X_ASSERT(expr)
+#define LDK_STATIC_ASSERT(expr, name) X_STATIC_ASSERT((expr), name)
 
 typedef u32 rgba32;
 

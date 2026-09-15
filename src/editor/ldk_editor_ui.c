@@ -646,7 +646,8 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
   ldk_ui_push_id_cstr(ui, "gizmo-space");
   ldk_ui_begin_disabled(ui,
       editor->gizmo.dragging ||
-          editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE);
+          editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE ||
+          editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN);
 
   LDKUIIcon icon;
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
@@ -669,7 +670,12 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 
 static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
 {
-  static const LDKEditorIcon items[] = {LDK_EDITOR_ICON_MOVETOOL, LDK_EDITOR_ICON_ROTATETOOL, LDK_EDITOR_ICON_SCALETOOL};
+  static const LDKEditorIcon items[] = {
+      LDK_EDITOR_ICON_PANTOOL, LDK_EDITOR_ICON_MOVETOOL,
+      LDK_EDITOR_ICON_ROTATETOOL, LDK_EDITOR_ICON_SCALETOOL};
+  static const LDKEditorGizmoMode modes[] = {
+      LDK_EDITOR_GIZMO_MODE_PAN, LDK_EDITOR_GIZMO_MODE_TRANSLATE,
+      LDK_EDITOR_GIZMO_MODE_ROTATE, LDK_EDITOR_GIZMO_MODE_SCALE};
 
   if (editor == NULL)
   {
@@ -682,15 +688,19 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   icon.size.w = icon.size.h = 24;
 
   u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
-  u32 selected_index = (u32)editor->gizmo.mode;
-
-  if (selected_index >= item_count)
+  u32 selected_index = 1;
+  for (u32 i = 0; i < item_count; ++i)
   {
-    selected_index = (u32)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+    if (modes[i] == editor->gizmo.mode)
+    {
+      selected_index = i;
+      break;
+    }
   }
 
   ldk_ui_push_id_cstr(ui, "gizmo-mode");
-  ldk_ui_begin_disabled(ui, editor->gizmo.dragging);
+  ldk_ui_begin_disabled(ui, editor->gizmo.dragging ||
+      editor->camera_controller.panning || editor->camera_controller.orbiting);
 
   for (u32 i = 0; i < item_count; ++i)
   {
@@ -698,7 +708,7 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
     if (s_editor_push_button(ui, NULL, icon, i == selected_index))
     {
-      editor->gizmo.mode = (LDKEditorGizmoMode)i;
+      editor->gizmo.mode = modes[i];
     }
   }
 

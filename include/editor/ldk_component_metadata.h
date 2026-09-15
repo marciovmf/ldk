@@ -43,6 +43,7 @@ extern "C"
     LDK_FIELD_WIDGET_ASSET_MESH,
     LDK_FIELD_WIDGET_RESOURCE_MESH,
     LDK_FIELD_WIDGET_EULER,
+    LDK_FIELD_WIDGET_COLOR,
   } LDKFieldWidget;
 
   typedef enum LDKFieldFlags
@@ -51,6 +52,24 @@ extern "C"
     LDK_FIELD_FLAG_READONLY = 1 << 0,
     LDK_FIELD_FLAG_RUNTIME = 1 << 1,
   } LDKFieldFlags;
+
+  typedef struct LDKEnumOption
+  {
+    const char *name; /* Persistent C identifier. */
+    const char *label;
+    i64 value;
+  } LDKEnumOption;
+
+  typedef struct LDKEnumMeta
+  {
+    const char *name;
+    const LDKEnumOption *options;
+    u32 count;
+    u32 size;
+    u32 alignment;
+    i64 (*read)(const void *value);
+    void (*write)(void *value, i64 raw);
+  } LDKEnumMeta;
 
   typedef struct LDKComponentFieldMeta
   {
@@ -61,6 +80,7 @@ extern "C"
     LDKFieldWidget widget;
     float min_value;
     float max_value;
+    const LDKEnumMeta *enum_meta;
   } LDKComponentFieldMeta;
 
   typedef struct LDKComponentMeta
