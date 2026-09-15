@@ -539,6 +539,21 @@ static void s_editor_inspector_flags_draw(
 static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     const LDKComponentFieldMeta *field, const void *value)
 {
+  if (field->type == LDK_FIELD_ENUM && field->enum_meta)
+  {
+    const LDKEnumMeta *meta = field->enum_meta;
+    i64 raw = meta->read(value);
+    for (u32 i = 0; i < meta->count; ++i)
+    {
+      if (meta->options[i].value == raw)
+      {
+        snprintf(out, out_size, "%s", meta->options[i].label);
+        return;
+      }
+    }
+    snprintf(out, out_size, "Unknown (%" PRId64 ")", raw);
+    return;
+  }
   switch (field->type)
   {
   case LDK_FIELD_BOOL:
@@ -1173,6 +1188,44 @@ static void s_editor_inspector_field_draw(
   ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
   ldk_ui_label(ui, field->name);
+
+  if (field->type == LDK_FIELD_ENUM && field->enum_meta)
+  {
+    const LDKEnumMeta *meta = field->enum_meta;
+    const char **labels = malloc((meta->count + 1u) * sizeof(*labels));
+    if (labels)
+    {
+      char unknown[64];
+      i64 raw = meta->read(field_value);
+      u32 selected = meta->count;
+      for (u32 i = 0; i < meta->count; ++i)
+      {
+        labels[i] = meta->options[i].label;
+        if (selected == meta->count && meta->options[i].value == raw)
+        {
+          selected = i;
+        }
+      }
+      snprintf(unknown, sizeof(unknown), "Unknown (%" PRId64 ")", raw);
+      labels[meta->count] = unknown;
+      u32 count = meta->count + (selected == meta->count ? 1u : 0u);
+      ldk_ui_begin_disabled(ui, readonly);
+      u32 next = ldk_ui_combo_box(ui, labels, count, selected);
+      ldk_ui_end_disabled(ui);
+      if (!readonly && next != selected && next < meta->count)
+      {
+        meta->write(field_value, meta->options[next].value);
+      }
+      free(labels);
+    }
+    else
+    {
+      ldk_ui_label(ui, "Enum options unavailable");
+    }
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_pop_id(ui);
+    return;
+  }
 
   switch (field->type)
   {

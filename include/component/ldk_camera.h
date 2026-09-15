@@ -17,12 +17,14 @@
 extern "C" {
 #endif
 
+  //@enum
   typedef enum LDKCameraProjection
   {
     LDK_CAMERA_PROJECTION_PERSPECTIVE = 0,
     LDK_CAMERA_PROJECTION_ORTHOGRAPHIC
   } LDKCameraProjection;
 
+  //@enum
   typedef enum LDKCameraRole
   {
     LDK_CAMERA_ROLE_NONE = 0,
