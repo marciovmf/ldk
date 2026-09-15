@@ -2,6 +2,8 @@
 
 #include <ldk.h>
 #include <ldk_mesh.h>
+#include <ldk_debug_draw.h>
+#include <component/ldk_light.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
@@ -1781,6 +1783,122 @@ static void s_editor_gizmo_rotation_drag_submit(
           reflected_orientation, ring_scale));
 }
 
+static void s_editor_spot_volume_draw(const LDKDebugDraw *draw,
+    Vec3 origin, Vec3 direction, float range, float angle)
+{
+  // Range in the lighting shader is radial, not distance along the axis.
+  float height = fmaxf(0.0f, range * cosf(angle));
+  float radius = range * sinf(angle);
+  ldk_debug_draw_cone(draw, origin, direction, height, radius, 32);
+  Vec3 reference = fabsf(direction.y) < 0.9f
+      ? vec3_make(0, 1, 0) : vec3_make(1, 0, 0);
+  Vec3 axes[2];
+  axes[0] = vec3_norm(vec3_cross(reference, direction));
+  axes[1] = vec3_cross(direction, axes[0]);
+  // Two meridian arcs show the curved range boundary beyond the cone rim.
+  for (u32 axis = 0; axis < 2; ++axis)
+  {
+    Vec3 previous = vec3_add(origin,
+        vec3_add(vec3_mul(direction, height), vec3_mul(axes[axis], -radius)));
+    for (u32 i = 1; i <= 16; ++i)
+    {
+      float a = -angle + 2.0f * angle * (float)i / 16.0f;
+      Vec3 next = vec3_add(origin, vec3_add(
+          vec3_mul(direction, range * cosf(a)),
+          vec3_mul(axes[axis], range * sinf(a))));
+      ldk_debug_draw_line(draw, previous, next);
+      previous = next;
+    }
+  }
+}
+
+static void s_editor_selected_component_draw(LDKEditorContext *editor,
+    LDKEntity selected, Mat4 world)
+{
+  LDKDebugDraw draw = ldk_debug_draw_make(editor->renderer, editor->scene_view);
+  draw.color = 0xffd060ffu;
+  Vec3 origin = vec3_make(world.m[12], world.m[13], world.m[14]);
+  const LDKPointLight *point =
+      ldk_ecs_component_get(selected, LDK_COMPONENT_TYPE_POINT_LIGHT);
+  const LDKSpotLight *spot =
+      ldk_ecs_component_get(selected, LDK_COMPONENT_TYPE_SPOT_LIGHT);
+  const LDKDirectionalLight *directional =
+      ldk_ecs_component_get(selected, LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT);
+  if (point)
+  {
+    if (!point->enabled)
+    {
+      draw.color = 0x808080ffu;
+    }
+    ldk_debug_draw_sphere(&draw, origin, point->range, 32);
+  }
+  else if (spot || directional)
+  {
+    Vec3 direction = mat4_mul_dir(world, vec3_make(0, 0, -1));
+    float length_squared = vec3_dot(direction, direction);
+    if (isfinite(length_squared) && length_squared >= 1e-12f)
+    {
+      direction = vec3_mul(direction, 1.0f / sqrtf(length_squared));
+      if (spot)
+      {
+        if (!spot->enabled)
+        {
+          draw.color = 0x808080ffu;
+        }
+        // Match the renderer's validation of authored light parameters.
+        if (isfinite(spot->range) && spot->range > 0.0f &&
+            isfinite(spot->inner_angle) && isfinite(spot->outer_angle) &&
+            spot->inner_angle >= 0.0f && spot->outer_angle > 0.0f &&
+            spot->inner_angle <= spot->outer_angle &&
+            spot->outer_angle <= STDXM_PI * 0.5f)
+        {
+          ldk_debug_draw_arrow(&draw, origin,
+              vec3_add(origin, vec3_mul(direction, spot->range)));
+          s_editor_spot_volume_draw(&draw, origin, direction,
+              spot->range, spot->outer_angle);
+          if (spot->inner_angle != spot->outer_angle)
+          {
+            draw.color = spot->enabled ? 0xb09050ffu : 0x606060ffu;
+            s_editor_spot_volume_draw(&draw, origin, direction,
+                spot->range, spot->inner_angle);
+          }
+        }
+      }
+      else
+      {
+        if (!directional->enabled)
+        {
+          draw.color = 0x808080ffu;
+        }
+        ldk_debug_draw_arrow(&draw, origin,
+            vec3_add(origin, vec3_mul(direction, 2.0f)));
+      }
+    }
+  }
+
+  const LDKCamera *camera =
+      ldk_ecs_component_get(selected, LDK_COMPONENT_TYPE_CAMERA);
+  if (camera && camera->role != LDK_CAMERA_ROLE_EDITOR &&
+      !ldki_editor_entity_equal(selected, editor->editor_camera) &&
+      editor->renderer->game_width && editor->renderer->game_height)
+  {
+    Mat4 view, projection;
+    float aspect = (float)editor->renderer->game_width /
+        (float)editor->renderer->game_height;
+    if (ldk_camera_get_view_matrix(selected, &view) &&
+        ldk_camera_get_projection_matrix(selected, aspect, &projection))
+    {
+      bool invertible = false;
+      Mat4 inverse = mat4_inverse_full(mat4_mul(projection, view), &invertible);
+      if (invertible)
+      {
+        draw.color = 0xffd060ffu;
+        ldk_debug_draw_frustum(&draw, inverse);
+      }
+    }
+  }
+}
+
 void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 {
   LDKECS *ecs;
@@ -1806,8 +1924,13 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   ecs = ldk_module_get(LDK_MODULE_ECS);
   if (ecs == NULL ||
       !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
-      !ldk_transform_get_world_matrix(selected, &selected_world) ||
-      !s_editor_gizmo_initialize(editor))
+      !ldk_transform_get_world_matrix(selected, &selected_world))
+  {
+    return;
+  }
+
+  s_editor_selected_component_draw(editor, selected, selected_world);
+  if (!s_editor_gizmo_initialize(editor))
   {
     return;
   }

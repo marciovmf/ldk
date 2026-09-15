@@ -390,6 +390,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_scene.h        src/ldk_scene.c
   ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
+  ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
 
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c

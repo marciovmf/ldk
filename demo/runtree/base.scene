@@ -215,8 +215,8 @@ scene:
         - type: 4294967291 # LDKPointLight
           fields:
             color: 4294967295
-            intensity: 1.00000000
-            range: 10.0000000
+            intensity: 6.00000000
+            range: 5.00000000
             enabled: true
     - entity: 14
       parent: -1
@@ -231,8 +231,8 @@ scene:
         - type: 4294967290 # LDKSpotLight
           fields:
             color: 4294967295
-            intensity: 1.00000000
-            range: 10.0000000
+            intensity: 7.00000000
+            range: 7.00000000
             inner_angle: 0.349065840
             outer_angle: 0.523598790
             enabled: true

@@ -496,6 +496,12 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->mesh_count = 0;
   renderer->mesh_capacity = 0;
 
+  LDK_RENDERER_FREE(renderer->submitted_lines);
+  renderer->submitted_lines = NULL;
+  renderer->submitted_line_count = 0;
+  renderer->submitted_line_capacity = 0;
+  renderer->line_mesh = ldk_renderer_mesh_null();
+
   LDK_RENDERER_FREE(renderer->submitted_lights);
   renderer->submitted_lights = NULL;
   renderer->submitted_light_count = 0;
@@ -1234,6 +1240,152 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
   }
 }
 
+static bool s_renderer_line_mesh_create(LDKRenderer *renderer)
+{
+  if (ldk_renderer_mesh_is_valid(renderer, renderer->line_mesh))
+  {
+    return true;
+  }
+  // Radius 1/2, along +Z from 0 to 1. Outward CCW faces and end caps.
+  LDKMeshVertex vertices[6] = {0};
+  const u32 indices[] = {0, 2, 1, 3, 4, 5,
+      0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5};
+  for (u32 i = 0; i < 6; ++i)
+  {
+    float angle = (float)(i % 3) * (2.0f * STDXM_PI / 3.0f);
+    vertices[i].position = vec3_make(0.5f * cosf(angle),
+        0.5f * sinf(angle), i < 3 ? 0.0f : 1.0f);
+    vertices[i].normal = vec3_make(cosf(angle), sinf(angle), 0.0f);
+    vertices[i].color = 0xffffffffu;
+  }
+  LDKRendererMeshDesc desc = {0};
+  desc.vertices = vertices;
+  desc.vertex_count = 6;
+  desc.indices = indices;
+  desc.index_count = 24;
+  renderer->line_mesh = ldk_renderer_mesh_create(renderer, &desc);
+  return ldk_renderer_mesh_is_valid(renderer, renderer->line_mesh);
+}
+
+bool ldk_renderer_draw_line(LDKRenderer *renderer, LDKRendererViewId view_id,
+    Vec3 start, Vec3 end, float thickness, u32 color, bool depth_test)
+{
+  if (!renderer || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      !isfinite(thickness) || thickness <= 0.0f ||
+      !isfinite(start.x) || !isfinite(start.y) || !isfinite(start.z) ||
+      !isfinite(end.x) || !isfinite(end.y) || !isfinite(end.z))
+  {
+    return false;
+  }
+  Vec3 delta = vec3_sub(end, start);
+  float length = hypotf(hypotf(delta.x, delta.y), delta.z);
+  if (!isfinite(length))
+  {
+    return false;
+  }
+  if (length == 0.0f)
+  {
+    return true;
+  }
+  Vec3 forward = vec3_make(delta.x / length, delta.y / length,
+      delta.z / length);
+  Vec3 reference = fabsf(forward.y) < 0.9f
+      ? vec3_make(0, 1, 0) : vec3_make(1, 0, 0);
+  Vec3 right = vec3_norm(vec3_cross(reference, forward));
+  Vec3 up = vec3_cross(forward, right);
+  Mat4 world = mat4_identity();
+  for (u32 i = 0; i < 3; ++i)
+  {
+    const float x[] = {right.x, right.y, right.z};
+    const float y[] = {up.x, up.y, up.z};
+    const float z[] = {delta.x, delta.y, delta.z};
+    world.m[i] = x[i] * thickness;
+    world.m[4 + i] = y[i] * thickness;
+    world.m[8 + i] = z[i];
+  }
+  world.m[12] = start.x;
+  world.m[13] = start.y;
+  world.m[14] = start.z;
+  if (renderer->submitted_line_count == renderer->submitted_line_capacity)
+  {
+    u32 capacity = renderer->submitted_line_capacity == 0
+        ? 128 : renderer->submitted_line_capacity * 2;
+    size_t size = (size_t)capacity * sizeof(LDKRendererLineSubmit);
+    if (capacity <= renderer->submitted_line_capacity ||
+        size / sizeof(LDKRendererLineSubmit) != capacity)
+    {
+      return false;
+    }
+    LDKRendererLineSubmit *lines = LDK_RENDERER_REALLOC(
+        renderer->submitted_lines, size);
+    if (!lines)
+    {
+      return false;
+    }
+    renderer->submitted_lines = lines;
+    renderer->submitted_line_capacity = capacity;
+  }
+  if (!s_renderer_line_mesh_create(renderer))
+  {
+    return false;
+  }
+  LDKRendererLineSubmit *line =
+      &renderer->submitted_lines[renderer->submitted_line_count++];
+  line->world = world;
+  line->view_id = view_id;
+  line->color = color;
+  line->depth_test = depth_test;
+  return true;
+}
+
+static void s_renderer_lines_draw(LDKRenderer *renderer,
+    LDKRendererMeshPass *pass, const LDKRendererView *view, u32 flags)
+{
+  if (!renderer->submitted_line_count)
+  {
+    return;
+  }
+  LDKRendererMeshResource *mesh =
+      s_renderer_mesh_get_resource(renderer, renderer->line_mesh);
+  if (!mesh)
+  {
+    return;
+  }
+  bool overlay = flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY;
+  bool bound = false;
+  for (u32 i = 0; i < renderer->submitted_line_count; ++i)
+  {
+    const LDKRendererLineSubmit *line = &renderer->submitted_lines[i];
+    if (line->depth_test == overlay ||
+        (line->view_id != LDK_RENDERER_VIEW_ALL && line->view_id != view->id))
+    {
+      continue;
+    }
+    if (!bound)
+    {
+      ldk_rhi_pipeline_bind(pass->rhi, overlay
+          ? pass->overlay_pipeline : pass->vertex_color_unlit_pipeline);
+      ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
+      ldk_rhi_vertex_buffer_bind(pass->rhi, mesh->vertex_buffer, 0);
+      ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
+          LDK_RHI_INDEX_TYPE_UINT32);
+      bound = true;
+    }
+    LDKRendererMeshObjectParams object = {0};
+    object.world = line->world;
+    LDKRendererMeshMaterialParams material = {0};
+    material.color = ldk_renderer_color_from_rgba32(line->color);
+    ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
+        sizeof(object), &object);
+    ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
+        sizeof(material), &material);
+    LDKRHIDrawIndexedDesc draw = {0};
+    draw.index_count = mesh->index_count;
+    ldk_rhi_draw_indexed(pass->rhi, &draw);
+  }
+}
+
 static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
     LDKRendererMeshPass* pass, LDKRendererView const* view, u32 flags)
 {
@@ -1251,6 +1403,7 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
 
   s_renderer_lighting_update(renderer, pass, view->id);
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
+  s_renderer_lines_draw(renderer, pass, view, flags);
 }
 // ---------------------------------------------------------------------------
 // Internal pass: Procedural grid
@@ -3046,6 +3199,7 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
   ldk_rhi_frame_end(renderer->rhi);
 
   renderer->submitted_mesh_count = 0;
+  renderer->submitted_line_count = 0;
   renderer->submitted_light_count = 0;
   renderer->submitted_ui = NULL;
   s_renderer_finish_views(renderer);

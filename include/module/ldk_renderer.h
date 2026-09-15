@@ -111,6 +111,15 @@ extern "C" {
     u32 flags;
   } LDKRendererMeshSubmit;
 
+  /* Internal frame data for the shared triangular line prism. */
+  typedef struct LDKRendererLineSubmit
+  {
+    Mat4 world;
+    LDKRendererViewId view_id;
+    u32 color;
+    bool depth_test;
+  } LDKRendererLineSubmit;
+
   typedef struct LDKRendererConfig
   {
     LDKRHIContext* rhi;
@@ -352,6 +361,12 @@ extern "C" {
     u32 submitted_light_capacity;
     bool light_limit_reported;
 
+    // Shared line geometry and transient submissions, owned by the renderer.
+    LDKResourceMesh line_mesh;
+    LDKRendererLineSubmit *submitted_lines;
+    u32 submitted_line_count;
+    u32 submitted_line_capacity;
+
     // Submitted meshes
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
@@ -359,6 +374,18 @@ extern "C" {
 
     bool is_initialized;
   } LDKRenderer;
+
+  /** Submit an unlit, capped triangular prism from start to end.
+   * Thickness is the circumdiameter of its cross-section, in world units.
+   * Depth test also enables depth writes; false uses the overlay path.
+   * View may be ALL or an ID not yet submitted. Call on the render thread
+   * before render_frame; the queue is cleared after that frame is rendered.
+   * Zero-length segments succeed without drawing. Invalid/nonfinite data,
+   * nonpositive thickness and allocation failures return false.
+   */
+  LDK_API bool ldk_renderer_draw_line(LDKRenderer *renderer,
+      LDKRendererViewId view_id, Vec3 start, Vec3 end, float thickness,
+      u32 color, bool depth_test);
 
   /** Submit transient world-space lighting. Views need not exist yet.
    * The first 16 matching lights illuminate each view, in submission order.
