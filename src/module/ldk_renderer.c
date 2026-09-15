@@ -33,7 +33,8 @@ typedef struct LDKRendererUIParams
   float viewport_size[2];
 } LDKRendererUIParams;
 
-LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, u32 shader, u32 stage);
+LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(
+    LDKRHIContext* rhi, u32 shader, u32 stage);
 
 inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
 {
@@ -46,7 +47,8 @@ inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
   return result;
 }
 
-static void s_renderer_target_destroy(LDKRenderer* renderer, LDKRendererTarget* target)
+static void s_renderer_target_destroy(
+    LDKRenderer* renderer, LDKRendererTarget* target)
 {
   if (renderer == NULL || renderer->rhi == NULL || target == NULL)
   {
@@ -68,7 +70,8 @@ static void s_renderer_target_destroy(LDKRenderer* renderer, LDKRendererTarget* 
   memset(target, 0, sizeof(*target));
 }
 
-static bool s_renderer_target_create(LDKRenderer* renderer, LDKRendererTarget* target, i32 width, i32 height)
+static bool s_renderer_target_create(LDKRenderer* renderer,
+    LDKRendererTarget* target, i32 width, i32 height)
 {
   if (renderer == NULL || renderer->rhi == NULL || target == NULL)
   {
@@ -92,9 +95,11 @@ static bool s_renderer_target_create(LDKRenderer* renderer, LDKRendererTarget* t
   color_desc.depth = 1;
   color_desc.mip_count = 1;
   color_desc.layer_count = 1;
-  color_desc.usage = LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  color_desc.usage =
+      LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
 
-  target->color_texture = ldk_rhi_texture_create(renderer->rhi, &color_desc);
+  target->color_texture =
+      ldk_rhi_texture_create(renderer->rhi, &color_desc);
   if (target->color_texture == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
@@ -111,7 +116,8 @@ static bool s_renderer_target_create(LDKRenderer* renderer, LDKRendererTarget* t
   depth_desc.layer_count = 1;
   depth_desc.usage = LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL;
 
-  target->depth_texture = ldk_rhi_texture_create(renderer->rhi, &depth_desc);
+  target->depth_texture =
+      ldk_rhi_texture_create(renderer->rhi, &depth_desc);
   if (target->depth_texture == LDK_RHI_INVALID_RESOURCE)
   {
     ldk_rhi_texture_destroy(renderer->rhi, target->color_texture);
@@ -124,13 +130,13 @@ static bool s_renderer_target_create(LDKRenderer* renderer, LDKRendererTarget* t
   return true;
 }
 
-static bool s_renderer_target_ensure(LDKRenderer* renderer, LDKRendererTarget* target, i32 width, i32 height)
+static bool s_renderer_target_ensure(LDKRenderer* renderer,
+    LDKRendererTarget* target, i32 width, i32 height)
 {
   if (target != NULL &&
       target->color_texture != LDK_RHI_INVALID_RESOURCE &&
       target->depth_texture != LDK_RHI_INVALID_RESOURCE &&
-      target->width == width &&
-      target->height == height)
+      target->width == width && target->height == height)
   {
     return true;
   }
@@ -187,8 +193,8 @@ static bool s_renderer_grow_view_cache(LDKRenderer* renderer)
   u32 new_capacity = old_capacity == 0 ? 4 : old_capacity * 2;
   size_t new_size = (size_t)new_capacity * sizeof(LDKRendererView);
   LDKRendererView* new_views = renderer->views == NULL
-    ? (LDKRendererView*)LDK_RENDERER_ALLOC(new_size)
-    : (LDKRendererView*)LDK_RENDERER_REALLOC(renderer->views, new_size);
+      ? (LDKRendererView*)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererView*)LDK_RENDERER_REALLOC(renderer->views, new_size);
 
   if (new_views == NULL)
   {
@@ -294,28 +300,31 @@ bool ldk_renderer_mesh_is_valid(LDKRenderer* renderer, LDKResourceMesh mesh)
 
 static bool s_renderer_grow_mesh_cache(LDKRenderer* renderer)
 {
-  u32 new_capacity = renderer->mesh_capacity == 0 ? 64 : renderer->mesh_capacity * 2;
-  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererMeshResource);
+  u32 new_capacity =
+      renderer->mesh_capacity == 0 ? 64 : renderer->mesh_capacity * 2;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererMeshResource);
   LDKRendererMeshResource* new_meshes = renderer->meshes == NULL
-    ? (LDKRendererMeshResource*)LDK_RENDERER_ALLOC(new_size)
-    : (LDKRendererMeshResource*)LDK_RENDERER_REALLOC(renderer->meshes, new_size);
+      ? (LDKRendererMeshResource*)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererMeshResource*)LDK_RENDERER_REALLOC(
+            renderer->meshes, new_size);
 
   if (new_meshes == NULL)
   {
     return false;
   }
 
-  memset(
-      new_meshes + renderer->mesh_capacity,
-      0,
-      (size_t)(new_capacity - renderer->mesh_capacity) * sizeof(LDKRendererMeshResource));
+  memset(new_meshes + renderer->mesh_capacity, 0,
+      (size_t)(new_capacity - renderer->mesh_capacity) *
+          sizeof(LDKRendererMeshResource));
 
   renderer->meshes = new_meshes;
   renderer->mesh_capacity = new_capacity;
   return true;
 }
 
-static bool s_renderer_mesh_desc_is_valid(LDKRendererMeshDesc const* desc)
+static bool s_renderer_mesh_desc_is_valid(
+    LDKRendererMeshDesc const* desc)
 {
   if (desc == NULL)
   {
@@ -341,11 +350,13 @@ static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
   LDKRHIBufferDesc vertex_desc = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_desc);
   vertex_desc.size = desc->vertex_count * (u32)sizeof(LDKMeshVertex);
-  vertex_desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  vertex_desc.usage =
+      LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   vertex_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
   vertex_desc.initial_data = desc->vertices;
 
-  resource->vertex_buffer = ldk_rhi_buffer_create(renderer->rhi, &vertex_desc);
+  resource->vertex_buffer =
+      ldk_rhi_buffer_create(renderer->rhi, &vertex_desc);
   if (resource->vertex_buffer == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
@@ -354,11 +365,13 @@ static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
   LDKRHIBufferDesc index_desc = {0};
   ldk_rhi_buffer_desc_defaults(&index_desc);
   index_desc.size = desc->index_count * (u32)sizeof(u32);
-  index_desc.usage = LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  index_desc.usage =
+      LDK_RHI_BUFFER_USAGE_INDEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   index_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
   index_desc.initial_data = desc->indices;
 
-  resource->index_buffer = ldk_rhi_buffer_create(renderer->rhi, &index_desc);
+  resource->index_buffer =
+      ldk_rhi_buffer_create(renderer->rhi, &index_desc);
   if (resource->index_buffer == LDK_RHI_INVALID_RESOURCE)
   {
     ldk_rhi_buffer_destroy(renderer->rhi, resource->vertex_buffer);
@@ -371,11 +384,13 @@ static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
   return true;
 }
 
-LDKResourceMesh ldk_renderer_mesh_create(LDKRenderer* renderer, LDKRendererMeshDesc const* desc)
+LDKResourceMesh ldk_renderer_mesh_create(
+    LDKRenderer* renderer, LDKRendererMeshDesc const* desc)
 {
   LDKResourceMesh invalid = ldk_renderer_mesh_null();
 
-  if (renderer == NULL || !renderer->is_initialized || !s_renderer_mesh_desc_is_valid(desc))
+  if (renderer == NULL || !renderer->is_initialized ||
+      !s_renderer_mesh_desc_is_valid(desc))
   {
     return invalid;
   }
@@ -406,14 +421,17 @@ LDKResourceMesh ldk_renderer_mesh_create(LDKRenderer* renderer, LDKRendererMeshD
   return mesh;
 }
 
-bool ldk_renderer_mesh_update(LDKRenderer* renderer, LDKResourceMesh mesh, LDKRendererMeshDesc const* desc)
+bool ldk_renderer_mesh_update(LDKRenderer* renderer, LDKResourceMesh mesh,
+    LDKRendererMeshDesc const* desc)
 {
-  if (renderer == NULL || !renderer->is_initialized || !s_renderer_mesh_desc_is_valid(desc))
+  if (renderer == NULL || !renderer->is_initialized ||
+      !s_renderer_mesh_desc_is_valid(desc))
   {
     return false;
   }
 
-  LDKRendererMeshResource* resource = s_renderer_mesh_get_resource(renderer, mesh);
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
   if (resource == NULL)
   {
     return false;
@@ -442,7 +460,8 @@ void ldk_renderer_mesh_destroy(LDKRenderer* renderer, LDKResourceMesh mesh)
     return;
   }
 
-  LDKRendererMeshResource* resource = s_renderer_mesh_get_resource(renderer, mesh);
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
   if (resource == NULL)
   {
     return;
@@ -483,11 +502,15 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
 
 static bool s_renderer_grow_mesh_submit_queue(LDKRenderer* renderer)
 {
-  u32 new_capacity = renderer->submitted_mesh_capacity == 0 ? 256 : renderer->submitted_mesh_capacity * 2;
-  size_t new_size = (size_t)new_capacity * sizeof(LDKRendererMeshSubmit);
+  u32 new_capacity = renderer->submitted_mesh_capacity == 0
+      ? 256
+      : renderer->submitted_mesh_capacity * 2;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererMeshSubmit);
   LDKRendererMeshSubmit* new_submits = renderer->submitted_meshes == NULL
-    ? (LDKRendererMeshSubmit*)LDK_RENDERER_ALLOC(new_size)
-    : (LDKRendererMeshSubmit*)LDK_RENDERER_REALLOC(renderer->submitted_meshes, new_size);
+      ? (LDKRendererMeshSubmit*)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererMeshSubmit*)LDK_RENDERER_REALLOC(
+            renderer->submitted_meshes, new_size);
 
   if (new_submits == NULL)
   {
@@ -517,13 +540,15 @@ typedef struct LDKRendererMeshMaterialParams
 
 static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
 {
-  pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
+  pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
   if (pass->vertex_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
 
-  pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_MESH_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
@@ -531,15 +556,13 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
     return false;
   }
 
-  pass->overlay_fragment_shader_module =
-      ldk_rhi_create_builtin_shader_module(pass->rhi,
-          LDK_SHADER_MESH_PASS_UNLIT, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->overlay_fragment_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_MESH_PASS_UNLIT,
+      LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (pass->overlay_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
-    ldk_rhi_shader_module_destroy(
-        pass->rhi, pass->fragment_shader_module);
-    ldk_rhi_shader_module_destroy(
-        pass->rhi, pass->vertex_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
     pass->fragment_shader_module = LDK_RHI_INVALID_RESOURCE;
     pass->vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
     return false;
@@ -566,7 +589,8 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
   return true;
 }
 
-static bool s_renderer_mesh_pass_create_bindings_layout(LDKRendererMeshPass* pass)
+static bool s_renderer_mesh_pass_create_bindings_layout(
+    LDKRendererMeshPass* pass)
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
@@ -584,7 +608,8 @@ static bool s_renderer_mesh_pass_create_bindings_layout(LDKRendererMeshPass* pas
   desc.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
-  pass->bindings_layout = ldk_rhi_bindings_layout_create(pass->rhi, &desc);
+  pass->bindings_layout =
+      ldk_rhi_bindings_layout_create(pass->rhi, &desc);
   return pass->bindings_layout != LDK_RHI_INVALID_RESOURCE;
 }
 
@@ -609,16 +634,21 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   desc.vertex_layout.attribute_count = 4;
   desc.vertex_layout.attributes[0].location = 0;
   desc.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
-  desc.vertex_layout.attributes[0].offset = (u32)offsetof(LDKMeshVertex, position);
+  desc.vertex_layout.attributes[0].offset =
+      (u32)offsetof(LDKMeshVertex, position);
   desc.vertex_layout.attributes[1].location = 1;
   desc.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
-  desc.vertex_layout.attributes[1].offset = (u32)offsetof(LDKMeshVertex, normal);
+  desc.vertex_layout.attributes[1].offset =
+      (u32)offsetof(LDKMeshVertex, normal);
   desc.vertex_layout.attributes[2].location = 2;
   desc.vertex_layout.attributes[2].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
-  desc.vertex_layout.attributes[2].offset = (u32)offsetof(LDKMeshVertex, uv);
+  desc.vertex_layout.attributes[2].offset =
+      (u32)offsetof(LDKMeshVertex, uv);
   desc.vertex_layout.attributes[3].location = 3;
-  desc.vertex_layout.attributes[3].format = LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
-  desc.vertex_layout.attributes[3].offset = (u32)offsetof(LDKMeshVertex, color);
+  desc.vertex_layout.attributes[3].format =
+      LDK_RHI_VERTEX_FORMAT_UBYTE4_NORM;
+  desc.vertex_layout.attributes[3].offset =
+      (u32)offsetof(LDKMeshVertex, color);
   desc.color_attachment_count = 1;
   desc.color_formats[0] = LDK_RHI_FORMAT_RGBA8_UNORM;
   desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
@@ -684,7 +714,8 @@ static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
   LDKRHIBufferDesc camera_desc = {0};
   ldk_rhi_buffer_desc_defaults(&camera_desc);
   camera_desc.size = sizeof(LDKRendererMeshCameraParams);
-  camera_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  camera_desc.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   camera_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
   pass->camera_buffer = ldk_rhi_buffer_create(pass->rhi, &camera_desc);
@@ -696,7 +727,8 @@ static bool s_renderer_mesh_pass_create_buffers(LDKRendererMeshPass* pass)
   LDKRHIBufferDesc object_desc = {0};
   ldk_rhi_buffer_desc_defaults(&object_desc);
   object_desc.size = sizeof(LDKRendererMeshObjectParams);
-  object_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  object_desc.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   object_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
   pass->object_buffer = ldk_rhi_buffer_create(pass->rhi, &object_desc);
@@ -740,9 +772,7 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
 }
 
 static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
-    LDKRendererMeshPass* pass,
-    LDKRHITexture texture,
-    LDKRHISampler sampler)
+    LDKRendererMeshPass* pass, LDKRHITexture texture, LDKRHISampler sampler)
 {
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
@@ -791,9 +821,7 @@ static bool s_renderer_mesh_pass_grow_textured_bindings_cache(
 }
 
 static LDKRHIBindings s_renderer_mesh_pass_get_textured_bindings(
-    LDKRendererMeshPass* pass,
-    LDKRHITexture texture,
-    LDKRHISampler sampler)
+    LDKRendererMeshPass* pass, LDKRHITexture texture, LDKRHISampler sampler)
 {
   for (u32 i = 0; i < pass->textured_bindings_cache_count; i++)
   {
@@ -861,7 +889,8 @@ static void s_renderer_mesh_pass_remove_texture_bindings(
   }
 }
 
-static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass* pass, LDKRendererConfig const* config)
+static bool s_renderer_mesh_pass_initialize(
+    LDKRendererMeshPass* pass, LDKRendererConfig const* config)
 {
   if (pass == NULL || config == NULL || config->rhi == NULL)
   {
@@ -1049,8 +1078,8 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
         LDK_RHI_INDEX_TYPE_UINT32);
 
     LDKRHIDrawIndexedDesc draw_desc = {0};
-    draw_desc.index_count = mesh->index_count;
-    draw_desc.first_index = 0;
+    draw_desc.index_count = submit->index_count;
+    draw_desc.first_index = submit->first_index;
     draw_desc.vertex_offset = 0;
     ldk_rhi_draw_indexed(pass->rhi, &draw_desc);
   }
@@ -1073,7 +1102,6 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
 
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
 }
-
 // ---------------------------------------------------------------------------
 // Internal pass: Procedural grid
 // ---------------------------------------------------------------------------
@@ -1347,7 +1375,6 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   ldk_rhi_pass_end(renderer->rhi);
   return true;
 }
-
 // ---------------------------------------------------------------------------
 // Internal pass: UI / present
 // ---------------------------------------------------------------------------
@@ -1483,7 +1510,8 @@ static bool s_renderer_ui_pass_buffer_creates(LDKRendererUIPass* renderer)
   LDKRHIBufferDesc params_desc = {0};
   ldk_rhi_buffer_desc_defaults(&params_desc);
   params_desc.size = sizeof(LDKRendererUIParams);
-  params_desc.usage = LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  params_desc.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   params_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
   renderer->params_buffer = ldk_rhi_buffer_create(renderer->rhi, &params_desc);
@@ -1647,7 +1675,6 @@ static LDKRHIBindings s_renderer_ui_pass_create_draw_bindings(
   desc.bindings[1].sampler = sampler;
   return ldk_rhi_bindings_create(renderer->rhi, &desc);
 }
-
 static LDKRHIBindings s_renderer_ui_pass_find_cached_bindings(
     LDKRendererUIPass* renderer,
     LDKRHITexture texture,
@@ -1947,7 +1974,6 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
 
   s_renderer_ui_pass(renderer, &renderer->ui_pass, &render_data, &present_desc);
 }
-
 
 // ---------------------------------------------------------------------------
 // Internal renderer resources: Mesh
@@ -2847,7 +2873,6 @@ void ldk_renderer_render_frame(LDKRenderer* renderer, LDKRendererFrameDesc const
       rendered_game = rendered;
     }
   }
-
   bool presented_game = false;
   if (rendered_game && renderer->present_game)
   {
@@ -2970,14 +2995,19 @@ void ldk_renderer_submit_ui(LDKRenderer* renderer, LDKUIRenderData const* render
 
 static bool s_renderer_submit_mesh(LDKRenderer* renderer,
     LDKRendererViewId view_id, LDKResourceMesh mesh,
-    LDKResourceMaterial material, Mat4 world, u32 flags)
+    LDKResourceMaterial material, u32 first_index, u32 index_count,
+    Mat4 world, u32 flags)
 {
   if (renderer == NULL || !renderer->is_initialized)
   {
     return false;
   }
 
-  if (!ldk_renderer_mesh_is_valid(renderer, mesh))
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource == NULL || index_count == 0 ||
+      first_index > resource->index_count ||
+      index_count > resource->index_count - first_index)
   {
     return false;
   }
@@ -2995,9 +3025,12 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
     }
   }
 
-  LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[renderer->submitted_mesh_count];
+  LDKRendererMeshSubmit* submit =
+      &renderer->submitted_meshes[renderer->submitted_mesh_count];
   submit->mesh = mesh;
   submit->material = material;
+  submit->first_index = first_index;
+  submit->index_count = index_count;
   submit->world = world;
   submit->view_id = view_id;
   submit->flags = flags;
@@ -3009,8 +3042,25 @@ bool ldk_renderer_submit_mesh(
     LDKRenderer* renderer, LDKResourceMesh mesh,
     LDKResourceMaterial material, Mat4 world)
 {
-  return s_renderer_submit_mesh(
-      renderer, LDK_RENDERER_VIEW_ALL, mesh, material, world,
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource == NULL)
+  {
+    return false;
+  }
+
+  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh,
+      material, 0, resource->index_count, world,
+      LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
+}
+
+bool ldk_renderer_submit_mesh_range(
+    LDKRenderer* renderer, LDKResourceMesh mesh,
+    LDKResourceMaterial material, u32 first_index,
+    u32 index_count, Mat4 world)
+{
+  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh,
+      material, first_index, index_count, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
 }
 
@@ -3024,7 +3074,15 @@ bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, view_id, mesh, material, world,
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource == NULL)
+  {
+    return false;
+  }
+
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material,
+      0, resource->index_count, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
 }
 
@@ -3063,6 +3121,14 @@ bool ldk_renderer_submit_overlay_mesh_to_view(LDKRenderer* renderer,
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, view_id, mesh, material, world,
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource == NULL)
+  {
+    return false;
+  }
+
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material,
+      0, resource->index_count, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
 }

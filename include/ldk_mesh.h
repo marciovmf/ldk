@@ -11,6 +11,12 @@ typedef struct LDKAssetManager LDKAssetManager;
 extern "C" {
 #endif
 
+#define LDK_MESH_NAME_CAPACITY 128u
+#define LDK_MESH_NODE_NAME_CAPACITY 128u
+#define LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY 128u
+#define LDK_MESH_NODE_NONE (-1)
+#define LDK_MESH_INDEX_NONE (-1)
+
   typedef struct LDKMeshVertex
   {
     Vec3 position;
@@ -26,6 +32,28 @@ extern "C" {
     u32* indices;
     u32 index_count;
   } LDKMeshData;
+
+  typedef struct LDKMeshSubmesh
+  {
+    u32 first_index;
+    u32 index_count;
+    u32 material_slot;
+  } LDKMeshSubmesh;
+
+  typedef struct LDKMeshMaterialSlot
+  {
+    char name[LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY];
+  } LDKMeshMaterialSlot;
+
+  typedef struct LDKMeshNode
+  {
+    char name[LDK_MESH_NODE_NAME_CAPACITY];
+    i32 parent_index;
+    i32 mesh_index;
+    Vec3 local_position;
+    Quat local_rotation;
+    Vec3 local_scale;
+  } LDKMeshNode;
 
   typedef enum LDKMeshPrimitive
   {

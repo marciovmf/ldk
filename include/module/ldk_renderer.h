@@ -82,6 +82,8 @@ extern "C" {
   {
     LDKResourceMesh mesh;
     LDKResourceMaterial material;
+    u32 first_index;
+    u32 index_count;
     Mat4 world;
     LDKRendererViewId view_id;
     u32 flags;
@@ -824,6 +826,29 @@ extern "C" {
       LDKRenderer* renderer,
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
+      Mat4 world);
+
+  /**
+   * @brief Submit a contiguous index range of a mesh for scene rendering.
+   *
+   * This is the ranged form of ldk_renderer_submit_mesh(). The mesh resource
+   * remains independent of material topology; callers use this function to
+   * submit an individual submesh with its resolved material.
+   *
+   * @param renderer Renderer instance.
+   * @param mesh Mesh resource handle to render.
+   * @param material Material resource handle to use.
+   * @param first_index First mesh index to draw.
+   * @param index_count Number of indices to draw.
+   * @param world World transform for this mesh instance.
+   * @return true if the mesh range was queued, false otherwise.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_range(
+      LDKRenderer* renderer,
+      LDKResourceMesh mesh,
+      LDKResourceMaterial material,
+      u32 first_index,
+      u32 index_count,
       Mat4 world);
 
   /**

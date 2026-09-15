@@ -155,7 +155,7 @@ function(ldk_game_build)
     COMPONENT_DIRS
     SYSTEM_DIRS
   )
-
+  
   cmake_parse_arguments(
     GAME
     "${options}"
@@ -373,6 +373,7 @@ list(APPEND LDK_SOURCE
   src/ldk_engine_metadata.c
   ${INCLUDE_DIR}/ldk_common.h
   ${INCLUDE_DIR}/ldk_mesh.h
+  ${INCLUDE_DIR}/ldk_mesh_asset.h   src/module/ldk_asset_mesh.c
   ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
   ${INCLUDE_DIR}/ldk_material_io.h src/ldk_material_io.c
   ${INCLUDE_DIR}/ldk_material_asset.h src/module/ldk_asset_material.c
@@ -445,7 +446,6 @@ if (OPTION_LDK_USE_PREBUILT)
 
     IMPORTED_IMPLIB_DEBUG "${OPTION_LDK_PREBUILT_DIR}/lib/Debug/ldk.lib"
     IMPORTED_LOCATION_DEBUG "${OPTION_LDK_PREBUILT_DIR}/bin/Debug/ldk.dll"
-
 
     IMPORTED_IMPLIB_RELEASE "${OPTION_LDK_PREBUILT_DIR}/lib/Release/ldk.lib"
     IMPORTED_LOCATION_RELEASE "${OPTION_LDK_PREBUILT_DIR}/bin/Release/ldk.dll"

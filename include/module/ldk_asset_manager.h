@@ -129,9 +129,29 @@ extern "C" {
   // Mesh asset
   // ---------------------------------------------------------------------------
 
+  typedef struct LDKAssetMeshEntry
+  {
+    char name[LDK_MESH_NAME_CAPACITY];
+    LDKMeshData mesh;
+    LDKMeshSubmesh* submeshes;
+    u32 submesh_count;
+    LDKMeshMaterialSlot* material_slots;
+    u32 material_slot_count;
+  } LDKAssetMeshEntry;
+
   typedef struct LDKAssetMeshData
   {
+    /*
+     * Ownership anchors used by the asset manager destructor. External mesh
+     * assets pack all vertex-side data in mesh.vertices and all indices in
+     * mesh.indices. For programmatic/built-in assets this is also the implicit
+     * mesh at index zero.
+     */
     LDKMeshData mesh;
+    LDKAssetMeshEntry* meshes;
+    u32 mesh_count;
+    LDKMeshNode* nodes;
+    u32 node_count;
   } LDKAssetMeshData;
 
   LDK_API LDKAssetMesh ldk_asset_mesh_null(void);

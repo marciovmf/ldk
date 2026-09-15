@@ -1,0 +1,67 @@
+# LDK mesh file
+# Two logical meshes in one asset and an authored node hierarchy.
+# STATIC vertex: position.xyz normal.xyz uv.xy color(RRGGBBAA)
+version 4.0
+vertex_format STATIC
+mesh_count 2
+node_count 3
+
+mesh 0 "Base"
+vertex_count 8
+index_count 36
+material_slot_count 1
+submesh_count 1
+material_slot 0 "Base"
+vertex -0.75 0 -0.75 0 -1 0 0 0 0x6B727BFF
+vertex 0.75 0 -0.75 0 -1 0 1 0 0x6B727BFF
+vertex 0.75 0 0.75 0 -1 0 1 1 0x6B727BFF
+vertex -0.75 0 0.75 0 -1 0 0 1 0x6B727BFF
+vertex -0.75 0.35 -0.75 0 1 0 0 0 0x7A828CFF
+vertex 0.75 0.35 -0.75 0 1 0 1 0 0x7A828CFF
+vertex 0.75 0.35 0.75 0 1 0 1 1 0x7A828CFF
+vertex -0.75 0.35 0.75 0 1 0 0 1 0x7A828CFF
+index_list 0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7
+submesh 0 36 0
+end_mesh
+
+mesh 1 "Cannon"
+vertex_count 8
+index_count 36
+material_slot_count 1
+submesh_count 1
+material_slot 0 "Cannon"
+vertex -0.18 -0.18 -0.25 0 -1 0 0 0 0x555B63FF
+vertex 0.18 -0.18 -0.25 0 -1 0 1 0 0x555B63FF
+vertex 0.18 -0.18 1.25 0 -1 0 1 1 0x555B63FF
+vertex -0.18 -0.18 1.25 0 -1 0 0 1 0x555B63FF
+vertex -0.18 0.18 -0.25 0 1 0 0 0 0x686F78FF
+vertex 0.18 0.18 -0.25 0 1 0 1 0 0x686F78FF
+vertex 0.18 0.18 1.25 0 1 0 1 1 0x686F78FF
+vertex -0.18 0.18 1.25 0 1 0 0 1 0x686F78FF
+index_list 0 2 1 0 3 2 4 5 6 4 6 7 0 1 5 0 5 4 1 2 6 1 6 5 2 3 7 2 7 6 3 0 4 3 4 7
+submesh 0 36 0
+end_mesh
+
+node 0 "Turret"
+parent -1
+mesh -1
+position 0 0 0
+rotation 0 0 0 1
+scale 1 1 1
+end_node
+
+node 1 "Base"
+parent 0
+mesh 0
+position 0 0 0
+rotation 0 0 0 1
+scale 1 1 1
+end_node
+
+node 2 "Cannon"
+parent 1
+mesh 1
+position 0 0.6 0
+rotation 0 0 0 1
+scale 1 1 1
+end_node

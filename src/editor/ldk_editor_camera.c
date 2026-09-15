@@ -1,6 +1,7 @@
 #include "ldk_editor_internal.h"
 
 #include <ldk.h>
+#include <ldk_mesh_asset.h>
 #include <ldk_raycast.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
@@ -131,7 +132,7 @@ void ldki_editor_scene_view_pick(
   {
     const LDKMeshSource *mesh_source = x_array_get(mesh_sources, i);
     const LDKEntity *entity = x_array_get(mesh_owners, i);
-    const LDKAssetMeshData *mesh_data;
+    const LDKMeshData *mesh_data;
     LDKRaycastHit hit;
     Mat4 world;
 
@@ -144,10 +145,10 @@ void ldki_editor_scene_view_pick(
       continue;
     }
 
-    mesh_data = ldk_asset_manager_mesh_get_const(
-        asset_manager, mesh_source->source_asset);
+    mesh_data = ldk_asset_manager_mesh_data_at(
+        asset_manager, mesh_source->source_asset, mesh_source->mesh_index);
     if (mesh_data == NULL ||
-        !ldk_raycast_mesh_transformed(ray, &mesh_data->mesh, world, &hit))
+        !ldk_raycast_mesh_transformed(ray, mesh_data, world, &hit))
     {
       continue;
     }
