@@ -1359,6 +1359,7 @@ void ldk_engine_frame(void)
 
     // Active cameras
     bool has_main_camera = false;
+    static bool warned_missing_main_camera = false;
     Mat4 camera_view;
     Mat4 camera_projection;
     XArray *all_camera =
@@ -1399,13 +1400,18 @@ void ldk_engine_frame(void)
 
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {
+        warned_missing_main_camera = false;
         has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
       }
     }
 
     if (!has_main_camera && e->game.initialized)
     {
-      ldk_log_error("No main camera found!\n");
+      if (!warned_missing_main_camera)
+      {
+        warned_missing_main_camera = true;
+        ldk_log_error("No main camera found!\n");
+      }
     }
 
     // Mesh sources

@@ -2,6 +2,7 @@
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
+#include "stdx/stdx_string.h"
 #include <ldk_scene.h>
 
 #include <stdio.h>
@@ -192,6 +193,38 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
 
   return state->expanded_paths != NULL && state->stack != NULL &&
          state->dirs != NULL && state->files != NULL;
+}
+
+static bool s_project_start_process(LDKEditorContext *editor,
+                                    LDKOSProcessDesc* desc)
+{
+  LDKOSProcessResult result;
+  result = ldk_os_process_run(desc);
+  bool success = (result.started && result.completed && result.exit_code) == 0;
+  if (!success)
+  {
+    ldki_editor_log_error(editor, "Failed to start process\n");
+  }
+  return success;
+}
+
+static bool s_project_open_with_explorer(LDKEditorContext* editor, const char *path)
+{
+  XFSPath explorer_path = {0};
+  const char *windir = getenv("WINDIR");
+  if (!windir || !windir[0])
+  {
+    ldk_log_error("The WINDIR environment variable is not defined.\n");
+    return false;
+  }
+
+  LDKOSProcessDesc process_desc = {0};
+  process_desc.executable = explorer_path.buf;
+  process_desc.arguments = path;
+  process_desc.working_directory = ".";
+  process_desc.new_console = "ldk editor";
+  x_fs_path(&explorer_path, windir, "explorer.exe");
+  return s_project_start_process(editor, &process_desc);
 }
 
 static i32 s_project_explorer_expanded_path_index(
@@ -541,6 +574,10 @@ static void s_project_explorer_on_file_double_click(
   if (ldki_editor_scene_path_is_scene(&entry->path))
   {
     ldki_editor_scene_load(editor, &entry->path);
+  }
+  else
+  {
+    s_project_open_with_explorer(editor, entry->path.buf);
   }
 }
 
@@ -991,8 +1028,37 @@ static void s_project_explorer_context_menu_draw(
       }
       ldk_ui_close_current_popup(ui);
     }
-
     ldk_ui_end_disabled(ui);
+
+    if (is_directory)
+    {
+      ldk_ui_horizontal_line(ui);
+      if (ldk_ui_button_flat(ui, "New Scene"))
+      {
+        ldk_ui_close_current_popup(ui);
+      }
+
+      if (ldk_ui_button_flat(ui, "New Material"))
+      {
+        ldk_ui_close_current_popup(ui);
+      }
+
+      ldk_ui_horizontal_line(ui);
+
+      if (ldk_ui_button_flat(ui, "Open Explorer here"))
+      {
+        ldk_ui_close_current_popup(ui);
+        s_project_open_with_explorer(editor, state->context_target.path.buf);
+      }
+    }
+    else
+    {
+      if (ldk_ui_button_flat(ui, "Open default program"))
+      {
+        ldk_ui_close_current_popup(ui);
+        s_project_open_with_explorer(editor, state->context_target.path.buf);
+      }
+    }
     ldk_ui_end_popup(ui);
   }
 }
