@@ -332,7 +332,7 @@ x_strbuilder_append(builder,
     ")\n\n"
     "# Where to look for annotated system declarations\n"
     "list(APPEND LDK_GAME_SYSTEM_DIRS\n"
-    "  \"${OPTION_GAME_DIR}src/system\"\n"
+    "  \"${OPTION_GAME_DIR}/src/system\"\n"
     ")\n\n");
 }
 
