@@ -3,7 +3,7 @@
 #include <module/ldk_ui.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_filesystem.h>
-#include <stdx/stdx_io.h>
+#include <stdx/stdx_ini.h>
 #include <stdx/stdx_string.h>
 
 #include <ctype.h>
@@ -11,8 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LDK_EDITOR_THEME_SELECTION_FILE "theme.txt"
-#define LDK_EDITOR_THEME_FILE_PREFIX "file:"
+#define LDK_EDITOR_CONFIG_FILE "editor.ini"
 
 typedef struct LDKEditorThemeEntry
 {
@@ -25,7 +24,7 @@ typedef struct LDKEditorThemeEntry
 struct LDKEditorThemeCatalog
 {
   XFSPath directory;
-  XFSPath selection_path;
+  XFSPath config_path;
   XArray *entries;
   XSmallstr active;
 };
@@ -40,8 +39,7 @@ static bool s_editor_theme_filename_valid(const char *filename)
   }
 
   length = strlen(filename);
-  if (length < 5 || length + sizeof(LDK_EDITOR_THEME_FILE_PREFIX) >
-                        X_SMALLSTR_MAX_LENGTH)
+  if (length < 5 || length + sizeof("themes/") > X_SMALLSTR_MAX_LENGTH)
   {
     return false;
   }
@@ -83,21 +81,15 @@ static bool s_editor_theme_path_make(
 static bool s_editor_theme_identifier_make(
     const char *filename, XSmallstr *out)
 {
-  int length;
+  XFSPath path = {0};
 
-  if (out == NULL || !s_editor_theme_filename_valid(filename))
+  if (out == NULL || !s_editor_theme_filename_valid(filename) ||
+      !x_fs_path(&path, "themes", filename))
   {
     return false;
   }
 
-  length = snprintf(out->buf, sizeof(out->buf),
-      LDK_EDITOR_THEME_FILE_PREFIX "%s", filename);
-  if (length < 0 || (size_t)length >= sizeof(out->buf))
-  {
-    return false;
-  }
-
-  out->length = (size_t)length;
+  *out = path;
   return true;
 }
 
@@ -118,78 +110,27 @@ static void s_editor_theme_message(LDKEditorContext *editor,
   }
 }
 
-static bool s_editor_theme_selection_read(
-    const XFSPath *path, XSmallstr *out)
-{
-  XFile *file;
-  char text[X_SMALLSTR_MAX_LENGTH + 1];
-  char *first;
-  char *last;
-  size_t size;
-  size_t length;
-  bool ok;
-
-  if (path == NULL || out == NULL)
-  {
-    return false;
-  }
-
-  file = x_io_open(path->buf, "rb");
-  if (file == NULL)
-  {
-    return false;
-  }
-
-  size = x_io_read(file, text, sizeof(text));
-  ok = !x_io_error(file) && size < sizeof(text);
-  x_io_close(file);
-  if (!ok || memchr(text, 0, size) != NULL)
-  {
-    return false;
-  }
-
-  text[size] = 0;
-  first = text;
-  last = text + size;
-  while (first < last && isspace((unsigned char)*first))
-  {
-    ++first;
-  }
-  while (last > first && isspace((unsigned char)last[-1]))
-  {
-    --last;
-  }
-
-  length = (size_t)(last - first);
-  if (length == 0 || length >= sizeof(out->buf))
-  {
-    return false;
-  }
-
-  memcpy(out->buf, first, length);
-  out->buf[length] = 0;
-  out->length = length;
-  return true;
-}
-
 static bool s_editor_theme_selection_write(
     const XFSPath *path, const char *identifier)
 {
-  char text[X_SMALLSTR_MAX_LENGTH + 2];
-  int length;
+  XIni ini = {0};
+  XIniError error = {0};
+  bool result;
 
   if (path == NULL || identifier == NULL)
   {
     return false;
   }
 
-  length = snprintf(text, sizeof(text), "%s\n", identifier);
-  if (length < 0 || (size_t)length >= sizeof(text))
+  if (!x_ini_load_file(path->buf, &ini, &error))
   {
     return false;
   }
 
-  return x_io_write_text(path->buf, text);
+  result = x_ini_set(&ini, ".editor", "theme", identifier) &&
+           x_ini_write_file(path->buf, &ini, &error);
+  x_ini_free(&ini);
+  return result;
 }
 
 static bool s_editor_theme_apply(LDKEditorContext *editor,
@@ -198,8 +139,8 @@ static bool s_editor_theme_apply(LDKEditorContext *editor,
   LDKUIThemeFile loaded;
   LDKUITheme theme;
   XFSPath path;
+  XFSPath relative_path = {0};
   XSmallstr canonical = {0};
-  const char *filename;
   char diagnostic[512] = {0};
   LDKEditorThemeCatalog *catalog;
 
@@ -223,23 +164,26 @@ static bool s_editor_theme_apply(LDKEditorContext *editor,
   }
   else
   {
-    filename = identifier;
-    if (strncmp(identifier, LDK_EDITOR_THEME_FILE_PREFIX,
-            sizeof(LDK_EDITOR_THEME_FILE_PREFIX) - 1) == 0)
+    if (!x_fs_path(&relative_path, identifier) ||
+        !x_fs_path_is_relative(&relative_path))
     {
-      filename += sizeof(LDK_EDITOR_THEME_FILE_PREFIX) - 1;
-    }
-
-    if (!s_editor_theme_path_make(&catalog->directory, filename, &path) ||
-        !s_editor_theme_identifier_make(filename, &canonical))
-    {
-      s_editor_theme_message(editor, identifier, "Invalid theme filename.", true);
+      s_editor_theme_message(editor, identifier,
+          "Theme path must be relative to editor.ini.", true);
       return false;
     }
 
+    x_fs_path_normalize(&relative_path);
+    x_fs_path_dirname(&catalog->config_path, &path);
+    if (!x_fs_path_join(&path, relative_path.buf))
+    {
+      s_editor_theme_message(editor, identifier, "Invalid theme path.", true);
+      return false;
+    }
+
+    canonical = relative_path;
     if (!ldk_ui_theme_tml_load(path.buf, &loaded, diagnostic, sizeof(diagnostic)))
     {
-      s_editor_theme_message(editor, filename, diagnostic, true);
+      s_editor_theme_message(editor, identifier, diagnostic, true);
       return false;
     }
     theme = loaded.theme;
@@ -277,7 +221,7 @@ bool ldki_editor_theme_select(
   editor->editor_theme = canonical;
 
   if (persist && !s_editor_theme_selection_write(
-                     &catalog->selection_path, canonical.buf))
+                     &catalog->config_path, canonical.buf))
   {
     ldki_editor_log_warning(editor,
         "Theme applied, but the selection could not be saved.");
@@ -451,8 +395,8 @@ bool ldki_editor_theme_initialize(
   }
 
   if (!x_fs_path(&catalog->directory, config_directory, "themes") ||
-      !x_fs_path(&catalog->selection_path, config_directory,
-          LDK_EDITOR_THEME_SELECTION_FILE))
+      !x_fs_path(&catalog->config_path, config_directory,
+          LDK_EDITOR_CONFIG_FILE))
   {
     free(catalog);
     return false;
@@ -467,15 +411,6 @@ bool ldki_editor_theme_initialize(
   // Filesystem errors do not prevent the built-in themes from working.
 
   requested = editor->editor_theme;
-  if (x_fs_path_exists(&catalog->selection_path))
-  {
-    if (!s_editor_theme_selection_read(&catalog->selection_path, &requested))
-    {
-      ldki_editor_log_warning(editor,
-          "Invalid saved theme selection. Using the configured default.");
-      requested = editor->editor_theme;
-    }
-  }
 
   if (!ldki_editor_theme_select(editor, requested.buf, false))
   {

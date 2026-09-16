@@ -1199,17 +1199,6 @@ static bool s_editor_gui_initialize(
   ui_cfg.initial_id_stack_capacity = LDK_DEFAULT_UI_INITIAL_STACK_CAPACITY;
   ui_cfg.font = editor->font_instance;
 
-  if (strncmp(editor->editor_theme.buf, "light", 5) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  else if (strncmp(editor->editor_theme.buf, "dark", 4) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
-  else
-  {
-    ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.",
-        editor->editor_theme.buf);
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  }
-
   ui_cfg.font_texture_user = renderer;
   ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
 
