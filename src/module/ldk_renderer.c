@@ -562,12 +562,27 @@ typedef struct LDKRendererLightParams
 typedef struct LDKRendererLightingParams
 {
   i32 count[4];
+  float ambient[4];
   LDKRendererLightParams lights[LDK_RENDERER_MAX_LIGHTS_PER_VIEW];
 } LDKRendererLightingParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererLightParams) == 64, light_std140_size);
-LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 16,
+LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 32,
     lighting_std140_offset);
+
+bool ldk_renderer_ambient_light_set(
+    LDKRenderer *renderer, u32 color, float intensity)
+{
+  if (!renderer || !renderer->is_initialized ||
+      !isfinite(intensity) || intensity < 0.0f)
+  {
+    return false;
+  }
+
+  renderer->ambient_light.color = color;
+  renderer->ambient_light.intensity = intensity;
+  return true;
+}
 
 bool ldk_renderer_submit_light(LDKRenderer *renderer,
     const LDKRendererLightSubmit *light)
@@ -632,6 +647,13 @@ static void s_renderer_lighting_update(LDKRenderer *renderer,
     LDKRendererMeshPass *pass, LDKRendererViewId view_id)
 {
   LDKRendererLightingParams params = {0};
+  LDKRHIColor ambient =
+      ldk_renderer_color_from_rgba32(renderer->ambient_light.color);
+  params.ambient[0] = ambient.r;
+  params.ambient[1] = ambient.g;
+  params.ambient[2] = ambient.b;
+  params.ambient[3] = renderer->ambient_light.intensity;
+
   for (u32 i = 0; i < renderer->submitted_light_count; i++)
   {
     const LDKRendererLightSubmit *light = &renderer->submitted_lights[i];
@@ -3070,6 +3092,8 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   renderer->game_width = config->game_width;
   renderer->game_height = config->game_height;
   renderer->present_game = config->present_game;
+  renderer->ambient_light.color = 0xffffffffu;
+  renderer->ambient_light.intensity = 0.0f;
 
   if (!s_renderer_mesh_pass_initialize(&renderer->mesh_pass, config))
   {

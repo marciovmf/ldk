@@ -1,6 +1,7 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_ecs.h>
 #include <ldk.h>
+#include <ldk_scene.h>
 #include <ldk_scene_systems.h>
 
 #include <stdlib.h>
@@ -264,6 +265,7 @@ static bool s_ecs_clear(void)
   }
 
   free(list.entities);
+  ldk_scene_properties_reset();
   return true;
 }
 
@@ -866,6 +868,7 @@ bool ldk_scene_manager_current_reset(LDKSceneManager *manager)
   manager->current_scene = NULL;
   ldk_scene_systems_clear(&manager->current_systems);
   ldk_scene_manager_pending_clear(manager);
+  ldk_scene_properties_reset();
   return true;
 }
 

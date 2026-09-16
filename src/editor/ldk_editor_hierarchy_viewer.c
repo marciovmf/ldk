@@ -247,6 +247,7 @@ bool ldki_editor_entity_add(
 
   editor->selected_entity = entity;
   editor->selected_system_id = 0;
+  editor->scene_properties_selected = false;
   return true;
 }
 
@@ -342,6 +343,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   {
     editor->selected_entity = entity;
     editor->selected_system_id = 0;
+    editor->scene_properties_selected = false;
     *selected_entity = entity;
     *has_selection = true;
     s_editor_hierarchy_entity_payload_set(entity);
@@ -394,6 +396,41 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
 
     child = next_sibling;
   }
+}
+
+static void s_editor_hierarchy_scene_properties_draw(
+    LDKEditorContext *editor, LDKUIIcon icon)
+{
+  if (!editor || editor->current_scene_path.length == 0)
+  {
+    if (editor)
+    {
+      editor->scene_properties_selected = false;
+    }
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  u32 flags = LDK_UI_TREE_NODE_LEAF;
+  if (editor->scene_properties_selected)
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DATA_OBJECT];
+
+  ldk_ui_push_id_cstr(ui, "scene_properties");
+  ldk_ui_tree_node_ex(ui, "Scene Properties", icon, false, 0, flags);
+  LDKUIId node_id = ui->last_id;
+
+  if (s_editor_hierarchy_node_pressed(ui, node_id))
+  {
+    editor->scene_properties_selected = true;
+    editor->selected_entity = x_handle_null();
+    editor->selected_system_id = 0;
+  }
+
+  ldk_ui_pop_id(ui);
 }
 
 static void s_editor_hierarchy_systems_draw(
@@ -505,6 +542,7 @@ static void s_editor_hierarchy_systems_draw(
       {
         editor->selected_system_id = id;
         editor->selected_entity = x_handle_null();
+        editor->scene_properties_selected = false;
       }
 
       ldk_ui_set_next_disabled(ui, !can_edit);
@@ -562,6 +600,7 @@ static void s_editor_hierarchy_systems_draw(
         {
           editor->selected_system_id = meta->id;
           editor->selected_entity = x_handle_null();
+          editor->scene_properties_selected = false;
           ldki_editor_log_info(editor, "Scene system associated.");
         }
         ldk_ui_close_current_popup(ui);
@@ -603,6 +642,10 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   }
 
   has_selection = ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
+  if (has_selection)
+  {
+    editor->scene_properties_selected = false;
+  }
 
   if (owns_window)
   {
@@ -629,6 +672,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   static bool entities_expanded = true;
 
+  s_editor_hierarchy_scene_properties_draw(editor, icon);
   s_editor_hierarchy_systems_draw(editor, icon);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HIERARCHY];

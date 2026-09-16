@@ -41,11 +41,22 @@ typedef struct LDKScene
   u32 index;
 } LDKScene;
 
+typedef struct LDKSceneProperties
+{
+  rgba32 ambient_color;
+  float ambient_intensity;
+} LDKSceneProperties;
+
 typedef struct LDKSceneResult
 {
   bool ok;
   char error[256];
 } LDKSceneResult;
+
+LDK_API void ldk_scene_properties_defaults(LDKSceneProperties *properties);
+LDK_API const LDKSceneProperties *ldk_scene_properties_get(void);
+LDK_API bool ldk_scene_properties_set(const LDKSceneProperties *properties);
+LDK_API void ldk_scene_properties_reset(void);
 
 LDK_API void ldk_scene_result_clear(LDKSceneResult *result);
 LDK_API void ldk_scene_result_set_error(
@@ -115,4 +126,3 @@ LDK_API bool ldk_scene_component_field_is_serializable(
 #endif
 
 #endif // LDK_SCENE_H
-

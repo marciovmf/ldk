@@ -20,6 +20,39 @@ enum
   LDK_EDITOR_INSPECTOR_INPUT_CAPACITY = 64,
 };
 
+static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
+{
+  {
+    "Ambient Color",
+    LDK_FIELD_U32,
+    offsetof(LDKSceneProperties, ambient_color),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_COLOR,
+    0.0f,
+    0.0f,
+    NULL,
+  },
+  {
+    "Ambient Intensity",
+    LDK_FIELD_FLOAT,
+    offsetof(LDKSceneProperties, ambient_intensity),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_FLOAT,
+    0.0f,
+    0.0f,
+    NULL,
+  },
+};
+
+static const LDKComponentMeta s_editor_scene_properties_meta =
+{
+  "Scene Properties",
+  0,
+  sizeof(LDKSceneProperties),
+  s_editor_scene_properties_fields,
+  2,
+};
+
 typedef struct LDKEditorInspectorInputState
 {
   LDKEntity entity;
@@ -1451,6 +1484,59 @@ static void s_editor_inspector_field_draw(
   ldk_ui_pop_id(ui);
 }
 
+static void s_editor_inspector_scene_properties_draw(
+    LDKEditorContext *editor)
+{
+  const LDKSceneProperties *current;
+  LDKSceneProperties properties;
+  LDKComponentFieldMeta fields[2];
+  LDKComponentMeta meta = s_editor_scene_properties_meta;
+  LDKEntity key = x_handle_null();
+  bool readonly;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  current = ldk_scene_properties_get();
+  if (!current)
+  {
+    ldk_ui_label(&editor->ui, "Scene properties unavailable.");
+    return;
+  }
+
+  properties = *current;
+  readonly = editor->editor_state != LDK_EDITOR_STATE_STOPED;
+  memcpy(fields, s_editor_scene_properties_fields, sizeof(fields));
+  if (readonly)
+  {
+    fields[0].flags |= LDK_FIELD_FLAG_READONLY;
+    fields[1].flags |= LDK_FIELD_FLAG_READONLY;
+  }
+  meta.fields = fields;
+
+  ldk_ui_push_id_cstr(&editor->ui, "scene_properties");
+  ldk_ui_label(&editor->ui, "Scene Properties");
+  ldk_ui_horizontal_line(&editor->ui);
+
+  for (u32 i = 0; i < meta.field_count; ++i)
+  {
+    s_editor_inspector_field_draw(
+        editor, key, 0, &meta, &meta.fields[i], &properties);
+  }
+
+  if (!readonly && isfinite(properties.ambient_intensity) &&
+      properties.ambient_intensity >= 0.0f &&
+      (properties.ambient_color != current->ambient_color ||
+          properties.ambient_intensity != current->ambient_intensity))
+  {
+    (void)ldk_scene_properties_set(&properties);
+  }
+
+  ldk_ui_pop_id(&editor->ui);
+}
+
 static void s_editor_material_row_begin(LDKUIContext *ui, const char *title)
 {
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
@@ -2223,6 +2309,22 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   LDKUIContext *ui = &editor->ui;
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
+
+  if (editor->scene_properties_selected)
+  {
+    if (editor->current_scene_path.length == 0)
+    {
+      editor->scene_properties_selected = false;
+    }
+    else
+    {
+      scroll = ldk_ui_begin_scrollview(
+          ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      s_editor_inspector_scene_properties_draw(editor);
+      ldk_ui_end_scrollview(ui);
+      return;
+    }
+  }
 
   if (editor->selected_system_id != 0)
   {

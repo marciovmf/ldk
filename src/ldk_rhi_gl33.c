@@ -225,12 +225,13 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 "layout(std140) uniform LDK_UBO_4\n" \
 "{\n" \
 "  ivec4 u_light_count;\n" \
+"  vec4 u_ambient;\n" \
 "  LDKLight u_lights[16];\n" \
 "};\n" \
 "vec3 ldk_lighting(vec3 normal)\n" \
 "{\n" \
 "  vec3 n = normal / max(length(normal), 1e-6);\n" \
-"  vec3 result = vec3(0.0);\n" \
+"  vec3 result = u_ambient.rgb * u_ambient.a;\n" \
 "  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n" \
 "  {\n" \
 "    LDKLight light = u_lights[i];\n" \

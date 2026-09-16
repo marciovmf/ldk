@@ -21,6 +21,7 @@
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_tml.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,12 +73,46 @@ static bool s_scene_entity_is_editor_only(LDKEntity entity)
 
 static LDKSceneDiagnosticFn s_scene_diagnostic_handler;
 static void *s_scene_diagnostic_user;
+static LDKSceneProperties s_scene_properties = {0xffffffffu, 0.0f};
 
 void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user)
 {
   s_scene_diagnostic_handler = handler;
   s_scene_diagnostic_user = user;
+}
+
+void ldk_scene_properties_defaults(LDKSceneProperties *properties)
+{
+  if (!properties)
+  {
+    return;
+  }
+
+  properties->ambient_color = 0xffffffffu;
+  properties->ambient_intensity = 0.0f;
+}
+
+const LDKSceneProperties *ldk_scene_properties_get(void)
+{
+  return &s_scene_properties;
+}
+
+bool ldk_scene_properties_set(const LDKSceneProperties *properties)
+{
+  if (!properties || !isfinite(properties->ambient_intensity) ||
+      properties->ambient_intensity < 0.0f)
+  {
+    return false;
+  }
+
+  s_scene_properties = *properties;
+  return true;
+}
+
+void ldk_scene_properties_reset(void)
+{
+  ldk_scene_properties_defaults(&s_scene_properties);
 }
 
 void ldk_scene_result_clear(LDKSceneResult *result)
@@ -501,6 +536,79 @@ static bool s_node_get_u32(const TMLDocument *doc, const TMLNode *node,
   }
 
   *out_value = (u32)value;
+  return true;
+}
+
+static bool s_entry_get_float(const TMLEntry *entry, float *out_value)
+{
+  f64 value;
+
+  if (!entry || !out_value)
+  {
+    return false;
+  }
+
+  if (entry->type == TML_VALUE_F64)
+  {
+    if (!tml_entry_get_f64(entry, &value))
+    {
+      return false;
+    }
+  }
+  else if (entry->type == TML_VALUE_I64)
+  {
+    i64 integer;
+    if (!tml_entry_get_i64(entry, &integer))
+    {
+      return false;
+    }
+    value = (f64)integer;
+  }
+  else
+  {
+    return false;
+  }
+
+  *out_value = (float)value;
+  return isfinite(*out_value);
+}
+
+static bool s_read_scene_properties(const TMLDocument *doc,
+    const TMLNode *scene, LDKSceneProperties *out_properties,
+    LDKSceneResult *result)
+{
+  const TMLNode *node;
+  const TMLEntry *entry;
+
+  if (!doc || !scene || !out_properties)
+  {
+    s_result_error(result, "invalid scene properties arguments");
+    return false;
+  }
+
+  ldk_scene_properties_defaults(out_properties);
+  node = s_node_find_child(doc, scene, "properties");
+  if (!node)
+  {
+    return true;
+  }
+
+  entry = s_node_find_entry(doc, node, "ambient_color");
+  if (entry && !s_node_get_u32(
+          doc, node, "ambient_color", &out_properties->ambient_color))
+  {
+    s_result_error(result, "invalid scene ambient color");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "ambient_intensity");
+  if (entry && (!s_entry_get_float(entry, &out_properties->ambient_intensity) ||
+                   out_properties->ambient_intensity < 0.0f))
+  {
+    s_result_error(result, "invalid scene ambient intensity");
+    return false;
+  }
+
   return true;
 }
 
@@ -1523,6 +1631,7 @@ static bool s_scene_from_tml(const char *source,
   LDKSceneEntityMap map;
   LDKScenePendingParentList parents;
   LDKSceneSystems loaded_systems = {0};
+  LDKSceneProperties loaded_properties;
   bool ok;
 
   if (result)
@@ -1551,6 +1660,7 @@ static bool s_scene_from_tml(const char *source,
 
   memset(&map, 0, sizeof(map));
   memset(&parents, 0, sizeof(parents));
+  ldk_scene_properties_defaults(&loaded_properties);
   doc = NULL;
   ok = false;
 
@@ -1573,6 +1683,12 @@ static bool s_scene_from_tml(const char *source,
   if (!scene_node)
   {
     s_result_error(result, "missing scene root node");
+    goto cleanup;
+  }
+
+  if (!s_read_scene_properties(
+          doc, scene_node, &loaded_properties, result))
+  {
     goto cleanup;
   }
 
@@ -1614,6 +1730,13 @@ static bool s_scene_from_tml(const char *source,
     *systems = loaded_systems;
     memset(&loaded_systems, 0, sizeof(loaded_systems));
   }
+
+  if (!ldk_scene_properties_set(&loaded_properties))
+  {
+    s_result_error(result, "failed to apply scene properties");
+    goto cleanup;
+  }
+
   ok = true;
 
 cleanup:
@@ -2433,6 +2556,7 @@ static bool s_scene_to_tml(XStrBuilder *out,
 {
   LDKGame *game;
   LDKSceneSaveContext context;
+  const LDKSceneProperties *properties;
 
   if (result)
   {
@@ -2472,9 +2596,16 @@ static bool s_scene_to_tml(XStrBuilder *out,
     return false;
   }
 
+  properties = ldk_scene_properties_get();
+
   x_strbuilder_append(out, "scene:\n");
   x_strbuilder_append_format(
       out, "  version: %u\n", LDK_SCENE_TML_VERSION);
+  x_strbuilder_append(out, "  properties:\n");
+  x_strbuilder_append_format(
+      out, "    ambient_color: %u\n", properties->ambient_color);
+  x_strbuilder_append_format(out, "    ambient_intensity: %#.9g\n",
+      (double)properties->ambient_intensity);
   x_strbuilder_append(out, "  entities:\n");
 
   if (!ldk_ecs_entity_foreach(s_write_entity_callback, &context))

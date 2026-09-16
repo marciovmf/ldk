@@ -5,6 +5,7 @@
 #include <ldk_game.h>
 #include <ldk_os.h>
 #include <ldk_mesh_asset.h>
+#include <ldk_scene.h>
 
 #include <ldk_event.h>
 #include <component/ldk_camera.h>
@@ -1357,6 +1358,14 @@ void ldk_engine_frame(void)
     // Collect scene data from game
     LDKComponentRegistry *component_registry = ldk_ecs_component_registry_get();
     LDKEntityRegistry *entity_registry = ldk_ecs_entity_registry_get();
+    const LDKSceneProperties *scene_properties = ldk_scene_properties_get();
+
+    if (scene_properties)
+    {
+      ldk_renderer_ambient_light_set(&e->renderer,
+          scene_properties->ambient_color,
+          scene_properties->ambient_intensity);
+    }
 
     // Active cameras
     bool has_main_camera = false;

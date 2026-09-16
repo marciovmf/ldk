@@ -94,6 +94,12 @@ extern "C" {
     float outer_angle; // Half-cone angle, radians.
   } LDKRendererLightSubmit;
 
+  typedef struct LDKRendererAmbientLight
+  {
+    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    float intensity;
+  } LDKRendererAmbientLight;
+
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
@@ -356,6 +362,7 @@ extern "C" {
     u32 font_page_count;
     u32 font_page_capacity;
 
+    LDKRendererAmbientLight ambient_light;
     LDKRendererLightSubmit *submitted_lights;
     u32 submitted_light_count;
     u32 submitted_light_capacity;
@@ -374,6 +381,13 @@ extern "C" {
 
     bool is_initialized;
   } LDKRenderer;
+
+  /** Set constant ambient light applied to lit materials.
+   * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
+   * non-negative. Ambient light does not count toward the per-view light limit.
+   */
+  LDK_API bool ldk_renderer_ambient_light_set(
+      LDKRenderer *renderer, u32 color, float intensity);
 
   /** Submit an unlit, capped triangular prism from start to end.
    * Thickness is the circumdiameter of its cross-section, in world units.
@@ -571,7 +585,7 @@ extern "C" {
    * Destroying an invalid or already-dead mesh handle is a no-op. Mesh resources
    * are also destroyed automatically when the renderer is terminated.
    *
-   * @param renderer Renderer that owns the mesh resource.
+   * @param renderer Renderer that ownss the mesh resource.
    * @param mesh Mesh resource handle to destroy.
    */
   LDK_API void ldk_renderer_mesh_destroy(

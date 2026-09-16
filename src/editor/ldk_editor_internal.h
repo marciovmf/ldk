@@ -207,6 +207,7 @@ typedef struct LDKEditorContext
   XFSPath current_scene_path;
   LDKEntity selected_entity;
   u64 selected_system_id;
+  bool scene_properties_selected;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
   LDKEditorCameraControllerState camera_controller;
@@ -358,7 +359,7 @@ typedef u32 LDKEditorWindowId;
 
 bool ldki_editor_window_remove(LDKEditorWindowId window_id);
 bool ldki_editor_window_is_focused(
-  LDKEditorContext *editor, LDKEditorWindowId window_id);
+    LDKEditorContext *editor, LDKEditorWindowId window_id);
 
 typedef struct LDKEditorWindow
 {
