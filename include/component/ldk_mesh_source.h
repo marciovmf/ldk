@@ -33,6 +33,7 @@ extern "C" {
   {
     LDKAssetMesh source_asset;
     u32 mesh_index;
+    bool casts_shadows;
     //@inspect hidden
     LDKMaterialDesc material;
     //@inspect hidden

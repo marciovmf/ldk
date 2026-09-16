@@ -119,6 +119,7 @@ static LDKMeshSource s_mesh_source_make_default(void)
 
   mesh_source.source_asset = ldk_asset_mesh_null();
   mesh_source.mesh_index = 0;
+  mesh_source.casts_shadows = true;
   ldk_material_desc_defaults(
       LDK_MATERIAL_TYPE_VERTEX_COLOR, &mesh_source.material);
   mesh_source.material_asset = ldk_asset_material_null();

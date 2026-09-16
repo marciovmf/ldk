@@ -211,58 +211,90 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "  gl_Position = u_projection * u_view * world_position;\n"
 "}\n";
 
+static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
+    "#version 330 core\n"
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "void main()\n"
+    "{\n"
+    "  gl_Position = u_light_view_projection * u_world * vec4(a_position, "
+    "1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "void main() {}\n";
+
 LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 
-#define LDK_GL33_LIGHTING_GLSL \
-"in vec3 v_world_position;\n" \
-"struct LDKLight\n" \
-"{\n" \
-"  vec4 position_type;\n" \
-"  vec4 direction_range;\n" \
-"  vec4 color_intensity;\n" \
-"  vec4 cone;\n" \
-"};\n" \
-"layout(std140) uniform LDK_UBO_4\n" \
-"{\n" \
-"  ivec4 u_light_count;\n" \
-"  vec4 u_ambient;\n" \
-"  LDKLight u_lights[16];\n" \
-"};\n" \
-"vec3 ldk_lighting(vec3 normal)\n" \
-"{\n" \
-"  vec3 n = normal / max(length(normal), 1e-6);\n" \
-"  vec3 result = u_ambient.rgb * u_ambient.a;\n" \
-"  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n" \
-"  {\n" \
-"    LDKLight light = u_lights[i];\n" \
-"    int type = int(light.position_type.w);\n" \
-"    vec3 to_light;\n" \
-"    float attenuation = 1.0;\n" \
-"    if (type == 2)\n" \
-"    {\n" \
-"      to_light = -light.direction_range.xyz;\n" \
-"    }\n" \
-"    else\n" \
-"    {\n" \
-"      vec3 delta = light.position_type.xyz - v_world_position;\n" \
-"      float distance_to_light = length(delta);\n" \
-"      to_light = delta / max(distance_to_light, 1e-6);\n" \
-"      float falloff = max(1.0 - distance_to_light / light.direction_range.w, 0.0);\n" \
-"      attenuation = falloff * falloff;\n" \
-"      if (type == 1)\n" \
-"      {\n" \
-"        float cosine = dot(-to_light, light.direction_range.xyz);\n" \
-"        float width = light.cone.x - light.cone.y;\n" \
-"        attenuation *= width > 1e-6\n" \
-"            ? smoothstep(light.cone.y, light.cone.x, cosine)\n" \
-"            : step(light.cone.y, cosine);\n" \
-"      }\n" \
-"    }\n" \
-"    result += light.color_intensity.rgb * light.color_intensity.a\n" \
-"        * attenuation * max(dot(n, to_light), 0.0);\n" \
-"  }\n" \
-"  return result;\n" \
-"}\n"
+#define LDK_GL33_LIGHTING_GLSL                                                 \
+  "in vec3 v_world_position;\n"                                                \
+  "struct LDKLight\n"                                                          \
+  "{\n"                                                                        \
+  "  vec4 position_type;\n"                                                    \
+  "  vec4 direction_range;\n"                                                  \
+  "  vec4 color_intensity;\n"                                                  \
+  "  vec4 cone;\n"                                                             \
+  "};\n"                                                                       \
+  "layout(std140) uniform LDK_UBO_4\n"                                         \
+  "{\n"                                                                        \
+  "  ivec4 u_light_count;\n"                                                   \
+  "  vec4 u_ambient;\n"                                                        \
+  "  LDKLight u_lights[16];\n"                                                 \
+  "  mat4 u_shadow_view_projection;\n"                                         \
+  "  vec4 u_shadow_params;\n"                                                  \
+  "};\n"                                                                       \
+  "uniform sampler2D LDK_TEXTURE_5;\n"                                         \
+  "float ldk_shadow_visibility(vec3 n, vec3 to_light)\n"                       \
+  "{\n"                                                                        \
+  "  vec4 clip = u_shadow_view_projection * vec4(v_world_position, 1.0);\n"    \
+  "  vec3 p = clip.xyz / clip.w * 0.5 + 0.5;\n"                                \
+  "  if (any(lessThan(p, vec3(0.0))) || any(greaterThan(p, vec3(1.0))))\n"     \
+  "    return 1.0;\n"                                                          \
+  "  float bias = max(u_shadow_params.x,\n"                                    \
+  "      u_shadow_params.y * (1.0 - max(dot(n, to_light), 0.0)));\n"           \
+  "  float depth = texture(LDK_TEXTURE_5, p.xy).r;\n"                          \
+  "  return p.z - bias <= depth ? 1.0 : 0.0;\n"                                \
+  "}\n"                                                                        \
+  "vec3 ldk_lighting(vec3 normal)\n"                                           \
+  "{\n"                                                                        \
+  "  vec3 n = normal / max(length(normal), 1e-6);\n"                           \
+  "  vec3 result = u_ambient.rgb * u_ambient.a;\n"                             \
+  "  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n"                     \
+  "  {\n"                                                                      \
+  "    LDKLight light = u_lights[i];\n"                                        \
+  "    int type = int(light.position_type.w);\n"                               \
+  "    vec3 to_light;\n"                                                       \
+  "    float attenuation = 1.0;\n"                                             \
+  "    if (type == 2)\n"                                                       \
+  "    {\n"                                                                    \
+  "      to_light = -light.direction_range.xyz;\n"                             \
+  "    }\n"                                                                    \
+  "    else\n"                                                                 \
+  "    {\n"                                                                    \
+  "      vec3 delta = light.position_type.xyz - v_world_position;\n"           \
+  "      float distance_to_light = length(delta);\n"                           \
+  "      to_light = delta / max(distance_to_light, 1e-6);\n"                   \
+  "      float falloff = max(1.0 - distance_to_light / "                       \
+  "light.direction_range.w, 0.0);\n"                                           \
+  "      attenuation = falloff * falloff;\n"                                   \
+  "      if (type == 1)\n"                                                     \
+  "      {\n"                                                                  \
+  "        float cosine = dot(-to_light, light.direction_range.xyz);\n"        \
+  "        float width = light.cone.x - light.cone.y;\n"                       \
+  "        attenuation *= width > 1e-6\n"                                      \
+  "            ? smoothstep(light.cone.y, light.cone.x, cosine)\n"             \
+  "            : step(light.cone.y, cosine);\n"                                \
+  "      }\n"                                                                  \
+  "    }\n"                                                                    \
+  "    if (i == u_light_count.y)\n"                                            \
+  "      attenuation *= ldk_shadow_visibility(n, to_light);\n"                 \
+  "    result += light.color_intensity.rgb * light.color_intensity.a\n"        \
+  "        * attenuation * max(dot(n, to_light), 0.0);\n"                      \
+  "  }\n"                                                                      \
+  "  return result;\n"                                                         \
+  "}\n"
 
 static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 "#version 330 core\n"
@@ -427,6 +459,18 @@ static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 
 static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t stage)
 {
+  if (shader == LDK_SHADER_SHADOW_PASS)
+  {
+    if (stage == LDK_RHI_SHADER_STAGE_VERTEX)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER;
+    }
+    if (stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER;
+    }
+  }
+
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
     return LDK_RHI_GL33_UI_PASS_VERTEX_SHADER;
@@ -935,6 +979,17 @@ static void ldk_rhi_gl33_apply_pipeline_state(const LDKRHIGL33PipelineObject* pi
   }
 
   glFrontFace(pipeline->raster_state.front_face == LDK_RHI_FRONT_FACE_CW ? GL_CW : GL_CCW);
+
+  if (pipeline->raster_state.depth_bias_enabled)
+  {
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(pipeline->raster_state.depth_bias_slope_factor,
+        pipeline->raster_state.depth_bias_constant_factor);
+  }
+  else
+  {
+    glDisable(GL_POLYGON_OFFSET_FILL);
+  }
 
   if (pipeline->raster_state.scissor_enabled)
   {
@@ -1561,6 +1616,11 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
     if (desc->color_attachment_count > 0)
     {
       glDrawBuffers((GLsizei)desc->color_attachment_count, draw_buffers);
+    }
+    else
+    {
+      glDrawBuffer(GL_NONE);
+      glReadBuffer(GL_NONE);
     }
 
     if (desc->depth_attachment.valid)

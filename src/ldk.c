@@ -2,6 +2,7 @@
 #include "ldk_stdx.h"
 
 #include <ldk.h>
+#include <math.h>
 #include <ldk_game.h>
 #include <ldk_os.h>
 #include <ldk_mesh_asset.h>
@@ -689,6 +690,20 @@ bool ldk_engine_config_from_ini(
       x_ini_get_i32(ini, "graphics", "resolution_width", 400);
   out_config->resolution_height =
       x_ini_get_i32(ini, "graphics", "resolution_height", 400);
+  out_config->shadow_map_resolution =
+      (u32)x_ini_get_i32(ini, "graphics", "shadow_map_resolution", 2048);
+  out_config->shadow_distance =
+      x_ini_get_f32(ini, "graphics", "shadow_distance", 60.0f);
+  if (out_config->shadow_map_resolution < 256 ||
+      out_config->shadow_map_resolution > 8192 ||
+      (out_config->shadow_map_resolution &
+          (out_config->shadow_map_resolution - 1)) != 0 ||
+      !isfinite(out_config->shadow_distance) ||
+      out_config->shadow_distance <= 0)
+  {
+    ldk_log_error("Invalid graphics shadow settings.\n");
+    return false;
+  }
 
   // scetion: display
   out_config->display_width = x_ini_get_i32(ini, "display", "width", 800);
@@ -1155,6 +1170,8 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
       config->initial_ui_vertex_capacity;
   renderer_config.game_width = (u32)config->resolution_width;
   renderer_config.game_height = (u32)config->resolution_height;
+  renderer_config.shadow_map_resolution = config->shadow_map_resolution;
+  renderer_config.shadow_distance = config->shadow_distance;
 #ifdef LDK_EDITOR
   renderer_config.present_game = false;
 #else
@@ -1190,6 +1207,18 @@ LDKWindow ldk_engine_main_window_get(void)
 {
   LDK_ASSERT(g_engine_initialized);
   return g_engine.window;
+}
+
+bool ldk_engine_shadow_settings_set(u32 resolution, float distance)
+{
+  if (!g_engine_initialized || !ldk_renderer_shadow_settings_set(
+                                   &g_engine.renderer, resolution, distance))
+  {
+    return false;
+  }
+  g_engine.config.shadow_map_resolution = resolution;
+  g_engine.config.shadow_distance = distance;
+  return true;
 }
 
 bool ldk_engine_render_resolution_set(i32 width, i32 height)
@@ -1481,6 +1510,7 @@ void ldk_engine_frame(void)
           light.type = LDK_RENDERER_LIGHT_DIRECTIONAL;
           light.color = directional->color;
           light.intensity = directional->intensity;
+          light.casts_shadows = directional->casts_shadows;
         }
         ldk_renderer_submit_light(&e->renderer, &light);
       }
@@ -1548,6 +1578,9 @@ void ldk_engine_frame(void)
         continue;
       }
 
+      u32 submit_flags = mesh->casts_shadows
+                             ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+                             : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
       u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
           &e->asset_manager, mesh->source_asset, mesh->mesh_index);
       if (submesh_count == 0)
@@ -1559,8 +1592,8 @@ void ldk_engine_frame(void)
           continue;
         }
 
-        ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh,
-            renderer_material, mesh_world);
+        ldk_renderer_submit_mesh_with_flags(&e->renderer, mesh->renderer_mesh,
+            renderer_material, mesh_world, submit_flags);
         continue;
       }
 
@@ -1578,9 +1611,9 @@ void ldk_engine_frame(void)
           continue;
         }
 
-        ldk_renderer_submit_mesh_range(&e->renderer, mesh->renderer_mesh,
-            renderer_material, submesh->first_index,
-            submesh->index_count, mesh_world);
+        ldk_renderer_submit_mesh_range_with_flags(&e->renderer,
+            mesh->renderer_mesh, renderer_material, submesh->first_index,
+            submesh->index_count, mesh_world, submit_flags);
       }
     }
   }

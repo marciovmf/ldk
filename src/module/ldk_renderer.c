@@ -564,11 +564,32 @@ typedef struct LDKRendererLightingParams
   i32 count[4];
   float ambient[4];
   LDKRendererLightParams lights[LDK_RENDERER_MAX_LIGHTS_PER_VIEW];
+  Mat4 shadow_view_projection;
+  float shadow_params[4]; // depth bias, slope bias, reserved, reserved
 } LDKRendererLightingParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererLightParams) == 64, light_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 32,
     lighting_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererLightingParams, shadow_view_projection) == 1056,
+    shadow_std140_offset);
+LDK_STATIC_ASSERT(
+    sizeof(LDKRendererLightingParams) == 1136, lighting_std140_size);
+
+typedef struct LDKRendererViewLighting
+{
+  LDKRendererLightingParams params;
+  const LDKRendererLightSubmit *shadow_light;
+} LDKRendererViewLighting;
+
+static bool s_renderer_shadow_settings_valid(u32 resolution, float distance)
+{
+  return resolution >= 256 && resolution <= 8192 &&
+         (resolution & (resolution - 1)) == 0 && isfinite(distance) &&
+         distance > 0;
+}
+#define LDK_RENDERER_SHADOW_CASTER_MARGIN 60.0f
 
 bool ldk_renderer_ambient_light_set(
     LDKRenderer *renderer, u32 color, float intensity)
@@ -643,10 +664,12 @@ bool ldk_renderer_submit_light(LDKRenderer *renderer,
   return true;
 }
 
-static void s_renderer_lighting_update(LDKRenderer *renderer,
-    LDKRendererMeshPass *pass, LDKRendererViewId view_id)
+static void s_renderer_lighting_select(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKRendererViewLighting *lighting)
 {
   LDKRendererLightingParams params = {0};
+  memset(lighting, 0, sizeof(*lighting));
+  params.count[1] = -1;
   LDKRHIColor ambient =
       ldk_renderer_color_from_rgba32(renderer->ambient_light.color);
   params.ambient[0] = ambient.r;
@@ -675,6 +698,12 @@ static void s_renderer_lighting_update(LDKRenderer *renderer,
       }
       break;
     }
+    if (!lighting->shadow_light && light->casts_shadows &&
+        light->type == LDK_RENDERER_LIGHT_DIRECTIONAL)
+    {
+      lighting->shadow_light = light;
+      params.count[1] = params.count[0];
+    }
     LDKRendererLightParams *out = &params.lights[params.count[0]++];
     out->position_type[0] = light->position.x;
     out->position_type[1] = light->position.y;
@@ -692,8 +721,269 @@ static void s_renderer_lighting_update(LDKRenderer *renderer,
     out->cone[0] = cosf(light->inner_angle);
     out->cone[1] = cosf(light->outer_angle);
   }
-  ldk_rhi_buffer_update(pass->rhi, pass->lighting_buffer, 0,
-      sizeof(params), &params);
+  lighting->params = params;
+}
+
+// One map is reused sequentially: shadow(view), meshes(view), next view.
+static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
+{
+  if (pass->rhi)
+  {
+    ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->pipeline);
+    ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->camera_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
+    ldk_rhi_sampler_destroy(pass->rhi, pass->sampler);
+    ldk_rhi_texture_destroy(pass->rhi, pass->depth_texture);
+  }
+  memset(pass, 0, sizeof(*pass));
+}
+
+static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
+    LDKRHIContext *rhi, u32 resolution, float distance)
+{
+  memset(pass, 0, sizeof(*pass));
+  if (!s_renderer_shadow_settings_valid(resolution, distance))
+  {
+    return false;
+  }
+  pass->resolution = resolution;
+  pass->distance = distance;
+  pass->rhi = rhi;
+  LDKRHITextureDesc texture;
+  ldk_rhi_texture_desc_defaults(&texture);
+  texture.width = pass->resolution;
+  texture.height = pass->resolution;
+  texture.format = LDK_RHI_FORMAT_D32_FLOAT;
+  texture.usage =
+      LDK_RHI_TEXTURE_USAGE_DEPTH_STENCIL | LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  pass->depth_texture = ldk_rhi_texture_create(rhi, &texture);
+
+  LDKRHISamplerDesc sampler;
+  ldk_rhi_sampler_desc_defaults(&sampler);
+  sampler.min_filter = LDK_RHI_FILTER_NEAREST;
+  sampler.mag_filter = LDK_RHI_FILTER_NEAREST;
+  sampler.mip_filter = LDK_RHI_FILTER_NEAREST;
+  sampler.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  sampler.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  sampler.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  pass->sampler = ldk_rhi_sampler_create(rhi, &sampler);
+  pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(
+      rhi, LDK_SHADER_SHADOW_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
+  pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(
+      rhi, LDK_SHADER_SHADOW_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+
+  LDKRHIBufferDesc buffer;
+  ldk_rhi_buffer_desc_defaults(&buffer);
+  buffer.size = sizeof(Mat4);
+  buffer.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  buffer.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  pass->camera_buffer = ldk_rhi_buffer_create(rhi, &buffer);
+  pass->object_buffer = ldk_rhi_buffer_create(rhi, &buffer);
+  if (!pass->depth_texture || !pass->sampler || !pass->vertex_shader_module ||
+      !pass->fragment_shader_module || !pass->camera_buffer ||
+      !pass->object_buffer)
+  {
+    goto fail;
+  }
+
+  LDKRHIBindingsLayoutDesc layout;
+  ldk_rhi_bindings_layout_desc_defaults(&layout);
+  layout.entry_count = 2;
+  for (u32 i = 0; i < 2; ++i)
+  {
+    layout.entries[i].slot = i;
+    layout.entries[i].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+    layout.entries[i].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  }
+  pass->bindings_layout = ldk_rhi_bindings_layout_create(rhi, &layout);
+  if (!pass->bindings_layout)
+  {
+    goto fail;
+  }
+
+  LDKRHIPipelineDesc pipeline;
+  ldk_rhi_pipeline_desc_defaults(&pipeline);
+  pipeline.vertex_shader_module = pass->vertex_shader_module;
+  pipeline.fragment_shader_module = pass->fragment_shader_module;
+  pipeline.bindings_layout = pass->bindings_layout;
+  pipeline.vertex_layout.stride = sizeof(LDKMeshVertex);
+  pipeline.vertex_layout.attribute_count = 1;
+  pipeline.vertex_layout.attributes[0].location = 0;
+  pipeline.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
+  pipeline.vertex_layout.attributes[0].offset =
+      (u32)offsetof(LDKMeshVertex, position);
+  pipeline.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
+  pipeline.color_attachment_count = 0;
+  pipeline.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
+  pipeline.depth_state.test_enabled = true;
+  pipeline.depth_state.write_enabled = true;
+  pipeline.depth_state.compare_op = LDK_RHI_COMPARE_OP_LESS_EQUAL;
+  pipeline.blend_state.enabled = false;
+  // Two-sided casting also handles thin meshes and mirrored transforms.
+  pipeline.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
+  pipeline.raster_state.scissor_enabled = false;
+  // Use the rasterized triangle's depth slope, including grazing surfaces.
+  pipeline.raster_state.depth_bias_enabled = true;
+  pipeline.raster_state.depth_bias_slope_factor = 1.0f;
+  pipeline.raster_state.depth_bias_constant_factor = 2.0f;
+  pass->pipeline = ldk_rhi_pipeline_create(rhi, &pipeline);
+  if (!pass->pipeline)
+  {
+    goto fail;
+  }
+
+  LDKRHIBindingsDesc bindings;
+  ldk_rhi_bindings_desc_defaults(&bindings);
+  bindings.layout = pass->bindings_layout;
+  bindings.binding_count = 2;
+  bindings.bindings[0].slot = 0;
+  bindings.bindings[0].buffer = pass->camera_buffer;
+  bindings.bindings[0].buffer_size = sizeof(Mat4);
+  bindings.bindings[1].slot = 1;
+  bindings.bindings[1].buffer = pass->object_buffer;
+  bindings.bindings[1].buffer_size = sizeof(Mat4);
+  pass->bindings = ldk_rhi_bindings_create(rhi, &bindings);
+  if (!pass->bindings)
+  {
+    goto fail;
+  }
+  return true;
+
+fail:
+  s_renderer_shadow_pass_terminate(pass);
+  return false;
+}
+
+static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
+    const LDKRendererView *view, Vec3 direction,
+    LDKRendererLightingParams *params)
+{
+  bool invertible = false;
+  Mat4 inverse =
+      mat4_inverse_full(mat4_mul(view->projection, view->view), &invertible);
+  if (!invertible)
+  {
+    return false;
+  }
+
+  Vec3 corners[8];
+  Vec3 center = vec3_make(0, 0, 0);
+  for (u32 i = 0; i < 4; ++i)
+  {
+    float x = (i & 1) ? 1.0f : -1.0f;
+    float y = (i & 2) ? 1.0f : -1.0f;
+    Vec3 near_corner = mat4_mul_point(inverse, vec3_make(x, y, -1));
+    Vec3 far_corner = mat4_mul_point(inverse, vec3_make(x, y, 1));
+    float near_depth = -mat4_mul_point(view->view, near_corner).z;
+    float far_depth = -mat4_mul_point(view->view, far_corner).z;
+    if (!isfinite(near_depth) || !isfinite(far_depth) ||
+        near_depth >= pass->distance || far_depth <= near_depth)
+    {
+      return false;
+    }
+    float t =
+        fminf(1.0f, (pass->distance - near_depth) / (far_depth - near_depth));
+    corners[i] = near_corner;
+    corners[i + 4] =
+        vec3_add(near_corner, vec3_mul(vec3_sub(far_corner, near_corner), t));
+    center = vec3_add(center, vec3_add(corners[i], corners[i + 4]));
+  }
+  center = vec3_mul(center, 0.125f);
+
+  float radius = 0.0f;
+  for (u32 i = 0; i < 8; ++i)
+  {
+    Vec3 delta = vec3_sub(corners[i], center);
+    radius = fmaxf(radius, sqrtf(vec3_dot(delta, delta)));
+  }
+  if (!isfinite(radius) || radius < 1e-4f)
+  {
+    return false;
+  }
+  // Rounded sphere fit keeps the map extent stable under camera rotation.
+  radius = ceilf(radius * 16.0f) / 16.0f;
+  radius *= (float)pass->resolution / (float)(pass->resolution - 2u);
+  float texel = 2.0f * radius / (float)pass->resolution;
+  Vec3 up =
+      fabsf(direction.y) > 0.99f ? vec3_make(0, 0, 1) : vec3_make(0, 1, 0);
+  Mat4 light_view = mat4_look_at_rh(vec3_make(0, 0, 0), direction, up);
+  Vec3 light_center = mat4_mul_point(light_view, center);
+  light_center.x = floorf(light_center.x / texel + 0.5f) * texel;
+  light_center.y = floorf(light_center.y / texel + 0.5f) * texel;
+  float min_z = light_center.z - radius;
+  float max_z = light_center.z + radius + LDK_RENDERER_SHADOW_CASTER_MARGIN;
+  // Include upstream, off-camera casters. This bounded first pass has no CSM.
+  Mat4 projection =
+      mat4_orthographic_rh_no(light_center.x - radius, light_center.x + radius,
+          light_center.y - radius, light_center.y + radius, -max_z, -min_z);
+  params->shadow_view_projection = mat4_mul(projection, light_view);
+  // Raster bias handles slope; retain only a small receiver-side tolerance.
+  params->shadow_params[0] = 0.05f * texel / (max_z - min_z);
+  params->shadow_params[1] = 0.0f;
+  return true;
+}
+
+static void s_renderer_shadow_pass_draw(LDKRenderer *renderer,
+    const LDKRendererView *view, LDKRendererViewLighting *lighting)
+{
+  LDKRendererShadowPass *pass = &renderer->shadow_pass;
+  if (!lighting->shadow_light ||
+      !s_renderer_shadow_camera(
+          pass, view, lighting->shadow_light->direction, &lighting->params))
+  {
+    lighting->params.count[1] = -1;
+    return;
+  }
+  ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0, sizeof(Mat4),
+      &lighting->params.shadow_view_projection);
+  LDKRHIPassDesc desc;
+  ldk_rhi_pass_desc_defaults(&desc);
+  desc.color_attachment_count = 0;
+  desc.depth_attachment.valid = true;
+  desc.depth_attachment.texture = pass->depth_texture;
+  desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
+  desc.depth_attachment.depth_store_op = LDK_RHI_STORE_OP_STORE;
+  desc.depth_attachment.clear_depth = 1.0f;
+  desc.has_viewport = true;
+  desc.viewport.width = (float)pass->resolution;
+  desc.viewport.height = (float)pass->resolution;
+  desc.viewport.min_depth = 0.0f;
+  desc.viewport.max_depth = 1.0f;
+  ldk_rhi_pass_begin(pass->rhi, &desc);
+  ldk_rhi_pipeline_bind(pass->rhi, pass->pipeline);
+  ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
+  for (u32 i = 0; i < renderer->submitted_mesh_count; ++i)
+  {
+    const LDKRendererMeshSubmit *submit = &renderer->submitted_meshes[i];
+    if (!(submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS) ||
+        (submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) ||
+        (submit->view_id != LDK_RENDERER_VIEW_ALL &&
+            submit->view_id != view->id))
+    {
+      continue;
+    }
+    LDKRendererMeshResource *mesh =
+        s_renderer_mesh_get_resource(renderer, submit->mesh);
+    if (!mesh || !mesh->index_count)
+    {
+      continue;
+    }
+    ldk_rhi_buffer_update(
+        pass->rhi, pass->object_buffer, 0, sizeof(Mat4), &submit->world);
+    ldk_rhi_vertex_buffer_bind(pass->rhi, mesh->vertex_buffer, 0);
+    ldk_rhi_index_buffer_bind(
+        pass->rhi, mesh->index_buffer, 0, LDK_RHI_INDEX_TYPE_UINT32);
+    LDKRHIDrawIndexedDesc draw = {0};
+    draw.first_index = submit->first_index;
+    draw.index_count = submit->index_count;
+    ldk_rhi_draw_indexed(pass->rhi, &draw);
+  }
+  ldk_rhi_pass_end(pass->rhi);
 }
 
 static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
@@ -752,7 +1042,7 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
-  desc.entry_count = 5;
+  desc.entry_count = 6;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
@@ -769,6 +1059,9 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[4].slot = 4;
   desc.entries[4].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[4].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.entries[5].slot = 5;
+  desc.entries[5].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.entries[5].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
 
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &desc);
@@ -922,7 +1215,7 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
   desc.layout = pass->bindings_layout;
-  desc.binding_count = 4;
+  desc.binding_count = 5;
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = pass->camera_buffer;
   desc.bindings[0].buffer_offset = 0;
@@ -939,6 +1232,9 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
   desc.bindings[3].slot = 4;
   desc.bindings[3].buffer = pass->lighting_buffer;
   desc.bindings[3].buffer_size = sizeof(LDKRendererLightingParams);
+  desc.bindings[4].slot = 5;
+  desc.bindings[4].texture = pass->shadow_texture;
+  desc.bindings[4].sampler = pass->shadow_sampler;
 
   pass->bindings = ldk_rhi_bindings_create(pass->rhi, &desc);
   return pass->bindings != LDK_RHI_INVALID_RESOURCE;
@@ -950,7 +1246,7 @@ static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
   desc.layout = pass->bindings_layout;
-  desc.binding_count = 5;
+  desc.binding_count = 6;
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = pass->camera_buffer;
   desc.bindings[0].buffer_offset = 0;
@@ -969,6 +1265,9 @@ static LDKRHIBindings s_renderer_mesh_pass_create_textured_bindings(
   desc.bindings[4].slot = 4;
   desc.bindings[4].buffer = pass->lighting_buffer;
   desc.bindings[4].buffer_size = sizeof(LDKRendererLightingParams);
+  desc.bindings[5].slot = 5;
+  desc.bindings[5].texture = pass->shadow_texture;
+  desc.bindings[5].sampler = pass->shadow_sampler;
   return ldk_rhi_bindings_create(pass->rhi, &desc);
 }
 
@@ -1065,8 +1364,8 @@ static void s_renderer_mesh_pass_remove_texture_bindings(
   }
 }
 
-static bool s_renderer_mesh_pass_initialize(
-    LDKRendererMeshPass* pass, LDKRendererConfig const* config)
+static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass *pass,
+    LDKRendererConfig const *config, const LDKRendererShadowPass *shadow)
 {
   if (pass == NULL || config == NULL || config->rhi == NULL)
   {
@@ -1075,6 +1374,9 @@ static bool s_renderer_mesh_pass_initialize(
 
   memset(pass, 0, sizeof(*pass));
   pass->rhi = config->rhi;
+
+  pass->shadow_texture = shadow->depth_texture;
+  pass->shadow_sampler = shadow->sampler;
 
   if (!s_renderer_mesh_pass_create_shaders(pass))
   {
@@ -1158,7 +1460,7 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
   {
     LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[i];
 
-    if (submit->flags != flags ||
+    if ((submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) != flags ||
         (submit->view_id != LDK_RENDERER_VIEW_ALL &&
             submit->view_id != view->id))
     {
@@ -1423,7 +1725,6 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0,
       sizeof(camera_params), &camera_params);
 
-  s_renderer_lighting_update(renderer, pass, view->id);
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
   s_renderer_lines_draw(renderer, pass, view, flags);
 }
@@ -1661,6 +1962,12 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   {
     return false;
   }
+
+  LDKRendererViewLighting lighting;
+  s_renderer_lighting_select(renderer, view->id, &lighting);
+  s_renderer_shadow_pass_draw(renderer, view, &lighting);
+  ldk_rhi_buffer_update(renderer->rhi, renderer->mesh_pass.lighting_buffer, 0,
+      sizeof(lighting.params), &lighting.params);
 
   LDKRHIPassDesc pass_desc;
   ldk_rhi_pass_desc_defaults(&pass_desc);
@@ -3079,6 +3386,52 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFo
 // Public renderer API
 // ---------------------------------------------------------------------------
 
+bool ldk_renderer_shadow_settings_set(
+    LDKRenderer *renderer, u32 resolution, float distance)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      !s_renderer_shadow_settings_valid(resolution, distance))
+  {
+    return false;
+  }
+  if (renderer->shadow_pass.resolution == resolution)
+  {
+    renderer->shadow_pass.distance = distance;
+    return true;
+  }
+
+  LDKRendererShadowPass replacement;
+  if (!s_renderer_shadow_pass_initialize(
+          &replacement, renderer->rhi, resolution, distance))
+  {
+    return false;
+  }
+  // Build the new bindings before releasing any currently usable resources.
+  LDKRendererMeshPass next_mesh = renderer->mesh_pass;
+  next_mesh.shadow_texture = replacement.depth_texture;
+  next_mesh.shadow_sampler = replacement.sampler;
+  if (!s_renderer_mesh_pass_create_bindings(&next_mesh))
+  {
+    s_renderer_shadow_pass_terminate(&replacement);
+    return false;
+  }
+
+  LDKRendererMeshPass *mesh = &renderer->mesh_pass;
+  for (u32 i = 0; i < mesh->textured_bindings_cache_count; ++i)
+  {
+    ldk_rhi_bindings_destroy(
+        mesh->rhi, mesh->textured_bindings_cache[i].bindings);
+  }
+  mesh->textured_bindings_cache_count = 0;
+  ldk_rhi_bindings_destroy(mesh->rhi, mesh->bindings);
+  mesh->bindings = next_mesh.bindings;
+  mesh->shadow_texture = next_mesh.shadow_texture;
+  mesh->shadow_sampler = next_mesh.shadow_sampler;
+  s_renderer_shadow_pass_terminate(&renderer->shadow_pass);
+  renderer->shadow_pass = replacement;
+  return true;
+}
+
 bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* config)
 {
   if (renderer == NULL || config == NULL || config->rhi == NULL ||
@@ -3095,7 +3448,16 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   renderer->ambient_light.color = 0xffffffffu;
   renderer->ambient_light.intensity = 0.0f;
 
-  if (!s_renderer_mesh_pass_initialize(&renderer->mesh_pass, config))
+  if (!s_renderer_shadow_pass_initialize(&renderer->shadow_pass, config->rhi,
+          config->shadow_map_resolution ? config->shadow_map_resolution : 2048u,
+          config->shadow_distance != 0.0f ? config->shadow_distance : 60.0f))
+  {
+    ldk_renderer_terminate(renderer);
+    return false;
+  }
+
+  if (!s_renderer_mesh_pass_initialize(
+          &renderer->mesh_pass, config, &renderer->shadow_pass))
   {
     ldk_renderer_terminate(renderer);
     return false;
@@ -3174,6 +3536,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
   s_renderer_ui_pass_terminate(&renderer->ui_pass);
   s_renderer_grid_pass_terminate(&renderer->grid_pass);
   s_renderer_mesh_pass_terminate(&renderer->mesh_pass);
+  s_renderer_shadow_pass_terminate(&renderer->shadow_pass);
   memset(renderer, 0, sizeof(*renderer));
 }
 
@@ -3327,7 +3690,9 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
     LDKResourceMaterial material, u32 first_index, u32 index_count,
     Mat4 world, u32 flags)
 {
-  if (renderer == NULL || !renderer->is_initialized)
+  if (renderer == NULL || !renderer->is_initialized ||
+      (flags & ~(LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
+                   LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS)) != 0)
   {
     return false;
   }
@@ -3367,9 +3732,15 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   return true;
 }
 
-bool ldk_renderer_submit_mesh(
-    LDKRenderer* renderer, LDKResourceMesh mesh,
+bool ldk_renderer_submit_mesh(LDKRenderer *renderer, LDKResourceMesh mesh,
     LDKResourceMaterial material, Mat4 world)
+{
+  return ldk_renderer_submit_mesh_with_flags(renderer, mesh, material, world,
+      LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS);
+}
+
+bool ldk_renderer_submit_mesh_with_flags(LDKRenderer *renderer,
+    LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world, u32 flags)
 {
   LDKRendererMeshResource* resource =
       s_renderer_mesh_get_resource(renderer, mesh);
@@ -3378,9 +3749,8 @@ bool ldk_renderer_submit_mesh(
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh,
-      material, 0, resource->index_count, world,
-      LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
+  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh, material,
+      0, resource->index_count, world, flags);
 }
 
 bool ldk_renderer_submit_mesh_range(
@@ -3388,9 +3758,17 @@ bool ldk_renderer_submit_mesh_range(
     LDKResourceMaterial material, u32 first_index,
     u32 index_count, Mat4 world)
 {
-  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh,
-      material, first_index, index_count, world,
-      LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
+  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh, material,
+      first_index, index_count, world,
+      LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS);
+}
+
+bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
+    LDKResourceMesh mesh, LDKResourceMaterial material, u32 first_index,
+    u32 index_count, Mat4 world, u32 flags)
+{
+  return s_renderer_submit_mesh(renderer, LDK_RENDERER_VIEW_ALL, mesh, material,
+      first_index, index_count, world, flags);
 }
 
 bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
@@ -3410,9 +3788,8 @@ bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
     return false;
   }
 
-  return s_renderer_submit_mesh(renderer, view_id, mesh, material,
-      0, resource->index_count, world,
-      LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material, 0,
+      resource->index_count, world, LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS);
 }
 
 bool ldk_renderer_submit_grid_to_view(LDKRenderer* renderer,

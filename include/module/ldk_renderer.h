@@ -47,7 +47,8 @@ extern "C" {
     LDK_SHADER_GRID_PASS,
     LDK_SHADER_MESH_PASS_UNLIT,
     LDK_SHADER_MESH_PASS_TEXTURED,
-    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT
+    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT,
+    LDK_SHADER_SHADOW_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -92,6 +93,7 @@ extern "C" {
     float range;
     float inner_angle; // Half-cone angle, radians.
     float outer_angle; // Half-cone angle, radians.
+    bool casts_shadows; // Directional only; first eligible light per view.
   } LDKRendererLightSubmit;
 
   typedef struct LDKRendererAmbientLight
@@ -103,7 +105,8 @@ extern "C" {
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
-    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0
+    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0,
+    LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS = 1 << 1
   } LDKRendererMeshSubmitFlag;
 
   typedef struct LDKRendererMeshSubmit
@@ -134,6 +137,9 @@ extern "C" {
     u32 game_width;
     u32 game_height;
     bool present_game;
+    // Zero selects the default (2048 texels, 60 world units).
+    u32 shadow_map_resolution;
+    float shadow_distance;
   } LDKRendererConfig;
 
   typedef struct LDKRendererFrameDesc
@@ -171,6 +177,22 @@ extern "C" {
     bool is_initialized;
   } LDKRendererUIPass;
 
+  typedef struct LDKRendererShadowPass
+  {
+    u32 resolution;
+    float distance;
+    LDKRHIContext *rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIBuffer camera_buffer;
+    LDKRHIBuffer object_buffer;
+    LDKRHIBindings bindings;
+    LDKRHITexture depth_texture;
+    LDKRHISampler sampler;
+  } LDKRendererShadowPass;
+
   typedef struct LDKRendererMeshPass
   {
     LDKRHIContext* rhi;
@@ -190,6 +212,9 @@ extern "C" {
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer lighting_buffer;
+    // Borrowed from the renderer-owned shadow pass.
+    LDKRHITexture shadow_texture;
+    LDKRHISampler shadow_sampler;
     LDKRHIBindings bindings;
     LDKRendererBindingsCacheEntry* textured_bindings_cache;
     u32 textured_bindings_cache_count;
@@ -329,6 +354,7 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
+    LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
     LDKUIRenderData const* submitted_ui;
     u32 game_width;
@@ -422,6 +448,11 @@ extern "C" {
    * @param config Renderer configuration.
    * @return true if the renderer was initialized successfully, false otherwise.
    */
+  // Call between frames. Resolution: power of two, 256..8192;
+  // distance: finite and positive. Failure preserves existing resources.
+  LDK_API bool ldk_renderer_shadow_settings_set(
+      LDKRenderer *renderer, u32 resolution, float distance);
+
   LDK_API bool ldk_renderer_initialize(
       LDKRenderer* renderer,
       LDKRendererConfig const* config);
@@ -904,6 +935,17 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+  /* Explicit flags for scene/procedural submissions. The convenience mesh
+   * submission functions enable CAST_SHADOWS; overlay submissions never cast.
+   * These forms allow disabling casting without changing material lighting.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_with_flags(LDKRenderer *renderer,
+      LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
+      u32 flags);
+  LDK_API bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
+      LDKResourceMesh mesh, LDKResourceMaterial material, u32 first_index,
+      u32 index_count, Mat4 world, u32 flags);
 
   /**
    * @brief Submit a contiguous index range of a mesh for scene rendering.

@@ -42,6 +42,7 @@ extern "C"
     u32 color;
     float intensity;
     bool enabled;
+    bool casts_shadows;
   } LDKDirectionalLight;
 
 #ifdef LDK_ENGINE

@@ -1931,6 +1931,13 @@ static bool s_project_load(
     goto fail;
   }
 
+  if (!ldk_engine_shadow_settings_set(editor->project.shadow_map_resolution,
+          editor->project.shadow_distance))
+  {
+    ldk_log_error("Failed to apply project shadow settings.\n");
+    goto fail;
+  }
+
   if (!s_project_editor_game_dll_path_get(
           &editor->project, &editor_game_dll_path) ||
       !x_fs_file_copy(

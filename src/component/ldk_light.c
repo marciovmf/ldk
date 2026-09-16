@@ -118,6 +118,7 @@ static bool s_directional_light_attach(LDKEntityRegistry *registry,
   {
     LDKDirectionalLight *light = component;
     *light = (LDKDirectionalLight){0};
+    light->casts_shadows = true;
     light->color = 0xffffffffu;
     light->intensity = 1.0f;
     light->enabled = true;
