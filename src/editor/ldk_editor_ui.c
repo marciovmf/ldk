@@ -15,6 +15,9 @@
 #include <string.h>
 #include <math.h>
 
+const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType *out_type);
+
 //------------------------------------------------------------
 // Menu bar
 //------------------------------------------------------------
@@ -279,47 +282,94 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_window(ui);
 }
 
+static LDKUIIcon s_editor_status_message_icon(
+    LDKEditorContext *editor, LDKEditorConsoleEntryType type)
+{
+  LDKUIIcon icon = {0};
+
+  if (editor == NULL || type == LDK_EDITOR_CONSOLE_ENTRY_RAW)
+  {
+    return icon;
+  }
+
+  icon.size = ldk_sizef(
+      LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_TEXT];
+
+  if (type == LDK_EDITOR_CONSOLE_ENTRY_INFO)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_INFO];
+  }
+  else if (type == LDK_EDITOR_CONSOLE_ENTRY_WARNING)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
+    icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+  }
+  else if (type == LDK_EDITOR_CONSOLE_ENTRY_ERROR)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
+    icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+  }
+
+  return icon;
+}
+
 static void s_editor_status_bar(LDKEditorContext *editor)
 {
   static u8 alpha = 0;
   static double acc = 0.0f;
 
-  LDKUIIcon icon = {0};
   LDKUIContext *ui = &editor->ui;
-  ui = &editor->ui;
-  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
+  LDKEditorConsoleEntryType message_type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
+  const char *message =
+      ldki_editor_console_last_message_get(editor, &message_type);
+  LDKUIIcon message_icon =
+      s_editor_status_message_icon(editor, message_type);
+  LDKUIIcon build_icon = {0};
+
+  build_icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
       LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture =
-    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
+  build_icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  build_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  build_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
 
   LDKUIRect rect = {
     0,
     ui->viewport.h - LDK_UI_DEFAULT_CONTROL_HEIGHT,
     ui->viewport.w,
     LDK_UI_DEFAULT_CONTROL_HEIGHT};
+
   ldk_ui_begin_window(ui, "", rect, 0);
+  ldk_ui_begin_horizontal(ui);
+
+  if (message != NULL && message[0] != 0)
+  {
+    ldk_ui_set_next_weight(ui, 1.0f);
+    ldk_ui_icon_label(ui, message_icon, message);
+  }
+  else
+  {
+    ldk_ui_spacer(ui);
+  }
 
   if (editor->project_build.active)
   {
-    // pulse alpha
-    ldk_ui_begin_horizontal(ui);
     acc += editor->ui.delta_time * 2;
-    alpha = (u8) (127 + (127 * sinf(acc)));
-    //ldk_ui_label(ui, "Building...");
-    ldk_ui_spacer(ui);
-    icon.color &= 0xFFFFFF00;
-    icon.color |= alpha;
-    ldk_ui_set_next_weight(ui, 0);
-    ldk_ui_icon_button(ui, icon, NULL);
+    alpha = (u8)(127 + (127 * sinf(acc)));
+
+    build_icon.color &= 0xFFFFFF00;
+    build_icon.color |= alpha;
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_icon_button(ui, build_icon, NULL);
   }
 
   ldk_ui_end_horizontal(ui);
   ldk_ui_end_window(ui);
-
 }
-
 
 //------------------------------------------------------------
 // Toolbar
@@ -1383,4 +1433,3 @@ void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
   ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
   ldk_log_info(msg);
 }
-

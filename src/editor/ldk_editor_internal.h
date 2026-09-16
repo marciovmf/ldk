@@ -285,6 +285,8 @@ bool ldki_editor_show_open_project_dialog(
 
 void ldki_editor_console_append(LDKEditorContext *editor,
     LDKEditorConsoleEntryType type, const char *message);
+const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType *out_type);
 void ldki_editor_log_error(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_info(LDKEditorContext *editor, const char *msg);
