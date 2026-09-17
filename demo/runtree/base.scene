@@ -6,224 +6,28 @@ scene:
   entities:
     - entity: 0
       parent: -1
-      flags: 0
-      name: "Cube"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.569439650, 1.72827291
-            local_scale: 1.16555500, 1.16555500, 2.06512880
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 1
-      parent: 2
-      flags: 0
-      name: "Cone"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -0.0302972794, 1.17998791, 0.000992655754
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 2
-      parent: 0
-      flags: 0
-      name: "Capsule"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, -0.133486927, -0.576774240
-            local_scale: 0.857960343, 0.857960343, 0.484231263
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 3
-      parent: 0
-      flags: 0
-      name: "Capsule"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, -0.146292210, 0.442302287
-            local_scale: 0.857960343, 0.857960343, 0.484231263
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 4
-      parent: 3
-      flags: 0
-      name: "Cone"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 1.12865114, 0.00103080273
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 5
-      parent: -1
-      flags: 0
-      name: "directional_light"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 3.66859961, 4.88469362
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.658995807, -0.594154894, 0.247152150, -0.389384538
-        - type: 4294967289 # LDKDirectionalLight
-          fields:
-            color: 4294967295
-            intensity: 1.00000000
-            enabled: true
-            casts_shadows: true
-    - entity: 6
-      parent: -1
-      flags: 0
-      name: "Camera"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 3.81798458, 1.52985072, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.0336645283, 0.683071613, 0.0359128267, 0.728690803
-        - type: 4294967293 # LDKCamera
-          fields:
-            projection: 0
-            role: 1
-            fov_y: 1.04719758
-            orthographic_height: 10.0000000
-            near_plane: 0.100000001
-            far_plane: 1000.00000
-            enabled: true
-    - entity: 7
-      parent: -1
       flags: 4
       name: "Quad"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.00000000, 0.0468997955
-            local_scale: 47.5505447, 47.5505447, 47.5505447
+            local_position: 0.00000000, 0.174343109, 8.77205658
+            local_scale: 24.3131504, 24.3131504, 24.3131504
             local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_type: 4
-            material_color: 0xfcfcfcff
-    - entity: 8
-      parent: -1
-      flags: 0
-      name: "Cube"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.569439650, -8.01682472
-            local_scale: 1.16555500, 1.16555500, 2.06512880
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 9
-      parent: 8
-      flags: 0
-      name: "Capsule"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, -0.133486927, -0.576774240
-            local_scale: 0.857960343, 0.857960343, 0.484231263
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 10
-      parent: 9
-      flags: 0
-      name: "Cone"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -0.0302972794, 1.17998791, 0.000992655754
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 11
-      parent: 8
-      flags: 0
-      name: "Capsule"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, -0.146292210, 0.442302287
-            local_scale: 0.857960343, 0.857960343, 0.484231263
-            local_rotation: 0.00369910477, 0.00000000, 0.00000000, 0.999993145
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 12
-      parent: 11
-      flags: 0
-      name: "Cone"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 1.12865114, 0.00103080273
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
-    - entity: 13
+            material_asset: "assets\\checkers_orange"
+    - entity: 1
       parent: -1
       flags: 0
       name: "Entity"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 2.72148752, 0.00000000
+            local_position: -4.06509161, 3.74191141, 0.00000000
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967291 # LDKPointLight
@@ -232,14 +36,14 @@ scene:
             intensity: 6.00000000
             range: 5.00000000
             enabled: false
-    - entity: 14
+    - entity: 2
       parent: -1
       flags: 0
       name: "Entity"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 3.70023251, -4.41654682
+            local_position: 2.48127460, 3.70023251, 4.15807629
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: -0.471945256, 0.00000000, 0.00000000, 0.881627858
         - type: 4294967290 # LDKSpotLight
@@ -250,19 +54,151 @@ scene:
             inner_angle: 0.349065840
             outer_angle: 0.523598790
             enabled: false
-    - entity: 15
+    - entity: 3
+      parent: -1
+      flags: 0
+      name: "Camera"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 1.03207254, 4.62140322, 8.06780434
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.0490508564, 0.0193398874, 0.00412847800, 0.998600483
+        - type: 4294967293 # LDKCamera
+          fields:
+            projection: 0
+            role: 1
+            fov_y: 1.04719758
+            orthographic_height: 10.0000000
+            near_plane: 0.100000001
+            far_plane: 1000.00000
+            enabled: true
+    - entity: 4
+      parent: -1
+      flags: 0
+      name: "directional_light"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 3.66859961, 4.88469362
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.287026793, -0.140249610, 0.642631531, -0.696398199
+        - type: 4294967289 # LDKDirectionalLight
+          fields:
+            color: 4294967295
+            intensity: 0.200000003
+            enabled: true
+            casts_shadows: true
+    - entity: 5
       parent: -1
       flags: 0
       name: "Cube"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.975178242, 0.929403543, -2.76866293
+            local_position: 0.00000000, 0.660789490, -1.57965970
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.0647689700, 0.387811750, -0.311649859, 0.865032673
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange_small"
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.163789272, 2.85927653, -1.65626860
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.0894630179, 0.457857430, 0.472425401, 0.747781575
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange_small"
+    - entity: 7
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 5.31266451, 2.49312544, 0.00602841377
+            local_scale: 1.83333325, 1.83333325, 1.83333325
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange_small"
+    - entity: 8
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00133919716, 3.49371839, -3.27149296
+            local_scale: 24.2187481, 24.2187481, 24.2187481
+            local_rotation: -4.32152660e-08, -4.42019470e-08, -0.999936342, 0.0112863528
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange"
+    - entity: 9
+      parent: -1
+      flags: 0
+      name: "Sphere"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.850215673, 5.26727247, 1.14600444
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/sphere"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange_small"
+    - entity: 10
+      parent: -1
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -3.22925425, 2.40033937, -1.13444138
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.328308105, -0.433601320, -0.173378825, 0.821062386
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+    - entity: 11
+      parent: -1
+      flags: 0
+      name: "Cone"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 2.45969868, 5.71114254, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.159854606, 0.555620313, -0.225594282, 0.784117281
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
             mesh_index: 0
             casts_shadows: true
             material_type: 4

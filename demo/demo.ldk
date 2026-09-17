@@ -8,7 +8,7 @@ project_cmake_generator = Visual Studio 17 2022
 resolution_width=1280
 resolution_height=720
 shadow_map_resolution = 2048
-shadow_distance = 12.0
+shadow_distance = 15
 
 [general]
 asset_root = "assets"

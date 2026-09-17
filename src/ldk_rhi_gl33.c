@@ -249,13 +249,24 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "float ldk_shadow_visibility(vec3 n, vec3 to_light)\n"                       \
   "{\n"                                                                        \
   "  vec4 clip = u_shadow_view_projection * vec4(v_world_position, 1.0);\n"    \
-  "  vec3 p = clip.xyz / clip.w * 0.5 + 0.5;\n"                                \
+  "  vec3 p = clip.xyz / clip.w * 0.5 + 0.5;\n"                               \
   "  if (any(lessThan(p, vec3(0.0))) || any(greaterThan(p, vec3(1.0))))\n"     \
   "    return 1.0;\n"                                                          \
   "  float bias = max(u_shadow_params.x,\n"                                    \
   "      u_shadow_params.y * (1.0 - max(dot(n, to_light), 0.0)));\n"           \
-  "  float depth = texture(LDK_TEXTURE_5, p.xy).r;\n"                          \
-  "  return p.z - bias <= depth ? 1.0 : 0.0;\n"                                \
+  "  float receiver_depth = p.z - bias;\n"                                     \
+  "  vec2 texel_size = 1.0 / vec2(textureSize(LDK_TEXTURE_5, 0));\n"           \
+  "  float visibility = 0.0;\n"                                                \
+  "  for (int y = -1; y <= 1; ++y)\n"                                         \
+  "  {\n"                                                                      \
+  "    for (int x = -1; x <= 1; ++x)\n"                                       \
+  "    {\n"                                                                    \
+  "      vec2 offset = vec2(float(x), float(y)) * texel_size;\n"                \
+  "      float depth = texture(LDK_TEXTURE_5, p.xy + offset).r;\n"              \
+  "      visibility += receiver_depth <= depth ? 1.0 : 0.0;\n"                 \
+  "    }\n"                                                                    \
+  "  }\n"                                                                      \
+  "  return visibility / 9.0;\n"                                               \
   "}\n"                                                                        \
   "vec3 ldk_lighting(vec3 normal)\n"                                           \
   "{\n"                                                                        \

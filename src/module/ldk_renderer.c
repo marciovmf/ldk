@@ -863,6 +863,9 @@ static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
     const LDKRendererView *view, Vec3 direction,
     LDKRendererLightingParams *params)
 {
+  const float receiver_constant_bias_texels = 0.5f;
+  const float receiver_slope_bias_texels = 5.0f;
+
   bool invertible = false;
   Mat4 inverse =
       mat4_inverse_full(mat4_mul(view->projection, view->view), &invertible);
@@ -881,11 +884,13 @@ static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
     Vec3 far_corner = mat4_mul_point(inverse, vec3_make(x, y, 1));
     float near_depth = -mat4_mul_point(view->view, near_corner).z;
     float far_depth = -mat4_mul_point(view->view, far_corner).z;
+
     if (!isfinite(near_depth) || !isfinite(far_depth) ||
         near_depth >= pass->distance || far_depth <= near_depth)
     {
       return false;
     }
+
     float t =
         fminf(1.0f, (pass->distance - near_depth) / (far_depth - near_depth));
     corners[i] = near_corner;
@@ -893,6 +898,7 @@ static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
         vec3_add(near_corner, vec3_mul(vec3_sub(far_corner, near_corner), t));
     center = vec3_add(center, vec3_add(corners[i], corners[i + 4]));
   }
+
   center = vec3_mul(center, 0.125f);
 
   float radius = 0.0f;
@@ -901,30 +907,50 @@ static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
     Vec3 delta = vec3_sub(corners[i], center);
     radius = fmaxf(radius, sqrtf(vec3_dot(delta, delta)));
   }
+
   if (!isfinite(radius) || radius < 1e-4f)
   {
     return false;
   }
+
   // Rounded sphere fit keeps the map extent stable under camera rotation.
   radius = ceilf(radius * 16.0f) / 16.0f;
   radius *= (float)pass->resolution / (float)(pass->resolution - 2u);
+
   float texel = 2.0f * radius / (float)pass->resolution;
+
   Vec3 up =
       fabsf(direction.y) > 0.99f ? vec3_make(0, 0, 1) : vec3_make(0, 1, 0);
+
   Mat4 light_view = mat4_look_at_rh(vec3_make(0, 0, 0), direction, up);
   Vec3 light_center = mat4_mul_point(light_view, center);
+
   light_center.x = floorf(light_center.x / texel + 0.5f) * texel;
   light_center.y = floorf(light_center.y / texel + 0.5f) * texel;
+
   float min_z = light_center.z - radius;
-  float max_z = light_center.z + radius + LDK_RENDERER_SHADOW_CASTER_MARGIN;
+  float max_z =
+      light_center.z + radius + LDK_RENDERER_SHADOW_CASTER_MARGIN;
+
   // Include upstream, off-camera casters. This bounded first pass has no CSM.
   Mat4 projection =
-      mat4_orthographic_rh_no(light_center.x - radius, light_center.x + radius,
-          light_center.y - radius, light_center.y + radius, -max_z, -min_z);
+      mat4_orthographic_rh_no(light_center.x - radius,
+          light_center.x + radius,
+          light_center.y - radius,
+          light_center.y + radius,
+          -max_z,
+          -min_z);
+
   params->shadow_view_projection = mat4_mul(projection, light_view);
-  // Raster bias handles slope; retain only a small receiver-side tolerance.
-  params->shadow_params[0] = 0.05f * texel / (max_z - min_z);
-  params->shadow_params[1] = 0.0f;
+
+  float depth_range = max_z - min_z;
+
+  // Bias is expressed in shadow-map texels and converted to depth space.
+  params->shadow_params[0] =
+      receiver_constant_bias_texels * texel / depth_range;
+  params->shadow_params[1] =
+      receiver_slope_bias_texels * texel / depth_range;
+
   return true;
 }
 
