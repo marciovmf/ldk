@@ -1,5 +1,6 @@
 #include "../ldk_stdx.h"
 #include "ldk_editor_internal.h"
+#include "module/ldk_ui.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -432,8 +433,12 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
     height = 0.0f;
   }
 
-  return (LDKUIRect){ui->viewport.x,
-                     ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP, ui->viewport.w, height - LDK_UI_DEFAULT_CONTROL_HEIGHT}; // give space for the status bar at the bottom
+  return (LDKUIRect)
+  {
+    ui->viewport.x,
+    ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP,
+    ui->viewport.w,
+    height - LDK_EDITOR_STATUS_BAR_HEIGHT}; // give space for the status bar at the bottom
 }
 
 static void s_editor_dock_resize_reset(LDKEditorDockResize *resize)

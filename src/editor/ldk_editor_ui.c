@@ -336,13 +336,15 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   build_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   build_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
 
+  const u32 status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT;
   LDKUIRect rect = {
     0,
-    ui->viewport.h - LDK_UI_DEFAULT_CONTROL_HEIGHT,
+    ui->viewport.h - status_bar_height,
     ui->viewport.w,
-    LDK_UI_DEFAULT_CONTROL_HEIGHT};
+    status_bar_height};
 
   ldk_ui_begin_window(ui, "", rect, 0);
+  ldk_ui_horizontal_line(ui);
   ldk_ui_begin_horizontal(ui);
 
   if (message != NULL && message[0] != 0)
