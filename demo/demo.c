@@ -15,14 +15,73 @@
 #include <ldk_game.h>
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
-#include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
 
 #include "src/system/hello.h"
+#include "src/system/island_terrain.h"
 #include <generated_component_metadata.h>
 
+#include <math.h>
+
+#define DEMO_ISLAND_MAP_WIDTH 128u
+#define DEMO_ISLAND_MAP_HEIGHT 128u
+
 LDKGame game = {0};
+
+static u32 s_island_colors[DEMO_ISLAND_MAP_WIDTH * DEMO_ISLAND_MAP_HEIGHT];
+
+static void s_demo_island_map_build(void)
+{
+  const u32 deep_water = 0x426F7DFFu;
+  const u32 shallow_water = 0x6696A0FFu;
+  const u32 sand = 0xC8AA74FFu;
+  const u32 grass = 0x78945AFFu;
+  const u32 grass_dark = 0x657F4DFFu;
+  const u32 rock = 0x77766FFFu;
+
+  for (u32 y = 0u; y < DEMO_ISLAND_MAP_HEIGHT; ++y)
+  {
+    for (u32 x = 0u; x < DEMO_ISLAND_MAP_WIDTH; ++x)
+    {
+      float nx =
+          ((float)x + 0.5f) / (float)DEMO_ISLAND_MAP_WIDTH * 2.0f - 1.0f;
+      float ny =
+          ((float)y + 0.5f) / (float)DEMO_ISLAND_MAP_HEIGHT * 2.0f - 1.0f;
+      float distortion = 0.06f * sinf((float)x * 0.21f) +
+                         0.04f * cosf((float)y * 0.17f);
+      float distance = sqrtf(nx * nx + ny * ny) + distortion;
+      u32 color;
+
+      if (distance > 0.92f)
+      {
+        color = deep_water;
+      }
+      else if (distance > 0.82f)
+      {
+        color = shallow_water;
+      }
+      else if (distance > 0.73f)
+      {
+        color = sand;
+      }
+      else if (((x / 9u) + (y / 7u)) % 11u == 0u)
+      {
+        color = rock;
+      }
+      else if (((x / 5u) + (y / 6u)) % 2u == 0u)
+      {
+        color = grass;
+      }
+      else
+      {
+        color = grass_dark;
+      }
+
+      s_island_colors[y * DEMO_ISLAND_MAP_WIDTH + x] = color;
+    }
+  }
+}
 
 void hello_system_update(void *data, const LDKEntityGroup *group, float dt)
 {
@@ -70,6 +129,14 @@ bool game_initialize(LDKGame *game)
   ldk_log_info("Game initialize!!\n");
   game->user_data = &s_game_data;
 
+  s_demo_island_map_build();
+  if (!island_terrain_map_set(
+          s_island_colors, DEMO_ISLAND_MAP_WIDTH, DEMO_ISLAND_MAP_HEIGHT))
+  {
+    ldk_log_error("Failed to configure island terrain color map.\n");
+    return false;
+  }
+
   if (!game_register_systems())
   {
     ldk_log_error("Failed to register game systems.\n");
@@ -100,19 +167,10 @@ bool game_start(LDKGame *game)
     return false;
   }
 
-  LDKEntity camera_entity = ldk_ecs_entity_create();
-  ldk_transform_set_local_position(
-      camera_entity, vec3_make(0.0f, 0.0f, 0.0f));
-
-  LDKCamera camera = {0};
-  camera.projection = LDK_CAMERA_PROJECTION_PERSPECTIVE;
-  camera.role = LDK_CAMERA_ROLE_MAIN;
-  camera.fov_y = deg_to_rad(40.0f);
-  camera.near_plane = 0.1f;
-  camera.far_plane = 100.0f;
-  camera.enabled = true;
-  ldk_ecs_component_add(camera_entity, LDK_COMPONENT_TYPE_CAMERA, &camera);
-  ldk_camera_look_at(camera_entity, vec3_make(0.0f, 0.0f, -1.0f));
+  /*
+   * The scene already owns the main camera. Do not create another camera here:
+   * the terrain system's camera grouping must contain one tracked entity.
+   */
 
   LDKEntity cube_entity_0 = ldk_ecs_entity_create();
   ldk_transform_set_local_position(
@@ -201,4 +259,3 @@ void game_stop(LDKGame *game)
 {
   ldk_log_info("Game stop\n");
 }
-
