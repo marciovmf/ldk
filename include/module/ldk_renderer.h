@@ -328,6 +328,9 @@ extern "C" {
     LDKMaterialType type;
     LDKResourceTexture texture;
     rgba32 color;
+    float specular;
+    float shininess;
+    float emission;
   } LDKRendererMaterialDesc;
 
   typedef enum LDKRendererMaterialSelection
@@ -789,7 +792,9 @@ extern "C" {
    *
    * Textured materials require a live renderer texture. The referenced texture
    * must remain alive until the material is destroyed. Vertex-color materials
-   * ignore desc->texture and store a canonical null texture handle.
+   * ignore desc->texture and store a canonical null texture handle. Lit material
+   * surface values must be finite and non-negative. A zero shininess uses the
+   * default value (32).
    *
    * @param renderer Renderer that will own the material resource.
    * @param desc Resolved renderer material description.

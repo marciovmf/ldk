@@ -41,14 +41,30 @@ static int test_material_io_round_trip(void)
   ASSERT_TRUE(s_read("material:\n  material_type: 4\n", &context,
       &desc, &result));
   ASSERT_EQ(desc.args.vertex_color.color, 0xffffffffu);
+  ASSERT_EQ(desc.surface.specular, 0.0f);
+  ASSERT_EQ(desc.surface.shininess, 32.0f);
+  ASSERT_EQ(desc.surface.emission, 0.0f);
+
+  ASSERT_TRUE(s_read("material:\n  material_type: 4\n  material_shininess: 0\n",
+      &context, &loaded, &result));
+  ASSERT_EQ(loaded.surface.shininess, 32.0f);
+
   XStrBuilder *out = x_strbuilder_create();
   ASSERT_TRUE(out != NULL);
   desc.args.vertex_color.color = 0xAABBCCFFu;
+  desc.surface.specular = 0.25f;
+  desc.surface.shininess = 64.0f;
+  desc.surface.emission = 0.5f;
   x_strbuilder_append(out, "material:\n");
   ASSERT_TRUE(ldk_material_desc_write(&context, &desc, out, 1, &result));
 
   ASSERT_TRUE(strcmp(out->data,
-      "material:\n  material_type: 4\n  material_color: 0xaabbccff\n") == 0);
+      "material:\n"
+      "  material_type: 4\n"
+      "  material_color: 0xaabbccff\n"
+      "  material_specular: 0.25\n"
+      "  material_shininess: 64\n"
+      "  material_emission: 0.5\n") == 0);
   ASSERT_TRUE(s_read(out->data, &context, &loaded, &result));
   ASSERT_TRUE(ldk_material_desc_equal(&desc, &loaded));
   x_strbuilder_destroy(out);
@@ -63,6 +79,9 @@ static int test_material_io_invalid(void)
       "material:\n  material_type: 4\n  material_color: 4294967296\n",
       "material:\n  material_type: 4\n  material_color: -1\n",
       "material:\n  material_color: 1\n",
+      "material:\n  material_type: 4\n  material_specular: -0.1\n",
+      "material:\n  material_type: 4\n  material_shininess: -1\n",
+      "material:\n  material_type: 4\n  material_emission: -1\n",
   };
   LDKMaterialIOContext context = {0};
   LDKMaterialIOResult result;
@@ -100,6 +119,9 @@ static int test_material_io_missing_texture(void)
       "  material_texture: \"missing.png\"\n";
   ASSERT_TRUE(s_read(text, &context, &first, &result));
   ASSERT_EQ(s_diagnostics, 1u);
+  ASSERT_EQ(first.surface.specular, 0.0f);
+  ASSERT_EQ(first.surface.shininess, 32.0f);
+  ASSERT_EQ(first.surface.emission, 0.0f);
   const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
       &assets, first.args.textured.texture);
   ASSERT_TRUE(image && image->image && image->is_missing);
@@ -110,7 +132,13 @@ static int test_material_io_missing_texture(void)
   ASSERT_TRUE(out != NULL);
   x_strbuilder_append(out, "material:\n");
   ASSERT_TRUE(ldk_material_desc_write(&context, &first, out, 1, &result));
-  ASSERT_TRUE(strcmp(out->data, text) == 0);
+  ASSERT_TRUE(strcmp(out->data,
+      "material:\n  material_type: 2\n"
+      "  material_color: 0xa1b2c3ff\n"
+      "  material_texture: \"missing.png\"\n"
+      "  material_specular: 0\n"
+      "  material_shininess: 32\n"
+      "  material_emission: 0\n") == 0);
   x_strbuilder_destroy(out);
   ASSERT_TRUE(s_read("material:\n  material_type: 1\n", &context,
       &second, &result));

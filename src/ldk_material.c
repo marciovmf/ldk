@@ -1,5 +1,6 @@
 #include <ldk_material.h>
 
+#include <math.h>
 #include <string.h>
 
 #define LDK_MATERIAL_HASH_OFFSET 14695981039346656037ull
@@ -17,9 +18,31 @@ static u64 s_material_hash_u32(u64 hash, u32 value)
   return hash;
 }
 
+static u64 s_material_hash_float(u64 hash, float value)
+{
+  u32 bits = 0;
+  if (value == 0.0f)
+  {
+    value = 0.0f;
+  }
+  memcpy(&bits, &value, sizeof(bits));
+  return s_material_hash_u32(hash, bits);
+}
+
 static bool s_material_asset_image_equal(LDKAssetImage a, LDKAssetImage b)
 {
   return a.h.index == b.h.index && a.h.version == b.h.version;
+}
+
+static bool s_material_type_is_lit(LDKMaterialType type)
+{
+  return type == LDK_MATERIAL_TYPE_TEXTURED ||
+         type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
+}
+
+static float s_material_shininess(float shininess)
+{
+  return shininess == 0.0f ? 32.0f : shininess;
 }
 
 bool ldk_material_type_is_valid(LDKMaterialType type)
@@ -45,6 +68,9 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   }
 
   out_desc->type = type;
+  out_desc->surface.specular = 0.0f;
+  out_desc->surface.shininess = 32.0f;
+  out_desc->surface.emission = 0.0f;
 
   if (type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       type == LDK_MATERIAL_TYPE_TEXTURED)
@@ -62,7 +88,19 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
 
 bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
 {
-  return desc != NULL && ldk_material_type_is_valid(desc->type);
+  if (desc == NULL || !ldk_material_type_is_valid(desc->type))
+  {
+    return false;
+  }
+
+  if (!s_material_type_is_lit(desc->type))
+  {
+    return true;
+  }
+
+  return isfinite(desc->surface.specular) && desc->surface.specular >= 0.0f &&
+         isfinite(desc->surface.shininess) && desc->surface.shininess >= 0.0f &&
+         isfinite(desc->surface.emission) && desc->surface.emission >= 0.0f;
 }
 
 bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
@@ -73,15 +111,28 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     return false;
   }
 
+  bool equal;
   if (a->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       a->type == LDK_MATERIAL_TYPE_TEXTURED)
   {
-    return s_material_asset_image_equal(
-               a->args.textured.texture, b->args.textured.texture) &&
-           a->args.textured.color == b->args.textured.color;
+    equal = s_material_asset_image_equal(
+                a->args.textured.texture, b->args.textured.texture) &&
+            a->args.textured.color == b->args.textured.color;
+  }
+  else
+  {
+    equal = a->args.vertex_color.color == b->args.vertex_color.color;
   }
 
-  return a->args.vertex_color.color == b->args.vertex_color.color;
+  if (!equal || !s_material_type_is_lit(a->type))
+  {
+    return equal;
+  }
+
+  return a->surface.specular == b->surface.specular &&
+         s_material_shininess(a->surface.shininess) ==
+             s_material_shininess(b->surface.shininess) &&
+         a->surface.emission == b->surface.emission;
 }
 
 u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
@@ -104,6 +155,14 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
   else
   {
     hash = s_material_hash_u32(hash, desc->args.vertex_color.color);
+  }
+
+  if (s_material_type_is_lit(desc->type))
+  {
+    hash = s_material_hash_float(hash, desc->surface.specular);
+    hash = s_material_hash_float(
+        hash, s_material_shininess(desc->surface.shininess));
+    hash = s_material_hash_float(hash, desc->surface.emission);
   }
 
   return hash;

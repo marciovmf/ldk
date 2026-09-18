@@ -88,6 +88,7 @@ static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
 {
   LDKRendererMaterialDesc desc = {0};
   LDKResourceMaterial material;
+  bool lit;
 
   if (!engine || !material_desc || !renderer_material ||
       !renderer_texture || !material_dirty ||
@@ -98,6 +99,8 @@ static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
 
   desc.type = material_desc->type;
   desc.texture = ldk_renderer_texture_null();
+  lit = material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      material_desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
 
   switch (material_desc->type)
   {
@@ -128,6 +131,13 @@ static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
     return false;
   }
 
+  if (lit)
+  {
+    desc.specular = material_desc->surface.specular;
+    desc.shininess = material_desc->surface.shininess;
+    desc.emission = material_desc->surface.emission;
+  }
+
   material = ldk_renderer_material_create(&engine->renderer, &desc);
   if (!ldk_renderer_material_is_valid(&engine->renderer, material))
   {
@@ -142,7 +152,6 @@ static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
   *material_dirty = false;
   return true;
 }
-
 static bool s_mesh_source_material_resolve(
     LDKRoot *engine, LDKMeshSource *mesh_source, u32 material_slot)
 {
@@ -496,8 +505,6 @@ void s_game_instance_init_default(LDKGame *game)
 
   game->lib = NULL;
   game->initialized = false;
-  game->user_data = NULL;
-  game->initialize = s_stub_game_initialize;
   game->start = s_stub_game_start;
   game->update = s_stub_game_update;
   game->stop = s_stub_game_stop;
@@ -847,7 +854,6 @@ bool ldk_game_instance_start(void)
   LDKRoot *e = &g_engine;
   bool ok;
   bool game_start_called = false;
-
   LDK_ASSERT(g_engine_initialized);
 
   if (!e->game.initialized || !e->ecs.system.is_started ||

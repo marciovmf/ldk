@@ -39,6 +39,9 @@ static int test_material_defaults(void)
     memset(&desc, 0xff, sizeof(desc));
     ASSERT_TRUE(ldk_material_desc_defaults(types[i], &desc));
     ASSERT_EQ(desc.type, types[i]);
+    ASSERT_EQ(desc.surface.specular, 0.0f);
+    ASSERT_EQ(desc.surface.shininess, 32.0f);
+    ASSERT_EQ(desc.surface.emission, 0.0f);
 
     if (types[i] == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
         types[i] == LDK_MATERIAL_TYPE_TEXTURED)
@@ -73,11 +76,37 @@ static int test_material_equality(void)
   b.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
   a.args.vertex_color.color = 0x10203040u;
   b.args.vertex_color.color = 0x10203040u;
+  a.surface.specular = b.surface.specular = 0.0f;
+  a.surface.shininess = b.surface.shininess = 32.0f;
+  a.surface.emission = b.surface.emission = 0.0f;
 
   ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
   ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
 
+  b.surface.shininess = 0.0f;
+  ASSERT_TRUE(ldk_material_desc_is_valid(&b));
+  ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
+  ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b.surface.shininess = a.surface.shininess;
+  b.surface.specular = -0.0f;
+  b.surface.emission = -0.0f;
+  ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
+  ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
   b.args.vertex_color.color = 0x10203041u;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  b = a;
+  b.surface.specular = 0.5f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.surface.shininess = 64.0f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.surface.emission = 0.25f;
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
 
@@ -98,6 +127,15 @@ static int test_material_equality(void)
   b.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  ASSERT_TRUE(ldk_material_desc_defaults(
+      LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT, &a));
+  b = a;
+  b.surface.specular = 3.0f;
+  b.surface.shininess = 128.0f;
+  b.surface.emission = 2.0f;
+  ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
+  ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
   return 0;
 }
 
@@ -113,6 +151,16 @@ static int test_invalid_material_descriptors(void)
   ASSERT_FALSE(ldk_material_desc_equal(&invalid, &valid));
   ASSERT_EQ(ldk_material_desc_hash(NULL), 0u);
   ASSERT_EQ(ldk_material_desc_hash(&invalid), 0u);
+
+  invalid = valid;
+  invalid.surface.specular = -1.0f;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.surface.shininess = -1.0f;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.surface.emission = -1.0f;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
   return 0;
 }
 
@@ -125,6 +173,9 @@ static int test_renderer_material_lifecycle(void)
   desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
   desc.texture.id = 77u;
   desc.color = 0x10203040u;
+  desc.specular = 0.25f;
+  desc.shininess = 0.0f;
+  desc.emission = 0.5f;
 
   LDKResourceMaterial material = ldk_renderer_material_create(&renderer, &desc);
   ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
@@ -132,6 +183,9 @@ static int test_renderer_material_lifecycle(void)
   ASSERT_EQ(renderer.materials[0].desc.type, LDK_MATERIAL_TYPE_VERTEX_COLOR);
   ASSERT_EQ(renderer.materials[0].desc.texture.id, LDK_RHI_INVALID_RESOURCE);
   ASSERT_EQ(renderer.materials[0].desc.color, 0x10203040u);
+  ASSERT_EQ(renderer.materials[0].desc.specular, 0.25f);
+  ASSERT_EQ(renderer.materials[0].desc.shininess, 32.0f);
+  ASSERT_EQ(renderer.materials[0].desc.emission, 0.5f);
   ASSERT_EQ(renderer.materials[0].selection,
       LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
   ASSERT_NEQ(renderer.materials[0].render_key, 0u);
@@ -215,6 +269,7 @@ static int test_renderer_textured_material(void)
   ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
   ASSERT_EQ(renderer.materials[0].desc.texture.id, 1u);
   ASSERT_EQ(renderer.materials[0].desc.color, 0xffffffffu);
+  ASSERT_EQ(renderer.materials[0].desc.shininess, 32.0f);
   ASSERT_EQ(renderer.materials[0].selection,
       LDK_RENDERER_MATERIAL_SELECTION_TEXTURED);
   ASSERT_NEQ(renderer.materials[0].render_key, 0u);
@@ -223,6 +278,7 @@ static int test_renderer_textured_material(void)
   LDKResourceMaterial unlit_material =
       ldk_renderer_material_create(&renderer, &desc);
   ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, unlit_material));
+  ASSERT_EQ(renderer.materials[1].desc.shininess, 32.0f);
   ASSERT_EQ(renderer.materials[1].selection,
       LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT);
   ASSERT_NEQ(renderer.materials[0].render_key,
@@ -297,6 +353,19 @@ static int test_renderer_material_rejects_invalid_input(void)
       &renderer, ldk_renderer_material_create(&renderer, NULL)));
   ASSERT_FALSE(ldk_renderer_material_is_valid(
       &renderer, ldk_renderer_material_create(NULL, &desc)));
+
+  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  desc.shininess = -1.0f;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  desc.shininess = 32.0f;
+  desc.specular = -1.0f;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  desc.specular = 0.0f;
+  desc.emission = -1.0f;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
 
   return 0;
 }

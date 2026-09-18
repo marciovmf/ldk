@@ -1,6 +1,7 @@
 #include <ldk_material_io.h>
 #include <ldk.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +47,48 @@ static bool s_node_get_u32(const TMLDocument *doc, const TMLNode *node,
 
   *out_value = (u32)value;
   return true;
+}
+
+static bool s_node_get_float(const TMLDocument *doc, const TMLNode *node,
+    const char *name, float *out_value)
+{
+  const TMLEntry *entry;
+  f64 value;
+
+  if (!out_value)
+  {
+    return false;
+  }
+
+  entry = tml_node_find_entry(doc, node, name);
+  if (!entry)
+  {
+    return false;
+  }
+
+  if (entry->type == TML_VALUE_F64)
+  {
+    if (!tml_entry_get_f64(entry, &value))
+    {
+      return false;
+    }
+  }
+  else if (entry->type == TML_VALUE_I64)
+  {
+    i64 integer;
+    if (!tml_entry_get_i64(entry, &integer))
+    {
+      return false;
+    }
+    value = (f64)integer;
+  }
+  else
+  {
+    return false;
+  }
+
+  *out_value = (float)value;
+  return isfinite(*out_value);
 }
 
 static void s_append_indent(XStrBuilder *out, u32 indent)
@@ -163,6 +206,8 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
   }
   bool textured = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
       desc.type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  bool lit = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc.type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
   if (textured)
   {
     if (!context->assets)
@@ -214,6 +259,33 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
   }
   else
     desc.args.vertex_color.color = color;
+
+  if (lit)
+  {
+    if ((tml_node_find_entry(doc, fields, "material_specular") &&
+            !s_node_get_float(doc, fields, "material_specular",
+                &desc.surface.specular)) ||
+        (tml_node_find_entry(doc, fields, "material_shininess") &&
+            !s_node_get_float(doc, fields, "material_shininess",
+                &desc.surface.shininess)) ||
+        (tml_node_find_entry(doc, fields, "material_emission") &&
+            !s_node_get_float(doc, fields, "material_emission",
+                &desc.surface.emission)))
+    {
+      s_result_error(result, "invalid material surface value");
+      return false;
+    }
+  }
+
+  if (lit && desc.surface.shininess == 0.0f)
+    desc.surface.shininess = 32.0f;
+
+  if (!ldk_material_desc_is_valid(&desc))
+  {
+    s_result_error(result, "invalid material surface values");
+    return false;
+  }
+
   *out_desc = desc;
   return true;
 }
@@ -236,6 +308,8 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
   }
   bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
       desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  bool lit = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
   rgba32 color = textured ? desc->args.textured.color
                          : desc->args.vertex_color.color;
   s_append_indent(out, indent);
@@ -265,6 +339,20 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     s_append_escaped_string(out, relative.buf);
     x_strbuilder_append_char(out, '\n');
   }
+
+  if (lit)
+  {
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_specular: %.9g\n",
+        (double)desc->surface.specular);
+    s_append_indent(out, indent);
+    float shininess = desc->surface.shininess == 0.0f
+        ? 32.0f : desc->surface.shininess;
+    x_strbuilder_append_format(out, "material_shininess: %.9g\n",
+        (double)shininess);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_emission: %.9g\n",
+        (double)desc->surface.emission);
+  }
   return true;
 }
-

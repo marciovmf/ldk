@@ -1731,6 +1731,8 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
 
   bool textured = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
       desc.type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  bool lit = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc.type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
   rgba32 *color = textured ? &desc.args.textured.color
                            : &desc.args.vertex_color.color;
   char color_label[40];
@@ -1747,6 +1749,26 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
       (u32)(ldk_ui_slider(ui, (float)(*color & 255), 0, 255) + 0.5f);
   *color = (*color & 0xffffff00u) | alpha;
   ldk_ui_end_horizontal(ui);
+
+  if (lit)
+  {
+    s_editor_material_row_begin(ui, "Specular");
+    desc.surface.specular =
+        ldk_ui_slider(ui, desc.surface.specular, 0.0f, 1.0f);
+    ldk_ui_end_horizontal(ui);
+
+    s_editor_material_row_begin(ui, "Shininess");
+    float shininess =
+        desc.surface.shininess == 0.0f ? 32.0f : desc.surface.shininess;
+    desc.surface.shininess =
+        ldk_ui_slider(ui, shininess, 1.0f, 256.0f);
+    ldk_ui_end_horizontal(ui);
+
+    s_editor_material_row_begin(ui, "Emission");
+    desc.surface.emission =
+        ldk_ui_slider(ui, desc.surface.emission, 0.0f, 4.0f);
+    ldk_ui_end_horizontal(ui);
+  }
 
   if (textured)
   {

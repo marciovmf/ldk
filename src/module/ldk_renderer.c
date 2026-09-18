@@ -197,7 +197,6 @@ static bool s_renderer_grow_view_cache(LDKRenderer* renderer)
   LDKRendererView* new_views = renderer->views == NULL
       ? (LDKRendererView*)LDK_RENDERER_ALLOC(new_size)
       : (LDKRendererView*)LDK_RENDERER_REALLOC(renderer->views, new_size);
-
   if (new_views == NULL)
   {
     return false;
@@ -539,6 +538,7 @@ typedef struct LDKRendererMeshCameraParams
 {
   Mat4 view;
   Mat4 projection;
+  float camera_position[4];
 } LDKRendererMeshCameraParams;
 
 typedef struct LDKRendererMeshObjectParams
@@ -549,7 +549,27 @@ typedef struct LDKRendererMeshObjectParams
 typedef struct LDKRendererMeshMaterialParams
 {
   LDKRHIColor color;
+  /* Matches GLSL vec4 u_surface: specular, shininess, emission, reserved. */
+  float specular;
+  float shininess;
+  float emission;
+  float padding;
 } LDKRendererMeshMaterialParams;
+
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
+    mesh_camera_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
+    mesh_camera_position_std140_offset);
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 32,
+    mesh_material_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, specular) == 16,
+    mesh_material_surface_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, shininess) == 20,
+    mesh_material_shininess_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, emission) == 24,
+    mesh_material_emission_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, padding) == 28,
+    mesh_material_padding_std140_offset);
 
 typedef struct LDKRendererLightParams
 {
@@ -1071,7 +1091,8 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entry_count = 6;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[0].stages =
+      LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT;
   desc.entries[1].slot = 1;
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_VERTEX;
@@ -1081,7 +1102,6 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[3].slot = 3;
   desc.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
-
   desc.entries[4].slot = 4;
   desc.entries[4].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[4].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -1254,7 +1274,6 @@ static bool s_renderer_mesh_pass_create_bindings(LDKRendererMeshPass* pass)
   desc.bindings[2].buffer = pass->material_buffer;
   desc.bindings[2].buffer_offset = 0;
   desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
-
   desc.bindings[3].slot = 4;
   desc.bindings[3].buffer = pass->lighting_buffer;
   desc.bindings[3].buffer_size = sizeof(LDKRendererLightingParams);
@@ -1397,7 +1416,6 @@ static bool s_renderer_mesh_pass_initialize(LDKRendererMeshPass *pass,
   {
     return false;
   }
-
   memset(pass, 0, sizeof(*pass));
   pass->rhi = config->rhi;
 
@@ -1506,6 +1524,10 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
         material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED ||
         material->selection ==
             LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT;
+    bool lit = flags != LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY &&
+        (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED ||
+            material->selection ==
+                LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
     LDKRHIPipeline pipeline = LDK_RHI_INVALID_RESOURCE;
     if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
     {
@@ -1555,6 +1577,12 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     LDKRendererMeshMaterialParams material_params = {0};
     material_params.color =
         ldk_renderer_color_from_rgba32(material->desc.color);
+    if (lit)
+    {
+      material_params.specular = material->desc.specular;
+      material_params.shininess = material->desc.shininess;
+      material_params.emission = material->desc.emission;
+    }
     ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
         sizeof(material_params), &material_params);
 
@@ -1746,8 +1774,15 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   }
 
   LDKRendererMeshCameraParams camera_params = {0};
+  Mat4 camera_world = mat4_inverse_affine(view->view);
+  Vec3 camera_position =
+      mat4_mul_point(camera_world, vec3_make(0.0f, 0.0f, 0.0f));
   camera_params.view = view->view;
   camera_params.projection = view->projection;
+  camera_params.camera_position[0] = camera_position.x;
+  camera_params.camera_position[1] = camera_position.y;
+  camera_params.camera_position[2] = camera_position.z;
+  camera_params.camera_position[3] = 1.0f;
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0,
       sizeof(camera_params), &camera_params);
 
@@ -2063,7 +2098,8 @@ static bool s_renderer_ui_pass_bindings_create_layout(LDKRendererUIPass* rendere
   desc.entry_count = 2;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[0].stages =
+      LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT;
   desc.entries[1].slot = 1;
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -3144,6 +3180,12 @@ static bool s_renderer_material_type_is_textured(LDKMaterialType type)
          type == LDK_MATERIAL_TYPE_TEXTURED;
 }
 
+static bool s_renderer_material_type_is_lit(LDKMaterialType type)
+{
+  return type == LDK_MATERIAL_TYPE_TEXTURED ||
+         type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
+}
+
 static LDKRendererMaterialSelection s_renderer_material_selection(
     LDKMaterialType type)
 {
@@ -3177,12 +3219,20 @@ static bool s_renderer_material_desc_is_valid(
     return false;
   }
 
-  if (s_renderer_material_type_is_textured(desc->type))
+  if (s_renderer_material_type_is_textured(desc->type) &&
+      !ldk_renderer_texture_is_valid(renderer, desc->texture))
   {
-    return ldk_renderer_texture_is_valid(renderer, desc->texture);
+    return false;
   }
 
-  return true;
+  if (!s_renderer_material_type_is_lit(desc->type))
+  {
+    return true;
+  }
+
+  return isfinite(desc->specular) && desc->specular >= 0.0f &&
+         isfinite(desc->shininess) && desc->shininess >= 0.0f &&
+         isfinite(desc->emission) && desc->emission >= 0.0f;
 }
 
 LDKResourceMaterial ldk_renderer_material_create(
@@ -3202,6 +3252,7 @@ LDKResourceMaterial ldk_renderer_material_create(
     return invalid;
   }
 
+  bool lit = s_renderer_material_type_is_lit(desc->type);
   u32 index = renderer->material_count;
   LDKRendererMaterialResource* resource = &renderer->materials[index];
   memset(resource, 0, sizeof(*resource));
@@ -3210,6 +3261,10 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.texture = s_renderer_material_type_is_textured(desc->type)
       ? desc->texture
       : ldk_renderer_texture_null();
+  resource->desc.specular = lit ? desc->specular : 0.0f;
+  resource->desc.shininess =
+      lit && desc->shininess != 0.0f ? desc->shininess : 32.0f;
+  resource->desc.emission = lit ? desc->emission : 0.0f;
   resource->selection = s_renderer_material_selection(desc->type);
   resource->render_key =
       s_renderer_material_render_key(resource->selection);
@@ -3507,6 +3562,9 @@ bool ldk_renderer_initialize(LDKRenderer* renderer, LDKRendererConfig const* con
   default_material_desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
   default_material_desc.texture = ldk_renderer_texture_null();
   default_material_desc.color = 0xffffffffu;
+  default_material_desc.specular = 0.0f;
+  default_material_desc.shininess = 32.0f;
+  default_material_desc.emission = 0.0f;
   renderer->default_material =
       ldk_renderer_material_create(renderer, &default_material_desc);
   if (!ldk_renderer_material_is_valid(

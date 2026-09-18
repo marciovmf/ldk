@@ -166,7 +166,6 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "  out_color = tex * v_color;\n"
 "}\n";
 
-
 static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "#version 330 core\n"
 "layout(location = 0) in vec3 a_position;\n"
@@ -183,6 +182,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 "{\n"
 "  mat4 u_view;\n"
 "  mat4 u_projection;\n"
+"  vec4 u_camera_position;\n"
 "};\n"
 "#ifndef LDK_INSTANCED\n"
 "layout(std140) uniform LDK_UBO_1\n"
@@ -230,6 +230,12 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 
 #define LDK_GL33_LIGHTING_GLSL                                                 \
   "in vec3 v_world_position;\n"                                                \
+  "layout(std140) uniform LDK_UBO_0\n"                                         \
+  "{\n"                                                                        \
+  "  mat4 u_view;\n"                                                          \
+  "  mat4 u_projection;\n"                                                    \
+  "  vec4 u_camera_position;\n"                                                \
+  "};\n"                                                                       \
   "struct LDKLight\n"                                                          \
   "{\n"                                                                        \
   "  vec4 position_type;\n"                                                    \
@@ -268,10 +274,14 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "  }\n"                                                                      \
   "  return visibility / 9.0;\n"                                               \
   "}\n"                                                                        \
-  "vec3 ldk_lighting(vec3 normal)\n"                                           \
+  "void ldk_lighting(vec3 normal, float specular_strength,\n"                    \
+  "    float shininess, out vec3 diffuse, out vec3 specular)\n"                   \
   "{\n"                                                                        \
   "  vec3 n = normal / max(length(normal), 1e-6);\n"                           \
-  "  vec3 result = u_ambient.rgb * u_ambient.a;\n"                             \
+  "  vec3 view_delta = u_camera_position.xyz - v_world_position;\n"             \
+  "  vec3 view_direction = view_delta / max(length(view_delta), 1e-6);\n"        \
+  "  diffuse = u_ambient.rgb * u_ambient.a;\n"                                \
+  "  specular = vec3(0.0);\n"                                                  \
   "  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n"                     \
   "  {\n"                                                                      \
   "    LDKLight light = u_lights[i];\n"                                        \
@@ -301,10 +311,18 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "    }\n"                                                                    \
   "    if (i == u_light_count.y)\n"                                            \
   "      attenuation *= ldk_shadow_visibility(n, to_light);\n"                 \
-  "    result += light.color_intensity.rgb * light.color_intensity.a\n"        \
-  "        * attenuation * max(dot(n, to_light), 0.0);\n"                      \
+  "    float ndotl = max(dot(n, to_light), 0.0);\n"                           \
+  "    vec3 energy = light.color_intensity.rgb * light.color_intensity.a\n"    \
+  "        * attenuation;\n"                                                    \
+  "    diffuse += energy * ndotl;\n"                                           \
+  "    if (ndotl > 0.0 && specular_strength > 0.0)\n"                         \
+  "    {\n"                                                                    \
+  "      vec3 reflected = reflect(-to_light, n);\n"                            \
+  "      float highlight = pow(max(dot(reflected, view_direction), 0.0),\n"     \
+  "          max(shininess, 1.0));\n"                                           \
+  "      specular += energy * highlight * specular_strength;\n"                    \
+  "    }\n"                                                                    \
   "  }\n"                                                                      \
-  "  return result;\n"                                                         \
   "}\n"
 
 static char const* LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
@@ -315,13 +333,17 @@ LDK_GL33_LIGHTING_GLSL
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
+"  vec4 u_surface;\n"
 "};\n"
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  vec3 light = ldk_lighting(v_normal);\n"
+"  vec3 diffuse;\n"
+"  vec3 specular;\n"
+"  ldk_lighting(v_normal, u_surface.x, u_surface.y, diffuse, specular);\n"
 "  vec4 color = v_color * u_material_color;\n"
-"  out_color = vec4(color.rgb * light, color.a);\n"
+"  vec3 emission = color.rgb * u_surface.z;\n"
+"  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
@@ -345,14 +367,18 @@ LDK_GL33_LIGHTING_GLSL
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
+"  vec4 u_surface;\n"
 "};\n"
 "uniform sampler2D LDK_TEXTURE_3;\n"
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  vec3 light = ldk_lighting(v_normal);\n"
+"  vec3 diffuse;\n"
+"  vec3 specular;\n"
+"  ldk_lighting(v_normal, u_surface.x, u_surface.y, diffuse, specular);\n"
 "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
-"  out_color = vec4(color.rgb * light, color.a);\n"
+"  vec3 emission = color.rgb * u_surface.z;\n"
+"  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
@@ -462,7 +488,6 @@ static char const* LDK_RHI_GL33_PRESENT_PASS_FRAGMENT_SHADER =
 "{\n"
 "  out_color = texture(LDK_TEXTURE_0, v_uv);\n"
 "}\n";
-
 static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 {
   return (uint32_t)strlen(cstr);

@@ -27,7 +27,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -4.06509161, 3.74191141, 0.00000000
+            local_position: 2.89909983, 8.70108032, 4.96322060
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967291 # LDKPointLight
@@ -35,7 +35,7 @@ scene:
             color: 4294967295
             intensity: 6.00000000
             range: 5.00000000
-            enabled: false
+            enabled: true
     - entity: 2
       parent: -1
       flags: 0
@@ -160,7 +160,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.850215673, 5.26727247, 1.14600444
+            local_position: 2.59845114, 7.73522186, 0.900640965
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -186,6 +186,9 @@ scene:
             casts_shadows: true
             material_type: 4
             material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
     - entity: 11
       parent: -1
       flags: 0
@@ -203,6 +206,9 @@ scene:
             casts_shadows: true
             material_type: 4
             material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
   systems:
     - id: "0x63f0bfacf2c00f6b"
       grouping: "0x8000000000000000"
