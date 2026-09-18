@@ -1324,8 +1324,6 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
   case WM_NCHITTEST:
   {
-    // Get the default behaviour but set the arrow cursor if it's in the client
-    // area
     LRESULT result = DefWindowProc(hwnd, uMsg, wParam, lParam);
     if (result == HTCLIENT)
     {
@@ -1371,27 +1369,22 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
           return HTCAPTION;
         }
 
-        // ldk_os_cursor_type_set(LDK_CURSOR_ARROW);
         return result;
       }
     }
-    else if (result == HTTOP || result == HTBOTTOM)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NS);
-    }
-    else if (result == HTLEFT || result == HTRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_WE);
-    }
-    else if (result == HTBOTTOMLEFT || result == HTTOPRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-    }
-    else if (result == HTTOPLEFT || result == HTBOTTOMRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-    }
     return result;
+  }
+  break;
+
+  case WM_SETCURSOR:
+  {
+    if (LOWORD(lParam) == HTCLIENT)
+    {
+      ldk_os_cursor_type_set(s_oswin32.cursor_type);
+      return TRUE;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
   }
   break;
 

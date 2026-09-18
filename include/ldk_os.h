@@ -260,6 +260,7 @@ extern "C"
 
   LDK_API void ldk_os_cursor_type_set(LDKCursorType type);
   LDK_API LDKCursorType ldk_os_cursor_type_get();
+  LDK_API bool ldk_os_cursor_is_in_client_area();
 
   // LDKMouseState
   typedef struct

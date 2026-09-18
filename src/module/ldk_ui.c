@@ -2354,7 +2354,6 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
 
   s_ui_windows_clear_frame_buffers(ctx);
 
-  ldk_os_cursor_type_set(ctx->cursor_type);
   ctx->cursor_type = LDK_CURSOR_ARROW;
 }
 
@@ -2460,6 +2459,11 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   ctx->render_data.index_count = x_array_ldk_ui_u32_count(ctx->indices);
   ctx->render_data.commands = x_array_ldk_ui_draw_cmd_data_const(ctx->commands);
   ctx->render_data.command_count = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+
+  if (ctx->cursor_type != ldk_os_cursor_type_get())
+  {
+    ldk_os_cursor_type_set(ctx->cursor_type);
+  }
 }
 
 LDKUIRenderData const *ldk_ui_get_render_data(LDKUIContext const *ctx)
