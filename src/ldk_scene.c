@@ -699,6 +699,8 @@ static void s_result_error_format(LDKSceneResult *result,
       first ? first : "", second ? second : "");
 }
 
+static LDKMaterialIOContext s_material_io_context(void);
+
 static bool s_apply_enum_value(const TMLEntry *entry,
     const LDKEnumMeta *meta, void *ptr)
 {
@@ -992,6 +994,62 @@ static bool s_apply_field_value(const TMLDocument *doc,
       }
 
       *(LDKAssetMesh *)ptr = asset;
+      break;
+    }
+
+    return false;
+  }
+
+  case LDK_FIELD_ASSET_MATERIAL:
+  {
+    if (entry->type == TML_VALUE_I64)
+    {
+      i32 asset_id;
+
+      if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+      {
+        return false;
+      }
+
+      *(LDKAssetMaterial *)ptr = ldk_asset_material_null();
+      break;
+    }
+
+    if (entry->type == TML_VALUE_STRING)
+    {
+      TMLString reference;
+      XFSPath reference_path = {0};
+      LDKMaterialIOContext context;
+      LDKMaterialIOResult material_result;
+      LDKAssetMaterial asset;
+
+      if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+          reference.size >= sizeof(reference_path.buf) ||
+          memchr(reference.data, 0, reference.size))
+      {
+        return false;
+      }
+
+      memcpy(reference_path.buf, reference.data, reference.size);
+      if (x_fs_path_is_absolute_cstr(reference_path.buf))
+      {
+        return false;
+      }
+
+      context = s_material_io_context();
+      if (!context.assets)
+      {
+        return false;
+      }
+
+      asset = ldk_asset_manager_material_load_shared(
+          &context, reference_path.buf, &material_result);
+      if (x_handle_is_null(asset.h))
+      {
+        return false;
+      }
+
+      *(LDKAssetMaterial *)ptr = asset;
       break;
     }
 
@@ -1521,6 +1579,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     case LDK_FIELD_ASSET_MESH:
       field_size = sizeof(LDKAssetMesh);
       alignment = _Alignof(LDKAssetMesh);
+      break;
+    case LDK_FIELD_ASSET_MATERIAL:
+      field_size = sizeof(LDKAssetMaterial);
+      alignment = _Alignof(LDKAssetMaterial);
       break;
     default:
       return false;
@@ -2161,6 +2223,54 @@ static bool s_write_field_value(XStrBuilder *out,
 
       s_append_escaped_string(out, relative.buf);
     }
+  }
+  break;
+
+  case LDK_FIELD_ASSET_MATERIAL:
+  {
+    const LDKAssetMaterial *value = (const LDKAssetMaterial *)ptr;
+    LDKAssetManager *asset_manager;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    LDKMaterialIOContext context;
+    XFSPath root;
+    XFSPath asset_path;
+    XFSPath relative = {0};
+
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+
+    asset_manager = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    if (!asset_manager)
+    {
+      return false;
+    }
+
+    generic.h = value->h;
+    info = ldk_asset_get_info_const(asset_manager, generic);
+    if (!info || info->type != LDK_ASSET_TYPE_MATERIAL)
+    {
+      return false;
+    }
+
+    context = s_material_io_context();
+    root = context.runtree_path;
+    asset_path = info->asset_path;
+    x_fs_path_normalize(&root);
+    x_fs_path_normalize(&asset_path);
+
+    if (!root.length ||
+        !x_fs_path_common_prefix(root.buf, asset_path.buf, &relative) ||
+        !relative.length || strcmp(relative.buf, ".") == 0)
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, relative.buf);
   }
   break;
 

@@ -1182,9 +1182,9 @@ static void s_editor_project_explorer_window(
   const char *root_path = NULL;
   (void)data;
 
-  if (editor->project.loaded && editor->project.project_root_path.length > 0)
+  if (editor->project.loaded && editor->project.run_root_path.length)
   {
-    root_path = editor->project.project_root_path.buf;
+    root_path = editor->project.run_root_path.buf;
   }
   else if (editor->engine_runtree.length > 0)
   {
