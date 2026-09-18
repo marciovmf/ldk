@@ -52,6 +52,7 @@ extern "C"
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
     LDK_MODULE_SCENE_MANAGER,
+    LDK_MODULE_ASSET_SOURCE,
   } LDKModuleType;
 
   struct LDKGame;
