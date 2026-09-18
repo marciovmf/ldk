@@ -214,3 +214,10 @@ scene:
       grouping: "0x8000000000000000"
       data:
         log_every_n_updates: 100
+    - id: "0xf8ae7c8bf28b5e6d"
+      grouping: "0x8000000000000001"
+      data:
+        radius: 20
+        cell_size: 1.00000000
+        elevation: 0.250000000
+        forward_offset: 8.00000000
