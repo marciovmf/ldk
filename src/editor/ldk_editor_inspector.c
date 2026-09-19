@@ -1982,65 +1982,190 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     LDKAssetMaterial *material_asset, bool readonly,
     const LDKMaterialIOContext *context)
 {
+  typedef struct MaterialDraft
+  {
+    LDKAssetMaterial *binding;
+    LDKMaterialDesc descriptor;
+    struct MaterialDraft *next;
+  } MaterialDraft;
+
+  static MaterialDraft *drafts = NULL;
+
   LDKUIContext *ui;
   const LDKAssetMaterialData *data;
   LDKMaterialDesc desc;
+  MaterialDraft *draft = NULL;
+  MaterialDraft *previous_draft = NULL;
   bool binding_changed = false;
 
-  if (!editor || !material_asset || !context || !context->assets ||
-      x_handle_is_null(material_asset->h))
+  if (!editor || !material_asset || !context || !context->assets)
   {
     return false;
   }
 
   ui = &editor->ui;
-  data = ldk_asset_manager_material_get_const(
-      context->assets, *material_asset);
-  if (!data)
+
+  for (draft = drafts; draft; draft = draft->next)
   {
-    return false;
+    if (draft->binding == material_asset)
+    {
+      break;
+    }
+
+    previous_draft = draft;
+  }
+
+  /*
+   * An assigned asset owns the descriptor. Any draft that previously
+   * belonged to this binding is no longer needed.
+   */
+  if (!x_handle_is_null(material_asset->h))
+  {
+    if (draft)
+    {
+      if (previous_draft)
+      {
+        previous_draft->next = draft->next;
+      }
+      else
+      {
+        drafts = draft->next;
+      }
+
+      free(draft);
+      draft = NULL;
+    }
+
+    data = ldk_asset_manager_material_get_const(
+        context->assets, *material_asset);
+    if (!data)
+    {
+      return false;
+    }
+
+    ldk_ui_horizontal_line(ui);
+
+    if (data->is_missing)
+    {
+      s_editor_material_row_begin(ui, "Status");
+      ldk_ui_label(ui, "Missing material (magenta checker)");
+      ldk_ui_end_horizontal(ui);
+      return false;
+    }
+
+    desc = data->descriptor;
+
+    if (s_editor_material_desc_editor(
+            editor, &desc, readonly, context) &&
+        !ldk_asset_manager_material_update(
+            context->assets, *material_asset, &desc))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to update material asset.");
+    }
+
+    data = ldk_asset_manager_material_get_const(
+        context->assets, *material_asset);
+
+    s_editor_material_row_begin(
+        ui, data ? (data->dirty ? "Shared *" : "Shared") : "");
+
+    ldk_ui_begin_disabled(ui, readonly);
+
+    if (data && ldk_ui_button(ui, "Save Material"))
+    {
+      LDKMaterialIOResult result;
+
+      if (!ldk_asset_manager_material_save(
+              context, *material_asset, &result))
+      {
+        ldki_editor_log_error(editor, result.error);
+      }
+    }
+
+    if (ldk_ui_button(ui, "Save As..."))
+    {
+      XFSPath path = {0};
+
+      if (ldk_os_dialog_show_save_file(editor->window,
+              "Create material", "Materials\0*.tml\0\0",
+              path.buf, sizeof(path.buf)))
+      {
+        LDKMaterialIOResult result;
+        LDKAssetMaterial asset =
+            ldk_asset_manager_material_create(
+                context, path.buf, &desc, &result);
+
+        if (x_handle_is_null(asset.h))
+        {
+          ldki_editor_log_error(editor, result.error);
+        }
+        else
+        {
+          *material_asset = asset;
+          binding_changed = true;
+
+          if (!ldk_asset_manager_material_save(
+                  context, asset, &result))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
+        }
+      }
+    }
+
+    ldk_ui_end_disabled(ui);
+    ldk_ui_end_horizontal(ui);
+    return binding_changed;
+  }
+
+  /*
+   * No asset is assigned. Keep an editor-only descriptor until the user
+   * chooses Save As..., at which point it becomes a real material asset.
+   */
+  if (!draft)
+  {
+    draft = calloc(1, sizeof(*draft));
+    if (!draft)
+    {
+      return false;
+    }
+
+    draft->binding = material_asset;
+
+    if (!ldk_material_desc_defaults(
+            LDK_MATERIAL_TYPE_VERTEX_COLOR, &draft->descriptor))
+    {
+      free(draft);
+      return false;
+    }
+
+    draft->next = drafts;
+    drafts = draft;
+    previous_draft = NULL;
   }
 
   ldk_ui_horizontal_line(ui);
-  if (data->is_missing)
-  {
-    s_editor_material_row_begin(ui, "Status");
-    ldk_ui_label(ui, "Missing material (magenta checker)");
-    ldk_ui_end_horizontal(ui);
-    return false;
-  }
 
-  desc = data->descriptor;
-  if (s_editor_material_desc_editor(editor, &desc, readonly, context) &&
-      !ldk_asset_manager_material_update(
-          context->assets, *material_asset, &desc))
-  {
-    ldki_editor_log_error(editor, "Failed to update material asset.");
-  }
+  (void)s_editor_material_desc_editor(
+      editor, &draft->descriptor, readonly, context);
 
-  data = ldk_asset_manager_material_get_const(
-      context->assets, *material_asset);
-  s_editor_material_row_begin(
-      ui, data ? (data->dirty ? "Shared *" : "Shared") : "");
+  s_editor_material_row_begin(ui, "Draft");
   ldk_ui_begin_disabled(ui, readonly);
-  if (data && ldk_ui_button(ui, "Save Material"))
-  {
-    LDKMaterialIOResult result;
-    if (!ldk_asset_manager_material_save(context, *material_asset, &result))
-    {
-      ldki_editor_log_error(editor, result.error);
-    }
-  }
 
   if (ldk_ui_button(ui, "Save As..."))
   {
     XFSPath path = {0};
-    if (ldk_os_dialog_show_save_file(editor->window, "Create material",
-            "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
+
+    if (ldk_os_dialog_show_save_file(editor->window,
+            "Create material", "Materials\0*.tml\0\0",
+            path.buf, sizeof(path.buf)))
     {
       LDKMaterialIOResult result;
-      LDKAssetMaterial asset = ldk_asset_manager_material_create(
-          context, path.buf, &desc, &result);
+      LDKAssetMaterial asset =
+          ldk_asset_manager_material_create(
+              context, path.buf, &draft->descriptor, &result);
+
       if (x_handle_is_null(asset.h))
       {
         ldki_editor_log_error(editor, result.error);
@@ -2049,15 +2174,30 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
       {
         *material_asset = asset;
         binding_changed = true;
-        if (!ldk_asset_manager_material_save(context, asset, &result))
+
+        if (!ldk_asset_manager_material_save(
+                context, asset, &result))
         {
           ldki_editor_log_error(editor, result.error);
         }
+
+        if (previous_draft)
+        {
+          previous_draft->next = draft->next;
+        }
+        else
+        {
+          drafts = draft->next;
+        }
+
+        free(draft);
       }
     }
   }
+
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
+
   return binding_changed;
 }
 
