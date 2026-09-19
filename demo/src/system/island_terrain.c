@@ -1,4 +1,5 @@
 #include "island_terrain.h"
+#include "tftf_terrain_atlas.h"
 
 #include <component/ldk_transform.h>
 #include <ldk.h>
@@ -58,6 +59,57 @@ typedef struct IslandTerrainRuntime
 
 static IslandTerrainMap s_map;
 static IslandTerrainRuntime s_runtime;
+
+#define ISLAND_TERRAIN_COLOR_DEEP_WATER 0x426F7DFFu
+#define ISLAND_TERRAIN_COLOR_SHALLOW_WATER 0x6696A0FFu
+#define ISLAND_TERRAIN_COLOR_SAND 0xC8AA74FFu
+#define ISLAND_TERRAIN_COLOR_GRASS 0x78945AFFu
+#define ISLAND_TERRAIN_COLOR_GRASS_DARK 0x657F4DFFu
+#define ISLAND_TERRAIN_COLOR_ROCK 0x77766FFFu
+
+typedef struct IslandTerrainUVRect
+{
+  float u0;
+  float v0;
+  float u1;
+  float v1;
+} IslandTerrainUVRect;
+
+static LDKEditorIcon s_island_terrain_atlas_icon(u32 color)
+{
+  switch (color)
+  {
+  case ISLAND_TERRAIN_COLOR_DEEP_WATER:
+    return TFTF_ICON_DEEP_WATER;
+  case ISLAND_TERRAIN_COLOR_SHALLOW_WATER:
+    return TFTF_ICON_SHALLOW_WATER;
+  case ISLAND_TERRAIN_COLOR_SAND:
+    return TFTF_ICON_SAND;
+  case ISLAND_TERRAIN_COLOR_GRASS:
+    return TFTF_ICON_GRASS;
+  case ISLAND_TERRAIN_COLOR_GRASS_DARK:
+    return TFTF_ICON_GRASS_DARK;
+  case ISLAND_TERRAIN_COLOR_ROCK:
+    return TFTF_ICON_ROCK;
+  default:
+    return TFTF_ICON_GRASS;
+  }
+}
+
+static IslandTerrainUVRect s_island_terrain_atlas_uv(u32 color)
+{
+  const LDKRectf rect =
+      tftf_icon_rects[s_island_terrain_atlas_icon(color)];
+  const float half_texel_u = 0.5f / (float)TFTF_ICON_ATLAS_WIDTH;
+  const float half_texel_v = 0.5f / (float)TFTF_ICON_ATLAS_HEIGHT;
+  IslandTerrainUVRect uv;
+
+  uv.u0 = rect.x + half_texel_u;
+  uv.v0 = rect.y + half_texel_v;
+  uv.u1 = rect.x + rect.w - half_texel_u;
+  uv.v1 = rect.y + rect.h - half_texel_v;
+  return uv;
+}
 
 bool island_terrain_map_set(const u32 *colors, u32 width, u32 height)
 {
@@ -557,6 +609,7 @@ static bool s_island_terrain_mesh_rebuild(
     u32 index = tile_index * 6u;
     u32 color =
         s_map.colors[(u32)tile->y * s_map.width + (u32)tile->x];
+    IslandTerrainUVRect uv = s_island_terrain_atlas_uv(color);
     float x0 = origin_x + (float)tile->x * system->cell_size;
     float x1 = x0 + system->cell_size;
     float z0 = origin_z + (float)tile->y * system->cell_size;
@@ -578,10 +631,10 @@ static bool s_island_terrain_mesh_rebuild(
       s_runtime.vertices[vertex + i].color = LDK_RGBA32(color);
     }
 
-    s_runtime.vertices[vertex + 0u].uv = vec2_make(0.0f, 0.0f);
-    s_runtime.vertices[vertex + 1u].uv = vec2_make(1.0f, 0.0f);
-    s_runtime.vertices[vertex + 2u].uv = vec2_make(1.0f, 1.0f);
-    s_runtime.vertices[vertex + 3u].uv = vec2_make(0.0f, 1.0f);
+    s_runtime.vertices[vertex + 0u].uv = vec2_make(uv.u0, uv.v0);
+    s_runtime.vertices[vertex + 1u].uv = vec2_make(uv.u1, uv.v0);
+    s_runtime.vertices[vertex + 2u].uv = vec2_make(uv.u1, uv.v1);
+    s_runtime.vertices[vertex + 3u].uv = vec2_make(uv.u0, uv.v1);
 
     s_runtime.indices[index + 0u] = vertex + 0u;
     s_runtime.indices[index + 1u] = vertex + 2u;

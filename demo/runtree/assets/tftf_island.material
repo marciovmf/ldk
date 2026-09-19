@@ -2,6 +2,6 @@ material:
   material_type: 2
   material_color: 0xffffffff
   material_texture: "assets\\textures\\tftf_terrain_atlas.png"
-  material_specular: 0.566270947
-  material_shininess: 144.569687
-  material_emission: 0.176939338
+  material_specular: 0
+  material_shininess: 186.101517
+  material_emission: 0.0135363787
