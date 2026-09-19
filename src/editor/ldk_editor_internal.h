@@ -62,6 +62,10 @@ typedef enum LDKEditorConsoleEntryType
 #define LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY 64
 #endif
 
+#ifndef LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT
+#define LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT 110.0f
+#endif
+
 typedef struct LDKEditorCommand
 {
   char name[LDK_EDITOR_COMMAND_MAX_LENGTH];
@@ -200,6 +204,7 @@ typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
+  float inspector_label_width;
   LDKAssetFont font;
   LDKFontInstance *font_instance;
   LDKRenderer *renderer;

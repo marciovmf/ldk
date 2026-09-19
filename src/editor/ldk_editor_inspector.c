@@ -99,7 +99,6 @@ typedef struct LDKEditorInspectorFlagsState
 
 typedef struct LDKEditorInspectorColumnState
 {
-  float label_width;
   float drag_start_width;
   i32 drag_start_x;
   bool dragging;
@@ -109,10 +108,7 @@ static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
 static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
-static LDKEditorInspectorColumnState s_editor_inspector_column_state =
-{
-  .label_width = 110.0f,
-};
+static LDKEditorInspectorColumnState s_editor_inspector_column_state = {0};
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
@@ -152,18 +148,27 @@ static float s_editor_inspector_label_width_clamp(
   return width;
 }
 
-static void s_editor_inspector_column_update(LDKUIContext *ui)
+static void s_editor_inspector_column_update(LDKEditorContext *editor)
 {
   LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
+  LDKUIContext *ui;
   LDKPoint cursor;
 
-  if (!ui)
+  if (!editor)
   {
     return;
   }
 
-  state->label_width =
-      s_editor_inspector_label_width_clamp(ui, state->label_width);
+  ui = &editor->ui;
+  if (!isfinite(editor->inspector_label_width) ||
+      editor->inspector_label_width <= 0.0f)
+  {
+    editor->inspector_label_width =
+        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  }
+
+  editor->inspector_label_width = s_editor_inspector_label_width_clamp(
+      ui, editor->inspector_label_width);
 
   if (!state->dragging)
   {
@@ -177,7 +182,7 @@ static void s_editor_inspector_column_update(LDKUIContext *ui)
   }
 
   cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  state->label_width = s_editor_inspector_label_width_clamp(ui,
+  editor->inspector_label_width = s_editor_inspector_label_width_clamp(ui,
       state->drag_start_width + (float)(cursor.x - state->drag_start_x));
   ui->cursor_type = LDK_CURSOR_SIZE_WE;
 
@@ -189,9 +194,10 @@ static void s_editor_inspector_column_update(LDKUIContext *ui)
 }
 
 static void s_editor_inspector_row_begin(
-    LDKUIContext *ui, const char *label)
+    LDKEditorContext *editor, const char *label)
 {
   LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
+  LDKUIContext *ui;
   LDKUIRect label_rect;
   LDKUIRect splitter_rect;
   LDKPoint cursor;
@@ -199,14 +205,15 @@ static void s_editor_inspector_row_begin(
   float hit_width;
   bool hovered;
 
-  if (!ui)
+  if (!editor)
   {
     return;
   }
 
+  ui = &editor->ui;
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(state->label_width));
+  ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
   ldk_ui_label(ui, label ? label : "");
 
   if (!ui->mouse || !ui->current_window)
@@ -243,7 +250,7 @@ static void s_editor_inspector_row_begin(
   {
     state->dragging = true;
     state->drag_start_x = cursor.x;
-    state->drag_start_width = state->label_width;
+    state->drag_start_width = editor->inspector_label_width;
   }
 }
 
@@ -643,7 +650,7 @@ static void s_editor_inspector_flags_draw(
   ldk_ui_push_id_cstr(ui, "entity_flags");
   ldk_ui_push_id_u32(ui, entity.index);
   ldk_ui_push_id_u32(ui, entity.version);
-  s_editor_inspector_row_begin(ui, "Flags");
+  s_editor_inspector_row_begin(editor, "Flags");
 
   result = ldk_ui_input_box(ui, s_editor_inspector_flags_state.input,
       (u32)sizeof(s_editor_inspector_flags_state.input));
@@ -1172,7 +1179,7 @@ static void s_editor_inspector_mesh_selector(
   }
 
   selected_index = mesh->mesh_index;
-  s_editor_inspector_row_begin(ui, "Mesh");
+  s_editor_inspector_row_begin(editor, "Mesh");
 
   if (mesh_count == 1)
   {
@@ -1276,7 +1283,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
 
   snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
 
-  s_editor_inspector_row_begin(ui, label);
+  s_editor_inspector_row_begin(editor, label);
 
   ldk_ui_begin_disabled(ui, true);
   ldk_ui_input_box(ui, display, sizeof(display));
@@ -1365,7 +1372,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
 
   snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
 
-  s_editor_inspector_row_begin(ui, label);
+  s_editor_inspector_row_begin(editor, label);
 
   ldk_ui_begin_disabled(ui, true);
   ldk_ui_input_box(ui, display, sizeof(display));
@@ -1515,7 +1522,7 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
-  s_editor_inspector_row_begin(ui, field->name);
+  s_editor_inspector_row_begin(editor, field->name);
 
   if (field->type == LDK_FIELD_ENUM && field->enum_meta)
   {
@@ -1834,9 +1841,10 @@ static void s_editor_inspector_scene_properties_draw(
   ldk_ui_pop_id(&editor->ui);
 }
 
-static void s_editor_material_row_begin(LDKUIContext *ui, const char *title)
+static void s_editor_material_row_begin(
+    LDKEditorContext *editor, const char *title)
 {
-  s_editor_inspector_row_begin(ui, title);
+  s_editor_inspector_row_begin(editor, title);
 }
 
 static void s_editor_material_diagnostic(const char *message, void *user)
@@ -1941,7 +1949,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     }
   }
 
-  s_editor_material_row_begin(ui, "Type");
+  s_editor_material_row_begin(editor, "Type");
   ldk_ui_begin_disabled(ui, readonly);
   u32 next = ldk_ui_combo_box(ui, names, 4, selected);
   ldk_ui_end_disabled(ui);
@@ -1959,7 +1967,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   rgba32 *color = textured ? &desc->args.textured.color
                            : &desc->args.vertex_color.color;
 
-  s_editor_material_row_begin(ui, "Tint");
+  s_editor_material_row_begin(editor, "Tint");
   rgba32 previous_color = *color;
   if (ldk_ui_color_view(ui, *color) && !readonly)
   {
@@ -1971,7 +1979,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
   ldk_ui_end_horizontal(ui);
 
-  s_editor_material_row_begin(ui, "Alpha");
+  s_editor_material_row_begin(editor, "Alpha");
   u32 previous_alpha = (u32)(*color & 255u);
   ldk_ui_begin_disabled(ui, readonly);
   u32 alpha =
@@ -1986,7 +1994,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
 
   if (lit)
   {
-    s_editor_material_row_begin(ui, "Specular");
+    s_editor_material_row_begin(editor, "Specular");
     ldk_ui_begin_disabled(ui, readonly);
     float specular = ldk_ui_slider(ui, desc->surface.specular, 0.0f, 1.0f);
     ldk_ui_end_disabled(ui);
@@ -1997,7 +2005,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     }
     ldk_ui_end_horizontal(ui);
 
-    s_editor_material_row_begin(ui, "Shininess");
+    s_editor_material_row_begin(editor, "Shininess");
     float shininess =
         desc->surface.shininess == 0.0f ? 32.0f : desc->surface.shininess;
     ldk_ui_begin_disabled(ui, readonly);
@@ -2010,7 +2018,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     }
     ldk_ui_end_horizontal(ui);
 
-    s_editor_material_row_begin(ui, "Emission");
+    s_editor_material_row_begin(editor, "Emission");
     ldk_ui_begin_disabled(ui, readonly);
     float emission = ldk_ui_slider(ui, desc->surface.emission, 0.0f, 4.0f);
     ldk_ui_end_disabled(ui);
@@ -2034,7 +2042,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     snprintf(display_path, sizeof(display_path), "%s",
         info ? (info->asset_path.length ? info->asset_path.buf
                                        : "Generated image") : "");
-    s_editor_material_row_begin(ui, "Texture");
+    s_editor_material_row_begin(editor, "Texture");
     ldk_ui_begin_disabled(ui, true);
     ldk_ui_input_box(ui, display_path, sizeof(display_path));
     LDKUIRect target = ldk_ui_last_bounding_rect(ui);
@@ -2166,7 +2174,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
 
     if (data->is_missing)
     {
-      s_editor_material_row_begin(ui, "Status");
+      s_editor_material_row_begin(editor, "Status");
       ldk_ui_label(ui, "Missing material (magenta checker)");
       ldk_ui_end_horizontal(ui);
       return false;
@@ -2187,7 +2195,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
         context->assets, *material_asset);
 
     s_editor_material_row_begin(
-        ui, data ? (data->dirty ? "Shared *" : "Shared") : "");
+        editor, data ? (data->dirty ? "Shared *" : "Shared") : "");
 
     ldk_ui_begin_disabled(ui, readonly);
 
@@ -2269,7 +2277,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
   (void)s_editor_material_desc_editor(
       editor, &draft->descriptor, readonly, context);
 
-  s_editor_material_row_begin(ui, "Draft");
+  s_editor_material_row_begin(editor, "Draft");
   ldk_ui_begin_disabled(ui, readonly);
 
   if (ldk_ui_button(ui, "Save As..."))
@@ -2372,7 +2380,7 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
     ldki_editor_log_error(editor, "Failed to update inline material.");
   }
 
-  s_editor_material_row_begin(ui, "");
+  s_editor_material_row_begin(editor, "");
   if (ldk_ui_button(ui, "Save As..."))
   {
     XFSPath path = {0};
@@ -2562,7 +2570,7 @@ static void s_editor_inspector_system_grouping_draw(
   labels = (const char **)calloc(item_count, sizeof(*labels));
   ids = (u64 *)calloc(item_count, sizeof(*ids));
 
-  s_editor_inspector_row_begin(ui, "Grouping");
+  s_editor_inspector_row_begin(editor, "Grouping");
 
   if (!labels || !ids)
   {
@@ -2829,7 +2837,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
-  s_editor_inspector_column_update(ui);
+  s_editor_inspector_column_update(editor);
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
 
@@ -2845,7 +2853,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
           ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
       s_editor_inspector_scene_properties_draw(editor);
       ldk_ui_end_scrollview(ui);
-      s_editor_inspector_column_update(ui);
+      s_editor_inspector_column_update(editor);
       return;
     }
   }
@@ -2861,7 +2869,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       (void)s_editor_inspector_system_draw(
           editor, game, editor->selected_system_id);
       ldk_ui_end_scrollview(ui);
-      s_editor_inspector_column_update(ui);
+      s_editor_inspector_column_update(editor);
       return;
     }
     editor->selected_system_id = 0;
@@ -2873,7 +2881,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         sizeof(s_editor_inspector_euler_state));
     s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
-    s_editor_inspector_column_update(ui);
+    s_editor_inspector_column_update(editor);
     return;
   }
 
@@ -2885,7 +2893,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         sizeof(s_editor_inspector_euler_state));
     s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
-    s_editor_inspector_column_update(ui);
+    s_editor_inspector_column_update(editor);
     return;
   }
 
@@ -3037,5 +3045,5 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   s_editor_inspector_add_component_draw(editor, ecs, game, entity);
 
   ldk_ui_end_scrollview(ui);
-  s_editor_inspector_column_update(ui);
+  s_editor_inspector_column_update(editor);
 }

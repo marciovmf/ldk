@@ -169,6 +169,7 @@ typedef struct LDKEditorInspectorWindowData
 
 typedef struct LDKEditorDockState
 {
+  LDKEditorContext *editor;
   LDKEditorDockWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
   u32 window_count;
 
@@ -212,9 +213,15 @@ typedef struct LDKEditorDockLayoutNode
   } data;
 } LDKEditorDockLayoutNode;
 
+typedef struct LDKEditorDockLayoutProperties
+{
+  float inspector_label_width;
+} LDKEditorDockLayoutProperties;
+
 typedef struct LDKEditorDockLayout
 {
   char name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
+  LDKEditorDockLayoutProperties properties;
   LDKEditorDockLayoutWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
   LDKEditorDockLayoutNode nodes[LDK_EDITOR_DOCK_NODE_CAPACITY];
   u32 window_count;
@@ -2313,6 +2320,11 @@ static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
   memset(layout, 0, sizeof(*layout));
   memcpy(layout->name, name, name_length + 1);
   layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+  layout->properties.inspector_label_width =
+      dock->editor && isfinite(dock->editor->inspector_label_width) &&
+              dock->editor->inspector_label_width > 0.0f
+          ? dock->editor->inspector_label_width
+          : LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
 
   LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY] = {0};
   for (u32 i = 0; i < dock->window_count; ++i)
@@ -2426,6 +2438,8 @@ static bool s_editor_dock_layout_write(
   bool visited_nodes[LDK_EDITOR_DOCK_NODE_CAPACITY] = {false};
 
   if (out == NULL || layout == NULL || layout->name[0] == 0 ||
+      !isfinite(layout->properties.inspector_label_width) ||
+      layout->properties.inspector_label_width <= 0.0f ||
       layout->window_count > LDK_EDITOR_WINDOW_CAPACITY ||
       layout->node_count > LDK_EDITOR_DOCK_NODE_CAPACITY)
   {
@@ -2436,6 +2450,11 @@ static bool s_editor_dock_layout_write(
   x_strbuilder_append(out, "- name: ");
   s_editor_dock_tml_string_append(out, layout->name);
   x_strbuilder_append_char(out, '\n');
+  s_editor_dock_tml_indent(out, 3);
+  x_strbuilder_append(out, "properties:\n");
+  s_editor_dock_tml_indent(out, 4);
+  x_strbuilder_append_format(out, "inspector_label_width: %.9g\n",
+      (double)layout->properties.inspector_label_width);
   s_editor_dock_tml_indent(out, 3);
   x_strbuilder_append(out, "windows:\n");
 
@@ -2733,6 +2752,7 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
     LDKEditorDockLayout *layout)
 {
   LDKEditorDockLayoutReadContext context;
+  const TMLNode *properties_node;
   const TMLNode *windows_node;
   const TMLNode *tree_node;
   TMLString name;
@@ -2746,10 +2766,26 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
 
   memset(layout, 0, sizeof(*layout));
   layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+  layout->properties.inspector_label_width =
+      LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
 
   if (!s_editor_dock_layout_name_copy(layout->name, sizeof(layout->name), name))
   {
     return false;
+  }
+
+  properties_node = tml_node_find_child(document, layout_node, "properties");
+  if (properties_node != NULL)
+  {
+    const TMLEntry *entry = tml_node_find_entry(
+        document, properties_node, "inspector_label_width");
+    if (entry != NULL &&
+        (!s_editor_dock_float_from_entry(
+             entry, &layout->properties.inspector_label_width) ||
+            layout->properties.inspector_label_width <= 0.0f))
+    {
+      return false;
+    }
   }
 
   windows_node = tml_node_find_child(document, layout_node, "windows");
@@ -2881,6 +2917,11 @@ static bool s_editor_dock_layout_apply(
 
   s_editor_dock_window_locations_refresh(&candidate);
   *dock = candidate;
+  if (dock->editor)
+  {
+    dock->editor->inspector_label_width =
+        layout->properties.inspector_label_width;
+  }
   return true;
 }
 
@@ -3432,6 +3473,13 @@ bool ldk_editor_dock_init(LDKEditorContext *editor)
 
   LDKEditorDockState *dock = &s_editor_dock;
   s_editor_dock_layout_reset_preserving_windows(dock);
+  dock->editor = editor;
+  if (!isfinite(editor->inspector_label_width) ||
+      editor->inspector_label_width <= 0.0f)
+  {
+    editor->inspector_label_width =
+        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  }
 
   if (!s_editor_builtin_windows_add(editor, dock))
   {
