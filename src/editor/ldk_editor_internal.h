@@ -398,5 +398,6 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
 #define LDK_EDITOR_WINDOW_GROUPING_CATALOG ((LDKEditorWindowId)0x4C444B0Au)
+#define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Bu)
 
 #endif // LDK_EDITOR_INTERNAL

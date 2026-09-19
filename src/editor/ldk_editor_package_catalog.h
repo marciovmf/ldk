@@ -3,8 +3,6 @@
 
 #include "ldk_editor_internal.h"
 
-#define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Au)
-
 void ldki_editor_package_catalog_sync(LDKEditorContext *editor);
 void ldki_editor_package_catalog_open(LDKEditorContext *editor);
 void ldki_editor_package_catalog_show(LDKEditor *editor, void *data);
