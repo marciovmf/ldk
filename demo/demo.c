@@ -18,6 +18,7 @@
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
 
+#include "src/component/player_character.h"
 #include "src/system/hello.h"
 #include "src/system/island_terrain.h"
 #include <generated_component_metadata.h>
@@ -137,6 +138,12 @@ bool game_initialize(LDKGame *game)
     return false;
   }
 
+  if (!player_character_component_register())
+  {
+    ldk_log_error("Failed to register PlayerCharacterComponent.\n");
+    return false;
+  }
+
   if (!game_register_systems())
   {
     ldk_log_error("Failed to register game systems.\n");
@@ -185,7 +192,7 @@ bool game_start(LDKGame *game)
   ldk_transform_set_local_scale(
       cube_entity_1, vec3_make(0.4f, 0.4f, 0.4f));
   ldk_transform_set_local_rotation(cube_entity_1,
-      quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), 10.0f));
+      quat_axis_angle(vec3_make(1.0f, 0.0f, 0.0f), 10.0f));
 
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);

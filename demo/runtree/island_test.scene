@@ -75,6 +75,11 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
+        - type: 3523477466 # PlayerCharacterComponent
+          fields:
+            speed: 4.00000000
+            acceleration: 18.0000000
+            inertia: 0.150000006
   systems:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
@@ -84,3 +89,5 @@ scene:
         elevation: 0.100000001
         forward_offset: 0.00000000
         material: "assets\\tftf_island.material"
+    - id: "0x758d97a0f482b923"
+      grouping: "0x8000000000000002"
