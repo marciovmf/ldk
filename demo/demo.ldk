@@ -61,3 +61,6 @@ next_id = "0x8000000000000002"
 1.name = "camera"
 1.component_count = 1
 1.component_0 = "0xfffffffd"
+
+[.packages]
+assets.box = "assets/**"
