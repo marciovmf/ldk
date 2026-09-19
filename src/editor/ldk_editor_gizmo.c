@@ -1636,7 +1636,15 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
   bool update_ok;
   bool released;
 
-  if (editor == NULL || !editor->gizmo.dragging)
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  /* Keep ownership of this MouseUP for the rest of the frame. */
+  editor->gizmo.drag_block_pick = editor->gizmo.dragging;
+
+  if (!editor->gizmo.dragging)
   {
     return;
   }

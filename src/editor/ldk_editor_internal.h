@@ -124,6 +124,7 @@ typedef struct LDKEditorGizmoState
   LDKEditorGizmoMode drag_mode;
   LDKEditorGizmoSpace space;
   bool dragging;
+  bool drag_block_pick;
   bool scene_view_visible;
   bool initialized;
 } LDKEditorGizmoState;

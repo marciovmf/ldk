@@ -1225,6 +1225,7 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
         ui->hot_id == 0 &&
         ui->hovered_window_id == ui->current_window->id &&
         !editor->gizmo.dragging &&
+        !editor->gizmo.drag_block_pick &&
         editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
         ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
