@@ -83,4 +83,4 @@ scene:
         cell_size: 1.00000000
         elevation: 0.100000001
         forward_offset: 0.00000000
-        material: -1
+        material: "assets\\tftf_island.material"

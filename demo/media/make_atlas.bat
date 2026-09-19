@@ -1,5 +1,5 @@
 @pushd %~dp0
-@set IMAGE_SIZE=64
+@set IMAGE_SIZE=128
 @set ATLAS_NAME=..\src\tftf_terrain_atlas.h
 @set INPUT_DIR=island_terrain_tiles
 

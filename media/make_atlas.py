@@ -97,6 +97,7 @@ def generate_header(
     type_prefix,
     symbol_prefix,
     var_prefix,
+    embed_png,
 ):
     guard = make_header_guard(header_path.name)
 
@@ -139,7 +140,7 @@ def generate_header(
         f.write("{\n")
 
         for icon in icons:
-            x = icon["x"] / atlas_w; 
+            x = icon["x"] / atlas_w;
             y = icon["y"] / atlas_h;
             w = icon["w"] / atlas_w;
             h = icon["h"] / atlas_h;
@@ -147,12 +148,13 @@ def generate_header(
 
         f.write("};\n\n")
 
-        f.write(f"static const unsigned char {png_array_name}[] =\n")
-        f.write("{\n")
-        f.write(format_c_bytes(png_bytes))
-        f.write("\n};\n\n")
+        if embed_png:
+            f.write(f"static const unsigned char {png_array_name}[] =\n")
+            f.write("{\n")
+            f.write(format_c_bytes(png_bytes))
+            f.write("\n};\n\n")
 
-        f.write(f"static const unsigned int {png_size_name} = sizeof({png_array_name});\n\n")
+            f.write(f"static const unsigned int {png_size_name} = sizeof({png_array_name});\n\n")
 
         f.write(f"#endif /* {guard} */\n")
 
@@ -164,6 +166,7 @@ def build_atlas(
     type_prefix,
     symbol_prefix,
     var_prefix,
+    embed_png,
 ):
     input_path = Path(input_folder)
     output_path = Path(output_name)
@@ -245,7 +248,7 @@ def build_atlas(
 
     atlas.save(png_path, format="PNG")
 
-    png_bytes = png_path.read_bytes()
+    png_bytes = png_path.read_bytes() if embed_png else None
 
     generate_header(
         header_path=header_path,
@@ -256,6 +259,7 @@ def build_atlas(
         type_prefix=type_prefix,
         symbol_prefix=symbol_prefix,
         var_prefix=var_prefix,
+        embed_png=embed_png,
     )
 
     print(f"Generated: {png_path}")
@@ -305,6 +309,12 @@ def main():
         help="C variable prefix. Example: ldk_editor -> ldk_editor_icon_rects"
     )
 
+    parser.add_argument(
+        "--no-embed-png",
+        action="store_true",
+        help="Do not embed the generated PNG bytes in the C header."
+    )
+
     args = parser.parse_args()
 
     build_atlas(
@@ -314,6 +324,7 @@ def main():
         type_prefix=args.type_prefix,
         symbol_prefix=args.symbol_prefix,
         var_prefix=args.var_prefix,
+        embed_png=not args.no_embed_png,
     )
 
 
