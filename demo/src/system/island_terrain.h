@@ -1,6 +1,7 @@
 #ifndef DEMO_ISLAND_TERRAIN_H
 #define DEMO_ISLAND_TERRAIN_H
 
+#include <ldk_asset.h>
 #include <ldk_common.h>
 #include <ldk_resource.h>
 #include <module/ldk_system.h>
@@ -23,6 +24,7 @@ typedef struct IslandTerrain
   float cell_size;
   float elevation;
   float forward_offset;
+  LDKAssetMaterial material;
 
   //@inspect runtime
   i32 center_x;

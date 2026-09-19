@@ -3115,6 +3115,78 @@ void ldk_renderer_image_release(
   }
 }
 
+bool ldk_renderer_material_resolve(LDKRenderer* renderer,
+    LDKAssetManager* assets, LDKMaterialDesc const* material_desc,
+    LDKResourceMaterial* renderer_material,
+    LDKResourceTexture* renderer_texture)
+{
+  LDKRendererMaterialDesc desc = {0};
+  LDKResourceMaterial material;
+  bool lit;
+
+  if (!renderer || !material_desc || !renderer_material ||
+      !renderer_texture || !ldk_material_desc_is_valid(material_desc))
+  {
+    return false;
+  }
+
+  desc.type = material_desc->type;
+  desc.texture = ldk_renderer_texture_null();
+  lit = material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      material_desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
+
+  switch (material_desc->type)
+  {
+  case LDK_MATERIAL_TYPE_VERTEX_COLOR:
+  case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
+    desc.color = material_desc->args.vertex_color.color;
+    break;
+  case LDK_MATERIAL_TYPE_TEXTURED:
+  case LDK_MATERIAL_TYPE_TEXTURED_UNLIT:
+    if (!assets)
+    {
+      return false;
+    }
+    desc.color = material_desc->args.textured.color;
+    desc.texture = ldk_renderer_image_acquire(
+        renderer, assets, material_desc->args.textured.texture);
+    if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
+    {
+      ldk_log_error("Material image unavailable; using missing texture.\n");
+      LDKAssetImage fallback = ldk_asset_manager_image_missing(assets, NULL);
+      desc.texture = ldk_renderer_image_acquire(renderer, assets, fallback);
+      if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
+      {
+        return false;
+      }
+    }
+    break;
+  case LDK_MATERIAL_TYPE_INVALID:
+  default:
+    return false;
+  }
+
+  if (lit)
+  {
+    desc.specular = material_desc->surface.specular;
+    desc.shininess = material_desc->surface.shininess;
+    desc.emission = material_desc->surface.emission;
+  }
+
+  material = ldk_renderer_material_create(renderer, &desc);
+  if (!ldk_renderer_material_is_valid(renderer, material))
+  {
+    ldk_renderer_image_release(renderer, desc.texture);
+    return false;
+  }
+
+  ldk_renderer_material_destroy(renderer, *renderer_material);
+  ldk_renderer_image_release(renderer, *renderer_texture);
+  *renderer_texture = desc.texture;
+  *renderer_material = material;
+  return true;
+}
+
 LDKResourceMaterial ldk_renderer_material_null(void)
 {
   return LDK_RESOURCE_MATERIAL_INVALID;

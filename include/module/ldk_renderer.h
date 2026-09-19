@@ -778,6 +778,32 @@ extern "C" {
       LDKRenderer* renderer, LDKResourceTexture texture);
 
   /**
+   * @brief Resolve an authored material description into renderer resources.
+   *
+   * Textured materials acquire a shared renderer texture from the supplied
+   * asset manager. If the authored image is unavailable, the renderer uses
+   * the shared missing-image fallback. Existing output resources are replaced
+   * only after the new material has been created successfully.
+   *
+   * The caller owns the returned material resource and one acquisition of the
+   * returned texture. A later successful resolve replaces both resources. The
+   * caller must destroy/release remaining resources when its owner terminates.
+   *
+   * @param renderer Renderer that owns the runtime resources.
+   * @param assets Asset manager used to resolve authored image assets. Required
+   * for textured materials.
+   * @param material_desc Authored material description.
+   * @param renderer_material In/out renderer material resource.
+   * @param renderer_texture In/out acquired renderer texture resource.
+   * @return true when the material was resolved successfully.
+   */
+  LDK_API bool ldk_renderer_material_resolve(
+      LDKRenderer* renderer, struct LDKAssetManager* assets,
+      LDKMaterialDesc const* material_desc,
+      LDKResourceMaterial* renderer_material,
+      LDKResourceTexture* renderer_texture);
+
+  /**
    * @brief Check whether a material handle refers to a live renderer material.
    * @param renderer Renderer that owns the material resource.
    * @param material Material resource handle to validate.

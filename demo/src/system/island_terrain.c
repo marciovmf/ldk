@@ -2,7 +2,9 @@
 
 #include <component/ldk_transform.h>
 #include <ldk.h>
+#include <ldk_material_asset.h>
 #include <ldk_mesh.h>
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
 #include <stdx/stdx_math.h>
 
@@ -47,6 +49,11 @@ typedef struct IslandTerrainRuntime
 
   u32 *indices;
   u32 index_capacity;
+
+  LDKAssetMaterial material_asset;
+  u64 material_revision;
+  LDKResourceMaterial renderer_material;
+  LDKResourceTexture renderer_texture;
 } IslandTerrainRuntime;
 
 static IslandTerrainMap s_map;
@@ -448,11 +455,75 @@ static bool s_island_terrain_tiles_sync(
   return true;
 }
 
+static bool s_island_terrain_material_asset_equal(
+    LDKAssetMaterial a, LDKAssetMaterial b)
+{
+  return a.h.index == b.h.index && a.h.version == b.h.version;
+}
+
+static void s_island_terrain_material_release(LDKRenderer *renderer)
+{
+  if (!renderer)
+  {
+    return;
+  }
+
+  ldk_renderer_material_destroy(renderer, s_runtime.renderer_material);
+  ldk_renderer_image_release(renderer, s_runtime.renderer_texture);
+  s_runtime.material_asset = ldk_asset_material_null();
+  s_runtime.material_revision = 0u;
+  s_runtime.renderer_material = ldk_renderer_material_null();
+  s_runtime.renderer_texture = ldk_renderer_texture_null();
+}
+
+static bool s_island_terrain_material_get(IslandTerrain *system,
+    LDKRenderer *renderer, LDKAssetManager *assets,
+    LDKResourceMaterial *out_material)
+{
+  const LDKAssetMaterialData *data;
+  bool needs_resolve;
+
+  if (!system || !renderer || !assets || !out_material)
+  {
+    return false;
+  }
+
+  data = ldk_asset_manager_material_get_const(assets, system->material);
+  if (!data)
+  {
+    system->material = ldk_asset_material_null();
+    s_island_terrain_material_release(renderer);
+    *out_material = ldk_renderer_material_default_get(renderer);
+    return ldk_renderer_material_is_valid(renderer, *out_material);
+  }
+
+  needs_resolve =
+      !s_island_terrain_material_asset_equal(
+          s_runtime.material_asset, system->material) ||
+      s_runtime.material_revision != data->revision ||
+      !ldk_renderer_material_is_valid(
+          renderer, s_runtime.renderer_material);
+
+  if (needs_resolve)
+  {
+    if (!ldk_renderer_material_resolve(renderer, assets, &data->descriptor,
+            &s_runtime.renderer_material, &s_runtime.renderer_texture))
+    {
+      return false;
+    }
+
+    s_runtime.material_asset = system->material;
+    s_runtime.material_revision = data->revision;
+  }
+
+  *out_material = s_runtime.renderer_material;
+  return ldk_renderer_material_is_valid(renderer, *out_material);
+}
+
 static bool s_island_terrain_mesh_rebuild(
     IslandTerrain *system, LDKRenderer *renderer)
 {
   LDKRendererMeshDesc desc = {0};
-  LDKResourceMaterial material;
   float origin_x;
   float origin_z;
   u32 vertex_count;
@@ -545,13 +616,6 @@ static bool s_island_terrain_mesh_rebuild(
     return false;
   }
 
-  material = ldk_renderer_material_default_get(renderer);
-  if (!ldk_renderer_material_is_valid(renderer, material))
-  {
-    system->has_geometry = false;
-    return false;
-  }
-
   system->mesh_update_count += 1u;
   system->mesh_dirty = false;
   system->has_geometry = true;
@@ -569,6 +633,9 @@ int island_terrain_system_initialize(void *data)
 
   memset(&s_runtime, 0, sizeof(s_runtime));
   s_runtime.owner = system;
+  s_runtime.material_asset = ldk_asset_material_null();
+  s_runtime.renderer_material = ldk_renderer_material_null();
+  s_runtime.renderer_texture = ldk_renderer_texture_null();
 
   system->center_x = INT32_MIN;
   system->center_y = INT32_MIN;
@@ -590,6 +657,7 @@ void island_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt)
 {
   IslandTerrain *system = data;
+  LDKAssetManager *assets;
   LDKRenderer *renderer;
   LDKResourceMaterial material;
   Mat4 tracked_world;
@@ -620,7 +688,8 @@ void island_terrain_system_update(
   }
 
   renderer = (LDKRenderer *)ldk_module_get(LDK_MODULE_RENDERER);
-  if (!renderer)
+  assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!renderer || !assets)
   {
     return;
   }
@@ -656,8 +725,8 @@ void island_terrain_system_update(
     return;
   }
 
-  material = ldk_renderer_material_default_get(renderer);
-  if (!ldk_renderer_material_is_valid(renderer, material))
+  if (!s_island_terrain_material_get(
+          system, renderer, assets, &material))
   {
     return;
   }
@@ -677,9 +746,14 @@ void island_terrain_system_terminate(void *data)
   }
 
   renderer = (LDKRenderer *)ldk_module_get(LDK_MODULE_RENDERER);
-  if (renderer && ldk_renderer_mesh_is_valid(renderer, system->mesh))
+  if (renderer)
   {
-    ldk_renderer_mesh_destroy(renderer, system->mesh);
+    s_island_terrain_material_release(renderer);
+
+    if (ldk_renderer_mesh_is_valid(renderer, system->mesh))
+    {
+      ldk_renderer_mesh_destroy(renderer, system->mesh);
+    }
   }
 
   free(s_runtime.tiles);

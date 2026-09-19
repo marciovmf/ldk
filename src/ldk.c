@@ -86,69 +86,19 @@ static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
     LDKResourceMaterial *renderer_material,
     LDKResourceTexture *renderer_texture, bool *material_dirty)
 {
-  LDKRendererMaterialDesc desc = {0};
-  LDKResourceMaterial material;
-  bool lit;
-
   if (!engine || !material_desc || !renderer_material ||
-      !renderer_texture || !material_dirty ||
-      !ldk_material_desc_is_valid(material_desc))
+      !renderer_texture || !material_dirty)
   {
     return false;
   }
 
-  desc.type = material_desc->type;
-  desc.texture = ldk_renderer_texture_null();
-  lit = material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
-      material_desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
-
-  switch (material_desc->type)
+  if (!ldk_renderer_material_resolve(&engine->renderer,
+          &engine->asset_manager, material_desc, renderer_material,
+          renderer_texture))
   {
-  case LDK_MATERIAL_TYPE_VERTEX_COLOR:
-  case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
-    desc.color = material_desc->args.vertex_color.color;
-    break;
-  case LDK_MATERIAL_TYPE_TEXTURED:
-  case LDK_MATERIAL_TYPE_TEXTURED_UNLIT:
-    desc.color = material_desc->args.textured.color;
-    desc.texture = ldk_renderer_image_acquire(&engine->renderer,
-        &engine->asset_manager, material_desc->args.textured.texture);
-    if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
-    {
-      ldk_log_error("Material image unavailable; using missing texture.\n");
-      LDKAssetImage fallback =
-          ldk_asset_manager_image_missing(&engine->asset_manager, NULL);
-      desc.texture = ldk_renderer_image_acquire(
-          &engine->renderer, &engine->asset_manager, fallback);
-      if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
-      {
-        return false;
-      }
-    }
-    break;
-  case LDK_MATERIAL_TYPE_INVALID:
-  default:
     return false;
   }
 
-  if (lit)
-  {
-    desc.specular = material_desc->surface.specular;
-    desc.shininess = material_desc->surface.shininess;
-    desc.emission = material_desc->surface.emission;
-  }
-
-  material = ldk_renderer_material_create(&engine->renderer, &desc);
-  if (!ldk_renderer_material_is_valid(&engine->renderer, material))
-  {
-    ldk_renderer_image_release(&engine->renderer, desc.texture);
-    return false;
-  }
-
-  ldk_renderer_material_destroy(&engine->renderer, *renderer_material);
-  ldk_renderer_image_release(&engine->renderer, *renderer_texture);
-  *renderer_texture = desc.texture;
-  *renderer_material = material;
   *material_dirty = false;
   return true;
 }

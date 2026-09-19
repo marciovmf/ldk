@@ -1,5 +1,8 @@
 #include <ldk_scene_systems.h>
 #include <ldk.h>
+#include <ldk_game.h>
+#include <ldk_material_asset.h>
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
 
 #include <stdx/stdx_tml.h>
@@ -9,6 +12,115 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static const LDKSystemMeta *s_scene_system_meta_find(u64 id)
+{
+  LDKGame *game = ldk_game_get();
+
+  if (!game || !game->system_metadata_count || !game->system_metadata_get)
+  {
+    return NULL;
+  }
+
+  u32 count = game->system_metadata_count();
+  for (u32 i = 0; i < count; ++i)
+  {
+    const LDKSystemMeta *meta = game->system_metadata_get(i);
+    if (meta && meta->id == id)
+    {
+      return meta;
+    }
+  }
+
+  return NULL;
+}
+
+static bool s_scene_system_data_initialize_handles(
+    void *data, u32 data_size, const LDKSystemMeta *meta)
+{
+  u8 *base;
+
+  if (!data || !meta || meta->size != data_size ||
+      (meta->field_count && !meta->fields))
+  {
+    return false;
+  }
+
+  base = (u8 *)data;
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    u32 field_size;
+    u32 alignment;
+
+    switch (field->type)
+    {
+    case LDK_FIELD_ENTITY:
+      field_size = sizeof(LDKEntity);
+      alignment = _Alignof(LDKEntity);
+      break;
+    case LDK_FIELD_ASSET_MESH:
+      field_size = sizeof(LDKAssetMesh);
+      alignment = _Alignof(LDKAssetMesh);
+      break;
+    case LDK_FIELD_ASSET_MATERIAL:
+      field_size = sizeof(LDKAssetMaterial);
+      alignment = _Alignof(LDKAssetMaterial);
+      break;
+    default:
+      continue;
+    }
+
+    if (field->offset > data_size || field_size > data_size - field->offset ||
+        field->offset % alignment != 0)
+    {
+      return false;
+    }
+
+    switch (field->type)
+    {
+    case LDK_FIELD_ENTITY:
+      *(LDKEntity *)(base + field->offset) = x_handle_null();
+      break;
+    case LDK_FIELD_ASSET_MESH:
+      *(LDKAssetMesh *)(base + field->offset) = ldk_asset_mesh_null();
+      break;
+    case LDK_FIELD_ASSET_MATERIAL:
+      *(LDKAssetMaterial *)(base + field->offset) =
+          ldk_asset_material_null();
+      break;
+    default:
+      break;
+    }
+  }
+
+  return true;
+}
+
+static void *s_scene_system_data_create(
+    u64 system_id, u32 data_size, const LDKSystemMeta *meta)
+{
+  void *data;
+
+  if (!data_size || !meta || meta->id != system_id || meta->size != data_size)
+  {
+    return NULL;
+  }
+
+  data = calloc(1, data_size);
+  if (!data)
+  {
+    return NULL;
+  }
+
+  if (!s_scene_system_data_initialize_handles(data, data_size, meta))
+  {
+    free(data);
+    return NULL;
+  }
+
+  return data;
+}
 
 static bool s_scene_system_find_index(
     const LDKSceneSystems *systems, u64 id, u32 *out_index)
@@ -180,7 +292,10 @@ bool ldk_scene_systems_prepare(
     }
     if (desc.data_size)
     {
-      systems->data[i] = calloc(1, desc.data_size);
+      const LDKSystemMeta *meta =
+          s_scene_system_meta_find(systems->ids[i]);
+      systems->data[i] = s_scene_system_data_create(
+          systems->ids[i], desc.data_size, meta);
       if (!systems->data[i])
       {
         return false;
@@ -258,14 +373,18 @@ bool ldk_scene_systems_add_with_grouping(
   if (registry && ldk_system_registry_find_by_id(registry, id, &desc) &&
       desc.data_size)
   {
-    void *data = calloc(1, desc.data_size);
-    if (!data)
+    const LDKSystemMeta *meta = s_scene_system_meta_find(id);
+    if (meta)
     {
-      systems->count -= 1u;
-      return false;
+      void *data = s_scene_system_data_create(id, desc.data_size, meta);
+      if (!data)
+      {
+        systems->count -= 1u;
+        return false;
+      }
+      systems->data[systems->count - 1u] = data;
+      systems->data_sizes[systems->count - 1u] = desc.data_size;
     }
-    systems->data[systems->count - 1u] = data;
-    systems->data_sizes[systems->count - 1u] = desc.data_size;
   }
   return true;
 }
