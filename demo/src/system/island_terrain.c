@@ -575,7 +575,7 @@ static bool s_island_terrain_mesh_rebuild(
     {
       s_runtime.vertices[vertex + i].normal =
           vec3_make(0.0f, 1.0f, 0.0f);
-      s_runtime.vertices[vertex + i].color = color;
+      s_runtime.vertices[vertex + i].color = LDK_RGBA32(color);
     }
 
     s_runtime.vertices[vertex + 0u].uv = vec2_make(0.0f, 0.0f);
