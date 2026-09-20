@@ -233,11 +233,24 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
 static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
     "#version 330 core\n"
     "layout(location = 0) in vec3 a_position;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "layout(location = 4) in vec4 i_world_0;\n"
+    "layout(location = 5) in vec4 i_world_1;\n"
+    "layout(location = 6) in vec4 i_world_2;\n"
+    "layout(location = 7) in vec4 i_world_3;\n"
+    "#endif\n"
     "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "#ifndef LDK_INSTANCED\n"
     "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "#endif\n"
     "void main()\n"
     "{\n"
-    "  gl_Position = u_light_view_projection * u_world * vec4(a_position, "
+    "#ifdef LDK_INSTANCED\n"
+    "  mat4 world = mat4(i_world_0, i_world_1, i_world_2, i_world_3);\n"
+    "#else\n"
+    "  mat4 world = u_world;\n"
+    "#endif\n"
+    "  gl_Position = u_light_view_projection * world * vec4(a_position, "
     "1.0);\n"
     "}\n";
 
@@ -249,13 +262,26 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER =
     "#version 330 core\n"
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 2) in vec2 a_uv;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "layout(location = 4) in vec4 i_world_0;\n"
+    "layout(location = 5) in vec4 i_world_1;\n"
+    "layout(location = 6) in vec4 i_world_2;\n"
+    "layout(location = 7) in vec4 i_world_3;\n"
+    "#endif\n"
     "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "#ifndef LDK_INSTANCED\n"
     "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "#endif\n"
     "out vec2 v_uv;\n"
     "void main()\n"
     "{\n"
+    "#ifdef LDK_INSTANCED\n"
+    "  mat4 world = mat4(i_world_0, i_world_1, i_world_2, i_world_3);\n"
+    "#else\n"
+    "  mat4 world = u_world;\n"
+    "#endif\n"
     "  v_uv = a_uv;\n"
-    "  gl_Position = u_light_view_projection * u_world * vec4(a_position, "
+    "  gl_Position = u_light_view_projection * world * vec4(a_position, "
     "1.0);\n"
     "}\n";
 
@@ -612,7 +638,8 @@ static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 
 static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t stage)
 {
-  if (shader == LDK_SHADER_SHADOW_PASS)
+  if (shader == LDK_SHADER_SHADOW_PASS ||
+      shader == LDK_SHADER_SHADOW_PASS_INSTANCED)
   {
     if (stage == LDK_RHI_SHADER_STAGE_VERTEX)
     {
@@ -624,7 +651,8 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     }
   }
 
-  if (shader == LDK_SHADER_SHADOW_PASS_CUTOUT)
+  if (shader == LDK_SHADER_SHADOW_PASS_CUTOUT ||
+      shader == LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED)
   {
     if (stage == LDK_RHI_SHADER_STAGE_VERTEX)
     {
@@ -747,9 +775,13 @@ LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint
   desc.code = code;
   desc.code_size = ldk_rhi_gl33_cstr_size(code);
 
-  if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  if ((shader == LDK_SHADER_MESH_PASS_INSTANCED ||
+          shader == LDK_SHADER_SHADOW_PASS_INSTANCED ||
+          shader == LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED) &&
+      stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
-    return ldk_rhi_gl33_shader_module_create_with_prefix(rhi->backend_user_data, &desc, "#define LDK_INSTANCED\n");
+    return ldk_rhi_gl33_shader_module_create_with_prefix(
+        rhi->backend_user_data, &desc, "#define LDK_INSTANCED\n");
   }
 
   return ldk_rhi_shader_module_create(rhi, &desc);

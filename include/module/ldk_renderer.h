@@ -51,7 +51,9 @@ extern "C" {
     LDK_SHADER_SHADOW_PASS,
     LDK_SHADER_MESH_PASS_TEXTURED_CUTOUT,
     LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT,
-    LDK_SHADER_SHADOW_PASS_CUTOUT
+    LDK_SHADER_SHADOW_PASS_CUTOUT,
+    LDK_SHADER_SHADOW_PASS_INSTANCED,
+    LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -253,12 +255,19 @@ extern "C" {
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule cutout_vertex_shader_module;
     LDKRHIShaderModule cutout_fragment_shader_module;
+    LDKRHIShaderModule instanced_vertex_shader_module;
+    LDKRHIShaderModule cutout_instanced_vertex_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
     LDKRHIPipeline cutout_pipeline;
+    LDKRHIPipeline instanced_pipeline;
+    LDKRHIPipeline cutout_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
+    LDKRHIBuffer instance_buffer;
+    Mat4 *instance_worlds;
+    u32 instance_capacity;
     LDKRHIBindings bindings;
     LDKRendererBindingsCacheEntry *cutout_bindings_cache;
     u32 cutout_bindings_cache_count;
