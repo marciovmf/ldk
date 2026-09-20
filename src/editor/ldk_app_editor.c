@@ -1022,7 +1022,7 @@ static void s_editor_game_statistics_overlay(
   const float desired_width = 276.0f;
   const float value_column_width = 80.0f;
   const float column_gap = 8.0f;
-  const u32 row_count = 20;
+  const u32 row_count = 16;
 
   float panel_width = desired_width;
   float max_width = image_rect.w - margin * 2.0f;
@@ -1140,84 +1140,59 @@ static void s_editor_game_statistics_overlay(
       stats.cpu_time_ms);
 
   LDK_EDITOR_STAT_ROW(
-      "Views",
+      "Game draw calls",
       "%u",
-      stats.rendered_view_count);
+      stats.game.draw_call_count);
 
   LDK_EDITOR_STAT_ROW(
-      "Mesh submits",
+      "Editor draw calls",
       "%u",
-      stats.mesh_submit_count);
+      stats.non_game.draw_call_count);
 
   LDK_EDITOR_STAT_ROW(
       "Opaque items",
       "%u",
-      stats.opaque_mesh_render_count);
+      stats.game.opaque_mesh_render_count);
 
   LDK_EDITOR_STAT_ROW(
       "Overlay items",
       "%u",
-      stats.overlay_mesh_render_count);
+      stats.game.overlay_mesh_render_count);
 
   LDK_EDITOR_STAT_ROW(
       "Batches",
       "%u",
-      stats.batch_count);
+      stats.game.batch_count);
 
   LDK_EDITOR_STAT_ROW(
       "Instanced batches",
       "%u",
-      stats.instanced_batch_count);
+      stats.game.instanced_batch_count);
 
   LDK_EDITOR_STAT_ROW(
       "Instanced objects",
       "%u",
-      stats.instanced_instance_count);
+      stats.game.instanced_instance_count);
 
   LDK_EDITOR_STAT_ROW(
       "Max batch",
       "%u",
-      stats.max_batch_size);
-
-  LDK_EDITOR_STAT_ROW(
-      "Draw calls",
-      "%u",
-      stats.draw_call_count);
+      stats.game.max_batch_size);
 
   LDK_EDITOR_STAT_ROW(
       "  Opaque mesh",
       "%u",
-      stats.opaque_mesh_draw_call_count);
+      stats.game.opaque_mesh_draw_call_count);
 
   LDK_EDITOR_STAT_ROW(
       "  Shadow",
       "%u",
-      stats.shadow_draw_call_count);
+      stats.game.shadow_draw_call_count);
 
   LDK_EDITOR_STAT_ROW(
       "  Overlay mesh",
       "%u",
-      stats.overlay_mesh_draw_call_count);
-
-  LDK_EDITOR_STAT_ROW(
-      "  Lines",
-      "%u",
-      stats.line_draw_call_count);
-
-  LDK_EDITOR_STAT_ROW(
-      "  Grid",
-      "%u",
-      stats.grid_draw_call_count);
-
-  LDK_EDITOR_STAT_ROW(
-      "  UI",
-      "%u",
-      stats.ui_draw_call_count);
-
-  LDK_EDITOR_STAT_ROW(
-      "  Present",
-      "%u",
-      stats.present_draw_call_count);
+      stats.game.overlay_mesh_draw_call_count);
 
 #undef LDK_EDITOR_STAT_ROW
 

@@ -330,6 +330,59 @@ inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
   return result;
 }
 
+static LDKRendererFrameDomainStats* s_renderer_frame_stats_for_view(
+    LDKRenderer* renderer, const LDKRendererView* view)
+{
+  if (renderer == NULL || view == NULL)
+  {
+    return NULL;
+  }
+
+  return view->id == renderer->game_view
+      ? &renderer->current_frame_stats.game
+      : &renderer->current_frame_stats.non_game;
+}
+
+static void s_renderer_frame_stats_finalize(LDKRendererFrameStats* stats)
+{
+  if (stats == NULL)
+  {
+    return;
+  }
+
+  const LDKRendererFrameDomainStats* game = &stats->game;
+  const LDKRendererFrameDomainStats* non_game = &stats->non_game;
+
+  stats->rendered_view_count =
+      game->rendered_view_count + non_game->rendered_view_count;
+  stats->opaque_mesh_render_count =
+      game->opaque_mesh_render_count + non_game->opaque_mesh_render_count;
+  stats->overlay_mesh_render_count =
+      game->overlay_mesh_render_count + non_game->overlay_mesh_render_count;
+  stats->batch_count = game->batch_count + non_game->batch_count;
+  stats->instanced_batch_count =
+      game->instanced_batch_count + non_game->instanced_batch_count;
+  stats->instanced_instance_count =
+      game->instanced_instance_count + non_game->instanced_instance_count;
+  stats->max_batch_size = game->max_batch_size > non_game->max_batch_size
+      ? game->max_batch_size : non_game->max_batch_size;
+  stats->draw_call_count = game->draw_call_count + non_game->draw_call_count;
+  stats->opaque_mesh_draw_call_count = game->opaque_mesh_draw_call_count +
+      non_game->opaque_mesh_draw_call_count;
+  stats->overlay_mesh_draw_call_count = game->overlay_mesh_draw_call_count +
+      non_game->overlay_mesh_draw_call_count;
+  stats->shadow_draw_call_count =
+      game->shadow_draw_call_count + non_game->shadow_draw_call_count;
+  stats->line_draw_call_count =
+      game->line_draw_call_count + non_game->line_draw_call_count;
+  stats->grid_draw_call_count =
+      game->grid_draw_call_count + non_game->grid_draw_call_count;
+  stats->ui_draw_call_count =
+      game->ui_draw_call_count + non_game->ui_draw_call_count;
+  stats->present_draw_call_count =
+      game->present_draw_call_count + non_game->present_draw_call_count;
+}
+
 static void s_renderer_target_destroy(
     LDKRenderer* renderer, LDKRendererTarget* target)
 {
@@ -1567,6 +1620,8 @@ static void s_renderer_shadow_pass_draw(LDKRenderer *renderer,
     const LDKRendererView *view, LDKRendererViewLighting *lighting)
 {
   LDKRendererShadowPass *pass = &renderer->shadow_pass;
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
   if (!lighting->shadow_light ||
       !s_renderer_shadow_camera(
           pass, view, lighting->shadow_light->direction, &lighting->params))
@@ -1617,8 +1672,8 @@ static void s_renderer_shadow_pass_draw(LDKRenderer *renderer,
     draw.first_index = submit->first_index;
     draw.index_count = submit->index_count;
     ldk_rhi_draw_indexed(pass->rhi, &draw);
-    renderer->current_frame_stats.draw_call_count += 1;
-    renderer->current_frame_stats.shadow_draw_call_count += 1;
+    stats->draw_call_count += 1;
+    stats->shadow_draw_call_count += 1;
   }
   ldk_rhi_pass_end(pass->rhi);
 }
@@ -2375,8 +2430,9 @@ static LDKRendererMeshSubmit* s_renderer_mesh_pass_run_submit(
 }
 
 static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
-    LDKRendererMeshPass* pass, LDKRendererMeshSubmit* first_submit,
-    const u64* sort_items, u32 submit_count)
+    LDKRendererMeshPass* pass, LDKRendererFrameDomainStats* stats,
+    LDKRendererMeshSubmit* first_submit, const u64* sort_items,
+    u32 submit_count)
 {
   if (submit_count == 0 || first_submit == NULL)
   {
@@ -2514,10 +2570,10 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         draw.vertex_offset = 0;
         draw.first_instance = 0;
         ldk_rhi_draw_indexed_instanced(pass->rhi, &draw);
-        renderer->current_frame_stats.draw_call_count += 1;
-        renderer->current_frame_stats.opaque_mesh_draw_call_count += 1;
-        renderer->current_frame_stats.instanced_batch_count += 1;
-        renderer->current_frame_stats.instanced_instance_count += submit_count;
+        stats->draw_call_count += 1;
+        stats->opaque_mesh_draw_call_count += 1;
+        stats->instanced_batch_count += 1;
+        stats->instanced_instance_count += submit_count;
         return;
       }
     }
@@ -2555,14 +2611,14 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     draw.first_index = first->first_index;
     draw.vertex_offset = 0;
     ldk_rhi_draw_indexed(pass->rhi, &draw);
-    renderer->current_frame_stats.draw_call_count += 1;
+    stats->draw_call_count += 1;
     if (overlay)
     {
-      renderer->current_frame_stats.overlay_mesh_draw_call_count += 1;
+      stats->overlay_mesh_draw_call_count += 1;
     }
     else
     {
-      renderer->current_frame_stats.opaque_mesh_draw_call_count += 1;
+      stats->opaque_mesh_draw_call_count += 1;
     }
   }
 }
@@ -2571,6 +2627,9 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
     LDKRenderer* renderer, LDKRendererMeshPass* pass,
     LDKRendererView const* view, u32 flags)
 {
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+
   for (u32 i = 0; i < renderer->submitted_mesh_count; ++i)
   {
     LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[i];
@@ -2583,25 +2642,29 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
 
     if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
     {
-      renderer->current_frame_stats.overlay_mesh_render_count += 1;
+      stats->overlay_mesh_render_count += 1;
     }
     else
     {
-      renderer->current_frame_stats.opaque_mesh_render_count += 1;
-      renderer->current_frame_stats.batch_count += 1;
-      if (renderer->current_frame_stats.max_batch_size < 1)
+      stats->opaque_mesh_render_count += 1;
+      stats->batch_count += 1;
+      if (stats->max_batch_size < 1)
       {
-        renderer->current_frame_stats.max_batch_size = 1;
+        stats->max_batch_size = 1;
       }
     }
 
-    s_renderer_mesh_pass_draw_run(renderer, pass, submit, NULL, 1);
+    s_renderer_mesh_pass_draw_run(
+        renderer, pass, stats, submit, NULL, 1);
   }
 }
 
 static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     LDKRendererMeshPass* pass, LDKRendererView const* view, u32 flags)
 {
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+
   if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
   {
     s_renderer_mesh_pass_draw_unsorted_submissions(
@@ -2619,7 +2682,7 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     return;
   }
 
-  renderer->current_frame_stats.opaque_mesh_render_count += sort_item_count;
+  stats->opaque_mesh_render_count += sort_item_count;
 
   u32 i = 0;
   while (i < sort_item_count)
@@ -2647,14 +2710,14 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     }
 
     u32 batch_size = end - i;
-    renderer->current_frame_stats.batch_count += 1;
-    if (batch_size > renderer->current_frame_stats.max_batch_size)
+    stats->batch_count += 1;
+    if (batch_size > stats->max_batch_size)
     {
-      renderer->current_frame_stats.max_batch_size = batch_size;
+      stats->max_batch_size = batch_size;
     }
 
     s_renderer_mesh_pass_draw_run(
-        renderer, pass, submit, &sort_items[i], batch_size);
+        renderer, pass, stats, submit, &sort_items[i], batch_size);
     i = end;
   }
 }
@@ -2761,6 +2824,9 @@ bool ldk_renderer_draw_line(LDKRenderer *renderer, LDKRendererViewId view_id,
 static void s_renderer_lines_draw(LDKRenderer *renderer,
     LDKRendererMeshPass *pass, const LDKRendererView *view, u32 flags)
 {
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+
   if (!renderer->submitted_line_count)
   {
     return;
@@ -2802,8 +2868,8 @@ static void s_renderer_lines_draw(LDKRenderer *renderer,
     LDKRHIDrawIndexedDesc draw = {0};
     draw.index_count = mesh->index_count;
     ldk_rhi_draw_indexed(pass->rhi, &draw);
-    renderer->current_frame_stats.draw_call_count += 1;
-    renderer->current_frame_stats.line_draw_call_count += 1;
+    stats->draw_call_count += 1;
+    stats->line_draw_call_count += 1;
   }
 }
 
@@ -3024,6 +3090,9 @@ static void s_renderer_grid_pass_terminate(LDKRendererGridPass* pass)
 static void s_renderer_grid_pass_draw(LDKRenderer* renderer,
     LDKRendererGridPass* pass, LDKRendererView const* view)
 {
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+
   if (pass == NULL || !pass->is_initialized || view == NULL ||
       !view->submitted || !view->grid_submitted)
   {
@@ -3049,8 +3118,8 @@ static void s_renderer_grid_pass_draw(LDKRenderer* renderer,
   draw_desc.vertex_count = LDK_RENDERER_GRID_VERTEX_COUNT;
   draw_desc.first_vertex = 0;
   ldk_rhi_draw(pass->rhi, &draw_desc);
-  renderer->current_frame_stats.draw_call_count += 1;
-  renderer->current_frame_stats.grid_draw_call_count += 1;
+  stats->draw_call_count += 1;
+  stats->grid_draw_call_count += 1;
 }
 
 static bool s_renderer_view_pass(LDKRenderer* renderer,
@@ -3538,7 +3607,8 @@ static LDKRHIBindings s_renderer_ui_pass_get_draw_bindings(
 }
 
 static void s_renderer_ui_pass(LDKRenderer* owner,
-    LDKRendererUIPass* renderer, LDKUIRenderData const* render_data,
+    LDKRendererUIPass* renderer, LDKRendererFrameDomainStats* stats,
+    LDKUIRenderData const* render_data,
     const LDKRendererFrameDesc* frame_desc, bool present)
 {
   if (renderer == NULL || !renderer->is_initialized || render_data == NULL ||
@@ -3658,14 +3728,14 @@ static void s_renderer_ui_pass(LDKRenderer* owner,
     draw_desc.first_index = cmd->index_offset;
     draw_desc.vertex_offset = 0;
     ldk_rhi_draw_indexed(renderer->rhi, &draw_desc);
-    owner->current_frame_stats.draw_call_count += 1;
+    stats->draw_call_count += 1;
     if (present)
     {
-      owner->current_frame_stats.present_draw_call_count += 1;
+      stats->present_draw_call_count += 1;
     }
     else
     {
-      owner->current_frame_stats.ui_draw_call_count += 1;
+      stats->ui_draw_call_count += 1;
     }
   }
 
@@ -3745,8 +3815,8 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
   present_desc.clear_color = 0x000000FFu;
   present_desc.clear_color_enabled = true;
 
-  s_renderer_ui_pass(
-      renderer, &renderer->ui_pass, &render_data, &present_desc, true);
+  s_renderer_ui_pass(renderer, &renderer->ui_pass,
+      &renderer->current_frame_stats.game, &render_data, &present_desc, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -4885,7 +4955,9 @@ void ldk_renderer_render_frame(
     bool rendered = s_renderer_view_pass(renderer, view, desc);
     if (rendered)
     {
-      renderer->current_frame_stats.rendered_view_count += 1;
+      LDKRendererFrameDomainStats* stats =
+          s_renderer_frame_stats_for_view(renderer, view);
+      stats->rendered_view_count += 1;
     }
 
     if (view == game_view)
@@ -4908,8 +4980,11 @@ void ldk_renderer_render_frame(
       ui_desc.clear_color_enabled = false;
     }
 
-    s_renderer_ui_pass(renderer, &renderer->ui_pass, renderer->submitted_ui,
-        &ui_desc, false);
+    LDKRendererFrameDomainStats* ui_stats = renderer->present_game
+        ? &renderer->current_frame_stats.game
+        : &renderer->current_frame_stats.non_game;
+    s_renderer_ui_pass(renderer, &renderer->ui_pass, ui_stats,
+        renderer->submitted_ui, &ui_desc, false);
   }
 
   ldk_rhi_frame_end(renderer->rhi);
@@ -4924,6 +4999,7 @@ void ldk_renderer_render_frame(
   renderer->current_frame_stats.cpu_time_ms =
       ldk_os_time_ticks_interval_get_milliseconds(
           frame_start_ticks, frame_end_ticks);
+  s_renderer_frame_stats_finalize(&renderer->current_frame_stats);
   renderer->last_frame_stats = renderer->current_frame_stats;
 }
 

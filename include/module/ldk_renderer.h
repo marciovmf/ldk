@@ -152,10 +152,34 @@ extern "C" {
     bool clear_color_enabled;
   } LDKRendererFrameDesc;
 
+  typedef struct LDKRendererFrameDomainStats
+  {
+    u32 rendered_view_count;
+    u32 opaque_mesh_render_count;
+    u32 overlay_mesh_render_count;
+
+    u32 batch_count;
+    u32 instanced_batch_count;
+    u32 instanced_instance_count;
+    u32 max_batch_size;
+
+    u32 draw_call_count;
+    u32 opaque_mesh_draw_call_count;
+    u32 overlay_mesh_draw_call_count;
+    u32 shadow_draw_call_count;
+    u32 line_draw_call_count;
+    u32 grid_draw_call_count;
+    u32 ui_draw_call_count;
+    u32 present_draw_call_count;
+  } LDKRendererFrameDomainStats;
+
   typedef struct LDKRendererFrameStats
   {
     double cpu_time_ms;
 
+    // Submission count is global because a VIEW_ALL submission may be rendered
+    // into both game and non-game views. The remaining counters describe actual
+    // rendered work and are also available split by destination below.
     u32 rendered_view_count;
     u32 mesh_submit_count;
     u32 opaque_mesh_render_count;
@@ -174,6 +198,9 @@ extern "C" {
     u32 grid_draw_call_count;
     u32 ui_draw_call_count;
     u32 present_draw_call_count;
+
+    LDKRendererFrameDomainStats game;
+    LDKRendererFrameDomainStats non_game;
   } LDKRendererFrameStats;
 
   typedef struct LDKRendererBindingsCacheEntry
@@ -585,6 +612,13 @@ extern "C" {
    * CPU time measures the elapsed CPU-side duration of
    * ldk_renderer_render_frame(), including time spent inside RHI calls. It is
    * not GPU time and may include waits performed by the backend.
+   *
+   * Rendered work is also split by destination. game contains work rendered
+   * into the configured game view (and direct game presentation/UI when
+   * present_game is enabled). non_game contains all other views and host UI. A
+   * VIEW_ALL submission is counted independently in each destination where it
+   * is actually rendered. mesh_submit_count remains global because a single
+   * submission may participate in both domains.
    *
    * @param renderer Renderer instance.
    * @return A snapshot of the previous completed renderer frame. A zeroed
