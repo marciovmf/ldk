@@ -53,6 +53,8 @@ static int test_material_defaults(void)
       ASSERT_EQ(desc.args.textured.texture.h.index, X_HPOOL_NULL_INDEX);
       ASSERT_EQ(desc.args.textured.texture.h.version, 0u);
       ASSERT_EQ(desc.args.textured.color, 0xffffffffu);
+      ASSERT_EQ(desc.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
+      ASSERT_EQ(desc.args.textured.alpha_cutoff, 0.5f);
     }
     else
     {
@@ -140,6 +142,21 @@ static int test_material_equality(void)
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
 
   b = a;
+  b.args.textured.alpha_cutoff = 0.75f;
+  ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
+  ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  b = a;
+  b.args.textured.alpha_mode = LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+  b.args.textured.alpha_cutoff = 0.25f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  a = b;
+  b.args.textured.alpha_cutoff = 0.75f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  b = a;
   b.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
@@ -179,6 +196,17 @@ static int test_invalid_material_descriptors(void)
   invalid = valid;
   invalid.surface.emission = -1.0f;
   ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+
+  ASSERT_TRUE(ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &valid));
+  invalid = valid;
+  invalid.args.textured.alpha_mode = (LDKMaterialAlphaMode)99;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.alpha_mode = LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+  invalid.args.textured.alpha_cutoff = -0.1f;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid.args.textured.alpha_cutoff = 1.1f;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
   return 0;
 }
 
@@ -207,6 +235,9 @@ static int test_renderer_material_lifecycle(void)
   ASSERT_EQ(renderer.materials[0].desc.specular, 0.25f);
   ASSERT_EQ(renderer.materials[0].desc.shininess, 32.0f);
   ASSERT_EQ(renderer.materials[0].desc.emission, 0.5f);
+  ASSERT_EQ(renderer.materials[0].desc.alpha_mode,
+      LDK_MATERIAL_ALPHA_MODE_OPAQUE);
+  ASSERT_EQ(renderer.materials[0].desc.alpha_cutoff, 0.5f);
   ASSERT_EQ(renderer.materials[0].selection,
       LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
   ASSERT_NEQ(renderer.materials[0].render_key, 0u);
@@ -289,6 +320,8 @@ static int test_renderer_textured_material(void)
   desc.texture.id = 1u;
   desc.normal_map.id = 2u;
   desc.specular_map.id = 3u;
+  desc.alpha_mode = LDK_MATERIAL_ALPHA_MODE_OPAQUE;
+  desc.alpha_cutoff = 0.5f;
 
   LDKResourceMaterial material = ldk_renderer_material_create(&renderer, &desc);
   ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, material));
@@ -314,8 +347,32 @@ static int test_renderer_textured_material(void)
   ASSERT_NEQ(renderer.materials[0].render_key,
       renderer.materials[1].render_key);
 
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED;
+  desc.alpha_mode = LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+  desc.alpha_cutoff = 0.35f;
+  LDKResourceMaterial cutout_material =
+      ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, cutout_material));
+  ASSERT_EQ(renderer.materials[2].desc.alpha_mode,
+      LDK_MATERIAL_ALPHA_MODE_CUTOUT);
+  ASSERT_EQ(renderer.materials[2].desc.alpha_cutoff, 0.35f);
+  ASSERT_EQ(renderer.materials[2].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT);
+  ASSERT_NEQ(renderer.materials[0].render_key,
+      renderer.materials[2].render_key);
+
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  LDKResourceMaterial unlit_cutout_material =
+      ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(
+      ldk_renderer_material_is_valid(&renderer, unlit_cutout_material));
+  ASSERT_EQ(renderer.materials[3].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT);
+
   ldk_renderer_material_destroy(&renderer, material);
   ldk_renderer_material_destroy(&renderer, unlit_material);
+  ldk_renderer_material_destroy(&renderer, cutout_material);
+  ldk_renderer_material_destroy(&renderer, unlit_cutout_material);
   free(renderer.materials);
   free(renderer.textures);
   return 0;
@@ -400,6 +457,27 @@ static int test_renderer_material_rejects_invalid_input(void)
   desc.normal_map.id = 1u;
   ASSERT_FALSE(ldk_renderer_material_is_valid(
       &renderer, ldk_renderer_material_create(&renderer, &desc)));
+
+  renderer.textures = (LDKRendererTextureResource *)calloc(
+      1, sizeof(LDKRendererTextureResource));
+  ASSERT_TRUE(renderer.textures != NULL);
+  renderer.texture_count = 1;
+  renderer.texture_capacity = 1;
+  renderer.textures[0].alive = true;
+  desc = (LDKRendererMaterialDesc){0};
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  desc.texture.id = 1u;
+  desc.alpha_mode = (LDKMaterialAlphaMode)99;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  desc.alpha_mode = LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+  desc.alpha_cutoff = -0.1f;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  desc.alpha_cutoff = 1.1f;
+  ASSERT_FALSE(ldk_renderer_material_is_valid(
+      &renderer, ldk_renderer_material_create(&renderer, &desc)));
+  free(renderer.textures);
 
   return 0;
 }

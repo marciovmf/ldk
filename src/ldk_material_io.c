@@ -324,6 +324,23 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       return false;
     }
     desc.args.textured.color = color;
+    if (tml_node_find_entry(doc, fields, "material_alpha_mode"))
+    {
+      u32 alpha_mode;
+      if (!s_node_get_u32(doc, fields, "material_alpha_mode", &alpha_mode))
+      {
+        s_result_error(result, "invalid material alpha mode");
+        return false;
+      }
+      desc.args.textured.alpha_mode = (LDKMaterialAlphaMode)alpha_mode;
+    }
+    if (tml_node_find_entry(doc, fields, "material_alpha_cutoff") &&
+        !s_node_get_float(doc, fields, "material_alpha_cutoff",
+            &desc.args.textured.alpha_cutoff))
+    {
+      s_result_error(result, "invalid material alpha cutoff");
+      return false;
+    }
     if (tml_node_find_entry(doc, fields, "material_texture"))
     {
       TMLString image_path;
@@ -455,6 +472,16 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     x_strbuilder_append(out, "material_texture: ");
     s_append_escaped_string(out, relative.buf);
     x_strbuilder_append_char(out, '\n');
+
+    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_alpha_mode: %u\n",
+          (u32)desc->args.textured.alpha_mode);
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_alpha_cutoff: %.9g\n",
+          (double)desc->args.textured.alpha_cutoff);
+    }
   }
 
   if (lit)

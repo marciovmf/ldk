@@ -2101,6 +2101,44 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
   ldk_ui_end_horizontal(ui);
 
+  if (textured)
+  {
+    static const char *const alpha_mode_names[] = {"Opaque", "Cutout"};
+    u32 alpha_mode = desc->args.textured.alpha_mode ==
+            LDK_MATERIAL_ALPHA_MODE_CUTOUT
+        ? 1u
+        : 0u;
+
+    s_editor_material_row_begin(editor, "Alpha Mode");
+    ldk_ui_begin_disabled(ui, readonly);
+    u32 next_alpha_mode =
+        ldk_ui_combo_box(ui, alpha_mode_names, 2, alpha_mode);
+    ldk_ui_end_disabled(ui);
+    ldk_ui_end_horizontal(ui);
+    if (!readonly && next_alpha_mode < 2u && next_alpha_mode != alpha_mode)
+    {
+      desc->args.textured.alpha_mode = next_alpha_mode == 0u
+          ? LDK_MATERIAL_ALPHA_MODE_OPAQUE
+          : LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+      changed = true;
+    }
+
+    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    {
+      s_editor_material_row_begin(editor, "Alpha Cutoff");
+      ldk_ui_begin_disabled(ui, readonly);
+      float alpha_cutoff =
+          ldk_ui_slider(ui, desc->args.textured.alpha_cutoff, 0.0f, 1.0f);
+      ldk_ui_end_disabled(ui);
+      if (!readonly && alpha_cutoff != desc->args.textured.alpha_cutoff)
+      {
+        desc->args.textured.alpha_cutoff = alpha_cutoff;
+        changed = true;
+      }
+      ldk_ui_end_horizontal(ui);
+    }
+  }
+
   if (lit)
   {
     s_editor_material_row_begin(editor, "Specular");

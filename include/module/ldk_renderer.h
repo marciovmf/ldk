@@ -48,7 +48,10 @@ extern "C" {
     LDK_SHADER_MESH_PASS_UNLIT,
     LDK_SHADER_MESH_PASS_TEXTURED,
     LDK_SHADER_MESH_PASS_TEXTURED_UNLIT,
-    LDK_SHADER_SHADOW_PASS
+    LDK_SHADER_SHADOW_PASS,
+    LDK_SHADER_MESH_PASS_TEXTURED_CUTOUT,
+    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT,
+    LDK_SHADER_SHADOW_PASS_CUTOUT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -248,11 +251,18 @@ extern "C" {
     LDKRHIContext *rhi;
     LDKRHIShaderModule vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
+    LDKRHIShaderModule cutout_vertex_shader_module;
+    LDKRHIShaderModule cutout_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
+    LDKRHIPipeline cutout_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
+    LDKRHIBuffer material_buffer;
     LDKRHIBindings bindings;
+    LDKRendererBindingsCacheEntry *cutout_bindings_cache;
+    u32 cutout_bindings_cache_count;
+    u32 cutout_bindings_cache_capacity;
     LDKRHITexture depth_texture;
     LDKRHISampler sampler;
   } LDKRendererShadowPass;
@@ -266,6 +276,8 @@ extern "C" {
     LDKRHIShaderModule overlay_fragment_shader_module;
     LDKRHIShaderModule textured_fragment_shader_module;
     LDKRHIShaderModule textured_unlit_fragment_shader_module;
+    LDKRHIShaderModule textured_cutout_fragment_shader_module;
+    LDKRHIShaderModule textured_unlit_cutout_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
@@ -273,10 +285,15 @@ extern "C" {
     LDKRHIPipeline textured_pipeline;
     LDKRHIPipeline textured_unlit_pipeline;
     LDKRHIPipeline textured_overlay_pipeline;
+    LDKRHIPipeline textured_cutout_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_overlay_pipeline;
     LDKRHIPipeline vertex_color_instanced_pipeline;
     LDKRHIPipeline vertex_color_unlit_instanced_pipeline;
     LDKRHIPipeline textured_instanced_pipeline;
     LDKRHIPipeline textured_unlit_instanced_pipeline;
+    LDKRHIPipeline textured_cutout_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -407,6 +424,8 @@ extern "C" {
     LDKResourceTexture normal_map;
     LDKResourceTexture specular_map;
     rgba32 color;
+    LDKMaterialAlphaMode alpha_mode;
+    float alpha_cutoff;
     float specular;
     float shininess;
     float emission;
@@ -418,7 +437,9 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED,
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT,
-    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT
   } LDKRendererMaterialSelection;
 
   typedef u64 LDKRendererRenderKey;
@@ -938,12 +959,13 @@ extern "C" {
    * @brief Create a renderer-owned material resource.
    *
    * Textured materials require a live renderer texture. The referenced texture
-   * must remain alive until the material is destroyed. Lit normal/specular maps
-   * are optional borrowed texture resources and must also remain alive while
-   * the material exists; null map handles use renderer-owned neutral fallbacks.
-   * Vertex-color materials ignore desc->texture. Unlit materials ignore map
-   * handles. Lit surface values must be finite and non-negative. A zero
-   * shininess uses the default value (32).
+   * must remain alive until the material is destroyed. Textured materials may
+   * use opaque or cutout alpha mode; cutout thresholds must be finite and in
+   * [0, 1]. Lit normal/specular maps are optional borrowed texture resources and
+   * must also remain alive while the material exists; null map handles use
+   * renderer-owned neutral fallbacks. Vertex-color materials ignore texture and
+   * alpha fields. Unlit materials ignore map handles. Lit surface values must be
+   * finite and non-negative. A zero shininess uses the default value (32).
    *
    * @param renderer Renderer that will own the material resource.
    * @param desc Resolved renderer material description.

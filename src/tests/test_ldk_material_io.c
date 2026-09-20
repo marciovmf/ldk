@@ -88,6 +88,11 @@ static int test_material_io_invalid(void)
       "material:\n  material_type: 4\n  material_specular: -0.1\n",
       "material:\n  material_type: 4\n  material_shininess: -1\n",
       "material:\n  material_type: 4\n  material_emission: -1\n",
+      "material:\n  material_type: 1\n  material_alpha_mode: 99\n",
+      "material:\n  material_type: 1\n  material_alpha_mode: 1\n"
+      "  material_alpha_cutoff: -0.1\n",
+      "material:\n  material_type: 1\n  material_alpha_mode: 1\n"
+      "  material_alpha_cutoff: 1.1\n",
   };
   LDKMaterialIOContext context = {0};
   LDKMaterialIOResult result;
@@ -124,6 +129,8 @@ static int test_material_io_missing_texture(void)
   const char *text = "material:\n  material_type: 2\n"
                      "  material_color: 0xa1b2c3ff\n"
                      "  material_texture: \"missing.png\"\n"
+                     "  material_alpha_mode: 1\n"
+                     "  material_alpha_cutoff: 0.35\n"
                      "  material_normal_map: \"missing_normal.png\"\n"
                      "  material_specular_map: \"missing_specular.png\"\n";
   ASSERT_TRUE(s_read(text, &context, &first, &result));
@@ -132,6 +139,8 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(first.surface.specular, 0.0f);
   ASSERT_EQ(first.surface.shininess, 32.0f);
   ASSERT_EQ(first.surface.emission, 0.0f);
+  ASSERT_EQ(first.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_CUTOUT);
+  ASSERT_EQ(first.args.textured.alpha_cutoff, 0.35f);
   const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
       &assets, first.args.textured.texture);
   ASSERT_TRUE(image && image->image && image->is_missing);
@@ -153,6 +162,8 @@ static int test_material_io_missing_texture(void)
                   "material:\n  material_type: 2\n"
                   "  material_color: 0xa1b2c3ff\n"
                   "  material_texture: \"missing.png\"\n"
+                  "  material_alpha_mode: 1\n"
+                  "  material_alpha_cutoff: 0.349999994\n"
                   "  material_specular: 0\n"
                   "  material_shininess: 32\n"
                   "  material_emission: 0\n"
@@ -163,6 +174,8 @@ static int test_material_io_missing_texture(void)
       &second, &result));
   ASSERT_EQ(s_diagnostics, 3u);
   ASSERT_EQ(second.args.textured.color, 0xffffffffu);
+  ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
+  ASSERT_EQ(second.args.textured.alpha_cutoff, 0.5f);
   ldk_asset_manager_terminate(&assets);
   return 0;
 }

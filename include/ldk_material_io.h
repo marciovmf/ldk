@@ -27,16 +27,19 @@ extern "C"
     char error[512];
   } LDKMaterialIOResult;
 
-  /* Read the existing material_type/color/texture fields from a TML node.
-   * Type is required; tint defaults to white. Texture paths are runtree-relative.
-   * Missing images use the procedural checker and emit a recoverable diagnostic.
-   * out_desc is only assigned on success. result is optional. */
+  /* Read material fields from a TML node. Type is required; tint defaults to
+   * white. Textured materials default to opaque alpha mode and a 0.5 cutout
+   * threshold when the alpha fields are absent. Texture paths are
+   * runtree-relative. Missing images use the procedural checker and emit a
+   * recoverable diagnostic. out_desc is only assigned on success. result is
+   * optional. */
   LDK_API bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       const TMLDocument *doc, const TMLNode *fields,
       LDKMaterialDesc *out_desc, LDKMaterialIOResult *result);
 
-  /* Append the existing fields; indent counts two-space indentation levels.
-   * result is optional. Discard the output if writing fails. */
+  /* Append material fields; cutout alpha fields are emitted only when active.
+   * indent counts two-space indentation levels. result is optional. Discard the
+   * output if writing fails. */
   LDK_API bool ldk_material_desc_write(const LDKMaterialIOContext *context,
       const LDKMaterialDesc *desc, XStrBuilder *out, u32 indent,
       LDKMaterialIOResult *result);

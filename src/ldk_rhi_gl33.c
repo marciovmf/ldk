@@ -245,6 +245,35 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER =
     "#version 330 core\n"
     "void main() {}\n";
 
+static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER =
+    "#version 330 core\n"
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 2) in vec2 a_uv;\n"
+    "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "out vec2 v_uv;\n"
+    "void main()\n"
+    "{\n"
+    "  v_uv = a_uv;\n"
+    "  gl_Position = u_light_view_projection * u_world * vec4(a_position, "
+    "1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_cutout;\n"
+    "};\n"
+    "uniform sampler2D LDK_TEXTURE_3;\n"
+    "void main()\n"
+    "{\n"
+    "  float alpha = texture(LDK_TEXTURE_3, v_uv).a * u_cutout.x;\n"
+    "  if (alpha < u_cutout.y)\n"
+    "    discard;\n"
+    "}\n";
+
 LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 
 #define LDK_GL33_LIGHTING_GLSL                                                 \
@@ -441,6 +470,48 @@ static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
 "  out_color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
 "}\n";
 
+static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
+    "#version 330 core\n" LDK_GL33_SURFACE_GLSL LDK_GL33_LIGHTING_GLSL
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "};\n"
+    "uniform sampler2D LDK_TEXTURE_3;\n"
+    "out vec4 out_color;\n"
+    "void main()\n"
+    "{\n"
+    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+    "  if (color.a < u_surface.w)\n"
+    "    discard;\n"
+    "  vec3 diffuse;\n"
+    "  vec3 specular;\n"
+    "  vec3 normal = ldk_surface_normal();\n"
+    "  float specular_strength = ldk_surface_specular(u_surface.x);\n"
+    "  ldk_lighting(normal, specular_strength, u_surface.y, diffuse, "
+    "specular);\n"
+    "  vec3 emission = color.rgb * u_surface.z;\n"
+    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "};\n"
+    "uniform sampler2D LDK_TEXTURE_3;\n"
+    "out vec4 out_color;\n"
+    "void main()\n"
+    "{\n"
+    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+    "  if (color.a < u_surface.w)\n"
+    "    discard;\n"
+    "  out_color = color;\n"
+    "}\n";
+
 static char const* LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER =
 "#version 330 core\n"
 "layout(location = 0) in vec3 a_position;\n"
@@ -553,6 +624,18 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     }
   }
 
+  if (shader == LDK_SHADER_SHADOW_PASS_CUTOUT)
+  {
+    if (stage == LDK_RHI_SHADER_STAGE_VERTEX)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER;
+    }
+    if (stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_CUTOUT_FRAGMENT_SHADER;
+    }
+  }
+
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
     return LDK_RHI_GL33_UI_PASS_VERTEX_SHADER;
@@ -605,6 +688,18 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_TEXTURED_CUTOUT &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_GRID_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
