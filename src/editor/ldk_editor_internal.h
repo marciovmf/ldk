@@ -240,6 +240,9 @@ typedef struct LDKEditorContext
   char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
   bool show_input_window;
 
+  bool show_statistics;
+  float statistics_frame_time_ms;
+
   LDKEditorProjectAction pending_project_action;
   LDKEditorProjectBuild project_build;
   bool create_project_window_show;

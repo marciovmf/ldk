@@ -1002,6 +1002,229 @@ bool ldki_editor_view_texture_show(LDKEditorContext *editor,
   return true;
 }
 
+static void s_editor_game_statistics_overlay(
+    LDKEditorContext *editor, LDKUIRect image_rect)
+{
+  if (editor == NULL || editor->renderer == NULL ||
+      !editor->show_statistics || image_rect.w <= 0.0f ||
+      image_rect.h <= 0.0f)
+  {
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  LDKRendererFrameStats stats =
+      ldk_renderer_last_frame_stats_get(editor->renderer);
+
+  const float margin = 12.0f;
+  const float padding = 8.0f;
+  const float row_height = 18.0f;
+  const float desired_width = 276.0f;
+  const float value_column_width = 80.0f;
+  const float column_gap = 8.0f;
+  const u32 row_count = 20;
+
+  float panel_width = desired_width;
+  float max_width = image_rect.w - margin * 2.0f;
+
+  if (panel_width > max_width)
+  {
+    panel_width = max_width;
+  }
+
+  if (panel_width < 220.0f)
+  {
+    return;
+  }
+
+  float panel_height = padding * 2.0f + row_height * (float)row_count;
+  float max_height = image_rect.h - margin * 2.0f;
+
+  if (panel_height > max_height)
+  {
+    panel_height = max_height;
+  }
+
+  if (panel_height < padding * 2.0f + row_height * 4.0f)
+  {
+    return;
+  }
+
+  LDKUIRect panel_rect = {
+      image_rect.x + margin,
+      image_rect.y + margin,
+      panel_width,
+      panel_height};
+
+  rgba32 previous_panel_bg =
+      ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
+  rgba32 previous_text =
+      ui->theme.colors[LDK_UI_COLOR_TEXT];
+
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = 0x101010C0u;
+  ui->theme.colors[LDK_UI_COLOR_TEXT] = 0xffffffffu;
+
+  ldk_ui_widget_panel(ui, 0x53544154u, panel_rect);
+
+  float label_width =
+      panel_rect.w - padding * 2.0f - column_gap - value_column_width;
+
+  float value_x =
+      panel_rect.x + padding + label_width + column_gap;
+
+  char value_text[32];
+  u32 row = 0;
+
+  {
+    LDKUIRect title_rect = {
+        panel_rect.x + padding,
+        panel_rect.y + padding,
+        panel_rect.w - padding * 2.0f,
+        row_height};
+
+    ldk_ui_widget_label(
+        ui, 0x53540000u, "Statistics", title_rect);
+
+    ++row;
+  }
+
+#define LDK_EDITOR_STAT_ROW(label, ...)                                      \
+  do                                                                         \
+  {                                                                          \
+    float row_y =                                                            \
+        panel_rect.y + padding + row_height * (float)row;                    \
+                                                                             \
+    if (row_y + row_height <=                                                \
+        panel_rect.y + panel_rect.h - padding)                               \
+    {                                                                        \
+      LDKUIRect label_rect = {                                               \
+          panel_rect.x + padding,                                            \
+          row_y,                                                             \
+          label_width,                                                       \
+          row_height};                                                       \
+                                                                             \
+      LDKUIRect value_rect = {                                               \
+          value_x,                                                           \
+          row_y,                                                             \
+          value_column_width,                                                \
+          row_height};                                                       \
+                                                                             \
+      snprintf(value_text, sizeof(value_text), __VA_ARGS__);                 \
+                                                                             \
+      ldk_ui_widget_label(                                                   \
+          ui, 0x53541000u + row * 2u, label, label_rect);                   \
+      ldk_ui_widget_label(                                                   \
+          ui, 0x53541001u + row * 2u, value_text, value_rect);              \
+    }                                                                        \
+                                                                             \
+    ++row;                                                                   \
+  } while (0)
+
+  float fps = editor->statistics_frame_time_ms > 0.0f
+      ? 1000.0f / editor->statistics_frame_time_ms
+      : 0.0f;
+
+  LDK_EDITOR_STAT_ROW(
+      "FPS",
+      "%.1f",
+      fps);
+
+  LDK_EDITOR_STAT_ROW(
+      "Frame (ms)",
+      "%.2f",
+      editor->statistics_frame_time_ms);
+
+  LDK_EDITOR_STAT_ROW(
+      "Renderer CPU (ms)",
+      "%.2f",
+      stats.cpu_time_ms);
+
+  LDK_EDITOR_STAT_ROW(
+      "Views",
+      "%u",
+      stats.rendered_view_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Mesh submits",
+      "%u",
+      stats.mesh_submit_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Opaque items",
+      "%u",
+      stats.opaque_mesh_render_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Overlay items",
+      "%u",
+      stats.overlay_mesh_render_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Batches",
+      "%u",
+      stats.batch_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Instanced batches",
+      "%u",
+      stats.instanced_batch_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Instanced objects",
+      "%u",
+      stats.instanced_instance_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Max batch",
+      "%u",
+      stats.max_batch_size);
+
+  LDK_EDITOR_STAT_ROW(
+      "Draw calls",
+      "%u",
+      stats.draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Opaque mesh",
+      "%u",
+      stats.opaque_mesh_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Shadow",
+      "%u",
+      stats.shadow_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Overlay mesh",
+      "%u",
+      stats.overlay_mesh_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Lines",
+      "%u",
+      stats.line_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Grid",
+      "%u",
+      stats.grid_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  UI",
+      "%u",
+      stats.ui_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Present",
+      "%u",
+      stats.present_draw_call_count);
+
+#undef LDK_EDITOR_STAT_ROW
+
+  ui->theme.colors[LDK_UI_COLOR_TEXT] = previous_text;
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = previous_panel_bg;
+}
+
 static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
@@ -1015,6 +1238,8 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
   {
     return;
   }
+
+  s_editor_game_statistics_overlay(editor, image_rect);
 
   ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
       image_rect.h, editor->renderer->game_width,
@@ -1041,6 +1266,26 @@ static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
+  if (delta_time > 0.0f)
+  {
+    float frame_time_ms = delta_time * 1000.0f;
+    float alpha = delta_time * 6.0f;
+    if (alpha > 1.0f)
+    {
+      alpha = 1.0f;
+    }
+
+    if (editor->statistics_frame_time_ms <= 0.0f)
+    {
+      editor->statistics_frame_time_ms = frame_time_ms;
+    }
+    else
+    {
+      editor->statistics_frame_time_ms +=
+          (frame_time_ms - editor->statistics_frame_time_ms) * alpha;
+    }
+  }
+
   ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
   ldki_editor_scene_catalog_sync(editor);

@@ -152,6 +152,30 @@ extern "C" {
     bool clear_color_enabled;
   } LDKRendererFrameDesc;
 
+  typedef struct LDKRendererFrameStats
+  {
+    double cpu_time_ms;
+
+    u32 rendered_view_count;
+    u32 mesh_submit_count;
+    u32 opaque_mesh_render_count;
+    u32 overlay_mesh_render_count;
+
+    u32 batch_count;
+    u32 instanced_batch_count;
+    u32 instanced_instance_count;
+    u32 max_batch_size;
+
+    u32 draw_call_count;
+    u32 opaque_mesh_draw_call_count;
+    u32 overlay_mesh_draw_call_count;
+    u32 shadow_draw_call_count;
+    u32 line_draw_call_count;
+    u32 grid_draw_call_count;
+    u32 ui_draw_call_count;
+    u32 present_draw_call_count;
+  } LDKRendererFrameStats;
+
   typedef struct LDKRendererBindingsCacheEntry
   {
     LDKRHITexture texture;
@@ -446,6 +470,11 @@ extern "C" {
     u32* mesh_sort_material_ids;
     u32 mesh_sort_material_id_capacity;
 
+    // Frame statistics. last_frame_stats always describes the last fully
+    // completed renderer frame; current_frame_stats is internal accumulation.
+    LDKRendererFrameStats current_frame_stats;
+    LDKRendererFrameStats last_frame_stats;
+
     bool is_initialized;
   } LDKRenderer;
 
@@ -549,6 +578,20 @@ extern "C" {
   LDK_API void ldk_renderer_render_frame(
       LDKRenderer* renderer,
       LDKRendererFrameDesc const* desc);
+
+  /**
+   * @brief Return renderer statistics for the last fully completed frame.
+   *
+   * CPU time measures the elapsed CPU-side duration of
+   * ldk_renderer_render_frame(), including time spent inside RHI calls. It is
+   * not GPU time and may include waits performed by the backend.
+   *
+   * @param renderer Renderer instance.
+   * @return A snapshot of the previous completed renderer frame. A zeroed
+   *         snapshot is returned for a null renderer or before the first frame.
+   */
+  LDK_API LDKRendererFrameStats ldk_renderer_last_frame_stats_get(
+      LDKRenderer const* renderer);
 
   /**
    * @brief Return the game render target color texture for UI rendering.
