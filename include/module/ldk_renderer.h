@@ -210,6 +210,7 @@ extern "C" {
   {
     LDKRHIContext* rhi;
     LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule instanced_vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule overlay_fragment_shader_module;
     LDKRHIShaderModule textured_fragment_shader_module;
@@ -221,10 +222,17 @@ extern "C" {
     LDKRHIPipeline textured_pipeline;
     LDKRHIPipeline textured_unlit_pipeline;
     LDKRHIPipeline textured_overlay_pipeline;
+    LDKRHIPipeline vertex_color_instanced_pipeline;
+    LDKRHIPipeline vertex_color_unlit_instanced_pipeline;
+    LDKRHIPipeline textured_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer lighting_buffer;
+    LDKRHIBuffer instance_buffer;
+    Mat4* instance_worlds;
+    u32 instance_capacity;
     // Borrowed from the renderer-owned shadow pass.
     LDKRHITexture shadow_texture;
     LDKRHISampler shadow_sampler;
@@ -427,6 +435,16 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
+
+    // Per-view opaque mesh sort scratch. Sort items pack a 40-bit state key
+    // and a 24-bit index into submitted_meshes.
+    u64* mesh_sort_items;
+    u64* mesh_sort_scratch;
+    u32 mesh_sort_capacity;
+    u32* mesh_sort_mesh_ids;
+    u32 mesh_sort_mesh_id_capacity;
+    u32* mesh_sort_material_ids;
+    u32 mesh_sort_material_id_capacity;
 
     bool is_initialized;
   } LDKRenderer;
