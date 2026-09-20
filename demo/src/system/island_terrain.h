@@ -6,12 +6,6 @@
 #include <ldk_resource.h>
 #include <module/ldk_system.h>
 
-/*
- * Borrowed row-major color map. Colors use the LDK 0xRRGGBBAA convention.
- * The caller keeps the array alive while the system is active.
- */
-bool island_terrain_map_set(const u32 *colors, u32 width, u32 height);
-
 int island_terrain_system_initialize(void *data);
 void island_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt);
@@ -20,6 +14,36 @@ void island_terrain_system_terminate(void *data);
 //@system initialize=island_terrain_system_initialize update=island_terrain_system_update terminate=island_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
 typedef struct IslandTerrain
 {
+  u32 seed;
+  u32 map_size;
+  float land_scale;
+  float island_radius;
+  float terrain_scale;
+  float moisture_scale;
+  u32 land_octaves;
+  u32 terrain_octaves;
+  u32 moisture_octaves;
+  float land_noise_strength;
+  float deep_water_max;
+  float shallow_water_max;
+  float shore_max;
+  float mountain_min;
+  float dry_moisture_max;
+  float grass_moisture_max;
+  float forest_decoration_chance;
+  float grass_decoration_0_chance;
+  float grass_decoration_1_chance;
+  float mountain_decoration_chance;
+  float dry_decoration_chance;
+  float shore_decoration_chance;
+  float shallow_water_decoration_chance;
+  float mountain_resource_chance;
+  float forest_resource_chance;
+  float grass_resource_chance;
+  float dry_resource_chance;
+  float shore_resource_chance;
+  float shallow_water_resource_chance;
+
   u32 radius;
   float cell_size;
   float elevation;
@@ -50,6 +74,8 @@ typedef struct IslandTerrain
   bool mesh_dirty;
   //@inspect runtime
   bool has_geometry;
+  //@inspect runtime
+  bool map_loaded_from_cache;
   //@inspect runtime
   LDKResourceMesh mesh;
 } IslandTerrain;
