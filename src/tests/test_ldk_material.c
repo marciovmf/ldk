@@ -1,11 +1,13 @@
 #if defined(LDK_SHAREDLIB)
 #define X_IMPL_HPOOL
 #define X_IMPL_FILESYSTEM
+#define X_IMPL_MATH
 #endif
 
 #include <ldk_material.h>
 #include <component/ldk_mesh_source.h>
 #include <module/ldk_renderer.h>
+#include <stdx/stdx_math.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
@@ -599,6 +601,275 @@ static int test_shared_image_cache(void)
   return 0;
 }
 
+typedef struct TestRendererInstancingBackend
+{
+  u64 next_resource;
+  u32 draw_indexed_count;
+  u32 draw_indexed_instanced_count;
+} TestRendererInstancingBackend;
+
+static LDKRHIBuffer s_test_renderer_instancing_buffer_create(
+    void *user, const LDKRHIBufferDesc *desc)
+{
+  TestRendererInstancingBackend *backend =
+      (TestRendererInstancingBackend *)user;
+  (void)desc;
+  return ++backend->next_resource;
+}
+
+static bool s_test_renderer_instancing_buffer_update(void *user,
+    LDKRHIBuffer buffer, u32 offset, u32 size, const void *data)
+{
+  (void)user;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)data;
+  return true;
+}
+
+static void s_test_renderer_instancing_pass_begin(
+    void *user, const LDKRHIPassDesc *desc)
+{
+  (void)user;
+  (void)desc;
+}
+
+static void s_test_renderer_instancing_pass_end(void *user)
+{
+  (void)user;
+}
+
+static void s_test_renderer_instancing_pipeline_bind(
+    void *user, LDKRHIPipeline pipeline)
+{
+  (void)user;
+  (void)pipeline;
+}
+
+static void s_test_renderer_instancing_bindings_bind(
+    void *user, LDKRHIBindings bindings)
+{
+  (void)user;
+  (void)bindings;
+}
+
+static void s_test_renderer_instancing_vertex_buffer_bind_at(void *user,
+    u32 slot, LDKRHIBuffer buffer, u32 offset)
+{
+  (void)user;
+  (void)slot;
+  (void)buffer;
+  (void)offset;
+}
+
+static void s_test_renderer_instancing_index_buffer_bind(void *user,
+    LDKRHIBuffer buffer, u32 offset, LDKRHIIndexType index_type)
+{
+  (void)user;
+  (void)buffer;
+  (void)offset;
+  (void)index_type;
+}
+
+static void s_test_renderer_instancing_draw_indexed(
+    void *user, const LDKRHIDrawIndexedDesc *desc)
+{
+  TestRendererInstancingBackend *backend =
+      (TestRendererInstancingBackend *)user;
+  (void)desc;
+  backend->draw_indexed_count++;
+}
+
+static void s_test_renderer_instancing_draw_indexed_instanced(
+    void *user, const LDKRHIDrawIndexedInstancedDesc *desc)
+{
+  TestRendererInstancingBackend *backend =
+      (TestRendererInstancingBackend *)user;
+  (void)desc;
+  backend->draw_indexed_instanced_count++;
+}
+
+static bool s_test_renderer_instancing_setup(LDKRenderer *renderer,
+    LDKRHIContext *rhi, TestRendererInstancingBackend *backend,
+    bool instancing_supported)
+{
+  LDKRHIContextDesc rhi_desc = {0};
+  LDKRHIFunctions functions = {0};
+  rhi_desc.backend_type = LDK_RHI_BACKEND_OPENGL33;
+  rhi_desc.backend_user_data = backend;
+  functions.buffer_create = s_test_renderer_instancing_buffer_create;
+  functions.buffer_update = s_test_renderer_instancing_buffer_update;
+  functions.pass_begin = s_test_renderer_instancing_pass_begin;
+  functions.pass_end = s_test_renderer_instancing_pass_end;
+  functions.pipeline_bind = s_test_renderer_instancing_pipeline_bind;
+  functions.bindings_bind = s_test_renderer_instancing_bindings_bind;
+  functions.vertex_buffer_bind_at =
+      s_test_renderer_instancing_vertex_buffer_bind_at;
+  functions.index_buffer_bind = s_test_renderer_instancing_index_buffer_bind;
+  functions.draw_indexed = s_test_renderer_instancing_draw_indexed;
+  if (instancing_supported)
+  {
+    functions.draw_indexed_instanced =
+        s_test_renderer_instancing_draw_indexed_instanced;
+  }
+
+  if (!ldk_rhi_initialize(rhi, &rhi_desc, &functions))
+  {
+    return false;
+  }
+
+  memset(renderer, 0, sizeof(*renderer));
+  renderer->rhi = rhi;
+  renderer->game_width = 640;
+  renderer->game_height = 480;
+  renderer->ambient_light.color = 0xffffffffu;
+  renderer->is_initialized = true;
+
+  renderer->shadow_pass.rhi = rhi;
+  renderer->shadow_pass.resolution = 512;
+  renderer->shadow_pass.distance = 60.0f;
+  renderer->shadow_pass.depth_texture = 201;
+  renderer->shadow_pass.camera_buffer = 202;
+  renderer->shadow_pass.object_buffer = 203;
+  renderer->shadow_pass.material_buffer = 204;
+  renderer->shadow_pass.bindings = 205;
+  renderer->shadow_pass.pipeline = 206;
+  renderer->shadow_pass.instanced_pipeline = 207;
+
+  renderer->mesh_pass.rhi = rhi;
+  renderer->mesh_pass.is_initialized = true;
+  renderer->mesh_pass.camera_buffer = 301;
+  renderer->mesh_pass.object_buffer = 302;
+  renderer->mesh_pass.material_buffer = 303;
+  renderer->mesh_pass.lighting_buffer = 304;
+  renderer->mesh_pass.bindings = 305;
+  renderer->mesh_pass.vertex_color_unlit_pipeline = 306;
+  renderer->mesh_pass.vertex_color_unlit_instanced_pipeline = 307;
+
+  renderer->meshes =
+      (LDKRendererMeshResource *)calloc(1, sizeof(*renderer->meshes));
+  renderer->materials =
+      (LDKRendererMaterialResource *)calloc(1, sizeof(*renderer->materials));
+  if (!renderer->meshes || !renderer->materials)
+  {
+    return false;
+  }
+
+  renderer->mesh_count = renderer->mesh_capacity = 1;
+  renderer->meshes[0].vertex_buffer = 401;
+  renderer->meshes[0].index_buffer = 402;
+  renderer->meshes[0].vertex_count = 3;
+  renderer->meshes[0].index_count = 3;
+  renderer->meshes[0].alive = true;
+
+  renderer->material_count = renderer->material_capacity = 1;
+  renderer->materials[0].desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT;
+  renderer->materials[0].desc.color = 0xffffffffu;
+  renderer->materials[0].selection =
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
+  renderer->materials[0].render_key = 1;
+  renderer->materials[0].alive = true;
+
+  Mat4 view = mat4_look_at_rh(vec3_make(0.0f, 0.0f, 5.0f),
+      vec3_make(0.0f, 0.0f, 0.0f), vec3_make(0.0f, 1.0f, 0.0f));
+  Mat4 projection = mat4_perspective_rh_no(
+      STDXM_PI / 3.0f, 640.0f / 480.0f, 0.1f, 100.0f);
+  if (!ldk_renderer_submit_view(renderer, 1, view, projection) ||
+      !ldk_renderer_game_view_set(renderer, 1))
+  {
+    return false;
+  }
+
+  renderer->views[0].target.color_texture = 501;
+  renderer->views[0].target.depth_texture = 502;
+  renderer->views[0].target.width = 640;
+  renderer->views[0].target.height = 480;
+
+  LDKResourceMesh mesh = {1};
+  LDKResourceMaterial material = {1};
+  Mat4 world = mat4_identity();
+  if (!ldk_renderer_submit_mesh(renderer, mesh, material, world) ||
+      !ldk_renderer_submit_mesh(renderer, mesh, material, world))
+  {
+    return false;
+  }
+
+  LDKRendererLightSubmit light = {0};
+  light.type = LDK_RENDERER_LIGHT_DIRECTIONAL;
+  light.view_id = LDK_RENDERER_VIEW_ALL;
+  light.direction = vec3_make(-1.0f, -1.0f, -1.0f);
+  light.color = 0xffffffffu;
+  light.intensity = 1.0f;
+  light.casts_shadows = true;
+  return ldk_renderer_submit_light(renderer, &light);
+}
+
+static void s_test_renderer_instancing_cleanup(
+    LDKRenderer *renderer, LDKRHIContext *rhi)
+{
+  ldk_renderer_terminate(renderer);
+  ldk_rhi_terminate(rhi);
+}
+
+static int test_renderer_instancing_batches_color_and_shadow(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  LDKRendererFrameDesc frame = {0};
+
+  backend.next_resource = 1000;
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, true));
+
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  frame.clear_color = 0x000000ffu;
+  frame.clear_color_enabled = true;
+  ldk_renderer_render_frame(&renderer, &frame);
+
+  LDKRendererFrameStats stats = ldk_renderer_last_frame_stats_get(&renderer);
+  ASSERT_EQ(backend.draw_indexed_instanced_count, 2u);
+  ASSERT_EQ(backend.draw_indexed_count, 0u);
+  ASSERT_EQ(stats.game.shadow_draw_call_count, 1u);
+  ASSERT_EQ(stats.game.opaque_mesh_draw_call_count, 1u);
+  ASSERT_EQ(stats.game.instanced_batch_count, 1u);
+  ASSERT_EQ(stats.game.instanced_instance_count, 2u);
+
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_instancing_falls_back_without_backend_support(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  LDKRendererFrameDesc frame = {0};
+
+  backend.next_resource = 1000;
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, false));
+
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  frame.clear_color = 0x000000ffu;
+  frame.clear_color_enabled = true;
+  ldk_renderer_render_frame(&renderer, &frame);
+
+  LDKRendererFrameStats stats = ldk_renderer_last_frame_stats_get(&renderer);
+  ASSERT_EQ(backend.draw_indexed_instanced_count, 0u);
+  ASSERT_EQ(backend.draw_indexed_count, 4u);
+  ASSERT_EQ(stats.game.shadow_draw_call_count, 2u);
+  ASSERT_EQ(stats.game.opaque_mesh_draw_call_count, 2u);
+  ASSERT_EQ(stats.game.instanced_batch_count, 0u);
+  ASSERT_EQ(stats.game.instanced_instance_count, 0u);
+
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
 static int test_missing_image_checker(void)
 {
   LDKAssetManager assets = {0};
@@ -655,6 +926,8 @@ int main(void)
       X_TEST(test_renderer_material_rejects_invalid_input),
       X_TEST(test_mesh_source_authored_material),
       X_TEST(test_shared_image_cache),
+      X_TEST(test_renderer_instancing_batches_color_and_shadow),
+      X_TEST(test_renderer_instancing_falls_back_without_backend_support),
       X_TEST(test_missing_image_checker),
   };
 

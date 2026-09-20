@@ -24,6 +24,8 @@ typedef struct TestRHIBackend
   int set_scissor_count;
   int draw_count;
   int draw_indexed_count;
+  int draw_indexed_instanced_count;
+  LDKRHIDrawIndexedInstancedDesc last_draw_indexed_instanced;
   int destroy_buffer_count;
   int pipeline_destroy_count;
   int bindings_destroy_count;
@@ -120,6 +122,14 @@ static void test_backend_draw_indexed(void* user_data, const LDKRHIDrawIndexedDe
   backend->draw_indexed_count++;
 }
 
+static void test_backend_draw_indexed_instanced(
+    void* user_data, const LDKRHIDrawIndexedInstancedDesc* desc)
+{
+  TestRHIBackend* backend = (TestRHIBackend*)user_data;
+  backend->draw_indexed_instanced_count++;
+  backend->last_draw_indexed_instanced = *desc;
+}
+
 static void test_backend_destroy_buffer(void* user_data, LDKRHIBuffer buffer)
 {
   TestRHIBackend* backend = (TestRHIBackend*)user_data;
@@ -161,6 +171,7 @@ static LDKRHIFunctions test_rhi_functions(void)
   functions.scissor_set = test_backend_set_scissor;
   functions.draw = test_backend_draw;
   functions.draw_indexed = test_backend_draw_indexed;
+  functions.draw_indexed_instanced = test_backend_draw_indexed_instanced;
 
   return functions;
 }
@@ -399,6 +410,69 @@ int test_rhi_pipeline_switch_invalidates_bindings(void)
   return 0;
 }
 
+int test_rhi_draw_indexed_instanced_calls_backend_when_state_is_complete(void)
+{
+  TestRHIBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  bool initialized = test_rhi_init(&rhi, &backend);
+  LDKRHIPassDesc pass = test_rhi_pass_desc();
+  LDKRHIDrawIndexedInstancedDesc draw = {0};
+
+  ASSERT_TRUE(initialized);
+
+  draw.index_count = 36;
+  draw.instance_count = 17;
+  draw.first_index = 4;
+  draw.vertex_offset = -2;
+  draw.first_instance = 0;
+
+  ldk_rhi_frame_begin(&rhi);
+  ldk_rhi_pass_begin(&rhi, &pass);
+  test_rhi_bind_complete_indexed_state(&rhi);
+  ldk_rhi_draw_indexed_instanced(&rhi, &draw);
+
+  ASSERT_TRUE(backend.draw_indexed_instanced_count == 1);
+  ASSERT_TRUE(backend.last_draw_indexed_instanced.index_count == 36);
+  ASSERT_TRUE(backend.last_draw_indexed_instanced.instance_count == 17);
+  ASSERT_TRUE(backend.last_draw_indexed_instanced.first_index == 4);
+  ASSERT_TRUE(backend.last_draw_indexed_instanced.vertex_offset == -2);
+  ASSERT_TRUE(backend.last_draw_indexed_instanced.first_instance == 0);
+
+  ldk_rhi_pass_end(&rhi);
+  ldk_rhi_frame_end(&rhi);
+  ldk_rhi_terminate(&rhi);
+
+  return 0;
+}
+
+int test_rhi_draw_indexed_instanced_requires_backend_support(void)
+{
+  TestRHIBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  bool initialized = test_rhi_init(&rhi, &backend);
+  LDKRHIPassDesc pass = test_rhi_pass_desc();
+  LDKRHIDrawIndexedInstancedDesc draw = {0};
+
+  ASSERT_TRUE(initialized);
+
+  rhi.functions.draw_indexed_instanced = NULL;
+  draw.index_count = 3;
+  draw.instance_count = 2;
+
+  ldk_rhi_frame_begin(&rhi);
+  ldk_rhi_pass_begin(&rhi, &pass);
+  test_rhi_bind_complete_indexed_state(&rhi);
+  ldk_rhi_draw_indexed_instanced(&rhi, &draw);
+
+  ASSERT_TRUE(backend.draw_indexed_instanced_count == 0);
+
+  ldk_rhi_pass_end(&rhi);
+  ldk_rhi_frame_end(&rhi);
+  ldk_rhi_terminate(&rhi);
+
+  return 0;
+}
+
 int test_rhi_viewport_and_scissor_require_active_pass(void)
 {
   TestRHIBackend backend = {0};
@@ -559,6 +633,8 @@ int main(void)
     X_TEST(test_rhi_draw_indexed_requires_bindings),
     X_TEST(test_rhi_draw_indexed_requires_index_buffer),
     X_TEST(test_rhi_draw_indexed_calls_backend_when_state_is_complete),
+    X_TEST(test_rhi_draw_indexed_instanced_calls_backend_when_state_is_complete),
+    X_TEST(test_rhi_draw_indexed_instanced_requires_backend_support),
     X_TEST(test_rhi_pipeline_switch_invalidates_bindings),
     X_TEST(test_rhi_viewport_and_scissor_require_active_pass),
     X_TEST(test_rhi_destroy_buffer_is_deferred),
