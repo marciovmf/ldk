@@ -2,8 +2,8 @@ material:
   material_type: 2
   material_color: 0xffffffff
   material_texture: "assets\\textures\\container2.png"
-  material_specular: 1
-  material_shininess: 34.2370377
-  material_emission: 0.105726875
+  material_specular: 0
+  material_shininess: 32
+  material_emission: 0
   material_normal_map: "assets\\textures\\container2_normal.png"
   material_specular_map: "assets\\textures\\container2_specular.png"

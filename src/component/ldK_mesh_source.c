@@ -25,6 +25,8 @@ static void s_material_binding_defaults(LDKMeshSourceMaterialBinding* binding)
   binding->material_asset = ldk_asset_material_null();
   binding->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
   binding->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+  binding->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+  binding->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
   binding->material_dirty = true;
 }
 
@@ -40,8 +42,14 @@ static void s_material_binding_release(
       mesh_source->renderer, binding->renderer_material);
   ldk_renderer_image_release(
       mesh_source->renderer, binding->renderer_texture);
+  ldk_renderer_image_release(
+      mesh_source->renderer, binding->renderer_normal_map);
+  ldk_renderer_image_release(
+      mesh_source->renderer, binding->renderer_specular_map);
   binding->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
   binding->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+  binding->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+  binding->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
 }
 
 static bool s_mesh_source_material_count_set(
@@ -65,6 +73,8 @@ static bool s_mesh_source_material_count_set(
     mesh_source->material_revision = 0;
     mesh_source->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
     mesh_source->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
     mesh_source->material_dirty = true;
   }
 
@@ -127,6 +137,8 @@ static LDKMeshSource s_mesh_source_make_default(void)
   mesh_source.renderer_mesh = LDK_RESOURCE_MESH_INVALID;
   mesh_source.renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
   mesh_source.renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+  mesh_source.renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+  mesh_source.renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
   mesh_source.dirty = true;
   mesh_source.material_dirty = true;
   mesh_source.material_count = 1;
@@ -198,6 +210,8 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry,
     mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
     mesh_source->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
     mesh_source->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
     mesh_source->renderer = NULL;
     mesh_source->dirty = true;
     mesh_source->material_dirty = true;
@@ -215,6 +229,8 @@ static bool s_mesh_source_attach(LDKEntityRegistry* entity_registry,
       }
       binding->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
       binding->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+      binding->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+      binding->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
       binding->material_dirty = true;
     }
   }
@@ -246,6 +262,10 @@ static void s_mesh_source_destroy(LDKEntityRegistry* entity_registry,
         mesh_source->renderer, mesh_source->renderer_material);
     ldk_renderer_image_release(
         mesh_source->renderer, mesh_source->renderer_texture);
+    ldk_renderer_image_release(
+        mesh_source->renderer, mesh_source->renderer_normal_map);
+    ldk_renderer_image_release(
+        mesh_source->renderer, mesh_source->renderer_specular_map);
 
     for (u32 i = 1; i < mesh_source->material_count; i++)
     {
@@ -256,6 +276,8 @@ static void s_mesh_source_destroy(LDKEntityRegistry* entity_registry,
     ldk_renderer_mesh_destroy(
         mesh_source->renderer, mesh_source->renderer_mesh);
     mesh_source->renderer_texture = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_normal_map = LDK_RESOURCE_TEXTURE_INVALID;
+    mesh_source->renderer_specular_map = LDK_RESOURCE_TEXTURE_INVALID;
     mesh_source->renderer_material = LDK_RESOURCE_MATERIAL_INVALID;
     mesh_source->renderer_mesh = LDK_RESOURCE_MESH_INVALID;
     mesh_source->renderer = NULL;

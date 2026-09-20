@@ -27,13 +27,13 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 2.89909983, 8.70108032, 4.96322060
+            local_position: 3.57415438, 4.12941837, 1.39284277
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967291 # LDKPointLight
           fields:
             color: 4294967295
-            intensity: 6.00000000
+            intensity: 2.00000000
             range: 5.00000000
             enabled: true
     - entity: 2
@@ -80,7 +80,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 3.66859961, 4.88469362
+            local_position: 1.22452831, 3.66859961, 4.88469362
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.287026793, -0.140249610, 0.642631531, -0.696398199
         - type: 4294967289 # LDKDirectionalLight
@@ -136,7 +136,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange_small"
+            material_asset: "assets\\materials\\castle_checkers.tml"
     - entity: 8
       parent: -1
       flags: 4
@@ -249,6 +249,22 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
+    - entity: 14
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 4.59683084, 4.19050884, -0.196831465
+            local_scale: 1.51041675, 1.51041675, 1.51041675
+            local_rotation: 0.00000000, 0.143575892, 0.00000000, 0.989639342
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\materials\\container.tml"
   systems:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"

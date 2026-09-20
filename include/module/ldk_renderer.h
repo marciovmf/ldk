@@ -57,6 +57,8 @@ extern "C" {
     u32 vertex_count;
     const u32* indices;
     u32 index_count;
+    /* True when vertex tangent fields contain authored/initialized data. */
+    bool has_tangents;
   } LDKRendererMeshDesc;
 
   typedef struct LDKRendererMeshResource
@@ -157,6 +159,17 @@ extern "C" {
     LDKRHIBindings bindings;
   } LDKRendererBindingsCacheEntry;
 
+  typedef struct LDKRendererMeshBindingsCacheEntry
+  {
+    LDKRHITexture albedo_texture;
+    LDKRHISampler albedo_sampler;
+    LDKRHITexture normal_texture;
+    LDKRHISampler normal_sampler;
+    LDKRHITexture specular_texture;
+    LDKRHISampler specular_sampler;
+    LDKRHIBindings bindings;
+  } LDKRendererMeshBindingsCacheEntry;
+
   typedef struct LDKRendererUIPass
   {
     LDKRHIContext* rhi;
@@ -215,10 +228,14 @@ extern "C" {
     // Borrowed from the renderer-owned shadow pass.
     LDKRHITexture shadow_texture;
     LDKRHISampler shadow_sampler;
+    // Renderer-owned neutral resources for optional lit material maps.
+    LDKRHITexture flat_normal_texture;
+    LDKRHITexture white_specular_texture;
+    LDKRHISampler fallback_sampler;
     LDKRHIBindings bindings;
-    LDKRendererBindingsCacheEntry* textured_bindings_cache;
-    u32 textured_bindings_cache_count;
-    u32 textured_bindings_cache_capacity;
+    LDKRendererMeshBindingsCacheEntry *material_bindings_cache;
+    u32 material_bindings_cache_count;
+    u32 material_bindings_cache_capacity;
     bool is_initialized;
   } LDKRendererMeshPass;
 
@@ -327,6 +344,9 @@ extern "C" {
   {
     LDKMaterialType type;
     LDKResourceTexture texture;
+    /* Optional borrowed resources for lit materials. */
+    LDKResourceTexture normal_map;
+    LDKResourceTexture specular_map;
     rgba32 color;
     float specular;
     float shininess;
@@ -782,26 +802,32 @@ extern "C" {
    *
    * Textured materials acquire a shared renderer texture from the supplied
    * asset manager. If the authored image is unavailable, the renderer uses
-   * the shared missing-image fallback. Existing output resources are replaced
-   * only after the new material has been created successfully.
+   * the shared missing-image fallback. Lit normal/specular maps are acquired
+   * when available; missing maps resolve to renderer-owned neutral fallbacks.
+   * Existing output resources are replaced only after the new material has
+   * been created successfully.
    *
-   * The caller owns the returned material resource and one acquisition of the
-   * returned texture. A later successful resolve replaces both resources. The
-   * caller must destroy/release remaining resources when its owner terminates.
+   * The caller owns the returned material resource and one acquisition of each
+   * non-null returned image texture. A later successful resolve replaces those
+   * resources. The caller must destroy/release remaining resources when its
+   * owner terminates.
    *
    * @param renderer Renderer that owns the runtime resources.
    * @param assets Asset manager used to resolve authored image assets. Required
-   * for textured materials.
+   * for textured materials and for lit materials that reference maps.
    * @param material_desc Authored material description.
    * @param renderer_material In/out renderer material resource.
-   * @param renderer_texture In/out acquired renderer texture resource.
+   * @param renderer_texture In/out acquired albedo texture resource.
+   * @param renderer_normal_map In/out acquired normal-map texture resource.
+   * @param renderer_specular_map In/out acquired specular-map texture resource.
    * @return true when the material was resolved successfully.
    */
-  LDK_API bool ldk_renderer_material_resolve(
-      LDKRenderer* renderer, struct LDKAssetManager* assets,
-      LDKMaterialDesc const* material_desc,
-      LDKResourceMaterial* renderer_material,
-      LDKResourceTexture* renderer_texture);
+  LDK_API bool ldk_renderer_material_resolve(LDKRenderer *renderer,
+      struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
+      LDKResourceMaterial *renderer_material,
+      LDKResourceTexture *renderer_texture,
+      LDKResourceTexture *renderer_normal_map,
+      LDKResourceTexture *renderer_specular_map);
 
   /**
    * @brief Check whether a material handle refers to a live renderer material.
@@ -817,10 +843,12 @@ extern "C" {
    * @brief Create a renderer-owned material resource.
    *
    * Textured materials require a live renderer texture. The referenced texture
-   * must remain alive until the material is destroyed. Vertex-color materials
-   * ignore desc->texture and store a canonical null texture handle. Lit material
-   * surface values must be finite and non-negative. A zero shininess uses the
-   * default value (32).
+   * must remain alive until the material is destroyed. Lit normal/specular maps
+   * are optional borrowed texture resources and must also remain alive while
+   * the material exists; null map handles use renderer-owned neutral fallbacks.
+   * Vertex-color materials ignore desc->texture. Unlit materials ignore map
+   * handles. Lit surface values must be finite and non-negative. A zero
+   * shininess uses the default value (32).
    *
    * @param renderer Renderer that will own the material resource.
    * @param desc Resolved renderer material description.

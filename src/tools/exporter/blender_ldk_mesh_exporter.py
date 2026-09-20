@@ -1,10 +1,10 @@
 bl_info = {
     "name": "LDK Mesh Exporter",
     "author": "Marcio VMF",
-    "version": (4, 0, 0),
+    "version": (4, 1, 0),
     "blender": (3, 0, 0),
     "location": "File > Export > LDK mesh (.mesh)",
-    "description": "Export Blender object hierarchy to the LDK STATIC mesh format",
+    "description": "Export Blender object hierarchy to the LDK mesh format",
     "category": "Import-Export",
 }
 
@@ -14,8 +14,8 @@ from bpy_extras.io_utils import axis_conversion
 from mathutils import Matrix
 
 
-LDK_MESH_VERSION = "4.0"
-LDK_VERTEX_FORMAT = "STATIC"
+LDK_MESH_VERSION = "4.1"
+LDK_VERTEX_FORMAT = "STATIC_TANGENT"
 LDK_DEFAULT_VERTEX_COLOR = 0xFFFFFFFF
 LDK_INDEXES_PER_LINE = 48
 LDK_TRANSFORM_EPSILON = 1.0e-5
@@ -100,7 +100,7 @@ def _loop_uv(mesh, loop_index):
     return (float(uv.x), float(uv.y))
 
 
-def _vertex_key(position, normal, uv, color):
+def _vertex_key(position, normal, uv, color, tangent):
     return (
         float(position.x),
         float(position.y),
@@ -111,6 +111,10 @@ def _vertex_key(position, normal, uv, color):
         float(uv[0]),
         float(uv[1]),
         int(color),
+        float(tangent[0]),
+        float(tangent[1]),
+        float(tangent[2]),
+        float(tangent[3]),
     )
 
 
@@ -138,8 +142,18 @@ def _collect_object_mesh(obj, depsgraph, geometry_matrix):
         if calc_normals_split is not None:
             calc_normals_split()
 
-        normal_matrix = geometry_matrix.to_3x3().inverted_safe().transposed()
-        mirrored = geometry_matrix.to_3x3().determinant() < 0.0
+        tangents_available = False
+        uv_layer = mesh.uv_layers.active
+        if uv_layer is not None:
+            try:
+                mesh.calc_tangents(uvmap=uv_layer.name)
+                tangents_available = True
+            except RuntimeError:
+                tangents_available = False
+
+        geometry_basis = geometry_matrix.to_3x3()
+        normal_matrix = geometry_basis.inverted_safe().transposed()
+        mirrored = geometry_basis.determinant() < 0.0
         color_attribute = _active_color_attribute(mesh)
 
         source_material_indices = sorted({
@@ -191,9 +205,25 @@ def _collect_object_mesh(obj, depsgraph, geometry_matrix):
                         normal.normalize()
 
                     uv = _loop_uv(mesh, loop_index)
+                    tangent = (0.0, 0.0, 0.0, 0.0)
+                    if tangents_available:
+                        source_tangent = loop.tangent.copy()
+                        transformed_tangent = geometry_basis @ source_tangent
+                        if transformed_tangent.length_squared > 0.0:
+                            transformed_tangent.normalize()
+                            handedness = float(loop.bitangent_sign)
+                            if mirrored:
+                                handedness = -handedness
+                            tangent = (
+                                float(transformed_tangent.x),
+                                float(transformed_tangent.y),
+                                float(transformed_tangent.z),
+                                handedness,
+                            )
+
                     color = _loop_color(
                         mesh, color_attribute, loop_index, loop.vertex_index)
-                    key = _vertex_key(position, normal, uv, color)
+                    key = _vertex_key(position, normal, uv, color, tangent)
 
                     vertex_index = vertex_lookup.get(key)
                     if vertex_index is None:
@@ -353,7 +383,8 @@ def _collect_asset(context, global_scale):
 def _write_mesh(path, meshes, nodes):
     lines = [
         "# LDK mesh file",
-        "# STATIC vertex: position.xyz normal.xyz uv.xy color(RRGGBBAA)",
+        "# STATIC_TANGENT vertex: position.xyz normal.xyz uv.xy "
+        "color(RRGGBBAA) tangent.xyz handedness",
         f"version {LDK_MESH_VERSION}",
         f"vertex_format {LDK_VERTEX_FORMAT}",
         f"mesh_count {len(meshes)}",
@@ -378,12 +409,14 @@ def _write_mesh(path, meshes, nodes):
 
         lines.append("")
         for vertex in vertices:
-            px, py, pz, nx, ny, nz, u, v, color = vertex
+            px, py, pz, nx, ny, nz, u, v, color, tx, ty, tz, tw = vertex
             lines.append(
                 "vertex "
                 f"{_float_text(px)} {_float_text(py)} {_float_text(pz)} "
                 f"{_float_text(nx)} {_float_text(ny)} {_float_text(nz)} "
-                f"{_float_text(u)} {_float_text(v)} 0x{color:08X}"
+                f"{_float_text(u)} {_float_text(v)} 0x{color:08X} "
+                f"{_float_text(tx)} {_float_text(ty)} {_float_text(tz)} "
+                f"{_float_text(tw)}"
             )
 
         lines.append("")

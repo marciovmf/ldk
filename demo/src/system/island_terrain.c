@@ -55,6 +55,8 @@ typedef struct IslandTerrainRuntime
   u64 material_revision;
   LDKResourceMaterial renderer_material;
   LDKResourceTexture renderer_texture;
+  LDKResourceTexture renderer_normal_map;
+  LDKResourceTexture renderer_specular_map;
 } IslandTerrainRuntime;
 
 static IslandTerrainMap s_map;
@@ -522,10 +524,14 @@ static void s_island_terrain_material_release(LDKRenderer *renderer)
 
   ldk_renderer_material_destroy(renderer, s_runtime.renderer_material);
   ldk_renderer_image_release(renderer, s_runtime.renderer_texture);
+  ldk_renderer_image_release(renderer, s_runtime.renderer_normal_map);
+  ldk_renderer_image_release(renderer, s_runtime.renderer_specular_map);
   s_runtime.material_asset = ldk_asset_material_null();
   s_runtime.material_revision = 0u;
   s_runtime.renderer_material = ldk_renderer_material_null();
   s_runtime.renderer_texture = ldk_renderer_texture_null();
+  s_runtime.renderer_normal_map = ldk_renderer_texture_null();
+  s_runtime.renderer_specular_map = ldk_renderer_texture_null();
 }
 
 static bool s_island_terrain_material_get(IslandTerrain *system,
@@ -559,7 +565,8 @@ static bool s_island_terrain_material_get(IslandTerrain *system,
   if (needs_resolve)
   {
     if (!ldk_renderer_material_resolve(renderer, assets, &data->descriptor,
-            &s_runtime.renderer_material, &s_runtime.renderer_texture))
+            &s_runtime.renderer_material, &s_runtime.renderer_texture,
+            &s_runtime.renderer_normal_map, &s_runtime.renderer_specular_map))
     {
       return false;
     }
@@ -689,6 +696,8 @@ int island_terrain_system_initialize(void *data)
   s_runtime.material_asset = ldk_asset_material_null();
   s_runtime.renderer_material = ldk_renderer_material_null();
   s_runtime.renderer_texture = ldk_renderer_texture_null();
+  s_runtime.renderer_normal_map = ldk_renderer_texture_null();
+  s_runtime.renderer_specular_map = ldk_renderer_texture_null();
 
   system->center_x = INT32_MIN;
   system->center_y = INT32_MIN;

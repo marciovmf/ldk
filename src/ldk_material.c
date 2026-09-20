@@ -71,6 +71,8 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   out_desc->surface.specular = 0.0f;
   out_desc->surface.shininess = 32.0f;
   out_desc->surface.emission = 0.0f;
+  out_desc->surface.normal_map.h = x_handle_null();
+  out_desc->surface.specular_map.h = x_handle_null();
 
   if (type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       type == LDK_MATERIAL_TYPE_TEXTURED)
@@ -132,7 +134,11 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
   return a->surface.specular == b->surface.specular &&
          s_material_shininess(a->surface.shininess) ==
              s_material_shininess(b->surface.shininess) &&
-         a->surface.emission == b->surface.emission;
+         a->surface.emission == b->surface.emission &&
+         s_material_asset_image_equal(
+             a->surface.normal_map, b->surface.normal_map) &&
+         s_material_asset_image_equal(
+             a->surface.specular_map, b->surface.specular_map);
 }
 
 u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
@@ -163,6 +169,10 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
     hash = s_material_hash_float(
         hash, s_material_shininess(desc->surface.shininess));
     hash = s_material_hash_float(hash, desc->surface.emission);
+    hash = s_material_hash_u32(hash, desc->surface.normal_map.h.index);
+    hash = s_material_hash_u32(hash, desc->surface.normal_map.h.version);
+    hash = s_material_hash_u32(hash, desc->surface.specular_map.h.index);
+    hash = s_material_hash_u32(hash, desc->surface.specular_map.h.version);
   }
 
   return hash;

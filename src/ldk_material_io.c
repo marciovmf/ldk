@@ -157,6 +157,18 @@ static void s_report_missing_image(
     context->diagnostic(message, context->user);
 }
 
+static void s_report_missing_surface_map(
+    const LDKMaterialIOContext *context, const char *label, const char *path)
+{
+  char message[512];
+  snprintf(message, sizeof(message),
+      "Material %s '%s' is unavailable; using neutral fallback.",
+      label ? label : "map", path ? path : "<unassigned>");
+  ldk_log_error("%s\n", message);
+  if (context->diagnostic)
+    context->diagnostic(message, context->user);
+}
+
 /* Material image paths are relative to the configured project runtree. */
 static bool s_material_image_path(const LDKMaterialIOContext *context,
     const char *path, XFSPath *absolute,
@@ -181,6 +193,102 @@ static bool s_material_image_path(const LDKMaterialIOContext *context,
   x_fs_path_normalize(absolute);
   return x_fs_path_common_prefix(root.buf, absolute->buf, relative) &&
       relative->length && strcmp(relative->buf, ".") != 0;
+}
+
+static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
+    const TMLDocument *doc, const TMLNode *fields, const char *field_name,
+    const char *label, LDKAssetImage *out_image, LDKMaterialIOResult *result)
+{
+  const TMLEntry *entry = tml_node_find_entry(doc, fields, field_name);
+  TMLString image_path;
+  XFSPath path = {0};
+  XFSPath absolute = {0};
+  XFSPath relative = {0};
+
+  if (!entry)
+  {
+    return true;
+  }
+  if (!context->assets)
+  {
+    s_result_error(result, "material map read requires an asset manager");
+    return false;
+  }
+  if (!tml_node_get_string(doc, fields, field_name, &image_path) ||
+      image_path.size >= sizeof(path.buf) ||
+      memchr(image_path.data, 0, image_path.size))
+  {
+    s_result_error(result, "invalid material map path");
+    return false;
+  }
+
+  memcpy(path.buf, image_path.data, image_path.size);
+  if (!path.buf[0])
+  {
+    out_image->h = x_handle_null();
+    return true;
+  }
+  if (x_fs_path_is_absolute_cstr(path.buf) ||
+      !s_material_image_path(context, path.buf, &absolute, &relative))
+  {
+    s_result_error(result, "material map must be inside the runtree");
+    return false;
+  }
+
+  *out_image =
+      ldk_asset_manager_image_load_shared(context->assets, absolute.buf);
+  if (x_handle_is_null(out_image->h))
+  {
+    *out_image = ldk_asset_manager_image_missing(context->assets, absolute.buf);
+    if (x_handle_is_null(out_image->h))
+    {
+      s_result_error(result, "failed to allocate missing material map");
+      return false;
+    }
+  }
+
+  const LDKAssetImageData *image =
+      ldk_asset_manager_image_get_const(context->assets, *out_image);
+  if (image && image->is_missing)
+  {
+    s_report_missing_surface_map(context, label, absolute.buf);
+  }
+  return true;
+}
+
+static bool s_material_surface_map_write(const LDKMaterialIOContext *context,
+    LDKAssetImage image, const char *field_name, XStrBuilder *out, u32 indent,
+    LDKMaterialIOResult *result)
+{
+  XFSPath absolute = {0};
+  XFSPath relative = {0};
+
+  if (x_handle_is_null(image.h))
+  {
+    return true;
+  }
+  if (!context->assets)
+  {
+    s_result_error(result, "material map write requires an asset manager");
+    return false;
+  }
+
+  LDKAssetHandle handle = {image.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(context->assets, handle);
+  if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
+      !s_material_image_path(
+          context, info->asset_path.buf, &absolute, &relative))
+  {
+    s_result_error(
+        result, "material map needs a file inside the project runtree to save");
+    return false;
+  }
+
+  s_append_indent(out, indent);
+  x_strbuilder_append_format(out, "%s: ", field_name);
+  s_append_escaped_string(out, relative.buf);
+  x_strbuilder_append_char(out, '\n');
+  return true;
 }
 
 bool ldk_material_desc_read(const LDKMaterialIOContext *context,
@@ -275,6 +383,15 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       s_result_error(result, "invalid material surface value");
       return false;
     }
+    if (!s_material_surface_map_read(context, doc, fields,
+            "material_normal_map", "normal map", &desc.surface.normal_map,
+            result) ||
+        !s_material_surface_map_read(context, doc, fields,
+            "material_specular_map", "specular map", &desc.surface.specular_map,
+            result))
+    {
+      return false;
+    }
   }
 
   if (lit && desc.surface.shininess == 0.0f)
@@ -353,6 +470,13 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     s_append_indent(out, indent);
     x_strbuilder_append_format(out, "material_emission: %.9g\n",
         (double)desc->surface.emission);
+    if (!s_material_surface_map_write(context, desc->surface.normal_map,
+            "material_normal_map", out, indent, result) ||
+        !s_material_surface_map_write(context, desc->surface.specular_map,
+            "material_specular_map", out, indent, result))
+    {
+      return false;
+    }
   }
   return true;
 }

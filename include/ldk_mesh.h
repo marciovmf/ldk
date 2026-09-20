@@ -23,6 +23,8 @@ extern "C" {
     Vec3 normal;
     Vec2 uv;
     u32 color;
+    /* Tangent xyz plus handedness in w. w == 0 means unavailable. */
+    Vec4 tangent;
   } LDKMeshVertex;
 
   typedef struct LDKMeshData
@@ -31,6 +33,8 @@ extern "C" {
     u32 vertex_count;
     u32* indices;
     u32 index_count;
+    /* True when tangent storage was authored/initialized for this mesh. */
+    bool has_tangents;
   } LDKMeshData;
 
   typedef struct LDKMeshSubmesh

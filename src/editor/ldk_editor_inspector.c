@@ -1922,6 +1922,115 @@ static bool s_editor_material_asset_equal(
   return a.h.index == b.h.index && a.h.version == b.h.version;
 }
 
+static bool s_editor_material_image_editor(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, LDKAssetImage *image,
+    bool readonly, bool optional, const LDKMaterialIOContext *context)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle asset;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display_path[sizeof(path.buf)];
+  bool assign = false;
+  bool clear = false;
+
+  if (!editor || !label || !dialog_title || !image || !context ||
+      !context->assets)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = context->assets;
+  asset.h = image->h;
+  info = !x_handle_is_null(image->h) ? ldk_asset_get_info_const(assets, asset)
+                                     : NULL;
+  snprintf(display_path, sizeof(display_path), "%s",
+      info
+          ? (info->asset_path.length ? info->asset_path.buf : "Generated image")
+          : "");
+
+  ldk_ui_push_id_cstr(ui, label);
+  s_editor_material_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display_path, sizeof(display_path));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign =
+          ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
+          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
+        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path.buf,
+        sizeof(path.buf));
+  }
+  ldk_ui_end_disabled(ui);
+
+  if (optional)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(image->h));
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
+  }
+
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+
+  if (clear)
+  {
+    image->h = x_handle_null();
+    return true;
+  }
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  XFSPath normalized = {0};
+  if (!s_editor_inspector_asset_path_validate(editor, &path, dialog_title,
+          "Choose an image inside the project's runtree folder.", &normalized))
+  {
+    return false;
+  }
+
+  LDKAssetImage selected =
+      ldk_asset_manager_image_load_shared(assets, normalized.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldk_os_dialog_show_error(editor->window, dialog_title,
+        "The selected image could not be loaded.");
+    return false;
+  }
+
+  if (selected.h.index == image->h.index &&
+      selected.h.version == image->h.version)
+  {
+    return false;
+  }
+
+  *image = selected;
+  return true;
+}
+
 static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     LDKMaterialDesc *desc, bool readonly,
     const LDKMaterialIOContext *context)
@@ -2030,75 +2139,26 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     ldk_ui_end_horizontal(ui);
   }
 
-  if (textured)
+  if (textured &&
+      s_editor_material_image_editor(editor, "Texture", "Choose material image",
+          &desc->args.textured.texture, readonly, false, context))
   {
-    LDKAssetManager *assets = context->assets;
-    LDKAssetHandle asset = {desc->args.textured.texture.h};
-    const LDKAssetInfo *info = ldk_asset_get_info_const(assets, asset);
-    XFSPath path = {0};
-    char display_path[sizeof(path.buf)];
-    bool assign = false;
+    changed = true;
+  }
 
-    snprintf(display_path, sizeof(display_path), "%s",
-        info ? (info->asset_path.length ? info->asset_path.buf
-                                       : "Generated image") : "");
-    s_editor_material_row_begin(editor, "Texture");
-    ldk_ui_begin_disabled(ui, true);
-    ldk_ui_input_box(ui, display_path, sizeof(display_path));
-    LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-    ldk_ui_end_disabled(ui);
-
-    if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-        ui->hovered_window_id == ui->current_window->id &&
-        ldk_os_mouse_button_up(
-            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  if (lit)
+  {
+    if (s_editor_material_image_editor(editor, "Normal Map",
+            "Choose normal map", &desc->surface.normal_map, readonly, true,
+            context))
     {
-      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-      if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-          ldk_rectf_contains(
-              &ui->clip_rect, (float)cursor.x, (float)cursor.y))
-      {
-        u32 payload_type = 0;
-        assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                     &payload_type, &path) &&
-            payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
-      }
+      changed = true;
     }
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    ldk_ui_begin_disabled(ui, readonly);
-    if (ldk_ui_button(ui, "..."))
+    if (s_editor_material_image_editor(editor, "Specular Map",
+            "Choose specular map", &desc->surface.specular_map, readonly, true,
+            context))
     {
-      assign = ldk_os_dialog_show_open_file(editor->window,
-          "Choose material image",
-          "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0",
-          path.buf, sizeof(path.buf));
-    }
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
-
-    if (assign)
-    {
-      XFSPath normalized = {0};
-      if (s_editor_inspector_asset_path_validate(editor, &path,
-              "Material image",
-              "Choose an image inside the project's runtree folder.",
-              &normalized))
-      {
-        LDKAssetImage image =
-            ldk_asset_manager_image_load_shared(assets, normalized.buf);
-        if (x_handle_is_null(image.h))
-        {
-          ldk_os_dialog_show_error(editor->window, "Material image",
-              "The selected image could not be loaded.");
-        }
-        else if (image.h.index != desc->args.textured.texture.h.index ||
-                 image.h.version != desc->args.textured.texture.h.version)
-        {
-          desc->args.textured.texture = image;
-          changed = true;
-        }
-      }
+      changed = true;
     }
   }
 

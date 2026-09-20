@@ -14,12 +14,15 @@
 #include <time.h>
 
 static u32 s_diagnostics;
+static u32 s_neutral_diagnostics;
 static void s_diagnostic(const char *message, void *user)
 {
   (void)user;
   if (strstr(message, "magenta checkerboard") ||
       strstr(message, "unlit magenta checker material"))
     ++s_diagnostics;
+  if (strstr(message, "neutral fallback"))
+    ++s_neutral_diagnostics;
 }
 
 static int test_material_asset_lifecycle(void)
@@ -102,27 +105,51 @@ static int test_material_asset_lifecycle(void)
   ASSERT_EQ(data->revision, 1u);
   ASSERT_EQ(data->descriptor.args.vertex_color.color, 0x12345678u);
 
-  /* A missing texture's authored path survives save and reload. */
+  /* Missing texture/map authored paths survive save and reload. */
   XFSPath image_path = {0};
+  XFSPath normal_path = {0};
+  XFSPath specular_path = {0};
   char image_name[110];
+  char normal_name[110];
+  char specular_name[110];
   snprintf(image_name, sizeof(image_name), "%s.png", name);
+  snprintf(normal_name, sizeof(normal_name), "%s-normal.png", name);
+  snprintf(specular_name, sizeof(specular_name), "%s-specular.png", name);
   x_fs_path(&image_path, context.runtree_path.buf, image_name);
+  x_fs_path(&normal_path, context.runtree_path.buf, normal_name);
+  x_fs_path(&specular_path, context.runtree_path.buf, specular_name);
   ASSERT_FALSE(x_fs_path_exists(&image_path));
+  ASSERT_FALSE(x_fs_path_exists(&normal_path));
+  ASSERT_FALSE(x_fs_path_exists(&specular_path));
   ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &desc);
   desc.args.textured.texture =
       ldk_asset_manager_image_missing(&manager, image_path.buf);
+  desc.surface.normal_map =
+      ldk_asset_manager_image_missing(&manager, normal_path.buf);
+  desc.surface.specular_map =
+      ldk_asset_manager_image_missing(&manager, specular_path.buf);
   ASSERT_FALSE(x_handle_is_null(desc.args.textured.texture.h));
+  ASSERT_FALSE(x_handle_is_null(desc.surface.normal_map.h));
+  ASSERT_FALSE(x_handle_is_null(desc.surface.specular_map.h));
   ASSERT_TRUE(ldk_asset_manager_material_update(&manager, asset, &desc));
   ASSERT_TRUE(ldk_asset_manager_material_save(&context, asset, &result));
   ldk_asset_manager_clear(&manager);
   s_diagnostics = 0;
+  s_neutral_diagnostics = 0;
   asset = ldk_asset_manager_material_load_shared(&context, name, &result);
   data = ldk_asset_manager_material_get_const(&manager, asset);
   ASSERT_TRUE(data != NULL);
   ASSERT_EQ(s_diagnostics, 1u);
+  ASSERT_EQ(s_neutral_diagnostics, 2u);
   const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
       &manager, data->descriptor.args.textured.texture);
+  const LDKAssetImageData *normal = ldk_asset_manager_image_get_const(
+      &manager, data->descriptor.surface.normal_map);
+  const LDKAssetImageData *specular = ldk_asset_manager_image_get_const(
+      &manager, data->descriptor.surface.specular_map);
   ASSERT_TRUE(image != NULL && image->is_missing);
+  ASSERT_TRUE(normal != NULL && normal->is_missing);
+  ASSERT_TRUE(specular != NULL && specular->is_missing);
   ASSERT_TRUE(ldk_asset_manager_material_save(&context, asset, &result));
   ldk_asset_manager_terminate(&manager);
   ASSERT_EQ(remove(path.buf), 0);

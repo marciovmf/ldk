@@ -41,6 +41,8 @@ extern "C"
     float specular;  /* Phong specular strength. */
     float shininess; /* Phong exponent; zero selects the default (32). */
     float emission;  /* Adds albedo * emission independently of lights. */
+    LDKAssetImage normal_map;   /* Optional tangent-space normal map. */
+    LDKAssetImage specular_map; /* Optional R-channel specular multiplier. */
   } LDKMaterialSurfaceArgs;
 
   typedef struct LDKMaterialDesc
@@ -63,7 +65,8 @@ extern "C"
    * Every supported material type defaults to opaque white. Textured materials
    * also default to a null image asset, which can be populated by the caller.
    * Lit materials default to no specular contribution, shininess 32, no
-   * emission. On failure, out_desc is reset to an invalid zero descriptor.
+   * emission, and no normal/specular maps. On failure, out_desc is reset to
+   * an invalid zero descriptor.
    *
    * @param type Material type whose defaults should be produced.
    * @param out_desc Destination descriptor.

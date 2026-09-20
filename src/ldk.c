@@ -84,17 +84,19 @@ static LDKRendererViewId s_renderer_view_id_from_entity(LDKEntity entity)
 static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
     const LDKMaterialDesc *material_desc,
     LDKResourceMaterial *renderer_material,
-    LDKResourceTexture *renderer_texture, bool *material_dirty)
+    LDKResourceTexture *renderer_texture,
+    LDKResourceTexture *renderer_normal_map,
+    LDKResourceTexture *renderer_specular_map, bool *material_dirty)
 {
-  if (!engine || !material_desc || !renderer_material ||
-      !renderer_texture || !material_dirty)
+  if (!engine || !material_desc || !renderer_material || !renderer_texture ||
+      !renderer_normal_map || !renderer_specular_map || !material_dirty)
   {
     return false;
   }
 
-  if (!ldk_renderer_material_resolve(&engine->renderer,
-          &engine->asset_manager, material_desc, renderer_material,
-          renderer_texture))
+  if (!ldk_renderer_material_resolve(&engine->renderer, &engine->asset_manager,
+          material_desc, renderer_material, renderer_texture,
+          renderer_normal_map, renderer_specular_map))
   {
     return false;
   }
@@ -112,9 +114,10 @@ static bool s_mesh_source_material_resolve(
 
   if (material_slot == 0)
   {
-    return s_mesh_source_material_resolve_values(engine,
-        &mesh_source->material, &mesh_source->renderer_material,
-        &mesh_source->renderer_texture, &mesh_source->material_dirty);
+    return s_mesh_source_material_resolve_values(engine, &mesh_source->material,
+        &mesh_source->renderer_material, &mesh_source->renderer_texture,
+        &mesh_source->renderer_normal_map, &mesh_source->renderer_specular_map,
+        &mesh_source->material_dirty);
   }
 
   LDKMeshSourceMaterialBinding *binding =
@@ -127,6 +130,7 @@ static bool s_mesh_source_material_resolve(
 
   return s_mesh_source_material_resolve_values(engine, &binding->material,
       &binding->renderer_material, &binding->renderer_texture,
+      &binding->renderer_normal_map, &binding->renderer_specular_map,
       &binding->material_dirty);
 }
 
@@ -1510,6 +1514,7 @@ void ldk_engine_frame(void)
       mesh_desc.vertex_count = mesh_data->vertex_count;
       mesh_desc.indices = mesh_data->indices;
       mesh_desc.index_count = mesh_data->index_count;
+      mesh_desc.has_tangents = mesh_data->has_tangents;
 
       if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
       {
