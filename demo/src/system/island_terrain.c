@@ -52,13 +52,26 @@ typedef enum IslandBiome
 
 typedef enum IslandTerrainSurface
 {
+  /* Ordered from lowest to highest visual layer. */
   ISLAND_TERRAIN_SURFACE_DEEP_WATER,
   ISLAND_TERRAIN_SURFACE_SHALLOW_WATER,
   ISLAND_TERRAIN_SURFACE_SAND,
-  ISLAND_TERRAIN_SURFACE_GRASS,
   ISLAND_TERRAIN_SURFACE_GRASS_DARK,
-  ISLAND_TERRAIN_SURFACE_ROCK
+  ISLAND_TERRAIN_SURFACE_GRASS,
+  ISLAND_TERRAIN_SURFACE_ROCK,
+  ISLAND_TERRAIN_SURFACE_COUNT
 } IslandTerrainSurface;
+
+typedef enum IslandTerrainCutoutBit
+{
+  ISLAND_TERRAIN_CUTOUT_NORTH = 1u << 0,
+  ISLAND_TERRAIN_CUTOUT_EAST = 1u << 1,
+  ISLAND_TERRAIN_CUTOUT_SOUTH = 1u << 2,
+  ISLAND_TERRAIN_CUTOUT_WEST = 1u << 3
+} IslandTerrainCutoutBit;
+
+#define ISLAND_TERRAIN_CUTOUT_MASK_COUNT 16u
+#define ISLAND_TERRAIN_LAYER_ELEVATION_STEP 0.0005f
 
 typedef struct IslandMapCell
 {
@@ -802,31 +815,128 @@ static u32 s_island_terrain_surface_color(IslandTerrainSurface surface)
   }
 }
 
-static LDKEditorIcon s_island_terrain_atlas_icon(
-    IslandTerrainSurface surface)
+static const LDKEditorIcon s_island_terrain_atlas_icons
+    [ISLAND_TERRAIN_SURFACE_COUNT][ISLAND_TERRAIN_CUTOUT_MASK_COUNT] =
 {
-  switch (surface)
   {
-  case ISLAND_TERRAIN_SURFACE_DEEP_WATER:
-    return TFTF_ICON_DEEP_WATER;
-  case ISLAND_TERRAIN_SURFACE_SHALLOW_WATER:
-    return TFTF_ICON_SHALLOW_WATER;
-  case ISLAND_TERRAIN_SURFACE_SAND:
-    return TFTF_ICON_SAND;
-  case ISLAND_TERRAIN_SURFACE_GRASS_DARK:
-    return TFTF_ICON_GRASS_DARK;
-  case ISLAND_TERRAIN_SURFACE_ROCK:
-    return TFTF_ICON_ROCK;
-  case ISLAND_TERRAIN_SURFACE_GRASS:
-  default:
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+    TFTF_ICON_DEEP_WATER, TFTF_ICON_DEEP_WATER,
+  },
+  {
+    TFTF_ICON_SHALLOW_WATER,
+    TFTF_ICON_SHALLOW_WATER_CUT_N,
+    TFTF_ICON_SHALLOW_WATER_CUT_E,
+    TFTF_ICON_SHALLOW_WATER_CUT_NE,
+    TFTF_ICON_SHALLOW_WATER_CUT_S,
+    TFTF_ICON_SHALLOW_WATER_CUT_NS,
+    TFTF_ICON_SHALLOW_WATER_CUT_ES,
+    TFTF_ICON_SHALLOW_WATER_CUT_NES,
+    TFTF_ICON_SHALLOW_WATER_CUT_W,
+    TFTF_ICON_SHALLOW_WATER_CUT_NW,
+    TFTF_ICON_SHALLOW_WATER_CUT_EW,
+    TFTF_ICON_SHALLOW_WATER_CUT_NEW,
+    TFTF_ICON_SHALLOW_WATER_CUT_SW,
+    TFTF_ICON_SHALLOW_WATER_CUT_NSW,
+    TFTF_ICON_SHALLOW_WATER_CUT_ESW,
+    TFTF_ICON_SHALLOW_WATER_CUT_NESW,
+  },
+  {
+    TFTF_ICON_SAND,
+    TFTF_ICON_SAND_CUT_N,
+    TFTF_ICON_SAND_CUT_E,
+    TFTF_ICON_SAND_CUT_NE,
+    TFTF_ICON_SAND_CUT_S,
+    TFTF_ICON_SAND_CUT_NS,
+    TFTF_ICON_SAND_CUT_ES,
+    TFTF_ICON_SAND_CUT_NES,
+    TFTF_ICON_SAND_CUT_W,
+    TFTF_ICON_SAND_CUT_NW,
+    TFTF_ICON_SAND_CUT_EW,
+    TFTF_ICON_SAND_CUT_NEW,
+    TFTF_ICON_SAND_CUT_SW,
+    TFTF_ICON_SAND_CUT_NSW,
+    TFTF_ICON_SAND_CUT_ESW,
+    TFTF_ICON_SAND_CUT_NESW,
+  },
+  {
+    TFTF_ICON_GRASS_DARK,
+    TFTF_ICON_GRASS_DARK_CUT_N,
+    TFTF_ICON_GRASS_DARK_CUT_E,
+    TFTF_ICON_GRASS_DARK_CUT_NE,
+    TFTF_ICON_GRASS_DARK_CUT_S,
+    TFTF_ICON_GRASS_DARK_CUT_NS,
+    TFTF_ICON_GRASS_DARK_CUT_ES,
+    TFTF_ICON_GRASS_DARK_CUT_NES,
+    TFTF_ICON_GRASS_DARK_CUT_W,
+    TFTF_ICON_GRASS_DARK_CUT_NW,
+    TFTF_ICON_GRASS_DARK_CUT_EW,
+    TFTF_ICON_GRASS_DARK_CUT_NEW,
+    TFTF_ICON_GRASS_DARK_CUT_SW,
+    TFTF_ICON_GRASS_DARK_CUT_NSW,
+    TFTF_ICON_GRASS_DARK_CUT_ESW,
+    TFTF_ICON_GRASS_DARK_CUT_NESW,
+  },
+  {
+    TFTF_ICON_GRASS,
+    TFTF_ICON_GRASS_CUT_N,
+    TFTF_ICON_GRASS_CUT_E,
+    TFTF_ICON_GRASS_CUT_NE,
+    TFTF_ICON_GRASS_CUT_S,
+    TFTF_ICON_GRASS_CUT_NS,
+    TFTF_ICON_GRASS_CUT_ES,
+    TFTF_ICON_GRASS_CUT_NES,
+    TFTF_ICON_GRASS_CUT_W,
+    TFTF_ICON_GRASS_CUT_NW,
+    TFTF_ICON_GRASS_CUT_EW,
+    TFTF_ICON_GRASS_CUT_NEW,
+    TFTF_ICON_GRASS_CUT_SW,
+    TFTF_ICON_GRASS_CUT_NSW,
+    TFTF_ICON_GRASS_CUT_ESW,
+    TFTF_ICON_GRASS_CUT_NESW,
+  },
+  {
+    TFTF_ICON_ROCK,
+    TFTF_ICON_ROCK_CUT_N,
+    TFTF_ICON_ROCK_CUT_E,
+    TFTF_ICON_ROCK_CUT_NE,
+    TFTF_ICON_ROCK_CUT_S,
+    TFTF_ICON_ROCK_CUT_NS,
+    TFTF_ICON_ROCK_CUT_ES,
+    TFTF_ICON_ROCK_CUT_NES,
+    TFTF_ICON_ROCK_CUT_W,
+    TFTF_ICON_ROCK_CUT_NW,
+    TFTF_ICON_ROCK_CUT_EW,
+    TFTF_ICON_ROCK_CUT_NEW,
+    TFTF_ICON_ROCK_CUT_SW,
+    TFTF_ICON_ROCK_CUT_NSW,
+    TFTF_ICON_ROCK_CUT_ESW,
+    TFTF_ICON_ROCK_CUT_NESW,
+  },
+};
+
+static LDKEditorIcon s_island_terrain_atlas_icon(
+    IslandTerrainSurface surface, u32 cutout_mask)
+{
+  if ((u32)surface >= (u32)ISLAND_TERRAIN_SURFACE_COUNT ||
+      cutout_mask >= ISLAND_TERRAIN_CUTOUT_MASK_COUNT)
+  {
     return TFTF_ICON_GRASS;
   }
+
+  return s_island_terrain_atlas_icons[(u32)surface][cutout_mask];
 }
 
 static IslandTerrainUVRect s_island_terrain_atlas_uv(
-    IslandTerrainSurface surface)
+    IslandTerrainSurface surface, u32 cutout_mask)
 {
-  const LDKRectf rect = tftf_icon_rects[s_island_terrain_atlas_icon(surface)];
+  const LDKRectf rect =
+      tftf_icon_rects[s_island_terrain_atlas_icon(surface, cutout_mask)];
   const float half_texel_u = 0.5f / (float)TFTF_ICON_ATLAS_WIDTH;
   const float half_texel_v = 0.5f / (float)TFTF_ICON_ATLAS_HEIGHT;
   IslandTerrainUVRect uv;
@@ -836,6 +946,65 @@ static IslandTerrainUVRect s_island_terrain_atlas_uv(
   uv.u1 = rect.x + rect.w - half_texel_u;
   uv.v1 = rect.y + rect.h - half_texel_v;
   return uv;
+}
+
+static IslandTerrainSurface s_island_terrain_surface_at(i32 x, i32 y)
+{
+  if (!s_map.cells || x < 0 || y < 0 || x >= (i32)s_map.width ||
+      y >= (i32)s_map.height)
+  {
+    return ISLAND_TERRAIN_SURFACE_DEEP_WATER;
+  }
+
+  return s_island_map_cell_surface(
+      &s_map.cells[(u32)y * s_map.width + (u32)x]);
+}
+
+static u32 s_island_terrain_cutout_mask(
+    IslandTerrainSurface surface, i32 x, i32 y)
+{
+  u32 mask = 0u;
+
+  if (s_island_terrain_surface_at(x, y - 1) < surface)
+  {
+    mask |= ISLAND_TERRAIN_CUTOUT_NORTH;
+  }
+  if (s_island_terrain_surface_at(x + 1, y) < surface)
+  {
+    mask |= ISLAND_TERRAIN_CUTOUT_EAST;
+  }
+  if (s_island_terrain_surface_at(x, y + 1) < surface)
+  {
+    mask |= ISLAND_TERRAIN_CUTOUT_SOUTH;
+  }
+  if (s_island_terrain_surface_at(x - 1, y) < surface)
+  {
+    mask |= ISLAND_TERRAIN_CUTOUT_WEST;
+  }
+
+  return mask;
+}
+
+static u32 s_island_terrain_layers_at(i32 x, i32 y)
+{
+  const IslandTerrainSurface top = s_island_terrain_surface_at(x, y);
+  const IslandTerrainSurface neighbors[4] = {
+      s_island_terrain_surface_at(x, y - 1),
+      s_island_terrain_surface_at(x + 1, y),
+      s_island_terrain_surface_at(x, y + 1),
+      s_island_terrain_surface_at(x - 1, y),
+  };
+  u32 layers = 1u << (u32)top;
+
+  for (u32 i = 0u; i < ARRAY_COUNT(neighbors); ++i)
+  {
+    if (neighbors[i] < top)
+    {
+      layers |= 1u << (u32)neighbors[i];
+    }
+  }
+
+  return layers;
 }
 
 static IslandTerrainBounds s_island_terrain_bounds(
@@ -1280,12 +1449,60 @@ static bool s_island_terrain_material_get(IslandTerrain *system,
   return ldk_renderer_material_is_valid(renderer, *out_material);
 }
 
+static void s_island_terrain_quad_write(IslandTerrain *system,
+    u32 quad_index, i32 tile_x, i32 tile_y, IslandTerrainSurface surface,
+    u32 cutout_mask, float origin_x, float origin_z)
+{
+  IslandTerrainUVRect uv =
+      s_island_terrain_atlas_uv(surface, cutout_mask);
+  u32 color = s_island_terrain_surface_color(surface);
+  u32 vertex = quad_index * 4u;
+  u32 index = quad_index * 6u;
+  float layer_elevation = system->elevation +
+      (float)surface * system->cell_size *
+          ISLAND_TERRAIN_LAYER_ELEVATION_STEP;
+  float x0 = origin_x + (float)tile_x * system->cell_size;
+  float x1 = x0 + system->cell_size;
+  float z0 = origin_z + (float)tile_y * system->cell_size;
+  float z1 = z0 + system->cell_size;
+
+  s_runtime.vertices[vertex + 0u].position =
+      vec3_make(x0, layer_elevation, z0);
+  s_runtime.vertices[vertex + 1u].position =
+      vec3_make(x1, layer_elevation, z0);
+  s_runtime.vertices[vertex + 2u].position =
+      vec3_make(x1, layer_elevation, z1);
+  s_runtime.vertices[vertex + 3u].position =
+      vec3_make(x0, layer_elevation, z1);
+
+  for (u32 i = 0u; i < 4u; ++i)
+  {
+    s_runtime.vertices[vertex + i].normal =
+        vec3_make(0.0f, 1.0f, 0.0f);
+    s_runtime.vertices[vertex + i].color = LDK_RGBA32(color);
+  }
+
+  s_runtime.vertices[vertex + 0u].uv = vec2_make(uv.u0, uv.v0);
+  s_runtime.vertices[vertex + 1u].uv = vec2_make(uv.u1, uv.v0);
+  s_runtime.vertices[vertex + 2u].uv = vec2_make(uv.u1, uv.v1);
+  s_runtime.vertices[vertex + 3u].uv = vec2_make(uv.u0, uv.v1);
+
+  s_runtime.indices[index + 0u] = vertex + 0u;
+  s_runtime.indices[index + 1u] = vertex + 2u;
+  s_runtime.indices[index + 2u] = vertex + 1u;
+  s_runtime.indices[index + 3u] = vertex + 0u;
+  s_runtime.indices[index + 4u] = vertex + 3u;
+  s_runtime.indices[index + 5u] = vertex + 2u;
+}
+
 static bool s_island_terrain_mesh_rebuild(
     IslandTerrain *system, LDKRenderer *renderer)
 {
   LDKRendererMeshDesc desc = {0};
   float origin_x;
   float origin_z;
+  u32 max_quad_count;
+  u32 quad_count = 0u;
   u32 vertex_count;
   u32 index_count;
   bool updated;
@@ -1302,7 +1519,15 @@ static bool s_island_terrain_mesh_rebuild(
     return true;
   }
 
-  if (!s_island_terrain_geometry_reserve(s_runtime.tile_count))
+  if (s_runtime.tile_count >
+      UINT32_MAX / (u32)ISLAND_TERRAIN_SURFACE_COUNT)
+  {
+    return false;
+  }
+
+  max_quad_count =
+      s_runtime.tile_count * (u32)ISLAND_TERRAIN_SURFACE_COUNT;
+  if (!s_island_terrain_geometry_reserve(max_quad_count))
   {
     return false;
   }
@@ -1313,49 +1538,38 @@ static bool s_island_terrain_mesh_rebuild(
   for (u32 tile_index = 0u; tile_index < s_runtime.tile_count; ++tile_index)
   {
     const IslandTerrainTile *tile = &s_runtime.tiles[tile_index];
-    const IslandMapCell *cell =
-        &s_map.cells[(u32)tile->y * s_map.width + (u32)tile->x];
-    IslandTerrainSurface surface = s_island_map_cell_surface(cell);
-    IslandTerrainUVRect uv = s_island_terrain_atlas_uv(surface);
-    u32 color = s_island_terrain_surface_color(surface);
-    u32 vertex = tile_index * 4u;
-    u32 index = tile_index * 6u;
-    float x0 = origin_x + (float)tile->x * system->cell_size;
-    float x1 = x0 + system->cell_size;
-    float z0 = origin_z + (float)tile->y * system->cell_size;
-    float z1 = z0 + system->cell_size;
+    u32 layers = s_island_terrain_layers_at(tile->x, tile->y);
 
-    s_runtime.vertices[vertex + 0u].position =
-        vec3_make(x0, system->elevation, z0);
-    s_runtime.vertices[vertex + 1u].position =
-        vec3_make(x1, system->elevation, z0);
-    s_runtime.vertices[vertex + 2u].position =
-        vec3_make(x1, system->elevation, z1);
-    s_runtime.vertices[vertex + 3u].position =
-        vec3_make(x0, system->elevation, z1);
-
-    for (u32 i = 0u; i < 4u; ++i)
+    for (u32 surface_index = 0u;
+         surface_index < (u32)ISLAND_TERRAIN_SURFACE_COUNT;
+         ++surface_index)
     {
-      s_runtime.vertices[vertex + i].normal =
-          vec3_make(0.0f, 1.0f, 0.0f);
-      s_runtime.vertices[vertex + i].color = LDK_RGBA32(color);
+      IslandTerrainSurface surface = (IslandTerrainSurface)surface_index;
+      u32 surface_bit = 1u << surface_index;
+      u32 cutout_mask;
+
+      if ((layers & surface_bit) == 0u)
+      {
+        continue;
+      }
+
+      cutout_mask = s_island_terrain_cutout_mask(
+          surface, tile->x, tile->y);
+      s_island_terrain_quad_write(system, quad_count, tile->x, tile->y,
+          surface, cutout_mask, origin_x, origin_z);
+      quad_count += 1u;
     }
-
-    s_runtime.vertices[vertex + 0u].uv = vec2_make(uv.u0, uv.v0);
-    s_runtime.vertices[vertex + 1u].uv = vec2_make(uv.u1, uv.v0);
-    s_runtime.vertices[vertex + 2u].uv = vec2_make(uv.u1, uv.v1);
-    s_runtime.vertices[vertex + 3u].uv = vec2_make(uv.u0, uv.v1);
-
-    s_runtime.indices[index + 0u] = vertex + 0u;
-    s_runtime.indices[index + 1u] = vertex + 2u;
-    s_runtime.indices[index + 2u] = vertex + 1u;
-    s_runtime.indices[index + 3u] = vertex + 0u;
-    s_runtime.indices[index + 4u] = vertex + 3u;
-    s_runtime.indices[index + 5u] = vertex + 2u;
   }
 
-  vertex_count = s_runtime.tile_count * 4u;
-  index_count = s_runtime.tile_count * 6u;
+  if (quad_count == 0u || quad_count > UINT32_MAX / 4u ||
+      quad_count > UINT32_MAX / 6u)
+  {
+    system->has_geometry = false;
+    return false;
+  }
+
+  vertex_count = quad_count * 4u;
+  index_count = quad_count * 6u;
 
   desc.vertices = s_runtime.vertices;
   desc.vertex_count = vertex_count;
