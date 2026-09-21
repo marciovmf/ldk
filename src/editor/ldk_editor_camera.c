@@ -27,6 +27,8 @@ static bool s_editor_scene_view_drop_block_pick;
 
 static bool s_editor_scene_view_ray_get(
     LDKEditorContext *editor, LDKPoint cursor, LDKRay *out_ray);
+static bool s_editor_camera_controller_initialize(
+    LDKEditorContext *editor);
 
 static bool s_editor_scene_view_path_is_mesh(const XFSPath *path)
 {
@@ -468,6 +470,182 @@ void ldki_editor_scene_view_pick(
   editor->selected_entity = picked_entity;
 }
 
+typedef struct LDKEditorSceneBounds
+{
+  Vec3 min;
+  Vec3 max;
+  bool valid;
+} LDKEditorSceneBounds;
+
+static void s_editor_scene_bounds_add_point(
+    LDKEditorSceneBounds *bounds, Vec3 point)
+{
+  if (bounds == NULL)
+  {
+    return;
+  }
+
+  if (!bounds->valid)
+  {
+    bounds->min = point;
+    bounds->max = point;
+    bounds->valid = true;
+    return;
+  }
+
+  bounds->min.x = float_min(bounds->min.x, point.x);
+  bounds->min.y = float_min(bounds->min.y, point.y);
+  bounds->min.z = float_min(bounds->min.z, point.z);
+  bounds->max.x = float_max(bounds->max.x, point.x);
+  bounds->max.y = float_max(bounds->max.y, point.y);
+  bounds->max.z = float_max(bounds->max.z, point.z);
+}
+
+static bool s_editor_mesh_bounds_get(LDKAssetManager *assets,
+    const LDKMeshSource *source, LDKEditorSceneBounds *out_bounds)
+{
+  const LDKMeshData *mesh;
+
+  if (assets == NULL || source == NULL || out_bounds == NULL)
+  {
+    return false;
+  }
+
+  memset(out_bounds, 0, sizeof(*out_bounds));
+  mesh = ldk_asset_manager_mesh_data_at(
+      assets, source->source_asset, source->mesh_index);
+  if (mesh == NULL || mesh->vertices == NULL || mesh->vertex_count == 0)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < mesh->vertex_count; ++i)
+  {
+    s_editor_scene_bounds_add_point(out_bounds, mesh->vertices[i].position);
+  }
+
+  return out_bounds->valid;
+}
+
+static void s_editor_scene_bounds_add_transformed_box(
+    LDKEditorSceneBounds *bounds, const LDKEditorSceneBounds *local_bounds,
+    Mat4 world)
+{
+  Vec3 min;
+  Vec3 max;
+
+  if (bounds == NULL || local_bounds == NULL || !local_bounds->valid)
+  {
+    return;
+  }
+
+  min = local_bounds->min;
+  max = local_bounds->max;
+  for (u32 i = 0; i < 8; ++i)
+  {
+    Vec3 corner = vec3_make((i & 1u) ? max.x : min.x,
+        (i & 2u) ? max.y : min.y, (i & 4u) ? max.z : min.z);
+    s_editor_scene_bounds_add_point(bounds, mat4_mul_point(world, corner));
+  }
+}
+
+static bool s_editor_scene_bounds_add_entity_recursive(LDKECS *ecs,
+    LDKAssetManager *assets, LDKEntity entity, LDKEditorSceneBounds *bounds)
+{
+  const LDKTransform *transform;
+  const LDKMeshSource *mesh_source;
+  const LDKInstancedMeshSource *instanced_source;
+  LDKEntity child;
+
+  if (ecs == NULL || assets == NULL || bounds == NULL ||
+      !ldk_entity_is_alive(&ecs->entity, entity))
+  {
+    return false;
+  }
+
+  transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, entity);
+  if (transform == NULL)
+  {
+    return false;
+  }
+
+  mesh_source = ldk_ecs_component_get_const(
+      entity, LDK_COMPONENT_TYPE_MESH_SOURCE);
+  if (mesh_source != NULL)
+  {
+    LDKEditorSceneBounds local_bounds;
+
+    if (s_editor_mesh_bounds_get(assets, mesh_source, &local_bounds))
+    {
+      s_editor_scene_bounds_add_transformed_box(
+          bounds, &local_bounds, transform->world_matrix);
+    }
+  }
+
+  instanced_source = ldk_ecs_component_get_const(
+      entity, LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE);
+  if (instanced_source != NULL)
+  {
+    LDKEditorSceneBounds local_bounds;
+
+    if (s_editor_mesh_bounds_get(
+            assets, &instanced_source->source, &local_bounds))
+    {
+      for (u32 i = 0; i < instanced_source->instance_count; ++i)
+      {
+        Mat4 world = mat4_mul(
+            transform->world_matrix, instanced_source->instances[i]);
+        s_editor_scene_bounds_add_transformed_box(
+            bounds, &local_bounds, world);
+      }
+    }
+  }
+
+  child = transform->first_child;
+  while (!x_handle_is_null(child))
+  {
+    const LDKTransform *child_transform;
+    LDKEntity next_child;
+
+    child_transform = ldk_entity_transform_get_const(
+        &ecs->entity, &ecs->component, child);
+    if (child_transform == NULL)
+    {
+      return false;
+    }
+
+    next_child = child_transform->next_sibling;
+    if (!s_editor_scene_bounds_add_entity_recursive(
+            ecs, assets, child, bounds))
+    {
+      return false;
+    }
+    child = next_child;
+  }
+
+  return true;
+}
+
+static bool s_editor_camera_controller_ensure(LDKEditorContext *editor)
+{
+  LDKEditorCameraControllerState *controller;
+
+  if (editor == NULL || x_handle_is_null(editor->editor_camera))
+  {
+    return false;
+  }
+
+  controller = &editor->camera_controller;
+  if (controller->initialized &&
+      ldki_editor_entity_equal(controller->entity, editor->editor_camera))
+  {
+    return true;
+  }
+
+  return s_editor_camera_controller_initialize(editor);
+}
+
 static Vec3 s_editor_camera_offset(
     LDKEditorCameraControllerState const *controller)
 {
@@ -533,6 +711,254 @@ static bool s_editor_camera_apply(LDKEditorContext *editor)
              editor->editor_camera, position) &&
          ldk_camera_look_at(editor->editor_camera, controller->pivot) &&
          ldk_scenegraph_update_entity(editor->editor_camera);
+}
+
+bool ldki_editor_camera_focus_selected(LDKEditorContext *editor)
+{
+  LDKECS *ecs;
+  LDKAssetManager *assets;
+  LDKEditorCameraControllerState *controller;
+  LDKEditorSceneBounds bounds = {0};
+  const LDKTransform *selected_transform;
+  LDKCamera *camera;
+  LDKEntity selected;
+  Vec3 center;
+  Vec3 half_extents;
+  float radius;
+  float framed_radius;
+  float aspect;
+  float min_distance;
+  float max_distance;
+
+  if (editor == NULL || !s_editor_camera_controller_ensure(editor))
+  {
+    return false;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (ecs == NULL || assets == NULL ||
+      !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, selected, LDK_ENTITY_INTERNAL_EDITOR))
+  {
+    return false;
+  }
+
+  if (!ldk_scenegraph_update_entity(selected) ||
+      !s_editor_scene_bounds_add_entity_recursive(
+          ecs, assets, selected, &bounds))
+  {
+    return false;
+  }
+
+  selected_transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, selected);
+  if (selected_transform == NULL)
+  {
+    return false;
+  }
+
+  if (!bounds.valid)
+  {
+    center = vec3_make(selected_transform->world_matrix.m[12],
+        selected_transform->world_matrix.m[13],
+        selected_transform->world_matrix.m[14]);
+    radius = 0.5f;
+  }
+  else
+  {
+    center = vec3_mul(vec3_add(bounds.min, bounds.max), 0.5f);
+    half_extents = vec3_mul(vec3_sub(bounds.max, bounds.min), 0.5f);
+    radius = float_max(vec3_len(half_extents), 0.05f);
+  }
+
+  camera = ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  if (camera == NULL)
+  {
+    return false;
+  }
+
+  if (editor->gizmo.scene_view_rect.w > 0.0f &&
+      editor->gizmo.scene_view_rect.h > 0.0f)
+  {
+    aspect = editor->gizmo.scene_view_rect.w /
+             editor->gizmo.scene_view_rect.h;
+  }
+  else if (editor->renderer != NULL && editor->renderer->game_width > 0 &&
+           editor->renderer->game_height > 0)
+  {
+    aspect = (float)editor->renderer->game_width /
+             (float)editor->renderer->game_height;
+  }
+  else
+  {
+    aspect = 1.0f;
+  }
+
+  controller = &editor->camera_controller;
+  controller->pivot = center;
+  framed_radius = radius * 1.15f;
+  min_distance = float_max(
+      LDK_EDITOR_CAMERA_MIN_DISTANCE, camera->near_plane + framed_radius);
+  max_distance = float_min(
+      LDK_EDITOR_CAMERA_MAX_DISTANCE, camera->far_plane - framed_radius);
+
+  if (camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC)
+  {
+    float aspect_scale = float_min(aspect, 1.0f);
+    float height;
+
+    if (aspect_scale <= 0.0f)
+    {
+      aspect_scale = 1.0f;
+    }
+
+    height = (2.0f * framed_radius) / aspect_scale;
+    camera->orthographic_height = float_clamp(height,
+        LDK_EDITOR_CAMERA_MIN_DISTANCE, LDK_EDITOR_CAMERA_MAX_DISTANCE);
+
+    if (max_distance >= min_distance)
+    {
+      controller->distance = float_clamp(
+          controller->distance, min_distance, max_distance);
+    }
+    else
+    {
+      controller->distance = float_max(controller->distance, min_distance);
+    }
+  }
+  else
+  {
+    float half_vertical_fov = camera->fov_y * 0.5f;
+    float half_horizontal_fov =
+        atanf(tanf(half_vertical_fov) * aspect);
+    float half_fov = float_min(half_vertical_fov, half_horizontal_fov);
+    float distance;
+
+    if (half_fov <= 0.001f)
+    {
+      return false;
+    }
+
+    distance = framed_radius / sinf(half_fov);
+    if (max_distance >= min_distance)
+    {
+      controller->distance = float_clamp(
+          distance, min_distance, max_distance);
+    }
+    else
+    {
+      controller->distance = float_clamp(distance,
+          LDK_EDITOR_CAMERA_MIN_DISTANCE,
+          LDK_EDITOR_CAMERA_MAX_DISTANCE);
+    }
+  }
+
+  return s_editor_camera_apply(editor);
+}
+
+bool ldki_editor_camera_projection_toggle(LDKEditorContext *editor)
+{
+  LDKEditorCameraControllerState *controller;
+  LDKCamera *camera;
+  float tangent;
+
+  if (editor == NULL || !s_editor_camera_controller_ensure(editor))
+  {
+    return false;
+  }
+
+  camera = ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  if (camera == NULL)
+  {
+    return false;
+  }
+
+  controller = &editor->camera_controller;
+  tangent = tanf(camera->fov_y * 0.5f);
+  if (tangent <= 0.0f)
+  {
+    return false;
+  }
+
+  if (camera->projection == LDK_CAMERA_PROJECTION_PERSPECTIVE)
+  {
+    camera->orthographic_height = float_clamp(
+        2.0f * controller->distance * tangent,
+        LDK_EDITOR_CAMERA_MIN_DISTANCE, LDK_EDITOR_CAMERA_MAX_DISTANCE);
+    camera->projection = LDK_CAMERA_PROJECTION_ORTHOGRAPHIC;
+    return true;
+  }
+
+  controller->distance = float_clamp(
+      camera->orthographic_height / (2.0f * tangent),
+      LDK_EDITOR_CAMERA_MIN_DISTANCE, LDK_EDITOR_CAMERA_MAX_DISTANCE);
+  camera->projection = LDK_CAMERA_PROJECTION_PERSPECTIVE;
+  return s_editor_camera_apply(editor);
+}
+
+bool ldki_editor_selected_align_with_view(LDKEditorContext *editor)
+{
+  LDKECS *ecs;
+  const LDKTransform *selected_transform;
+  LDKEntity selected;
+  Mat4 camera_world;
+  Vec3 camera_position;
+  Quat camera_rotation;
+  Vec3 local_position;
+  Quat local_rotation;
+
+  if (editor == NULL || editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  if (ecs == NULL ||
+      !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
+      ldk_entity_internal_flags_has(
+          &ecs->entity, selected, LDK_ENTITY_INTERNAL_EDITOR) ||
+      !ldk_camera_get_world_matrix(editor->editor_camera, &camera_world))
+  {
+    return false;
+  }
+
+  selected_transform = ldk_entity_transform_get_const(
+      &ecs->entity, &ecs->component, selected);
+  if (selected_transform == NULL)
+  {
+    return false;
+  }
+
+  mat4_decompose(camera_world, &camera_position, &camera_rotation, NULL);
+  local_position = camera_position;
+  local_rotation = camera_rotation;
+
+  if (!x_handle_is_null(selected_transform->parent))
+  {
+    Mat4 parent_world;
+    Mat4 parent_inverse;
+    Quat parent_rotation;
+
+    if (!ldk_transform_get_world_matrix(
+            selected_transform->parent, &parent_world))
+    {
+      return false;
+    }
+
+    parent_inverse = mat4_inverse_affine(parent_world);
+    local_position = mat4_mul_point(parent_inverse, camera_position);
+    mat4_decompose(parent_world, NULL, &parent_rotation, NULL);
+    local_rotation = quat_mul(
+        quat_unit_inverse(parent_rotation), camera_rotation);
+  }
+
+  return ldk_transform_set_local_position(selected, local_position) &&
+         ldk_transform_set_local_rotation(selected, local_rotation) &&
+         ldk_scenegraph_update_entity(selected);
 }
 
 static bool s_editor_camera_pan(LDKEditorContext *editor,

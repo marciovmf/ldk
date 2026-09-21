@@ -5,8 +5,10 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <ldk_mesh.h>
+#include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_scene_manager.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
@@ -768,6 +770,62 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   ldk_ui_pop_id(ui);
 }
 
+static void s_editor_scene_view_camera_buttons(LDKEditorContext *editor)
+{
+  LDKUIContext *ui;
+  LDKECS *ecs;
+  LDKCamera *camera;
+  LDKEntity selected = x_handle_null();
+  bool has_selection;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  camera = ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  has_selection = ecs != NULL &&
+                  ldki_editor_selected_entity_get(editor, ecs, &selected) &&
+                  !ldk_entity_internal_flags_has(
+                      &ecs->entity, selected, LDK_ENTITY_INTERNAL_EDITOR);
+
+  ldk_ui_push_id_cstr(ui, "scene-camera");
+
+  ldk_ui_begin_disabled(ui, !has_selection);
+  ldk_ui_set_next_width(ui, ldk_ui_px(76.0f));
+  if (ldk_ui_button(ui, "Focus (F)"))
+  {
+    ldki_editor_camera_focus_selected(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(ui, camera == NULL);
+  ldk_ui_set_next_width(ui, ldk_ui_px(104.0f));
+  if (ldk_ui_button(ui,
+          camera != NULL &&
+                  camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC
+              ? "Orthographic"
+              : "Perspective"))
+  {
+    ldki_editor_camera_projection_toggle(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(
+      ui, !has_selection || editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  ldk_ui_set_next_width(ui, ldk_ui_px(112.0f));
+  if (ldk_ui_button(ui, "Align with View"))
+  {
+    ldki_editor_selected_align_with_view(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_pop_id(ui);
+}
+
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
 {
   if (editor == NULL)
@@ -783,6 +841,9 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
   ldk_ui_spacer(ui);
   s_editor_gizmo_space_buttons(editor);
+  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
+  ldk_ui_spacer(ui);
+  s_editor_scene_view_camera_buttons(editor);
   ldk_ui_spacer(ui);
   ldk_ui_end_horizontal(ui);
 }

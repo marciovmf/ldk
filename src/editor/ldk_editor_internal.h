@@ -255,6 +255,9 @@ typedef struct LDKEditorContext
   XFSPath editor_font;
   XSmallstr editor_theme;
   i32 editor_font_size;
+  float editor_camera_fov;
+  float editor_camera_near_clip;
+  float editor_camera_far_clip;
 } LDKEditorContext;
 
 void ldki_editor_menubar_show(LDKEditorContext *editor);
@@ -263,6 +266,9 @@ void ldki_editor_status_show(LDKEditorContext *editor);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
+bool ldki_editor_camera_focus_selected(LDKEditorContext *editor);
+bool ldki_editor_camera_projection_toggle(LDKEditorContext *editor);
+bool ldki_editor_selected_align_with_view(LDKEditorContext *editor);
 void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);

@@ -68,6 +68,19 @@ static LDKRendererViewId s_editor_view_id_from_entity(LDKEntity entity)
   return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
 }
 
+static void s_editor_camera_settings_apply(
+    const LDKEditorContext *editor, LDKCamera *camera)
+{
+  if (editor == NULL || camera == NULL)
+  {
+    return;
+  }
+
+  camera->fov_y = deg_to_rad(editor->editor_camera_fov);
+  camera->near_plane = editor->editor_camera_near_clip;
+  camera->far_plane = editor->editor_camera_far_clip;
+}
+
 static bool s_editor_camera_ensure(LDKEditorContext *editor)
 {
   LDKECS *ecs;
@@ -92,6 +105,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor)
 
     if (camera != NULL && camera->role == LDK_CAMERA_ROLE_EDITOR)
     {
+      s_editor_camera_settings_apply(editor, camera);
       editor->scene_view =
           s_editor_view_id_from_entity(editor->editor_camera);
       return true;
@@ -117,6 +131,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor)
 
   camera->role = LDK_CAMERA_ROLE_EDITOR;
   camera->enabled = true;
+  s_editor_camera_settings_apply(editor, camera);
   ldk_entity_internal_flags_add(
       &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR);
   ldk_transform_set_local_position(
@@ -388,6 +403,11 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       {
         editor->gizmo.mode =
             (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_F)
+      {
+        ldki_editor_camera_focus_selected(editor);
+        return true;
       }
     }
   }
@@ -1329,6 +1349,37 @@ static bool s_editor_config_load_from_ini(
       &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
   x_fs_path(&editor->editor_font, config->runtree_path,
       x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+
+  editor->editor_camera_fov =
+      x_ini_get_f32(ini, EDITOR, "camera_fov", 60.0f);
+  editor->editor_camera_near_clip =
+      x_ini_get_f32(ini, EDITOR, "camera_near_clip", 0.1f);
+  editor->editor_camera_far_clip =
+      x_ini_get_f32(ini, EDITOR, "camera_far_clip", 1000.0f);
+
+  if (editor->editor_camera_fov <= 1.0f ||
+      editor->editor_camera_fov >= 179.0f)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_fov. Falling back to 60 degrees.\n");
+    editor->editor_camera_fov = 60.0f;
+  }
+
+  if (editor->editor_camera_near_clip <= 0.0f)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_near_clip. Falling back to 0.1.\n");
+    editor->editor_camera_near_clip = 0.1f;
+  }
+
+  if (editor->editor_camera_far_clip <= editor->editor_camera_near_clip)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_far_clip. It must be greater than "
+        "camera_near_clip.\n");
+    editor->editor_camera_far_clip =
+        float_max(1000.0f, editor->editor_camera_near_clip * 1000.0f);
+  }
 
   // load a te texture atlas
   XFSPath atlas_path;
