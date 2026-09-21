@@ -22,6 +22,7 @@
 #define LDK_EDITOR_CAMERA_MIN_DISTANCE 0.05f
 #define LDK_EDITOR_CAMERA_MAX_DISTANCE 10000.0f
 #define LDK_EDITOR_CAMERA_MAX_PITCH 1.55334306f
+#define LDK_EDITOR_SCENE_PICK_DISTANCE_EPSILON 0.0001f
 
 static bool s_editor_scene_view_drop_block_pick;
 
@@ -404,10 +405,21 @@ void ldki_editor_scene_view_pick(
     return;
   }
 
-  const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+  /*
+   * Test explicit instances first. If an entity happens to contain both a
+   * regular MeshSource and an InstancedMeshSource at the same transform,
+   * the instance is the more specific editor selection target.
+   */
+  const u32 mesh_types[] = {
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE,
+      LDK_COMPONENT_TYPE_MESH_SOURCE};
+
   for (u32 type_index = 0; type_index < 2; ++type_index)
   {
+    bool is_instanced_type =
+        mesh_types[type_index] ==
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE;
+
     mesh_sources = ldk_component_store_get(
         &ecs->component, mesh_types[type_index]);
     mesh_owners = ldk_component_owners_get(
@@ -428,7 +440,7 @@ void ldki_editor_scene_view_pick(
     {
       const void *component = x_array_get(mesh_sources, i);
       const LDKInstancedMeshSource *instances =
-          type_index == 1 ? component : NULL;
+          is_instanced_type ? component : NULL;
       const LDKMeshSource *mesh_source =
           instances ? &instances->source : component;
       const LDKEntity *entity = x_array_get(mesh_owners, i);
@@ -446,24 +458,32 @@ void ldki_editor_scene_view_pick(
       }
 
       mesh_data = ldk_asset_manager_mesh_data_at(
-          asset_manager, mesh_source->source_asset, mesh_source->mesh_index);
+          asset_manager, mesh_source->source_asset,
+          mesh_source->mesh_index);
       if (mesh_data == NULL)
       {
         continue;
       }
 
-      u32 count = instances ? instances->instance_count : 1;
-      if (instances && count && !instances->instances)
+      u32 count = instances ? instances->instance_count : 1u;
+      if (instances != NULL && count != 0 && instances->instances == NULL)
       {
         continue;
       }
+
       for (u32 instance = 0; instance < count; ++instance)
       {
-        Mat4 instance_world = instances
-            ? mat4_mul(world, instances->instances[instance]) : world;
-        if (ldk_raycast_mesh_transformed(
-                ray, mesh_data, instance_world, &hit) &&
-            hit.distance < nearest_distance)
+        Mat4 instance_world = instances != NULL
+            ? mat4_mul(world, instances->instances[instance])
+            : world;
+
+        if (!ldk_raycast_mesh_transformed(
+                ray, mesh_data, instance_world, &hit))
+        {
+          continue;
+        }
+
+        if (hit.distance < nearest_distance)
         {
           nearest_distance = hit.distance;
           picked_entity = *entity;
@@ -472,10 +492,20 @@ void ldki_editor_scene_view_pick(
         }
       }
     }
-
   }
 
   editor->selected_entity = picked_entity;
+
+  if (picked_is_instance)
+  {
+    editor->selected_instance_entity = picked_entity;
+    editor->selected_instance = picked_instance;
+  }
+  else
+  {
+    editor->selected_instance_entity = x_handle_null();
+    editor->selected_instance = 0;
+  }
 }
 
 typedef struct LDKEditorSceneBounds

@@ -11,7 +11,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.174343109, 8.77205658
+            local_position: 0.00000000, 0.174343109, 8.97884464
             local_scale: 24.3131504, 24.3131504, 24.3131504
             local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
         - type: 4294967292 # LDKMeshSource
@@ -27,7 +27,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 3.57415438, 4.12941837, 1.39284277
+            local_position: -0.0849103928, 4.12941837, 1.39284277
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967291 # LDKPointLight
@@ -43,17 +43,17 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 2.48127460, 3.70023251, 4.15807629
+            local_position: 3.75500178, 6.20623589, 6.59529734
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.471945256, 0.00000000, 0.00000000, 0.881627858
+            local_rotation: -0.122332498, 0.0398861952, 0.00492033875, 0.991675198
         - type: 4294967290 # LDKSpotLight
           fields:
             color: 4294967295
             intensity: 7.00000000
-            range: 7.00000000
+            range: 10.0000000
             inner_angle: 0.349065840
             outer_angle: 0.523598790
-            enabled: false
+            enabled: true
     - entity: 3
       parent: 12
       flags: 0
@@ -61,9 +61,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 2.38418579e-07, 8.09299564, 3.73540783
+            local_position: 0.213776350, 4.46680641, 17.1461735
             local_scale: 1.00000000, 0.999999881, 0.999999940
-            local_rotation: -0.511662602, 4.68599026e-08, 1.40189904e-08, 0.859186530
+            local_rotation: -0.00523740379, -0.0272968821, -0.000143020035, 0.999613643
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
@@ -80,9 +80,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 1.22452831, 5.38750362, 4.88469362
+            local_position: 9.20695019, 13.7444210, 13.8110409
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.448705822, 0.0943049788, 0.757320285, -0.465011537
+            local_rotation: -0.287778080, 0.220288619, 0.0682011247, 0.929518878
         - type: 4294967289 # LDKDirectionalLight
           fields:
             color: 4294967295
@@ -144,9 +144,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00133919716, 3.49371839, -3.27149296
+            local_position: 24.1421452, 12.1976624, -3.27149296
             local_scale: 24.2187481, 24.2187481, 24.2187481
-            local_rotation: -4.32152660e-08, -4.42019470e-08, -0.999936342, 0.0112863528
+            local_rotation: 0.00000000, 0.00000000, 1.00000000, -4.37113883e-08
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/quad"
@@ -294,3 +294,102 @@ scene:
                 material_shininess: 32
                 material_emission: 0
             instances:
+    - entity: 16
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 12.2684078, -3.27149296
+            local_scale: 24.2187481, 24.2187481, 24.2187481
+            local_rotation: 0.00000000, 0.00000000, 1.00000000, -4.37113883e-08
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange"
+    - entity: 17
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 24.1841774, 0.174343109, 8.97884464
+            local_scale: 24.3131504, 24.3131504, 24.3131504
+            local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange"
+    - entity: 18
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -24.2286816, 0.174343109, 8.97884464
+            local_scale: 24.3131504, 24.3131504, 24.3131504
+            local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange"
+    - entity: 19
+      parent: -1
+      flags: 4
+      name: "Quad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -24.1390953, 12.2684059, -3.27149296
+            local_scale: 24.2187481, 24.2187481, 24.2187481
+            local_rotation: 0.00000000, 0.00000000, 1.00000000, -4.37113883e-08
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            material_asset: "assets\\checkers_orange"
+    - entity: 20
+      parent: -1
+      flags: 0
+      name: "Tree"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 2.06353545, 0.00000000, 26.3221588
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967288 # LDKInstancedMeshSource
+          fields:
+            source_asset: "assets\\mesh\\tree.mesh"
+            mesh_index: 0
+            casts_shadows: true
+            materials:
+              - slot: 0
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+              - slot: 1
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+            instances:
+              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000
+              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, -1.87894845, 0.00000000, 0.00000000, 1.00000000
+              - transform: 0.802083313, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.802083313, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.802083313, 0.00000000, 1.79064560, 0.00000000, -0.339265823, 1.00000000
+              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000
+              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 2.06090546, 1.00000000
+              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, -1.49128103, 0.00000000, 3.30094528, 1.00000000
