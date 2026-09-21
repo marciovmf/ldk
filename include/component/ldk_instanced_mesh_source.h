@@ -21,11 +21,26 @@ extern "C"
     Mat4 *instances;
     //@inspect readonly runtime
     u32 instance_count;
+    //@inspect hidden runtime
+    u32 instance_capacity;
   } LDKInstancedMeshSource;
 
-  /** Copy local transforms. Zero count clears the set. Failure preserves it.
-   * The component owns the copy; do not free or replace instances directly.
-   * Use existing mesh-source setters on source for mesh/material authoring.
+  /** Ensure capacity for at least count local transforms. Failure preserves the
+   * current buffer and instance count. The component owns the buffer.
+   */
+  LDK_API bool ldk_instanced_mesh_source_reserve_instances(
+      LDKInstancedMeshSource *source, u32 count);
+
+  /** Resize the local transform set while retaining allocated capacity. Newly
+   * exposed transforms are initialized to identity. Failure preserves the set.
+   * The returned component buffer may be written by systems before rendering.
+   */
+  LDK_API bool ldk_instanced_mesh_source_resize_instances(
+      LDKInstancedMeshSource *source, u32 count);
+
+  /** Copy local transforms. Zero count clears the active set but retains
+   * capacity. Failure preserves it. Use existing mesh-source setters on source
+   * for mesh/material authoring.
    */
   LDK_API bool ldk_instanced_mesh_source_set_instances(
       LDKInstancedMeshSource *source, const Mat4 *instances, u32 count);

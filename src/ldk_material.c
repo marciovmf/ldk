@@ -49,7 +49,8 @@ static bool s_material_type_is_lit(LDKMaterialType type)
 static bool s_material_alpha_mode_is_valid(LDKMaterialAlphaMode mode)
 {
   return mode == LDK_MATERIAL_ALPHA_MODE_OPAQUE ||
-         mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+         mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT ||
+         mode == LDK_MATERIAL_ALPHA_MODE_BLEND;
 }
 
 static float s_material_shininess(float shininess)

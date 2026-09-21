@@ -666,14 +666,14 @@ bool ldk_scene_systems_validate_bindings(
     u64 id = systems->ids[i];
     u64 grouping_id = systems->grouping_ids ? systems->grouping_ids[i] : 0;
 
-    if (!ldk_system_registry_has(registry, id))
+    LDKSystemDesc desc = {0};
+    if (!ldk_system_registry_find_by_id(registry, id, &desc))
     {
       ldk_log_error("Scene references unregistered system 0x%016" PRIx64
                     ". Skipping.\n",
           id);
       continue;
     }
-
     if (grouping_id != 0 && !ldk_ecs_grouping_get(grouping_id))
     {
       ldk_log_error("Scene system 0x%016" PRIx64
@@ -729,7 +729,7 @@ bool ldk_scene_systems_stop_missing(
 bool ldk_scene_systems_start(
     LDKSystemRegistry *registry, LDKSceneSystems *systems)
 {
-  u32 count;
+  u32 registry_count;
   u32 started_count = 0;
   u64 *started;
 
@@ -739,17 +739,17 @@ bool ldk_scene_systems_start(
   {
     return false;
   }
-  if (!systems->count)
-  {
-    return true;
-  }
-  started = (u64 *)calloc(systems->count, sizeof(*started));
-  if (!started)
+
+  registry_count = ldk_system_registry_count(registry);
+  started = registry_count
+      ? (u64 *)calloc(registry_count, sizeof(*started))
+      : NULL;
+  if (registry_count && !started)
   {
     return false;
   }
-  count = ldk_system_registry_count(registry);
-  for (u32 i = 0; i < count; ++i)
+
+  for (u32 i = 0; i < registry_count; ++i)
   {
     LDKSystemDesc desc = {0};
     u32 index;

@@ -549,6 +549,92 @@ int test_component_registry_remove_all(void)
   return 0;
 }
 
+int test_component_descriptor_flags_and_requirements(void)
+{
+  static const u32 required[] = {TEST_COMPONENT_B};
+  LDKComponentRegistry registry;
+  LDKComponentDesc component_a = *s_component_a_desc();
+  LDKComponentDesc stored = {0};
+
+  component_a.flags = LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR;
+  component_a.required_components = required;
+  component_a.required_component_count = 1u;
+
+  ASSERT_TRUE(ldk_component_registry_initialize(&registry));
+  ASSERT_TRUE(ldk_component_register(&registry, &component_a));
+  ASSERT_TRUE(ldk_component_desc_get(&registry, TEST_COMPONENT_A, &stored));
+  ASSERT_TRUE(stored.flags == LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR);
+  ASSERT_TRUE(stored.required_component_count == 1u);
+  ASSERT_TRUE(stored.required_components != NULL);
+  ASSERT_TRUE(stored.required_components[0] == TEST_COMPONENT_B);
+
+  ldk_component_registry_terminate(&registry);
+  return 0;
+}
+
+int test_component_required_component_auto_add(void)
+{
+  static const u32 required[] = {TEST_COMPONENT_B};
+  LDKComponentRegistry component_registry;
+  LDKEntityRegistry entity_registry;
+  LDKEntity entity;
+  LDKComponentDesc component_a = *s_component_a_desc();
+
+  component_a.required_components = required;
+  component_a.required_component_count = 1u;
+
+  ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
+  ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_b_desc()));
+  ASSERT_TRUE(ldk_component_register(&component_registry, &component_a));
+
+  entity = ldk_entity_create(&entity_registry);
+  ASSERT_TRUE(ldk_entity_component_add(&entity_registry, &component_registry,
+      entity, TEST_COMPONENT_A, NULL) != NULL);
+  ASSERT_TRUE(ldk_entity_component_has(
+      &entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(ldk_entity_component_has(
+      &entity_registry, entity, TEST_COMPONENT_B));
+
+  ldk_component_registry_remove_all(
+      &component_registry, &entity_registry, entity);
+  ldk_component_registry_terminate(&component_registry);
+  ldk_entity_module_terminate(&entity_registry);
+  return 0;
+}
+
+int test_component_required_component_rolls_back_on_attach_failure(void)
+{
+  static const u32 required[] = {TEST_COMPONENT_B};
+  LDKComponentRegistry component_registry;
+  LDKEntityRegistry entity_registry;
+  LDKEntity entity;
+  TestComponentCallbackState state = {0};
+  LDKComponentDesc component_a = *s_component_a_desc();
+
+  component_a.required_components = required;
+  component_a.required_component_count = 1u;
+  component_a.attach = test_component_attach_fails;
+  component_a.user = &state;
+
+  ASSERT_TRUE(ldk_entity_module_initialize(&entity_registry, 16, 1));
+  ASSERT_TRUE(ldk_component_registry_initialize(&component_registry));
+  ASSERT_TRUE(ldk_component_register(&component_registry, s_component_b_desc()));
+  ASSERT_TRUE(ldk_component_register(&component_registry, &component_a));
+
+  entity = ldk_entity_create(&entity_registry);
+  ASSERT_TRUE(ldk_entity_component_add(&entity_registry, &component_registry,
+      entity, TEST_COMPONENT_A, NULL) == NULL);
+  ASSERT_TRUE(!ldk_entity_component_has(
+      &entity_registry, entity, TEST_COMPONENT_A));
+  ASSERT_TRUE(!ldk_entity_component_has(
+      &entity_registry, entity, TEST_COMPONENT_B));
+
+  ldk_component_registry_terminate(&component_registry);
+  ldk_entity_module_terminate(&entity_registry);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] =
@@ -562,6 +648,9 @@ int main(void)
     X_TEST(test_component_remove_calls_destroy_callback),
     X_TEST(test_component_remove_entity_updates_moved_owner_ref),
     X_TEST(test_component_registry_remove_all),
+    X_TEST(test_component_descriptor_flags_and_requirements),
+    X_TEST(test_component_required_component_auto_add),
+    X_TEST(test_component_required_component_rolls_back_on_attach_failure),
   };
 
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

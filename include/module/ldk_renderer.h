@@ -299,12 +299,16 @@ extern "C" {
     LDKRHIPipeline textured_cutout_pipeline;
     LDKRHIPipeline textured_unlit_cutout_pipeline;
     LDKRHIPipeline textured_unlit_cutout_overlay_pipeline;
+    LDKRHIPipeline textured_blend_pipeline;
+    LDKRHIPipeline textured_unlit_blend_pipeline;
     LDKRHIPipeline vertex_color_instanced_pipeline;
     LDKRHIPipeline vertex_color_unlit_instanced_pipeline;
     LDKRHIPipeline textured_instanced_pipeline;
     LDKRHIPipeline textured_unlit_instanced_pipeline;
     LDKRHIPipeline textured_cutout_instanced_pipeline;
     LDKRHIPipeline textured_unlit_cutout_instanced_pipeline;
+    LDKRHIPipeline textured_blend_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_blend_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -449,7 +453,9 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT,
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT,
-    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND
   } LDKRendererMaterialSelection;
 
   typedef u64 LDKRendererRenderKey;

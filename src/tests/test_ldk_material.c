@@ -373,10 +373,27 @@ static int test_renderer_textured_material(void)
   ASSERT_EQ(renderer.materials[3].selection,
       LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT);
 
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED;
+  desc.alpha_mode = LDK_MATERIAL_ALPHA_MODE_BLEND;
+  LDKResourceMaterial blend_material =
+      ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, blend_material));
+  ASSERT_EQ(renderer.materials[4].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND);
+
+  desc.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  LDKResourceMaterial unlit_blend_material =
+      ldk_renderer_material_create(&renderer, &desc);
+  ASSERT_TRUE(ldk_renderer_material_is_valid(&renderer, unlit_blend_material));
+  ASSERT_EQ(renderer.materials[5].selection,
+      LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND);
+
   ldk_renderer_material_destroy(&renderer, material);
   ldk_renderer_material_destroy(&renderer, unlit_material);
   ldk_renderer_material_destroy(&renderer, cutout_material);
   ldk_renderer_material_destroy(&renderer, unlit_cutout_material);
+  ldk_renderer_material_destroy(&renderer, blend_material);
+  ldk_renderer_material_destroy(&renderer, unlit_blend_material);
   free(renderer.materials);
   free(renderer.textures);
   return 0;
@@ -1036,7 +1053,8 @@ static int test_instanced_mesh_source_owns_transforms(void)
   ASSERT_FALSE(ldk_instanced_mesh_source_set_instances(&source, NULL, 1));
   ASSERT_EQ(source.instance_count, 1u);
   ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(&source, NULL, 0));
-  ASSERT_TRUE(source.instances == NULL);
+  ASSERT_TRUE(source.instances != NULL);
+  ASSERT_TRUE(source.instance_capacity >= 2u);
   ASSERT_EQ(source.instance_count, 0u);
   return 0;
 }

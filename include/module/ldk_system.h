@@ -62,6 +62,8 @@ typedef enum LDKSystemFlags
 {
   LDK_SYSTEM_FLAG_NONE = 0,
   LDK_SYSTEM_FLAG_ENABLED = 1 << 0,
+  /* Implementation is provided by the engine rather than user code.
+   * Registration and lifecycle remain game responsibilities. */
   LDK_SYSTEM_FLAG_ENGINE_NATIVE = 1 << 1,
   LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED = 1 << 2
 } LDKSystemFlags;
@@ -111,6 +113,11 @@ typedef struct LDKSystemRegistry
   u8 is_started; /* Bucket lists are prepared. */
   u8 is_paused;  /* Execution is suspended, not individual state. */
 } LDKSystemRegistry;
+
+/** Descriptors for systems implemented by the engine. Games own registration. */
+LDK_API u32 ldk_engine_system_descriptor_count(void);
+LDK_API bool ldk_engine_system_descriptor_get(
+    u32 index, LDKSystemDesc *out);
 
 LDK_API bool ldk_system_registry_initialize(LDKSystemRegistry *registry);
 LDK_API void ldk_system_registry_terminate(LDKSystemRegistry *registry);

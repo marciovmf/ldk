@@ -473,11 +473,14 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     s_append_escaped_string(out, relative.buf);
     x_strbuilder_append_char(out, '\n');
 
-    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    if (desc->args.textured.alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE)
     {
       s_append_indent(out, indent);
       x_strbuilder_append_format(out, "material_alpha_mode: %u\n",
           (u32)desc->args.textured.alpha_mode);
+    }
+    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    {
       s_append_indent(out, indent);
       x_strbuilder_append_format(out, "material_alpha_cutoff: %.9g\n",
           (double)desc->args.textured.alpha_cutoff);

@@ -176,6 +176,20 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(second.args.textured.color, 0xffffffffu);
   ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
   ASSERT_EQ(second.args.textured.alpha_cutoff, 0.5f);
+
+  ASSERT_TRUE(s_read("material:\n  material_type: 1\n"
+                     "  material_texture: \"missing.png\"\n"
+                     "  material_alpha_mode: 2\n",
+      &context, &second, &result));
+  ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_BLEND);
+  out = x_strbuilder_create();
+  ASSERT_TRUE(out != NULL);
+  x_strbuilder_append(out, "material:\n");
+  ASSERT_TRUE(ldk_material_desc_write(&context, &second, out, 1, &result));
+  ASSERT_TRUE(strstr(out->data, "  material_alpha_mode: 2\n") != NULL);
+  ASSERT_TRUE(strstr(out->data, "material_alpha_cutoff") == NULL);
+  x_strbuilder_destroy(out);
+
   ldk_asset_manager_terminate(&assets);
   return 0;
 }

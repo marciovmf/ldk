@@ -1,4 +1,5 @@
 #include <module/ldk_entity.h>
+#include <ldk.h>
 #include <module/ldk_component.h>
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_array.h>
@@ -557,44 +558,112 @@ void ldk_entity_foreach(LDKEntityRegistry* module, LDKEntityIterFn fn, void* use
   }
 }
 
-void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module,
-    LDKEntity entity, u32 component_type, const void* initial_value)
+typedef struct LDKComponentAddTransaction
 {
+  u32 added[LDK_ENTITY_MAX_COMPONENTS];
+  u32 added_count;
+  u32 stack[LDK_ENTITY_MAX_COMPONENTS];
+  u32 stack_count;
+} LDKComponentAddTransaction;
+
+static bool s_component_add_stack_contains(
+    const LDKComponentAddTransaction* transaction, u32 component_type)
+{
+  if (!transaction)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < transaction->stack_count; ++i)
+  {
+    if (transaction->stack[i] == component_type)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void* s_entity_component_add_internal(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity,
+    u32 component_type, const void* initial_value, bool allow_existing,
+    LDKComponentAddTransaction* transaction)
+{
+  LDKComponentDesc desc = {0};
   u32 component_index = 0;
   void* component = NULL;
 
-  if (!entity_module)
+  if (!entity_module || !component_module || !transaction)
   {
     return NULL;
   }
 
-  if (!component_module)
+  if (ldk_entity_component_has(entity_module, entity, component_type))
   {
+    return allow_existing
+        ? ldk_entity_component_get(
+              entity_module, component_module, entity, component_type)
+        : NULL;
+  }
+
+  if (!ldk_component_desc_get(component_module, component_type, &desc))
+  {
+    ldk_log_error("Component type %u is not registered.\n", component_type);
     return NULL;
   }
+
+  if (s_component_add_stack_contains(transaction, component_type) ||
+      transaction->stack_count >= LDK_ENTITY_MAX_COMPONENTS)
+  {
+    ldk_log_error("Component dependency cycle detected while adding %s.\n",
+        desc.name ? desc.name : "<unnamed component>");
+    return NULL;
+  }
+
+  transaction->stack[transaction->stack_count++] = component_type;
+  for (u32 i = 0; i < desc.required_component_count; ++i)
+  {
+    u32 required_type = desc.required_components[i];
+    if (!required_type)
+    {
+      ldk_log_error("Component %s has an invalid required component.\n",
+          desc.name ? desc.name : "<unnamed component>");
+      --transaction->stack_count;
+      return NULL;
+    }
+
+    if (!ldk_entity_component_has(entity_module, entity, required_type) &&
+        !s_entity_component_add_internal(entity_module, component_module,
+            entity, required_type, NULL, true, transaction))
+    {
+      LDKComponentDesc required_desc = {0};
+      const char* required_name = "<unregistered component>";
+      if (ldk_component_desc_get(
+              component_module, required_type, &required_desc) &&
+          required_desc.name)
+      {
+        required_name = required_desc.name;
+      }
+      ldk_log_error("Failed to add required component %s for %s.\n",
+          required_name, desc.name ? desc.name : "<unnamed component>");
+      --transaction->stack_count;
+      return NULL;
+    }
+  }
+  --transaction->stack_count;
 
   component = ldk_component_create(
-      component_module,
-      component_type,
-      &component_index);
-
+      component_module, component_type, &component_index);
   if (!component)
   {
     return NULL;
   }
 
   if (!s_entity_component_ref_add(
-        entity_module,
-        entity,
-        component_type,
-        component_index))
+        entity_module, entity, component_type, component_index))
   {
     ldk_component_destroy(
-        component_module,
-        entity_module,
-        component_type,
-        component_index);
-
+        component_module, entity_module, component_type, component_index);
     return NULL;
   }
 
@@ -604,64 +673,72 @@ void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentReg
 
     if (!owners)
     {
-      s_entity_component_ref_remove(
-          entity_module,
-          entity,
-          component_type);
-
+      s_entity_component_ref_remove(entity_module, entity, component_type);
       ldk_component_destroy(
-          component_module,
-          entity_module,
-          component_type,
-          component_index);
-
+          component_module, entity_module, component_type, component_index);
       return NULL;
     }
 
     owner = (LDKEntity*)x_array_get(owners, component_index);
-
     if (!owner)
     {
-      s_entity_component_ref_remove(
-          entity_module,
-          entity,
-          component_type);
-
+      s_entity_component_ref_remove(entity_module, entity, component_type);
       ldk_component_destroy(
-          component_module,
-          entity_module,
-          component_type,
-          component_index);
-
+          component_module, entity_module, component_type, component_index);
       return NULL;
     }
 
     *owner = entity;
   }
 
-  if (!ldk_component_attach(
-        component_module,
-        entity_module,
-        entity,
-        component_type,
-        component_index,
-        initial_value))
+  if (!ldk_component_attach(component_module, entity_module, entity,
+          component_type, component_index, initial_value))
   {
-    s_entity_component_ref_remove(
-        entity_module,
-        entity,
-        component_type);
-
+    s_entity_component_ref_remove(entity_module, entity, component_type);
     ldk_component_destroy(
-        component_module,
-        entity_module,
-        component_type,
-        component_index);
-
+        component_module, entity_module, component_type, component_index);
     return NULL;
   }
 
+  if (transaction->added_count >= LDK_ENTITY_MAX_COMPONENTS)
+  {
+    ldk_entity_component_remove(
+        entity_module, component_module, entity, component_type);
+    return NULL;
+  }
+
+  transaction->added[transaction->added_count++] = component_type;
   return component;
+}
+
+void* ldk_entity_component_add(LDKEntityRegistry* entity_module,
+    LDKComponentRegistry* component_module, LDKEntity entity,
+    u32 component_type, const void* initial_value)
+{
+  LDKComponentAddTransaction transaction = {0};
+  void* component = s_entity_component_add_internal(entity_module,
+      component_module, entity, component_type, initial_value, false,
+      &transaction);
+
+  if (component)
+  {
+    return component;
+  }
+
+  while (transaction.added_count > 0u)
+  {
+    u32 added_type = transaction.added[--transaction.added_count];
+    if (!ldk_entity_component_remove(
+            entity_module, component_module, entity, added_type))
+    {
+      LDKComponentDesc desc = {0};
+      (void)ldk_component_desc_get(component_module, added_type, &desc);
+      ldk_log_error("Failed to roll back required component %s.\n",
+          desc.name ? desc.name : "<unnamed component>");
+    }
+  }
+
+  return NULL;
 }
 
 void* ldk_entity_component_get(LDKEntityRegistry* entity_module,

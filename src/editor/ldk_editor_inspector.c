@@ -2106,23 +2106,24 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
 
   if (textured)
   {
-    static const char *const alpha_mode_names[] = {"Opaque", "Cutout"};
-    u32 alpha_mode = desc->args.textured.alpha_mode ==
-            LDK_MATERIAL_ALPHA_MODE_CUTOUT
-        ? 1u
-        : 0u;
+    static const char *const alpha_mode_names[] = {
+        "Opaque", "Cutout", "Blend"};
+    u32 alpha_mode = (u32)desc->args.textured.alpha_mode;
+    if (alpha_mode > (u32)LDK_MATERIAL_ALPHA_MODE_BLEND)
+    {
+      alpha_mode = (u32)LDK_MATERIAL_ALPHA_MODE_OPAQUE;
+    }
 
     s_editor_material_row_begin(editor, "Alpha Mode");
     ldk_ui_begin_disabled(ui, readonly);
     u32 next_alpha_mode =
-        ldk_ui_combo_box(ui, alpha_mode_names, 2, alpha_mode);
+        ldk_ui_combo_box(ui, alpha_mode_names, 3, alpha_mode);
     ldk_ui_end_disabled(ui);
     ldk_ui_end_horizontal(ui);
-    if (!readonly && next_alpha_mode < 2u && next_alpha_mode != alpha_mode)
+    if (!readonly && next_alpha_mode < 3u && next_alpha_mode != alpha_mode)
     {
-      desc->args.textured.alpha_mode = next_alpha_mode == 0u
-          ? LDK_MATERIAL_ALPHA_MODE_OPAQUE
-          : LDK_MATERIAL_ALPHA_MODE_CUTOUT;
+      desc->args.textured.alpha_mode =
+          (LDKMaterialAlphaMode)next_alpha_mode;
       changed = true;
     }
 
@@ -2931,8 +2932,7 @@ static bool s_editor_inspector_instance_add(LDKInstancedMeshSource *source)
   u32 count;
   bool result;
 
-  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4) ||
-      (source->instance_count && !source->instances))
+  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4))
   {
     return false;
   }
@@ -2963,8 +2963,7 @@ static bool s_editor_inspector_instance_remove(
   u32 count;
   bool result;
 
-  if (!source || index >= source->instance_count ||
-      (source->instance_count && !source->instances))
+  if (!source || index >= source->instance_count)
   {
     return false;
   }
@@ -2996,28 +2995,6 @@ static bool s_editor_inspector_instance_remove(
   return result;
 }
 
-static void s_editor_inspector_instance_selection_clear(
-    LDKEditorContext *editor)
-{
-  if (!editor)
-  {
-    return;
-  }
-
-  editor->selected_instance_entity = x_handle_null();
-  editor->selected_instance = 0;
-}
-
-static bool s_editor_inspector_instance_selected(
-    LDKEditorContext *editor, LDKEntity entity, u32 instance_index)
-{
-  return editor &&
-         !x_handle_is_null(editor->selected_instance_entity) &&
-         ldki_editor_entity_equal(editor->selected_entity, entity) &&
-         ldki_editor_entity_equal(editor->selected_instance_entity, entity) &&
-         editor->selected_instance == instance_index;
-}
-
 static void s_editor_inspector_instanced_mesh_instances_draw(
     LDKEditorContext *editor, LDKEntity entity, LDKInstancedMeshSource *source)
 {
@@ -3027,13 +3004,6 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
   if (!editor || !source)
   {
     return;
-  }
-
-  if (!x_handle_is_null(editor->selected_instance_entity) &&
-      ldki_editor_entity_equal(editor->selected_instance_entity, entity) &&
-      editor->selected_instance >= source->instance_count)
-  {
-    s_editor_inspector_instance_selection_clear(editor);
   }
 
   ui = &editor->ui;
@@ -3050,9 +3020,6 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
     }
     else
     {
-      editor->selected_entity = entity;
-      editor->selected_instance_entity = entity;
-      editor->selected_instance = source->instance_count - 1u;
       s_editor_inspector_input_state_clear();
       memset(&s_editor_inspector_euler_state, 0,
           sizeof(s_editor_inspector_euler_state));
@@ -3067,29 +3034,16 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
     Quat rotation;
     bool changed = false;
     bool remove = false;
-    bool selected = s_editor_inspector_instance_selected(editor, entity, i);
 
     ldk_ui_push_id_u32(ui, i);
     ldk_ui_begin_horizontal(ui);
-    snprintf(label, sizeof(label),
-        selected ? "> Instance %u" : "Instance %u", i);
-    if (ldk_ui_button_flat(ui, label))
-    {
-      editor->selected_entity = entity;
-      editor->selected_instance_entity = entity;
-      editor->selected_instance = i;
-      selected = true;
-    }
+    snprintf(label, sizeof(label), "Instance %u", i);
+    ldk_ui_label(ui, label);
     remove = ldk_ui_button_flat(ui, "Remove");
     ldk_ui_end_horizontal(ui);
 
     if (remove)
     {
-      bool selection_owned =
-          !x_handle_is_null(editor->selected_instance_entity) &&
-          ldki_editor_entity_equal(editor->selected_instance_entity, entity);
-      u32 selected_index = editor->selected_instance;
-
       if (!s_editor_inspector_instance_remove(source, i))
       {
         ldk_os_dialog_show_error(editor->window, "Remove Instance",
@@ -3097,18 +3051,6 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       }
       else
       {
-        if (selection_owned)
-        {
-          if (selected_index == i)
-          {
-            s_editor_inspector_instance_selection_clear(editor);
-          }
-          else if (selected_index > i)
-          {
-            editor->selected_instance = selected_index - 1u;
-          }
-        }
-
         s_editor_inspector_input_state_clear();
         memset(&s_editor_inspector_euler_state, 0,
             sizeof(s_editor_inspector_euler_state));
@@ -3201,7 +3143,10 @@ static void s_editor_inspector_add_component_draw(
     }
 
     component_type = ldk_scene_component_meta_runtime_type(meta);
-    if (!ldk_component_is_registered(&ecs->component, component_type) ||
+    LDKComponentDesc component_desc = {0};
+    if (!ldk_component_desc_get(
+            &ecs->component, component_type, &component_desc) ||
+        (component_desc.flags & LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u ||
         ldk_entity_component_has(&ecs->entity, entity, component_type))
     {
       continue;
@@ -3238,18 +3183,13 @@ static void s_editor_inspector_add_component_draw(
 
       if (initialized)
       {
-        if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
-        {
-          editor->selected_instance_entity = entity;
-          editor->selected_instance = 0;
-        }
-
         s_editor_inspector_component_expanded_set(component_type, true);
         ldk_ui_close_current_popup(ui);
         added = true;
       }
       else
       {
+        ldki_editor_log_error(editor, "Failed to add the selected component.");
         ldk_os_dialog_show_error(editor->window, "Add Component",
             "Failed to add the selected component.");
       }
@@ -3285,12 +3225,6 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
-  if (!x_handle_is_null(editor->selected_instance_entity) &&
-      !ldki_editor_entity_equal(
-          editor->selected_instance_entity, editor->selected_entity))
-  {
-    s_editor_inspector_instance_selection_clear(editor);
-  }
   s_editor_inspector_column_update(editor);
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
@@ -3396,7 +3330,15 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
+    LDKComponentDesc component_desc = {0};
     bool has_delete_button = true;
+
+    if (ldk_component_desc_get(
+            &ecs->component, component_type, &component_desc) &&
+        (component_desc.flags & LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u)
+    {
+      continue;
+    }
 
     // custom icons for native components
     if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)

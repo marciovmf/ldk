@@ -21,7 +21,8 @@ extern "C"
   typedef enum LDKMaterialAlphaMode
   {
     LDK_MATERIAL_ALPHA_MODE_OPAQUE = 0,
-    LDK_MATERIAL_ALPHA_MODE_CUTOUT = 1
+    LDK_MATERIAL_ALPHA_MODE_CUTOUT = 1,
+    LDK_MATERIAL_ALPHA_MODE_BLEND = 2
   } LDKMaterialAlphaMode;
 
   typedef struct LDKMaterialTexturedArgs

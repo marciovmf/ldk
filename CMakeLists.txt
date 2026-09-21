@@ -197,7 +197,6 @@ function(ldk_game_build)
   endif()
 
   ldk_target_defaults(${GAME_TARGET})
-
   if (GAME_OUTPUT_DIR)
     set(GAME_TARGET_OUTPUT_DIR "${GAME_OUTPUT_DIR}")
   else()
@@ -397,7 +396,6 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_scene_systems.h src/ldk_scene_systems.c
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
   ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
-
   # Modules
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
@@ -419,6 +417,12 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
   ${INCLUDE_DIR}/component/ldk_instanced_mesh_source.h
   src/component/ldk_instanced_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_particle_emitter.h
+  src/component/ldk_particle_emitter.c
+
+  # Systems
+  ${INCLUDE_DIR}/system/ldk_particle_system.h
+  src/system/ldk_particle_system.c
 )
 
 if (WIN32)
@@ -521,21 +525,40 @@ if (NOT OPTION_LDK_USE_PREBUILT)
     "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk_engine")
   set(LDK_ENGINE_METADATA_HEADER
     "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata.h")
+  set(LDK_ENGINE_METADATA_INCLUDES_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_includes.h")
 
   ldk_collect_headers_from_dir(
     LDK_ENGINE_COMPONENT_HEADERS "${INCLUDE_DIR}/component")
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_SYSTEM_HEADERS "${INCLUDE_DIR}/system")
+
+  set(LDK_ENGINE_METADATA_INPUTS
+    ${LDK_ENGINE_COMPONENT_HEADERS}
+    ${LDK_ENGINE_SYSTEM_HEADERS}
+  )
+
+  set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
+  foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
+    file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
+    string(APPEND LDK_ENGINE_METADATA_INCLUDES_TEXT
+      "#include \"${metadata_header}\"\n")
+  endforeach()
+
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    CONTENT "${LDK_ENGINE_METADATA_INCLUDES_TEXT}")
 
   add_custom_command(
     OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
     COMMAND $<TARGET_FILE:comet>
-      "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_COMPONENT_HEADERS}
+      "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_METADATA_INPUTS}
     DEPENDS
       comet
-      ${LDK_ENGINE_COMPONENT_HEADERS}
+      ${LDK_ENGINE_METADATA_INPUTS}
     COMMAND_EXPAND_LISTS
     VERBATIM
-    COMMENT "Running engine component metadata extraction tool..."
+    COMMENT "Running engine component and system metadata extraction tool..."
   )
 
   add_custom_target(ldk_engine_metadata
