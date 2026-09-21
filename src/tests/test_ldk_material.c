@@ -6,6 +6,8 @@
 
 #include <ldk_material.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
+#include <math.h>
 #include <module/ldk_renderer.h>
 #include <stdx/stdx_math.h>
 
@@ -606,6 +608,9 @@ typedef struct TestRendererInstancingBackend
   u64 next_resource;
   u32 draw_indexed_count;
   u32 draw_indexed_instanced_count;
+  u32 instance_count;
+  bool fail_instance_upload;
+  bool fail_instance_allocation;
 } TestRendererInstancingBackend;
 
 static LDKRHIBuffer s_test_renderer_instancing_buffer_create(
@@ -613,19 +618,22 @@ static LDKRHIBuffer s_test_renderer_instancing_buffer_create(
 {
   TestRendererInstancingBackend *backend =
       (TestRendererInstancingBackend *)user;
-  (void)desc;
+  if (backend->fail_instance_allocation &&
+      (desc->usage & LDK_RHI_BUFFER_USAGE_VERTEX))
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
   return ++backend->next_resource;
 }
 
 static bool s_test_renderer_instancing_buffer_update(void *user,
     LDKRHIBuffer buffer, u32 offset, u32 size, const void *data)
 {
-  (void)user;
+  TestRendererInstancingBackend *backend = user;
   (void)buffer;
   (void)offset;
-  (void)size;
   (void)data;
-  return true;
+  return !backend->fail_instance_upload || size != 2 * sizeof(Mat4);
 }
 
 static void s_test_renderer_instancing_pass_begin(
@@ -686,13 +694,13 @@ static void s_test_renderer_instancing_draw_indexed_instanced(
 {
   TestRendererInstancingBackend *backend =
       (TestRendererInstancingBackend *)user;
-  (void)desc;
   backend->draw_indexed_instanced_count++;
+  backend->instance_count += desc->instance_count;
 }
 
 static bool s_test_renderer_instancing_setup(LDKRenderer *renderer,
     LDKRHIContext *rhi, TestRendererInstancingBackend *backend,
-    bool instancing_supported)
+    bool instancing_supported, bool explicit_instances)
 {
   LDKRHIContextDesc rhi_desc = {0};
   LDKRHIFunctions functions = {0};
@@ -789,7 +797,17 @@ static bool s_test_renderer_instancing_setup(LDKRenderer *renderer,
   LDKResourceMesh mesh = {1};
   LDKResourceMaterial material = {1};
   Mat4 world = mat4_identity();
-  if (!ldk_renderer_submit_mesh(renderer, mesh, material, world) ||
+  if (explicit_instances)
+  {
+    Mat4 instances[] = {world, mat4_translate(vec3_make(2, 0, 0))};
+    if (!ldk_renderer_submit_mesh_instances(renderer, LDK_RENDERER_VIEW_ALL,
+            mesh, material, 0, 3, world, instances, 2,
+            LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS))
+    {
+      return false;
+    }
+  }
+  else if (!ldk_renderer_submit_mesh(renderer, mesh, material, world) ||
       !ldk_renderer_submit_mesh(renderer, mesh, material, world))
   {
     return false;
@@ -821,7 +839,7 @@ static int test_renderer_instancing_batches_color_and_shadow(void)
 
   backend.next_resource = 1000;
   ASSERT_TRUE(s_test_renderer_instancing_setup(
-      &renderer, &rhi, &backend, true));
+      &renderer, &rhi, &backend, true, true));
 
   frame.framebuffer_width = 640;
   frame.framebuffer_height = 480;
@@ -841,6 +859,95 @@ static int test_renderer_instancing_batches_color_and_shadow(void)
   return 0;
 }
 
+static int test_renderer_ordinary_batches_never_instance(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, true, false));
+  LDKRendererFrameDesc frame = {0};
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  ldk_renderer_render_frame(&renderer, &frame);
+  LDKRendererFrameStats stats = ldk_renderer_last_frame_stats_get(&renderer);
+  ASSERT_EQ(backend.draw_indexed_instanced_count, 0u);
+  ASSERT_EQ(backend.draw_indexed_count, 4u);
+  ASSERT_EQ(stats.game.batch_count, 1u);
+  ASSERT_EQ(stats.game.max_batch_size, 2u);
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_instances_copy_transform_and_validate(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, true, false));
+  LDKResourceMesh mesh = {1};
+  LDKResourceMaterial material = {1};
+  Mat4 parent = mat4_translate(vec3_make(10, 0, 0));
+  Mat4 local = mat4_translate(vec3_make(3, 0, 0));
+  ASSERT_TRUE(ldk_renderer_submit_mesh_instances(&renderer,
+      LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, parent, &local, 1, 0));
+  local.m[12] = 99;
+  ASSERT_EQ(renderer.submitted_mesh_count, 3u);
+  ASSERT_EQ(renderer.submitted_instance_worlds[0].m[12], 13.0f);
+  ASSERT_FALSE(ldk_renderer_submit_mesh_instances(&renderer,
+      LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, parent, NULL, 1, 0));
+  ASSERT_FALSE(ldk_renderer_submit_mesh_instances(&renderer,
+      LDK_RENDERER_VIEW_ALL, mesh, material, 2, 3, parent, &local, 1, 0));
+  ASSERT_TRUE(ldk_renderer_submit_mesh_instances(&renderer,
+      LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, parent, NULL, 0, 0));
+  ASSERT_EQ(renderer.submitted_mesh_count, 3u);
+  LDKRendererFrameDesc frame = {0};
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  ldk_renderer_render_frame(&renderer, &frame);
+  ASSERT_EQ(backend.draw_indexed_count, 4u);
+  ASSERT_EQ(backend.draw_indexed_instanced_count, 1u);
+  ASSERT_EQ(backend.instance_count, 1u);
+  ASSERT_EQ(renderer.submitted_instance_count, 0u);
+  ASSERT_EQ(renderer.submitted_mesh_count, 0u);
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_instances_fallback_resources(void)
+{
+  for (u32 failure = 0; failure < 3; ++failure)
+  {
+    TestRendererInstancingBackend backend = {0};
+    LDKRHIContext rhi = {0};
+    LDKRenderer renderer = {0};
+    ASSERT_TRUE(s_test_renderer_instancing_setup(
+        &renderer, &rhi, &backend, true, true));
+    if (failure == 0)
+    {
+      backend.fail_instance_upload = true;
+    }
+    else if (failure == 1)
+    {
+      renderer.mesh_pass.vertex_color_unlit_instanced_pipeline = 0;
+      renderer.shadow_pass.instanced_pipeline = 0;
+    }
+    else
+    {
+      backend.fail_instance_allocation = true;
+    }
+    LDKRendererFrameDesc frame = {0};
+    frame.framebuffer_width = 640;
+    frame.framebuffer_height = 480;
+    ldk_renderer_render_frame(&renderer, &frame);
+    ASSERT_EQ(backend.draw_indexed_count, 4u);
+    ASSERT_EQ(backend.draw_indexed_instanced_count, 0u);
+    s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  }
+  return 0;
+}
+
 static int test_renderer_instancing_falls_back_without_backend_support(void)
 {
   TestRendererInstancingBackend backend = {0};
@@ -850,7 +957,7 @@ static int test_renderer_instancing_falls_back_without_backend_support(void)
 
   backend.next_resource = 1000;
   ASSERT_TRUE(s_test_renderer_instancing_setup(
-      &renderer, &rhi, &backend, false));
+      &renderer, &rhi, &backend, false, true));
 
   frame.framebuffer_width = 640;
   frame.framebuffer_height = 480;
@@ -912,6 +1019,28 @@ static int test_missing_image_checker(void)
   return 0;
 }
 
+static int test_instanced_mesh_source_owns_transforms(void)
+{
+  LDKInstancedMeshSource source = {0};
+  Mat4 local[2] = {mat4_identity(), mat4_translate(vec3_make(1, 2, 3))};
+  ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(&source, local, 2));
+  ASSERT_TRUE(source.instances != local);
+  local[1].m[12] = 8;
+  ASSERT_EQ(source.instances[1].m[12], 1.0f);
+  ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(
+      &source, source.instances + 1, 1));
+  ASSERT_EQ(source.instance_count, 1u);
+  ASSERT_EQ(source.instances[0].m[14], 3.0f);
+  local[0].m[0] = NAN;
+  ASSERT_FALSE(ldk_instanced_mesh_source_set_instances(&source, local, 2));
+  ASSERT_FALSE(ldk_instanced_mesh_source_set_instances(&source, NULL, 1));
+  ASSERT_EQ(source.instance_count, 1u);
+  ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(&source, NULL, 0));
+  ASSERT_TRUE(source.instances == NULL);
+  ASSERT_EQ(source.instance_count, 0u);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -927,8 +1056,12 @@ int main(void)
       X_TEST(test_mesh_source_authored_material),
       X_TEST(test_shared_image_cache),
       X_TEST(test_renderer_instancing_batches_color_and_shadow),
+      X_TEST(test_renderer_ordinary_batches_never_instance),
+      X_TEST(test_renderer_instances_copy_transform_and_validate),
+      X_TEST(test_renderer_instances_fallback_resources),
       X_TEST(test_renderer_instancing_falls_back_without_backend_support),
       X_TEST(test_missing_image_checker),
+      X_TEST(test_instanced_mesh_source_owns_transforms),
   };
 
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

@@ -1,4 +1,5 @@
 #include "component/ldk_mesh_source.h"
+#include <component/ldk_instanced_mesh_source.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -1079,6 +1080,14 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc instanced_desc =
+      ldk_instanced_mesh_source_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &instanced_desc))
+  {
+    ldk_log_error("Failed to register component: InstancedMeshSource.");
+    error = true;
+  }
+
   if (error)
   {
     s_grouping_registry_terminate(context);
@@ -1114,15 +1123,20 @@ void ldk_ecs_terminate(void)
      * mesh-owned renderer resources while their owners and renderer live.
      * Do not detach here: iteration must not swap/remove store entries.
      */
-    XArray *owners = ldk_component_owners_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    if (owners && entity_registry)
+    const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+    for (u32 type_index = 0; type_index < 2; ++type_index)
     {
-      for (u32 i = 0; i < x_array_count(owners); i++)
+      XArray *owners = ldk_component_owners_get(
+          component_registry, mesh_types[type_index]);
+      if (owners && entity_registry)
       {
-        LDKEntity *owner = x_array_get(owners, i);
-        ldk_component_destroy_data(component_registry, entity_registry, *owner,
-            LDK_COMPONENT_TYPE_MESH_SOURCE, i);
+        for (u32 i = 0; i < x_array_count(owners); i++)
+        {
+          LDKEntity *owner = x_array_get(owners, i);
+          ldk_component_destroy_data(component_registry, entity_registry,
+              *owner, mesh_types[type_index], i);
+        }
       }
     }
     ldk_component_registry_terminate(component_registry);

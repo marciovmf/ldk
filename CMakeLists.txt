@@ -417,6 +417,8 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
   ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_instanced_mesh_source.h
+  src/component/ldk_instanced_mesh_source.c
 )
 
 if (WIN32)

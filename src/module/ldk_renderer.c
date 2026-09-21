@@ -134,7 +134,7 @@
 * first_index and index_count remain on LDKRendererMeshSubmit and are checked
 * while refining a sorted sequence into actual draw batches.
 *
-* Two submissions may be instanced together only when they have the same:
+* Ordinary submissions may share a batch only when they have the same:
 *
 * ```
 * - mesh
@@ -178,8 +178,7 @@
 * color pass, so it must not split otherwise compatible color batches.
 *
 * The shadow pass evaluates CAST_SHADOWS independently while building its own
-* filtered queue. Compatible caster runs may be instanced without changing the
-* color-pass batch identity.
+* filtered queue. Only explicit instance submissions use shadow instancing.
 *
 * Pass-specific state should only participate in a queue key when it changes
 * the rendering state of that pass.
@@ -198,9 +197,9 @@
 *
 * 10. Instancing is an optimization, never a correctness requirement.
 *
-* Compatible opaque color runs and shadow-caster runs with more than one item
-* use instanced pipelines when possible. Per-instance data currently consists
-* only of the world matrix.
+* Only explicit instance submissions use instanced pipelines when possible.
+* Ordinary runs reuse render state but issue one draw per object.
+* Per-instance data currently consists only of the world matrix.
 *
 * Mesh vertex data remains in vertex-buffer stream 0:
 *
@@ -868,6 +867,11 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->submitted_light_count = 0;
   renderer->submitted_light_capacity = 0;
 
+  LDK_RENDERER_FREE(renderer->submitted_instance_worlds);
+  renderer->submitted_instance_worlds = NULL;
+  renderer->submitted_instance_count = 0;
+  renderer->submitted_instance_capacity = 0;
+
   LDK_RENDERER_FREE(renderer->submitted_meshes);
   renderer->submitted_meshes = NULL;
   renderer->submitted_mesh_count = 0;
@@ -1169,7 +1173,7 @@ static bool s_renderer_mesh_sort_queue_build(LDKRenderer* renderer,
 static bool s_renderer_mesh_submit_same_batch(
     const LDKRendererMeshSubmit* a, const LDKRendererMeshSubmit* b)
 {
-  if (a == NULL || b == NULL)
+  if (a == NULL || b == NULL || a->instance_count || b->instance_count)
   {
     return false;
   }
@@ -1439,7 +1443,6 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
     ldk_rhi_sampler_destroy(pass->rhi, pass->sampler);
     ldk_rhi_texture_destroy(pass->rhi, pass->depth_texture);
   }
-  LDK_RENDERER_FREE(pass->instance_worlds);
   LDK_RENDERER_FREE(pass->cutout_bindings_cache);
   memset(pass, 0, sizeof(*pass));
 }
@@ -1453,14 +1456,12 @@ static void s_renderer_shadow_pass_disable_instancing(
       pass->rhi, pass->cutout_instanced_vertex_shader_module);
   ldk_rhi_shader_module_destroy(pass->rhi, pass->instanced_vertex_shader_module);
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
-  LDK_RENDERER_FREE(pass->instance_worlds);
 
   pass->cutout_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->cutout_instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
   pass->instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
   pass->instance_buffer = LDK_RHI_INVALID_RESOURCE;
-  pass->instance_worlds = NULL;
   pass->instance_capacity = 0;
 }
 
@@ -1510,12 +1511,6 @@ static bool s_renderer_shadow_pass_ensure_instance_capacity(
   }
 
   size_t cpu_size = (size_t)capacity * sizeof(Mat4);
-  Mat4 *worlds = (Mat4 *)LDK_RENDERER_ALLOC(cpu_size);
-  if (worlds == NULL)
-  {
-    return false;
-  }
-
   LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = (u32)cpu_size;
@@ -1526,14 +1521,11 @@ static bool s_renderer_shadow_pass_ensure_instance_capacity(
   LDKRHIBuffer buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
   if (buffer == LDK_RHI_INVALID_RESOURCE)
   {
-    LDK_RENDERER_FREE(worlds);
     return false;
   }
 
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
-  LDK_RENDERER_FREE(pass->instance_worlds);
   pass->instance_buffer = buffer;
-  pass->instance_worlds = worlds;
   pass->instance_capacity = capacity;
   return true;
 }
@@ -1988,6 +1980,14 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     return;
   }
 
+  const Mat4 *worlds = first_submit->instance_count
+      ? renderer->submitted_instance_worlds + first_submit->instance_offset
+      : NULL;
+  if (worlds)
+  {
+    submit_count = first_submit->instance_count;
+  }
+
   LDKRendererMeshResource *mesh =
       s_renderer_mesh_get_resource(renderer, first_submit->mesh);
   LDKRendererMaterialResource *material =
@@ -2027,28 +2027,14 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
         sizeof(material_params), &material_params);
   }
 
-  if (submit_count > 1 &&
+  if (worlds &&
       pass->rhi->functions.draw_indexed_instanced != NULL &&
       instanced_pipeline != LDK_RHI_INVALID_RESOURCE &&
       s_renderer_shadow_pass_ensure_instance_capacity(pass, submit_count))
   {
-    bool valid_run = true;
-    for (u32 i = 0; i < submit_count; ++i)
-    {
-      LDKRendererMeshSubmit *submit = s_renderer_shadow_pass_run_submit(
-          renderer, first_submit, sort_items, i);
-      if (submit == NULL)
-      {
-        valid_run = false;
-        break;
-      }
-      pass->instance_worlds[i] = submit->world;
-    }
-
     u32 byte_count = submit_count * (u32)sizeof(Mat4);
-    if (valid_run &&
-        ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
-            pass->instance_worlds))
+    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
+            worlds))
     {
       s_renderer_shadow_pass_bind(pass, instanced_pipeline, bindings,
           bound_pipeline, bound_bindings);
@@ -2083,15 +2069,17 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
 
   for (u32 i = 0; i < submit_count; ++i)
   {
-    LDKRendererMeshSubmit *submit = s_renderer_shadow_pass_run_submit(
-        renderer, first_submit, sort_items, i);
+    LDKRendererMeshSubmit *submit = worlds ? first_submit
+        : s_renderer_shadow_pass_run_submit(
+              renderer, first_submit, sort_items, i);
     if (submit == NULL)
     {
       return;
     }
 
     ldk_rhi_buffer_update(
-        pass->rhi, pass->object_buffer, 0, sizeof(Mat4), &submit->world);
+        pass->rhi, pass->object_buffer, 0, sizeof(Mat4),
+        worlds ? &worlds[i] : &submit->world);
 
     LDKRHIDrawIndexedDesc draw = {0};
     draw.first_index = first_submit->first_index;
@@ -2627,12 +2615,6 @@ static bool s_renderer_mesh_pass_ensure_instance_capacity(
   }
 
   size_t cpu_size = (size_t)capacity * sizeof(Mat4);
-  Mat4* worlds = (Mat4*)LDK_RENDERER_ALLOC(cpu_size);
-  if (worlds == NULL)
-  {
-    return false;
-  }
-
   LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_desc_defaults(&desc);
   desc.size = (u32)cpu_size;
@@ -2643,14 +2625,11 @@ static bool s_renderer_mesh_pass_ensure_instance_capacity(
   LDKRHIBuffer buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
   if (buffer == LDK_RHI_INVALID_RESOURCE)
   {
-    LDK_RENDERER_FREE(worlds);
     return false;
   }
 
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
-  LDK_RENDERER_FREE(pass->instance_worlds);
   pass->instance_buffer = buffer;
-  pass->instance_worlds = worlds;
   pass->instance_capacity = capacity;
   return true;
 }
@@ -3005,7 +2984,6 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
   }
 
-  LDK_RENDERER_FREE(pass->instance_worlds);
   LDK_RENDERER_FREE(pass->material_bindings_cache);
   memset(pass, 0, sizeof(*pass));
 }
@@ -3112,6 +3090,14 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     return;
   }
 
+  const Mat4 *worlds = first_submit->instance_count
+      ? renderer->submitted_instance_worlds + first_submit->instance_offset
+      : NULL;
+  if (worlds)
+  {
+    submit_count = first_submit->instance_count;
+  }
+
   LDKRendererMeshSubmit* first = first_submit;
   LDKRendererMeshResource* mesh =
       s_renderer_mesh_get_resource(renderer, first->mesh);
@@ -3200,27 +3186,13 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
       sizeof(material_params), &material_params);
 
-  if (!overlay && submit_count > 1 &&
+  if (!overlay && worlds &&
       pass->rhi->functions.draw_indexed_instanced != NULL &&
       s_renderer_mesh_pass_ensure_instance_capacity(pass, submit_count))
   {
-    bool valid_run = true;
-    for (u32 i = 0; i < submit_count; ++i)
-    {
-      LDKRendererMeshSubmit* submit = s_renderer_mesh_pass_run_submit(
-          renderer, first, sort_items, i);
-      if (submit == NULL)
-      {
-        valid_run = false;
-        break;
-      }
-      pass->instance_worlds[i] = submit->world;
-    }
-
     u32 byte_count = submit_count * (u32)sizeof(Mat4);
-    if (valid_run &&
-        ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
-            pass->instance_worlds))
+    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
+            worlds))
     {
       LDKRHIPipeline pipeline = s_renderer_mesh_pass_pipeline(
           pass, material->selection, first->flags, true);
@@ -3267,6 +3239,7 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   for (u32 i = 0; i < submit_count; ++i)
   {
     LDKRendererMeshSubmit* submit =
+        worlds ? first :
         s_renderer_mesh_pass_run_submit(renderer, first, sort_items, i);
     if (submit == NULL)
     {
@@ -3274,7 +3247,7 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     }
 
     LDKRendererMeshObjectParams object = {0};
-    object.world = submit->world;
+    object.world = worlds ? worlds[i] : submit->world;
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
         sizeof(object), &object);
 
@@ -3314,11 +3287,13 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
 
     if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
     {
-      stats->overlay_mesh_render_count += 1;
+      stats->overlay_mesh_render_count +=
+          submit->instance_count ? submit->instance_count : 1;
     }
     else
     {
-      stats->opaque_mesh_render_count += 1;
+      stats->opaque_mesh_render_count +=
+          submit->instance_count ? submit->instance_count : 1;
       stats->batch_count += 1;
       if (stats->max_batch_size < 1)
       {
@@ -3383,6 +3358,10 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     }
 
     u32 batch_size = end - i;
+    if (submit->instance_count)
+    {
+      stats->opaque_mesh_render_count += submit->instance_count - 1;
+    }
     stats->batch_count += 1;
     if (batch_size > stats->max_batch_size)
     {
@@ -5689,6 +5668,7 @@ void ldk_renderer_render_frame(
   ldk_rhi_frame_end(renderer->rhi);
 
   renderer->submitted_mesh_count = 0;
+  renderer->submitted_instance_count = 0;
   renderer->submitted_line_count = 0;
   renderer->submitted_light_count = 0;
   renderer->submitted_ui = NULL;
@@ -5851,7 +5831,87 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   submit->world = world;
   submit->view_id = view_id;
   submit->flags = flags;
+  submit->instance_offset = 0;
+  submit->instance_count = 0;
   renderer->submitted_mesh_count += 1;
+  return true;
+}
+
+bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, u32 first_index, u32 index_count,
+    Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags)
+{
+  if (!renderer || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      (instance_count && !instances) ||
+      instance_count > UINT32_MAX / sizeof(Mat4) ||
+      renderer->submitted_instance_count >
+          UINT32_MAX / sizeof(Mat4) - instance_count)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < 16; ++i)
+  {
+    if (!isfinite(parent_world.m[i]))
+    {
+      return false;
+    }
+  }
+  for (u32 i = 0; i < instance_count; ++i)
+  {
+    Mat4 world = mat4_mul(parent_world, instances[i]);
+    for (u32 j = 0; j < 16; ++j)
+    {
+      if (!isfinite(world.m[j]))
+      {
+        return false;
+      }
+    }
+  }
+
+  // Validate and reserve one submit, then commit its matrix payload atomically.
+  if (!s_renderer_submit_mesh(renderer, view_id, mesh, material,
+          first_index, index_count, parent_world, flags))
+  {
+    return false;
+  }
+  LDKRendererMeshSubmit *submit =
+      &renderer->submitted_meshes[--renderer->submitted_mesh_count];
+  if (!instance_count)
+  {
+    return true;
+  }
+
+  u32 needed = renderer->submitted_instance_count + instance_count;
+  if (needed > renderer->submitted_instance_capacity)
+  {
+    u32 capacity = renderer->submitted_instance_capacity;
+    capacity = capacity <= UINT32_MAX / sizeof(Mat4) / 2
+        ? capacity * 2 : needed;
+    if (capacity < needed)
+    {
+      capacity = needed;
+    }
+    Mat4 *worlds = LDK_RENDERER_REALLOC(renderer->submitted_instance_worlds,
+        (size_t)capacity * sizeof(Mat4));
+    if (!worlds)
+    {
+      return false;
+    }
+    renderer->submitted_instance_worlds = worlds;
+    renderer->submitted_instance_capacity = capacity;
+  }
+  submit->instance_offset = renderer->submitted_instance_count;
+  submit->instance_count = instance_count;
+  for (u32 i = 0; i < instance_count; ++i)
+  {
+    renderer->submitted_instance_worlds[submit->instance_offset + i] =
+        mat4_mul(parent_world, instances[i]);
+  }
+  renderer->submitted_instance_count = needed;
+  ++renderer->submitted_mesh_count;
   return true;
 }
 

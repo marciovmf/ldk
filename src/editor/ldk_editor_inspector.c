@@ -5,6 +5,7 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <module/ldk_scene_manager.h>
 #include <ctype.h>
 #include <errno.h>
@@ -1465,7 +1466,8 @@ static void s_editor_inspector_field_draw(
 
   ldk_ui_push_id_cstr(ui, field->name);
 
-  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
+  if ((component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+        component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
       field->type == LDK_FIELD_U32 &&
       field->offset == offsetof(LDKMeshSource, mesh_index))
   {
@@ -1479,7 +1481,8 @@ static void s_editor_inspector_field_draw(
     bool changed = s_editor_inspector_mesh_asset_field(
         editor, field->name, &value, readonly);
 
-    if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
+    if ((component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+        component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
         field->offset == offsetof(LDKMeshSource, source_asset))
     {
       LDKMeshSource *mesh = (LDKMeshSource *)component;
@@ -2825,6 +2828,274 @@ static bool s_editor_inspector_system_draw(
   return true;
 }
 
+enum
+{
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_POSITION = 0,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_ROTATION,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_SCALE,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_COUNT,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_OFFSET_BASE = 0x80000000u,
+};
+
+static u32 s_editor_inspector_instance_field_offset(
+    u32 instance_index, u32 field_index)
+{
+  return LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_OFFSET_BASE +
+         instance_index * LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_COUNT +
+         field_index;
+}
+
+static bool s_editor_inspector_instance_vec3_draw(LDKEditorContext *editor,
+    LDKEntity entity, const char *label, u32 field_offset, Vec3 *value)
+{
+  LDKComponentFieldMeta field = {0};
+  LDKUIContext *ui;
+  bool changed = false;
+
+  if (!editor || !label || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  field.name = label;
+  field.type = LDK_FIELD_VEC3;
+  field.offset = field_offset;
+  field.flags = LDK_FIELD_FLAG_NONE;
+  field.widget = LDK_FIELD_WIDGET_VEC3;
+
+  s_editor_inspector_row_begin(editor, label);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "X");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 0, &value->x, false);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "Y");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 1, &value->y, false);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "Z");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 2, &value->z, false);
+
+  ldk_ui_end_horizontal(ui);
+  return changed;
+}
+
+static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 field_offset, Mat4 *instance, Quat *rotation)
+{
+  LDKComponentFieldMeta field = {0};
+  Quat original;
+
+  if (!editor || !instance || !rotation)
+  {
+    return false;
+  }
+
+  field.name = "Rotation";
+  field.type = LDK_FIELD_QUAT;
+  field.offset = field_offset;
+  field.flags = LDK_FIELD_FLAG_NONE;
+  field.widget = LDK_FIELD_WIDGET_EULER;
+  original = *rotation;
+
+  s_editor_inspector_row_begin(editor, field.name);
+  s_editor_inspector_euler_field_draw(&editor->ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance, rotation,
+      false);
+  ldk_ui_end_horizontal(&editor->ui);
+
+  return !s_editor_inspector_euler_quat_equal(original, *rotation);
+}
+
+static bool s_editor_inspector_instance_matrix_finite(Mat4 matrix)
+{
+  for (u32 i = 0; i < 16; ++i)
+  {
+    if (!isfinite(matrix.m[i]))
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool s_editor_inspector_instance_add(LDKInstancedMeshSource *source)
+{
+  Mat4 *instances;
+  u32 count;
+  bool result;
+
+  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4))
+  {
+    return false;
+  }
+
+  count = source->instance_count + 1u;
+  instances = malloc((size_t)count * sizeof(*instances));
+  if (!instances)
+  {
+    return false;
+  }
+
+  if (source->instance_count)
+  {
+    memcpy(instances, source->instances,
+        (size_t)source->instance_count * sizeof(*instances));
+  }
+  instances[count - 1u] = mat4_identity();
+
+  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
+  free(instances);
+  return result;
+}
+
+static bool s_editor_inspector_instance_remove(
+    LDKInstancedMeshSource *source, u32 index)
+{
+  Mat4 *instances;
+  u32 count;
+  bool result;
+
+  if (!source || index >= source->instance_count)
+  {
+    return false;
+  }
+
+  count = source->instance_count - 1u;
+  if (!count)
+  {
+    return ldk_instanced_mesh_source_set_instances(source, NULL, 0);
+  }
+
+  instances = malloc((size_t)count * sizeof(*instances));
+  if (!instances)
+  {
+    return false;
+  }
+
+  if (index)
+  {
+    memcpy(instances, source->instances, (size_t)index * sizeof(*instances));
+  }
+  if (index + 1u < source->instance_count)
+  {
+    memcpy(&instances[index], &source->instances[index + 1u],
+        (size_t)(source->instance_count - index - 1u) * sizeof(*instances));
+  }
+
+  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
+  free(instances);
+  return result;
+}
+
+static void s_editor_inspector_instanced_mesh_instances_draw(
+    LDKEditorContext *editor, LDKEntity entity, LDKInstancedMeshSource *source)
+{
+  LDKUIContext *ui;
+  char label[64];
+
+  if (!editor || !source)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_begin_horizontal(ui);
+  snprintf(label, sizeof(label), "Instances (%u)", source->instance_count);
+  ldk_ui_label(ui, label);
+  if (ldk_ui_button(ui, "+ Add Instance"))
+  {
+    if (!s_editor_inspector_instance_add(source))
+    {
+      ldk_os_dialog_show_error(
+          editor->window, "Add Instance", "Failed to add mesh instance.");
+    }
+    else
+    {
+      s_editor_inspector_input_state_clear();
+      memset(&s_editor_inspector_euler_state, 0,
+          sizeof(s_editor_inspector_euler_state));
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+
+  for (u32 i = 0; i < source->instance_count; ++i)
+  {
+    Vec3 position;
+    Vec3 scale;
+    Quat rotation;
+    bool changed = false;
+    bool remove = false;
+
+    ldk_ui_push_id_u32(ui, i);
+    ldk_ui_begin_horizontal(ui);
+    snprintf(label, sizeof(label), "Instance %u", i);
+    ldk_ui_label(ui, label);
+    remove = ldk_ui_button_flat(ui, "Remove");
+    ldk_ui_end_horizontal(ui);
+
+    if (remove)
+    {
+      if (!s_editor_inspector_instance_remove(source, i))
+      {
+        ldk_os_dialog_show_error(editor->window, "Remove Instance",
+            "Failed to remove mesh instance.");
+      }
+      else
+      {
+        s_editor_inspector_input_state_clear();
+        memset(&s_editor_inspector_euler_state, 0,
+            sizeof(s_editor_inspector_euler_state));
+      }
+      ldk_ui_pop_id(ui);
+      break;
+    }
+
+    mat4_decompose(source->instances[i], &position, &rotation, &scale);
+
+    changed |= s_editor_inspector_instance_vec3_draw(editor, entity,
+        "Position",
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_POSITION),
+        &position);
+    changed |= s_editor_inspector_instance_rotation_draw(editor, entity,
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_ROTATION),
+        &source->instances[i], &rotation);
+    changed |= s_editor_inspector_instance_vec3_draw(editor, entity, "Scale",
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_SCALE),
+        &scale);
+
+    if (changed)
+    {
+      Mat4 matrix = mat4_compose(position, rotation, scale);
+      if (s_editor_inspector_instance_matrix_finite(matrix))
+      {
+        source->instances[i] = matrix;
+      }
+      else
+      {
+        ldki_editor_log_error(
+            editor, "Instance transform produced an invalid matrix.");
+      }
+    }
+
+    if (i + 1u < source->instance_count)
+    {
+      ldk_ui_horizontal_line(ui);
+    }
+    ldk_ui_pop_id(ui);
+  }
+}
+
 static void s_editor_inspector_add_component_draw(
     LDKEditorContext *editor, LDKECS *ecs, LDKGame *game, LDKEntity entity)
 {
@@ -2892,7 +3163,21 @@ static void s_editor_inspector_add_component_draw(
     ldk_ui_push_id_u32(ui, component_type);
     if (ldk_ui_button_flat(ui, component_name))
     {
-      if (ldk_ecs_component_add(entity, component_type, NULL))
+      void *component = ldk_ecs_component_add(entity, component_type, NULL);
+      bool initialized = component != NULL;
+
+      if (initialized &&
+          component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        initialized = s_editor_inspector_instance_add(
+            (LDKInstancedMeshSource *)component);
+        if (!initialized)
+        {
+          (void)ldk_ecs_component_remove(entity, component_type);
+        }
+      }
+
+      if (initialized)
       {
         s_editor_inspector_component_expanded_set(component_type, true);
         ldk_ui_close_current_popup(ui);
@@ -3110,14 +3395,33 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
        * not use scene serialization rules: runtime/non-serialized fields may
        * still be useful to inspect.
        */
-      for (u32 field_i = 0; field_i < meta->field_count; field_i++)
+      const LDKComponentMeta *fields_meta = meta;
+      void *fields_component = component;
+      u32 fields_type = component_type;
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
-        s_editor_inspector_field_draw(editor, entity, component_type, meta,
-            &meta->fields[field_i], component);
+        LDKInstancedMeshSource *instances = component;
+        fields_meta = ldk_scene_component_meta_find_by_type(
+            game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+        fields_component = &instances->source;
       }
-      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+      if (fields_meta)
       {
-        s_editor_inspector_material(editor, component);
+        for (u32 field_i = 0; field_i < fields_meta->field_count; field_i++)
+        {
+          s_editor_inspector_field_draw(editor, entity, fields_type,
+              fields_meta, &fields_meta->fields[field_i], fields_component);
+        }
+      }
+      if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+          fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        s_editor_inspector_material(editor, fields_component);
+      }
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        s_editor_inspector_instanced_mesh_instances_draw(
+            editor, entity, (LDKInstancedMeshSource *)component);
       }
     }
 

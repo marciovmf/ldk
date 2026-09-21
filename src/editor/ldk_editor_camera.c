@@ -6,6 +6,7 @@
 #include <ldk_raycast.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
@@ -399,53 +400,69 @@ void ldki_editor_scene_view_pick(
     return;
   }
 
-  mesh_sources = ldk_component_store_get(
-      &ecs->component, LDK_COMPONENT_TYPE_MESH_SOURCE);
-  mesh_owners = ldk_component_owners_get(
-      &ecs->component, LDK_COMPONENT_TYPE_MESH_SOURCE);
-
-  if (mesh_sources == NULL || mesh_owners == NULL)
+  const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+  for (u32 type_index = 0; type_index < 2; ++type_index)
   {
-    editor->selected_entity = x_handle_null();
-    return;
-  }
+    mesh_sources = ldk_component_store_get(
+        &ecs->component, mesh_types[type_index]);
+    mesh_owners = ldk_component_owners_get(
+        &ecs->component, mesh_types[type_index]);
 
-  mesh_count = x_array_count(mesh_sources);
-  if (x_array_count(mesh_owners) < mesh_count)
-  {
-    mesh_count = x_array_count(mesh_owners);
-  }
-
-  for (u32 i = 0; i < mesh_count; ++i)
-  {
-    const LDKMeshSource *mesh_source = x_array_get(mesh_sources, i);
-    const LDKEntity *entity = x_array_get(mesh_owners, i);
-    const LDKMeshData *mesh_data;
-    LDKRaycastHit hit;
-    Mat4 world;
-
-    if (mesh_source == NULL || entity == NULL ||
-        !ldk_entity_is_alive(&ecs->entity, *entity) ||
-        ldk_entity_internal_flags_has(
-            &ecs->entity, *entity, LDK_ENTITY_INTERNAL_EDITOR) ||
-        !ldk_transform_get_world_matrix(*entity, &world))
+    if (mesh_sources == NULL || mesh_owners == NULL)
     {
       continue;
     }
 
-    mesh_data = ldk_asset_manager_mesh_data_at(
-        asset_manager, mesh_source->source_asset, mesh_source->mesh_index);
-    if (mesh_data == NULL ||
-        !ldk_raycast_mesh_transformed(ray, mesh_data, world, &hit))
+    mesh_count = x_array_count(mesh_sources);
+    if (x_array_count(mesh_owners) < mesh_count)
     {
-      continue;
+      mesh_count = x_array_count(mesh_owners);
     }
 
-    if (hit.distance < nearest_distance)
+    for (u32 i = 0; i < mesh_count; ++i)
     {
-      nearest_distance = hit.distance;
-      picked_entity = *entity;
+      const void *component = x_array_get(mesh_sources, i);
+      const LDKInstancedMeshSource *instances =
+          type_index == 1 ? component : NULL;
+      const LDKMeshSource *mesh_source =
+          instances ? &instances->source : component;
+      const LDKEntity *entity = x_array_get(mesh_owners, i);
+      const LDKMeshData *mesh_data;
+      LDKRaycastHit hit;
+      Mat4 world;
+
+      if (mesh_source == NULL || entity == NULL ||
+          !ldk_entity_is_alive(&ecs->entity, *entity) ||
+          ldk_entity_internal_flags_has(
+              &ecs->entity, *entity, LDK_ENTITY_INTERNAL_EDITOR) ||
+          !ldk_transform_get_world_matrix(*entity, &world))
+      {
+        continue;
+      }
+
+      mesh_data = ldk_asset_manager_mesh_data_at(
+          asset_manager, mesh_source->source_asset, mesh_source->mesh_index);
+      if (mesh_data == NULL)
+      {
+        continue;
+      }
+
+      u32 count = instances ? instances->instance_count : 1;
+      for (u32 instance = 0; instance < count; ++instance)
+      {
+        Mat4 instance_world = instances
+            ? mat4_mul(world, instances->instances[instance]) : world;
+        if (ldk_raycast_mesh_transformed(
+                ray, mesh_data, instance_world, &hit) &&
+            hit.distance < nearest_distance)
+        {
+          nearest_distance = hit.distance;
+          picked_entity = *entity;
+        }
+      }
     }
+
   }
 
   editor->selected_entity = picked_entity;

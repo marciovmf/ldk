@@ -12,6 +12,7 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_system.h>
@@ -1476,105 +1477,137 @@ void ldk_engine_frame(void)
       }
     }
 
-    // Mesh sources
-    XArray *all_mesh = ldk_component_store_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    XArray *mesh_owners = ldk_component_owners_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    u32 mesh_count = x_array_count(all_mesh);
-
-    for (u32 i = 0; i < mesh_count; i++)
+    // Ordinary meshes and explicit instance sets share asset resolution.
+    const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+    for (u32 type_index = 0; type_index < 2; ++type_index)
     {
-      LDKMeshSource *mesh = x_array_get(all_mesh, i);
-      LDKEntity *entity = x_array_get(mesh_owners, i);
+      XArray *all_mesh = ldk_component_store_get(
+          component_registry, mesh_types[type_index]);
+      XArray *mesh_owners = ldk_component_owners_get(
+          component_registry, mesh_types[type_index]);
+      u32 mesh_count = x_array_count(all_mesh);
 
-      if (!mesh || !entity)
+      for (u32 i = 0; i < mesh_count; i++)
       {
-        continue;
-      }
+        void *component = x_array_get(all_mesh, i);
+        LDKInstancedMeshSource *instances = type_index == 1 ? component : NULL;
+        LDKMeshSource *mesh = instances ? &instances->source : component;
+        LDKEntity *entity = x_array_get(mesh_owners, i);
 
-      mesh->renderer = &e->renderer;
-
-      Mat4 mesh_world = mat4_identity();
-
-      if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
-      {
-        continue;
-      }
-
-      const LDKMeshData *mesh_data = ldk_asset_manager_mesh_data_at(
-          &e->asset_manager, mesh->source_asset, mesh->mesh_index);
-      if (mesh_data == NULL)
-      {
-        continue;
-      }
-
-      LDKRendererMeshDesc mesh_desc = {0};
-      mesh_desc.vertices = mesh_data->vertices;
-      mesh_desc.vertex_count = mesh_data->vertex_count;
-      mesh_desc.indices = mesh_data->indices;
-      mesh_desc.index_count = mesh_data->index_count;
-      mesh_desc.has_tangents = mesh_data->has_tangents;
-
-      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
-      {
-        mesh->renderer_mesh =
-            ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
-        mesh->dirty = false;
-      }
-      else if (mesh->dirty)
-      {
-        ldk_renderer_mesh_update(&e->renderer, mesh->renderer_mesh, &mesh_desc);
-        mesh->dirty = false;
-      }
-
-      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
-      {
-        continue;
-      }
-
-      if (!ldk_mesh_source_materials_sync(mesh, &e->asset_manager) ||
-          !ldk_mesh_source_material_sync(mesh, &e->asset_manager))
-      {
-        continue;
-      }
-
-      u32 submit_flags = mesh->casts_shadows
-                             ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
-                             : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
-      u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
-          &e->asset_manager, mesh->source_asset, mesh->mesh_index);
-      if (submesh_count == 0)
-      {
-        LDKResourceMaterial renderer_material;
-        if (!s_mesh_source_material_runtime(
-                e, mesh, 0, &renderer_material))
+        if (!mesh || !entity)
         {
           continue;
         }
 
-        ldk_renderer_submit_mesh_with_flags(&e->renderer, mesh->renderer_mesh,
-            renderer_material, mesh_world, submit_flags);
-        continue;
-      }
-
-      for (u32 submesh_index = 0;
-           submesh_index < submesh_count; ++submesh_index)
-      {
-        const LDKMeshSubmesh *submesh = ldk_asset_manager_mesh_submesh_at(
-            &e->asset_manager, mesh->source_asset, mesh->mesh_index,
-            submesh_index);
-        LDKResourceMaterial renderer_material;
-
-        if (!submesh || !s_mesh_source_material_runtime(e, mesh,
-                submesh->material_slot, &renderer_material))
+        mesh->renderer = &e->renderer;
+        if (instances && !instances->instance_count)
         {
           continue;
         }
 
-        ldk_renderer_submit_mesh_range_with_flags(&e->renderer,
-            mesh->renderer_mesh, renderer_material, submesh->first_index,
-            submesh->index_count, mesh_world, submit_flags);
+        Mat4 mesh_world = mat4_identity();
+
+        if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
+        {
+          continue;
+        }
+
+        const LDKMeshData *mesh_data = ldk_asset_manager_mesh_data_at(
+            &e->asset_manager, mesh->source_asset, mesh->mesh_index);
+        if (mesh_data == NULL)
+        {
+          continue;
+        }
+
+        LDKRendererMeshDesc mesh_desc = {0};
+        mesh_desc.vertices = mesh_data->vertices;
+        mesh_desc.vertex_count = mesh_data->vertex_count;
+        mesh_desc.indices = mesh_data->indices;
+        mesh_desc.index_count = mesh_data->index_count;
+        mesh_desc.has_tangents = mesh_data->has_tangents;
+
+        if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
+        {
+          mesh->renderer_mesh =
+              ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
+          mesh->dirty = false;
+        }
+        else if (mesh->dirty)
+        {
+          ldk_renderer_mesh_update(
+              &e->renderer, mesh->renderer_mesh, &mesh_desc);
+          mesh->dirty = false;
+        }
+
+        if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
+        {
+          continue;
+        }
+
+        if (!ldk_mesh_source_materials_sync(mesh, &e->asset_manager) ||
+            !ldk_mesh_source_material_sync(mesh, &e->asset_manager))
+        {
+          continue;
+        }
+
+        u32 submit_flags = mesh->casts_shadows
+                               ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+                               : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+        u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
+            &e->asset_manager, mesh->source_asset, mesh->mesh_index);
+        if (submesh_count == 0)
+        {
+          LDKResourceMaterial renderer_material;
+          if (!s_mesh_source_material_runtime(
+                  e, mesh, 0, &renderer_material))
+          {
+            continue;
+          }
+
+          if (instances)
+          {
+            ldk_renderer_submit_mesh_instances(&e->renderer,
+                LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
+                0, mesh_data->index_count, mesh_world, instances->instances,
+                instances->instance_count, submit_flags);
+          }
+          else
+          {
+            ldk_renderer_submit_mesh_with_flags(&e->renderer,
+                mesh->renderer_mesh, renderer_material, mesh_world, submit_flags);
+          }
+          continue;
+        }
+
+        for (u32 submesh_index = 0;
+             submesh_index < submesh_count; ++submesh_index)
+        {
+          const LDKMeshSubmesh *submesh = ldk_asset_manager_mesh_submesh_at(
+              &e->asset_manager, mesh->source_asset, mesh->mesh_index,
+              submesh_index);
+          LDKResourceMaterial renderer_material;
+
+          if (!submesh || !s_mesh_source_material_runtime(e, mesh,
+                  submesh->material_slot, &renderer_material))
+          {
+            continue;
+          }
+
+          if (instances)
+          {
+            ldk_renderer_submit_mesh_instances(&e->renderer,
+                LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
+                submesh->first_index, submesh->index_count, mesh_world,
+                instances->instances, instances->instance_count, submit_flags);
+          }
+          else
+          {
+            ldk_renderer_submit_mesh_range_with_flags(&e->renderer,
+                mesh->renderer_mesh, renderer_material, submesh->first_index,
+                submesh->index_count, mesh_world, submit_flags);
+          }
+        }
       }
     }
   }

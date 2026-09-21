@@ -19,6 +19,7 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_asset_manager.h>

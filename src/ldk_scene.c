@@ -10,6 +10,7 @@
 
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_asset_manager.h>
@@ -181,6 +182,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKDirectionalLight") == 0)
     {
       return LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT;
+    }
+
+    if (strcmp(meta->name, "LDKInstancedMeshSource") == 0)
+    {
+      return LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE;
     }
 
     if (strcmp(meta->name, "LDKMeshSource") == 0)
@@ -1232,6 +1238,44 @@ static LDKMaterialIOContext s_material_io_context(void)
   return context;
 }
 
+static bool s_apply_instances(const TMLDocument *doc, const TMLNode *fields,
+    LDKInstancedMeshSource *source, LDKSceneResult *result)
+{
+  const TMLNode *node =
+      fields ? s_node_find_child(doc, fields, "instances") : NULL;
+  u32 count = node ? node->child_count : 0;
+  if (count > UINT32_MAX / sizeof(Mat4))
+  {
+    s_result_error(result, "too many mesh instances");
+    return false;
+  }
+  Mat4 *matrices = count ? malloc((size_t)count * sizeof(Mat4)) : NULL;
+  if (count && !matrices)
+  {
+    s_result_error(result, "failed to allocate mesh instances");
+    return false;
+  }
+  for (u32 i = 0; i < count; ++i)
+  {
+    const TMLNode *item = tml_node_child_at(doc, node, i);
+    const TMLEntry *entry =
+        item ? s_node_find_entry(doc, item, "transform") : NULL;
+    if (!s_read_f32_array(doc, entry, matrices[i].m, 16))
+    {
+      free(matrices);
+      s_result_error(result, "invalid instance transform");
+      return false;
+    }
+  }
+  bool ok = ldk_instanced_mesh_source_set_instances(source, matrices, count);
+  free(matrices);
+  if (!ok)
+  {
+    s_result_error(result, "failed to set mesh instances");
+  }
+  return ok;
+}
+
 static bool s_apply_material_slot(const TMLDocument *doc,
     const TMLNode *fields, LDKMeshSource *mesh, u32 material_slot,
     LDKSceneResult *result)
@@ -1424,12 +1468,23 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       }
 
       fields_node = s_node_find_child(doc, component_node, "fields");
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        // The embedded source deliberately reuses ordinary mesh metadata.
+        meta = ldk_scene_component_meta_find_by_type(
+            game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+        if (!meta || !s_apply_instances(doc, fields_node, component, result))
+        {
+          return false;
+        }
+      }
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
       {
         return false;
       }
-      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+          component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
         LDKMeshSource *mesh_source = (LDKMeshSource *)component;
         LDKAssetManager *assets =
@@ -2459,6 +2514,16 @@ static bool s_write_component(LDKSceneSaveContext *context,
   }
 
   wrote_any_field = false;
+  if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    meta = ldk_scene_component_meta_find_by_type(
+        context->game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    if (!meta)
+    {
+      s_result_error(context->result, "mesh source metadata unavailable");
+      return false;
+    }
+  }
 
   for (i = 0; i < meta->field_count; i++)
   {
@@ -2486,13 +2551,33 @@ static bool s_write_component(LDKSceneSaveContext *context,
     wrote_any_field = true;
   }
 
-  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+      component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {
     if (!s_write_materials(context, component))
     {
       return false;
     }
     wrote_any_field = true;
+  }
+
+  if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    const LDKInstancedMeshSource *source = component;
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "instances:\n");
+    for (u32 instance = 0; instance < source->instance_count; ++instance)
+    {
+      s_append_indent(context->out, 7u);
+      x_strbuilder_append(context->out, "- transform: ");
+      for (u32 element = 0; element < 16; ++element)
+      {
+        x_strbuilder_append_format(context->out, "%s%#.9g",
+            element ? ", " : "",
+            (double)source->instances[instance].m[element]);
+      }
+      x_strbuilder_append_char(context->out, '\n');
+    }
   }
 
   if (!wrote_any_field)

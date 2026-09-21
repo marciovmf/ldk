@@ -125,6 +125,9 @@ extern "C" {
     Mat4 world;
     LDKRendererViewId view_id;
     u32 flags;
+    // Zero count denotes an ordinary submit; offsets index renderer-owned data.
+    u32 instance_offset;
+    u32 instance_count;
   } LDKRendererMeshSubmit;
 
   /* Internal frame data for the shared triangular line prism. */
@@ -266,7 +269,6 @@ extern "C" {
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer instance_buffer;
-    Mat4 *instance_worlds;
     u32 instance_capacity;
     LDKRHIBindings bindings;
     LDKRendererBindingsCacheEntry *cutout_bindings_cache;
@@ -308,7 +310,6 @@ extern "C" {
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer lighting_buffer;
     LDKRHIBuffer instance_buffer;
-    Mat4* instance_worlds;
     u32 instance_capacity;
     // Borrowed from the renderer-owned shadow pass.
     LDKRHITexture shadow_texture;
@@ -516,6 +517,9 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
+    Mat4 *submitted_instance_worlds;
+    u32 submitted_instance_count;
+    u32 submitted_instance_capacity;
 
     // Per-view opaque mesh sort scratch. Sort items pack a 40-bit state key
     // and a 24-bit index into submitted_meshes.
@@ -1098,6 +1102,20 @@ extern "C" {
   LDK_API void ldk_renderer_submit_ui(
       LDKRenderer* renderer,
       LDKUIRenderData const* render_data);
+
+  /** Explicit instancing, one submission per mesh/range and matrix array.
+   * Matrices are copied during this call and may be released immediately.
+   * parent_world transforms each supplied local matrix into world space;
+   * pass identity when supplying final world matrices. view_id accepts ALL.
+   * index_count must be nonzero. Zero instances is a successful no-op with
+   * valid resources/range. Invalid data/allocation failure queues nothing.
+   * Ordinary submits never use instancing. Unsupported instancing falls back
+   * to one ordinary draw per instance, including ordered overlays.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
+      LDKRendererViewId view_id, LDKResourceMesh mesh,
+      LDKResourceMaterial material, u32 first_index, u32 index_count,
+      Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags);
 
   /**
    * @brief Submit a mesh instance for scene rendering this frame.
