@@ -80,13 +80,13 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 1.22452831, 3.66859961, 4.88469362
+            local_position: 1.22452831, 5.38750362, 4.88469362
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.287026793, -0.140249610, 0.642631531, -0.696398199
+            local_rotation: 0.448705822, 0.0943049788, 0.757320285, -0.465011537
         - type: 4294967289 # LDKDirectionalLight
           fields:
             color: 4294967295
-            intensity: 0.200000003
+            intensity: 1.00000000
             enabled: true
             casts_shadows: true
     - entity: 5
@@ -265,12 +265,32 @@ scene:
             mesh_index: 0
             casts_shadows: true
             material_asset: "assets\\materials\\container.tml"
-  systems:
-    - id: "0xf8ae7c8bf28b5e6d"
-      grouping: "0x8000000000000001"
-      data:
-        radius: 20
-        cell_size: 1.00000000
-        elevation: 0.250000000
-        forward_offset: 8.00000000
-        material: "assets\\checkers_orange_small"
+    - entity: 15
+      parent: -1
+      flags: 0
+      name: "Rock"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967288 # LDKInstancedMeshSource
+          fields:
+            source_asset: "assets\\mesh\\tree.mesh"
+            mesh_index: 0
+            casts_shadows: true
+            materials:
+              - slot: 0
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+              - slot: 1
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+            instances:

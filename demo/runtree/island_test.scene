@@ -38,7 +38,7 @@ scene:
             color: 4294967295
             intensity: 1.00000000
             enabled: true
-            casts_shadows: false
+            casts_shadows: true
     - entity: 2
       parent: -1
       flags: 0
