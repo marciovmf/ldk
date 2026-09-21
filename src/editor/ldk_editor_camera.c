@@ -380,6 +380,8 @@ void ldki_editor_scene_view_pick(
   XArray *mesh_owners;
   LDKRay ray;
   LDKEntity picked_entity = x_handle_null();
+  u32 picked_instance = 0;
+  bool picked_is_instance = false;
   float nearest_distance = FLT_MAX;
   u32 mesh_count;
 
@@ -451,6 +453,10 @@ void ldki_editor_scene_view_pick(
       }
 
       u32 count = instances ? instances->instance_count : 1;
+      if (instances && count && !instances->instances)
+      {
+        continue;
+      }
       for (u32 instance = 0; instance < count; ++instance)
       {
         Mat4 instance_world = instances
@@ -461,6 +467,8 @@ void ldki_editor_scene_view_pick(
         {
           nearest_distance = hit.distance;
           picked_entity = *entity;
+          picked_is_instance = instances != NULL;
+          picked_instance = instance;
         }
       }
     }

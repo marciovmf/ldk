@@ -109,6 +109,7 @@ typedef struct LDKEditorGizmoState
   LDKUIRect scene_view_rect;
   Mat4 drag_orientation;
   LDKEntity drag_entity;
+  u32 drag_instance;
   Vec3 drag_axis;
   Vec3 drag_origin;
   Vec3 drag_initial_hit;
@@ -127,6 +128,7 @@ typedef struct LDKEditorGizmoState
   LDKEditorGizmoMode mode;
   LDKEditorGizmoMode drag_mode;
   LDKEditorGizmoSpace space;
+  bool drag_is_instance;
   bool dragging;
   bool drag_block_pick;
   bool scene_view_visible;
@@ -215,6 +217,8 @@ typedef struct LDKEditorContext
   LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
+  LDKEntity selected_instance_entity;
+  u32 selected_instance;
   u64 selected_system_id;
   bool scene_properties_selected;
   LDKEntity editor_camera;

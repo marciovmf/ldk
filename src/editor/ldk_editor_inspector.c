@@ -2931,7 +2931,8 @@ static bool s_editor_inspector_instance_add(LDKInstancedMeshSource *source)
   u32 count;
   bool result;
 
-  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4))
+  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4) ||
+      (source->instance_count && !source->instances))
   {
     return false;
   }
@@ -2962,7 +2963,8 @@ static bool s_editor_inspector_instance_remove(
   u32 count;
   bool result;
 
-  if (!source || index >= source->instance_count)
+  if (!source || index >= source->instance_count ||
+      (source->instance_count && !source->instances))
   {
     return false;
   }
@@ -2994,6 +2996,28 @@ static bool s_editor_inspector_instance_remove(
   return result;
 }
 
+static void s_editor_inspector_instance_selection_clear(
+    LDKEditorContext *editor)
+{
+  if (!editor)
+  {
+    return;
+  }
+
+  editor->selected_instance_entity = x_handle_null();
+  editor->selected_instance = 0;
+}
+
+static bool s_editor_inspector_instance_selected(
+    LDKEditorContext *editor, LDKEntity entity, u32 instance_index)
+{
+  return editor &&
+         !x_handle_is_null(editor->selected_instance_entity) &&
+         ldki_editor_entity_equal(editor->selected_entity, entity) &&
+         ldki_editor_entity_equal(editor->selected_instance_entity, entity) &&
+         editor->selected_instance == instance_index;
+}
+
 static void s_editor_inspector_instanced_mesh_instances_draw(
     LDKEditorContext *editor, LDKEntity entity, LDKInstancedMeshSource *source)
 {
@@ -3003,6 +3027,13 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
   if (!editor || !source)
   {
     return;
+  }
+
+  if (!x_handle_is_null(editor->selected_instance_entity) &&
+      ldki_editor_entity_equal(editor->selected_instance_entity, entity) &&
+      editor->selected_instance >= source->instance_count)
+  {
+    s_editor_inspector_instance_selection_clear(editor);
   }
 
   ui = &editor->ui;
@@ -3019,6 +3050,9 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
     }
     else
     {
+      editor->selected_entity = entity;
+      editor->selected_instance_entity = entity;
+      editor->selected_instance = source->instance_count - 1u;
       s_editor_inspector_input_state_clear();
       memset(&s_editor_inspector_euler_state, 0,
           sizeof(s_editor_inspector_euler_state));
@@ -3033,16 +3067,29 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
     Quat rotation;
     bool changed = false;
     bool remove = false;
+    bool selected = s_editor_inspector_instance_selected(editor, entity, i);
 
     ldk_ui_push_id_u32(ui, i);
     ldk_ui_begin_horizontal(ui);
-    snprintf(label, sizeof(label), "Instance %u", i);
-    ldk_ui_label(ui, label);
+    snprintf(label, sizeof(label),
+        selected ? "> Instance %u" : "Instance %u", i);
+    if (ldk_ui_button_flat(ui, label))
+    {
+      editor->selected_entity = entity;
+      editor->selected_instance_entity = entity;
+      editor->selected_instance = i;
+      selected = true;
+    }
     remove = ldk_ui_button_flat(ui, "Remove");
     ldk_ui_end_horizontal(ui);
 
     if (remove)
     {
+      bool selection_owned =
+          !x_handle_is_null(editor->selected_instance_entity) &&
+          ldki_editor_entity_equal(editor->selected_instance_entity, entity);
+      u32 selected_index = editor->selected_instance;
+
       if (!s_editor_inspector_instance_remove(source, i))
       {
         ldk_os_dialog_show_error(editor->window, "Remove Instance",
@@ -3050,6 +3097,18 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       }
       else
       {
+        if (selection_owned)
+        {
+          if (selected_index == i)
+          {
+            s_editor_inspector_instance_selection_clear(editor);
+          }
+          else if (selected_index > i)
+          {
+            editor->selected_instance = selected_index - 1u;
+          }
+        }
+
         s_editor_inspector_input_state_clear();
         memset(&s_editor_inspector_euler_state, 0,
             sizeof(s_editor_inspector_euler_state));
@@ -3179,6 +3238,12 @@ static void s_editor_inspector_add_component_draw(
 
       if (initialized)
       {
+        if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+        {
+          editor->selected_instance_entity = entity;
+          editor->selected_instance = 0;
+        }
+
         s_editor_inspector_component_expanded_set(component_type, true);
         ldk_ui_close_current_popup(ui);
         added = true;
@@ -3220,6 +3285,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
+  if (!x_handle_is_null(editor->selected_instance_entity) &&
+      !ldki_editor_entity_equal(
+          editor->selected_instance_entity, editor->selected_entity))
+  {
+    s_editor_inspector_instance_selection_clear(editor);
+  }
   s_editor_inspector_column_update(editor);
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
