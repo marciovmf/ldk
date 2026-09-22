@@ -1349,7 +1349,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
 }
 
 static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
-    const char *label, LDKAssetMaterial *value, bool readonly)
+    const char *label, LDKAssetMaterial *value, bool readonly, bool optional)
 {
   LDKUIContext *ui;
   LDKAssetManager *assets;
@@ -1358,6 +1358,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   XFSPath path = {0};
   char display[sizeof(path.buf)];
   bool assign = false;
+  bool clear = false;
 
   if (!editor || !value)
   {
@@ -1404,7 +1405,22 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
         "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
   }
   ldk_ui_end_disabled(ui);
+
+  if (optional)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
+  }
+
   ldk_ui_end_horizontal(ui);
+
+  if (clear)
+  {
+    *value = ldk_asset_material_null();
+    return true;
+  }
 
   if (!assign)
   {
@@ -1512,7 +1528,7 @@ static void s_editor_inspector_field_draw(
     LDKMaterialIOContext context = {0};
 
     (void)s_editor_inspector_material_asset_field(
-        editor, field->name, value, readonly);
+        editor, field->name, value, readonly, true);
 
     context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
     context.runtree_path = editor->project.run_root_path;
@@ -2445,10 +2461,18 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   material_asset = s_editor_mesh_material_asset(mesh, material_slot);
   selected_asset = material_asset;
   if (s_editor_inspector_material_asset_field(
-          editor, slot_label, &selected_asset, false))
+          editor, slot_label, &selected_asset, false, true))
   {
-    if (!ldk_mesh_source_set_material_asset_at(
-            mesh, context->assets, material_slot, selected_asset))
+    if (x_handle_is_null(selected_asset.h))
+    {
+      LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
+      if (!ldk_mesh_source_set_material_at(mesh, material_slot, &desc))
+      {
+        ldki_editor_log_error(editor, "Failed to clear material asset.");
+      }
+    }
+    else if (!ldk_mesh_source_set_material_asset_at(
+                 mesh, context->assets, material_slot, selected_asset))
     {
       ldki_editor_log_error(editor, "Failed to assign material asset.");
     }
@@ -3102,8 +3126,11 @@ static void s_editor_inspector_add_component_draw(
 {
   const LDKUIId popup_id = 0x41434D50u;
   LDKUIContext *ui;
+  LDKUIRect button_rect;
+  float popup_content_width;
   u32 available_count = 0;
   bool added = false;
+  bool open_popup;
 
   if (!editor || !ecs || !game)
   {
@@ -3113,10 +3140,21 @@ static void s_editor_inspector_add_component_draw(
   ui = &editor->ui;
 
   ldk_ui_set_next_width(ui, ldk_ui_fill());
-  if (ldk_ui_button(ui, "+ Add Component"))
+  open_popup = ldk_ui_button(ui, "+ Add Component");
+  button_rect = ldk_ui_last_bounding_rect(ui);
+  if (open_popup)
   {
-    ldk_ui_open_popup(ui, popup_id);
+    LDKUIPoint popup_position = {
+        button_rect.x,
+        button_rect.y + button_rect.h,
+    };
+    ldk_ui_open_popup_at(ui, popup_id, popup_position);
   }
+
+  popup_content_width =
+      button_rect.w > LDK_UI_DEFAULT_PADDING * 2.0f
+          ? button_rect.w - LDK_UI_DEFAULT_PADDING * 2.0f
+          : 0.0f;
 
   if (!ldk_ui_begin_popup(ui, popup_id))
   {
@@ -3125,6 +3163,7 @@ static void s_editor_inspector_add_component_draw(
 
   if (!game->metadata_count || !game->metadata_get)
   {
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     ldk_ui_label(ui, "Component metadata unavailable.");
     ldk_ui_end_popup(ui);
     return;
@@ -3165,6 +3204,7 @@ static void s_editor_inspector_add_component_draw(
 
     ++available_count;
     ldk_ui_push_id_u32(ui, component_type);
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     if (ldk_ui_button_flat(ui, component_name))
     {
       void *component = ldk_ecs_component_add(entity, component_type, NULL);
@@ -3204,6 +3244,7 @@ static void s_editor_inspector_add_component_draw(
 
   if (!added && available_count == 0)
   {
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     ldk_ui_label(ui, "No components available.");
   }
 
