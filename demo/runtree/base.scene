@@ -430,7 +430,22 @@ scene:
             velocity_variation: 0.100000001, 0.00000000, 0.00000000
             acceleration: 0.00000000, 0.100000001, 0.00000000
             initial_scale: 1.00000000
+            initial_scale_variation: 0.500000000
             final_scale: 3.00000000
+            final_scale_variation: 0.500000000
+            initial_alpha: 1.00000000
+            initial_alpha_variation: 0.300000012
+            final_alpha: 1.00000000
+            final_alpha_variation: 0.00000000
+            initial_tint: 4294967295
+            initial_tint_variation: 255
+            final_tint: 4294967295
+            final_tint_variation: 255
+            initial_rotation: 0.00000000
+            initial_rotation_variation: 2.00000000
+            final_rotation: 0.00000000
+            final_rotation_variation: 0.00000000
+            interpolation_curve: 0
             simulation_space: 0
             sort_mode: 1
   systems:

@@ -133,6 +133,15 @@ static bool s_emitter_is_valid(const LDKParticleEmitter *emitter)
       isfinite(emitter->final_rotation) &&
       isfinite(emitter->final_rotation_variation) &&
       emitter->final_rotation_variation >= 0.0f &&
+      (emitter->interpolation_curve == LDK_PARTICLE_INTERPOLATION_LINEAR ||
+          emitter->interpolation_curve ==
+              LDK_PARTICLE_INTERPOLATION_EASE_IN_QUADRATIC ||
+          emitter->interpolation_curve ==
+              LDK_PARTICLE_INTERPOLATION_EASE_OUT_QUADRATIC ||
+          emitter->interpolation_curve ==
+              LDK_PARTICLE_INTERPOLATION_EASE_IN_OUT_QUADRATIC ||
+          emitter->interpolation_curve ==
+              LDK_PARTICLE_INTERPOLATION_SMOOTHSTEP) &&
       (emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_LOCAL ||
           emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_WORLD) &&
       (emitter->sort_mode == LDK_PARTICLE_SORT_NONE ||
@@ -199,6 +208,34 @@ static float s_random_signed(LDKParticleEmitter *emitter)
 static float s_clamp(float value, float minimum, float maximum)
 {
   return fminf(fmaxf(value, minimum), maximum);
+}
+
+static float s_interpolation_curve_apply(
+    LDKParticleInterpolationCurve curve, float t)
+{
+  t = s_clamp(t, 0.0f, 1.0f);
+  switch (curve)
+  {
+  case LDK_PARTICLE_INTERPOLATION_LINEAR:
+    return t;
+  case LDK_PARTICLE_INTERPOLATION_EASE_IN_QUADRATIC:
+    return t * t;
+  case LDK_PARTICLE_INTERPOLATION_EASE_OUT_QUADRATIC:
+  {
+    float inverse = 1.0f - t;
+    return 1.0f - inverse * inverse;
+  }
+  case LDK_PARTICLE_INTERPOLATION_EASE_IN_OUT_QUADRATIC:
+    if (t < 0.5f)
+    {
+      return 2.0f * t * t;
+    }
+    return 1.0f - 0.5f * (-2.0f * t + 2.0f) * (-2.0f * t + 2.0f);
+  case LDK_PARTICLE_INTERPOLATION_SMOOTHSTEP:
+    return t * t * (3.0f - 2.0f * t);
+  default:
+    return t;
+  }
 }
 
 static float s_random_variation(
@@ -542,7 +579,8 @@ static bool s_particle_instances_write(LDKParticleEmitter *emitter,
   for (u32 i = 0; i < emitter->particle_count; ++i)
   {
     LDKParticleRuntime *particle = &emitter->particles[i];
-    float t = s_clamp(particle->age / emitter->lifetime, 0.0f, 1.0f);
+    float t = s_interpolation_curve_apply(
+        emitter->interpolation_curve, particle->age / emitter->lifetime);
     float scale = particle->initial_scale +
         (particle->final_scale - particle->initial_scale) * t;
     float alpha = particle->initial_alpha +

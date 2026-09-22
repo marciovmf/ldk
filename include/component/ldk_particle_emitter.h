@@ -29,6 +29,16 @@ extern "C"
     LDK_PARTICLE_SORT_BACK_TO_FRONT
   } LDKParticleSortMode;
 
+  //@enum
+  typedef enum LDKParticleInterpolationCurve
+  {
+    LDK_PARTICLE_INTERPOLATION_LINEAR = 0,
+    LDK_PARTICLE_INTERPOLATION_EASE_IN_QUADRATIC,
+    LDK_PARTICLE_INTERPOLATION_EASE_OUT_QUADRATIC,
+    LDK_PARTICLE_INTERPOLATION_EASE_IN_OUT_QUADRATIC,
+    LDK_PARTICLE_INTERPOLATION_SMOOTHSTEP
+  } LDKParticleInterpolationCurve;
+
   typedef struct LDKParticleRuntime
   {
     Vec3 position;
@@ -80,6 +90,7 @@ extern "C"
     float initial_rotation_variation;
     float final_rotation;
     float final_rotation_variation;
+    LDKParticleInterpolationCurve interpolation_curve;
     LDKParticleSimulationSpace simulation_space;
     LDKParticleSortMode sort_mode;
 

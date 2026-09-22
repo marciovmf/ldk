@@ -36,6 +36,7 @@ LDKParticleEmitter ldk_particle_emitter_make_default(void)
   emitter.initial_rotation_variation = 0.0f;
   emitter.final_rotation = 0.0f;
   emitter.final_rotation_variation = 0.0f;
+  emitter.interpolation_curve = LDK_PARTICLE_INTERPOLATION_LINEAR;
   emitter.simulation_space = LDK_PARTICLE_SIMULATION_SPACE_LOCAL;
   emitter.sort_mode = LDK_PARTICLE_SORT_BACK_TO_FRONT;
   emitter.random_state = 0x6d2b79f5u;
