@@ -642,6 +642,11 @@ static bool s_editor_dock_leaf_remove(
 
     leaf->window_count -= 1;
 
+    if (leaf->pressed_window == window)
+    {
+      leaf->pressed_window = LDK_EDITOR_WINDOW_ID_INVALID;
+    }
+
     if (leaf->window_count > 0 && leaf->active_window == window)
     {
       leaf->active_window = leaf->windows[0];
@@ -1349,14 +1354,14 @@ static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
   }
 }
 
-static void s_editor_dock_leaf_draw(
+static LDKEditorWindowId s_editor_dock_leaf_draw(
     LDKEditorDockState *dock, LDKEditorContext *editor, i32 leaf_index)
 {
   LDKEditorDockNode *node = &dock->nodes[leaf_index];
   LDKEditorDockLeaf *leaf = &node->data.leaf;
   if (leaf->window_count == 0)
   {
-    return;
+    return LDK_EDITOR_WINDOW_ID_INVALID;
   }
 
   if (!s_editor_dock_leaf_contains(leaf, leaf->active_window))
@@ -1405,6 +1410,20 @@ static void s_editor_dock_leaf_draw(
     leaf->active_window = leaf->windows[tab_result.active_index];
   }
 
+  LDKEditorWindowId close_requested = LDK_EDITOR_WINDOW_ID_INVALID;
+  LDKUIRect close_button_rect = leaf->tab_bar_rect;
+  close_button_rect.x +=
+      close_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+  close_button_rect.w = 24.0f;
+  close_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  const LDKUIId close_button_id =
+      (LDKUIId)(0x444F4300u + (u32)leaf_index);
+  if (ldk_ui_widget_button_flat(ui, close_button_id, "x", close_button_rect))
+  {
+    close_requested = leaf->active_window;
+  }
+
   LDKEditorDockWindow *active_window =
       s_editor_dock_window_get(dock, leaf->active_window);
 
@@ -1415,6 +1434,7 @@ static void s_editor_dock_leaf_draw(
   }
 
   ldk_ui_end_window(ui);
+  return close_requested;
 }
 
 static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
@@ -1441,6 +1461,8 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
 static void s_editor_dock_windows_draw(
     LDKEditorDockState *dock, LDKEditorContext *editor)
 {
+  LDKEditorWindowId close_requested = LDK_EDITOR_WINDOW_ID_INVALID;
+
   for (i32 node_index = 0; node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
       ++node_index)
   {
@@ -1460,7 +1482,12 @@ static void s_editor_dock_windows_draw(
     LDKEditorDockNode *node = &dock->nodes[node_index];
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
     {
-      s_editor_dock_leaf_draw(dock, editor, node_index);
+      LDKEditorWindowId request =
+          s_editor_dock_leaf_draw(dock, editor, node_index);
+      if (request != LDK_EDITOR_WINDOW_ID_INVALID)
+      {
+        close_requested = request;
+      }
     }
   }
 
@@ -1471,6 +1498,11 @@ static void s_editor_dock_windows_draw(
     {
       s_editor_dock_floating_window_draw(dock, editor, window);
     }
+  }
+
+  if (close_requested != LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    ldki_editor_window_hide(close_requested);
   }
 }
 
