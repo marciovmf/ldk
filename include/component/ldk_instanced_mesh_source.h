@@ -19,6 +19,8 @@ extern "C"
     LDKMeshSource source;
     //@inspect hidden runtime
     Mat4 *instances;
+    //@inspect hidden runtime
+    u32 *instance_colors;
     //@inspect readonly runtime
     u32 instance_count;
     //@inspect hidden runtime
@@ -32,18 +34,24 @@ extern "C"
       LDKInstancedMeshSource *source, u32 count);
 
   /** Resize the local transform set while retaining allocated capacity. Newly
-   * exposed transforms are initialized to identity. Failure preserves the set.
-   * The returned component buffer may be written by systems before rendering.
+   * exposed transforms are identity and their colors are opaque white. Failure
+   * preserves the set. Systems may write the component buffers before render.
    */
   LDK_API bool ldk_instanced_mesh_source_resize_instances(
       LDKInstancedMeshSource *source, u32 count);
 
-  /** Copy local transforms. Zero count clears the active set but retains
-   * capacity. Failure preserves it. Use existing mesh-source setters on source
-   * for mesh/material authoring.
+  /** Copy local transforms. Newly exposed colors are opaque white. Zero count
+   * clears the active set but retains capacity. Failure preserves it. Use
+   * existing mesh-source setters on source for mesh/material authoring.
    */
   LDK_API bool ldk_instanced_mesh_source_set_instances(
       LDKInstancedMeshSource *source, const Mat4 *instances, u32 count);
+
+  /** Copy one RGBA tint per active instance. Colors use 0xRRGGBBAA. The
+   * supplied count must match instance_count.
+   */
+  LDK_API bool ldk_instanced_mesh_source_set_instance_colors(
+      LDKInstancedMeshSource *source, const u32 *colors, u32 count);
 
 #ifdef LDK_ENGINE
   LDK_API LDKComponentDesc ldk_instanced_mesh_source_component_desc(

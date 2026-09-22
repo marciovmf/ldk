@@ -912,6 +912,10 @@ static int test_renderer_instances_copy_transform_and_validate(void)
   local.m[12] = 99;
   ASSERT_EQ(renderer.submitted_mesh_count, 3u);
   ASSERT_EQ(renderer.submitted_instance_worlds[0].m[12], 13.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].r, 1.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].g, 1.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].b, 1.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].a, 1.0f);
   ASSERT_FALSE(ldk_renderer_submit_mesh_instances(&renderer,
       LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, parent, NULL, 1, 0));
   ASSERT_FALSE(ldk_renderer_submit_mesh_instances(&renderer,
@@ -928,6 +932,29 @@ static int test_renderer_instances_copy_transform_and_validate(void)
   ASSERT_EQ(backend.instance_count, 1u);
   ASSERT_EQ(renderer.submitted_instance_count, 0u);
   ASSERT_EQ(renderer.submitted_mesh_count, 0u);
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_instances_copy_colors(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, true, false));
+  LDKResourceMesh mesh = {1};
+  LDKResourceMaterial material = {1};
+  Mat4 local = mat4_identity();
+  u32 color = 0x80402010u;
+  ASSERT_TRUE(ldk_renderer_submit_mesh_instances_colored(&renderer,
+      LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, mat4_identity(), &local,
+      &color, 1, 0));
+  color = 0xffffffffu;
+  ASSERT_EQ(renderer.submitted_instance_colors[0].r, 128.0f / 255.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].g, 64.0f / 255.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].b, 32.0f / 255.0f);
+  ASSERT_EQ(renderer.submitted_instance_colors[0].a, 16.0f / 255.0f);
   s_test_renderer_instancing_cleanup(&renderer, &rhi);
   return 0;
 }
@@ -1042,6 +1069,16 @@ static int test_instanced_mesh_source_owns_transforms(void)
   Mat4 local[2] = {mat4_identity(), mat4_translate(vec3_make(1, 2, 3))};
   ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(&source, local, 2));
   ASSERT_TRUE(source.instances != local);
+  ASSERT_TRUE(source.instance_colors != NULL);
+  ASSERT_EQ(source.instance_colors[0], 0xffffffffu);
+  ASSERT_EQ(source.instance_colors[1], 0xffffffffu);
+  u32 colors[2] = {0x10203040u, 0x50607080u};
+  ASSERT_TRUE(ldk_instanced_mesh_source_set_instance_colors(
+      &source, colors, 2));
+  colors[0] = 0xffffffffu;
+  ASSERT_EQ(source.instance_colors[0], 0x10203040u);
+  ASSERT_FALSE(ldk_instanced_mesh_source_set_instance_colors(
+      &source, colors, 1));
   local[1].m[12] = 8;
   ASSERT_EQ(source.instances[1].m[12], 1.0f);
   ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(
@@ -1054,8 +1091,11 @@ static int test_instanced_mesh_source_owns_transforms(void)
   ASSERT_EQ(source.instance_count, 1u);
   ASSERT_TRUE(ldk_instanced_mesh_source_set_instances(&source, NULL, 0));
   ASSERT_TRUE(source.instances != NULL);
+  ASSERT_TRUE(source.instance_colors != NULL);
   ASSERT_TRUE(source.instance_capacity >= 2u);
   ASSERT_EQ(source.instance_count, 0u);
+  free(source.instances);
+  free(source.instance_colors);
   return 0;
 }
 
@@ -1076,6 +1116,7 @@ int main(void)
       X_TEST(test_renderer_instancing_batches_color_and_shadow),
       X_TEST(test_renderer_ordinary_batches_never_instance),
       X_TEST(test_renderer_instances_copy_transform_and_validate),
+      X_TEST(test_renderer_instances_copy_colors),
       X_TEST(test_renderer_instances_fallback_resources),
       X_TEST(test_renderer_instancing_falls_back_without_backend_support),
       X_TEST(test_missing_image_checker),

@@ -178,6 +178,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "layout(location = 5) in vec4 i_world_1;\n"
     "layout(location = 6) in vec4 i_world_2;\n"
     "layout(location = 7) in vec4 i_world_3;\n"
+    "layout(location = 9) in vec4 i_instance_color;\n"
     "#endif\n"
     "layout(std140) uniform LDK_UBO_0\n"
     "{\n"
@@ -189,6 +190,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "layout(std140) uniform LDK_UBO_1\n"
     "{\n"
     "  mat4 u_world;\n"
+    "  vec4 u_instance_color;\n"
     "};\n"
     "#endif\n"
     "out vec3 v_normal;\n"
@@ -196,6 +198,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "out vec3 v_world_position;\n"
     "out vec2 v_uv;\n"
     "out vec4 v_color;\n"
+    "out vec4 v_instance_color;\n"
     "void main()\n"
     "{\n"
     "#ifdef LDK_INSTANCED\n"
@@ -227,6 +230,11 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "  v_world_position = world_position.xyz;\n"
     "  v_uv = a_uv;\n"
     "  v_color = a_color;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "  v_instance_color = i_instance_color;\n"
+    "#else\n"
+    "  v_instance_color = u_instance_color;\n"
+    "#endif\n"
     "  gl_Position = u_projection * u_view * world_position;\n"
     "}\n";
 
@@ -427,6 +435,7 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
     "#version 330 core\n" LDK_GL33_SURFACE_GLSL LDK_GL33_LIGHTING_GLSL
     "in vec4 v_color;\n"
+    "in vec4 v_instance_color;\n"
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
     "  vec4 u_material_color;\n"
@@ -441,7 +450,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
     "  float specular_strength = ldk_surface_specular(u_surface.x);\n"
     "  ldk_lighting(normal, specular_strength, u_surface.y, diffuse, "
     "specular);\n"
-    "  vec4 color = v_color * u_material_color;\n"
+    "  vec4 color = v_color * u_material_color * v_instance_color;\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
     "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
     "}\n";
@@ -449,6 +458,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec4 v_color;\n"
+"in vec4 v_instance_color;\n"
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
@@ -456,11 +466,12 @@ static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  out_color = v_color * u_material_color;\n"
+"  out_color = v_color * u_material_color * v_instance_color;\n"
 "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
     "#version 330 core\n" LDK_GL33_SURFACE_GLSL LDK_GL33_LIGHTING_GLSL
+    "in vec4 v_instance_color;\n"
 
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
@@ -477,7 +488,8 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
     "  float specular_strength = ldk_surface_specular(u_surface.x);\n"
     "  ldk_lighting(normal, specular_strength, u_surface.y, diffuse, "
     "specular);\n"
-    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color *\n"
+    "      v_instance_color;\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
     "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
     "}\n";
@@ -485,6 +497,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
 static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec2 v_uv;\n"
+"in vec4 v_instance_color;\n"
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
@@ -493,11 +506,13 @@ static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
 "out vec4 out_color;\n"
 "void main()\n"
 "{\n"
-"  out_color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+"  out_color = texture(LDK_TEXTURE_3, v_uv) * u_material_color *\n"
+"      v_instance_color;\n"
 "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
     "#version 330 core\n" LDK_GL33_SURFACE_GLSL LDK_GL33_LIGHTING_GLSL
+    "in vec4 v_instance_color;\n"
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
     "  vec4 u_material_color;\n"
@@ -507,7 +522,8 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
     "out vec4 out_color;\n"
     "void main()\n"
     "{\n"
-    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color *\n"
+    "      v_instance_color;\n"
     "  if (color.a < u_surface.w)\n"
     "    discard;\n"
     "  vec3 diffuse;\n"
@@ -523,6 +539,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER =
     "#version 330 core\n"
     "in vec2 v_uv;\n"
+    "in vec4 v_instance_color;\n"
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
     "  vec4 u_material_color;\n"
@@ -532,7 +549,8 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER 
     "out vec4 out_color;\n"
     "void main()\n"
     "{\n"
-    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color;\n"
+    "  vec4 color = texture(LDK_TEXTURE_3, v_uv) * u_material_color *\n"
+    "      v_instance_color;\n"
     "  if (color.a < u_surface.w)\n"
     "    discard;\n"
     "  out_color = color;\n"

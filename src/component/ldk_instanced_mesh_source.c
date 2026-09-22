@@ -7,7 +7,8 @@
 bool ldk_instanced_mesh_source_reserve_instances(
     LDKInstancedMeshSource *source, u32 count)
 {
-  if (!source || count > UINT32_MAX / sizeof(Mat4))
+  if (!source || count > UINT32_MAX / sizeof(Mat4) ||
+      count > UINT32_MAX / sizeof(u32))
   {
     return false;
   }
@@ -26,17 +27,39 @@ bool ldk_instanced_mesh_source_reserve_instances(
     }
     capacity *= 2u;
   }
-  if (capacity < count || capacity > UINT32_MAX / sizeof(Mat4))
+  if (capacity < count || capacity > UINT32_MAX / sizeof(Mat4) ||
+      capacity > UINT32_MAX / sizeof(u32))
   {
     return false;
   }
 
-  Mat4 *instances = realloc(source->instances, (size_t)capacity * sizeof(Mat4));
-  if (!instances)
+  if (source->instance_count &&
+      (!source->instances || !source->instance_colors))
   {
     return false;
   }
+
+  Mat4 *instances = malloc((size_t)capacity * sizeof(Mat4));
+  u32 *colors = malloc((size_t)capacity * sizeof(u32));
+  if (!instances || !colors)
+  {
+    free(instances);
+    free(colors);
+    return false;
+  }
+
+  if (source->instance_count)
+  {
+    memcpy(instances, source->instances,
+        (size_t)source->instance_count * sizeof(Mat4));
+    memcpy(colors, source->instance_colors,
+        (size_t)source->instance_count * sizeof(u32));
+  }
+
+  free(source->instances);
+  free(source->instance_colors);
   source->instances = instances;
+  source->instance_colors = colors;
   source->instance_capacity = capacity;
   return true;
 }
@@ -52,6 +75,7 @@ bool ldk_instanced_mesh_source_resize_instances(
   for (u32 i = source->instance_count; i < count; ++i)
   {
     source->instances[i] = mat4_identity();
+    source->instance_colors[i] = 0xffffffffu;
   }
   source->instance_count = count;
   return true;
@@ -74,6 +98,8 @@ bool ldk_instanced_mesh_source_set_instances(
       }
     }
   }
+
+  u32 previous_count = source->instance_count;
   if (!ldk_instanced_mesh_source_reserve_instances(source, count))
   {
     return false;
@@ -82,7 +108,25 @@ bool ldk_instanced_mesh_source_set_instances(
   {
     memmove(source->instances, instances, (size_t)count * sizeof(Mat4));
   }
+  for (u32 i = previous_count; i < count; ++i)
+  {
+    source->instance_colors[i] = 0xffffffffu;
+  }
   source->instance_count = count;
+  return true;
+}
+
+bool ldk_instanced_mesh_source_set_instance_colors(
+    LDKInstancedMeshSource *source, const u32 *colors, u32 count)
+{
+  if (!source || count != source->instance_count || (count && !colors))
+  {
+    return false;
+  }
+  if (count)
+  {
+    memmove(source->instance_colors, colors, (size_t)count * sizeof(u32));
+  }
   return true;
 }
 
@@ -101,6 +145,7 @@ static bool s_instanced_mesh_source_attach(LDKEntityRegistry *entities,
 
   // Component storage initially contains a shallow copy. Never own its pointers.
   target->instances = NULL;
+  target->instance_colors = NULL;
   target->instance_count = 0;
   target->instance_capacity = 0;
   if (initial && !ldk_instanced_mesh_source_set_instances(
@@ -108,11 +153,25 @@ static bool s_instanced_mesh_source_attach(LDKEntityRegistry *entities,
   {
     return false;
   }
+  if (initial && initial->instance_count && initial->instance_colors &&
+      !ldk_instanced_mesh_source_set_instance_colors(
+          target, initial->instance_colors, initial->instance_count))
+  {
+    free(target->instances);
+    free(target->instance_colors);
+    target->instances = NULL;
+    target->instance_colors = NULL;
+    target->instance_count = 0;
+    target->instance_capacity = 0;
+    return false;
+  }
   if (!base.attach(entities, components, entity, &target->source, index,
           initial ? &initial->source : NULL, user))
   {
     free(target->instances);
+    free(target->instance_colors);
     target->instances = NULL;
+    target->instance_colors = NULL;
     target->instance_count = 0;
     target->instance_capacity = 0;
     return false;
@@ -132,7 +191,9 @@ static void s_instanced_mesh_source_destroy(LDKEntityRegistry *entities,
   LDKComponentDesc base = ldk_mesh_source_component_desc(0);
   base.destroy(entities, components, entity, &source->source, index, user);
   free(source->instances);
+  free(source->instance_colors);
   source->instances = NULL;
+  source->instance_colors = NULL;
   source->instance_count = 0;
   source->instance_capacity = 0;
   if (ldk_entity_component_has(entities, entity, LDK_COMPONENT_TYPE_MESH_SOURCE))

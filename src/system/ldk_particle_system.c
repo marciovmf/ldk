@@ -9,6 +9,7 @@
 #include <module/ldk_ecs.h>
 #include <module/ldk_scenegraph.h>
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 
@@ -113,7 +114,25 @@ static bool s_emitter_is_valid(const LDKParticleEmitter *emitter)
       s_vec3_is_finite(emitter->velocity_variation) &&
       s_vec3_is_finite(emitter->acceleration) &&
       isfinite(emitter->initial_scale) && emitter->initial_scale >= 0.0f &&
+      isfinite(emitter->initial_scale_variation) &&
+      emitter->initial_scale_variation >= 0.0f &&
       isfinite(emitter->final_scale) && emitter->final_scale >= 0.0f &&
+      isfinite(emitter->final_scale_variation) &&
+      emitter->final_scale_variation >= 0.0f &&
+      isfinite(emitter->initial_alpha) && emitter->initial_alpha >= 0.0f &&
+      emitter->initial_alpha <= 1.0f &&
+      isfinite(emitter->initial_alpha_variation) &&
+      emitter->initial_alpha_variation >= 0.0f &&
+      isfinite(emitter->final_alpha) && emitter->final_alpha >= 0.0f &&
+      emitter->final_alpha <= 1.0f &&
+      isfinite(emitter->final_alpha_variation) &&
+      emitter->final_alpha_variation >= 0.0f &&
+      isfinite(emitter->initial_rotation) &&
+      isfinite(emitter->initial_rotation_variation) &&
+      emitter->initial_rotation_variation >= 0.0f &&
+      isfinite(emitter->final_rotation) &&
+      isfinite(emitter->final_rotation_variation) &&
+      emitter->final_rotation_variation >= 0.0f &&
       (emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_LOCAL ||
           emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_WORLD) &&
       (emitter->sort_mode == LDK_PARTICLE_SORT_NONE ||
@@ -167,9 +186,69 @@ static u32 s_random_next(LDKParticleEmitter *emitter)
   return emitter->random_state;
 }
 
+static float s_random_unit(LDKParticleEmitter *emitter)
+{
+  return (float)(s_random_next(emitter) >> 8u) / 16777215.0f;
+}
+
 static float s_random_signed(LDKParticleEmitter *emitter)
 {
-  return ((float)(s_random_next(emitter) >> 8u) / 16777215.0f) * 2.0f - 1.0f;
+  return s_random_unit(emitter) * 2.0f - 1.0f;
+}
+
+static float s_clamp(float value, float minimum, float maximum)
+{
+  return fminf(fmaxf(value, minimum), maximum);
+}
+
+static float s_random_variation(
+    LDKParticleEmitter *emitter, float value, float variation)
+{
+  if (variation == 0.0f)
+  {
+    return value;
+  }
+  return value + variation * s_random_signed(emitter);
+}
+
+static float s_random_variation_range(LDKParticleEmitter *emitter,
+    float value, float variation, float minimum, float maximum)
+{
+  if (variation == 0.0f)
+  {
+    return s_clamp(value, minimum, maximum);
+  }
+
+  float range_min = fmaxf(minimum, value - variation);
+  float range_max = fminf(maximum, value + variation);
+  return range_min + (range_max - range_min) * s_random_unit(emitter);
+}
+
+static Vec3 s_tint_from_rgba32(u32 color)
+{
+  return vec3_make((float)((color >> 24u) & 0xffu) / 255.0f,
+      (float)((color >> 16u) & 0xffu) / 255.0f,
+      (float)((color >> 8u) & 0xffu) / 255.0f);
+}
+
+static Vec3 s_random_tint(
+    LDKParticleEmitter *emitter, u32 color, u32 variation)
+{
+  Vec3 base = s_tint_from_rgba32(color);
+  Vec3 range = s_tint_from_rgba32(variation);
+  return vec3_make(
+      s_random_variation_range(emitter, base.x, range.x, 0.0f, 1.0f),
+      s_random_variation_range(emitter, base.y, range.y, 0.0f, 1.0f),
+      s_random_variation_range(emitter, base.z, range.z, 0.0f, 1.0f));
+}
+
+static u32 s_particle_color_pack(Vec3 tint, float alpha)
+{
+  u32 r = (u32)(s_clamp(tint.x, 0.0f, 1.0f) * 255.0f + 0.5f);
+  u32 g = (u32)(s_clamp(tint.y, 0.0f, 1.0f) * 255.0f + 0.5f);
+  u32 b = (u32)(s_clamp(tint.z, 0.0f, 1.0f) * 255.0f + 0.5f);
+  u32 a = (u32)(s_clamp(alpha, 0.0f, 1.0f) * 255.0f + 0.5f);
+  return (r << 24u) | (g << 16u) | (b << 8u) | a;
 }
 
 static Vec3 s_random_velocity(LDKParticleEmitter *emitter)
@@ -267,6 +346,22 @@ static bool s_particle_spawn(LDKParticleEmitter *emitter, Mat4 emitter_world,
   particle->age = 0.0f;
   particle->velocity = s_random_velocity(emitter);
   particle->position = vec3_make(0.0f, 0.0f, 0.0f);
+  particle->initial_scale = s_random_variation_range(emitter,
+      emitter->initial_scale, emitter->initial_scale_variation, 0.0f, FLT_MAX);
+  particle->final_scale = s_random_variation_range(emitter,
+      emitter->final_scale, emitter->final_scale_variation, 0.0f, FLT_MAX);
+  particle->initial_alpha = s_random_variation_range(emitter,
+      emitter->initial_alpha, emitter->initial_alpha_variation, 0.0f, 1.0f);
+  particle->final_alpha = s_random_variation_range(emitter,
+      emitter->final_alpha, emitter->final_alpha_variation, 0.0f, 1.0f);
+  particle->initial_tint = s_random_tint(
+      emitter, emitter->initial_tint, emitter->initial_tint_variation);
+  particle->final_tint = s_random_tint(
+      emitter, emitter->final_tint, emitter->final_tint_variation);
+  particle->initial_rotation = s_random_variation(emitter,
+      emitter->initial_rotation, emitter->initial_rotation_variation);
+  particle->final_rotation = s_random_variation(emitter,
+      emitter->final_rotation, emitter->final_rotation_variation);
 
   if (emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_WORLD)
   {
@@ -447,18 +542,32 @@ static bool s_particle_instances_write(LDKParticleEmitter *emitter,
   for (u32 i = 0; i < emitter->particle_count; ++i)
   {
     LDKParticleRuntime *particle = &emitter->particles[i];
-    float t = particle->age / emitter->lifetime;
-    float scale = emitter->initial_scale +
-        (emitter->final_scale - emitter->initial_scale) * t;
+    float t = s_clamp(particle->age / emitter->lifetime, 0.0f, 1.0f);
+    float scale = particle->initial_scale +
+        (particle->final_scale - particle->initial_scale) * t;
+    float alpha = particle->initial_alpha +
+        (particle->final_alpha - particle->initial_alpha) * t;
+    float rotation = particle->initial_rotation +
+        (particle->final_rotation - particle->initial_rotation) * t;
+    Vec3 tint = vec3_make(
+        particle->initial_tint.x +
+            (particle->final_tint.x - particle->initial_tint.x) * t,
+        particle->initial_tint.y +
+            (particle->final_tint.y - particle->initial_tint.y) * t,
+        particle->initial_tint.z +
+            (particle->final_tint.z - particle->initial_tint.z) * t);
     Vec3 position = particle->position;
     if (emitter->simulation_space == LDK_PARTICLE_SIMULATION_SPACE_LOCAL)
     {
       position = mat4_mul_point(emitter_world, position);
     }
 
-    Mat4 particle_world = mat4_compose(position, camera_rotation,
+    Quat roll = quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), rotation);
+    Quat billboard_rotation = quat_norm(quat_mul(camera_rotation, roll));
+    Mat4 particle_world = mat4_compose(position, billboard_rotation,
         vec3_make(scale, scale, scale));
     mesh->instances[i] = mat4_mul(inverse_emitter, particle_world);
+    mesh->instance_colors[i] = s_particle_color_pack(tint, alpha);
   }
   return true;
 }
@@ -477,6 +586,7 @@ static void s_particle_instances_sort_back_to_front(
   for (u32 i = 1; i < mesh->instance_count; ++i)
   {
     Mat4 instance = mesh->instances[i];
+    u32 color = mesh->instance_colors[i];
     float depth =
         s_particle_instance_depth(instance, emitter_world, camera_view);
     u32 j = i;
@@ -489,9 +599,11 @@ static void s_particle_instances_sort_back_to_front(
         break;
       }
       mesh->instances[j] = mesh->instances[j - 1u];
+      mesh->instance_colors[j] = mesh->instance_colors[j - 1u];
       --j;
     }
     mesh->instances[j] = instance;
+    mesh->instance_colors[j] = color;
   }
 }
 

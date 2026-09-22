@@ -314,6 +314,7 @@ extern "C" {
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer lighting_buffer;
     LDKRHIBuffer instance_buffer;
+    LDKRHIBuffer instance_color_buffer;
     u32 instance_capacity;
     // Borrowed from the renderer-owned shadow pass.
     LDKRHITexture shadow_texture;
@@ -524,6 +525,7 @@ extern "C" {
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
     Mat4 *submitted_instance_worlds;
+    LDKRHIColor *submitted_instance_colors;
     u32 submitted_instance_count;
     u32 submitted_instance_capacity;
 
@@ -1122,6 +1124,16 @@ extern "C" {
       LDKRendererViewId view_id, LDKResourceMesh mesh,
       LDKResourceMaterial material, u32 first_index, u32 index_count,
       Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags);
+
+  /** Explicit instancing with one optional RGBA tint per instance. Colors use
+   * 0xRRGGBBAA and are copied together with the instance transforms. A NULL
+   * color array means opaque white for every instance.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_instances_colored(
+      LDKRenderer *renderer, LDKRendererViewId view_id, LDKResourceMesh mesh,
+      LDKResourceMaterial material, u32 first_index, u32 index_count,
+      Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
+      u32 instance_count, u32 flags);
 
   /**
    * @brief Submit a mesh instance for scene rendering this frame.

@@ -1567,10 +1567,11 @@ void ldk_engine_frame(void)
 
           if (instances)
           {
-            ldk_renderer_submit_mesh_instances(&e->renderer,
+            ldk_renderer_submit_mesh_instances_colored(&e->renderer,
                 LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
                 0, mesh_data->index_count, mesh_world, instances->instances,
-                instances->instance_count, submit_flags);
+                instances->instance_colors, instances->instance_count,
+                submit_flags);
           }
           else
           {
@@ -1596,10 +1597,11 @@ void ldk_engine_frame(void)
 
           if (instances)
           {
-            ldk_renderer_submit_mesh_instances(&e->renderer,
+            ldk_renderer_submit_mesh_instances_colored(&e->renderer,
                 LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
                 submesh->first_index, submesh->index_count, mesh_world,
-                instances->instances, instances->instance_count, submit_flags);
+                instances->instances, instances->instance_colors,
+                instances->instance_count, submit_flags);
           }
           else
           {

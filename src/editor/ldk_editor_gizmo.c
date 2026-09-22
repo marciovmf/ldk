@@ -5,7 +5,6 @@
 #include <ldk_debug_draw.h>
 #include <component/ldk_light.h>
 #include <component/ldk_camera.h>
-#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_scenegraph.h>
@@ -33,13 +32,6 @@ typedef struct LDKEditorGizmoRay
   Vec3 origin;
   Vec3 direction;
 } LDKEditorGizmoRay;
-
-typedef struct LDKEditorGizmoTarget
-{
-  LDKEntity entity;
-  LDKInstancedMeshSource *instances;
-  u32 instance_index;
-} LDKEditorGizmoTarget;
 
 static const u32 s_gizmo_axis_colors[LDK_EDITOR_GIZMO_AXIS_COUNT] = {
     0xFF4040FFu,
@@ -92,212 +84,25 @@ static void s_editor_gizmo_axes_from_orientation(
       orientation.m[8], orientation.m[9], orientation.m[10]);
 }
 
-static void s_editor_gizmo_instance_selection_clear(
-    LDKEditorContext *editor)
-{
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  editor->selected_instance_entity = x_handle_null();
-  editor->selected_instance = 0;
-}
-
-static bool s_editor_gizmo_target_get(LDKEditorContext *editor,
-    LDKECS *ecs, LDKEditorGizmoTarget *out_target)
-{
-  LDKEntity selected;
-
-  if (editor == NULL || ecs == NULL || out_target == NULL ||
-      !ldki_editor_selected_entity_get(editor, ecs, &selected))
-  {
-    return false;
-  }
-
-  memset(out_target, 0, sizeof(*out_target));
-  out_target->entity = selected;
-
-  if (x_handle_is_null(editor->selected_instance_entity))
-  {
-    return true;
-  }
-
-  if (!ldki_editor_entity_equal(
-          editor->selected_instance_entity, selected))
-  {
-    s_editor_gizmo_instance_selection_clear(editor);
-    return true;
-  }
-
-  LDKInstancedMeshSource *instances = ldk_ecs_component_get(
-      selected, LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE);
-  if (instances == NULL || instances->instances == NULL ||
-      editor->selected_instance >= instances->instance_count)
-  {
-    s_editor_gizmo_instance_selection_clear(editor);
-    return true;
-  }
-
-  out_target->instances = instances;
-  out_target->instance_index = editor->selected_instance;
-  return true;
-}
-
-static bool s_editor_gizmo_target_world_get(
-    const LDKEditorGizmoTarget *target, Mat4 *out_world)
-{
-  Mat4 owner_world;
-
-  if (target == NULL || out_world == NULL ||
-      !ldk_transform_get_world_matrix(target->entity, &owner_world))
-  {
-    return false;
-  }
-
-  if (target->instances == NULL)
-  {
-    *out_world = owner_world;
-    return true;
-  }
-
-  if (target->instances->instances == NULL ||
-      target->instance_index >= target->instances->instance_count)
-  {
-    return false;
-  }
-
-  *out_world = mat4_mul(owner_world,
-      target->instances->instances[target->instance_index]);
-  return true;
-}
-
-static bool s_editor_gizmo_target_local_trs_get(
-    const LDKEditorGizmoTarget *target, Vec3 *out_position,
-    Quat *out_rotation, Vec3 *out_scale)
-{
-  Vec3 position;
-  Vec3 scale;
-  Quat rotation;
-
-  if (target == NULL)
-  {
-    return false;
-  }
-
-  if (target->instances == NULL)
-  {
-    if (!ldk_transform_get_local_position(target->entity, &position) ||
-        !ldk_transform_get_local_rotation(target->entity, &rotation) ||
-        !ldk_transform_get_local_scale(target->entity, &scale))
-    {
-      return false;
-    }
-  }
-  else
-  {
-    if (target->instances->instances == NULL ||
-        target->instance_index >= target->instances->instance_count)
-    {
-      return false;
-    }
-
-    mat4_decompose(target->instances->instances[target->instance_index],
-        &position, &rotation, &scale);
-  }
-
-  if (out_position != NULL)
-  {
-    *out_position = position;
-  }
-  if (out_rotation != NULL)
-  {
-    *out_rotation = rotation;
-  }
-  if (out_scale != NULL)
-  {
-    *out_scale = scale;
-  }
-  return true;
-}
-
-static bool s_editor_gizmo_target_world_rotation_get(
-    const LDKEditorGizmoTarget *target, Quat *out_rotation)
-{
-  Quat owner_rotation;
-  Quat local_rotation;
-
-  if (target == NULL || out_rotation == NULL)
-  {
-    return false;
-  }
-
-  if (target->instances == NULL)
-  {
-    return s_editor_gizmo_world_rotation_get(
-        target->entity, 0u, out_rotation);
-  }
-
-  if (!s_editor_gizmo_world_rotation_get(
-          target->entity, 0u, &owner_rotation) ||
-      !s_editor_gizmo_target_local_trs_get(
-          target, NULL, &local_rotation, NULL))
-  {
-    return false;
-  }
-
-  *out_rotation = quat_norm(quat_mul(owner_rotation, local_rotation));
-  return true;
-}
-
-static bool s_editor_gizmo_target_parent_world_rotation_get(
-    const LDKEditorGizmoTarget *target, Quat *out_rotation)
-{
-  LDKEntity parent;
-
-  if (target == NULL || out_rotation == NULL)
-  {
-    return false;
-  }
-
-  if (target->instances != NULL)
-  {
-    return s_editor_gizmo_world_rotation_get(
-        target->entity, 0u, out_rotation);
-  }
-
-  parent = ldk_transform_get_parent(target->entity);
-  if (x_handle_is_null(parent))
-  {
-    *out_rotation = quat_id();
-    return true;
-  }
-
-  return s_editor_gizmo_world_rotation_get(parent, 0u, out_rotation);
-}
-
 static bool s_editor_gizmo_orientation_get(LDKEditorContext *editor,
-    const LDKEditorGizmoTarget *target, Mat4 *out_orientation,
-    Vec3 out_axes[3])
+    LDKEntity selected, Mat4 *out_orientation, Vec3 out_axes[3])
 {
   Mat4 orientation = mat4_identity();
 
-  if (editor == NULL || target == NULL || out_orientation == NULL ||
-      out_axes == NULL)
+  if (editor == NULL || out_orientation == NULL || out_axes == NULL)
   {
     return false;
   }
 
   // Component-wise scale is stored in local TRS space. A world-aligned scale
-  // of a rotated object would require shear, which neither LDKTransform nor
-  // an instance-local TRS can represent.
+  // of a rotated object would require shear, which LDKTransform cannot store.
   if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE ||
       editor->gizmo.space == LDK_EDITOR_GIZMO_SPACE_LOCAL)
   {
     Quat world_rotation;
 
-    if (!s_editor_gizmo_target_world_rotation_get(
-            target, &world_rotation))
+    if (!s_editor_gizmo_world_rotation_get(
+            selected, 0u, &world_rotation))
     {
       return false;
     }
@@ -895,30 +700,37 @@ static void s_editor_gizmo_drag_end(LDKEditorContext *editor)
   }
 
   editor->gizmo.drag_entity = x_handle_null();
-  editor->gizmo.drag_instance = 0;
-  editor->gizmo.drag_is_instance = false;
   editor->gizmo.active_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
   editor->gizmo.dragging = false;
 }
 
 static bool s_editor_gizmo_rotation_drag_state_get(
-    const LDKEditorGizmoTarget *target, Quat *out_world_rotation,
+    LDKEntity selected, Quat *out_world_rotation,
     Quat *out_parent_world_rotation)
 {
-  if (target == NULL || out_world_rotation == NULL ||
-      out_parent_world_rotation == NULL ||
-      !s_editor_gizmo_target_world_rotation_get(target, out_world_rotation))
+  LDKEntity parent;
+
+  if (out_world_rotation == NULL || out_parent_world_rotation == NULL ||
+      !s_editor_gizmo_world_rotation_get(
+          selected, 0u, out_world_rotation))
   {
     return false;
   }
 
-  return s_editor_gizmo_target_parent_world_rotation_get(
-      target, out_parent_world_rotation);
+  parent = ldk_transform_get_parent(selected);
+  if (x_handle_is_null(parent))
+  {
+    *out_parent_world_rotation = quat_id();
+    return true;
+  }
+
+  return s_editor_gizmo_world_rotation_get(
+      parent, 0u, out_parent_world_rotation);
 }
 
 static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
-    const LDKEditorGizmoTarget *target, Vec3 origin, Mat4 orientation,
-    Vec3 const axes[3], LDKMouseState const *mouse)
+    LDKEntity selected, Vec3 origin, Mat4 orientation, Vec3 const axes[3],
+    LDKMouseState const *mouse)
 {
   LDKEditorGizmoAxis active_axis;
   LDKEditorGizmoRay ray;
@@ -928,7 +740,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
   LDKUIPoint cursor;
   u32 axis_index;
 
-  if (editor == NULL || target == NULL || axes == NULL || mouse == NULL ||
+  if (editor == NULL || axes == NULL || mouse == NULL ||
       editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE)
   {
     return false;
@@ -941,8 +753,8 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
   {
     if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE)
     {
-      if (!s_editor_gizmo_target_local_trs_get(
-              target, NULL, NULL, &editor->gizmo.drag_initial_scale))
+      if (!ldk_transform_get_local_scale(
+              selected, &editor->gizmo.drag_initial_scale))
       {
         return false;
       }
@@ -967,9 +779,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     }
 
     editor->gizmo.drag_orientation = orientation;
-    editor->gizmo.drag_entity = target->entity;
-    editor->gizmo.drag_instance = target->instance_index;
-    editor->gizmo.drag_is_instance = target->instances != NULL;
+    editor->gizmo.drag_entity = selected;
     editor->gizmo.drag_origin = origin;
     editor->gizmo.drag_initial_cursor = cursor;
     editor->gizmo.drag_world_length =
@@ -995,7 +805,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     if (!s_editor_gizmo_scene_ray_get(editor, cursor, &ray) ||
         !s_editor_gizmo_ray_plane_intersect(
             ray, origin, axis, &hit_position) ||
-        !s_editor_gizmo_rotation_drag_state_get(target,
+        !s_editor_gizmo_rotation_drag_state_get(selected,
             &editor->gizmo.drag_initial_world_rotation,
             &editor->gizmo.drag_parent_world_rotation))
     {
@@ -1011,9 +821,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     }
 
     editor->gizmo.drag_orientation = orientation;
-    editor->gizmo.drag_entity = target->entity;
-    editor->gizmo.drag_instance = target->instance_index;
-    editor->gizmo.drag_is_instance = target->instances != NULL;
+    editor->gizmo.drag_entity = selected;
     editor->gizmo.drag_axis = axis;
     editor->gizmo.drag_origin = origin;
     editor->gizmo.drag_initial_direction =
@@ -1040,16 +848,14 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
   }
 
   if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE &&
-      !s_editor_gizmo_target_local_trs_get(
-          target, NULL, NULL, &editor->gizmo.drag_initial_scale))
+      !ldk_transform_get_local_scale(
+          selected, &editor->gizmo.drag_initial_scale))
   {
     return false;
   }
 
   editor->gizmo.drag_orientation = orientation;
-  editor->gizmo.drag_entity = target->entity;
-  editor->gizmo.drag_instance = target->instance_index;
-  editor->gizmo.drag_is_instance = target->instances != NULL;
+  editor->gizmo.drag_entity = selected;
   editor->gizmo.drag_axis = axis;
   editor->gizmo.drag_origin = origin;
   editor->gizmo.drag_plane_normal = plane_normal;
@@ -1064,136 +870,56 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
   return true;
 }
 
-static bool s_editor_gizmo_target_world_position_set(
-    const LDKEditorGizmoTarget *target, Vec3 world_position)
+static bool s_editor_gizmo_world_position_set(
+    LDKEntity entity, Vec3 world_position)
 {
-  if (target == NULL)
+  LDKEntity parent;
+  Vec3 local_position;
+
+  parent = ldk_transform_get_parent(entity);
+  if (x_handle_is_null(parent))
   {
-    return false;
+    local_position = world_position;
   }
-
-  if (target->instances == NULL)
+  else
   {
-    LDKEntity parent = ldk_transform_get_parent(target->entity);
-    Vec3 local_position;
+    Mat4 parent_world;
+    Mat4 inverse_parent_world;
+    bool inverse_ok;
 
-    if (x_handle_is_null(parent))
+    if (!ldk_transform_get_world_matrix(parent, &parent_world))
     {
-      local_position = world_position;
-    }
-    else
-    {
-      Mat4 parent_world;
-      Mat4 inverse_parent_world;
-      bool inverse_ok;
-
-      if (!ldk_transform_get_world_matrix(parent, &parent_world))
-      {
-        return false;
-      }
-
-      // A TRS hierarchy can produce shear when rotation and non-uniform scale
-      // are combined, so the general inverse is required here.
-      inverse_parent_world = mat4_inverse_full(parent_world, &inverse_ok);
-      if (!inverse_ok)
-      {
-        return false;
-      }
-
-      local_position = mat4_mul_point(inverse_parent_world, world_position);
+      return false;
     }
 
-    return ldk_transform_set_local_position(target->entity, local_position) &&
-           ldk_scenegraph_update_entity(target->entity);
+    // A TRS hierarchy can produce shear when rotation and non-uniform scale
+    // are combined, so the general inverse is required here.
+    inverse_parent_world = mat4_inverse_full(parent_world, &inverse_ok);
+    if (!inverse_ok)
+    {
+      return false;
+    }
+
+    local_position = mat4_mul_point(inverse_parent_world, world_position);
   }
 
-  if (target->instances->instances == NULL ||
-      target->instance_index >= target->instances->instance_count)
-  {
-    return false;
-  }
-
-  Mat4 owner_world;
-  bool inverse_ok;
-  if (!ldk_transform_get_world_matrix(target->entity, &owner_world))
-  {
-    return false;
-  }
-
-  Mat4 inverse_owner_world = mat4_inverse_full(owner_world, &inverse_ok);
-  if (!inverse_ok)
-  {
-    return false;
-  }
-
-  Vec3 local_position =
-      mat4_mul_point(inverse_owner_world, world_position);
-  Vec3 local_scale;
-  Quat local_rotation;
-  if (!s_editor_gizmo_target_local_trs_get(
-          target, NULL, &local_rotation, &local_scale))
-  {
-    return false;
-  }
-  target->instances->instances[target->instance_index] =
-      mat4_compose(local_position, local_rotation, local_scale);
-  return true;
+  return ldk_transform_set_local_position(entity, local_position) &&
+         ldk_scenegraph_update_entity(entity);
 }
 
-static bool s_editor_gizmo_target_local_scale_set(
-    const LDKEditorGizmoTarget *target, Vec3 local_scale)
+static bool s_editor_gizmo_local_scale_set(
+    LDKEntity entity, Vec3 local_scale)
 {
-  if (target == NULL)
-  {
-    return false;
-  }
-
-  if (target->instances == NULL)
-  {
-    return ldk_transform_set_local_scale(target->entity, local_scale) &&
-           ldk_scenegraph_update_entity(target->entity);
-  }
-
-  Vec3 local_position;
-  Quat local_rotation;
-  if (!s_editor_gizmo_target_local_trs_get(
-          target, &local_position, &local_rotation, NULL))
-  {
-    return false;
-  }
-
-  target->instances->instances[target->instance_index] =
-      mat4_compose(local_position, local_rotation, local_scale);
-  return true;
+  return ldk_transform_set_local_scale(entity, local_scale) &&
+         ldk_scenegraph_update_entity(entity);
 }
 
-static bool s_editor_gizmo_target_local_rotation_set(
-    const LDKEditorGizmoTarget *target, Quat local_rotation)
+static bool s_editor_gizmo_local_rotation_set(
+    LDKEntity entity, Quat local_rotation)
 {
-  if (target == NULL)
-  {
-    return false;
-  }
-
-  local_rotation = quat_norm(local_rotation);
-  if (target->instances == NULL)
-  {
-    return ldk_transform_set_local_rotation(
-               target->entity, local_rotation) &&
-           ldk_scenegraph_update_entity(target->entity);
-  }
-
-  Vec3 local_position;
-  Vec3 local_scale;
-  if (!s_editor_gizmo_target_local_trs_get(
-          target, &local_position, NULL, &local_scale))
-  {
-    return false;
-  }
-
-  target->instances->instances[target->instance_index] =
-      mat4_compose(local_position, local_rotation, local_scale);
-  return true;
+  return ldk_transform_set_local_rotation(
+             entity, quat_norm(local_rotation)) &&
+         ldk_scenegraph_update_entity(entity);
 }
 
 static bool s_editor_gizmo_world_to_scene(
@@ -1254,6 +980,7 @@ static const LDKEditorComponentIconRule s_component_icon_rules[] = {
     {LDK_COMPONENT_TYPE_POINT_LIGHT, LDK_EDITOR_ICON_LIGHT_POINT},
     {LDK_COMPONENT_TYPE_SPOT_LIGHT, LDK_EDITOR_ICON_LIGHT_SPOT},
     {LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT, LDK_EDITOR_ICON_LIGHT_DIRECTIONAL},
+    {LDK_COMPONENT_TYPE_PARTICLE_EMITTER, LDK_EDITOR_ICON_PARTICLE},
 };
 
 typedef struct LDKEditorComponentIconContext
@@ -1552,27 +1279,13 @@ void ldki_editor_gizmo_scene_view_set(
       scene_view_rect.w > 0.0f && scene_view_rect.h > 0.0f;
 }
 
-static bool s_editor_gizmo_target_matches_drag(
-    const LDKEditorContext *editor, const LDKEditorGizmoTarget *target)
-{
-  if (editor == NULL || target == NULL ||
-      !ldki_editor_entity_equal(target->entity, editor->gizmo.drag_entity) ||
-      (target->instances != NULL) != editor->gizmo.drag_is_instance)
-  {
-    return false;
-  }
-
-  return !editor->gizmo.drag_is_instance ||
-         target->instance_index == editor->gizmo.drag_instance;
-}
-
 void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
 {
   LDKECS *ecs;
   LDKCamera *camera;
   LDKMouseState mouse;
-  LDKEditorGizmoTarget target;
-  Mat4 target_world;
+  LDKEntity selected;
+  Mat4 selected_world;
   Mat4 camera_world;
   Mat4 view;
   Mat4 projection;
@@ -1616,16 +1329,17 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   }
 
   ecs = ldk_module_get(LDK_MODULE_ECS);
-  if (ecs == NULL || !s_editor_gizmo_target_get(editor, ecs, &target) ||
-      !s_editor_gizmo_target_world_get(&target, &target_world))
+  if (ecs == NULL ||
+      !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
+      !ldk_transform_get_world_matrix(selected, &selected_world))
   {
     return;
   }
 
   origin = vec3_make(
-      target_world.m[12], target_world.m[13], target_world.m[14]);
+      selected_world.m[12], selected_world.m[13], selected_world.m[14]);
   if (!s_editor_gizmo_orientation_get(
-          editor, &target, &orientation, axes))
+          editor, selected, &orientation, axes))
   {
     return;
   }
@@ -1715,7 +1429,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
       ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     s_editor_gizmo_drag_begin(
-        editor, &target, origin, orientation, axes, &mouse);
+        editor, selected, origin, orientation, axes, &mouse);
   }
 }
 
@@ -1742,19 +1456,13 @@ static bool s_editor_gizmo_drag_parameter_get(
 }
 
 static bool s_editor_gizmo_translate_drag_update(
-    LDKEditorContext *editor, const LDKEditorGizmoTarget *target,
-    LDKMouseState const *mouse)
+    LDKEditorContext *editor, LDKMouseState const *mouse)
 {
   LDKEditorGizmoRay ray;
   Vec3 hit_position;
   float current_parameter;
   float translation;
   Vec3 world_position;
-
-  if (editor == NULL || target == NULL || mouse == NULL)
-  {
-    return false;
-  }
 
   if (editor->gizmo.active_axis == LDK_EDITOR_GIZMO_AXIS_ALL)
   {
@@ -1770,8 +1478,8 @@ static bool s_editor_gizmo_translate_drag_update(
 
     world_position = vec3_add(editor->gizmo.drag_origin,
         vec3_sub(hit_position, editor->gizmo.drag_initial_hit));
-    return s_editor_gizmo_target_world_position_set(
-        target, world_position);
+    return s_editor_gizmo_world_position_set(
+        editor->gizmo.drag_entity, world_position);
   }
 
   if (!s_editor_gizmo_drag_parameter_get(
@@ -1783,20 +1491,16 @@ static bool s_editor_gizmo_translate_drag_update(
   translation = current_parameter - editor->gizmo.drag_initial_parameter;
   world_position = vec3_add(editor->gizmo.drag_origin,
       vec3_mul(editor->gizmo.drag_axis, translation));
-  return s_editor_gizmo_target_world_position_set(target, world_position);
+  return s_editor_gizmo_world_position_set(
+      editor->gizmo.drag_entity, world_position);
 }
 
-static bool s_editor_gizmo_scale_drag_update(LDKEditorContext *editor,
-    const LDKEditorGizmoTarget *target, LDKMouseState const *mouse)
+static bool s_editor_gizmo_scale_drag_update(
+    LDKEditorContext *editor, LDKMouseState const *mouse)
 {
   LDKEditorGizmoAxis axis;
   Vec3 local_scale;
   float factor;
-
-  if (editor == NULL || target == NULL || mouse == NULL)
-  {
-    return false;
-  }
 
   axis = editor->gizmo.active_axis;
   if (axis != LDK_EDITOR_GIZMO_AXIS_X &&
@@ -1855,11 +1559,12 @@ static bool s_editor_gizmo_scale_drag_update(LDKEditorContext *editor,
     local_scale.z *= factor;
   }
 
-  return s_editor_gizmo_target_local_scale_set(target, local_scale);
+  return s_editor_gizmo_local_scale_set(
+      editor->gizmo.drag_entity, local_scale);
 }
 
-static bool s_editor_gizmo_rotation_drag_update(LDKEditorContext *editor,
-    const LDKEditorGizmoTarget *target, LDKMouseState const *mouse)
+static bool s_editor_gizmo_rotation_drag_update(
+    LDKEditorContext *editor, LDKMouseState const *mouse)
 {
   LDKEditorGizmoRay ray;
   Vec3 hit_position;
@@ -1872,7 +1577,7 @@ static bool s_editor_gizmo_rotation_drag_update(LDKEditorContext *editor,
   float current_angle;
   float angle_delta;
 
-  if (editor == NULL || target == NULL || mouse == NULL ||
+  if (editor == NULL || mouse == NULL ||
       !s_editor_gizmo_scene_ray_get(editor,
           ldk_pointf((float)mouse->cursor.x,
               (float)mouse->cursor.y),
@@ -1921,13 +1626,13 @@ static bool s_editor_gizmo_rotation_drag_update(LDKEditorContext *editor,
       quat_inverse(editor->gizmo.drag_parent_world_rotation),
       world_rotation));
 
-  return s_editor_gizmo_target_local_rotation_set(target, local_rotation);
+  return s_editor_gizmo_local_rotation_set(
+      editor->gizmo.drag_entity, local_rotation);
 }
 
 void ldki_editor_gizmo_update(LDKEditorContext *editor)
 {
   LDKECS *ecs;
-  LDKEditorGizmoTarget target;
   LDKMouseState mouse;
   bool update_ok;
   bool released;
@@ -1956,9 +1661,9 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
 
   ecs = ldk_module_get(LDK_MODULE_ECS);
   if (ecs == NULL || !editor->gizmo.scene_view_visible ||
-      !s_editor_gizmo_target_get(editor, ecs, &target) ||
-      !ldk_entity_is_alive(&ecs->entity, target.entity) ||
-      !s_editor_gizmo_target_matches_drag(editor, &target))
+      !ldk_entity_is_alive(&ecs->entity, editor->gizmo.drag_entity) ||
+      !ldki_editor_entity_equal(
+          editor->selected_entity, editor->gizmo.drag_entity))
   {
     s_editor_gizmo_drag_end(editor);
     return;
@@ -1966,17 +1671,15 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
 
   if (editor->gizmo.drag_mode == LDK_EDITOR_GIZMO_MODE_TRANSLATE)
   {
-    update_ok =
-        s_editor_gizmo_translate_drag_update(editor, &target, &mouse);
+    update_ok = s_editor_gizmo_translate_drag_update(editor, &mouse);
   }
   else if (editor->gizmo.drag_mode == LDK_EDITOR_GIZMO_MODE_ROTATE)
   {
-    update_ok =
-        s_editor_gizmo_rotation_drag_update(editor, &target, &mouse);
+    update_ok = s_editor_gizmo_rotation_drag_update(editor, &mouse);
   }
   else if (editor->gizmo.drag_mode == LDK_EDITOR_GIZMO_MODE_SCALE)
   {
-    update_ok = s_editor_gizmo_scale_drag_update(editor, &target, &mouse);
+    update_ok = s_editor_gizmo_scale_drag_update(editor, &mouse);
   }
   else
   {
@@ -2212,8 +1915,8 @@ static void s_editor_selected_component_draw(LDKEditorContext *editor,
 void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 {
   LDKECS *ecs;
-  LDKEditorGizmoTarget target;
-  Mat4 target_world;
+  LDKEntity selected;
+  Mat4 selected_world;
   Mat4 orientation;
   Vec3 axes[LDK_EDITOR_GIZMO_AXIS_COUNT];
   Vec3 origin;
@@ -2232,17 +1935,14 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   }
 
   ecs = ldk_module_get(LDK_MODULE_ECS);
-  if (ecs == NULL || !s_editor_gizmo_target_get(editor, ecs, &target) ||
-      !s_editor_gizmo_target_world_get(&target, &target_world))
+  if (ecs == NULL ||
+      !ldki_editor_selected_entity_get(editor, ecs, &selected) ||
+      !ldk_transform_get_world_matrix(selected, &selected_world))
   {
     return;
   }
 
-  if (target.instances == NULL)
-  {
-    s_editor_selected_component_draw(editor, target.entity, target_world);
-  }
-
+  s_editor_selected_component_draw(editor, selected, selected_world);
   if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
       !s_editor_gizmo_initialize(editor))
   {
@@ -2250,22 +1950,22 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   }
 
   // Keep the interaction orientation fixed during a drag. Local mode uses
-  // the target orientation captured at drag start and adopts the resulting
+  // the entity orientation captured at drag start and adopts the resulting
   // local orientation after the drag ends.
   if (editor->gizmo.dragging &&
-      s_editor_gizmo_target_matches_drag(editor, &target))
+      ldki_editor_entity_equal(selected, editor->gizmo.drag_entity))
   {
     orientation = editor->gizmo.drag_orientation;
     s_editor_gizmo_axes_from_orientation(orientation, axes);
   }
   else if (!s_editor_gizmo_orientation_get(
-               editor, &target, &orientation, axes))
+               editor, selected, &orientation, axes))
   {
     return;
   }
 
   origin = vec3_make(
-      target_world.m[12], target_world.m[13], target_world.m[14]);
+      selected_world.m[12], selected_world.m[13], selected_world.m[14]);
   mode = editor->gizmo.dragging
              ? editor->gizmo.drag_mode
              : editor->gizmo.mode;

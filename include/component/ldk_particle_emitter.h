@@ -33,7 +33,15 @@ extern "C"
   {
     Vec3 position;
     Vec3 velocity;
+    Vec3 initial_tint;
+    Vec3 final_tint;
     float age;
+    float initial_scale;
+    float final_scale;
+    float initial_alpha;
+    float final_alpha;
+    float initial_rotation;
+    float final_rotation;
   } LDKParticleRuntime;
 
   //@component
@@ -47,8 +55,31 @@ extern "C"
     Vec3 initial_velocity;
     Vec3 velocity_variation;
     Vec3 acceleration;
+
+    /* Visual endpoint variations are absolute +/- ranges sampled at spawn.
+     * Tint variation uses RGB channel magnitudes; its alpha byte is ignored.
+     * Rotation is billboard-local +Z rotation in radians.
+     */
     float initial_scale;
+    float initial_scale_variation;
     float final_scale;
+    float final_scale_variation;
+    float initial_alpha;
+    float initial_alpha_variation;
+    float final_alpha;
+    float final_alpha_variation;
+    //@inspect widget=COLOR
+    u32 initial_tint;
+    //@inspect widget=COLOR
+    u32 initial_tint_variation;
+    //@inspect widget=COLOR
+    u32 final_tint;
+    //@inspect widget=COLOR
+    u32 final_tint_variation;
+    float initial_rotation;
+    float initial_rotation_variation;
+    float final_rotation;
+    float final_rotation_variation;
     LDKParticleSimulationSpace simulation_space;
     LDKParticleSortMode sort_mode;
 

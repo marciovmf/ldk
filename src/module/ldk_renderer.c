@@ -200,7 +200,7 @@
 *
 * Only explicit instance submissions use instanced pipelines when possible.
 * Ordinary runs reuse render state but issue one draw per object.
-* Per-instance data currently consists only of the world matrix.
+* Per-instance data consists of a world matrix and optional RGBA tint.
 *
 * Mesh vertex data remains in vertex-buffer stream 0:
 *
@@ -217,8 +217,12 @@
 * - location 6 : world column 2
 * - location 7 : world column 3
 *
-* Locations 4..7 and location 8 must remain non-overlapping when changing
-* LDKMeshVertex or the built-in mesh shaders.
+* Instance colors use stream 2:
+*
+* - location 9 : RGBA tint
+*
+* Locations 4..7, location 8, and location 9 must remain non-overlapping when
+* changing LDKMeshVertex or the built-in mesh shaders.
 *
 * Normal mapping does not require additional per-instance data: normals and
 * tangents are transformed using the instance world matrix in the existing
@@ -869,7 +873,9 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->submitted_light_capacity = 0;
 
   LDK_RENDERER_FREE(renderer->submitted_instance_worlds);
+  LDK_RENDERER_FREE(renderer->submitted_instance_colors);
   renderer->submitted_instance_worlds = NULL;
+  renderer->submitted_instance_colors = NULL;
   renderer->submitted_instance_count = 0;
   renderer->submitted_instance_capacity = 0;
 
@@ -1206,6 +1212,7 @@ typedef struct LDKRendererMeshCameraParams
 typedef struct LDKRendererMeshObjectParams
 {
   Mat4 world;
+  LDKRHIColor instance_color;
 } LDKRendererMeshObjectParams;
 
 typedef struct LDKRendererMeshMaterialParams
@@ -1220,6 +1227,10 @@ typedef struct LDKRendererMeshMaterialParams
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
     mesh_camera_std140_size);
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshObjectParams) == 80,
+    mesh_object_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, instance_color) == 64,
+    mesh_object_color_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 32,
@@ -2327,7 +2338,7 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
 static void s_renderer_mesh_pass_instance_layout(
     LDKRHIPipelineDesc* desc)
 {
-  desc->vertex_buffer_layout_count = 2;
+  desc->vertex_buffer_layout_count = 3;
   desc->vertex_buffer_layouts[0] = desc->vertex_layout;
   desc->vertex_buffer_layouts[0].input_rate =
       LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX;
@@ -2343,6 +2354,15 @@ static void s_renderer_mesh_pass_instance_layout(
     instance->attributes[i].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
     instance->attributes[i].offset = i * 4u * (u32)sizeof(float);
   }
+
+  LDKRHIVertexBufferLayoutDesc* color = &desc->vertex_buffer_layouts[2];
+  memset(color, 0, sizeof(*color));
+  color->stride = sizeof(LDKRHIColor);
+  color->attribute_count = 1;
+  color->input_rate = LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE;
+  color->attributes[0].location = 9u;
+  color->attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
+  color->attributes[0].offset = 0u;
 }
 
 static void s_renderer_mesh_pass_disable_instancing(
@@ -2690,27 +2710,37 @@ static bool s_renderer_mesh_pass_ensure_instance_capacity(
     capacity *= 2u;
   }
 
-  if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4))
+  if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4) ||
+      capacity > UINT32_MAX / sizeof(LDKRHIColor))
   {
     return false;
   }
 
-  size_t cpu_size = (size_t)capacity * sizeof(Mat4);
   LDKRHIBufferDesc desc = {0};
   ldk_rhi_buffer_desc_defaults(&desc);
-  desc.size = (u32)cpu_size;
+  desc.size = capacity * (u32)sizeof(Mat4);
   desc.usage =
       LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
 
-  LDKRHIBuffer buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
-  if (buffer == LDK_RHI_INVALID_RESOURCE)
+  LDKRHIBuffer transform_buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
+  if (transform_buffer == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
 
+  desc.size = capacity * (u32)sizeof(LDKRHIColor);
+  LDKRHIBuffer color_buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
+  if (color_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_buffer_destroy(pass->rhi, transform_buffer);
+    return false;
+  }
+
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
-  pass->instance_buffer = buffer;
+  ldk_rhi_buffer_destroy(pass->rhi, pass->instance_color_buffer);
+  pass->instance_buffer = transform_buffer;
+  pass->instance_color_buffer = color_buffer;
   pass->instance_capacity = capacity;
   return true;
 }
@@ -3024,6 +3054,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_texture_destroy(pass->rhi, pass->white_specular_texture);
     ldk_rhi_texture_destroy(pass->rhi, pass->flat_normal_texture);
     ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->instance_color_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->lighting_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
@@ -3194,6 +3225,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   const Mat4 *worlds = first_submit->instance_count
       ? renderer->submitted_instance_worlds + first_submit->instance_offset
       : NULL;
+  const LDKRHIColor *colors = first_submit->instance_count
+      ? renderer->submitted_instance_colors + first_submit->instance_offset
+      : NULL;
   if (worlds)
   {
     submit_count = first_submit->instance_count;
@@ -3291,9 +3325,12 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       pass->rhi->functions.draw_indexed_instanced != NULL &&
       s_renderer_mesh_pass_ensure_instance_capacity(pass, submit_count))
   {
-    u32 byte_count = submit_count * (u32)sizeof(Mat4);
-    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
-            worlds))
+    u32 transform_bytes = submit_count * (u32)sizeof(Mat4);
+    u32 color_bytes = submit_count * (u32)sizeof(LDKRHIColor);
+    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0,
+            transform_bytes, worlds) &&
+        ldk_rhi_buffer_update(pass->rhi, pass->instance_color_buffer, 0,
+            color_bytes, colors))
     {
       LDKRHIPipeline pipeline = s_renderer_mesh_pass_pipeline(
           pass, material->selection, first->flags, true);
@@ -3305,6 +3342,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
             pass->rhi, 0, mesh->vertex_buffer, 0);
         ldk_rhi_vertex_buffer_bind_at(
             pass->rhi, 1, pass->instance_buffer, 0);
+        ldk_rhi_vertex_buffer_bind_at(
+            pass->rhi, 2, pass->instance_color_buffer, 0);
         ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
             LDK_RHI_INDEX_TYPE_UINT32);
 
@@ -3352,6 +3391,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
 
     LDKRendererMeshObjectParams object = {0};
     object.world = worlds ? worlds[i] : submit->world;
+    object.instance_color = colors
+        ? colors[i]
+        : ldk_renderer_color_from_rgba32(0xffffffffu);
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
         sizeof(object), &object);
 
@@ -3749,6 +3791,7 @@ static void s_renderer_lines_draw(LDKRenderer *renderer,
     }
     LDKRendererMeshObjectParams object = {0};
     object.world = line->world;
+    object.instance_color = ldk_renderer_color_from_rgba32(0xffffffffu);
     LDKRendererMeshMaterialParams material = {0};
     material.color = ldk_renderer_color_from_rgba32(line->color);
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
@@ -6086,10 +6129,62 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   return true;
 }
 
-bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
+static bool s_renderer_instance_submit_storage_ensure(
+    LDKRenderer *renderer, u32 count)
+{
+  if (count <= renderer->submitted_instance_capacity)
+  {
+    return true;
+  }
+
+  u32 capacity = renderer->submitted_instance_capacity;
+  capacity = capacity <= UINT32_MAX / sizeof(Mat4) / 2u
+      ? capacity * 2u : count;
+  if (capacity < count)
+  {
+    capacity = count;
+  }
+  if (capacity == 0u)
+  {
+    capacity = count;
+  }
+  if (capacity < count || capacity > UINT32_MAX / sizeof(Mat4) ||
+      capacity > UINT32_MAX / sizeof(LDKRHIColor))
+  {
+    return false;
+  }
+
+  Mat4 *worlds = LDK_RENDERER_ALLOC((size_t)capacity * sizeof(Mat4));
+  LDKRHIColor *colors =
+      LDK_RENDERER_ALLOC((size_t)capacity * sizeof(LDKRHIColor));
+  if (!worlds || !colors)
+  {
+    LDK_RENDERER_FREE(worlds);
+    LDK_RENDERER_FREE(colors);
+    return false;
+  }
+
+  if (renderer->submitted_instance_count)
+  {
+    memcpy(worlds, renderer->submitted_instance_worlds,
+        (size_t)renderer->submitted_instance_count * sizeof(Mat4));
+    memcpy(colors, renderer->submitted_instance_colors,
+        (size_t)renderer->submitted_instance_count * sizeof(LDKRHIColor));
+  }
+
+  LDK_RENDERER_FREE(renderer->submitted_instance_worlds);
+  LDK_RENDERER_FREE(renderer->submitted_instance_colors);
+  renderer->submitted_instance_worlds = worlds;
+  renderer->submitted_instance_colors = colors;
+  renderer->submitted_instance_capacity = capacity;
+  return true;
+}
+
+bool ldk_renderer_submit_mesh_instances_colored(LDKRenderer *renderer,
     LDKRendererViewId view_id, LDKResourceMesh mesh,
     LDKResourceMaterial material, u32 first_index, u32 index_count,
-    Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags)
+    Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
+    u32 instance_count, u32 flags)
 {
   if (!renderer || !renderer->is_initialized ||
       view_id == LDK_RENDERER_VIEW_INVALID ||
@@ -6120,7 +6215,7 @@ bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
     }
   }
 
-  // Validate and reserve one submit, then commit its matrix payload atomically.
+  // Validate and reserve one submit, then commit its instance payload.
   if (!s_renderer_submit_mesh(renderer, view_id, mesh, material,
           first_index, index_count, parent_world, flags))
   {
@@ -6134,34 +6229,35 @@ bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
   }
 
   u32 needed = renderer->submitted_instance_count + instance_count;
-  if (needed > renderer->submitted_instance_capacity)
+  if (!s_renderer_instance_submit_storage_ensure(renderer, needed))
   {
-    u32 capacity = renderer->submitted_instance_capacity;
-    capacity = capacity <= UINT32_MAX / sizeof(Mat4) / 2
-        ? capacity * 2 : needed;
-    if (capacity < needed)
-    {
-      capacity = needed;
-    }
-    Mat4 *worlds = LDK_RENDERER_REALLOC(renderer->submitted_instance_worlds,
-        (size_t)capacity * sizeof(Mat4));
-    if (!worlds)
-    {
-      return false;
-    }
-    renderer->submitted_instance_worlds = worlds;
-    renderer->submitted_instance_capacity = capacity;
+    return false;
   }
+
   submit->instance_offset = renderer->submitted_instance_count;
   submit->instance_count = instance_count;
   for (u32 i = 0; i < instance_count; ++i)
   {
-    renderer->submitted_instance_worlds[submit->instance_offset + i] =
+    u32 index = submit->instance_offset + i;
+    renderer->submitted_instance_worlds[index] =
         mat4_mul(parent_world, instances[i]);
+    renderer->submitted_instance_colors[index] =
+        ldk_renderer_color_from_rgba32(
+            instance_colors ? instance_colors[i] : 0xffffffffu);
   }
   renderer->submitted_instance_count = needed;
   ++renderer->submitted_mesh_count;
   return true;
+}
+
+bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, u32 first_index, u32 index_count,
+    Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags)
+{
+  return ldk_renderer_submit_mesh_instances_colored(renderer, view_id, mesh,
+      material, first_index, index_count, parent_world, instances, NULL,
+      instance_count, flags);
 }
 
 bool ldk_renderer_submit_mesh(LDKRenderer *renderer, LDKResourceMesh mesh,
