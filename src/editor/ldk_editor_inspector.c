@@ -1231,13 +1231,13 @@ static void s_editor_inspector_mesh_selector(
 
 static bool s_editor_inspector_asset_path_validate(
     LDKEditorContext *editor, const XFSPath *path, const char *title,
-    const char *message, XFSPath *out_normalized)
+    const char *message, LDKAssetPath *out_asset_path)
 {
   XFSPath normalized = {0};
   XFSPath root;
   XFSPath relative = {0};
 
-  if (!editor || !path || !out_normalized)
+  if (!editor || !path || !out_asset_path)
   {
     return false;
   }
@@ -1255,7 +1255,19 @@ static bool s_editor_inspector_asset_path_validate(
     return false;
   }
 
-  *out_normalized = normalized;
+  for (size_t i = 0; relative.buf[i]; ++i)
+  {
+    if (relative.buf[i] == '\\')
+    {
+      relative.buf[i] = '/';
+    }
+  }
+
+  if (!ldk_asset_path_set(out_asset_path, relative.buf))
+  {
+    ldk_os_dialog_show_error(editor->window, title, message);
+    return false;
+  }
   return true;
 }
 
@@ -1322,9 +1334,9 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  XFSPath normalized;
+  LDKAssetPath asset_path;
   if (!s_editor_inspector_asset_path_validate(editor, &path, "Mesh",
-          "Choose a mesh inside the project's runtree folder.", &normalized))
+          "Choose a mesh inside the project's runtree folder.", &asset_path))
   {
     return false;
   }
@@ -1337,7 +1349,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
 
   LDKMeshAssetResult result;
   LDKAssetMesh asset =
-      ldk_asset_manager_mesh_load_shared(assets, normalized.buf, &result);
+      ldk_asset_manager_mesh_load_shared(assets, asset_path.buf, &result);
   if (x_handle_is_null(asset.h))
   {
     ldki_editor_log_error(editor, result.error);
@@ -1427,10 +1439,10 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  XFSPath normalized;
+  LDKAssetPath asset_path;
   if (!s_editor_inspector_asset_path_validate(editor, &path, "Material",
           "Choose a material inside the project's runtree folder.",
-          &normalized))
+          &asset_path))
   {
     return false;
   }
@@ -1444,12 +1456,11 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   LDKMaterialIOContext context = {0};
   LDKMaterialIOResult result;
   context.assets = assets;
-  context.runtree_path = editor->project.run_root_path;
   context.diagnostic = s_editor_material_diagnostic;
   context.user = editor;
 
   LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
-      &context, normalized.buf, &result);
+      &context, asset_path.buf, &result);
   if (x_handle_is_null(asset.h))
   {
     ldki_editor_log_error(editor, result.error);
@@ -1531,7 +1542,6 @@ static void s_editor_inspector_field_draw(
         editor, field->name, value, readonly, true);
 
     context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-    context.runtree_path = editor->project.run_root_path;
     context.diagnostic = s_editor_material_diagnostic;
     context.user = editor;
     (void)s_editor_material_asset_editor(
@@ -2024,15 +2034,15 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
     return false;
   }
 
-  XFSPath normalized = {0};
+  LDKAssetPath asset_path;
   if (!s_editor_inspector_asset_path_validate(editor, &path, dialog_title,
-          "Choose an image inside the project's runtree folder.", &normalized))
+          "Choose an image inside the project's runtree folder.", &asset_path))
   {
     return false;
   }
 
   LDKAssetImage selected =
-      ldk_asset_manager_image_load_shared(assets, normalized.buf);
+      ldk_asset_manager_image_load_shared(assets, asset_path.buf);
   if (x_handle_is_null(selected.h))
   {
     ldk_os_dialog_show_error(editor->window, dialog_title,
@@ -2336,24 +2346,31 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
               "Create material", "Materials\0*.tml\0\0",
               path.buf, sizeof(path.buf)))
       {
-        LDKMaterialIOResult result;
-        LDKAssetMaterial asset =
-            ldk_asset_manager_material_create(
-                context, path.buf, &desc, &result);
-
-        if (x_handle_is_null(asset.h))
+        LDKAssetPath asset_path;
+        if (s_editor_inspector_asset_path_validate(editor, &path,
+                "Create material",
+                "Create the material inside the project's runtree folder.",
+                &asset_path))
         {
-          ldki_editor_log_error(editor, result.error);
-        }
-        else
-        {
-          *material_asset = asset;
-          binding_changed = true;
+          LDKMaterialIOResult result;
+          LDKAssetMaterial asset =
+              ldk_asset_manager_material_create(
+                  context, asset_path.buf, &desc, &result);
 
-          if (!ldk_asset_manager_material_save(
-                  context, asset, &result))
+          if (x_handle_is_null(asset.h))
           {
             ldki_editor_log_error(editor, result.error);
+          }
+          else
+          {
+            *material_asset = asset;
+            binding_changed = true;
+
+            if (!ldk_asset_manager_material_save(
+                    context, asset, &result))
+            {
+              ldki_editor_log_error(editor, result.error);
+            }
           }
         }
       }
@@ -2406,36 +2423,43 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
             "Create material", "Materials\0*.tml\0\0",
             path.buf, sizeof(path.buf)))
     {
-      LDKMaterialIOResult result;
-      LDKAssetMaterial asset =
-          ldk_asset_manager_material_create(
-              context, path.buf, &draft->descriptor, &result);
-
-      if (x_handle_is_null(asset.h))
+      LDKAssetPath asset_path;
+      if (s_editor_inspector_asset_path_validate(editor, &path,
+              "Create material",
+              "Create the material inside the project's runtree folder.",
+              &asset_path))
       {
-        ldki_editor_log_error(editor, result.error);
-      }
-      else
-      {
-        *material_asset = asset;
-        binding_changed = true;
+        LDKMaterialIOResult result;
+        LDKAssetMaterial asset =
+            ldk_asset_manager_material_create(
+                context, asset_path.buf, &draft->descriptor, &result);
 
-        if (!ldk_asset_manager_material_save(
-                context, asset, &result))
+        if (x_handle_is_null(asset.h))
         {
           ldki_editor_log_error(editor, result.error);
         }
-
-        if (previous_draft)
-        {
-          previous_draft->next = draft->next;
-        }
         else
         {
-          drafts = draft->next;
-        }
+          *material_asset = asset;
+          binding_changed = true;
 
-        free(draft);
+          if (!ldk_asset_manager_material_save(
+                  context, asset, &result))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
+
+          if (previous_draft)
+          {
+            previous_draft->next = draft->next;
+          }
+          else
+          {
+            drafts = draft->next;
+          }
+
+          free(draft);
+        }
       }
     }
   }
@@ -2513,23 +2537,30 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
     if (ldk_os_dialog_show_save_file(editor->window, "Create material",
             "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
     {
-      LDKMaterialIOResult result;
-      LDKAssetMaterial asset = ldk_asset_manager_material_create(
-          context, path.buf, &desc, &result);
-      if (x_handle_is_null(asset.h))
+      LDKAssetPath asset_path;
+      if (s_editor_inspector_asset_path_validate(editor, &path,
+              "Create material",
+              "Create the material inside the project's runtree folder.",
+              &asset_path))
       {
-        ldki_editor_log_error(editor, result.error);
-      }
-      else
-      {
-        if (!ldk_mesh_source_set_material_asset_at(
-                mesh, context->assets, material_slot, asset))
-        {
-          ldki_editor_log_error(editor, "Failed to assign material asset.");
-        }
-        if (!ldk_asset_manager_material_save(context, asset, &result))
+        LDKMaterialIOResult result;
+        LDKAssetMaterial asset = ldk_asset_manager_material_create(
+            context, asset_path.buf, &desc, &result);
+        if (x_handle_is_null(asset.h))
         {
           ldki_editor_log_error(editor, result.error);
+        }
+        else
+        {
+          if (!ldk_mesh_source_set_material_asset_at(
+                  mesh, context->assets, material_slot, asset))
+          {
+            ldki_editor_log_error(editor, "Failed to assign material asset.");
+          }
+          if (!ldk_asset_manager_material_save(context, asset, &result))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
         }
       }
     }
@@ -2559,7 +2590,6 @@ static void s_editor_inspector_material(
   }
 
   context.assets = assets;
-  context.runtree_path = editor->project.run_root_path;
   context.diagnostic = s_editor_material_diagnostic;
   context.user = editor;
 

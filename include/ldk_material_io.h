@@ -16,7 +16,6 @@ extern "C"
   typedef struct LDKMaterialIOContext
   {
     LDKAssetManager *assets;
-    XFSPath runtree_path;
     /* Additional diagnostic sink; missing images are also logged by the engine. */
     LDKMaterialDiagnosticFn diagnostic;
     void *user;
@@ -29,8 +28,8 @@ extern "C"
 
   /* Read material fields from a TML node. Type is required; tint defaults to
    * white. Textured materials default to opaque alpha mode and a 0.5 cutout
-   * threshold when the alpha fields are absent. Texture paths are
-   * runtree-relative. Missing images use the procedural checker and emit a
+   * threshold when the alpha fields are absent. Texture paths are logical
+   * asset paths. Missing images use the procedural checker and emit a
    * recoverable diagnostic. out_desc is only assigned on success. result is
    * optional. */
   LDK_API bool ldk_material_desc_read(const LDKMaterialIOContext *context,

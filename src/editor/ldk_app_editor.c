@@ -14,6 +14,7 @@
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
@@ -1347,8 +1348,12 @@ static bool s_editor_config_load_from_ini(
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   x_smallstr_from_cstr(
       &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
-  x_fs_path(&editor->editor_font, config->runtree_path,
-      x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+  if (!ldk_asset_path_set(&editor->editor_font,
+          x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf")))
+  {
+    ldk_log_error("Invalid .editor font asset path.\n");
+    return false;
+  }
 
   editor->editor_camera_fov =
       x_ini_get_f32(ini, EDITOR, "camera_fov", 60.0f);
@@ -1847,8 +1852,7 @@ static bool s_project_game_module_runtime_load(LDKEditorContext *editor,
 
   scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   if (!ldk_scene_manager_configure_file(scene_manager,
-          editor->project.project_file_path.buf, &editor->project.run_root_path,
-          &scene_result))
+          editor->project.project_file_path.buf, &scene_result))
   {
     ldki_editor_log_error(editor, scene_result.error);
     ldk_game_instance_unload();
@@ -2192,6 +2196,14 @@ static bool s_project_load(
   if (!ldk_project_load(&editor->project, project_file_path))
     return false;
 
+  LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  if (!asset_source || !ldk_asset_source_runtree_set(
+                           asset_source, editor->project.run_root_path.buf))
+  {
+    ldk_log_error("Failed to configure project asset source.\n");
+    goto fail;
+  }
+
   if (!ldk_engine_render_resolution_set(
           editor->project.project_resolution_width,
           editor->project.project_resolution_height))
@@ -2233,8 +2245,7 @@ static bool s_project_load(
 
   LDKSceneResult scene_result;
   if (!ldk_scene_manager_configure_file(scene_manager,
-          editor->project.project_file_path.buf, &editor->project.run_root_path,
-          &scene_result))
+          editor->project.project_file_path.buf, &scene_result))
   {
     ldki_editor_log_error(editor, scene_result.error);
     goto fail;

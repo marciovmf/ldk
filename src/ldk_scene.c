@@ -455,8 +455,8 @@ static void s_result_error(LDKSceneResult *result, const char *error)
   ldk_scene_result_set_error(result, error);
 }
 
-static bool s_mesh_primitive_from_asset_reference(
-    const char *reference, LDKMeshPrimitive *out_primitive)
+static const char *s_mesh_primitive_asset_reference(
+    LDKMeshPrimitive primitive)
 {
   static const char *references[LDK_MESH_PRIMITIVE_COUNT] =
   {
@@ -467,6 +467,18 @@ static bool s_mesh_primitive_from_asset_reference(
     "builtin:mesh/plane",
     "builtin:mesh/quad",
   };
+
+  if ((u32)primitive >= LDK_MESH_PRIMITIVE_COUNT)
+  {
+    return NULL;
+  }
+
+  return references[primitive];
+}
+
+static bool s_mesh_primitive_from_asset_reference(
+    const char *reference, LDKMeshPrimitive *out_primitive)
+{
   u32 i;
 
   if (!reference)
@@ -476,7 +488,8 @@ static bool s_mesh_primitive_from_asset_reference(
 
   for (i = 0; i < LDK_MESH_PRIMITIVE_COUNT; i++)
   {
-    if (strcmp(reference, references[i]) != 0)
+    if (strcmp(reference,
+            s_mesh_primitive_asset_reference((LDKMeshPrimitive)i)) != 0)
     {
       continue;
     }
@@ -936,19 +949,19 @@ static bool s_apply_field_value(const TMLDocument *doc,
     if (entry->type == TML_VALUE_STRING)
     {
       TMLString reference;
-      XFSPath reference_path = {0};
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
       LDKMeshPrimitive primitive;
       LDKAssetManager *asset_manager;
       LDKAssetMesh asset;
 
       if (!tml_entry_get_string(entry, &reference) || !reference.size ||
-          reference.size >= sizeof(reference_path.buf) ||
+          reference.size >= sizeof(reference_path) ||
           memchr(reference.data, 0, reference.size))
       {
         return false;
       }
 
-      memcpy(reference_path.buf, reference.data, reference.size);
+      memcpy(reference_path, reference.data, reference.size);
       asset_manager = (LDKAssetManager *)ldk_module_get(
           LDK_MODULE_ASSET_MANAGER);
       if (!asset_manager)
@@ -956,48 +969,22 @@ static bool s_apply_field_value(const TMLDocument *doc,
         return false;
       }
 
-      if (s_mesh_primitive_from_asset_reference(
-              reference_path.buf, &primitive))
+      if (s_mesh_primitive_from_asset_reference(reference_path, &primitive))
       {
         asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
       }
       else
       {
-        LDKSceneManager *scenes;
-        XFSPath root;
-        XFSPath absolute = {0};
-        XFSPath relative = {0};
+        LDKAssetPath asset_path;
         LDKMeshAssetResult mesh_result;
 
-        if (x_fs_path_is_absolute_cstr(reference_path.buf))
-        {
-          return false;
-        }
-
-        scenes = (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-        if (!scenes)
-        {
-          return false;
-        }
-
-        root = scenes->runtree_path;
-        x_fs_path_normalize(&root);
-        if (!root.length ||
-            !x_fs_path(&absolute, root.buf, reference_path.buf))
-        {
-          return false;
-        }
-        x_fs_path_normalize(&absolute);
-
-        if (!x_fs_path_common_prefix(
-                root.buf, absolute.buf, &relative) ||
-            !relative.length || strcmp(relative.buf, ".") == 0)
+        if (!ldk_asset_path_set(&asset_path, reference_path))
         {
           return false;
         }
 
         asset = ldk_asset_manager_mesh_load_shared(
-            asset_manager, absolute.buf, &mesh_result);
+            asset_manager, asset_path.buf, &mesh_result);
       }
 
       if (x_handle_is_null(asset.h))
@@ -1030,20 +1017,21 @@ static bool s_apply_field_value(const TMLDocument *doc,
     if (entry->type == TML_VALUE_STRING)
     {
       TMLString reference;
-      XFSPath reference_path = {0};
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+      LDKAssetPath asset_path;
       LDKMaterialIOContext context;
       LDKMaterialIOResult material_result;
       LDKAssetMaterial asset;
 
       if (!tml_entry_get_string(entry, &reference) || !reference.size ||
-          reference.size >= sizeof(reference_path.buf) ||
+          reference.size >= sizeof(reference_path) ||
           memchr(reference.data, 0, reference.size))
       {
         return false;
       }
 
-      memcpy(reference_path.buf, reference.data, reference.size);
-      if (x_fs_path_is_absolute_cstr(reference_path.buf))
+      memcpy(reference_path, reference.data, reference.size);
+      if (!ldk_asset_path_set(&asset_path, reference_path))
       {
         return false;
       }
@@ -1055,7 +1043,7 @@ static bool s_apply_field_value(const TMLDocument *doc,
       }
 
       asset = ldk_asset_manager_material_load_shared(
-          &context, reference_path.buf, &material_result);
+          &context, asset_path.buf, &material_result);
       if (x_handle_is_null(asset.h))
       {
         return false;
@@ -1235,10 +1223,7 @@ static bool s_apply_component_fields(const TMLDocument *doc,
 static LDKMaterialIOContext s_material_io_context(void)
 {
   LDKMaterialIOContext context = {0};
-  LDKSceneManager *scenes = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  if (scenes)
-    context.runtree_path = scenes->runtree_path;
   context.diagnostic = s_scene_diagnostic_handler;
   context.user = s_scene_diagnostic_user;
   return context;
@@ -1289,24 +1274,25 @@ static bool s_apply_material_slot(const TMLDocument *doc,
   if (fields && s_node_find_entry(doc, fields, "material_asset"))
   {
     TMLString value;
-    XFSPath path = {0};
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+    LDKAssetPath asset_path;
     if (!tml_node_get_string(doc, fields, "material_asset", &value) ||
-        !value.size || value.size >= sizeof(path.buf) ||
+        !value.size || value.size >= sizeof(path) ||
         memchr(value.data, 0, value.size))
     {
       s_result_error(result, "invalid material asset path");
       return false;
     }
-    memcpy(path.buf, value.data, value.size);
-    if (x_fs_path_is_absolute_cstr(path.buf))
+    memcpy(path, value.data, value.size);
+    if (!ldk_asset_path_set(&asset_path, path))
     {
-      s_result_error(result, "material asset path must be runtree-relative");
+      s_result_error(result, "invalid material asset path");
       return false;
     }
     LDKMaterialIOContext context = s_material_io_context();
     LDKMaterialIOResult io_result;
     LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
-        &context, path.buf, &io_result);
+        &context, asset_path.buf, &io_result);
     if (x_handle_is_null(asset.h))
     {
       s_result_error(result, io_result.error);
@@ -2229,6 +2215,7 @@ static bool s_write_field_value(XStrBuilder *out,
     const LDKAssetMesh *value = (const LDKAssetMesh *)ptr;
     LDKAssetManager *asset_manager;
     const LDKAssetInfo *info;
+    const LDKAssetMeshData *data;
     LDKAssetHandle generic;
     const char *reference;
 
@@ -2252,37 +2239,26 @@ static bool s_write_field_value(XStrBuilder *out,
       return false;
     }
 
-    reference = x_fs_path_cstr(&info->asset_path);
-    if (s_mesh_primitive_from_asset_reference(reference, NULL))
+    data = ldk_asset_manager_mesh_get_const(asset_manager, *value);
+    reference = data
+        ? s_mesh_primitive_asset_reference(data->primitive)
+        : NULL;
+    if (reference)
     {
       s_append_escaped_string(out, reference);
     }
     else
     {
-      LDKSceneManager *scenes =
-          (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-      XFSPath root;
-      XFSPath asset_path;
-      XFSPath relative = {0};
+      LDKAssetPath asset_path;
 
-      if (!scenes || !x_fs_path_is_absolute_cstr(reference))
+      if (!asset_manager->source ||
+          info->source_revision != asset_manager->source->revision ||
+          !ldk_asset_path_set(&asset_path, info->asset_path.buf))
       {
         return false;
       }
 
-      root = scenes->runtree_path;
-      asset_path = info->asset_path;
-      x_fs_path_normalize(&root);
-      x_fs_path_normalize(&asset_path);
-
-      if (!root.length ||
-          !x_fs_path_common_prefix(root.buf, asset_path.buf, &relative) ||
-          !relative.length || strcmp(relative.buf, ".") == 0)
-      {
-        return false;
-      }
-
-      s_append_escaped_string(out, relative.buf);
+      s_append_escaped_string(out, asset_path.buf);
     }
   }
   break;
@@ -2293,10 +2269,7 @@ static bool s_write_field_value(XStrBuilder *out,
     LDKAssetManager *asset_manager;
     const LDKAssetInfo *info;
     LDKAssetHandle generic;
-    LDKMaterialIOContext context;
-    XFSPath root;
-    XFSPath asset_path;
-    XFSPath relative = {0};
+    LDKAssetPath asset_path;
 
     if (x_handle_is_null(value->h))
     {
@@ -2318,20 +2291,14 @@ static bool s_write_field_value(XStrBuilder *out,
       return false;
     }
 
-    context = s_material_io_context();
-    root = context.runtree_path;
-    asset_path = info->asset_path;
-    x_fs_path_normalize(&root);
-    x_fs_path_normalize(&asset_path);
-
-    if (!root.length ||
-        !x_fs_path_common_prefix(root.buf, asset_path.buf, &relative) ||
-        !relative.length || strcmp(relative.buf, ".") == 0)
+    if (!asset_manager->source ||
+        info->source_revision != asset_manager->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
     {
       return false;
     }
 
-    s_append_escaped_string(out, relative.buf);
+    s_append_escaped_string(out, asset_path.buf);
   }
   break;
 
@@ -2386,12 +2353,11 @@ static bool s_write_material_binding(LDKSceneSaveContext *context,
         ldk_asset_get_info_const(io_context.assets, handle);
     const LDKAssetMaterialData *data = ldk_asset_manager_material_get_const(
         io_context.assets, material_asset);
-    XFSPath relative = {0};
-    XFSPath root = io_context.runtree_path;
+    LDKAssetPath asset_path;
 
-    x_fs_path_normalize(&root);
-    if (!info || !data || !x_fs_path_common_prefix(
-            root.buf, info->asset_path.buf, &relative) || !relative.length)
+    if (!info || !data || !io_context.assets->source ||
+        info->source_revision != io_context.assets->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
     {
       s_result_error(context->result, "invalid material asset reference");
       return false;
@@ -2406,7 +2372,7 @@ static bool s_write_material_binding(LDKSceneSaveContext *context,
 
     s_append_indent(context->out, indent);
     x_strbuilder_append(context->out, "material_asset: ");
-    s_append_escaped_string(context->out, relative.buf);
+    s_append_escaped_string(context->out, asset_path.buf);
     x_strbuilder_append_char(context->out, '\n');
     return true;
   }

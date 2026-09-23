@@ -53,8 +53,8 @@ extern "C"
    * Mesh, which preserves Blender empties/pivots. Multiple nodes may reference
    * the same Mesh index.
    *
-   * Reuses an asset already cached for the normalized absolute file path, or
-   * loads the file once. Shared Mesh assets live until manager clear/
+   * Reuses an asset already cached for the logical asset path in the current
+   * asset source, or loads it once. Shared Mesh assets live until manager clear/
    * termination; callers must not individually unload them. No automatic hot
    * reload occurs.
    */

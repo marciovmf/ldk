@@ -1024,24 +1024,23 @@ static int test_renderer_instancing_falls_back_without_backend_support(void)
 static int test_missing_image_checker(void)
 {
   LDKAssetManager assets = {0};
+  LDKAssetSource source = {0};
   XHPoolConfig config = {0};
   config.page_capacity = 4;
   config.initial_pages = 1;
   ASSERT_TRUE(x_hpool_init(&assets.pool, sizeof(LDKAssetInfo), config,
       NULL, NULL, NULL));
+  assets.source = &source;
   LDKAssetImage a = ldk_asset_manager_image_missing(
-      &assets, "/project/runtree/missing.png");
+      &assets, "missing.png");
   LDKAssetImage b = ldk_asset_manager_image_missing(
-      &assets, "/project/runtree/missing.png");
+      &assets, "missing.png");
   ASSERT_FALSE(x_handle_is_null(a.h));
   ASSERT_EQ(a.h.index, b.h.index);
   ASSERT_EQ(a.h.version, b.h.version);
   LDKAssetHandle handle = {a.h};
   const LDKAssetInfo *info = ldk_asset_get_info_const(&assets, handle);
-  XFSPath expected = {0};
-  x_fs_path_set(&expected, "/project/runtree/missing.png");
-  x_fs_path_normalize(&expected);
-  ASSERT_TRUE(strcmp(info->asset_path.buf, expected.buf) == 0);
+  ASSERT_TRUE(strcmp(info->asset_path.buf, "missing.png") == 0);
   LDKAssetImageData *data = ldk_asset_manager_image_get(&assets, a);
   ASSERT_TRUE(data->is_missing);
   ASSERT_EQ(ldk_image_get_width(data->image), 8u);

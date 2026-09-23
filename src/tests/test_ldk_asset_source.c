@@ -98,7 +98,7 @@ static int test_asset_source_package_precedes_filesystem(void)
   ASSERT_TRUE(ldk_asset_source_initialize(
       &source, x_fs_path_cstr(&root)));
   LDKAssetSourcePackage *package =
-      ldk_asset_source_package_open(&source, "base.box");
+      ldk_asset_source_package_open(&source, x_fs_path_cstr(&box_path));
   ASSERT_TRUE(package != NULL);
 
   ASSERT_TRUE(ldk_asset_source_find(&source, "assets/value.bin", &file));
@@ -148,8 +148,10 @@ static int test_asset_source_walks_open_packages(void)
       s_package_create(&second_box, &second_source, "second/item.dat"));
 
   ASSERT_TRUE(ldk_asset_source_initialize(&source, x_fs_path_cstr(&root)));
-  ASSERT_TRUE(ldk_asset_source_package_open(&source, "first.box") != NULL);
-  ASSERT_TRUE(ldk_asset_source_package_open(&source, "second.box") != NULL);
+  ASSERT_TRUE(ldk_asset_source_package_open(
+      &source, x_fs_path_cstr(&first_box)) != NULL);
+  ASSERT_TRUE(ldk_asset_source_package_open(
+      &source, x_fs_path_cstr(&second_box)) != NULL);
 
   ASSERT_TRUE(ldk_asset_source_find(&source, "first/item.dat", &file));
   ASSERT_EQ(file.origin, LDK_ASSET_SOURCE_ORIGIN_PACKAGE);

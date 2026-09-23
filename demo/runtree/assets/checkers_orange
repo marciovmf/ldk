@@ -1,7 +1,7 @@
 material:
   material_type: 2
   material_color: 0xffffffff
-  material_texture: "assets\\textures\\prototype\\Orange\\texture_08.png"
+  material_texture: "assets/textures/prototype/Orange/texture_08.png"
   material_specular: 0.566270947
   material_shininess: 144.569687
   material_emission: 0.176939338

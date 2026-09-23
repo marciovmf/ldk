@@ -169,30 +169,11 @@ static void s_report_missing_surface_map(
     context->diagnostic(message, context->user);
 }
 
-/* Material image paths are relative to the configured project runtree. */
 static bool s_material_image_path(const LDKMaterialIOContext *context,
-    const char *path, XFSPath *absolute,
-    XFSPath *relative)
+    const char *path, LDKAssetPath *asset_path)
 {
-  if (!context->runtree_path.length || !path || !path[0])
-    return false;
-  XFSPath root = context->runtree_path;
-  x_fs_path_normalize(&root);
-  if (x_fs_path_is_absolute_cstr(path))
-  {
-    if (strlen(path) >= sizeof(absolute->buf))
-      return false;
-    x_fs_path_set(absolute, path);
-  }
-  else
-  {
-    if (root.length + 1 + strlen(path) >= sizeof(absolute->buf))
-      return false;
-    x_fs_path(absolute, root.buf, path);
-  }
-  x_fs_path_normalize(absolute);
-  return x_fs_path_common_prefix(root.buf, absolute->buf, relative) &&
-      relative->length && strcmp(relative->buf, ".") != 0;
+  return context && context->assets && context->assets->source &&
+      ldk_asset_path_set(asset_path, path);
 }
 
 static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
@@ -201,9 +182,8 @@ static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
 {
   const TMLEntry *entry = tml_node_find_entry(doc, fields, field_name);
   TMLString image_path;
-  XFSPath path = {0};
-  XFSPath absolute = {0};
-  XFSPath relative = {0};
+  char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+  LDKAssetPath asset_path;
 
   if (!entry)
   {
@@ -215,31 +195,30 @@ static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
     return false;
   }
   if (!tml_node_get_string(doc, fields, field_name, &image_path) ||
-      image_path.size >= sizeof(path.buf) ||
+      image_path.size >= sizeof(path) ||
       memchr(image_path.data, 0, image_path.size))
   {
     s_result_error(result, "invalid material map path");
     return false;
   }
 
-  memcpy(path.buf, image_path.data, image_path.size);
-  if (!path.buf[0])
+  memcpy(path, image_path.data, image_path.size);
+  if (!path[0])
   {
     out_image->h = x_handle_null();
     return true;
   }
-  if (x_fs_path_is_absolute_cstr(path.buf) ||
-      !s_material_image_path(context, path.buf, &absolute, &relative))
+  if (!s_material_image_path(context, path, &asset_path))
   {
-    s_result_error(result, "material map must be inside the runtree");
+    s_result_error(result, "invalid material map asset path");
     return false;
   }
 
   *out_image =
-      ldk_asset_manager_image_load_shared(context->assets, absolute.buf);
+      ldk_asset_manager_image_load_shared(context->assets, asset_path.buf);
   if (x_handle_is_null(out_image->h))
   {
-    *out_image = ldk_asset_manager_image_missing(context->assets, absolute.buf);
+    *out_image = ldk_asset_manager_image_missing(context->assets, asset_path.buf);
     if (x_handle_is_null(out_image->h))
     {
       s_result_error(result, "failed to allocate missing material map");
@@ -251,7 +230,7 @@ static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
       ldk_asset_manager_image_get_const(context->assets, *out_image);
   if (image && image->is_missing)
   {
-    s_report_missing_surface_map(context, label, absolute.buf);
+    s_report_missing_surface_map(context, label, asset_path.buf);
   }
   return true;
 }
@@ -260,8 +239,7 @@ static bool s_material_surface_map_write(const LDKMaterialIOContext *context,
     LDKAssetImage image, const char *field_name, XStrBuilder *out, u32 indent,
     LDKMaterialIOResult *result)
 {
-  XFSPath absolute = {0};
-  XFSPath relative = {0};
+  LDKAssetPath asset_path;
 
   if (x_handle_is_null(image.h))
   {
@@ -276,17 +254,17 @@ static bool s_material_surface_map_write(const LDKMaterialIOContext *context,
   LDKAssetHandle handle = {image.h};
   const LDKAssetInfo *info = ldk_asset_get_info_const(context->assets, handle);
   if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
-      !s_material_image_path(
-          context, info->asset_path.buf, &absolute, &relative))
+      !context->assets->source ||
+      info->source_revision != context->assets->source->revision ||
+      !s_material_image_path(context, info->asset_path.buf, &asset_path))
   {
-    s_result_error(
-        result, "material map needs a file inside the project runtree to save");
+    s_result_error(result, "material map needs a valid asset path to save");
     return false;
   }
 
   s_append_indent(out, indent);
   x_strbuilder_append_format(out, "%s: ", field_name);
-  s_append_escaped_string(out, relative.buf);
+  s_append_escaped_string(out, asset_path.buf);
   x_strbuilder_append_char(out, '\n');
   return true;
 }
@@ -344,29 +322,29 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
     if (tml_node_find_entry(doc, fields, "material_texture"))
     {
       TMLString image_path;
-      XFSPath path = {0}, absolute = {0}, relative = {0};
+      char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+      LDKAssetPath asset_path;
       if (!tml_node_get_string(doc, fields, "material_texture", &image_path) ||
-          image_path.size >= sizeof(path.buf) ||
+          image_path.size >= sizeof(path) ||
           memchr(image_path.data, 0, image_path.size))
       {
         s_result_error(result, "invalid material image path");
         return false;
       }
-      memcpy(path.buf, image_path.data, image_path.size);
-      if (path.buf[0])
+      memcpy(path, image_path.data, image_path.size);
+      if (path[0])
       {
-        if (x_fs_path_is_absolute_cstr(path.buf) ||
-            !s_material_image_path(context, path.buf, &absolute, &relative))
+        if (!s_material_image_path(context, path, &asset_path))
         {
-          s_result_error(result, "material image must be inside the runtree");
+          s_result_error(result, "invalid material image asset path");
           return false;
         }
         desc.args.textured.texture = ldk_asset_manager_image_load_shared(
-            context->assets, absolute.buf);
+            context->assets, asset_path.buf);
         if (x_handle_is_null(desc.args.textured.texture.h))
         {
           desc.args.textured.texture = ldk_asset_manager_image_missing(
-              context->assets, absolute.buf);
+              context->assets, asset_path.buf);
           if (x_handle_is_null(desc.args.textured.texture.h))
           {
             s_result_error(result, "failed to allocate missing texture");
@@ -376,7 +354,7 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
         const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
             context->assets, desc.args.textured.texture);
         if (image && image->is_missing)
-          s_report_missing_image(context, absolute.buf);
+          s_report_missing_image(context, asset_path.buf);
       }
     }
     if (x_handle_is_null(desc.args.textured.texture.h))
@@ -453,24 +431,25 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
   x_strbuilder_append_format(out, "material_color: 0x%x\n", color);
   if (textured)
   {
-    XFSPath absolute = {0}, relative = {0};
+    LDKAssetPath asset_path = {0};
     if (!x_handle_is_null(desc->args.textured.texture.h))
     {
       LDKAssetHandle handle = {desc->args.textured.texture.h};
       const LDKAssetInfo *info = ldk_asset_get_info_const(
           context->assets, handle);
       if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
-          !s_material_image_path(context, info->asset_path.buf,
-              &absolute, &relative))
+          !context->assets->source ||
+          info->source_revision != context->assets->source->revision ||
+          !s_material_image_path(context, info->asset_path.buf, &asset_path))
       {
         s_result_error(result,
-            "material image needs a file inside the project runtree to save");
+            "material image needs a valid asset path to save");
         return false;
       }
     }
     s_append_indent(out, indent);
     x_strbuilder_append(out, "material_texture: ");
-    s_append_escaped_string(out, relative.buf);
+    s_append_escaped_string(out, asset_path.buf);
     x_strbuilder_append_char(out, '\n');
 
     if (desc->args.textured.alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE)

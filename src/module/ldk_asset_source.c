@@ -13,28 +13,21 @@ struct LDKAssetSourcePackage
   LDKAssetSourcePackage *next;
 };
 
-static bool s_asset_source_physical_path(const LDKAssetSource *source,
-    const char *path, XFSPath *out_path)
+static void s_asset_source_revision_increment(LDKAssetSource *source)
 {
-  if (!source || !path || !path[0] || !out_path)
+  source->revision = source->revision == UINT64_MAX ? 1 : source->revision + 1;
+}
+
+bool ldk_asset_path_set(LDKAssetPath *out_path, const char *path)
+{
+  if (!out_path || !ldk_package_path_is_valid(path))
   {
     return false;
   }
 
-  if (x_fs_path_is_absolute_cstr(path))
-  {
-    if (!x_fs_path_set(out_path, path))
-    {
-      return false;
-    }
-  }
-  else if (!x_fs_path(
-               out_path, x_fs_path_cstr(&source->runtree_path), path))
-  {
-    return false;
-  }
-
-  x_fs_path_normalize(out_path);
+  size_t length = strlen(path);
+  memcpy(out_path->buf, path, length + 1);
+  out_path->length = length;
   return true;
 }
 
@@ -47,13 +40,7 @@ bool ldk_asset_source_initialize(
   }
 
   memset(source, 0, sizeof(*source));
-  if (!x_fs_path_set(&source->runtree_path, runtree_path))
-  {
-    return false;
-  }
-
-  x_fs_path_normalize(&source->runtree_path);
-  return true;
+  return ldk_asset_source_runtree_set(source, runtree_path);
 }
 
 void ldk_asset_source_terminate(LDKAssetSource *source)
@@ -75,6 +62,23 @@ void ldk_asset_source_terminate(LDKAssetSource *source)
   memset(source, 0, sizeof(*source));
 }
 
+bool ldk_asset_source_runtree_set(
+    LDKAssetSource *source, const char *runtree_path)
+{
+  XFSPath path;
+
+  if (!source || !runtree_path || !runtree_path[0] ||
+      !x_fs_path_set(&path, runtree_path))
+  {
+    return false;
+  }
+
+  x_fs_path_normalize(&path);
+  source->runtree_path = path;
+  s_asset_source_revision_increment(source);
+  return true;
+}
+
 LDKAssetSourcePackage *ldk_asset_source_package_open(
     LDKAssetSource *source, const char *path)
 {
@@ -82,11 +86,13 @@ LDKAssetSourcePackage *ldk_asset_source_package_open(
   LDKPackage *package;
   LDKAssetSourcePackage *node;
 
-  if (!source || !s_asset_source_physical_path(source, path, &physical_path))
+  if (!source || !path || !path[0] ||
+      !x_fs_path_set(&physical_path, path))
   {
     return NULL;
   }
 
+  x_fs_path_normalize(&physical_path);
   package = ldk_package_open(x_fs_path_cstr(&physical_path));
   if (!package)
   {
@@ -104,6 +110,7 @@ LDKAssetSourcePackage *ldk_asset_source_package_open(
   node->path = physical_path;
   node->next = source->packages;
   source->packages = node;
+  s_asset_source_revision_increment(source);
   return node;
 }
 
@@ -126,6 +133,7 @@ bool ldk_asset_source_package_close(
       *link = node->next;
       ldk_package_close(node->package);
       free(node);
+      s_asset_source_revision_increment(source);
       return true;
     }
     link = &(*link)->next;
@@ -137,12 +145,13 @@ bool ldk_asset_source_package_close(
 bool ldk_asset_source_find(const LDKAssetSource *source, const char *path,
     LDKAssetSourceFile *out_file)
 {
+  LDKAssetPath asset_path;
   LDKAssetSourcePackage *node;
   const LDKPackageEntry *entry;
   XFSPath filesystem_path;
   FSFileStat stat;
 
-  if (!source || !out_file || !ldk_package_path_is_valid(path))
+  if (!source || !out_file || !ldk_asset_path_set(&asset_path, path))
   {
     return false;
   }
@@ -152,7 +161,7 @@ bool ldk_asset_source_find(const LDKAssetSource *source, const char *path,
   node = source->packages;
   while (node)
   {
-    entry = ldk_package_entry_find(node->package, path);
+    entry = ldk_package_entry_find(node->package, asset_path.buf);
     if (entry)
     {
       out_file->origin = LDK_ASSET_SOURCE_ORIGIN_PACKAGE;
@@ -165,7 +174,7 @@ bool ldk_asset_source_find(const LDKAssetSource *source, const char *path,
   }
 
   if (!x_fs_path(&filesystem_path,
-          x_fs_path_cstr(&source->runtree_path), path))
+          x_fs_path_cstr(&source->runtree_path), asset_path.buf))
   {
     return false;
   }
@@ -231,4 +240,31 @@ bool ldk_asset_source_file_read(
 
   x_io_close(input);
   return true;
+}
+
+bool ldk_asset_source_file_write(const LDKAssetSource *source,
+    const char *path, const void *data, u64 size)
+{
+  LDKAssetPath asset_path;
+  XFSPath filesystem_path;
+  XFile *output;
+
+  if (!source || !ldk_asset_path_set(&asset_path, path) ||
+      size > (u64)SIZE_MAX || (size > 0 && !data) ||
+      !x_fs_path(&filesystem_path,
+          x_fs_path_cstr(&source->runtree_path), asset_path.buf))
+  {
+    return false;
+  }
+
+  x_fs_path_normalize(&filesystem_path);
+  output = x_io_open(x_fs_path_cstr(&filesystem_path), "wb");
+  if (!output)
+  {
+    return false;
+  }
+
+  bool ok = x_io_write(output, data, (size_t)size) == (size_t)size;
+  x_io_close(output);
+  return ok;
 }

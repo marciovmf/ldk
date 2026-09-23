@@ -41,7 +41,7 @@ function(ldk_project_packages_read PROJECT_FILE OUT_NAMES OUT_RULES)
 
     if (_line MATCHES "^\\[([^]]+)\\]$")
       string(STRIP "${CMAKE_MATCH_1}" _section)
-      if (_section STREQUAL ".packages")
+      if (_section STREQUAL "packages")
         set(_in_packages TRUE)
       else()
         set(_in_packages FALSE)
@@ -56,7 +56,7 @@ function(ldk_project_packages_read PROJECT_FILE OUT_NAMES OUT_RULES)
 
     if (NOT _line MATCHES "^([^=]+)=(.*)$")
       message(FATAL_ERROR
-        "Invalid [.packages] entry in '${PROJECT_FILE}': ${_line}"
+        "Invalid [packages] entry in '${PROJECT_FILE}': ${_line}"
       )
     endif()
 

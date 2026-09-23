@@ -44,14 +44,13 @@ static bool s_editor_scene_view_path_is_mesh(const XFSPath *path)
   return x_slice_eq_ci(extension, x_slice("mesh"));
 }
 
-static bool s_editor_scene_view_path_in_runtree(
-    LDKEditorContext *editor, const XFSPath *path)
+static bool s_editor_scene_view_asset_path(
+    LDKEditorContext *editor, const XFSPath *path, LDKAssetPath *out_path)
 {
   XFSPath runtree = {0};
   XFSPath relative = {0};
-  const char *relative_text;
 
-  if (!editor || !editor->project.loaded || !path)
+  if (!editor || !editor->project.loaded || !path || !out_path)
   {
     return false;
   }
@@ -65,10 +64,15 @@ static bool s_editor_scene_view_path_in_runtree(
     return false;
   }
 
-  relative_text = x_fs_path_cstr(&relative);
-  return relative_text && relative_text[0] != 0 &&
-         strcmp(relative_text, ".") != 0 &&
-         !x_fs_path_is_absolute(&relative);
+  for (size_t i = 0; relative.buf[i]; ++i)
+  {
+    if (relative.buf[i] == '\\')
+    {
+      relative.buf[i] = '/';
+    }
+  }
+
+  return ldk_asset_path_set(out_path, relative.buf);
 }
 
 static void s_editor_scene_view_entities_destroy(
@@ -89,7 +93,7 @@ static void s_editor_scene_view_entities_destroy(
 }
 
 static bool s_editor_scene_view_mesh_instantiate(
-    LDKEditorContext *editor, const XFSPath *path, Vec3 drop_position)
+    LDKEditorContext *editor, const LDKAssetPath *path, Vec3 drop_position)
 {
   LDKAssetManager *assets;
   LDKMeshAssetResult result = {0};
@@ -117,7 +121,7 @@ static bool s_editor_scene_view_mesh_instantiate(
   }
 
   asset = ldk_asset_manager_mesh_load_shared(
-      assets, x_fs_path_cstr(path), &result);
+      assets, path->buf, &result);
   if (x_handle_is_null(asset.h))
   {
     ldki_editor_log_error(editor,
@@ -287,7 +291,8 @@ static bool s_editor_scene_view_mesh_drop(
     return true;
   }
 
-  if (!s_editor_scene_view_path_in_runtree(editor, &path))
+  LDKAssetPath asset_path;
+  if (!s_editor_scene_view_asset_path(editor, &path, &asset_path))
   {
     ldki_editor_log_error(editor,
         "Dropped mesh file must be inside the project runtree.");
@@ -302,7 +307,8 @@ static bool s_editor_scene_view_mesh_drop(
     return true;
   }
 
-  (void)s_editor_scene_view_mesh_instantiate(editor, &path, hit.position);
+  (void)s_editor_scene_view_mesh_instantiate(
+      editor, &asset_path, hit.position);
   return true;
 }
 

@@ -110,18 +110,20 @@ static int test_material_io_invalid(void)
 
 static int test_material_io_missing_texture(void)
 {
+  LDKAssetSource source = {0};
   LDKAssetManager assets = {0};
-  ASSERT_TRUE(ldk_asset_manager_initialize(&assets, 16, 1));
+  /* This path deliberately does not exist; no checkerboard file is needed. */
+#ifdef _WIN32
+  ASSERT_TRUE(ldk_asset_source_initialize(
+      &source, "C:/ldk-material-io-test/runtree"));
+#else
+  ASSERT_TRUE(ldk_asset_source_initialize(
+      &source, "/ldk-material-io-test/runtree"));
+#endif
+  ASSERT_TRUE(ldk_asset_manager_initialize(&assets, &source, 16, 1));
   LDKMaterialIOContext context = {0};
   context.assets = &assets;
   context.diagnostic = s_diagnostic;
-  /* This path deliberately does not exist; no checkerboard file is needed. */
-#ifdef _WIN32
-  x_fs_path_set(&context.runtree_path, "C:/ldk-material-io-test/runtree");
-#else
-  x_fs_path_set(&context.runtree_path, "/ldk-material-io-test/runtree");
-#endif
-  x_fs_path_normalize(&context.runtree_path);
   LDKMaterialIOResult result;
   LDKMaterialDesc first, second;
   s_diagnostics = 0;
@@ -191,6 +193,7 @@ static int test_material_io_missing_texture(void)
   x_strbuilder_destroy(out);
 
   ldk_asset_manager_terminate(&assets);
+  ldk_asset_source_terminate(&source);
   return 0;
 }
 

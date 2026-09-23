@@ -2,7 +2,7 @@
 project_name = demo
 project_cmake_root = workspace
 project_run_root = runtree
-project_cmake_generator = Visual Studio 17 2022
+project_cmake_generator = Visual Studio 18 2026
 
 [graphics]
 resolution_width=1280

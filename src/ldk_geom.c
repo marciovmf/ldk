@@ -543,7 +543,7 @@ bool ldk_mesh_primitive_create(
 
 typedef struct LDKPrimitiveAssetFindContext
 {
-  const char* path;
+  LDKMeshPrimitive primitive;
   LDKAssetMesh mesh;
 } LDKPrimitiveAssetFindContext;
 
@@ -552,13 +552,15 @@ static bool s_mesh_primitive_asset_find(
 {
   LDKPrimitiveAssetFindContext* context =
       (LDKPrimitiveAssetFindContext*)user;
+  LDKAssetMeshData* data;
 
   if (!context || !info || info->type != LDK_ASSET_TYPE_MESH)
   {
     return true;
   }
 
-  if (strcmp(x_fs_path_cstr(&info->asset_path), context->path) != 0)
+  data = (LDKAssetMeshData*)info->data;
+  if (!data || data->primitive != context->primitive)
   {
     return true;
   }
@@ -567,47 +569,24 @@ static bool s_mesh_primitive_asset_find(
   return false;
 }
 
-static const char* s_mesh_primitive_asset_path(LDKMeshPrimitive primitive)
-{
-  switch (primitive)
-  {
-  case LDK_MESH_PRIMITIVE_CUBE:
-    return "builtin:mesh/cube";
-  case LDK_MESH_PRIMITIVE_CONE:
-    return "builtin:mesh/cone";
-  case LDK_MESH_PRIMITIVE_SPHERE:
-    return "builtin:mesh/sphere";
-  case LDK_MESH_PRIMITIVE_CAPSULE:
-    return "builtin:mesh/capsule";
-  case LDK_MESH_PRIMITIVE_PLANE:
-    return "builtin:mesh/plane";
-  case LDK_MESH_PRIMITIVE_QUAD:
-    return "builtin:mesh/quad";
-  default:
-    return NULL;
-  }
-}
-
 LDKAssetMesh ldk_mesh_primitive_asset_get(
     LDKAssetManager* manager, LDKMeshPrimitive primitive)
 {
   LDKAssetMesh result = ldk_asset_mesh_null();
   LDKMeshData mesh = {0};
-  const char* path;
 
   if (!manager)
   {
     return result;
   }
 
-  path = s_mesh_primitive_asset_path(primitive);
-  if (!path)
+  if ((u32)primitive >= LDK_MESH_PRIMITIVE_COUNT)
   {
     return result;
   }
 
   LDKPrimitiveAssetFindContext context = {
-      .path = path,
+      .primitive = primitive,
       .mesh = ldk_asset_mesh_null(),
   };
 
@@ -628,6 +607,7 @@ LDKAssetMesh ldk_mesh_primitive_asset_get(
   if (data)
   {
     data->mesh.has_tangents = mesh.has_tangents;
+    data->primitive = primitive;
   }
   ldk_mesh_data_destroy(&mesh);
 
@@ -636,14 +616,11 @@ LDKAssetMesh ldk_mesh_primitive_asset_get(
     return result;
   }
 
-  LDKAssetHandle generic = {result.h};
-  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
-  if (!info)
+  if (!data)
   {
     ldk_asset_manager_mesh_unload(manager, result);
     return ldk_asset_mesh_null();
   }
 
-  x_fs_path_set(&info->asset_path, path);
   return result;
 }

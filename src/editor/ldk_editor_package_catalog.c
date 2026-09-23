@@ -379,7 +379,7 @@ static bool s_package_catalog_load(LDKEditorContext *editor)
   for (i32 section_i = 0; section_i < x_ini_section_count(&ini); ++section_i)
   {
     const char *section = x_ini_section_name(&ini, section_i);
-    if (!section || strcmp(section, ".packages") != 0)
+    if (!section || strcmp(section, "packages") != 0)
     {
       continue;
     }
@@ -488,7 +488,7 @@ static bool s_package_catalog_section_is_packages(
     --close;
   }
 
-  return close - p == 9 && memcmp(p, ".packages", 9) == 0;
+  return close - p == 8 && memcmp(p, "packages", 8) == 0;
 }
 
 static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
@@ -585,7 +585,7 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
     line = end;
   }
 
-  fputs("\n[.packages]\n", out);
+  fputs("\n[packages]\n", out);
   for (u32 package_i = 0;
        package_i < x_array_count(s_package_catalog.packages); ++package_i)
   {
@@ -1103,7 +1103,7 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
 
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui,
-      "Packages are stored in [.packages] in the project .ldk file.\n"
+      "Packages are stored in [packages] in the project .ldk file.\n"
       "Rules are relative to runtree. Prefix a rule with ! to exclude it.\n"
       "Changes remain a draft until Save.\n"
       "Drop files or folders from Project Explorer to add a rule to the "

@@ -6,6 +6,7 @@
 #include <ldk_ttf.h>
 #include <ldk_image.h>
 #include <ldk_mesh.h>
+#include <module/ldk_asset_source.h>
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_filesystem.h>
 
@@ -17,8 +18,9 @@ extern "C" {
   {
     LDKAssetType type;
     void* data;
-    XFSPath asset_path;
+    LDKAssetPath asset_path;
     u64 load_timestamp;
+    u64 source_revision;
   } LDKAssetInfo;
 
   typedef bool (*LDKAssetIterFn)(LDKAssetHandle asset, LDKAssetInfo* info, void* user);
@@ -26,13 +28,14 @@ extern "C" {
   typedef struct LDKAssetManager
   {
     XHPool pool;
+    LDKAssetSource* source;
   } LDKAssetManager;
 
   // ---------------------------------------------------------------------------
   // General asset operations
   // ---------------------------------------------------------------------------
 
-  LDK_API bool ldk_asset_manager_initialize(LDKAssetManager* manager, u32 page_capacity, u32 initial_pages);
+  LDK_API bool ldk_asset_manager_initialize(LDKAssetManager* manager, LDKAssetSource* source, u32 page_capacity, u32 initial_pages);
   LDK_API void ldk_asset_manager_terminate(LDKAssetManager* manager);
   LDK_API void ldk_asset_manager_clear(LDKAssetManager* manager);
 
@@ -86,13 +89,13 @@ extern "C" {
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
       const char* path);
-  /* Reuse a loaded image by normalized absolute path, or load it once.
+  /* Reuse a loaded image by asset path, or load it once.
    * The returned asset is shared and lives until manager clear/termination;
    * callers must not individually unload it. No file hot reload is performed. */
   LDK_API LDKAssetImage ldk_asset_manager_image_load_shared(
       LDKAssetManager* manager, const char* path);
   /* Shared magenta/black checkerboard for an unavailable image. Preserve the
-   * missing absolute path for scene saves; NULL selects the unassigned fallback.
+   * missing asset path for scene saves; NULL selects the unassigned fallback.
    * Manager-owned, like image_load_shared. */
   LDK_API LDKAssetImage ldk_asset_manager_image_missing(
       LDKAssetManager* manager, const char* path);
@@ -148,6 +151,8 @@ extern "C" {
      * mesh at index zero.
      */
     LDKMeshData mesh;
+    /* LDK_MESH_PRIMITIVE_COUNT for non-built-in meshes. */
+    LDKMeshPrimitive primitive;
     LDKAssetMeshEntry* meshes;
     u32 mesh_count;
     LDKMeshNode* nodes;

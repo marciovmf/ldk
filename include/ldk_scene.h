@@ -7,6 +7,7 @@
 #define LDK_SCENE_H
 
 #include <ldk_common.h>
+#include <ldk_asset.h>
 #include <editor/ldk_component_metadata.h>
 
 #include <stdx/stdx_filesystem.h>
@@ -36,7 +37,7 @@ struct LDKSceneSystems;
  */
 typedef struct LDKScene
 {
-  XFSPath path;
+  LDKAssetPath path;
   XSmallstr name;
   u32 index;
 } LDKScene;

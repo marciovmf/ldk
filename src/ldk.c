@@ -18,6 +18,7 @@
 #include <module/ldk_system.h>
 #include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -35,6 +36,7 @@ struct LDKRoot
 {
   // Engine Modules
   LDKAssetManager asset_manager;
+  LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
   LDKECS ecs;
   LDKConfig config;
@@ -390,6 +392,7 @@ static void s_terminate_all_modules(LDKRoot *e)
   ldk_event_queue_terminate(&e->event_queue);
   ldk_renderer_terminate(&e->renderer);
   ldk_asset_manager_terminate(&e->asset_manager);
+  ldk_asset_source_terminate(&e->asset_source);
   ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
@@ -1014,6 +1017,9 @@ void *ldk_module_get(LDKModuleType module_type)
   case LDK_MODULE_ASSET_MANAGER:
     return &g_engine.asset_manager;
 
+  case LDK_MODULE_ASSET_SOURCE:
+    return &g_engine.asset_source;
+
   case LDK_MODULE_SCENE_MANAGER:
     return &g_engine.scene_manager;
 
@@ -1022,6 +1028,51 @@ void *ldk_module_get(LDKModuleType module_type)
   }
 
   return NULL;
+}
+
+static bool s_asset_packages_open(
+    LDKAssetSource *source, const XIni *ini)
+{
+  XFSPath executable_path = {0};
+  XFSPath executable_directory = {0};
+  int section = -1;
+
+  for (int i = 0; i < x_ini_section_count(ini); ++i)
+  {
+    if (strcmp(x_ini_section_name(ini, i), "packages") == 0)
+    {
+      section = i;
+      break;
+    }
+  }
+
+  if (section < 0)
+  {
+    return true;
+  }
+
+  if (!x_fs_path_from_executable(&executable_path) ||
+      !x_fs_path_dirname(&executable_path, &executable_directory))
+  {
+    ldk_log_error("Failed to resolve executable directory for asset packages.\n");
+    return false;
+  }
+
+  for (int i = 0; i < x_ini_key_count(ini, section); ++i)
+  {
+    const char *name = x_ini_key_name(ini, section, i);
+    XFSPath package_path = {0};
+    if (!name || !name[0] ||
+        !x_fs_path(&package_path, executable_directory.buf, name) ||
+        !ldk_asset_source_package_open(source, package_path.buf))
+    {
+      ldk_log_error("Failed to open asset package '%s'.\n",
+          name ? name : "");
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool ldk_engine_initialize(const char *config_ini_path)
@@ -1049,7 +1100,18 @@ bool ldk_engine_initialize(const char *config_ini_path)
   x_fs_path_set(&config.config_file_path, config_ini_path);
   x_fs_path_normalize(&config.config_file_path);
 
-  return ldk_engine_initialize_with_config(&config);
+  if (!ldk_engine_initialize_with_config(&config))
+  {
+    return false;
+  }
+
+  if (!s_asset_packages_open(&g_engine.asset_source, &ini))
+  {
+    ldk_engine_terminate();
+    return false;
+  }
+
+  return true;
 }
 
 bool ldk_engine_initialize_with_config(const LDKConfig *config)
@@ -1106,7 +1168,15 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
-  if (!ldk_asset_manager_initialize(&e->asset_manager, 16, 1))
+  if (!ldk_asset_source_initialize(
+          &e->asset_source, x_fs_path_cstr(&e->config.runtree_path)))
+  {
+    ldk_log_error("Failed to initialize module: Asset Source.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_asset_manager_initialize(
+          &e->asset_manager, &e->asset_source, 16, 1))
   {
     ldk_log_error("Failed to initialize module: Asset Manager.");
     engine_init_failed = true;

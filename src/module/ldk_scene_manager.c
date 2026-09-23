@@ -1,5 +1,6 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_asset_source.h>
 #include <ldk.h>
 #include <ldk_scene.h>
 #include <ldk_scene_systems.h>
@@ -19,19 +20,14 @@ typedef struct LDKSceneEntityList
   bool ok;
 } LDKSceneEntityList;
 
-static bool s_string_is_empty(const char *str)
-{
-  return str == NULL || str[0] == 0;
-}
-
-static bool s_path_equal(const XFSPath *left, const XFSPath *right)
+static bool s_path_equal(const LDKAssetPath *left, const LDKAssetPath *right)
 {
   if (!left || !right)
   {
     return false;
   }
 
-  return strcmp(x_fs_path_cstr(left), x_fs_path_cstr(right)) == 0;
+  return strcmp(left->buf, right->buf) == 0;
 }
 
 static void s_scene_name_set(LDKScene *scene)
@@ -45,7 +41,7 @@ static void s_scene_name_set(LDKScene *scene)
 
   X_ASSERT(scene != NULL);
 
-  path = x_fs_path_cstr(&scene->path);
+  path = scene->path.buf;
   filename = path;
   cursor = path;
 
@@ -85,7 +81,7 @@ static void s_scene_name_set(LDKScene *scene)
   x_smallstr_from_cstr(&scene->name, name);
 }
 
-static void s_scene_set(LDKScene *scene, const XFSPath *path, u32 index)
+static void s_scene_set(LDKScene *scene, const LDKAssetPath *path, u32 index)
 {
   X_ASSERT(scene != NULL);
   X_ASSERT(path != NULL);
@@ -93,7 +89,6 @@ static void s_scene_set(LDKScene *scene, const XFSPath *path, u32 index)
   memset(scene, 0, sizeof(*scene));
 
   scene->path = *path;
-  x_fs_path_normalize(&scene->path);
   scene->index = index;
 
   s_scene_name_set(scene);
@@ -109,47 +104,21 @@ static bool s_catalog_is_valid(const LDKSceneManagerConfig *config)
     return false;
   }
 
-  if (s_string_is_empty(x_fs_path_cstr(&config->runtree_path)))
-  {
-    return false;
-  }
-
   for (i = 0; i < config->scene_count; i++)
   {
-    XFSPath path = config->scenes[i];
+    LDKAssetPath path;
 
-    /* Check parent segments before normalization, which discards leading .. */
-    const char *segment = path.buf;
-    while (*segment)
-    {
-      const char *end = segment;
-      while (*end && *end != '/' && *end != '\\')
-      {
-        ++end;
-      }
-      if (end - segment == 2 && segment[0] == '.' && segment[1] == '.')
-      {
-        return false;
-      }
-      segment = *end ? end + 1 : end;
-    }
-    x_fs_path_normalize(&path);
-
-    if (s_string_is_empty(x_fs_path_cstr(&path)) ||
-        x_fs_path_is_absolute_cstr(x_fs_path_cstr(&path)) ||
-        strcmp(path.buf, "..") == 0 || strncmp(path.buf, "../", 3) == 0 ||
-        strncmp(path.buf, "..\\", 3) == 0 || strchr(path.buf, ':'))
+    if (!ldk_asset_path_set(&path, config->scenes[i].buf))
     {
       return false;
     }
 
     for (j = i + 1u; j < config->scene_count; j++)
     {
-      XFSPath other = config->scenes[j];
+      LDKAssetPath other;
 
-      x_fs_path_normalize(&other);
-
-      if (s_path_equal(&path, &other))
+      if (!ldk_asset_path_set(&other, config->scenes[j].buf) ||
+          s_path_equal(&path, &other))
       {
         return false;
       }
@@ -275,24 +244,15 @@ static bool s_manager_is_configured(const LDKSceneManager *manager)
          manager->scene_count > 0;
 }
 
-static void s_scene_resolve_path(const LDKSceneManager *manager,
-    const LDKScene *scene, XFSPath *out_path)
-{
-  X_ASSERT(manager != NULL);
-  X_ASSERT(scene != NULL);
-  X_ASSERT(out_path != NULL);
-
-  x_fs_path(out_path, x_fs_path_cstr(&manager->runtree_path),
-      x_fs_path_cstr(&scene->path));
-  x_fs_path_normalize(out_path);
-}
-
 static const LDKScene *s_scene_load(LDKSceneManager *manager,
     const LDKScene *scene, LDKSceneResult *result)
 {
-  XFSPath path;
   LDKSceneSystems systems = {0};
+  LDKAssetSource *source;
+  LDKAssetSourceFile file;
   LDKECS *ecs;
+  char *text;
+  u64 size;
   bool session_started;
 
   ldk_scene_result_clear(result);
@@ -315,12 +275,33 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
     return NULL;
   }
 
-  s_scene_resolve_path(manager, scene, &path);
+  source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  if (!source || !ldk_asset_source_find(source, scene->path.buf, &file))
+  {
+    ldk_scene_result_set_error(result, "failed to find scene asset");
+    return NULL;
+  }
+
+  size = ldk_asset_source_file_size(&file);
+  if (size > (u64)SIZE_MAX - 1u)
+  {
+    ldk_scene_result_set_error(result, "scene asset is too large");
+    return NULL;
+  }
+
+  text = malloc((size_t)size + 1u);
+  if (!text || !ldk_asset_source_file_read(&file, text, size))
+  {
+    free(text);
+    ldk_scene_result_set_error(result, "failed to read scene asset");
+    return NULL;
+  }
+  text[size] = 0;
 
   /* Read and validate the target before destroying the current scene. */
-  if (!ldk_scene_systems_load_tml_file(
-          x_fs_path_cstr(&path), &systems, result))
+  if (!ldk_scene_systems_from_tml(text, &systems, result))
   {
+    free(text);
     return NULL;
   }
 
@@ -331,6 +312,7 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   {
     ldk_scene_result_set_error(result, "invalid scene system grouping binding");
     ldk_scene_systems_clear(&systems);
+    free(text);
     return NULL;
   }
 
@@ -339,6 +321,7 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   {
     ldk_scene_result_set_error(result, "failed to stop previous scene systems");
     ldk_scene_systems_clear(&systems);
+    free(text);
     return NULL;
   }
 
@@ -350,15 +333,16 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
     {
       ldk_game_instance_stop();
     }
+    free(text);
     return NULL;
   }
 
   manager->current_scene = NULL;
   ldk_scene_systems_clear(&manager->current_systems);
 
-  if (!ldk_scene_load_tml_file_with_systems(
-          x_fs_path_cstr(&path), &systems, result))
+  if (!ldk_scene_from_tml_with_systems(text, &systems, result))
   {
+    free(text);
     /* The low-level loader can leave partially deserialized entities. */
     if (session_started)
     {
@@ -369,6 +353,7 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
     return NULL;
   }
 
+  free(text);
   manager->current_systems = systems;
   manager->current_scene = scene;
 
@@ -402,7 +387,6 @@ bool ldk_scene_manager_override(
     LDKSceneManager *manager, const LDKSceneManagerConfig *config)
 {
   LDKScene *new_scenes = NULL;
-  XFSPath new_runtree_path;
   u32 new_scene_count = 0;
 
   if (!manager || !manager->is_initialized || ldk_game_instance_is_started() ||
@@ -410,8 +394,6 @@ bool ldk_scene_manager_override(
   {
     return false;
   }
-
-  memset(&new_runtree_path, 0, sizeof(new_runtree_path));
 
   if (config)
   {
@@ -427,8 +409,6 @@ bool ldk_scene_manager_override(
     }
 
     new_scene_count = config->scene_count;
-    new_runtree_path = config->runtree_path;
-    x_fs_path_normalize(&new_runtree_path);
   }
 
   if (!ldk_scene_manager_unload(manager))
@@ -440,7 +420,6 @@ bool ldk_scene_manager_override(
   free(manager->scenes);
   manager->scenes = new_scenes;
   manager->scene_count = new_scene_count;
-  manager->runtree_path = new_runtree_path;
   return true;
 }
 
@@ -452,21 +431,14 @@ bool ldk_scene_manager_catalog_validate(const LDKScene *scenes, u32 count)
   }
   for (u32 i = 0; i < count; ++i)
   {
-    LDKSceneManagerConfig config = {0};
-    config.scenes = &scenes[i].path;
-    config.scene_count = 1;
-    x_fs_path_set(&config.runtree_path, ".");
-    if (!s_catalog_is_valid(&config))
+    LDKAssetPath path;
+    if (!ldk_asset_path_set(&path, scenes[i].path.buf))
     {
       return false;
     }
-    XFSPath path = scenes[i].path;
-    x_fs_path_normalize(&path);
     for (u32 j = 0; j < i; ++j)
     {
-      XFSPath other = scenes[j].path;
-      x_fs_path_normalize(&other);
-      if (x_fs_path_compare(&path, &other) == 0)
+      if (strcmp(path.buf, scenes[j].path.buf) == 0)
       {
         return false;
       }
@@ -484,7 +456,7 @@ bool ldk_scene_manager_catalog_exchange(
   {
     return false;
   }
-  XFSPath current_path = {0};
+  LDKAssetPath current_path = {0};
   if (manager->current_scene)
   {
     current_path = manager->current_scene->path;
@@ -492,7 +464,6 @@ bool ldk_scene_manager_catalog_exchange(
   for (u32 i = 0; i < *count; ++i)
   {
     (*scenes)[i].index = i;
-    x_fs_path_normalize(&(*scenes)[i].path);
     if (!(*scenes)[i].name.buf[0])
     {
       s_scene_name_set(&(*scenes)[i]);
@@ -512,12 +483,12 @@ bool ldk_scene_manager_catalog_exchange(
 }
 
 bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
-    const char *ini_path, const XFSPath *runtree_path, LDKSceneResult *result)
+    const char *ini_path, LDKSceneResult *result)
 {
   XIni ini = {0};
   XIniError error = {0};
   LDKSceneManagerConfig config = {0};
-  XFSPath *paths = NULL;
+  LDKAssetPath *paths = NULL;
   XSmallstr *names = NULL;
   bool ok = false;
   int section = -1;
@@ -525,7 +496,7 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   char *end;
 
   ldk_scene_result_clear(result);
-  if (!manager || !ini_path || !runtree_path)
+  if (!manager || !ini_path)
   {
     ldk_scene_result_set_error(result, "invalid scene catalog arguments");
     return false;
@@ -602,11 +573,10 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     const char *value;
     snprintf(key, sizeof(key), "%u.path", i);
     value = x_ini_get(&ini, "scenes", key, NULL);
-    if (!value || !*value || strlen(value) >= sizeof(paths[i].buf))
+    if (!value || !ldk_asset_path_set(&paths[i], value))
     {
       goto invalid;
     }
-    x_fs_path_set(&paths[i], value);
     snprintf(key, sizeof(key), "%u.name", i);
     value = x_ini_get(&ini, "scenes", key, "");
     if (strlen(value) >= sizeof(names[i].buf))
@@ -618,7 +588,6 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   config.scenes = paths;
   config.names = names;
   config.scene_count = (u32)count;
-  config.runtree_path = *runtree_path;
   if (!s_catalog_is_valid(&config))
   {
     goto invalid;
@@ -644,7 +613,7 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
 invalid:
   ldk_scene_result_set_error(result,
       "invalid [scenes]: expected count and contiguous N.path/N.name entries; "
-      "paths must be unique and relative to the runtree");
+      "paths must be unique asset paths");
 done:
   free(paths);
   free(names);
@@ -693,20 +662,18 @@ const LDKScene *ldk_scene_manager_at(
 const LDKScene *ldk_scene_manager_find(
     const LDKSceneManager *manager, const char *path)
 {
-  XFSPath normalized_path;
+  LDKAssetPath asset_path;
   u32 i;
 
-  if (!s_manager_is_configured(manager) || s_string_is_empty(path))
+  if (!s_manager_is_configured(manager) ||
+      !ldk_asset_path_set(&asset_path, path))
   {
     return NULL;
   }
 
-  x_fs_path_set(&normalized_path, path);
-  x_fs_path_normalize(&normalized_path);
-
   for (i = 0; i < manager->scene_count; i++)
   {
-    if (s_path_equal(&manager->scenes[i].path, &normalized_path))
+    if (s_path_equal(&manager->scenes[i].path, &asset_path))
     {
       return &manager->scenes[i];
     }

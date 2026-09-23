@@ -57,7 +57,8 @@ typedef struct LDKParsedMeshFile
 
 typedef struct LDKSharedMeshLookup
 {
-  XFSPath path;
+  LDKAssetPath path;
+  u64 source_revision;
   LDKAssetMesh mesh;
 } LDKSharedMeshLookup;
 
@@ -499,9 +500,11 @@ static bool s_parsed_node_complete(
       node->node.mesh_index < (i32)mesh_count;
 }
 
-static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
-    LDKMeshAssetResult *result)
+static bool s_mesh_file_parse(LDKAssetManager *manager, const char *path,
+    LDKParsedMeshFile *out_file, LDKMeshAssetResult *result)
 {
+  LDKAssetSourceFile file;
+  u64 size;
   char *text;
   char *line;
   char *next_line;
@@ -515,19 +518,29 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
   bool node_count_seen = false;
   LDKMeshFileVertexFormat format = LDK_MESH_FILE_VERTEX_FORMAT_NONE;
 
-  if (!path || !out_file)
+  if (!manager || !manager->source || !path || !out_file ||
+      !ldk_asset_source_find(manager->source, path, &file))
   {
-    s_mesh_asset_error(result, "invalid mesh load arguments");
+    s_mesh_asset_error(result, "cannot read mesh asset");
+    return false;
+  }
+
+  size = ldk_asset_source_file_size(&file);
+  if (size > (u64)SIZE_MAX - 1u)
+  {
+    s_mesh_asset_error(result, "mesh asset is too large");
     return false;
   }
 
   memset(out_file, 0, sizeof(*out_file));
-  text = x_io_read_text(path, NULL);
-  if (!text)
+  text = (char *)malloc((size_t)size + 1u);
+  if (!text || !ldk_asset_source_file_read(&file, text, size))
   {
-    s_mesh_asset_error(result, "cannot read mesh file");
+    free(text);
+    s_mesh_asset_error(result, "cannot read mesh asset");
     return false;
   }
+  text[size] = 0;
 
   line = text;
   while (line)
@@ -1140,6 +1153,7 @@ static bool s_shared_mesh_find(
   LDKSharedMeshLookup *lookup = (LDKSharedMeshLookup *)user;
 
   if (info->type == LDK_ASSET_TYPE_MESH &&
+      info->source_revision == lookup->source_revision &&
       strcmp(info->asset_path.buf, lookup->path.buf) == 0)
   {
     lookup->mesh.h = asset.h;
@@ -1173,22 +1187,21 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   s_mesh_asset_error(result, "");
   lookup.mesh = ldk_asset_mesh_null();
 
-  if (!manager || !path || !x_fs_path_is_absolute_cstr(path) ||
-      strlen(path) >= sizeof(lookup.path.buf))
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
   {
-    s_mesh_asset_error(result, "mesh asset requires an absolute file path");
+    s_mesh_asset_error(result, "mesh asset requires a valid asset path");
     return lookup.mesh;
   }
 
-  x_fs_path_set(&lookup.path, path);
-  x_fs_path_normalize(&lookup.path);
+  lookup.source_revision = manager->source->revision;
   ldk_asset_foreach(manager, s_shared_mesh_find, &lookup);
   if (!x_handle_is_null(lookup.mesh.h))
   {
     return lookup.mesh;
   }
 
-  if (!s_mesh_file_parse(lookup.path.buf, &parsed, result))
+  if (!s_mesh_file_parse(manager, lookup.path.buf, &parsed, result))
   {
     return lookup.mesh;
   }
@@ -1270,6 +1283,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   }
 
   info->asset_path = lookup.path;
+  info->source_revision = lookup.source_revision;
   info->load_timestamp = (u64)time(NULL);
 
   (void)vertex_storage_bytes;

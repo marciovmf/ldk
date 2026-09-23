@@ -17,9 +17,8 @@ extern "C"
 
 typedef struct LDKSceneManagerConfig
 {
-  const XFSPath *scenes;
+  const LDKAssetPath *scenes;
   u32 scene_count;
-  XFSPath runtree_path;
   /* Optional friendly names, parallel to scenes. Empty names use the filename.
    */
   const XSmallstr *names;
@@ -34,7 +33,6 @@ typedef struct LDKSceneManager
   LDKSceneSystems current_systems;
   u32 pending_scene_index;
   bool has_pending_scene;
-  XFSPath runtree_path;
   bool is_initialized;
 } LDKSceneManager;
 
@@ -74,12 +72,12 @@ LDK_API bool ldk_scene_manager_catalog_exchange(
 /**
  * Reads [scenes] from a project manifest or runtime INI.
  * count=N, 0.path=relative.scene, 0.name=Friendly name, ...
- * Indices are contiguous from zero; names are optional. Paths are relative to
- * runtree_path. An absent/empty catalog configures no scenes. On parse failure
+ * Indices are contiguous from zero; names are optional. Paths are logical
+ * asset paths. An absent/empty catalog configures no scenes. On parse failure
  * the existing catalog and scene remain unchanged.
  */
 LDK_API bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
-    const char *ini_path, const XFSPath *runtree_path, LDKSceneResult *result);
+    const char *ini_path, LDKSceneResult *result);
 
 /** Unloads the current scene and frees the copied catalog. */
 LDK_API void ldk_scene_manager_terminate(LDKSceneManager *manager);

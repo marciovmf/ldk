@@ -256,7 +256,7 @@ typedef struct LDKEditorContext
   LDKEditorThemeCatalog *theme_catalog;
 
   // config
-  XFSPath editor_font;
+  LDKAssetPath editor_font;
   XSmallstr editor_theme;
   i32 editor_font_size;
   float editor_camera_fov;

@@ -19,7 +19,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 1
       parent: -1
       flags: 0
@@ -61,9 +61,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.213776350, 4.46680641, 17.1461735
+            local_position: -0.0467082039, 1.03643441, 5.43287563
             local_scale: 1.00000000, 0.999999881, 0.999999940
-            local_rotation: -0.00523740379, -0.0272968821, -0.000143020035, 0.999613643
+            local_rotation: -0.0102395648, -0.00480061071, -4.91593091e-05, 0.999936044
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
@@ -104,7 +104,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange_small"
+            material_asset: "assets/checkers_orange_small"
     - entity: 6
       parent: -1
       flags: 0
@@ -120,7 +120,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange_small"
+            material_asset: "assets/checkers_orange_small"
     - entity: 7
       parent: -1
       flags: 0
@@ -136,7 +136,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\materials\\castle_checkers.tml"
+            material_asset: "assets/materials/castle_checkers.tml"
     - entity: 8
       parent: -1
       flags: 4
@@ -152,7 +152,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 9
       parent: -1
       flags: 0
@@ -168,7 +168,7 @@ scene:
             source_asset: "builtin:mesh/sphere"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange_small"
+            material_asset: "assets/checkers_orange_small"
     - entity: 10
       parent: -1
       flags: 0
@@ -269,7 +269,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\materials\\container.tml"
+            material_asset: "assets/materials/container.tml"
     - entity: 15
       parent: -1
       flags: 0
@@ -282,7 +282,7 @@ scene:
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967288 # LDKInstancedMeshSource
           fields:
-            source_asset: "assets\\mesh\\tree.mesh"
+            source_asset: "assets/mesh/tree.mesh"
             mesh_index: 0
             casts_shadows: true
             materials:
@@ -314,7 +314,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 17
       parent: -1
       flags: 4
@@ -330,7 +330,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 18
       parent: -1
       flags: 4
@@ -346,7 +346,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 19
       parent: -1
       flags: 4
@@ -362,7 +362,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
-            material_asset: "assets\\checkers_orange"
+            material_asset: "assets/checkers_orange"
     - entity: 20
       parent: -1
       flags: 0
@@ -375,7 +375,7 @@ scene:
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967288 # LDKInstancedMeshSource
           fields:
-            source_asset: "assets\\mesh\\tree.mesh"
+            source_asset: "assets/mesh/tree.mesh"
             mesh_index: 0
             casts_shadows: true
             materials:
@@ -422,7 +422,7 @@ scene:
         - type: 4294967287 # LDKParticleEmitter
           fields:
             enabled: true
-            material: "assets\\materials\\particle_fire.tml"
+            material: "assets/materials/particle_fire.tml"
             emission_rate: 5.00000000
             max_particles: 256
             lifetime: 10.0000000
@@ -446,9 +446,30 @@ scene:
             final_rotation: 0.00000000
             final_rotation_variation: 0.00000000
             interpolation_curve: 0
-            simulation_space: 0
+            simulation_space: 1
             sort_mode: 1
+    - entity: 22
+      parent: -1
+      flags: 0
+      name: "Capsule"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -8.34259415, 1.47747660, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
+      grouping: "0x8000000000000003"
     - id: "0x758d97a0f482b923"
       grouping: "0x8000000000000002"
