@@ -2,6 +2,7 @@
 #define LDK_ASSET_H
 
 #include <ldk_common.h>
+#include <ldk_package.h>
 #include <stdx/stdx_hpool.h>
 
 #ifdef __cplusplus
@@ -10,6 +11,14 @@ extern "C"
 #endif
 
   typedef XHandle LDKHandle;
+
+#define LDK_ASSET_PATH_MAX_LENGTH LDK_PACKAGE_PATH_MAX_LENGTH
+
+  typedef struct LDKAssetPath
+  {
+    char buf[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+    size_t length;
+  } LDKAssetPath;
 
   typedef enum LDKAssetType
   {

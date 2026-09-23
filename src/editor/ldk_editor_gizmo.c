@@ -980,6 +980,7 @@ static const LDKEditorComponentIconRule s_component_icon_rules[] = {
     {LDK_COMPONENT_TYPE_POINT_LIGHT, LDK_EDITOR_ICON_LIGHT_POINT},
     {LDK_COMPONENT_TYPE_SPOT_LIGHT, LDK_EDITOR_ICON_LIGHT_SPOT},
     {LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT, LDK_EDITOR_ICON_LIGHT_DIRECTIONAL},
+    {LDK_COMPONENT_TYPE_PARTICLE_EMITTER, LDK_EDITOR_ICON_PARTICLE},
 };
 
 typedef struct LDKEditorComponentIconContext
@@ -1636,7 +1637,15 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
   bool update_ok;
   bool released;
 
-  if (editor == NULL || !editor->gizmo.dragging)
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  /* Keep ownership of this MouseUP for the rest of the frame. */
+  editor->gizmo.drag_block_pick = editor->gizmo.dragging;
+
+  if (!editor->gizmo.dragging)
   {
     return;
   }

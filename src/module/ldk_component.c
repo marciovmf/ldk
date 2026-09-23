@@ -63,6 +63,26 @@ bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type)
   return x_hashtable_u32_registered_component_has(registry->table, type);
 }
 
+bool ldk_component_desc_get(LDKComponentRegistry* registry, u32 type,
+    LDKComponentDesc* out_desc)
+{
+  LDKRegisteredComponent entry = {0};
+
+  if (!registry || !registry->table || !out_desc)
+  {
+    return false;
+  }
+
+  if (!x_hashtable_u32_registered_component_get(
+        registry->table, type, &entry))
+  {
+    return false;
+  }
+
+  *out_desc = entry.desc;
+  return true;
+}
+
 XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type)
 {
   LDKRegisteredComponent entry;
@@ -318,7 +338,9 @@ bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDe
   XArray* owners = NULL;
   XArray* store = NULL;
 
-  if (!registry || !registry->table || !desc || !desc->type || !desc->entry_size)
+  if (!registry || !registry->table || !desc || !desc->type ||
+      !desc->entry_size ||
+      (desc->required_component_count && !desc->required_components))
   {
     return false;
   }
@@ -350,6 +372,9 @@ bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDe
   entry.desc.destroy = desc->destroy;
   entry.desc.entry_size = desc->entry_size;
   entry.desc.initial_capacity = desc->initial_capacity;
+  entry.desc.flags = desc->flags;
+  entry.desc.required_components = desc->required_components;
+  entry.desc.required_component_count = desc->required_component_count;
   entry.desc.user = desc->user;
 
   if (!x_hashtable_u32_registered_component_set(registry->table, desc->type, entry))

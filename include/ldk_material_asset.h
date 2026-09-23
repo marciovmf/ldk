@@ -18,8 +18,8 @@ extern "C"
 
   /* Material assets are manager-owned until clear/termination. Image references
    * are shared. Use update instead of mutating the descriptor directly.
-   * Paths may be absolute or runtree-relative; identity is the normalized
-   * absolute path within this manager. No automatic file reload is performed. */
+   * Paths are logical asset paths; identity is the path within the current
+   * asset source. No automatic file reload is performed. */
   LDK_API LDKAssetMaterial ldk_asset_material_null(void);
   LDK_API const LDKAssetMaterialData *ldk_asset_manager_material_get_const(
       LDKAssetManager *manager, LDKAssetMaterial asset);
@@ -32,7 +32,7 @@ extern "C"
 
   /* Reuses an existing cached asset, including unsaved edits. Otherwise reads
    * a material: node containing the existing material_type/color/texture fields.
-   * Texture references remain relative to the project runtree. Missing files
+   * Texture references remain logical asset paths. Missing files
    * return a cached unlit magenta-checker placeholder and emit an error diagnostic.
    * Invalid files and allocation failures still return a null handle. */
   LDK_API LDKAssetMaterial ldk_asset_manager_material_load_shared(

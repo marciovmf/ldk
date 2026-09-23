@@ -1,10 +1,51 @@
 #include <module/ldk_asset_manager.h>
 #include <stdx/stdx_io.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+static void *s_asset_source_read(LDKAssetManager *manager, const char *path,
+    LDKAssetPath *out_path, u64 *out_size, bool text)
+{
+  LDKAssetPath asset_path;
+  LDKAssetSourceFile file;
+  u64 size;
+  size_t allocation_size;
+  void *data;
+
+  if (!manager || !manager->source || !out_path || !out_size ||
+      !ldk_asset_path_set(&asset_path, path) ||
+      !ldk_asset_source_find(manager->source, asset_path.buf, &file))
+  {
+    return NULL;
+  }
+
+  size = ldk_asset_source_file_size(&file);
+  if (size > (u64)SIZE_MAX - (text ? 1u : 0u))
+  {
+    return NULL;
+  }
+
+  allocation_size = (size_t)size + (text ? 1u : 0u);
+  data = malloc(allocation_size ? allocation_size : 1u);
+  if (!data || !ldk_asset_source_file_read(&file, data, size))
+  {
+    free(data);
+    return NULL;
+  }
+
+  if (text)
+  {
+    ((char *)data)[size] = 0;
+  }
+
+  *out_path = asset_path;
+  *out_size = size;
+  return data;
+}
 
 static LDKAssetHandle s_asset_handle_from_x(XHandle h)
 {
@@ -104,14 +145,15 @@ static void s_asset_dtor(void* user, void* item)
   s_asset_info_destroy((LDKAssetInfo*)item);
 }
 
-bool ldk_asset_manager_initialize(LDKAssetManager* manager, u32 page_capacity, u32 initial_pages)
+bool ldk_asset_manager_initialize(LDKAssetManager* manager, LDKAssetSource* source, u32 page_capacity, u32 initial_pages)
 {
-  if (!manager)
+  if (!manager || !source)
   {
     return false;
   }
 
   memset(manager, 0, sizeof(*manager));
+  manager->source = source;
 
   XHPoolConfig config = {0};
   config.page_capacity = page_capacity ? page_capacity : 1024;
@@ -317,20 +359,29 @@ LDKAssetTextFile ldk_asset_manager_text_file_create(LDKAssetManager* manager, co
 LDKAssetTextFile ldk_asset_manager_text_file_load(LDKAssetManager* manager, const char* path)
 {
   LDKAssetTextFile result = ldk_asset_text_file_null();
-  size_t text_file_size = 0;
-  char* text_file_data = x_io_read_text(path, &text_file_size);
-  result = ldk_asset_manager_text_file_create(manager, text_file_data, (u32)text_file_size);
+  LDKAssetPath asset_path;
+  u64 text_file_size = 0;
+  char* text_file_data = s_asset_source_read(
+      manager, path, &asset_path, &text_file_size, true);
+
+  if (!text_file_data)
+  {
+    return result;
+  }
+
+  result = ldk_asset_manager_text_file_create(
+      manager, text_file_data, text_file_size);
   free(text_file_data);
 
-#ifdef LDK_DEBUG
   LDKAssetInfo* info = ldk_asset_get_info(manager, s_asset_handle_from_x(result.h));
-
   if (info)
   {
-    x_fs_path_set(&info->asset_path, path);
+    info->asset_path = asset_path;
+    info->source_revision = manager->source->revision;
+#ifdef LDK_DEBUG
     info->load_timestamp = (u64)time(NULL);
-  }
 #endif
+  }
 
   return result;
 }
@@ -463,13 +514,20 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
 LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char* path)
 {
   LDKAssetImage result = ldk_asset_image_null();
+  LDKAssetPath asset_path;
+  u64 image_file_size = 0;
+  void* image_file_data = s_asset_source_read(
+      manager, path, &asset_path, &image_file_size, false);
 
-  if (!manager || !path)
+  if (!image_file_data || image_file_size > UINT32_MAX)
   {
+    free(image_file_data);
     return result;
   }
 
-  LDKImage* image = ldk_image_load(path);
+  LDKImage* image = ldk_image_create_from_memory(
+      image_file_data, (u32)image_file_size);
+  free(image_file_data);
 
   if (!image)
   {
@@ -508,9 +566,8 @@ LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char*
 
   info->type = LDK_ASSET_TYPE_IMAGE;
   info->data = image_data;
-
-  x_fs_path_set(&info->asset_path, path);
-  x_fs_path_normalize(&info->asset_path);
+  info->asset_path = asset_path;
+  info->source_revision = manager->source->revision;
 #ifdef LDK_DEBUG
   info->load_timestamp = (u64)time(NULL);
 #endif
@@ -520,7 +577,8 @@ LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char*
 
 typedef struct LDKSharedImageLookup
 {
-  XFSPath path;
+  LDKAssetPath path;
+  u64 source_revision;
   LDKAssetImage image;
 } LDKSharedImageLookup;
 
@@ -529,10 +587,31 @@ static bool s_shared_image_find(
 {
   LDKSharedImageLookup *lookup = user;
   if (info->type == LDK_ASSET_TYPE_IMAGE &&
+      info->source_revision == lookup->source_revision &&
       strcmp(info->asset_path.buf, lookup->path.buf) == 0)
   {
     lookup->image.h = asset.h;
     return false;
+  }
+  return true;
+}
+
+static bool s_missing_image_find(
+    LDKAssetHandle asset, LDKAssetInfo *info, void *user)
+{
+  LDKSharedImageLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_IMAGE &&
+      info->source_revision == lookup->source_revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    LDKAssetImage image = {asset.h};
+    const LDKAssetImageData *data =
+        (const LDKAssetImageData *)info->data;
+    if (data && data->is_missing)
+    {
+      lookup->image = image;
+      return false;
+    }
   }
   return true;
 }
@@ -542,22 +621,16 @@ LDKAssetImage ldk_asset_manager_image_load_shared(
 {
   LDKSharedImageLookup lookup = {0};
   lookup.image = ldk_asset_image_null();
-  if (!manager || !path || !x_fs_path_is_absolute_cstr(path) ||
-      strlen(path) >= sizeof(lookup.path.buf))
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
   {
     return lookup.image;
   }
-  x_fs_path_set(&lookup.path, path);
-  x_fs_path_normalize(&lookup.path);
+  lookup.source_revision = manager->source->revision;
   ldk_asset_foreach(manager, s_shared_image_find, &lookup);
   if (x_handle_is_null(lookup.image.h))
   {
     lookup.image = ldk_asset_manager_image_load(manager, lookup.path.buf);
-    if (!x_handle_is_null(lookup.image.h))
-    {
-      LDKAssetHandle generic = {lookup.image.h};
-      ldk_asset_get_info(manager, generic)->asset_path = lookup.path;
-    }
   }
   return lookup.image;
 }
@@ -567,11 +640,15 @@ LDKAssetImage ldk_asset_manager_image_missing(
 {
   LDKSharedImageLookup lookup = {0};
   lookup.image = ldk_asset_image_null();
-  if (!manager || (path && strlen(path) >= sizeof(lookup.path.buf)))
+  if (!manager || !manager->source)
     return lookup.image;
-  x_fs_path_set(&lookup.path, path ? path : "builtin:missing-image");
-  x_fs_path_normalize(&lookup.path);
-  ldk_asset_foreach(manager, s_shared_image_find, &lookup);
+  if (path)
+  {
+    if (!ldk_asset_path_set(&lookup.path, path))
+      return lookup.image;
+    lookup.source_revision = manager->source->revision;
+  }
+  ldk_asset_foreach(manager, s_missing_image_find, &lookup);
   if (!x_handle_is_null(lookup.image.h))
     return lookup.image;
 
@@ -592,7 +669,9 @@ LDKAssetImage ldk_asset_manager_image_missing(
   if (!x_handle_is_null(lookup.image.h))
   {
     LDKAssetHandle generic = {lookup.image.h};
-    ldk_asset_get_info(manager, generic)->asset_path = lookup.path;
+    LDKAssetInfo *info = ldk_asset_get_info(manager, generic);
+    info->asset_path = lookup.path;
+    info->source_revision = lookup.source_revision;
     ldk_asset_manager_image_get(manager, lookup.image)->is_missing = true;
   }
   return lookup.image;
@@ -720,40 +799,31 @@ LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void*
 LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path)
 {
   LDKAssetFont result = ldk_asset_font_null();
+  LDKAssetPath asset_path;
+  u64 font_file_size = 0;
+  void* font_file_data = s_asset_source_read(
+      manager, path, &asset_path, &font_file_size, false);
 
-  if (!manager || !path)
+  if (!font_file_data || font_file_size > UINT32_MAX)
   {
+    free(font_file_data);
     return result;
   }
 
-  XFile* file = x_io_open(path, "rb");
-  if (!file)
-  {
-    return result;
-  }
+  result = ldk_asset_manager_font_create(
+      manager, font_file_data, (u32)font_file_size);
+  free(font_file_data);
 
-  size_t font_file_size = 0;
-  const char* font_file_data = x_io_read_all(file, &font_file_size);
-  x_io_close(file);
-
-  if (!font_file_data)
-  {
-    return result;
-  }
-
-  result = ldk_asset_manager_font_create(manager, font_file_data, (u32)font_file_size);
-  free((void*)font_file_data);
-
-#ifdef LDK_DEBUG
   LDKAssetHandle generic = { result.h };
   LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
-
   if (info)
   {
-    x_fs_path_set(&info->asset_path, path);
+    info->asset_path = asset_path;
+    info->source_revision = manager->source->revision;
+#ifdef LDK_DEBUG
     info->load_timestamp = (u64)time(NULL);
-  }
 #endif
+  }
 
   return result;
 }
@@ -847,6 +917,7 @@ LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager,
   }
 
   memset(data, 0, sizeof(*data));
+  data->primitive = LDK_MESH_PRIMITIVE_COUNT;
 
   size_t vertex_bytes = (size_t)vertex_count * sizeof(LDKMeshVertex);
   size_t index_bytes = (size_t)index_count * sizeof(u32);

@@ -47,7 +47,13 @@ extern "C" {
     LDK_SHADER_GRID_PASS,
     LDK_SHADER_MESH_PASS_UNLIT,
     LDK_SHADER_MESH_PASS_TEXTURED,
-    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT
+    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT,
+    LDK_SHADER_SHADOW_PASS,
+    LDK_SHADER_MESH_PASS_TEXTURED_CUTOUT,
+    LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT,
+    LDK_SHADER_SHADOW_PASS_CUTOUT,
+    LDK_SHADER_SHADOW_PASS_INSTANCED,
+    LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -56,6 +62,8 @@ extern "C" {
     u32 vertex_count;
     const u32* indices;
     u32 index_count;
+    /* True when vertex tangent fields contain authored/initialized data. */
+    bool has_tangents;
   } LDKRendererMeshDesc;
 
   typedef struct LDKRendererMeshResource
@@ -92,12 +100,20 @@ extern "C" {
     float range;
     float inner_angle; // Half-cone angle, radians.
     float outer_angle; // Half-cone angle, radians.
+    bool casts_shadows; // Directional only; first eligible light per view.
   } LDKRendererLightSubmit;
+
+  typedef struct LDKRendererAmbientLight
+  {
+    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    float intensity;
+  } LDKRendererAmbientLight;
 
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
-    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0
+    LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0,
+    LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS = 1 << 1
   } LDKRendererMeshSubmitFlag;
 
   typedef struct LDKRendererMeshSubmit
@@ -109,6 +125,9 @@ extern "C" {
     Mat4 world;
     LDKRendererViewId view_id;
     u32 flags;
+    // Zero count denotes an ordinary submit; offsets index renderer-owned data.
+    u32 instance_offset;
+    u32 instance_count;
   } LDKRendererMeshSubmit;
 
   /* Internal frame data for the shared triangular line prism. */
@@ -128,6 +147,9 @@ extern "C" {
     u32 game_width;
     u32 game_height;
     bool present_game;
+    // Zero selects the default (2048 texels, 60 world units).
+    u32 shadow_map_resolution;
+    float shadow_distance;
   } LDKRendererConfig;
 
   typedef struct LDKRendererFrameDesc
@@ -138,12 +160,74 @@ extern "C" {
     bool clear_color_enabled;
   } LDKRendererFrameDesc;
 
+  typedef struct LDKRendererFrameDomainStats
+  {
+    u32 rendered_view_count;
+    u32 opaque_mesh_render_count;
+    u32 overlay_mesh_render_count;
+
+    u32 batch_count;
+    u32 instanced_batch_count;
+    u32 instanced_instance_count;
+    u32 max_batch_size;
+
+    u32 draw_call_count;
+    u32 opaque_mesh_draw_call_count;
+    u32 overlay_mesh_draw_call_count;
+    u32 shadow_draw_call_count;
+    u32 line_draw_call_count;
+    u32 grid_draw_call_count;
+    u32 ui_draw_call_count;
+    u32 present_draw_call_count;
+  } LDKRendererFrameDomainStats;
+
+  typedef struct LDKRendererFrameStats
+  {
+    double cpu_time_ms;
+
+    // Submission count is global because a VIEW_ALL submission may be rendered
+    // into both game and non-game views. The remaining counters describe actual
+    // rendered work and are also available split by destination below.
+    u32 rendered_view_count;
+    u32 mesh_submit_count;
+    u32 opaque_mesh_render_count;
+    u32 overlay_mesh_render_count;
+
+    u32 batch_count;
+    u32 instanced_batch_count;
+    u32 instanced_instance_count;
+    u32 max_batch_size;
+
+    u32 draw_call_count;
+    u32 opaque_mesh_draw_call_count;
+    u32 overlay_mesh_draw_call_count;
+    u32 shadow_draw_call_count;
+    u32 line_draw_call_count;
+    u32 grid_draw_call_count;
+    u32 ui_draw_call_count;
+    u32 present_draw_call_count;
+
+    LDKRendererFrameDomainStats game;
+    LDKRendererFrameDomainStats non_game;
+  } LDKRendererFrameStats;
+
   typedef struct LDKRendererBindingsCacheEntry
   {
     LDKRHITexture texture;
     LDKRHISampler sampler;
     LDKRHIBindings bindings;
   } LDKRendererBindingsCacheEntry;
+
+  typedef struct LDKRendererMeshBindingsCacheEntry
+  {
+    LDKRHITexture albedo_texture;
+    LDKRHISampler albedo_sampler;
+    LDKRHITexture normal_texture;
+    LDKRHISampler normal_sampler;
+    LDKRHITexture specular_texture;
+    LDKRHISampler specular_sampler;
+    LDKRHIBindings bindings;
+  } LDKRendererMeshBindingsCacheEntry;
 
   typedef struct LDKRendererUIPass
   {
@@ -165,14 +249,46 @@ extern "C" {
     bool is_initialized;
   } LDKRendererUIPass;
 
+  typedef struct LDKRendererShadowPass
+  {
+    u32 resolution;
+    float distance;
+    LDKRHIContext *rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIShaderModule cutout_vertex_shader_module;
+    LDKRHIShaderModule cutout_fragment_shader_module;
+    LDKRHIShaderModule instanced_vertex_shader_module;
+    LDKRHIShaderModule cutout_instanced_vertex_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIPipeline cutout_pipeline;
+    LDKRHIPipeline instanced_pipeline;
+    LDKRHIPipeline cutout_instanced_pipeline;
+    LDKRHIBuffer camera_buffer;
+    LDKRHIBuffer object_buffer;
+    LDKRHIBuffer material_buffer;
+    LDKRHIBuffer instance_buffer;
+    u32 instance_capacity;
+    LDKRHIBindings bindings;
+    LDKRendererBindingsCacheEntry *cutout_bindings_cache;
+    u32 cutout_bindings_cache_count;
+    u32 cutout_bindings_cache_capacity;
+    LDKRHITexture depth_texture;
+    LDKRHISampler sampler;
+  } LDKRendererShadowPass;
+
   typedef struct LDKRendererMeshPass
   {
     LDKRHIContext* rhi;
     LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule instanced_vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule overlay_fragment_shader_module;
     LDKRHIShaderModule textured_fragment_shader_module;
     LDKRHIShaderModule textured_unlit_fragment_shader_module;
+    LDKRHIShaderModule textured_cutout_fragment_shader_module;
+    LDKRHIShaderModule textured_unlit_cutout_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
@@ -180,14 +296,37 @@ extern "C" {
     LDKRHIPipeline textured_pipeline;
     LDKRHIPipeline textured_unlit_pipeline;
     LDKRHIPipeline textured_overlay_pipeline;
+    LDKRHIPipeline textured_cutout_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_overlay_pipeline;
+    LDKRHIPipeline textured_blend_pipeline;
+    LDKRHIPipeline textured_unlit_blend_pipeline;
+    LDKRHIPipeline vertex_color_instanced_pipeline;
+    LDKRHIPipeline vertex_color_unlit_instanced_pipeline;
+    LDKRHIPipeline textured_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_instanced_pipeline;
+    LDKRHIPipeline textured_cutout_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_cutout_instanced_pipeline;
+    LDKRHIPipeline textured_blend_instanced_pipeline;
+    LDKRHIPipeline textured_unlit_blend_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer lighting_buffer;
+    LDKRHIBuffer instance_buffer;
+    LDKRHIBuffer instance_color_buffer;
+    u32 instance_capacity;
+    // Borrowed from the renderer-owned shadow pass.
+    LDKRHITexture shadow_texture;
+    LDKRHISampler shadow_sampler;
+    // Renderer-owned neutral resources for optional lit material maps.
+    LDKRHITexture flat_normal_texture;
+    LDKRHITexture white_specular_texture;
+    LDKRHISampler fallback_sampler;
     LDKRHIBindings bindings;
-    LDKRendererBindingsCacheEntry* textured_bindings_cache;
-    u32 textured_bindings_cache_count;
-    u32 textured_bindings_cache_capacity;
+    LDKRendererMeshBindingsCacheEntry *material_bindings_cache;
+    u32 material_bindings_cache_count;
+    u32 material_bindings_cache_capacity;
     bool is_initialized;
   } LDKRendererMeshPass;
 
@@ -296,7 +435,15 @@ extern "C" {
   {
     LDKMaterialType type;
     LDKResourceTexture texture;
+    /* Optional borrowed resources for lit materials. */
+    LDKResourceTexture normal_map;
+    LDKResourceTexture specular_map;
     rgba32 color;
+    LDKMaterialAlphaMode alpha_mode;
+    float alpha_cutoff;
+    float specular;
+    float shininess;
+    float emission;
   } LDKRendererMaterialDesc;
 
   typedef enum LDKRendererMaterialSelection
@@ -305,7 +452,11 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED,
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT,
-    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND
   } LDKRendererMaterialSelection;
 
   typedef u64 LDKRendererRenderKey;
@@ -323,6 +474,7 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
     LDKRendererMeshPass mesh_pass;
+    LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
     LDKUIRenderData const* submitted_ui;
     u32 game_width;
@@ -356,6 +508,7 @@ extern "C" {
     u32 font_page_count;
     u32 font_page_capacity;
 
+    LDKRendererAmbientLight ambient_light;
     LDKRendererLightSubmit *submitted_lights;
     u32 submitted_light_count;
     u32 submitted_light_capacity;
@@ -371,9 +524,35 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
+    Mat4 *submitted_instance_worlds;
+    LDKRHIColor *submitted_instance_colors;
+    u32 submitted_instance_count;
+    u32 submitted_instance_capacity;
+
+    // Per-view opaque mesh sort scratch. Sort items pack a 40-bit state key
+    // and a 24-bit index into submitted_meshes.
+    u64* mesh_sort_items;
+    u64* mesh_sort_scratch;
+    u32 mesh_sort_capacity;
+    u32* mesh_sort_mesh_ids;
+    u32 mesh_sort_mesh_id_capacity;
+    u32* mesh_sort_material_ids;
+    u32 mesh_sort_material_id_capacity;
+
+    // Frame statistics. last_frame_stats always describes the last fully
+    // completed renderer frame; current_frame_stats is internal accumulation.
+    LDKRendererFrameStats current_frame_stats;
+    LDKRendererFrameStats last_frame_stats;
 
     bool is_initialized;
   } LDKRenderer;
+
+  /** Set constant ambient light applied to lit materials.
+   * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
+   * non-negative. Ambient light does not count toward the per-view light limit.
+   */
+  LDK_API bool ldk_renderer_ambient_light_set(
+      LDKRenderer *renderer, u32 color, float intensity);
 
   /** Submit an unlit, capped triangular prism from start to end.
    * Thickness is the circumdiameter of its cross-section, in world units.
@@ -408,6 +587,11 @@ extern "C" {
    * @param config Renderer configuration.
    * @return true if the renderer was initialized successfully, false otherwise.
    */
+  // Call between frames. Resolution: power of two, 256..8192;
+  // distance: finite and positive. Failure preserves existing resources.
+  LDK_API bool ldk_renderer_shadow_settings_set(
+      LDKRenderer *renderer, u32 resolution, float distance);
+
   LDK_API bool ldk_renderer_initialize(
       LDKRenderer* renderer,
       LDKRendererConfig const* config);
@@ -463,6 +647,27 @@ extern "C" {
   LDK_API void ldk_renderer_render_frame(
       LDKRenderer* renderer,
       LDKRendererFrameDesc const* desc);
+
+  /**
+   * @brief Return renderer statistics for the last fully completed frame.
+   *
+   * CPU time measures the elapsed CPU-side duration of
+   * ldk_renderer_render_frame(), including time spent inside RHI calls. It is
+   * not GPU time and may include waits performed by the backend.
+   *
+   * Rendered work is also split by destination. game contains work rendered
+   * into the configured game view (and direct game presentation/UI when
+   * present_game is enabled). non_game contains all other views and host UI. A
+   * VIEW_ALL submission is counted independently in each destination where it
+   * is actually rendered. mesh_submit_count remains global because a single
+   * submission may participate in both domains.
+   *
+   * @param renderer Renderer instance.
+   * @return A snapshot of the previous completed renderer frame. A zeroed
+   *         snapshot is returned for a null renderer or before the first frame.
+   */
+  LDK_API LDKRendererFrameStats ldk_renderer_last_frame_stats_get(
+      LDKRenderer const* renderer);
 
   /**
    * @brief Return the game render target color texture for UI rendering.
@@ -571,7 +776,7 @@ extern "C" {
    * Destroying an invalid or already-dead mesh handle is a no-op. Mesh resources
    * are also destroyed automatically when the renderer is terminated.
    *
-   * @param renderer Renderer that owns the mesh resource.
+   * @param renderer Renderer that ownss the mesh resource.
    * @param mesh Mesh resource handle to destroy.
    */
   LDK_API void ldk_renderer_mesh_destroy(
@@ -730,6 +935,38 @@ extern "C" {
       LDKRenderer* renderer, LDKResourceTexture texture);
 
   /**
+   * @brief Resolve an authored material description into renderer resources.
+   *
+   * Textured materials acquire a shared renderer texture from the supplied
+   * asset manager. If the authored image is unavailable, the renderer uses
+   * the shared missing-image fallback. Lit normal/specular maps are acquired
+   * when available; missing maps resolve to renderer-owned neutral fallbacks.
+   * Existing output resources are replaced only after the new material has
+   * been created successfully.
+   *
+   * The caller owns the returned material resource and one acquisition of each
+   * non-null returned image texture. A later successful resolve replaces those
+   * resources. The caller must destroy/release remaining resources when its
+   * owner terminates.
+   *
+   * @param renderer Renderer that owns the runtime resources.
+   * @param assets Asset manager used to resolve authored image assets. Required
+   * for textured materials and for lit materials that reference maps.
+   * @param material_desc Authored material description.
+   * @param renderer_material In/out renderer material resource.
+   * @param renderer_texture In/out acquired albedo texture resource.
+   * @param renderer_normal_map In/out acquired normal-map texture resource.
+   * @param renderer_specular_map In/out acquired specular-map texture resource.
+   * @return true when the material was resolved successfully.
+   */
+  LDK_API bool ldk_renderer_material_resolve(LDKRenderer *renderer,
+      struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
+      LDKResourceMaterial *renderer_material,
+      LDKResourceTexture *renderer_texture,
+      LDKResourceTexture *renderer_normal_map,
+      LDKResourceTexture *renderer_specular_map);
+
+  /**
    * @brief Check whether a material handle refers to a live renderer material.
    * @param renderer Renderer that owns the material resource.
    * @param material Material resource handle to validate.
@@ -743,8 +980,13 @@ extern "C" {
    * @brief Create a renderer-owned material resource.
    *
    * Textured materials require a live renderer texture. The referenced texture
-   * must remain alive until the material is destroyed. Vertex-color materials
-   * ignore desc->texture and store a canonical null texture handle.
+   * must remain alive until the material is destroyed. Textured materials may
+   * use opaque or cutout alpha mode; cutout thresholds must be finite and in
+   * [0, 1]. Lit normal/specular maps are optional borrowed texture resources and
+   * must also remain alive while the material exists; null map handles use
+   * renderer-owned neutral fallbacks. Vertex-color materials ignore texture and
+   * alpha fields. Unlit materials ignore map handles. Lit surface values must be
+   * finite and non-negative. A zero shininess uses the default value (32).
    *
    * @param renderer Renderer that will own the material resource.
    * @param desc Resolved renderer material description.
@@ -869,6 +1111,30 @@ extern "C" {
       LDKRenderer* renderer,
       LDKUIRenderData const* render_data);
 
+  /** Explicit instancing, one submission per mesh/range and matrix array.
+   * Matrices are copied during this call and may be released immediately.
+   * parent_world transforms each supplied local matrix into world space;
+   * pass identity when supplying final world matrices. view_id accepts ALL.
+   * index_count must be nonzero. Zero instances is a successful no-op with
+   * valid resources/range. Invalid data/allocation failure queues nothing.
+   * Ordinary submits never use instancing. Unsupported instancing falls back
+   * to one ordinary draw per instance, including ordered overlays.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
+      LDKRendererViewId view_id, LDKResourceMesh mesh,
+      LDKResourceMaterial material, u32 first_index, u32 index_count,
+      Mat4 parent_world, const Mat4 *instances, u32 instance_count, u32 flags);
+
+  /** Explicit instancing with one optional RGBA tint per instance. Colors use
+   * 0xRRGGBBAA and are copied together with the instance transforms. A NULL
+   * color array means opaque white for every instance.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_instances_colored(
+      LDKRenderer *renderer, LDKRendererViewId view_id, LDKResourceMesh mesh,
+      LDKResourceMaterial material, u32 first_index, u32 index_count,
+      Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
+      u32 instance_count, u32 flags);
+
   /**
    * @brief Submit a mesh instance for scene rendering this frame.
    *
@@ -890,6 +1156,17 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+  /* Explicit flags for scene/procedural submissions. The convenience mesh
+   * submission functions enable CAST_SHADOWS; overlay submissions never cast.
+   * These forms allow disabling casting without changing material lighting.
+   */
+  LDK_API bool ldk_renderer_submit_mesh_with_flags(LDKRenderer *renderer,
+      LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
+      u32 flags);
+  LDK_API bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
+      LDKResourceMesh mesh, LDKResourceMaterial material, u32 first_index,
+      u32 index_count, Mat4 world, u32 flags);
 
   /**
    * @brief Submit a contiguous index range of a mesh for scene rendering.

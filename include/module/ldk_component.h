@@ -26,12 +26,21 @@ extern "C" {
    * Components are plain data structures that can be attached to entities.
    * Component types needs to be registered before they are used.
    */
+  typedef enum LDKComponentFlags
+  {
+    LDK_COMPONENT_FLAG_NONE = 0,
+    LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR = 1 << 0
+  } LDKComponentFlags;
+
   typedef struct LDKComponentDesc
   {
     const char* name;
     u32 type;
     u32 entry_size;
     u32 initial_capacity;
+    u32 flags;
+    const u32* required_components;
+    u32 required_component_count;
     LDKComponentAttachFn attach;
     LDKComponentDestroyFn destroy;
     void* user;
@@ -54,6 +63,8 @@ extern "C" {
   LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
   LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
+  LDK_API bool ldk_component_desc_get(LDKComponentRegistry* registry,
+      u32 type, LDKComponentDesc* out_desc);
   LDK_API XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type);
   LDK_API XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type);
   LDK_API bool ldk_component_detach(LDKComponentRegistry* registry,

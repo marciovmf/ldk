@@ -5,9 +5,27 @@
 #include <stdint.h>
 #include <string.h>
 
+
 //------------------------------------------------------------
 // Console
 //------------------------------------------------------------
+
+typedef struct LDKEditorConsoleLastMessageCache
+{
+  LDKEditorContext *editor;
+  size_t observed_length;
+
+  LDKEditorConsoleEntryType type;
+  size_t message_length;
+  char message[X_SMALLSTR_MAX_LENGTH];
+
+  size_t raw_line_length;
+  char raw_line[X_SMALLSTR_MAX_LENGTH];
+  bool raw_active;
+} LDKEditorConsoleLastMessageCache;
+
+static LDKEditorConsoleLastMessageCache s_last_message_cache = {0};
+static XStrBuilder *s_console_view_sb = NULL;
 
 static bool s_editor_console_entry_type_valid(char type)
 {
@@ -73,21 +91,192 @@ static bool s_editor_console_entry_parse(char *cursor, char *end,
   return true;
 }
 
-static bool s_editor_console_entry_starts_at(char *cursor, char *end)
+static void s_editor_console_last_message_cache_reset(
+    LDKEditorConsoleLastMessageCache *cache, LDKEditorContext *editor)
 {
-  LDKEditorConsoleEntryType type;
-  char *message;
-  char *next;
-  size_t message_length;
-
-  if (cursor == NULL || end == NULL || cursor >= end || cursor[0] != '~' ||
-      (size_t)(end - cursor) < 2 || cursor[1] != '~')
+  if (cache == NULL)
   {
-    return false;
+    return;
   }
 
-  return s_editor_console_entry_parse(
-      cursor, end, &type, &message, &message_length, &next);
+  memset(cache, 0, sizeof(*cache));
+  cache->editor = editor;
+  cache->type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
+}
+
+static void s_editor_console_last_message_set(
+    LDKEditorConsoleLastMessageCache *cache, LDKEditorConsoleEntryType type,
+    const char *message, size_t message_length)
+{
+  size_t copy_length;
+
+  if (cache == NULL || message == NULL)
+  {
+    return;
+  }
+
+  while (message_length > 0 &&
+         (message[message_length - 1] == '\n' ||
+          message[message_length - 1] == '\r'))
+  {
+    message_length -= 1;
+  }
+
+  if (message_length == 0)
+  {
+    return;
+  }
+
+  /* The status bar is a single line. If a structured message contains
+   * newlines, show its last non-empty line. */
+  size_t line_start = message_length;
+  while (line_start > 0 && message[line_start - 1] != '\n' &&
+         message[line_start - 1] != '\r')
+  {
+    line_start -= 1;
+  }
+
+  message += line_start;
+  message_length -= line_start;
+  copy_length = message_length;
+
+  if (copy_length >= sizeof(cache->message))
+  {
+    copy_length = sizeof(cache->message) - 1;
+  }
+
+  memcpy(cache->message, message, copy_length);
+  cache->message[copy_length] = 0;
+  cache->message_length = copy_length;
+  cache->type = type;
+}
+
+static void s_editor_console_last_raw_line_publish(
+    LDKEditorConsoleLastMessageCache *cache)
+{
+  if (cache == NULL || cache->raw_line_length == 0)
+  {
+    return;
+  }
+
+  s_editor_console_last_message_set(cache, LDK_EDITOR_CONSOLE_ENTRY_RAW,
+      cache->raw_line, cache->raw_line_length);
+}
+
+static void s_editor_console_last_raw_char_append(
+    LDKEditorConsoleLastMessageCache *cache, char c)
+{
+  if (cache == NULL)
+  {
+    return;
+  }
+
+  if (c == '\n' || c == '\r')
+  {
+    /* Keep the completed line in the status bar. Do not blank it simply
+     * because process output ended with a newline. */
+    s_editor_console_last_raw_line_publish(cache);
+    cache->raw_line_length = 0;
+    cache->raw_line[0] = 0;
+    return;
+  }
+
+  if (cache->raw_line_length + 1 < sizeof(cache->raw_line))
+  {
+    cache->raw_line[cache->raw_line_length++] = c;
+    cache->raw_line[cache->raw_line_length] = 0;
+  }
+
+  /* Publish partial process output too, so the status bar updates while a
+   * tool is still writing the current line. */
+  s_editor_console_last_raw_line_publish(cache);
+}
+
+const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType *out_type)
+{
+  LDKEditorConsoleLastMessageCache *cache = &s_last_message_cache;
+  size_t length;
+  char *buffer;
+  char *cursor;
+  char *end;
+
+  if (out_type != NULL)
+  {
+    *out_type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
+  }
+
+  if (editor == NULL || editor->console_sb == NULL)
+  {
+    return NULL;
+  }
+
+  if (cache->editor != editor)
+  {
+    s_editor_console_last_message_cache_reset(cache, editor);
+  }
+
+  length = x_strbuilder_length(editor->console_sb);
+
+  /* The console may have been cleared. */
+  if (length < cache->observed_length)
+  {
+    s_editor_console_last_message_cache_reset(cache, editor);
+  }
+
+  if (length != cache->observed_length)
+  {
+    buffer = x_strbuilder_to_string(editor->console_sb);
+    cursor = buffer + cache->observed_length;
+    end = buffer + length;
+
+    while (cursor < end)
+    {
+      LDKEditorConsoleEntryType type;
+      char *message;
+      char *next;
+      size_t message_length;
+
+      if (s_editor_console_entry_parse(
+              cursor, end, &type, &message, &message_length, &next))
+      {
+        cache->raw_active = false;
+        cache->raw_line_length = 0;
+        cache->raw_line[0] = 0;
+
+        s_editor_console_last_message_set(
+            cache, type, message, message_length);
+
+        cursor = next;
+        continue;
+      }
+
+      /* Build/process output is appended directly to console_sb. */
+      if (!cache->raw_active)
+      {
+        cache->raw_active = true;
+        cache->raw_line_length = 0;
+        cache->raw_line[0] = 0;
+      }
+
+      s_editor_console_last_raw_char_append(cache, *cursor);
+      cursor += 1;
+    }
+
+    cache->observed_length = length;
+  }
+
+  if (cache->message[0] == 0)
+  {
+    return NULL;
+  }
+
+  if (out_type != NULL)
+  {
+    *out_type = cache->type;
+  }
+
+  return cache->message;
 }
 
 static LDKUIIcon s_editor_console_entry_icon(
@@ -124,131 +313,35 @@ static LDKUIIcon s_editor_console_entry_icon(
   return icon;
 }
 
-static float s_editor_console_entry_height(
-    LDKUIContext *ui, LDKUIIcon icon, const char *message)
-{
-  float text_width;
-  float height = LDK_UI_DEFAULT_CONTROL_HEIGHT;
-
-  if (ui == NULL || ui->font == NULL || ui->current_layout == NULL ||
-      message == NULL)
-  {
-    return height;
-  }
-
-  text_width = ui->current_layout->content_rect.w;
-
-  if (icon.texture != 0 && icon.uv.w > 0.0f && icon.uv.h > 0.0f &&
-      icon.size.w > 0.0f && icon.size.h > 0.0f)
-  {
-    text_width -= icon.size.w + LDK_UI_DEFAULT_SPACING;
-    if (icon.size.h > height)
-    {
-      height = icon.size.h;
-    }
-  }
-
-  if (text_width < 1.0f)
-  {
-    text_width = 1.0f;
-  }
-
-  LDKSizef text_size =
-      ldk_ttf_measure_text_cstr_wrapped(ui->font, message, text_width);
-  if (text_size.h > height)
-  {
-    height = text_size.h;
-  }
-
-  return height;
-}
-
-static void s_editor_console_entry_draw(LDKEditorContext *editor,
-    LDKEditorConsoleEntryType type, char *message, size_t message_length)
-{
-  LDKUIContext *ui;
-  LDKUIIcon icon;
-  float height;
-  char saved;
-
-  if (editor == NULL || message == NULL)
-  {
-    return;
-  }
-
-  if (type == LDK_EDITOR_CONSOLE_ENTRY_RAW && message_length > 0 &&
-      message[message_length - 1] == '\r')
-  {
-    message_length -= 1;
-  }
-
-  saved = message[message_length];
-  message[message_length] = 0;
-
-  ui = &editor->ui;
-  icon = s_editor_console_entry_icon(editor, type);
-  height = s_editor_console_entry_height(ui, icon, message);
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(height));
-  ldk_ui_icon_label(ui, icon, message);
-
-  message[message_length] = saved;
-}
-
-static void s_editor_console_raw_draw(
-    LDKEditorContext *editor, char **cursor_ptr, char *end)
-{
-  char *cursor;
-  char *line_start;
-  bool entry_follows = false;
-
-  if (editor == NULL || cursor_ptr == NULL || *cursor_ptr == NULL ||
-      end == NULL || *cursor_ptr >= end)
-  {
-    return;
-  }
-
-  cursor = *cursor_ptr;
-  line_start = cursor;
-
-  while (cursor < end && *cursor != '\n')
-  {
-    if (s_editor_console_entry_starts_at(cursor, end))
-    {
-      entry_follows = true;
-      break;
-    }
-
-    cursor += 1;
-  }
-
-  if (cursor > line_start || (cursor < end && *cursor == '\n'))
-  {
-    s_editor_console_entry_draw(editor, LDK_EDITOR_CONSOLE_ENTRY_RAW,
-        line_start, (size_t)(cursor - line_start));
-  }
-
-  if (cursor < end && *cursor == '\n')
-  {
-    cursor += 1;
-  }
-  else if (!entry_follows && cursor == line_start)
-  {
-    cursor += 1;
-  }
-
-  *cursor_ptr = cursor;
-}
-
-static void s_editor_console_entries_draw(LDKEditorContext *editor)
+/*
+ * console_sb remains the append-only source stream. Structured editor
+ * messages are encoded as ~~<type>:<length>:<message>; build output is raw.
+ *
+ * The view is deliberately different: it is one ordinary text document.
+ * Structured metadata never reaches the selectable text widget. Icons are
+ * rendered afterwards in a fixed gutter and are located from their offsets in
+ * this flattened document.
+ */
+static bool s_editor_console_view_build(LDKEditorContext *editor)
 {
   char *cursor;
   char *end;
 
   if (editor == NULL || editor->console_sb == NULL)
   {
-    return;
+    return false;
   }
+
+  if (s_console_view_sb == NULL)
+  {
+    s_console_view_sb = x_strbuilder_create();
+    if (s_console_view_sb == NULL)
+    {
+      return false;
+    }
+  }
+
+  x_strbuilder_clear(s_console_view_sb);
 
   cursor = x_strbuilder_to_string(editor->console_sb);
   end = cursor + x_strbuilder_length(editor->console_sb);
@@ -263,14 +356,184 @@ static void s_editor_console_entries_draw(LDKEditorContext *editor)
     if (s_editor_console_entry_parse(
             cursor, end, &type, &message, &message_length, &next))
     {
-      s_editor_console_entry_draw(editor, type, message, message_length);
+      size_t view_length = x_strbuilder_length(s_console_view_sb);
+      (void)type;
+      size_t entry_offset;
+      char *view_text = x_strbuilder_to_string(s_console_view_sb);
+
+      if (view_length > 0 && view_text[view_length - 1] != '\n')
+      {
+        x_strbuilder_append_cstr(s_console_view_sb, "\n");
+      }
+
+      entry_offset = x_strbuilder_length(s_console_view_sb);
+
+      if (message_length > 0)
+      {
+        x_strbuilder_append_substring(
+            s_console_view_sb, message, message_length);
+      }
+
+      view_length = x_strbuilder_length(s_console_view_sb);
+      view_text = x_strbuilder_to_string(s_console_view_sb);
+
+      if (view_length == entry_offset || view_text[view_length - 1] != '\n')
+      {
+        x_strbuilder_append_cstr(s_console_view_sb, "\n");
+      }
+
       cursor = next;
       continue;
     }
 
-    s_editor_console_raw_draw(editor, &cursor, end);
+    x_strbuilder_append_substring(s_console_view_sb, cursor, 1);
+    cursor += 1;
   }
 
+  return true;
+}
+
+static void s_editor_console_view_icons_draw(LDKEditorContext *editor,
+    char *view_text, LDKUIRect gutter_rect, LDKUIRect text_rect)
+{
+  LDKUIContext *ui;
+  char *cursor;
+  char *end;
+  size_t display_offset = 0;
+  size_t previous_icon_offset = 0;
+  float icon_y = 0.0f;
+  float line_height;
+  u32 icon_index = 0;
+
+  if (editor == NULL || editor->console_sb == NULL || view_text == NULL ||
+      text_rect.w <= 0.0f)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  line_height = ldk_ttf_get_line_height(ui->font);
+  cursor = x_strbuilder_to_string(editor->console_sb);
+  end = cursor + x_strbuilder_length(editor->console_sb);
+
+  while (cursor < end)
+  {
+    LDKEditorConsoleEntryType type;
+    char *message;
+    char *next;
+    size_t message_length;
+
+    if (s_editor_console_entry_parse(
+            cursor, end, &type, &message, &message_length, &next))
+    {
+      size_t marker_offset;
+      (void)message;
+
+      if (display_offset > 0 && view_text[display_offset - 1] != '\n')
+      {
+        display_offset += 1;
+      }
+
+      marker_offset = display_offset;
+
+      if (type != LDK_EDITOR_CONSOLE_ENTRY_RAW)
+      {
+        if (marker_offset > previous_icon_offset)
+        {
+          char saved = view_text[marker_offset];
+          LDKSizef segment_size;
+
+          view_text[marker_offset] = 0;
+          segment_size = ldk_ttf_measure_text_cstr_wrapped(ui->font,
+              view_text + previous_icon_offset, text_rect.w);
+          view_text[marker_offset] = saved;
+          icon_y += segment_size.h;
+        }
+
+        LDKUIIcon icon = s_editor_console_entry_icon(editor, type);
+        LDKUIRect icon_rect = {
+            gutter_rect.x + (gutter_rect.w - icon.size.w) * 0.5f,
+            text_rect.y + icon_y + (line_height - icon.size.h) * 0.5f,
+            icon.size.w,
+            icon.size.h};
+
+        ldk_ui_widget_icon_label(ui, 0xC0500000u + icon_index, icon, "",
+            icon_rect);
+        icon_index += 1;
+        previous_icon_offset = marker_offset;
+      }
+
+      display_offset += message_length;
+
+      if (display_offset == marker_offset ||
+          view_text[display_offset - 1] != '\n')
+      {
+        display_offset += 1;
+      }
+
+      cursor = next;
+      continue;
+    }
+
+    display_offset += 1;
+    cursor += 1;
+  }
+}
+
+static void s_editor_console_document_draw(LDKEditorContext *editor)
+{
+  LDKUIContext *ui;
+  char *text;
+  float gutter_width;
+  float text_width;
+  float height;
+  LDKSizef text_size;
+  LDKUIRect gutter_rect;
+  LDKUIRect text_rect;
+
+  if (editor == NULL || !s_editor_console_view_build(editor))
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  if (ui->current_layout == NULL || ui->font == NULL)
+  {
+    return;
+  }
+
+  text = x_strbuilder_to_string(s_console_view_sb);
+  gutter_width = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  text_width = ui->current_layout->content_rect.w - gutter_width -
+               LDK_UI_DEFAULT_SPACING;
+
+  if (text_width < 1.0f)
+  {
+    text_width = 1.0f;
+  }
+
+  text_size = ldk_ttf_measure_text_cstr_wrapped(ui->font, text, text_width);
+  height = text_size.h;
+  if (height < LDK_UI_DEFAULT_CONTROL_HEIGHT)
+  {
+    height = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  }
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(height));
+  ldk_ui_begin_horizontal(ui);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(gutter_width));
+  ldk_ui_spacer(ui);
+  gutter_rect = ldk_ui_last_rect(ui);
+
+  ldk_ui_set_next_weight(ui, 1.0f);
+  ldk_ui_clipboard_window_set(ui, editor->window);
+  ldk_ui_selectable_text(ui, text);
+  text_rect = ldk_ui_last_rect(ui);
+
+  ldk_ui_end_horizontal(ui);
+
+  s_editor_console_view_icons_draw(editor, text, gutter_rect, text_rect);
 }
 
 static void s_editor_console_output_observe(LDKEditorContext *editor)
@@ -323,6 +586,7 @@ static void s_editor_console_toolbar(
     *scroll = (LDKUIPoint){0};
     editor->console_scroll_pending = false;
     editor->console_observed_length = 0;
+    s_editor_console_last_message_cache_reset(&s_last_message_cache, editor);
   }
 
   auto_scroll = !editor->console_auto_scroll_disabled;
@@ -400,7 +664,7 @@ static void s_editor_console(LDKEditorContext *editor)
 
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-  s_editor_console_entries_draw(editor);
+  s_editor_console_document_draw(editor);
   ldk_ui_end_scrollview(ui);
 
   if (scroll_pending)

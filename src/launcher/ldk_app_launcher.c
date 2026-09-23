@@ -22,9 +22,8 @@ static i32 s_run_game(const char* ini_file_path)
 
   LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   LDKSceneResult result;
-  const LDKConfig *config = ldk_engine_config_get();
   if (!ldk_scene_manager_configure_file(
-          manager, ini_file_path, &config->runtree_path, &result) ||
+          manager, ini_file_path, &result) ||
       !ldk_scene_manager_load(manager, 0, &result))
   {
     ldk_log_error("Failed to load initial scene: %s\n", result.error);

@@ -247,6 +247,7 @@ bool ldki_editor_entity_add(
 
   editor->selected_entity = entity;
   editor->selected_system_id = 0;
+  editor->scene_properties_selected = false;
   return true;
 }
 
@@ -342,6 +343,7 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   {
     editor->selected_entity = entity;
     editor->selected_system_id = 0;
+    editor->scene_properties_selected = false;
     *selected_entity = entity;
     *has_selection = true;
     s_editor_hierarchy_entity_payload_set(entity);
@@ -396,6 +398,41 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   }
 }
 
+static void s_editor_hierarchy_scene_properties_draw(
+    LDKEditorContext *editor, LDKUIIcon icon)
+{
+  if (!editor || editor->current_scene_path.length == 0)
+  {
+    if (editor)
+    {
+      editor->scene_properties_selected = false;
+    }
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  u32 flags = LDK_UI_TREE_NODE_LEAF;
+  if (editor->scene_properties_selected)
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DATA_OBJECT];
+
+  ldk_ui_push_id_cstr(ui, "scene_properties");
+  ldk_ui_tree_node_ex(ui, "Scene Properties", icon, false, 0, flags);
+  LDKUIId node_id = ui->last_id;
+
+  if (s_editor_hierarchy_node_pressed(ui, node_id))
+  {
+    editor->scene_properties_selected = true;
+    editor->selected_entity = x_handle_null();
+    editor->selected_system_id = 0;
+  }
+
+  ldk_ui_pop_id(ui);
+}
+
 static void s_editor_hierarchy_systems_draw(
     LDKEditorContext *editor, LDKUIIcon icon)
 {
@@ -424,7 +461,12 @@ static void s_editor_hierarchy_systems_draw(
   u32 systems_result = ldk_ui_tree_node_ex(
       ui, "Systems", icon, systems_expanded, 0, LDK_UI_TREE_NODE_NONE);
 
-  LDKUIRect grouping_button_rect = ldk_ui_last_rect(ui);
+  LDKUIRect systems_rect = ldk_ui_last_rect(ui);
+  float popup_content_width =
+      systems_rect.w > LDK_UI_DEFAULT_PADDING * 2.0f
+          ? systems_rect.w - LDK_UI_DEFAULT_PADDING * 2.0f
+          : 0.0f;
+  LDKUIRect grouping_button_rect = systems_rect;
   grouping_button_rect.x +=
       grouping_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
   grouping_button_rect.w = 24.0f;
@@ -447,7 +489,11 @@ static void s_editor_hierarchy_systems_draw(
   ldk_ui_begin_disabled(ui, !can_edit);
   if (ldk_ui_widget_button(ui, ADD_SYSTEM_BUTTON, "+", add_button_rect))
   {
-    ldk_ui_open_popup(ui, ADD_SYSTEM_POPUP);
+    LDKUIPoint popup_position = {
+        systems_rect.x,
+        systems_rect.y + systems_rect.h,
+    };
+    ldk_ui_open_popup_at(ui, ADD_SYSTEM_POPUP, popup_position);
   }
   ldk_ui_end_disabled(ui);
 
@@ -505,6 +551,7 @@ static void s_editor_hierarchy_systems_draw(
       {
         editor->selected_system_id = id;
         editor->selected_entity = x_handle_null();
+        editor->scene_properties_selected = false;
       }
 
       ldk_ui_set_next_disabled(ui, !can_edit);
@@ -534,7 +581,7 @@ static void s_editor_hierarchy_systems_draw(
     }
   }
 
-  ldk_ui_begin_popup(ui, ADD_SYSTEM_POPUP);
+  if (ldk_ui_begin_popup(ui, ADD_SYSTEM_POPUP))
   {
     bool has_available = false;
     u32 count = metadata_count;
@@ -551,6 +598,7 @@ static void s_editor_hierarchy_systems_draw(
       has_available = true;
       ldk_ui_push_id_u32(ui, (u32)meta->id);
       ldk_ui_push_id_u32(ui, (u32)(meta->id >> 32));
+      ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
       if (ldk_ui_button_flat(
               ui, meta->name != NULL ? meta->name : "<unnamed system>"))
       {
@@ -562,6 +610,7 @@ static void s_editor_hierarchy_systems_draw(
         {
           editor->selected_system_id = meta->id;
           editor->selected_entity = x_handle_null();
+          editor->scene_properties_selected = false;
           ldki_editor_log_info(editor, "Scene system associated.");
         }
         ldk_ui_close_current_popup(ui);
@@ -572,10 +621,12 @@ static void s_editor_hierarchy_systems_draw(
 
     if (!has_available)
     {
+      ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
       ldk_ui_label(ui, "No more systems in game metadata.");
     }
+
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
   ldk_ui_pop_id(ui);
 }
 
@@ -603,6 +654,10 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   }
 
   has_selection = ldki_editor_selected_entity_get(editor, ecs, &selected_entity);
+  if (has_selection)
+  {
+    editor->scene_properties_selected = false;
+  }
 
   if (owns_window)
   {
@@ -629,6 +684,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
 
   static bool entities_expanded = true;
 
+  s_editor_hierarchy_scene_properties_draw(editor, icon);
   s_editor_hierarchy_systems_draw(editor, icon);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HIERARCHY];

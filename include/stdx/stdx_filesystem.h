@@ -918,15 +918,16 @@ extern "C" {
 
   X_FILESYSTEM_API size_t x_fs_path_from_executable(XFSPath* out)
   {
+    size_t capacity = sizeof(out->buf);
 #ifdef _WIN32
-    DWORD len = GetModuleFileNameA(NULL, out->buf, X_FS_PATH_MAX_LENGTH);
-    if (len == 0 || len >= X_FS_PATH_MAX_LENGTH) return 0;
+    DWORD len = GetModuleFileNameA(NULL, out->buf, (DWORD)capacity);
+    if (len == 0 || len >= capacity) return 0;
 #elif defined(__APPLE__)
-    uint32_t size = X_FS_PATH_MAX_LENGTH;
+    uint32_t size = (uint32_t)capacity;
     if (_NSGetExecutablePath(out->buf, &size) != 0) return 0;
     size_t len = strlen(out->buf);
 #else
-    ssize_t len = readlink("/proc/self/exe", out->buf, X_FS_PATH_MAX_LENGTH - 1);
+    ssize_t len = readlink("/proc/self/exe", out->buf, capacity - 1);
     if (len == -1) return 0;
     out->buf[len] = 0;
 #endif

@@ -1,0 +1,47 @@
+{
+  "tile_size": 160,
+  "cutouts": {
+    "n": "cutout/cut_n.png",
+    "e": "cutout/cut_e.png",
+    "s": "cutout/cut_s.png",
+    "w": "cutout/cut_w.png",
+    "ne": "cutout/cut_ne.png",
+    "nw": "cutout/cut_nw.png",
+    "es": "cutout/cut_es.png",
+    "sw": "cutout/cut_sw.png",
+    "ns": "cutout/cut_ns.png",
+    "ew": "cutout/cut_ew.png",
+    "nes": "cutout/cut_nes.png",
+    "new": "cutout/cut_new.png",
+    "nsw": "cutout/cut_nsw.png",
+    "esw": "cutout/cut_esw.png",
+    "nesw": "cutout/cut_nesw.png"
+  },
+  "tiles": [
+    {
+      "name": "deep_water",
+      "full": "biome/deep_water.png",
+      "full_only": true
+    },
+    {
+      "name": "shallow_water",
+      "full": "biome/shallow_water.png"
+    },
+    {
+      "name": "sand",
+      "full": "biome/sand.png"
+    },
+    {
+      "name": "grass_dark",
+      "full": "biome/grass_dark.png"
+    },
+    {
+      "name": "grass",
+      "full": "biome/grass.png"
+    },
+    {
+      "name": "rock",
+      "full": "biome/rock.png"
+    }
+  ]
+}

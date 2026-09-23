@@ -60,6 +60,8 @@ extern "C"
     XFSPath source_root_path;
     i32 project_resolution_width;
     i32 project_resolution_height;
+    u32 shadow_map_resolution;
+    float shadow_distance;
   } LDKProject;
 
   LDK_API bool ldk_project_create(const LDKProjectCreateDesc *desc);

@@ -153,7 +153,7 @@ static bool s_mesh_data_allocate(
   memset(mesh, 0, sizeof(*mesh));
 
   mesh->vertices =
-      (LDKMeshVertex*)malloc(sizeof(LDKMeshVertex) * (size_t)vertex_count);
+      (LDKMeshVertex *)calloc((size_t)vertex_count, sizeof(LDKMeshVertex));
   if (!mesh->vertices)
   {
     return false;
@@ -184,50 +184,67 @@ void ldk_mesh_data_destroy(LDKMeshData* mesh)
   memset(mesh, 0, sizeof(*mesh));
 }
 
-static bool s_mesh_primitive_cube_create(LDKMeshData* mesh)
+static bool s_mesh_primitive_cube_create(LDKMeshData *mesh)
 {
-  static const LDKMeshVertex vertices[] =
-  {
-    {{-0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, -0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  0.0f, -1.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+  static const LDKMeshVertex vertices[] = {
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
 
-    {{ 0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f, -0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  0.0f,  1.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {-1.0f, 0.0f, 0.0f, -1.0f}},
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {-1.0f, 0.0f, 0.0f, -1.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {-1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {-1.0f, 0.0f, 0.0f, -1.0f}},
 
-    {{-0.5f, -0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f, -0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f, -0.5f}, {-1.0f,  0.0f,  0.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f,  0.5f}, {-1.0f,  0.0f,  0.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+      {{-0.5f, -0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, -1.0f, -1.0f}},
+      {{-0.5f, -0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, -1.0f, -1.0f}},
+      {{-0.5f, 0.5f, -0.5f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, -1.0f, -1.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, -1.0f, -1.0f}},
 
-    {{ 0.5f, -0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, -0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f,  0.5f}, { 1.0f,  0.0f,  0.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f, -0.5f}, { 1.0f,  0.0f,  0.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+      {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, 1.0f, -1.0f}},
+      {{0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, 1.0f, -1.0f}},
+      {{0.5f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, 1.0f, -1.0f}},
+      {{0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0.0f, 0.0f, 1.0f, -1.0f}},
 
-    {{-0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f, -0.5f}, { 0.0f,  1.0f,  0.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f,  0.5f}, { 0.0f,  1.0f,  0.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+      {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
 
-    {{-0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, -0.5f,  0.5f}, { 0.0f, -1.0f,  0.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f, -0.5f, -0.5f}, { 0.0f, -1.0f,  0.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+      {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
+      {{-0.5f, -0.5f, -0.5f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
   };
 
-  static const u32 indices[] =
-  {
-    0, 2, 1, 0, 3, 2,
-    4, 6, 5, 4, 7, 6,
-    8, 10, 9, 8, 11, 10,
-    12, 14, 13, 12, 15, 14,
-    16, 18, 17, 16, 19, 18,
-    20, 22, 21, 20, 23, 22
-  };
+  static const u32 indices[] = {0, 2, 1, 0, 3, 2, 4, 6, 5, 4, 7, 6, 8, 10, 9, 8,
+      11, 10, 12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20,
+      23, 22};
 
   if (!s_mesh_data_allocate(mesh, 24u, 36u))
   {
@@ -236,17 +253,21 @@ static bool s_mesh_primitive_cube_create(LDKMeshData* mesh)
 
   memcpy(mesh->vertices, vertices, sizeof(vertices));
   memcpy(mesh->indices, indices, sizeof(indices));
+  mesh->has_tangents = true;
   return true;
 }
 
 static bool s_mesh_primitive_plane_create(LDKMeshData* mesh)
 {
-  static const LDKMeshVertex vertices[] =
-  {
-    {{-0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, 0.0f,  0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f, 0.0f,  0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+  static const LDKMeshVertex vertices[] = {
+      {{-0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{0.5f, 0.0f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{-0.5f, 0.0f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
   };
   static const u32 indices[] = {0, 2, 1, 0, 3, 2};
 
@@ -262,12 +283,15 @@ static bool s_mesh_primitive_plane_create(LDKMeshData* mesh)
 
 static bool s_mesh_primitive_quad_create(LDKMeshData* mesh)
 {
-  static const LDKMeshVertex vertices[] =
-  {
-    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{ 0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
-    {{-0.5f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, LDK_MESH_PRIMITIVE_COLOR},
+  static const LDKMeshVertex vertices[] = {
+      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
+      {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f},
+          LDK_MESH_PRIMITIVE_COLOR, {0}},
   };
   static const u32 indices[] = {0, 1, 2, 0, 2, 3};
 
@@ -519,7 +543,7 @@ bool ldk_mesh_primitive_create(
 
 typedef struct LDKPrimitiveAssetFindContext
 {
-  const char* path;
+  LDKMeshPrimitive primitive;
   LDKAssetMesh mesh;
 } LDKPrimitiveAssetFindContext;
 
@@ -528,13 +552,15 @@ static bool s_mesh_primitive_asset_find(
 {
   LDKPrimitiveAssetFindContext* context =
       (LDKPrimitiveAssetFindContext*)user;
+  LDKAssetMeshData* data;
 
   if (!context || !info || info->type != LDK_ASSET_TYPE_MESH)
   {
     return true;
   }
 
-  if (strcmp(x_fs_path_cstr(&info->asset_path), context->path) != 0)
+  data = (LDKAssetMeshData*)info->data;
+  if (!data || data->primitive != context->primitive)
   {
     return true;
   }
@@ -543,47 +569,24 @@ static bool s_mesh_primitive_asset_find(
   return false;
 }
 
-static const char* s_mesh_primitive_asset_path(LDKMeshPrimitive primitive)
-{
-  switch (primitive)
-  {
-  case LDK_MESH_PRIMITIVE_CUBE:
-    return "builtin:mesh/cube";
-  case LDK_MESH_PRIMITIVE_CONE:
-    return "builtin:mesh/cone";
-  case LDK_MESH_PRIMITIVE_SPHERE:
-    return "builtin:mesh/sphere";
-  case LDK_MESH_PRIMITIVE_CAPSULE:
-    return "builtin:mesh/capsule";
-  case LDK_MESH_PRIMITIVE_PLANE:
-    return "builtin:mesh/plane";
-  case LDK_MESH_PRIMITIVE_QUAD:
-    return "builtin:mesh/quad";
-  default:
-    return NULL;
-  }
-}
-
 LDKAssetMesh ldk_mesh_primitive_asset_get(
     LDKAssetManager* manager, LDKMeshPrimitive primitive)
 {
   LDKAssetMesh result = ldk_asset_mesh_null();
   LDKMeshData mesh = {0};
-  const char* path;
 
   if (!manager)
   {
     return result;
   }
 
-  path = s_mesh_primitive_asset_path(primitive);
-  if (!path)
+  if ((u32)primitive >= LDK_MESH_PRIMITIVE_COUNT)
   {
     return result;
   }
 
   LDKPrimitiveAssetFindContext context = {
-      .path = path,
+      .primitive = primitive,
       .mesh = ldk_asset_mesh_null(),
   };
 
@@ -600,6 +603,12 @@ LDKAssetMesh ldk_mesh_primitive_asset_get(
 
   result = ldk_asset_manager_mesh_create(
       manager, mesh.vertices, mesh.vertex_count, mesh.indices, mesh.index_count);
+  LDKAssetMeshData *data = ldk_asset_manager_mesh_get(manager, result);
+  if (data)
+  {
+    data->mesh.has_tangents = mesh.has_tangents;
+    data->primitive = primitive;
+  }
   ldk_mesh_data_destroy(&mesh);
 
   if (x_handle_is_null(result.h))
@@ -607,14 +616,11 @@ LDKAssetMesh ldk_mesh_primitive_asset_get(
     return result;
   }
 
-  LDKAssetHandle generic = {result.h};
-  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
-  if (!info)
+  if (!data)
   {
     ldk_asset_manager_mesh_unload(manager, result);
     return ldk_asset_mesh_null();
   }
 
-  x_fs_path_set(&info->asset_path, path);
   return result;
 }

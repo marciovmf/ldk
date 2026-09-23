@@ -52,6 +52,7 @@ extern "C"
     LDK_MODULE_LOG,
     LDK_MODULE_RENDERER,
     LDK_MODULE_SCENE_MANAGER,
+    LDK_MODULE_ASSET_SOURCE,
   } LDKModuleType;
 
   struct LDKGame;
@@ -70,6 +71,8 @@ extern "C"
     i32 display_height;
     i32 resolution_width;
     i32 resolution_height;
+    u32 shadow_map_resolution;
+    float shadow_distance;
     i32 initial_ui_index_capacity;
     i32 initial_ui_vertex_capacity;
     bool fullscreen;
@@ -80,6 +83,7 @@ extern "C"
       LDKConfig *out_config, XIni *ini, const char *config_ini_path);
   LDK_API bool ldk_engine_initialize_with_config(const LDKConfig *config);
   LDK_API bool ldk_engine_render_resolution_set(i32 width, i32 height);
+  LDK_API bool ldk_engine_shadow_settings_set(u32 resolution, float distance);
   LDK_API bool ldk_engine_is_initialized(
       void); // Checks if the engine was initialized
   LDK_API void ldk_engine_frame(void);

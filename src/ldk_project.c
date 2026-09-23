@@ -262,52 +262,50 @@ static void s_project_append_project_file_text(
 {
   bool has_arch = !s_string_is_empty(project->cmake_arch.buf);
 
-  x_strbuilder_append_format(
-    builder,
-    "[.project]\n"
-    "project_name = \"%s\"\n"
-    "project_game_root = \".\"\n"
-    "project_cmake_root = \"workspace\"\n"
-    "project_run_root = \"runtree\"\n"
-    "project_cmake_generator = \"%s\"\n"
-    "project_cmake_arch = \"%s\"\n"
-    "\n"
-    "[.flags]\n"
-    "tag_0 = \"tag_0\"\n"
-    "tag_1 = \"tag_1\"\n"
-    "tag_2 = \"tag_2\"\n"
-    "tag_3 = \"tag_3\"\n"
-    "tag_4 = \"tag_4\"\n"
-    "tag_5 = \"tag_5\"\n"
-    "tag_6 = \"tag_6\"\n"
-    "tag_7 = \"tag_7\"\n"
-    "tag_8 = \"tag_8\"\n"
-    "tag_9 = \"tag_9\"\n"
-    "tag_10 = \"tag_10\"\n"
-    "tag_11 = \"tag_11\"\n"
-    "tag_12 = \"tag_12\"\n"
-    "tag_13 = \"tag_13\"\n"
-    "tag_14 = \"tag_14\"\n"
-    "tag_15 = \"tag_15\"\n"
-    "\n"
-    "[general]\n"
-    "asset_root = \"assets\"\n"
-    "log_file = \"ldk.log\"\n"
-    "\n"
-    "[graphics]\n"
-    "resolution_width = 1280\n"
-    "resolution_height = 720\n"
-    "\n"
-    "[display]\n"
-    "title = \"%s\"\n"
-    "width = 1280\n"
-    "height = 720\n"
-    "fullscreen = false\n",
-    project->name.buf,
-    project->cmake_generator.buf,
-    has_arch ? project->cmake_arch.buf : "\"\"",
-    project->name.buf
-  );
+  x_strbuilder_append_format(builder,
+      "[.project]\n"
+      "project_name = \"%s\"\n"
+      "project_game_root = \".\"\n"
+      "project_cmake_root = \"workspace\"\n"
+      "project_run_root = \"runtree\"\n"
+      "project_cmake_generator = \"%s\"\n"
+      "project_cmake_arch = \"%s\"\n"
+      "\n"
+      "[.flags]\n"
+      "tag_0 = \"tag_0\"\n"
+      "tag_1 = \"tag_1\"\n"
+      "tag_2 = \"tag_2\"\n"
+      "tag_3 = \"tag_3\"\n"
+      "tag_4 = \"tag_4\"\n"
+      "tag_5 = \"tag_5\"\n"
+      "tag_6 = \"tag_6\"\n"
+      "tag_7 = \"tag_7\"\n"
+      "tag_8 = \"tag_8\"\n"
+      "tag_9 = \"tag_9\"\n"
+      "tag_10 = \"tag_10\"\n"
+      "tag_11 = \"tag_11\"\n"
+      "tag_12 = \"tag_12\"\n"
+      "tag_13 = \"tag_13\"\n"
+      "tag_14 = \"tag_14\"\n"
+      "tag_15 = \"tag_15\"\n"
+      "\n"
+      "[general]\n"
+      "asset_root = \"assets\"\n"
+      "log_file = \"ldk.log\"\n"
+      "\n"
+      "[graphics]\n"
+      "resolution_width = 1280\n"
+      "resolution_height = 720\n"
+      "shadow_map_resolution = 2048\n"
+      "shadow_distance = 60.0\n"
+      "\n"
+      "[display]\n"
+      "title = \"%s\"\n"
+      "width = 1280\n"
+      "height = 720\n"
+      "fullscreen = false\n",
+      project->name.buf, project->cmake_generator.buf,
+      has_arch ? project->cmake_arch.buf : "\"\"", project->name.buf);
 }
 
 static void s_project_append_game_cmake_text(XStrBuilder *builder)
@@ -599,6 +597,10 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
       x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
   project->project_resolution_height =
       x_ini_get_i32(&ini, "graphics", "resolution_height", 760);
+  project->shadow_map_resolution =
+      (u32)x_ini_get_i32(&ini, "graphics", "shadow_map_resolution", 2048);
+  project->shadow_distance =
+      x_ini_get_f32(&ini, "graphics", "shadow_distance", 60.0f);
 
   x_smallstr_from_cstr(&project->name, project_name);
   x_smallstr_from_cstr(&project->cmake_generator, cmake_generator);

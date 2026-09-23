@@ -1,10 +1,13 @@
 #include "ldk_editor_internal.h"
+#include "ldk_editor_package_catalog.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
+#include <ldk_image.h>
 #include <ldk_scene.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum
@@ -13,6 +16,8 @@ enum
   PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
   PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
   PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
+  PROJECT_EXPLORER_THUMBNAIL_SIZE = 128,
+  PROJECT_EXPLORER_THUMBNAIL_CAPACITY = 128,
   PROJECT_EXPLORER_CONTEXT_POPUP_ID = 0x50454301u,
   PROJECT_EXPLORER_TREE_RENAME_INPUT_ID = 0x54524901u,
   PROJECT_EXPLORER_TILE_RENAME_INPUT_ID = 0x54494901u,
@@ -62,6 +67,35 @@ typedef struct ProjectExplorerContextTarget
   ProjectExplorerSurface surface;
 } ProjectExplorerContextTarget;
 
+typedef enum ProjectExplorerThumbnailStatus
+{
+  PROJECT_EXPLORER_THUMBNAIL_EMPTY,
+  PROJECT_EXPLORER_THUMBNAIL_PENDING,
+  PROJECT_EXPLORER_THUMBNAIL_READY,
+  PROJECT_EXPLORER_THUMBNAIL_FAILED,
+} ProjectExplorerThumbnailStatus;
+
+typedef struct ProjectExplorerThumbnail
+{
+  XFSPath path;
+  size_t size;
+  time_t last_modified;
+  LDKResourceTexture texture;
+  u32 width;
+  u32 height;
+  u64 last_used;
+  u64 last_seen_frame;
+  ProjectExplorerThumbnailStatus status;
+} ProjectExplorerThumbnail;
+
+typedef struct ProjectExplorerThumbnailCache
+{
+  LDKRenderer *renderer;
+  ProjectExplorerThumbnail entries[PROJECT_EXPLORER_THUMBNAIL_CAPACITY];
+  u64 frame;
+  u64 access_counter;
+} ProjectExplorerThumbnailCache;
+
 typedef struct ProjectExplorerState
 {
   LDKUIRect window_rect;
@@ -75,6 +109,7 @@ typedef struct ProjectExplorerState
   XArray *stack;
   XArray *dirs;
   XArray *files;
+  ProjectExplorerThumbnailCache thumbnails;
   ProjectExplorerContextTarget context_target;
   LDKUIRect rename_input_rect;
   LDKUIId rename_input_id;
@@ -151,11 +186,334 @@ static LDKEditorIcon s_project_explorer_file_icon_get(const XFSPath *path)
   return LDK_EDITOR_ICON_FILE;
 }
 
+// Thumbnail textures are editor-owned renderer resources. The renderer also
+// releases any remaining entries when it terminates.
+static void s_project_explorer_thumbnail_release(
+    ProjectExplorerThumbnailCache *cache, ProjectExplorerThumbnail *thumbnail)
+{
+  if (cache->renderer && thumbnail->status == PROJECT_EXPLORER_THUMBNAIL_READY)
+  {
+    ldk_renderer_texture_destroy(cache->renderer, thumbnail->texture);
+  }
+
+  memset(thumbnail, 0, sizeof(*thumbnail));
+}
+
+static void s_project_explorer_thumbnail_cache_clear(
+    ProjectExplorerThumbnailCache *cache)
+{
+  for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+  {
+    s_project_explorer_thumbnail_release(cache, &cache->entries[i]);
+  }
+}
+
+static bool s_project_explorer_thumbnail_is_image(const XFSPath *path)
+{
+  if (!path)
+  {
+    return false;
+  }
+
+  XSlice extension = x_fs_path_extension_as_slice(path);
+  static const char *extensions[] = {
+      "png", "jpg", "jpeg", "bmp", "tga", "gif", "hdr"};
+
+  for (u32 i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++)
+  {
+    if (x_slice_eq_ci(extension, x_slice(extensions[i])))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Area averaging avoids aliasing when a large source is reduced to a small tile.
+// RGB is accumulated premultiplied by alpha to avoid transparent edge halos.
+static void s_project_explorer_thumbnail_resize(const LDKImageInfo *source,
+    u8 *pixels, u32 width, u32 height)
+{
+  double scale_x = (double)source->width / (double)width;
+  double scale_y = (double)source->height / (double)height;
+  double area = scale_x * scale_y;
+
+  for (u32 y = 0; y < height; y++)
+  {
+    double y0 = (double)y * scale_y;
+    double y1 = (double)(y + 1) * scale_y;
+
+    for (u32 x = 0; x < width; x++)
+    {
+      double x0 = (double)x * scale_x;
+      double x1 = (double)(x + 1) * scale_x;
+      double rgba[4] = {0};
+
+      for (u32 sy = (u32)y0; sy < source->height && (double)sy < y1; sy++)
+      {
+        double top = y0 > (double)sy ? y0 : (double)sy;
+        double bottom = y1 < (double)(sy + 1) ? y1 : (double)(sy + 1);
+        double wy = bottom - top;
+
+        for (u32 sx = (u32)x0; sx < source->width && (double)sx < x1; sx++)
+        {
+          double left = x0 > (double)sx ? x0 : (double)sx;
+          double right = x1 < (double)(sx + 1) ? x1 : (double)(sx + 1);
+          double weight = (right - left) * wy;
+          const u8 *src = source->pixels +
+              ((size_t)sy * source->width + sx) * 4u;
+          double alpha = (double)src[3] / 255.0;
+
+          rgba[0] += (double)src[0] * alpha * weight;
+          rgba[1] += (double)src[1] * alpha * weight;
+          rgba[2] += (double)src[2] * alpha * weight;
+          rgba[3] += (double)src[3] * weight;
+        }
+      }
+
+      u8 *dst = pixels + ((size_t)y * width + x) * 4u;
+      if (rgba[3] > 0.0)
+      {
+        double alpha_weight = rgba[3] / 255.0;
+        dst[0] = (u8)(rgba[0] / alpha_weight + 0.5);
+        dst[1] = (u8)(rgba[1] / alpha_weight + 0.5);
+        dst[2] = (u8)(rgba[2] / alpha_weight + 0.5);
+      }
+      else
+      {
+        dst[0] = dst[1] = dst[2] = 0;
+      }
+      dst[3] = (u8)(rgba[3] / area + 0.5);
+    }
+  }
+}
+
+static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
+    const XFSPath *path, ProjectExplorerThumbnail *thumbnail)
+{
+  LDKImage *image = ldk_image_load(x_fs_path_cstr(path));
+  LDKImageInfo info = {0};
+  if (!image)
+  {
+    return false;
+  }
+
+  if (!ldk_image_get_info(image, &info) || !info.pixels ||
+      info.width == 0 || info.height == 0 || info.channel_count != 4)
+  {
+    ldk_image_destroy(image);
+    return false;
+  }
+
+  u32 width = info.width;
+  u32 height = info.height;
+  if (width > PROJECT_EXPLORER_THUMBNAIL_SIZE ||
+      height > PROJECT_EXPLORER_THUMBNAIL_SIZE)
+  {
+    if (width >= height)
+    {
+      height = (u32)((u64)height * PROJECT_EXPLORER_THUMBNAIL_SIZE / width);
+      width = PROJECT_EXPLORER_THUMBNAIL_SIZE;
+    }
+    else
+    {
+      width = (u32)((u64)width * PROJECT_EXPLORER_THUMBNAIL_SIZE / height);
+      height = PROJECT_EXPLORER_THUMBNAIL_SIZE;
+    }
+  }
+  if (width == 0)
+  {
+    width = 1;
+  }
+  if (height == 0)
+  {
+    height = 1;
+  }
+
+  u8 *resized = NULL;
+  const u8 *pixels = info.pixels;
+  if (width != info.width || height != info.height)
+  {
+    resized = (u8 *)malloc((size_t)width * height * 4u);
+    if (!resized)
+    {
+      ldk_image_destroy(image);
+      return false;
+    }
+    s_project_explorer_thumbnail_resize(&info, resized, width, height);
+    pixels = resized;
+  }
+
+  LDKRendererTextureOptions options;
+  ldk_renderer_texture_options_defaults(&options);
+  options.min_filter = LDK_RHI_FILTER_LINEAR;
+  options.mag_filter = LDK_RHI_FILTER_LINEAR;
+
+  LDKRendererTextureDesc desc = {0};
+  desc.width = width;
+  desc.height = height;
+  desc.channel_count = 4;
+  desc.pixels = pixels;
+  desc.byte_count = (u64)width * height * 4u;
+  desc.options = &options;
+
+  LDKResourceTexture texture = ldk_renderer_texture_create(renderer, &desc);
+  free(resized);
+  ldk_image_destroy(image);
+
+  if (!ldk_renderer_texture_is_valid(renderer, texture))
+  {
+    return false;
+  }
+
+  thumbnail->texture = texture;
+  thumbnail->width = width;
+  thumbnail->height = height;
+  return true;
+}
+
+static void s_project_explorer_thumbnail_frame_begin(
+    ProjectExplorerThumbnailCache *cache, LDKRenderer *renderer)
+{
+  if (cache->renderer != renderer)
+  {
+    // The old renderer owns its resources. Never dereference it after a switch.
+    memset(cache, 0, sizeof(*cache));
+    cache->renderer = renderer;
+  }
+
+  cache->frame++;
+}
+
+static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
+    ProjectExplorerThumbnailCache *cache, const ProjectExplorerEntry *entry)
+{
+  if (!cache->renderer || !s_project_explorer_thumbnail_is_image(&entry->path))
+  {
+    return NULL;
+  }
+
+  ProjectExplorerThumbnail *available = NULL;
+  for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+  {
+    ProjectExplorerThumbnail *it = &cache->entries[i];
+    if (it->status != PROJECT_EXPLORER_THUMBNAIL_EMPTY &&
+        x_fs_path_compare(&it->path, &entry->path) == 0)
+    {
+      if (it->size != entry->size || it->last_modified != entry->last_modified)
+      {
+        s_project_explorer_thumbnail_release(cache, it);
+        break;
+      }
+
+      if (it->status == PROJECT_EXPLORER_THUMBNAIL_READY &&
+          !ldk_renderer_texture_is_valid(cache->renderer, it->texture))
+      {
+        it->texture = ldk_renderer_texture_null();
+        it->status = PROJECT_EXPLORER_THUMBNAIL_PENDING;
+      }
+
+      it->last_used = ++cache->access_counter;
+      it->last_seen_frame = cache->frame;
+      return it;
+    }
+  }
+
+  for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+  {
+    ProjectExplorerThumbnail *it = &cache->entries[i];
+    if (it->status == PROJECT_EXPLORER_THUMBNAIL_EMPTY)
+    {
+      available = it;
+      break;
+    }
+    if (it->last_seen_frame != cache->frame &&
+        (!available || it->last_used < available->last_used))
+    {
+      available = it;
+    }
+  }
+
+  if (!available)
+  {
+    return NULL;
+  }
+
+  s_project_explorer_thumbnail_release(cache, available);
+  available->path = entry->path;
+  available->size = entry->size;
+  available->last_modified = entry->last_modified;
+  available->last_used = ++cache->access_counter;
+  available->last_seen_frame = cache->frame;
+  available->status = PROJECT_EXPLORER_THUMBNAIL_PENDING;
+  return available;
+}
+
+static void s_project_explorer_thumbnail_process(
+    ProjectExplorerThumbnailCache *cache)
+{
+  ProjectExplorerThumbnail *pending = NULL;
+  for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+  {
+    ProjectExplorerThumbnail *it = &cache->entries[i];
+    if (it->status == PROJECT_EXPLORER_THUMBNAIL_PENDING &&
+        it->last_seen_frame == cache->frame &&
+        (!pending || it->last_used < pending->last_used))
+    {
+      pending = it;
+    }
+  }
+
+  // At most one image decode and texture upload per explorer update.
+  if (pending)
+  {
+    pending->status = s_project_explorer_thumbnail_create(
+        cache->renderer, &pending->path, pending)
+        ? PROJECT_EXPLORER_THUMBNAIL_READY
+        : PROJECT_EXPLORER_THUMBNAIL_FAILED;
+  }
+}
+
+static LDKUIIcon s_project_explorer_thumbnail_icon(LDKRenderer *renderer,
+    const ProjectExplorerThumbnail *thumbnail, LDKUIIcon fallback)
+{
+  if (!thumbnail || thumbnail->status != PROJECT_EXPLORER_THUMBNAIL_READY)
+  {
+    return fallback;
+  }
+
+  LDKUITextureHandle texture =
+      ldk_renderer_texture_ui_handle(renderer, thumbnail->texture);
+  if (texture == 0)
+  {
+    return fallback;
+  }
+
+  LDKUIIcon icon = fallback;
+  icon.texture = texture;
+  icon.uv = (LDKUIRect){0.0f, 0.0f, 1.0f, 1.0f};
+  icon.color = 0xffffffffu;
+  if (thumbnail->width >= thumbnail->height)
+  {
+    icon.size.h = fallback.size.h *
+        (float)thumbnail->height / (float)thumbnail->width;
+  }
+  else
+  {
+    icon.size.w = fallback.size.w *
+        (float)thumbnail->width / (float)thumbnail->height;
+  }
+  return icon;
+}
+
 static void s_project_explorer_on_right_click(LDKUIContext *ui,
     ProjectExplorerState *state, const ProjectExplorerEntry *entry,
     bool is_directory, ProjectExplorerSurface surface);
 static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
+static void s_project_explorer_path_drag_source(
+    LDKUIContext *ui, const XFSPath *path, LDKUIIcon icon);
 
 static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
     const XFSPath *path, ProjectExplorerSurface surface)
@@ -261,6 +619,7 @@ static bool s_project_explorer_root_set(
 
   if (state->root.length == 0 || x_fs_path_compare(&state->root, &root) != 0)
   {
+    s_project_explorer_thumbnail_cache_clear(&state->thumbnails);
     state->root = root;
     state->selected_directory = root;
     memset(&state->selected_file, 0, sizeof(state->selected_file));
@@ -365,6 +724,13 @@ static void s_project_explorer_directory_read(
   }
 }
 
+static bool s_project_explorer_rect_visible(LDKUIRect rect, LDKUIRect clip)
+{
+  return rect.w > 0.0f && rect.h > 0.0f &&
+         rect.x < clip.x + clip.w && rect.x + rect.w > clip.x &&
+         rect.y < clip.y + clip.h && rect.y + rect.h > clip.y;
+}
+
 static bool s_project_explorer_rect_button_down(
     LDKUIContext *ui, LDKUIRect rect, LDKMouseButton button)
 {
@@ -445,6 +811,11 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
   LDKUIRect row_rect = ldk_ui_last_bounding_rect(ui);
   LDKUIId node_id = ui->last_id;
   bool expanded = was_expanded;
+
+  if (!renaming)
+  {
+    s_project_explorer_path_drag_source(ui, &node->path, folder_icon);
+  }
 
   if (renaming)
   {
@@ -969,6 +1340,47 @@ static void s_project_explorer_context_menu_draw(
       ldk_ui_close_current_popup(ui);
     }
 
+    if (editor->project.loaded)
+    {
+      bool can_package = !editor->project_build.active &&
+                         editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+                         ldki_editor_package_catalog_path_is_packageable(
+                             editor, &state->context_target.path);
+      u32 package_count = ldki_editor_package_catalog_count(editor);
+
+      ldk_ui_horizontal_line(ui);
+      ldk_ui_label(ui, "Add to Package...");
+      ldk_ui_begin_disabled(ui, !can_package);
+      for (u32 package_i = 0; package_i < package_count; ++package_i)
+      {
+        const char *package_name =
+            ldki_editor_package_catalog_name_get(editor, package_i);
+        if (package_name && ldk_ui_button_flat(ui, package_name))
+        {
+          if (!ldki_editor_package_catalog_add_path(editor, package_i,
+                  &state->context_target.path, is_directory))
+          {
+            ldki_editor_log_error(
+                editor, "Failed to add path to package.");
+          }
+          ldk_ui_close_current_popup(ui);
+        }
+      }
+      ldk_ui_end_disabled(ui);
+
+      if (package_count == 0)
+      {
+        ldk_ui_label(ui, "No packages defined.");
+      }
+
+      if (ldk_ui_button_flat(ui, "Manage Packages..."))
+      {
+        ldki_editor_package_catalog_open(editor);
+        ldk_ui_close_current_popup(ui);
+      }
+      ldk_ui_horizontal_line(ui);
+    }
+
     ldk_ui_begin_disabled(ui, is_root);
 
     if (ldk_ui_button_flat(ui, "Duplicate"))
@@ -1268,7 +1680,19 @@ static ProjectExplorerTileResult s_project_explorer_tile(
       icon.size.h,
   };
 
-  ldk_ui_widget_icon_label(ui, 0, icon, "", icon_rect);
+  LDKUIRect image_rect = icon_rect;
+  if (s_project_explorer_rect_visible(tile_bounding_rect, ui->clip_rect))
+  {
+    ProjectExplorerThumbnail *thumbnail = s_project_explorer_thumbnail_request(
+        &state->thumbnails, entry);
+    icon = s_project_explorer_thumbnail_icon(editor->renderer, thumbnail, icon);
+    image_rect.x += (image_rect.w - icon.size.w) * 0.5f;
+    image_rect.y += (image_rect.h - icon.size.h) * 0.5f;
+    image_rect.w = icon.size.w;
+    image_rect.h = icon.size.h;
+  }
+
+  ldk_ui_widget_icon_label(ui, 0, icon, "", image_rect);
 
   float label_y = icon_rect.y + icon_rect.h + LDK_UI_DEFAULT_SPACING;
   if (s_project_explorer_rename_matches(
@@ -1293,10 +1717,10 @@ static ProjectExplorerTileResult s_project_explorer_tile(
   return result;
 }
 
-static void s_project_explorer_file_drag_source(LDKUIContext *ui,
-    const ProjectExplorerEntry *entry, bool is_directory, LDKUIIcon icon)
+static void s_project_explorer_path_drag_source(
+    LDKUIContext *ui, const XFSPath *path, LDKUIIcon icon)
 {
-  if (is_directory || ui == NULL || ui->mouse == NULL ||
+  if (ui == NULL || path == NULL || ui->mouse == NULL ||
       ui->active_id != ui->last_id)
   {
     return;
@@ -1307,7 +1731,7 @@ static void s_project_explorer_file_drag_source(LDKUIContext *ui,
   if (ldk_os_mouse_button_down(mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     ldk_ui_drag_n_drop_payload_set(
-        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, &entry->path);
+        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, path);
   }
 
   ldk_ui_drag_n_drop_preview_draw(ui, icon);
@@ -1342,8 +1766,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
-      s_project_explorer_file_drag_source(
-          ui, entry, is_directory, entry_icon);
+      s_project_explorer_path_drag_source(
+          ui, &entry->path, entry_icon);
       bool renaming = s_project_explorer_rename_matches(
           state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
       bool label_clicked = false;
@@ -1354,8 +1778,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       else
       {
         label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
-        s_project_explorer_file_drag_source(
-            ui, entry, is_directory, entry_icon);
+        s_project_explorer_path_drag_source(
+            ui, &entry->path, entry_icon);
       }
 
       ldk_ui_end_horizontal(ui);
@@ -1413,8 +1837,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
-      s_project_explorer_file_drag_source(
-          ui, entry, is_directory, entry_icon);
+      s_project_explorer_path_drag_source(
+          ui, &entry->path, entry_icon);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
@@ -1433,6 +1857,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     ldk_ui_end_horizontal(ui);
   }
 
+  s_project_explorer_thumbnail_process(&state->thumbnails);
   return right_click_handled;
 }
 
@@ -1547,6 +1972,8 @@ static void s_editor_project_explorer(
     return;
   }
 
+  s_project_explorer_thumbnail_frame_begin(&state->thumbnails, editor->renderer);
+
   if (!s_project_explorer_root_set(state, root_path))
   {
     ldk_ui_label(ui, "No project root.");
@@ -1588,5 +2015,7 @@ static void s_editor_project_explorer(
 
 void ldk_editor_file_explorer_show(LDKEditor *editor, const char *root_path)
 {
-  s_editor_project_explorer((LDKEditorContext *)editor, root_path);
+  LDKEditorContext *context = (LDKEditorContext *)editor;
+  ldki_editor_package_catalog_sync(context);
+  s_editor_project_explorer(context, root_path);
 }

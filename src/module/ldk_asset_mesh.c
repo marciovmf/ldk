@@ -13,7 +13,8 @@
 typedef enum LDKMeshFileVertexFormat
 {
   LDK_MESH_FILE_VERTEX_FORMAT_NONE = 0,
-  LDK_MESH_FILE_VERTEX_FORMAT_STATIC
+  LDK_MESH_FILE_VERTEX_FORMAT_STATIC,
+  LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT
 } LDKMeshFileVertexFormat;
 
 typedef struct LDKParsedMesh
@@ -31,6 +32,7 @@ typedef struct LDKParsedMesh
   LDKMeshSubmesh *submeshes;
   u32 submesh_count;
   u32 submesh_written;
+  bool has_tangents;
 } LDKParsedMesh;
 
 typedef struct LDKParsedNode
@@ -55,7 +57,8 @@ typedef struct LDKParsedMeshFile
 
 typedef struct LDKSharedMeshLookup
 {
-  XFSPath path;
+  LDKAssetPath path;
+  u64 source_revision;
   LDKAssetMesh mesh;
 } LDKSharedMeshLookup;
 
@@ -313,11 +316,13 @@ static bool s_mesh_file_parse_quat(
   return true;
 }
 
-static bool s_mesh_file_parse_vertex(const char *first_token,
-    char *cursor, LDKMeshVertex *out_vertex)
+static bool s_mesh_file_parse_vertex(const char *first_token, char *cursor,
+    LDKMeshFileVertexFormat format, LDKMeshVertex *out_vertex)
 {
-  float values[8];
+  float values[12] = {0};
   u32 color;
+  u32 value_count =
+      format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT ? 12u : 8u;
 
   if (!first_token || !out_vertex ||
       !s_mesh_file_parse_float(first_token, &values[0]))
@@ -335,8 +340,21 @@ static bool s_mesh_file_parse_vertex(const char *first_token,
   }
 
   char *color_token = s_mesh_file_next_token(&cursor);
-  if (!color_token || !s_mesh_file_parse_u32(color_token, 0, &color) ||
-      s_mesh_file_next_token(&cursor) != NULL)
+  if (!color_token || !s_mesh_file_parse_u32(color_token, 0, &color))
+  {
+    return false;
+  }
+
+  for (u32 i = 8u; i < value_count; i++)
+  {
+    char *token = s_mesh_file_next_token(&cursor);
+    if (!token || !s_mesh_file_parse_float(token, &values[i]))
+    {
+      return false;
+    }
+  }
+
+  if (s_mesh_file_next_token(&cursor) != NULL)
   {
     return false;
   }
@@ -350,6 +368,10 @@ static bool s_mesh_file_parse_vertex(const char *first_token,
   out_vertex->uv.x = values[6];
   out_vertex->uv.y = values[7];
   out_vertex->color = LDK_RGBA32(color);
+  out_vertex->tangent.x = values[8];
+  out_vertex->tangent.y = values[9];
+  out_vertex->tangent.z = values[10];
+  out_vertex->tangent.w = values[11];
   return true;
 }
 
@@ -478,9 +500,11 @@ static bool s_parsed_node_complete(
       node->node.mesh_index < (i32)mesh_count;
 }
 
-static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
-    LDKMeshAssetResult *result)
+static bool s_mesh_file_parse(LDKAssetManager *manager, const char *path,
+    LDKParsedMeshFile *out_file, LDKMeshAssetResult *result)
 {
+  LDKAssetSourceFile file;
+  u64 size;
   char *text;
   char *line;
   char *next_line;
@@ -489,23 +513,34 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
   u32 current_node_index = 0;
   u32 line_number = 0;
   bool version_seen = false;
+  bool version_has_tangents = false;
   bool mesh_count_seen = false;
   bool node_count_seen = false;
   LDKMeshFileVertexFormat format = LDK_MESH_FILE_VERTEX_FORMAT_NONE;
 
-  if (!path || !out_file)
+  if (!manager || !manager->source || !path || !out_file ||
+      !ldk_asset_source_find(manager->source, path, &file))
   {
-    s_mesh_asset_error(result, "invalid mesh load arguments");
+    s_mesh_asset_error(result, "cannot read mesh asset");
+    return false;
+  }
+
+  size = ldk_asset_source_file_size(&file);
+  if (size > (u64)SIZE_MAX - 1u)
+  {
+    s_mesh_asset_error(result, "mesh asset is too large");
     return false;
   }
 
   memset(out_file, 0, sizeof(*out_file));
-  text = x_io_read_text(path, NULL);
-  if (!text)
+  text = (char *)malloc((size_t)size + 1u);
+  if (!text || !ldk_asset_source_file_read(&file, text, size))
   {
-    s_mesh_asset_error(result, "cannot read mesh file");
+    free(text);
+    s_mesh_asset_error(result, "cannot read mesh asset");
     return false;
   }
+  text[size] = 0;
 
   line = text;
   while (line)
@@ -572,19 +607,22 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
     {
       if (strcmp(lhs, "version") == 0)
       {
-        if (version_seen || strcmp(rhs, "4.0") != 0 ||
+        if (version_seen ||
+            (strcmp(rhs, "4.0") != 0 && strcmp(rhs, "4.1") != 0) ||
             s_mesh_file_next_token(&cursor) != NULL)
         {
           s_mesh_asset_error_line(result, line_number,
               version_seen ? "duplicate version" : "unsupported version");
           goto error;
         }
+        version_has_tangents = strcmp(rhs, "4.1") == 0;
         version_seen = true;
       }
       else if (strcmp(lhs, "vertex_format") == 0)
       {
         if (format != LDK_MESH_FILE_VERTEX_FORMAT_NONE ||
-            strcmp(rhs, "STATIC") != 0 ||
+            (strcmp(rhs, "STATIC") != 0 &&
+                strcmp(rhs, "STATIC_TANGENT") != 0) ||
             s_mesh_file_next_token(&cursor) != NULL)
         {
           s_mesh_asset_error_line(result, line_number,
@@ -593,7 +631,9 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
                   : "unsupported vertex format");
           goto error;
         }
-        format = LDK_MESH_FILE_VERTEX_FORMAT_STATIC;
+        format = strcmp(rhs, "STATIC_TANGENT") == 0
+                     ? LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT
+                     : LDK_MESH_FILE_VERTEX_FORMAT_STATIC;
       }
       else if (strcmp(lhs, "mesh_count") == 0)
       {
@@ -642,9 +682,13 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
       {
         u32 index;
         char *name = s_mesh_file_next_token(&cursor);
-        if (!version_seen || format != LDK_MESH_FILE_VERTEX_FORMAT_STATIC ||
-            !mesh_count_seen || !name || !name[0] ||
-            !s_mesh_file_parse_u32(rhs, 10, &index) ||
+        bool format_matches_version =
+            (!version_has_tangents &&
+                format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC) ||
+            (version_has_tangents &&
+                format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT);
+        if (!version_seen || !format_matches_version || !mesh_count_seen ||
+            !name || !name[0] || !s_mesh_file_parse_u32(rhs, 10, &index) ||
             index != out_file->mesh_written || index >= out_file->mesh_count ||
             strlen(name) >= LDK_MESH_NAME_CAPACITY ||
             s_mesh_file_next_token(&cursor) != NULL)
@@ -654,6 +698,8 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
         }
 
         current_mesh = &out_file->meshes[out_file->mesh_written++];
+        current_mesh->has_tangents =
+            format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT;
         snprintf(current_mesh->name, sizeof(current_mesh->name), "%s", name);
       }
       else if (strcmp(lhs, "node") == 0)
@@ -854,7 +900,7 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
     {
       if (!current_mesh->vertices ||
           current_mesh->vertex_written >= current_mesh->vertex_count ||
-          !s_mesh_file_parse_vertex(rhs, cursor,
+          !s_mesh_file_parse_vertex(rhs, cursor, format,
               &current_mesh->vertices[current_mesh->vertex_written]))
       {
         s_mesh_asset_error_line(result, line_number, "invalid vertex");
@@ -923,9 +969,13 @@ static bool s_mesh_file_parse(const char *path, LDKParsedMeshFile *out_file,
     line = next_line;
   }
 
+  bool format_matches_version =
+      (!version_has_tangents && format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC) ||
+      (version_has_tangents &&
+          format == LDK_MESH_FILE_VERTEX_FORMAT_STATIC_TANGENT);
   if (current_mesh || current_node || !version_seen ||
-      format != LDK_MESH_FILE_VERTEX_FORMAT_STATIC || !mesh_count_seen ||
-      !node_count_seen || out_file->mesh_written != out_file->mesh_count ||
+      !format_matches_version || !mesh_count_seen || !node_count_seen ||
+      out_file->mesh_written != out_file->mesh_count ||
       out_file->node_written != out_file->node_count)
   {
     s_mesh_asset_error(result, "incomplete or inconsistent mesh file");
@@ -1066,6 +1116,7 @@ static bool s_mesh_asset_build_storage(const LDKParsedMeshFile *parsed,
     entry->mesh.vertex_count = source->vertex_count;
     entry->mesh.indices = index_storage + index_cursor;
     entry->mesh.index_count = source->index_count;
+    entry->mesh.has_tangents = source->has_tangents;
     entry->submeshes = submeshes + submesh_cursor;
     entry->submesh_count = source->submesh_count;
     entry->material_slots = materials + material_cursor;
@@ -1102,6 +1153,7 @@ static bool s_shared_mesh_find(
   LDKSharedMeshLookup *lookup = (LDKSharedMeshLookup *)user;
 
   if (info->type == LDK_ASSET_TYPE_MESH &&
+      info->source_revision == lookup->source_revision &&
       strcmp(info->asset_path.buf, lookup->path.buf) == 0)
   {
     lookup->mesh.h = asset.h;
@@ -1135,22 +1187,21 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   s_mesh_asset_error(result, "");
   lookup.mesh = ldk_asset_mesh_null();
 
-  if (!manager || !path || !x_fs_path_is_absolute_cstr(path) ||
-      strlen(path) >= sizeof(lookup.path.buf))
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
   {
-    s_mesh_asset_error(result, "mesh asset requires an absolute file path");
+    s_mesh_asset_error(result, "mesh asset requires a valid asset path");
     return lookup.mesh;
   }
 
-  x_fs_path_set(&lookup.path, path);
-  x_fs_path_normalize(&lookup.path);
+  lookup.source_revision = manager->source->revision;
   ldk_asset_foreach(manager, s_shared_mesh_find, &lookup);
   if (!x_handle_is_null(lookup.mesh.h))
   {
     return lookup.mesh;
   }
 
-  if (!s_mesh_file_parse(lookup.path.buf, &parsed, result))
+  if (!s_mesh_file_parse(manager, lookup.path.buf, &parsed, result))
   {
     return lookup.mesh;
   }
@@ -1213,6 +1264,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   data->mesh.vertex_count = parsed.meshes[0].vertex_count;
   data->mesh.indices = index_storage;
   data->mesh.index_count = parsed.meshes[0].index_count;
+  data->mesh.has_tangents = parsed.meshes[0].has_tangents;
   data->meshes = (LDKAssetMeshEntry *)(vertex_storage + entry_offset);
   data->mesh_count = parsed.mesh_count;
   data->nodes = parsed.node_count
@@ -1231,6 +1283,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   }
 
   info->asset_path = lookup.path;
+  info->source_revision = lookup.source_revision;
   info->load_timestamp = (u64)time(NULL);
 
   (void)vertex_storage_bytes;

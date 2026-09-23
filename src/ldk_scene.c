@@ -10,6 +10,8 @@
 
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_particle_emitter.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_asset_manager.h>
@@ -21,6 +23,7 @@
 #include <stdx/stdx_hpool.h>
 #include <stdx/stdx_tml.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,12 +75,46 @@ static bool s_scene_entity_is_editor_only(LDKEntity entity)
 
 static LDKSceneDiagnosticFn s_scene_diagnostic_handler;
 static void *s_scene_diagnostic_user;
+static LDKSceneProperties s_scene_properties = {0xffffffffu, 0.0f};
 
 void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user)
 {
   s_scene_diagnostic_handler = handler;
   s_scene_diagnostic_user = user;
+}
+
+void ldk_scene_properties_defaults(LDKSceneProperties *properties)
+{
+  if (!properties)
+  {
+    return;
+  }
+
+  properties->ambient_color = 0xffffffffu;
+  properties->ambient_intensity = 0.0f;
+}
+
+const LDKSceneProperties *ldk_scene_properties_get(void)
+{
+  return &s_scene_properties;
+}
+
+bool ldk_scene_properties_set(const LDKSceneProperties *properties)
+{
+  if (!properties || !isfinite(properties->ambient_intensity) ||
+      properties->ambient_intensity < 0.0f)
+  {
+    return false;
+  }
+
+  s_scene_properties = *properties;
+  return true;
+}
+
+void ldk_scene_properties_reset(void)
+{
+  ldk_scene_properties_defaults(&s_scene_properties);
 }
 
 void ldk_scene_result_clear(LDKSceneResult *result)
@@ -148,9 +185,19 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
       return LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT;
     }
 
+    if (strcmp(meta->name, "LDKInstancedMeshSource") == 0)
+    {
+      return LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE;
+    }
+
     if (strcmp(meta->name, "LDKMeshSource") == 0)
     {
       return LDK_COMPONENT_TYPE_MESH_SOURCE;
+    }
+
+    if (strcmp(meta->name, "LDKParticleEmitter") == 0)
+    {
+      return LDK_COMPONENT_TYPE_PARTICLE_EMITTER;
     }
   }
 
@@ -408,8 +455,8 @@ static void s_result_error(LDKSceneResult *result, const char *error)
   ldk_scene_result_set_error(result, error);
 }
 
-static bool s_mesh_primitive_from_asset_reference(
-    const char *reference, LDKMeshPrimitive *out_primitive)
+static const char *s_mesh_primitive_asset_reference(
+    LDKMeshPrimitive primitive)
 {
   static const char *references[LDK_MESH_PRIMITIVE_COUNT] =
   {
@@ -420,6 +467,18 @@ static bool s_mesh_primitive_from_asset_reference(
     "builtin:mesh/plane",
     "builtin:mesh/quad",
   };
+
+  if ((u32)primitive >= LDK_MESH_PRIMITIVE_COUNT)
+  {
+    return NULL;
+  }
+
+  return references[primitive];
+}
+
+static bool s_mesh_primitive_from_asset_reference(
+    const char *reference, LDKMeshPrimitive *out_primitive)
+{
   u32 i;
 
   if (!reference)
@@ -429,7 +488,8 @@ static bool s_mesh_primitive_from_asset_reference(
 
   for (i = 0; i < LDK_MESH_PRIMITIVE_COUNT; i++)
   {
-    if (strcmp(reference, references[i]) != 0)
+    if (strcmp(reference,
+            s_mesh_primitive_asset_reference((LDKMeshPrimitive)i)) != 0)
     {
       continue;
     }
@@ -501,6 +561,79 @@ static bool s_node_get_u32(const TMLDocument *doc, const TMLNode *node,
   }
 
   *out_value = (u32)value;
+  return true;
+}
+
+static bool s_entry_get_float(const TMLEntry *entry, float *out_value)
+{
+  f64 value;
+
+  if (!entry || !out_value)
+  {
+    return false;
+  }
+
+  if (entry->type == TML_VALUE_F64)
+  {
+    if (!tml_entry_get_f64(entry, &value))
+    {
+      return false;
+    }
+  }
+  else if (entry->type == TML_VALUE_I64)
+  {
+    i64 integer;
+    if (!tml_entry_get_i64(entry, &integer))
+    {
+      return false;
+    }
+    value = (f64)integer;
+  }
+  else
+  {
+    return false;
+  }
+
+  *out_value = (float)value;
+  return isfinite(*out_value);
+}
+
+static bool s_read_scene_properties(const TMLDocument *doc,
+    const TMLNode *scene, LDKSceneProperties *out_properties,
+    LDKSceneResult *result)
+{
+  const TMLNode *node;
+  const TMLEntry *entry;
+
+  if (!doc || !scene || !out_properties)
+  {
+    s_result_error(result, "invalid scene properties arguments");
+    return false;
+  }
+
+  ldk_scene_properties_defaults(out_properties);
+  node = s_node_find_child(doc, scene, "properties");
+  if (!node)
+  {
+    return true;
+  }
+
+  entry = s_node_find_entry(doc, node, "ambient_color");
+  if (entry && !s_node_get_u32(
+          doc, node, "ambient_color", &out_properties->ambient_color))
+  {
+    s_result_error(result, "invalid scene ambient color");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "ambient_intensity");
+  if (entry && (!s_entry_get_float(entry, &out_properties->ambient_intensity) ||
+                   out_properties->ambient_intensity < 0.0f))
+  {
+    s_result_error(result, "invalid scene ambient intensity");
+    return false;
+  }
+
   return true;
 }
 
@@ -590,6 +723,8 @@ static void s_result_error_format(LDKSceneResult *result,
   snprintf(result->error, sizeof(result->error), format,
       first ? first : "", second ? second : "");
 }
+
+static LDKMaterialIOContext s_material_io_context(void);
 
 static bool s_apply_enum_value(const TMLEntry *entry,
     const LDKEnumMeta *meta, void *ptr)
@@ -814,19 +949,19 @@ static bool s_apply_field_value(const TMLDocument *doc,
     if (entry->type == TML_VALUE_STRING)
     {
       TMLString reference;
-      XFSPath reference_path = {0};
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
       LDKMeshPrimitive primitive;
       LDKAssetManager *asset_manager;
       LDKAssetMesh asset;
 
       if (!tml_entry_get_string(entry, &reference) || !reference.size ||
-          reference.size >= sizeof(reference_path.buf) ||
+          reference.size >= sizeof(reference_path) ||
           memchr(reference.data, 0, reference.size))
       {
         return false;
       }
 
-      memcpy(reference_path.buf, reference.data, reference.size);
+      memcpy(reference_path, reference.data, reference.size);
       asset_manager = (LDKAssetManager *)ldk_module_get(
           LDK_MODULE_ASSET_MANAGER);
       if (!asset_manager)
@@ -834,48 +969,22 @@ static bool s_apply_field_value(const TMLDocument *doc,
         return false;
       }
 
-      if (s_mesh_primitive_from_asset_reference(
-              reference_path.buf, &primitive))
+      if (s_mesh_primitive_from_asset_reference(reference_path, &primitive))
       {
         asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
       }
       else
       {
-        LDKSceneManager *scenes;
-        XFSPath root;
-        XFSPath absolute = {0};
-        XFSPath relative = {0};
+        LDKAssetPath asset_path;
         LDKMeshAssetResult mesh_result;
 
-        if (x_fs_path_is_absolute_cstr(reference_path.buf))
-        {
-          return false;
-        }
-
-        scenes = (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-        if (!scenes)
-        {
-          return false;
-        }
-
-        root = scenes->runtree_path;
-        x_fs_path_normalize(&root);
-        if (!root.length ||
-            !x_fs_path(&absolute, root.buf, reference_path.buf))
-        {
-          return false;
-        }
-        x_fs_path_normalize(&absolute);
-
-        if (!x_fs_path_common_prefix(
-                root.buf, absolute.buf, &relative) ||
-            !relative.length || strcmp(relative.buf, ".") == 0)
+        if (!ldk_asset_path_set(&asset_path, reference_path))
         {
           return false;
         }
 
         asset = ldk_asset_manager_mesh_load_shared(
-            asset_manager, absolute.buf, &mesh_result);
+            asset_manager, asset_path.buf, &mesh_result);
       }
 
       if (x_handle_is_null(asset.h))
@@ -884,6 +993,63 @@ static bool s_apply_field_value(const TMLDocument *doc,
       }
 
       *(LDKAssetMesh *)ptr = asset;
+      break;
+    }
+
+    return false;
+  }
+
+  case LDK_FIELD_ASSET_MATERIAL:
+  {
+    if (entry->type == TML_VALUE_I64)
+    {
+      i32 asset_id;
+
+      if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+      {
+        return false;
+      }
+
+      *(LDKAssetMaterial *)ptr = ldk_asset_material_null();
+      break;
+    }
+
+    if (entry->type == TML_VALUE_STRING)
+    {
+      TMLString reference;
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+      LDKAssetPath asset_path;
+      LDKMaterialIOContext context;
+      LDKMaterialIOResult material_result;
+      LDKAssetMaterial asset;
+
+      if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+          reference.size >= sizeof(reference_path) ||
+          memchr(reference.data, 0, reference.size))
+      {
+        return false;
+      }
+
+      memcpy(reference_path, reference.data, reference.size);
+      if (!ldk_asset_path_set(&asset_path, reference_path))
+      {
+        return false;
+      }
+
+      context = s_material_io_context();
+      if (!context.assets)
+      {
+        return false;
+      }
+
+      asset = ldk_asset_manager_material_load_shared(
+          &context, asset_path.buf, &material_result);
+      if (x_handle_is_null(asset.h))
+      {
+        return false;
+      }
+
+      *(LDKAssetMaterial *)ptr = asset;
       break;
     }
 
@@ -1057,13 +1223,48 @@ static bool s_apply_component_fields(const TMLDocument *doc,
 static LDKMaterialIOContext s_material_io_context(void)
 {
   LDKMaterialIOContext context = {0};
-  LDKSceneManager *scenes = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  if (scenes)
-    context.runtree_path = scenes->runtree_path;
   context.diagnostic = s_scene_diagnostic_handler;
   context.user = s_scene_diagnostic_user;
   return context;
+}
+
+static bool s_apply_instances(const TMLDocument *doc, const TMLNode *fields,
+    LDKInstancedMeshSource *source, LDKSceneResult *result)
+{
+  const TMLNode *node =
+      fields ? s_node_find_child(doc, fields, "instances") : NULL;
+  u32 count = node ? node->child_count : 0;
+  if (count > UINT32_MAX / sizeof(Mat4))
+  {
+    s_result_error(result, "too many mesh instances");
+    return false;
+  }
+  Mat4 *matrices = count ? malloc((size_t)count * sizeof(Mat4)) : NULL;
+  if (count && !matrices)
+  {
+    s_result_error(result, "failed to allocate mesh instances");
+    return false;
+  }
+  for (u32 i = 0; i < count; ++i)
+  {
+    const TMLNode *item = tml_node_child_at(doc, node, i);
+    const TMLEntry *entry =
+        item ? s_node_find_entry(doc, item, "transform") : NULL;
+    if (!s_read_f32_array(doc, entry, matrices[i].m, 16))
+    {
+      free(matrices);
+      s_result_error(result, "invalid instance transform");
+      return false;
+    }
+  }
+  bool ok = ldk_instanced_mesh_source_set_instances(source, matrices, count);
+  free(matrices);
+  if (!ok)
+  {
+    s_result_error(result, "failed to set mesh instances");
+  }
+  return ok;
 }
 
 static bool s_apply_material_slot(const TMLDocument *doc,
@@ -1073,24 +1274,25 @@ static bool s_apply_material_slot(const TMLDocument *doc,
   if (fields && s_node_find_entry(doc, fields, "material_asset"))
   {
     TMLString value;
-    XFSPath path = {0};
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+    LDKAssetPath asset_path;
     if (!tml_node_get_string(doc, fields, "material_asset", &value) ||
-        !value.size || value.size >= sizeof(path.buf) ||
+        !value.size || value.size >= sizeof(path) ||
         memchr(value.data, 0, value.size))
     {
       s_result_error(result, "invalid material asset path");
       return false;
     }
-    memcpy(path.buf, value.data, value.size);
-    if (x_fs_path_is_absolute_cstr(path.buf))
+    memcpy(path, value.data, value.size);
+    if (!ldk_asset_path_set(&asset_path, path))
     {
-      s_result_error(result, "material asset path must be runtree-relative");
+      s_result_error(result, "invalid material asset path");
       return false;
     }
     LDKMaterialIOContext context = s_material_io_context();
     LDKMaterialIOResult io_result;
     LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
-        &context, path.buf, &io_result);
+        &context, asset_path.buf, &io_result);
     if (x_handle_is_null(asset.h))
     {
       s_result_error(result, io_result.error);
@@ -1258,12 +1460,23 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       }
 
       fields_node = s_node_find_child(doc, component_node, "fields");
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        // The embedded source deliberately reuses ordinary mesh metadata.
+        meta = ldk_scene_component_meta_find_by_type(
+            game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+        if (!meta || !s_apply_instances(doc, fields_node, component, result))
+        {
+          return false;
+        }
+      }
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
       {
         return false;
       }
-      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+          component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
         LDKMeshSource *mesh_source = (LDKMeshSource *)component;
         LDKAssetManager *assets =
@@ -1414,6 +1627,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(LDKAssetMesh);
       alignment = _Alignof(LDKAssetMesh);
       break;
+    case LDK_FIELD_ASSET_MATERIAL:
+      field_size = sizeof(LDKAssetMaterial);
+      alignment = _Alignof(LDKAssetMaterial);
+      break;
     default:
       return false;
     }
@@ -1523,6 +1740,7 @@ static bool s_scene_from_tml(const char *source,
   LDKSceneEntityMap map;
   LDKScenePendingParentList parents;
   LDKSceneSystems loaded_systems = {0};
+  LDKSceneProperties loaded_properties;
   bool ok;
 
   if (result)
@@ -1551,6 +1769,7 @@ static bool s_scene_from_tml(const char *source,
 
   memset(&map, 0, sizeof(map));
   memset(&parents, 0, sizeof(parents));
+  ldk_scene_properties_defaults(&loaded_properties);
   doc = NULL;
   ok = false;
 
@@ -1573,6 +1792,12 @@ static bool s_scene_from_tml(const char *source,
   if (!scene_node)
   {
     s_result_error(result, "missing scene root node");
+    goto cleanup;
+  }
+
+  if (!s_read_scene_properties(
+          doc, scene_node, &loaded_properties, result))
+  {
     goto cleanup;
   }
 
@@ -1614,6 +1839,13 @@ static bool s_scene_from_tml(const char *source,
     *systems = loaded_systems;
     memset(&loaded_systems, 0, sizeof(loaded_systems));
   }
+
+  if (!ldk_scene_properties_set(&loaded_properties))
+  {
+    s_result_error(result, "failed to apply scene properties");
+    goto cleanup;
+  }
+
   ok = true;
 
 cleanup:
@@ -1983,6 +2215,7 @@ static bool s_write_field_value(XStrBuilder *out,
     const LDKAssetMesh *value = (const LDKAssetMesh *)ptr;
     LDKAssetManager *asset_manager;
     const LDKAssetInfo *info;
+    const LDKAssetMeshData *data;
     LDKAssetHandle generic;
     const char *reference;
 
@@ -2006,38 +2239,66 @@ static bool s_write_field_value(XStrBuilder *out,
       return false;
     }
 
-    reference = x_fs_path_cstr(&info->asset_path);
-    if (s_mesh_primitive_from_asset_reference(reference, NULL))
+    data = ldk_asset_manager_mesh_get_const(asset_manager, *value);
+    reference = data
+        ? s_mesh_primitive_asset_reference(data->primitive)
+        : NULL;
+    if (reference)
     {
       s_append_escaped_string(out, reference);
     }
     else
     {
-      LDKSceneManager *scenes =
-          (LDKSceneManager *)ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-      XFSPath root;
-      XFSPath asset_path;
-      XFSPath relative = {0};
+      LDKAssetPath asset_path;
 
-      if (!scenes || !x_fs_path_is_absolute_cstr(reference))
+      if (!asset_manager->source ||
+          info->source_revision != asset_manager->source->revision ||
+          !ldk_asset_path_set(&asset_path, info->asset_path.buf))
       {
         return false;
       }
 
-      root = scenes->runtree_path;
-      asset_path = info->asset_path;
-      x_fs_path_normalize(&root);
-      x_fs_path_normalize(&asset_path);
-
-      if (!root.length ||
-          !x_fs_path_common_prefix(root.buf, asset_path.buf, &relative) ||
-          !relative.length || strcmp(relative.buf, ".") == 0)
-      {
-        return false;
-      }
-
-      s_append_escaped_string(out, relative.buf);
+      s_append_escaped_string(out, asset_path.buf);
     }
+  }
+  break;
+
+  case LDK_FIELD_ASSET_MATERIAL:
+  {
+    const LDKAssetMaterial *value = (const LDKAssetMaterial *)ptr;
+    LDKAssetManager *asset_manager;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    LDKAssetPath asset_path;
+
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+
+    asset_manager = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    if (!asset_manager)
+    {
+      return false;
+    }
+
+    generic.h = value->h;
+    info = ldk_asset_get_info_const(asset_manager, generic);
+    if (!info || info->type != LDK_ASSET_TYPE_MATERIAL)
+    {
+      return false;
+    }
+
+    if (!asset_manager->source ||
+        info->source_revision != asset_manager->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, asset_path.buf);
   }
   break;
 
@@ -2092,12 +2353,11 @@ static bool s_write_material_binding(LDKSceneSaveContext *context,
         ldk_asset_get_info_const(io_context.assets, handle);
     const LDKAssetMaterialData *data = ldk_asset_manager_material_get_const(
         io_context.assets, material_asset);
-    XFSPath relative = {0};
-    XFSPath root = io_context.runtree_path;
+    LDKAssetPath asset_path;
 
-    x_fs_path_normalize(&root);
-    if (!info || !data || !x_fs_path_common_prefix(
-            root.buf, info->asset_path.buf, &relative) || !relative.length)
+    if (!info || !data || !io_context.assets->source ||
+        info->source_revision != io_context.assets->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
     {
       s_result_error(context->result, "invalid material asset reference");
       return false;
@@ -2112,7 +2372,7 @@ static bool s_write_material_binding(LDKSceneSaveContext *context,
 
     s_append_indent(context->out, indent);
     x_strbuilder_append(context->out, "material_asset: ");
-    s_append_escaped_string(context->out, relative.buf);
+    s_append_escaped_string(context->out, asset_path.buf);
     x_strbuilder_append_char(context->out, '\n');
     return true;
   }
@@ -2226,6 +2486,16 @@ static bool s_write_component(LDKSceneSaveContext *context,
   }
 
   wrote_any_field = false;
+  if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    meta = ldk_scene_component_meta_find_by_type(
+        context->game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+    if (!meta)
+    {
+      s_result_error(context->result, "mesh source metadata unavailable");
+      return false;
+    }
+  }
 
   for (i = 0; i < meta->field_count; i++)
   {
@@ -2253,13 +2523,33 @@ static bool s_write_component(LDKSceneSaveContext *context,
     wrote_any_field = true;
   }
 
-  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+      component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {
     if (!s_write_materials(context, component))
     {
       return false;
     }
     wrote_any_field = true;
+  }
+
+  if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    const LDKInstancedMeshSource *source = component;
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "instances:\n");
+    for (u32 instance = 0; instance < source->instance_count; ++instance)
+    {
+      s_append_indent(context->out, 7u);
+      x_strbuilder_append(context->out, "- transform: ");
+      for (u32 element = 0; element < 16; ++element)
+      {
+        x_strbuilder_append_format(context->out, "%s%#.9g",
+            element ? ", " : "",
+            (double)source->instances[instance].m[element]);
+      }
+      x_strbuilder_append_char(context->out, '\n');
+    }
   }
 
   if (!wrote_any_field)
@@ -2433,6 +2723,7 @@ static bool s_scene_to_tml(XStrBuilder *out,
 {
   LDKGame *game;
   LDKSceneSaveContext context;
+  const LDKSceneProperties *properties;
 
   if (result)
   {
@@ -2472,9 +2763,16 @@ static bool s_scene_to_tml(XStrBuilder *out,
     return false;
   }
 
+  properties = ldk_scene_properties_get();
+
   x_strbuilder_append(out, "scene:\n");
   x_strbuilder_append_format(
       out, "  version: %u\n", LDK_SCENE_TML_VERSION);
+  x_strbuilder_append(out, "  properties:\n");
+  x_strbuilder_append_format(
+      out, "    ambient_color: %u\n", properties->ambient_color);
+  x_strbuilder_append_format(out, "    ambient_intensity: %#.9g\n",
+      (double)properties->ambient_intensity);
   x_strbuilder_append(out, "  entities:\n");
 
   if (!ldk_ecs_entity_foreach(s_write_entity_callback, &context))

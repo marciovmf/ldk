@@ -607,6 +607,578 @@ typedef enum LDKUIInputVisualMode
   LDK_UI_INPUT_VISUAL_LABEL = 1,
 } LDKUIInputVisualMode;
 
+
+/*
+ * Text inputs and read-only selectable text intentionally share the same
+ * selection owner/cursor/range stored in LDKUIContext.  The input widget adds
+ * editing on top; selectable text only uses the interaction/navigation part.
+ */
+static bool s_ui_text_selection_owned_by(LDKUIContext *ctx, LDKUIId id)
+{
+  return ctx != NULL && ctx->input_box_id == id;
+}
+
+static void s_ui_text_selection_begin(
+    LDKUIContext *ctx, LDKUIId id, u32 cursor)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  ctx->input_box_id = id;
+  ctx->text_cursor = cursor;
+  ctx->text_select_start = cursor;
+  ctx->text_select_end = cursor;
+}
+
+static void s_ui_text_selection_extend(
+    LDKUIContext *ctx, LDKUIId id, u32 cursor)
+{
+  if (!s_ui_text_selection_owned_by(ctx, id))
+  {
+    return;
+  }
+
+  ctx->text_cursor = cursor;
+  ctx->text_select_end = cursor;
+}
+
+static void s_ui_text_selection_clamp(
+    LDKUIContext *ctx, LDKUIId id, u32 text_length)
+{
+  if (!s_ui_text_selection_owned_by(ctx, id))
+  {
+    return;
+  }
+
+  if (ctx->text_cursor > text_length)
+  {
+    ctx->text_cursor = text_length;
+  }
+
+  if (ctx->text_select_start > text_length)
+  {
+    ctx->text_select_start = text_length;
+  }
+
+  if (ctx->text_select_end > text_length)
+  {
+    ctx->text_select_end = text_length;
+  }
+}
+
+static bool s_ui_text_selection_copy_requested(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down(
+             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_C) &&
+         ldk_os_keyboard_key_is_pressed(
+             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_CONTROL);
+}
+
+static void s_ui_text_selection_copy(LDKUIContext *ctx, LDKUIId id,
+    char const *text, u32 text_length)
+{
+  u32 start;
+  u32 end;
+  u32 length;
+  char *copy;
+
+  if (!s_ui_text_selection_owned_by(ctx, id) || text == NULL ||
+      ctx->clipboard_window == NULL ||
+      ctx->text_select_start == ctx->text_select_end ||
+      !s_ui_text_selection_copy_requested(ctx))
+  {
+    return;
+  }
+
+  start = ctx->text_select_start;
+  end = ctx->text_select_end;
+
+  if (start > end)
+  {
+    u32 temp = start;
+    start = end;
+    end = temp;
+  }
+
+  if (start > text_length)
+  {
+    start = text_length;
+  }
+
+  if (end > text_length)
+  {
+    end = text_length;
+  }
+
+  if (start >= end)
+  {
+    return;
+  }
+
+  length = end - start;
+  copy = (char *)x_arena_alloc(ctx->frame_arena, (size_t)length + 1u);
+  if (copy == NULL)
+  {
+    return;
+  }
+
+  memcpy(copy, text + start, length);
+  copy[length] = 0;
+  ldk_os_clipboard_text_set(ctx->clipboard_window, copy);
+}
+
+static void s_ui_text_selection_keyboard_update(LDKUIContext *ctx,
+    LDKUIId id, char const *text, u32 text_length)
+{
+  bool shift;
+  bool move_left;
+  bool move_right;
+  bool move_home;
+  bool move_end;
+
+  if (!s_ui_text_selection_owned_by(ctx, id) || text == NULL)
+  {
+    return;
+  }
+
+  shift = s_ui_input_keyboard_shift_pressed(ctx);
+  move_left = s_ui_input_keyboard_left_pressed(ctx);
+  move_right = s_ui_input_keyboard_right_pressed(ctx);
+  move_home = s_ui_input_keyboard_home_pressed(ctx);
+  move_end = s_ui_input_keyboard_end_pressed(ctx);
+
+  if (move_left || move_right || move_home || move_end)
+  {
+    bool has_selection = ctx->text_select_start != ctx->text_select_end;
+    u32 selection_start = ctx->text_select_start;
+    u32 selection_end = ctx->text_select_end;
+
+    if (selection_start > selection_end)
+    {
+      u32 temp = selection_start;
+      selection_start = selection_end;
+      selection_end = temp;
+    }
+
+    if (move_left)
+    {
+      if (has_selection && !shift)
+      {
+        ctx->text_cursor = selection_start;
+      }
+      else
+      {
+        ctx->text_cursor =
+            s_ui_input_text_cursor_prev(text, ctx->text_cursor);
+      }
+    }
+    else if (move_right)
+    {
+      if (has_selection && !shift)
+      {
+        ctx->text_cursor = selection_end;
+      }
+      else
+      {
+        ctx->text_cursor =
+            s_ui_input_text_cursor_next(text, ctx->text_cursor);
+      }
+    }
+    else if (move_home)
+    {
+      ctx->text_cursor = 0;
+    }
+    else if (move_end)
+    {
+      ctx->text_cursor = text_length;
+    }
+
+    if (shift)
+    {
+      ctx->text_select_end = ctx->text_cursor;
+    }
+    else
+    {
+      ctx->text_select_start = ctx->text_cursor;
+      ctx->text_select_end = ctx->text_cursor;
+    }
+  }
+
+  if (s_ui_input_keyboard_ctrla_pressed(ctx))
+  {
+    ctx->text_cursor = text_length;
+    ctx->text_select_start = 0;
+    ctx->text_select_end = text_length;
+  }
+
+  s_ui_text_selection_copy(ctx, id, text, text_length);
+}
+
+static u32 s_ui_text_cursor_from_x_range(LDKUIContext *ctx,
+    char const *text, char const *line_start, char const *line_end, float x)
+{
+  u32 start;
+  u32 end;
+  u32 cursor;
+  u32 best;
+  float best_distance = 1000000000.0f;
+
+  if (ctx == NULL || ctx->font == NULL || text == NULL ||
+      line_start == NULL || line_end == NULL || line_start > line_end)
+  {
+    return 0;
+  }
+
+  start = (u32)(line_start - text);
+  end = (u32)(line_end - text);
+  cursor = start;
+  best = start;
+
+  if (x <= 0.0f)
+  {
+    return start;
+  }
+
+  while (cursor <= end)
+  {
+    LDKTextSize size =
+        ldk_ttf_measure_text_cstrn(ctx->font, line_start, cursor - start);
+    float distance = fabsf(size.w - x);
+
+    if (distance < best_distance)
+    {
+      best_distance = distance;
+      best = cursor;
+    }
+
+    if (cursor == end)
+    {
+      break;
+    }
+
+    u32 next = x_utf8_next(text, cursor);
+    if (next <= cursor || next > end)
+    {
+      cursor = end;
+    }
+    else
+    {
+      cursor = next;
+    }
+  }
+
+  return best;
+}
+
+static u32 s_ui_text_wrapped_cursor_from_point(LDKUIContext *ctx,
+    char const *text, LDKUIRect rect, LDKUIPoint point)
+{
+  u32 len;
+  char const *cursor;
+  char const *text_end;
+  float line_height;
+  float line_y;
+
+  if (ctx == NULL || ctx->font == NULL || text == NULL)
+  {
+    return 0;
+  }
+
+  len = s_ui_text_cstr_len_u32(text);
+  if (len == 0)
+  {
+    return 0;
+  }
+
+  if (point.y < rect.y)
+  {
+    return 0;
+  }
+
+  if (point.y >= rect.y + rect.h)
+  {
+    return len;
+  }
+
+  cursor = text;
+  text_end = text + len;
+  line_height = ldk_ttf_get_line_height(ctx->font);
+  line_y = rect.y;
+
+  while (cursor < text_end && *cursor != '\0')
+  {
+    char const *line_start = NULL;
+    char const *line_end = NULL;
+    char const *next = NULL;
+
+    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
+            &line_start, &line_end, &next, NULL))
+    {
+      break;
+    }
+
+    if (point.y < line_y + line_height)
+    {
+      return s_ui_text_cursor_from_x_range(
+          ctx, text, line_start, line_end, point.x - rect.x);
+    }
+
+    line_y += line_height;
+
+    if (next == NULL || next <= cursor)
+    {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  return len;
+}
+
+static bool s_ui_text_keyboard_up_pressed(LDKUIContext *ctx)
+{
+  return ctx != NULL && ctx->keyboard != NULL &&
+         ldk_os_keyboard_key_down(
+             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_UP);
+}
+
+static bool s_ui_text_keyboard_down_pressed(LDKUIContext *ctx)
+{
+  return ctx != NULL && ctx->keyboard != NULL &&
+         ldk_os_keyboard_key_down(
+             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_DOWN);
+}
+
+static u32 s_ui_text_wrapped_cursor_vertical_move(LDKUIContext *ctx,
+    char const *text, LDKUIRect rect, u32 text_cursor, i32 direction)
+{
+  u32 text_length;
+  char const *cursor;
+  char const *text_end;
+  char const *previous_start = NULL;
+  char const *previous_end = NULL;
+
+  if (ctx == NULL || ctx->font == NULL || text == NULL || direction == 0)
+  {
+    return text_cursor;
+  }
+
+  text_length = s_ui_text_cstr_len_u32(text);
+  if (text_cursor > text_length)
+  {
+    text_cursor = text_length;
+  }
+
+  cursor = text;
+  text_end = text + text_length;
+
+  while (cursor < text_end && *cursor != '\0')
+  {
+    char const *line_start = NULL;
+    char const *line_end = NULL;
+    char const *next = NULL;
+    u32 line_start_offset;
+    u32 line_end_offset;
+    u32 next_offset;
+
+    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
+            &line_start, &line_end, &next, NULL))
+    {
+      break;
+    }
+
+    line_start_offset = (u32)(line_start - text);
+    line_end_offset = (u32)(line_end - text);
+    next_offset = next != NULL ? (u32)(next - text) : line_end_offset;
+
+    if (text_cursor >= line_start_offset &&
+        (text_cursor <= line_end_offset || text_cursor < next_offset))
+    {
+      u32 cursor_in_line = text_cursor;
+      float x;
+
+      if (cursor_in_line < line_start_offset)
+      {
+        cursor_in_line = line_start_offset;
+      }
+      if (cursor_in_line > line_end_offset)
+      {
+        cursor_in_line = line_end_offset;
+      }
+
+      x = ldk_ttf_measure_text_cstrn(
+              ctx->font, line_start, cursor_in_line - line_start_offset)
+              .w;
+
+      if (direction < 0)
+      {
+        if (previous_start == NULL || previous_end == NULL)
+        {
+          return text_cursor;
+        }
+
+        return s_ui_text_cursor_from_x_range(
+            ctx, text, previous_start, previous_end, x);
+      }
+
+      if (next != NULL && next < text_end && *next != '\0')
+      {
+        char const *next_start = NULL;
+        char const *next_end = NULL;
+        char const *after_next = NULL;
+
+        if (s_ui_text_wrapped_next_line(ctx->font, next, text_end, rect.w,
+                &next_start, &next_end, &after_next, NULL))
+        {
+          return s_ui_text_cursor_from_x_range(
+              ctx, text, next_start, next_end, x);
+        }
+      }
+
+      return text_cursor;
+    }
+
+    previous_start = line_start;
+    previous_end = line_end;
+
+    if (next == NULL || next <= cursor)
+    {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  return text_cursor;
+}
+
+static void s_ui_text_selection_keyboard_vertical_update(LDKUIContext *ctx,
+    LDKUIId id, char const *text, LDKUIRect rect)
+{
+  bool move_up;
+  bool move_down;
+  bool shift;
+  u32 cursor;
+
+  if (!s_ui_text_selection_owned_by(ctx, id) || text == NULL)
+  {
+    return;
+  }
+
+  move_up = s_ui_text_keyboard_up_pressed(ctx);
+  move_down = s_ui_text_keyboard_down_pressed(ctx);
+  if (!move_up && !move_down)
+  {
+    return;
+  }
+
+  shift = s_ui_input_keyboard_shift_pressed(ctx);
+  cursor = s_ui_text_wrapped_cursor_vertical_move(
+      ctx, text, rect, ctx->text_cursor, move_up ? -1 : 1);
+
+  ctx->text_cursor = cursor;
+  if (shift)
+  {
+    ctx->text_select_end = cursor;
+  }
+  else
+  {
+    ctx->text_select_start = cursor;
+    ctx->text_select_end = cursor;
+  }
+}
+
+static void s_ui_render_text_highlight_wrapped(LDKUIContext *ctx,
+    char const *text, u32 start, u32 end, float x, float y, float max_width,
+    LDKUIRect clip, u32 color)
+{
+  u32 text_length;
+  char const *cursor;
+  char const *text_end;
+  float line_height;
+  float line_y;
+
+  if (ctx == NULL || ctx->font == NULL || text == NULL || start == end)
+  {
+    return;
+  }
+
+  if (start > end)
+  {
+    u32 temp = start;
+    start = end;
+    end = temp;
+  }
+
+  text_length = s_ui_text_cstr_len_u32(text);
+  if (start > text_length)
+  {
+    start = text_length;
+  }
+  if (end > text_length)
+  {
+    end = text_length;
+  }
+
+  cursor = text;
+  text_end = text + text_length;
+  line_height = ldk_ttf_get_line_height(ctx->font);
+  line_y = y;
+
+  while (cursor < text_end && *cursor != '\0')
+  {
+    char const *line_start = NULL;
+    char const *line_end = NULL;
+    char const *next = NULL;
+    u32 line_start_offset;
+    u32 line_end_offset;
+
+    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
+            &line_start, &line_end, &next, NULL))
+    {
+      break;
+    }
+
+    line_start_offset = (u32)(line_start - text);
+    line_end_offset = (u32)(line_end - text);
+
+    if (end > line_start_offset && start < line_end_offset)
+    {
+      u32 local_start = start > line_start_offset ? start : line_start_offset;
+      u32 local_end = end < line_end_offset ? end : line_end_offset;
+
+      if (local_end > local_start)
+      {
+        LDKTextSize before = ldk_ttf_measure_text_cstrn(
+            ctx->font, line_start, local_start - line_start_offset);
+        LDKTextSize selected = ldk_ttf_measure_text_cstrn(
+            ctx->font, line_start, local_end - line_start_offset);
+        LDKUIRect highlight_rect = {x + before.w, line_y + 2.0f,
+            selected.w - before.w, s_ui_maxf(1.0f, line_height - 4.0f)};
+
+        s_ui_render_quad(ctx, highlight_rect, color, clip, 0);
+      }
+    }
+
+    line_y += line_height;
+
+    if (next == NULL || next <= cursor)
+    {
+      break;
+    }
+
+    cursor = next;
+  }
+}
+
 /**
  * Handles editing, interaction, and rendering for a single-line text input.
  * @arg ctx UI context that owns input, focus, theme, and rendering state.
@@ -662,110 +1234,32 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   {
     float pressed_text_x = s_ui_input_box_text_x(ctx, buffer, ctx->text_cursor,
         box.rect, frame.focused && ctx->input_box_id == box.id);
-    ctx->input_box_id = box.id;
-    ctx->text_cursor = s_ui_input_box_cursor_from_x(
+    u32 cursor = s_ui_input_box_cursor_from_x(
         ctx, buffer, pressed_text_x, frame.cursor.x);
-    ctx->text_select_start = ctx->text_cursor;
-    ctx->text_select_end = ctx->text_cursor;
+    s_ui_text_selection_begin(ctx, box.id, cursor);
     s_ui_input_cursor_blink_reset(ctx);
   }
 
   if (frame.focused && ctx->input_box_id != box.id)
   {
-    ctx->input_box_id = box.id;
-    ctx->text_cursor = buffer_len;
-    ctx->text_select_start = buffer_len;
-    ctx->text_select_end = buffer_len;
+    s_ui_text_selection_begin(ctx, box.id, buffer_len);
     s_ui_input_cursor_blink_reset(ctx);
+  }
+
+  if (frame.active && frame.dragging &&
+      s_ui_text_selection_owned_by(ctx, box.id))
+  {
+    float drag_text_x = s_ui_input_box_text_x(
+        ctx, buffer, ctx->text_cursor, box.rect, true);
+    u32 cursor = s_ui_input_box_cursor_from_x(
+        ctx, buffer, drag_text_x, frame.cursor.x);
+    s_ui_text_selection_extend(ctx, box.id, cursor);
   }
 
   if (frame.focused)
   {
-    bool shift = s_ui_input_keyboard_shift_pressed(ctx);
-
-    if (ctx->text_cursor > buffer_len)
-    {
-      ctx->text_cursor = buffer_len;
-    }
-
-    if (ctx->text_select_start > buffer_len)
-    {
-      ctx->text_select_start = buffer_len;
-    }
-
-    if (ctx->text_select_end > buffer_len)
-    {
-      ctx->text_select_end = buffer_len;
-    }
-
-    bool move_left = s_ui_input_keyboard_left_pressed(ctx);
-    bool move_right = s_ui_input_keyboard_right_pressed(ctx);
-    bool move_home = s_ui_input_keyboard_home_pressed(ctx);
-    bool move_end = s_ui_input_keyboard_end_pressed(ctx);
-
-    if (move_left || move_right || move_home || move_end)
-    {
-      bool has_selection = ctx->text_select_start != ctx->text_select_end;
-      u32 selection_start = ctx->text_select_start;
-      u32 selection_end = ctx->text_select_end;
-
-      if (selection_start > selection_end)
-      {
-        u32 temp = selection_start;
-        selection_start = selection_end;
-        selection_end = temp;
-      }
-
-      if (move_left)
-      {
-        if (has_selection && !shift)
-        {
-          ctx->text_cursor = selection_start;
-        }
-        else
-        {
-          ctx->text_cursor =
-              s_ui_input_text_cursor_prev(buffer, ctx->text_cursor);
-        }
-      }
-      else if (move_right)
-      {
-        if (has_selection && !shift)
-        {
-          ctx->text_cursor = selection_end;
-        }
-        else
-        {
-          ctx->text_cursor =
-              s_ui_input_text_cursor_next(buffer, ctx->text_cursor);
-        }
-      }
-      else if (move_home)
-      {
-        ctx->text_cursor = 0;
-      }
-      else if (move_end)
-      {
-        ctx->text_cursor = buffer_len;
-      }
-
-      if (shift)
-      {
-        ctx->text_select_end = ctx->text_cursor;
-      }
-      else
-      {
-        ctx->text_select_start = ctx->text_cursor;
-        ctx->text_select_end = ctx->text_cursor;
-      }
-    }
-
-    if (s_ui_input_keyboard_ctrla_pressed(ctx))
-    {
-      ctx->text_cursor = buffer_len;
-      ctx->text_select_start = 0;
-      ctx->text_select_end = buffer_len;
-    }
+    s_ui_text_selection_clamp(ctx, box.id, buffer_len);
+    s_ui_text_selection_keyboard_update(ctx, box.id, buffer, buffer_len);
 
     if (s_ui_input_keyboard_delete_pressed(ctx))
     {
@@ -986,6 +1480,72 @@ u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id, char *buffer,
 {
   return s_ui_widget_input(
       ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_LABEL);
+}
+
+
+static void s_ui_widget_selectable_text(LDKUIContext *ctx, LDKUIId id,
+    char const *text, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  LDKUIFrameState frame;
+  u32 text_length;
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return;
+  }
+
+  text_length = s_ui_text_cstr_len_u32(text);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+
+  if (frame.pressed && frame.hot)
+  {
+    u32 cursor =
+        s_ui_text_wrapped_cursor_from_point(ctx, text, box.rect, frame.cursor);
+    s_ui_text_selection_begin(ctx, box.id, cursor);
+  }
+
+  if (frame.focused && !s_ui_text_selection_owned_by(ctx, box.id))
+  {
+    s_ui_text_selection_begin(ctx, box.id, 0);
+  }
+
+  if (frame.active && frame.dragging &&
+      s_ui_text_selection_owned_by(ctx, box.id))
+  {
+    u32 cursor =
+        s_ui_text_wrapped_cursor_from_point(ctx, text, box.rect, frame.cursor);
+    s_ui_text_selection_extend(ctx, box.id, cursor);
+  }
+
+  if (frame.focused && s_ui_text_selection_owned_by(ctx, box.id))
+  {
+    s_ui_text_selection_clamp(ctx, box.id, text_length);
+    s_ui_text_selection_keyboard_update(ctx, box.id, text, text_length);
+    s_ui_text_selection_keyboard_vertical_update(
+        ctx, box.id, text, box.rect);
+  }
+
+  if (frame.hot || frame.active)
+  {
+    ctx->cursor_type = LDK_CURSOR_TEXT_SELECT;
+  }
+
+  if (frame.focused && s_ui_text_selection_owned_by(ctx, box.id) &&
+      ctx->text_select_start != ctx->text_select_end)
+  {
+    s_ui_render_text_highlight_wrapped(ctx, text, ctx->text_select_start,
+        ctx->text_select_end, box.rect.x, box.rect.y, box.rect.w, box.clip,
+        ctx->theme.colors[LDK_UI_COLOR_FOCUS]);
+  }
+
+  s_ui_render_text_wrapped(ctx, text, box.rect.x, box.rect.y, box.rect.w,
+      ctx->theme.colors[LDK_UI_COLOR_TEXT], box.clip);
 }
 
 //------------------------------------------------------------
@@ -1230,6 +1790,56 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
   }
 
   return selected_index;
+}
+
+LDK_API void ldk_ui_clipboard_window_set(LDKUIContext *ctx, LDKWindow window)
+{
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  ctx->clipboard_window = window;
+}
+
+LDK_API void ldk_ui_selectable_text(LDKUIContext *ctx, char const *text)
+{
+  LDKUISize min_size;
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+  float max_width = 0.0f;
+
+  if (ctx == NULL)
+  {
+    return;
+  }
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  if (ctx->current_layout != NULL)
+  {
+    max_width = ctx->current_layout->content_rect.w;
+  }
+
+  LDKSizef text_size =
+      ldk_ttf_measure_text_cstr_wrapped(ctx->font, text, max_width);
+  min_size.w = 0.0f;
+  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h);
+
+  /* Reuse the label item kind.  Selectability is a widget behavior; no new
+   * layout primitive is necessary. */
+  request = s_ui_layout_request_make(LDK_UI_ITEM_LABEL, min_size, 1.0f, true);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return;
+  }
+
+  s_ui_widget_selectable_text(ctx, id, text, rect);
 }
 
 void ldk_ui_label(LDKUIContext *ctx, char const *text)

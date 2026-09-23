@@ -561,24 +561,24 @@ static void s_catalog_draft_load(LDKEditorContext *editor)
 }
 
 static bool s_catalog_full_path(
-  LDKEditorContext *editor, const XFSPath *relative, XFSPath *full)
+  LDKEditorContext *editor, const LDKAssetPath *asset_path, XFSPath *full)
 {
   LDKScene entry = {0};
-  entry.path = *relative;
-  size_t length = strlen(relative->buf);
+  entry.path = *asset_path;
+  size_t length = strlen(asset_path->buf);
   if (!ldk_scene_manager_catalog_validate(&entry, 1) || length < 6 ||
-      strcmp(relative->buf + length - 6, ".scene") != 0 ||
+      strcmp(asset_path->buf + length - 6, ".scene") != 0 ||
       strlen(editor->project.run_root_path.buf) + length + 2 >=
       sizeof(full->buf))
   {
     return false;
   }
-  x_fs_path(full, editor->project.run_root_path.buf, relative->buf);
+  x_fs_path(full, editor->project.run_root_path.buf, asset_path->buf);
   x_fs_path_normalize(full);
   return x_fs_path_is_file(full);
 }
 
-static void s_catalog_add(LDKEditorContext *editor, const XFSPath *path)
+static void s_catalog_add(LDKEditorContext *editor, const LDKAssetPath *path)
 {
   LDKEditorSceneCatalog *catalog = &editor->scene_catalog;
   XFSPath full = {0};
@@ -588,13 +588,9 @@ static void s_catalog_add(LDKEditorContext *editor, const XFSPath *path)
              "Choose an existing .scene inside this project's runtree.");
     return;
   }
-  XFSPath normalized = *path;
-  x_fs_path_normalize(&normalized);
   for (u32 i = 0; i < catalog->count; ++i)
   {
-    XFSPath other = catalog->scenes[i].path;
-    x_fs_path_normalize(&other);
-    if (x_fs_path_compare(&other, &normalized) == 0)
+    if (strcmp(catalog->scenes[i].path.buf, path->buf) == 0)
     {
       snprintf(catalog->error, sizeof(catalog->error),
                "This scene is already in the catalog.");
@@ -616,8 +612,8 @@ static void s_catalog_add(LDKEditorContext *editor, const XFSPath *path)
   catalog->scenes = scenes;
   LDKScene *entry = &scenes[catalog->count];
   memset(entry, 0, sizeof(*entry));
-  entry->path = normalized;
-  const char *filename = normalized.buf;
+  entry->path = *path;
+  const char *filename = path->buf;
   for (const char *p = filename; *p; ++p)
   {
     if (*p == '/' || *p == '\\')
@@ -650,7 +646,23 @@ static void s_catalog_add_full_path(
     return;
   }
 
-  s_catalog_add(editor, &relative);
+  for (size_t i = 0; relative.buf[i]; ++i)
+  {
+    if (relative.buf[i] == '\\')
+    {
+      relative.buf[i] = '/';
+    }
+  }
+
+  LDKAssetPath asset_path;
+  if (!ldk_asset_path_set(&asset_path, relative.buf))
+  {
+    snprintf(catalog->error, sizeof(catalog->error),
+             "Choose a scene inside this project's runtree.");
+    return;
+  }
+
+  s_catalog_add(editor, &asset_path);
 }
 
 static void s_catalog_add_dialog(LDKEditorContext *editor)
@@ -728,7 +740,7 @@ static bool s_catalog_apply(LDKEditorContext *editor)
   if (!ldk_scene_manager_catalog_validate(catalog->scenes, catalog->count))
   {
     snprintf(catalog->error, sizeof(catalog->error),
-             "Invalid or duplicate scene paths. Use paths relative to runtree.");
+             "Invalid or duplicate scene asset paths.");
     return false;
   }
   for (u32 i = 0; i < catalog->count; ++i)
@@ -737,7 +749,7 @@ static bool s_catalog_apply(LDKEditorContext *editor)
     if (!s_catalog_full_path(editor, &catalog->scenes[i].path, &full))
     {
       snprintf(catalog->error, sizeof(catalog->error),
-               "Scene %u is missing or is not a valid runtree .scene path.", i);
+               "Scene %u is missing or is not a valid .scene asset path.", i);
       return false;
     }
   }

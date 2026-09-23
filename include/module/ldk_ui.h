@@ -497,7 +497,6 @@ extern "C"
     u32 codepoints[LDK_UI_INPUT_CODEPOINTS_CAPACITY];
     u32 codepoint_count;
   } LDKUITextInputState;
-
   typedef enum LDKUIInputBoxResult
   {
     LDK_UI_INPUT_BOX_NONE = 0,
@@ -592,6 +591,7 @@ extern "C"
     LDKMouseState const *mouse;
     LDKKeyboardState const *keyboard;
     LDKUITextInputState const *input_text;
+    LDKWindow clipboard_window;
 
     XArray_ldk_ui_id *id_stack;
     XArray_ldk_ui_vertex *vertices;
@@ -695,6 +695,8 @@ extern "C"
   LDK_API void ldk_ui_end_frame(LDKUIContext *ctx);
   LDK_API LDKUIRenderData const *ldk_ui_get_render_data(
       LDKUIContext const *ctx);
+  LDK_API void ldk_ui_clipboard_window_set(
+      LDKUIContext *ctx, LDKWindow window);
 
   LDK_API void ldk_ui_push_id_u32(LDKUIContext *ctx, uint32_t value);
   LDK_API void ldk_ui_push_id_ptr(LDKUIContext *ctx, void const *value);
@@ -790,6 +792,8 @@ extern "C"
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
   LDK_API void ldk_ui_icon_label(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
+  LDK_API void ldk_ui_selectable_text(
+      LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color);
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);

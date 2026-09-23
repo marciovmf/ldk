@@ -18,10 +18,19 @@ extern "C"
     LDK_MATERIAL_TYPE_VERTEX_COLOR = 4
   } LDKMaterialType;
 
+  typedef enum LDKMaterialAlphaMode
+  {
+    LDK_MATERIAL_ALPHA_MODE_OPAQUE = 0,
+    LDK_MATERIAL_ALPHA_MODE_CUTOUT = 1,
+    LDK_MATERIAL_ALPHA_MODE_BLEND = 2
+  } LDKMaterialAlphaMode;
+
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
     rgba32 color;
+    LDKMaterialAlphaMode alpha_mode;
+    float alpha_cutoff;
   } LDKMaterialTexturedArgs;
 
   typedef struct LDKMaterialVertexColorArgs
@@ -35,10 +44,21 @@ extern "C"
     LDKMaterialVertexColorArgs vertex_color;
   } LDKMaterialArgs;
 
+  /* Surface parameters are active for lit material types. */
+  typedef struct LDKMaterialSurfaceArgs
+  {
+    float specular;  /* Phong specular strength. */
+    float shininess; /* Phong exponent; zero selects the default (32). */
+    float emission;  /* Adds albedo * emission independently of lights. */
+    LDKAssetImage normal_map;   /* Optional tangent-space normal map. */
+    LDKAssetImage specular_map; /* Optional R-channel specular multiplier. */
+  } LDKMaterialSurfaceArgs;
+
   typedef struct LDKMaterialDesc
   {
     LDKMaterialType type;
     LDKMaterialArgs args;
+    LDKMaterialSurfaceArgs surface;
   } LDKMaterialDesc;
 
   /**
@@ -52,8 +72,10 @@ extern "C"
    * @brief Initialize a material descriptor with deterministic defaults.
    *
    * Every supported material type defaults to opaque white. Textured materials
-   * also default to a null image asset, which can be populated by the caller.
-   * On failure, out_desc is reset to an invalid zero descriptor.
+   * also default to a null image asset, opaque alpha mode, and a 0.5 cutout
+   * threshold. Lit materials default to no specular contribution, shininess
+   * 32, no emission, and no normal/specular maps. On failure, out_desc is
+   * reset to an invalid zero descriptor.
    *
    * @param type Material type whose defaults should be produced.
    * @param out_desc Destination descriptor.
@@ -66,7 +88,10 @@ extern "C"
    * @brief Check whether a descriptor has a supported material type.
    *
    * This validates the descriptor structure only. Asset availability is
-   * validated later by the asset/material resolver.
+   * validated later by the asset/material resolver. Textured cutout thresholds
+   * must be finite and within [0, 1]. Active lit surface values must be finite
+   * and non-negative. A zero shininess is canonicalized to the default value
+   * (32) so zero-initialized descriptors remain valid.
    *
    * @param desc Descriptor to inspect.
    * @return true when the descriptor is structurally valid.

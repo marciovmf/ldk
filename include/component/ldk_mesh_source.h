@@ -25,6 +25,8 @@ extern "C" {
     u64 material_revision;
     LDKResourceMaterial renderer_material;
     LDKResourceTexture renderer_texture;
+    LDKResourceTexture renderer_normal_map;
+    LDKResourceTexture renderer_specular_map;
     bool material_dirty;
   } LDKMeshSourceMaterialBinding;
 
@@ -33,6 +35,7 @@ extern "C" {
   {
     LDKAssetMesh source_asset;
     u32 mesh_index;
+    bool casts_shadows;
     //@inspect hidden
     LDKMaterialDesc material;
     //@inspect hidden
@@ -46,6 +49,10 @@ extern "C" {
     LDKResourceMaterial renderer_material;
     //@inspect hidden
     LDKResourceTexture renderer_texture;
+    //@inspect hidden runtime
+    LDKResourceTexture renderer_normal_map;
+    //@inspect hidden runtime
+    LDKResourceTexture renderer_specular_map;
     //@inspect hidden
     struct LDKRenderer* renderer;
     //@inspect hidden

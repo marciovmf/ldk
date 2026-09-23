@@ -18,8 +18,8 @@ extern "C"
    * LDKAssetMesh and may contain multiple indexed Meshes plus an authored node
    * hierarchy. MeshSource stores the asset handle and a mesh index separately.
    *
-   *   version 4.0
-   *   vertex_format STATIC
+   *   version 4.0                         version 4.1
+   *   vertex_format STATIC               vertex_format STATIC_TANGENT
    *   mesh_count <count>
    *   node_count <count>
    *
@@ -30,6 +30,7 @@ extern "C"
    *   submesh_count <count>
    *   material_slot <index> "Name"
    *   vertex <px> <py> <pz> <nx> <ny> <nz> <u> <v> <0xRRGGBBAA>
+   *   # STATIC_TANGENT appends <tx> <ty> <tz> <handedness>
    *   index_list <i0> <i1> ...
    *   submesh <first_index> <index_count> <material_slot>
    *   end_mesh
@@ -43,15 +44,17 @@ extern "C"
    *   end_node
    *
    * Index data may use multiple index_list lines. Comments begin with '#'.
-   * STATIC maps directly to LDKMeshVertex. Colors are canonical RRGGBBAA and
-   * converted to the runtime rgba32 representation.
+   * STATIC remains the 4.0 compatibility layout and initializes tangent to
+   * zero. STATIC_TANGENT stores tangent.xyz plus handedness in tangent.w; a
+   * zero handedness means tangent space is unavailable for that vertex. Colors
+   * are canonical RRGGBBAA and converted to the runtime rgba32 representation.
    *
    * Parent nodes must appear before their children. A node may reference no
    * Mesh, which preserves Blender empties/pivots. Multiple nodes may reference
    * the same Mesh index.
    *
-   * Reuses an asset already cached for the normalized absolute file path, or
-   * loads the file once. Shared Mesh assets live until manager clear/
+   * Reuses an asset already cached for the logical asset path in the current
+   * asset source, or loads it once. Shared Mesh assets live until manager clear/
    * termination; callers must not individually unload them. No automatic hot
    * reload occurs.
    */

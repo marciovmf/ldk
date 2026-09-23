@@ -19,6 +19,9 @@
 #define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
 #define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
 
+#define LDK_EDITOR_STATUS_BAR_HEIGHT                                          \
+  (LDK_UI_DEFAULT_PADDING + LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_SPACING)
+
 #ifndef LDK_EDITOR_TAG_COUNT
 #define LDK_EDITOR_TAG_COUNT 16
 #endif
@@ -57,6 +60,10 @@ typedef enum LDKEditorConsoleEntryType
 
 #ifndef LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY
 #define LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY 64
+#endif
+
+#ifndef LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT
+#define LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT 110.0f
 #endif
 
 typedef struct LDKEditorCommand
@@ -102,6 +109,7 @@ typedef struct LDKEditorGizmoState
   LDKUIRect scene_view_rect;
   Mat4 drag_orientation;
   LDKEntity drag_entity;
+  u32 drag_instance;
   Vec3 drag_axis;
   Vec3 drag_origin;
   Vec3 drag_initial_hit;
@@ -120,7 +128,9 @@ typedef struct LDKEditorGizmoState
   LDKEditorGizmoMode mode;
   LDKEditorGizmoMode drag_mode;
   LDKEditorGizmoSpace space;
+  bool drag_is_instance;
   bool dragging;
+  bool drag_block_pick;
   bool scene_view_visible;
   bool initialized;
 } LDKEditorGizmoState;
@@ -196,6 +206,7 @@ typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
+  float inspector_label_width;
   LDKAssetFont font;
   LDKFontInstance *font_instance;
   LDKRenderer *renderer;
@@ -206,7 +217,10 @@ typedef struct LDKEditorContext
   LDKEditorSceneCatalog scene_catalog;
   XFSPath current_scene_path;
   LDKEntity selected_entity;
+  LDKEntity selected_instance_entity;
+  u32 selected_instance;
   u64 selected_system_id;
+  bool scene_properties_selected;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
   LDKEditorCameraControllerState camera_controller;
@@ -230,6 +244,9 @@ typedef struct LDKEditorContext
   char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
   bool show_input_window;
 
+  bool show_statistics;
+  float statistics_frame_time_ms;
+
   LDKEditorProjectAction pending_project_action;
   LDKEditorProjectBuild project_build;
   bool create_project_window_show;
@@ -239,9 +256,12 @@ typedef struct LDKEditorContext
   LDKEditorThemeCatalog *theme_catalog;
 
   // config
-  XFSPath editor_font;
+  LDKAssetPath editor_font;
   XSmallstr editor_theme;
   i32 editor_font_size;
+  float editor_camera_fov;
+  float editor_camera_near_clip;
+  float editor_camera_far_clip;
 } LDKEditorContext;
 
 void ldki_editor_menubar_show(LDKEditorContext *editor);
@@ -250,6 +270,9 @@ void ldki_editor_status_show(LDKEditorContext *editor);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
+bool ldki_editor_camera_focus_selected(LDKEditorContext *editor);
+bool ldki_editor_camera_projection_toggle(LDKEditorContext *editor);
+bool ldki_editor_selected_align_with_view(LDKEditorContext *editor);
 void ldki_editor_gizmo_begin_ui_frame(LDKEditorContext *editor);
 void ldki_editor_gizmo_scene_view_set(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
@@ -285,6 +308,8 @@ bool ldki_editor_show_open_project_dialog(
 
 void ldki_editor_console_append(LDKEditorContext *editor,
     LDKEditorConsoleEntryType type, const char *message);
+const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType *out_type);
 void ldki_editor_log_error(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_warning(LDKEditorContext *editor, const char *msg);
 void ldki_editor_log_info(LDKEditorContext *editor, const char *msg);
@@ -356,7 +381,7 @@ typedef u32 LDKEditorWindowId;
 
 bool ldki_editor_window_remove(LDKEditorWindowId window_id);
 bool ldki_editor_window_is_focused(
-  LDKEditorContext *editor, LDKEditorWindowId window_id);
+    LDKEditorContext *editor, LDKEditorWindowId window_id);
 
 typedef struct LDKEditorWindow
 {
@@ -386,5 +411,6 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SCENE_CATALOG ((LDKEditorWindowId)0x4C444B08u)
 #define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
 #define LDK_EDITOR_WINDOW_GROUPING_CATALOG ((LDKEditorWindowId)0x4C444B0Au)
+#define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Bu)
 
 #endif // LDK_EDITOR_INTERNAL
