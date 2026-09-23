@@ -8,12 +8,16 @@ typedef struct LDKSystemMeta
 {
   const char *name;
   u64 id;
+  u32 flags;
   /* Stateful metadata uses the same field descriptions as components.
    * Stateless systems leave size, fields and field_count zero. */
   u32 size;
   const LDKComponentFieldMeta *fields;
   u32 field_count;
 } LDKSystemMeta;
+
+LDK_API u32 ldk_engine_system_metadata_count(void);
+LDK_API const LDKSystemMeta *ldk_engine_system_metadata_get(u32 index);
 
 #endif
 

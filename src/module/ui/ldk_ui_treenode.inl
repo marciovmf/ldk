@@ -28,15 +28,29 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   float indent_width = (float)depth * LDK_UI_TREE_NODE_INDENT_WIDTH;
   bool leaf = (flags & LDK_UI_TREE_NODE_LEAF) != 0;
 
+  LDKUIIcon collapsed_chevron_icon =
+      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED);
+  LDKUIIcon expanded_chevron_icon =
+      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
   LDKUIIcon chevron_icon =
-      s_ui_theme_icon(ctx, expanded ? LDK_UI_THEME_ICON_TREE_NODE_EXPANDED
-                                    : LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED);
+      expanded ? expanded_chevron_icon : collapsed_chevron_icon;
 
+  bool collapsed_chevron_icon_valid = s_ui_icon_valid(collapsed_chevron_icon);
+  bool expanded_chevron_icon_valid = s_ui_icon_valid(expanded_chevron_icon);
   bool chevron_icon_valid = !leaf && s_ui_icon_valid(chevron_icon);
   bool icon_valid = s_ui_icon_valid(icon);
 
-  float chevron_width =
-      chevron_icon_valid ? chevron_icon.size.w : LDK_UI_TREE_NODE_CHEVRON_WIDTH;
+  float chevron_width = LDK_UI_TREE_NODE_CHEVRON_WIDTH;
+  if (collapsed_chevron_icon_valid &&
+      collapsed_chevron_icon.size.w > chevron_width)
+  {
+    chevron_width = collapsed_chevron_icon.size.w;
+  }
+  if (expanded_chevron_icon_valid &&
+      expanded_chevron_icon.size.w > chevron_width)
+  {
+    chevron_width = expanded_chevron_icon.size.w;
+  }
 
   float label_width = text_size.w;
   if (icon_valid)
@@ -110,7 +124,8 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
     if (chevron_icon_valid)
     {
       LDKUIRect icon_rect = {0};
-      icon_rect.x = chevron_x;
+      icon_rect.x =
+          chevron_x + (chevron_width - chevron_icon.size.w) * 0.5f;
       icon_rect.y = box.rect.y + (box.rect.h - chevron_icon.size.h) * 0.5f;
       icon_rect.w = chevron_icon.size.w;
       icon_rect.h = chevron_icon.size.h;
@@ -120,10 +135,14 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
     else
     {
       char const *chevron = expanded ? "v" : ">";
-      float chevron_text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
+      LDKUISize chevron_text_size = s_ui_layout_text_size(ctx, chevron);
+      float chevron_text_x =
+          chevron_x + (chevron_width - chevron_text_size.w) * 0.5f;
+      float chevron_text_y =
+          box.rect.y + (box.rect.h - chevron_text_size.h) * 0.5f;
 
-      s_ui_render_text(
-          ctx, chevron, chevron_x, chevron_text_y, text_color, box.clip);
+      s_ui_render_text(ctx, chevron, chevron_text_x, chevron_text_y, text_color,
+          box.clip);
     }
   }
 

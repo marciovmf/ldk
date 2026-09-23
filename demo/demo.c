@@ -15,11 +15,12 @@
 #include <ldk_game.h>
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
-#include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <stdx/stdx_math.h>
 
+#include "src/component/player_character.h"
 #include "src/system/hello.h"
+#include "src/system/island_terrain.h"
 #include <generated_component_metadata.h>
 
 LDKGame game = {0};
@@ -70,6 +71,12 @@ bool game_initialize(LDKGame *game)
   ldk_log_info("Game initialize!!\n");
   game->user_data = &s_game_data;
 
+  if (!player_character_component_register())
+  {
+    ldk_log_error("Failed to register PlayerCharacterComponent.\n");
+    return false;
+  }
+
   if (!game_register_systems())
   {
     ldk_log_error("Failed to register game systems.\n");
@@ -100,19 +107,10 @@ bool game_start(LDKGame *game)
     return false;
   }
 
-  LDKEntity camera_entity = ldk_ecs_entity_create();
-  ldk_transform_set_local_position(
-      camera_entity, vec3_make(0.0f, 0.0f, 0.0f));
-
-  LDKCamera camera = {0};
-  camera.projection = LDK_CAMERA_PROJECTION_PERSPECTIVE;
-  camera.role = LDK_CAMERA_ROLE_MAIN;
-  camera.fov_y = deg_to_rad(40.0f);
-  camera.near_plane = 0.1f;
-  camera.far_plane = 100.0f;
-  camera.enabled = true;
-  ldk_ecs_component_add(camera_entity, LDK_COMPONENT_TYPE_CAMERA, &camera);
-  ldk_camera_look_at(camera_entity, vec3_make(0.0f, 0.0f, -1.0f));
+  /*
+   * The scene already owns the main camera. Do not create another camera here:
+   * the terrain system's camera grouping must contain one tracked entity.
+   */
 
   LDKEntity cube_entity_0 = ldk_ecs_entity_create();
   ldk_transform_set_local_position(
@@ -127,7 +125,7 @@ bool game_start(LDKGame *game)
   ldk_transform_set_local_scale(
       cube_entity_1, vec3_make(0.4f, 0.4f, 0.4f));
   ldk_transform_set_local_rotation(cube_entity_1,
-      quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), 10.0f));
+      quat_axis_angle(vec3_make(1.0f, 0.0f, 0.0f), 10.0f));
 
   LDKMeshSource mesh_source = {0};
   ldk_mesh_source_set_data(&mesh_source, cube_asset);
@@ -201,4 +199,3 @@ void game_stop(LDKGame *game)
 {
   ldk_log_info("Game stop\n");
 }
-

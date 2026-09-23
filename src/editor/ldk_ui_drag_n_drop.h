@@ -17,15 +17,16 @@ extern "C"
   /**
    * Replaces the current drag-and-drop payload.
    *
-   * The payload is only data. Its presence does not imply that a drag is
-   * currently active, and this module does not participate in UI interaction,
-   * hit testing, mouse capture, or drop-target resolution.
+   * Setting a payload only arms a possible drag. The drag becomes active
+   * after the mouse moves beyond the activation threshold while the left
+   * button remains pressed.
    */
   void ldk_ui_drag_n_drop_payload_set(
       u32 type, const XSmallstr *payload);
 
   /**
-   * Draws the drag-and-drop preview icon at the current mouse position.
+   * Updates drag activation and draws the preview icon at the current mouse
+   * position once the activation threshold has been exceeded.
    *
    * The preview is non-interactive and is submitted to the late UI draw
    * buffers so it is not clipped by the source window.
@@ -35,7 +36,10 @@ extern "C"
   /**
    * Copies the current drag-and-drop payload and removes it from the mailbox.
    *
-   * @return true when a payload was available, false otherwise.
+   * An armed payload that never crossed the drag activation threshold is
+   * removed but is not returned as a valid drop.
+   *
+   * @return true only when an active drag payload was available.
    */
   bool ldk_ui_drag_n_drop_payload_get_and_remove(
       u32 *out_type, XSmallstr *out_payload);

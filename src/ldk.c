@@ -2,19 +2,23 @@
 #include "ldk_stdx.h"
 
 #include <ldk.h>
+#include <math.h>
 #include <ldk_game.h>
 #include <ldk_os.h>
 #include <ldk_mesh_asset.h>
+#include <ldk_scene.h>
 
 #include <ldk_event.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_system.h>
 #include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -32,6 +36,7 @@ struct LDKRoot
 {
   // Engine Modules
   LDKAssetManager asset_manager;
+  LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
   LDKECS ecs;
   LDKConfig config;
@@ -82,65 +87,26 @@ static LDKRendererViewId s_renderer_view_id_from_entity(LDKEntity entity)
 static bool s_mesh_source_material_resolve_values(LDKRoot *engine,
     const LDKMaterialDesc *material_desc,
     LDKResourceMaterial *renderer_material,
-    LDKResourceTexture *renderer_texture, bool *material_dirty)
+    LDKResourceTexture *renderer_texture,
+    LDKResourceTexture *renderer_normal_map,
+    LDKResourceTexture *renderer_specular_map, bool *material_dirty)
 {
-  LDKRendererMaterialDesc desc = {0};
-  LDKResourceMaterial material;
-
-  if (!engine || !material_desc || !renderer_material ||
-      !renderer_texture || !material_dirty ||
-      !ldk_material_desc_is_valid(material_desc))
+  if (!engine || !material_desc || !renderer_material || !renderer_texture ||
+      !renderer_normal_map || !renderer_specular_map || !material_dirty)
   {
     return false;
   }
 
-  desc.type = material_desc->type;
-  desc.texture = ldk_renderer_texture_null();
-
-  switch (material_desc->type)
+  if (!ldk_renderer_material_resolve(&engine->renderer, &engine->asset_manager,
+          material_desc, renderer_material, renderer_texture,
+          renderer_normal_map, renderer_specular_map))
   {
-  case LDK_MATERIAL_TYPE_VERTEX_COLOR:
-  case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
-    desc.color = material_desc->args.vertex_color.color;
-    break;
-  case LDK_MATERIAL_TYPE_TEXTURED:
-  case LDK_MATERIAL_TYPE_TEXTURED_UNLIT:
-    desc.color = material_desc->args.textured.color;
-    desc.texture = ldk_renderer_image_acquire(&engine->renderer,
-        &engine->asset_manager, material_desc->args.textured.texture);
-    if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
-    {
-      ldk_log_error("Material image unavailable; using missing texture.\n");
-      LDKAssetImage fallback =
-          ldk_asset_manager_image_missing(&engine->asset_manager, NULL);
-      desc.texture = ldk_renderer_image_acquire(
-          &engine->renderer, &engine->asset_manager, fallback);
-      if (!ldk_renderer_texture_is_valid(&engine->renderer, desc.texture))
-      {
-        return false;
-      }
-    }
-    break;
-  case LDK_MATERIAL_TYPE_INVALID:
-  default:
     return false;
   }
 
-  material = ldk_renderer_material_create(&engine->renderer, &desc);
-  if (!ldk_renderer_material_is_valid(&engine->renderer, material))
-  {
-    ldk_renderer_image_release(&engine->renderer, desc.texture);
-    return false;
-  }
-
-  ldk_renderer_material_destroy(&engine->renderer, *renderer_material);
-  ldk_renderer_image_release(&engine->renderer, *renderer_texture);
-  *renderer_texture = desc.texture;
-  *renderer_material = material;
   *material_dirty = false;
   return true;
 }
-
 static bool s_mesh_source_material_resolve(
     LDKRoot *engine, LDKMeshSource *mesh_source, u32 material_slot)
 {
@@ -151,9 +117,10 @@ static bool s_mesh_source_material_resolve(
 
   if (material_slot == 0)
   {
-    return s_mesh_source_material_resolve_values(engine,
-        &mesh_source->material, &mesh_source->renderer_material,
-        &mesh_source->renderer_texture, &mesh_source->material_dirty);
+    return s_mesh_source_material_resolve_values(engine, &mesh_source->material,
+        &mesh_source->renderer_material, &mesh_source->renderer_texture,
+        &mesh_source->renderer_normal_map, &mesh_source->renderer_specular_map,
+        &mesh_source->material_dirty);
   }
 
   LDKMeshSourceMaterialBinding *binding =
@@ -166,6 +133,7 @@ static bool s_mesh_source_material_resolve(
 
   return s_mesh_source_material_resolve_values(engine, &binding->material,
       &binding->renderer_material, &binding->renderer_texture,
+      &binding->renderer_normal_map, &binding->renderer_specular_map,
       &binding->material_dirty);
 }
 
@@ -424,6 +392,7 @@ static void s_terminate_all_modules(LDKRoot *e)
   ldk_event_queue_terminate(&e->event_queue);
   ldk_renderer_terminate(&e->renderer);
   ldk_asset_manager_terminate(&e->asset_manager);
+  ldk_asset_source_terminate(&e->asset_source);
   ldk_rhi_terminate(&e->rhi);
   ldk_os_terminate();
 
@@ -494,8 +463,6 @@ void s_game_instance_init_default(LDKGame *game)
 
   game->lib = NULL;
   game->initialized = false;
-  game->user_data = NULL;
-  game->initialize = s_stub_game_initialize;
   game->start = s_stub_game_start;
   game->update = s_stub_game_update;
   game->stop = s_stub_game_stop;
@@ -688,6 +655,20 @@ bool ldk_engine_config_from_ini(
       x_ini_get_i32(ini, "graphics", "resolution_width", 400);
   out_config->resolution_height =
       x_ini_get_i32(ini, "graphics", "resolution_height", 400);
+  out_config->shadow_map_resolution =
+      (u32)x_ini_get_i32(ini, "graphics", "shadow_map_resolution", 2048);
+  out_config->shadow_distance =
+      x_ini_get_f32(ini, "graphics", "shadow_distance", 60.0f);
+  if (out_config->shadow_map_resolution < 256 ||
+      out_config->shadow_map_resolution > 8192 ||
+      (out_config->shadow_map_resolution &
+          (out_config->shadow_map_resolution - 1)) != 0 ||
+      !isfinite(out_config->shadow_distance) ||
+      out_config->shadow_distance <= 0)
+  {
+    ldk_log_error("Invalid graphics shadow settings.\n");
+    return false;
+  }
 
   // scetion: display
   out_config->display_width = x_ini_get_i32(ini, "display", "width", 800);
@@ -831,7 +812,6 @@ bool ldk_game_instance_start(void)
   LDKRoot *e = &g_engine;
   bool ok;
   bool game_start_called = false;
-
   LDK_ASSERT(g_engine_initialized);
 
   if (!e->game.initialized || !e->ecs.system.is_started ||
@@ -1037,6 +1017,9 @@ void *ldk_module_get(LDKModuleType module_type)
   case LDK_MODULE_ASSET_MANAGER:
     return &g_engine.asset_manager;
 
+  case LDK_MODULE_ASSET_SOURCE:
+    return &g_engine.asset_source;
+
   case LDK_MODULE_SCENE_MANAGER:
     return &g_engine.scene_manager;
 
@@ -1045,6 +1028,51 @@ void *ldk_module_get(LDKModuleType module_type)
   }
 
   return NULL;
+}
+
+static bool s_asset_packages_open(
+    LDKAssetSource *source, const XIni *ini)
+{
+  XFSPath executable_path = {0};
+  XFSPath executable_directory = {0};
+  int section = -1;
+
+  for (int i = 0; i < x_ini_section_count(ini); ++i)
+  {
+    if (strcmp(x_ini_section_name(ini, i), "packages") == 0)
+    {
+      section = i;
+      break;
+    }
+  }
+
+  if (section < 0)
+  {
+    return true;
+  }
+
+  if (!x_fs_path_from_executable(&executable_path) ||
+      !x_fs_path_dirname(&executable_path, &executable_directory))
+  {
+    ldk_log_error("Failed to resolve executable directory for asset packages.\n");
+    return false;
+  }
+
+  for (int i = 0; i < x_ini_key_count(ini, section); ++i)
+  {
+    const char *name = x_ini_key_name(ini, section, i);
+    XFSPath package_path = {0};
+    if (!name || !name[0] ||
+        !x_fs_path(&package_path, executable_directory.buf, name) ||
+        !ldk_asset_source_package_open(source, package_path.buf))
+    {
+      ldk_log_error("Failed to open asset package '%s'.\n",
+          name ? name : "");
+      return false;
+    }
+  }
+
+  return true;
 }
 
 bool ldk_engine_initialize(const char *config_ini_path)
@@ -1072,7 +1100,18 @@ bool ldk_engine_initialize(const char *config_ini_path)
   x_fs_path_set(&config.config_file_path, config_ini_path);
   x_fs_path_normalize(&config.config_file_path);
 
-  return ldk_engine_initialize_with_config(&config);
+  if (!ldk_engine_initialize_with_config(&config))
+  {
+    return false;
+  }
+
+  if (!s_asset_packages_open(&g_engine.asset_source, &ini))
+  {
+    ldk_engine_terminate();
+    return false;
+  }
+
+  return true;
 }
 
 bool ldk_engine_initialize_with_config(const LDKConfig *config)
@@ -1129,7 +1168,15 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
-  if (!ldk_asset_manager_initialize(&e->asset_manager, 16, 1))
+  if (!ldk_asset_source_initialize(
+          &e->asset_source, x_fs_path_cstr(&e->config.runtree_path)))
+  {
+    ldk_log_error("Failed to initialize module: Asset Source.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_asset_manager_initialize(
+          &e->asset_manager, &e->asset_source, 16, 1))
   {
     ldk_log_error("Failed to initialize module: Asset Manager.");
     engine_init_failed = true;
@@ -1154,6 +1201,8 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
       config->initial_ui_vertex_capacity;
   renderer_config.game_width = (u32)config->resolution_width;
   renderer_config.game_height = (u32)config->resolution_height;
+  renderer_config.shadow_map_resolution = config->shadow_map_resolution;
+  renderer_config.shadow_distance = config->shadow_distance;
 #ifdef LDK_EDITOR
   renderer_config.present_game = false;
 #else
@@ -1189,6 +1238,18 @@ LDKWindow ldk_engine_main_window_get(void)
 {
   LDK_ASSERT(g_engine_initialized);
   return g_engine.window;
+}
+
+bool ldk_engine_shadow_settings_set(u32 resolution, float distance)
+{
+  if (!g_engine_initialized || !ldk_renderer_shadow_settings_set(
+                                   &g_engine.renderer, resolution, distance))
+  {
+    return false;
+  }
+  g_engine.config.shadow_map_resolution = resolution;
+  g_engine.config.shadow_distance = distance;
+  return true;
 }
 
 bool ldk_engine_render_resolution_set(i32 width, i32 height)
@@ -1357,6 +1418,14 @@ void ldk_engine_frame(void)
     // Collect scene data from game
     LDKComponentRegistry *component_registry = ldk_ecs_component_registry_get();
     LDKEntityRegistry *entity_registry = ldk_ecs_entity_registry_get();
+    const LDKSceneProperties *scene_properties = ldk_scene_properties_get();
+
+    if (scene_properties)
+    {
+      ldk_renderer_ambient_light_set(&e->renderer,
+          scene_properties->ambient_color,
+          scene_properties->ambient_intensity);
+    }
 
     // Active cameras
     bool has_main_camera = false;
@@ -1472,106 +1541,145 @@ void ldk_engine_frame(void)
           light.type = LDK_RENDERER_LIGHT_DIRECTIONAL;
           light.color = directional->color;
           light.intensity = directional->intensity;
+          light.casts_shadows = directional->casts_shadows;
         }
         ldk_renderer_submit_light(&e->renderer, &light);
       }
     }
 
-    // Mesh sources
-    XArray *all_mesh = ldk_component_store_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    XArray *mesh_owners = ldk_component_owners_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    u32 mesh_count = x_array_count(all_mesh);
-
-    for (u32 i = 0; i < mesh_count; i++)
+    // Ordinary meshes and explicit instance sets share asset resolution.
+    const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+    for (u32 type_index = 0; type_index < 2; ++type_index)
     {
-      LDKMeshSource *mesh = x_array_get(all_mesh, i);
-      LDKEntity *entity = x_array_get(mesh_owners, i);
+      XArray *all_mesh = ldk_component_store_get(
+          component_registry, mesh_types[type_index]);
+      XArray *mesh_owners = ldk_component_owners_get(
+          component_registry, mesh_types[type_index]);
+      u32 mesh_count = x_array_count(all_mesh);
 
-      if (!mesh || !entity)
+      for (u32 i = 0; i < mesh_count; i++)
       {
-        continue;
-      }
+        void *component = x_array_get(all_mesh, i);
+        LDKInstancedMeshSource *instances = type_index == 1 ? component : NULL;
+        LDKMeshSource *mesh = instances ? &instances->source : component;
+        LDKEntity *entity = x_array_get(mesh_owners, i);
 
-      mesh->renderer = &e->renderer;
-
-      Mat4 mesh_world = mat4_identity();
-
-      if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
-      {
-        continue;
-      }
-
-      const LDKMeshData *mesh_data = ldk_asset_manager_mesh_data_at(
-          &e->asset_manager, mesh->source_asset, mesh->mesh_index);
-      if (mesh_data == NULL)
-      {
-        continue;
-      }
-
-      LDKRendererMeshDesc mesh_desc = {0};
-      mesh_desc.vertices = mesh_data->vertices;
-      mesh_desc.vertex_count = mesh_data->vertex_count;
-      mesh_desc.indices = mesh_data->indices;
-      mesh_desc.index_count = mesh_data->index_count;
-
-      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
-      {
-        mesh->renderer_mesh =
-            ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
-        mesh->dirty = false;
-      }
-      else if (mesh->dirty)
-      {
-        ldk_renderer_mesh_update(&e->renderer, mesh->renderer_mesh, &mesh_desc);
-        mesh->dirty = false;
-      }
-
-      if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
-      {
-        continue;
-      }
-
-      if (!ldk_mesh_source_materials_sync(mesh, &e->asset_manager) ||
-          !ldk_mesh_source_material_sync(mesh, &e->asset_manager))
-      {
-        continue;
-      }
-
-      u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
-          &e->asset_manager, mesh->source_asset, mesh->mesh_index);
-      if (submesh_count == 0)
-      {
-        LDKResourceMaterial renderer_material;
-        if (!s_mesh_source_material_runtime(
-                e, mesh, 0, &renderer_material))
+        if (!mesh || !entity)
         {
           continue;
         }
 
-        ldk_renderer_submit_mesh(&e->renderer, mesh->renderer_mesh,
-            renderer_material, mesh_world);
-        continue;
-      }
-
-      for (u32 submesh_index = 0;
-           submesh_index < submesh_count; ++submesh_index)
-      {
-        const LDKMeshSubmesh *submesh = ldk_asset_manager_mesh_submesh_at(
-            &e->asset_manager, mesh->source_asset, mesh->mesh_index,
-            submesh_index);
-        LDKResourceMaterial renderer_material;
-
-        if (!submesh || !s_mesh_source_material_runtime(e, mesh,
-                submesh->material_slot, &renderer_material))
+        mesh->renderer = &e->renderer;
+        if (instances && !instances->instance_count)
         {
           continue;
         }
 
-        ldk_renderer_submit_mesh_range(&e->renderer, mesh->renderer_mesh,
-            renderer_material, submesh->first_index,
-            submesh->index_count, mesh_world);
+        Mat4 mesh_world = mat4_identity();
+
+        if (!ldk_transform_get_world_matrix(*entity, &mesh_world))
+        {
+          continue;
+        }
+
+        const LDKMeshData *mesh_data = ldk_asset_manager_mesh_data_at(
+            &e->asset_manager, mesh->source_asset, mesh->mesh_index);
+        if (mesh_data == NULL)
+        {
+          continue;
+        }
+
+        LDKRendererMeshDesc mesh_desc = {0};
+        mesh_desc.vertices = mesh_data->vertices;
+        mesh_desc.vertex_count = mesh_data->vertex_count;
+        mesh_desc.indices = mesh_data->indices;
+        mesh_desc.index_count = mesh_data->index_count;
+        mesh_desc.has_tangents = mesh_data->has_tangents;
+
+        if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
+        {
+          mesh->renderer_mesh =
+              ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
+          mesh->dirty = false;
+        }
+        else if (mesh->dirty)
+        {
+          ldk_renderer_mesh_update(
+              &e->renderer, mesh->renderer_mesh, &mesh_desc);
+          mesh->dirty = false;
+        }
+
+        if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
+        {
+          continue;
+        }
+
+        if (!ldk_mesh_source_materials_sync(mesh, &e->asset_manager) ||
+            !ldk_mesh_source_material_sync(mesh, &e->asset_manager))
+        {
+          continue;
+        }
+
+        u32 submit_flags = mesh->casts_shadows
+                               ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+                               : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+        u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
+            &e->asset_manager, mesh->source_asset, mesh->mesh_index);
+        if (submesh_count == 0)
+        {
+          LDKResourceMaterial renderer_material;
+          if (!s_mesh_source_material_runtime(
+                  e, mesh, 0, &renderer_material))
+          {
+            continue;
+          }
+
+          if (instances)
+          {
+            ldk_renderer_submit_mesh_instances_colored(&e->renderer,
+                LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
+                0, mesh_data->index_count, mesh_world, instances->instances,
+                instances->instance_colors, instances->instance_count,
+                submit_flags);
+          }
+          else
+          {
+            ldk_renderer_submit_mesh_with_flags(&e->renderer,
+                mesh->renderer_mesh, renderer_material, mesh_world, submit_flags);
+          }
+          continue;
+        }
+
+        for (u32 submesh_index = 0;
+             submesh_index < submesh_count; ++submesh_index)
+        {
+          const LDKMeshSubmesh *submesh = ldk_asset_manager_mesh_submesh_at(
+              &e->asset_manager, mesh->source_asset, mesh->mesh_index,
+              submesh_index);
+          LDKResourceMaterial renderer_material;
+
+          if (!submesh || !s_mesh_source_material_runtime(e, mesh,
+                  submesh->material_slot, &renderer_material))
+          {
+            continue;
+          }
+
+          if (instances)
+          {
+            ldk_renderer_submit_mesh_instances_colored(&e->renderer,
+                LDK_RENDERER_VIEW_ALL, mesh->renderer_mesh, renderer_material,
+                submesh->first_index, submesh->index_count, mesh_world,
+                instances->instances, instances->instance_colors,
+                instances->instance_count, submit_flags);
+          }
+          else
+          {
+            ldk_renderer_submit_mesh_range_with_flags(&e->renderer,
+                mesh->renderer_mesh, renderer_material, submesh->first_index,
+                submesh->index_count, mesh_world, submit_flags);
+          }
+        }
       }
     }
   }

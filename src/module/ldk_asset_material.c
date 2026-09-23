@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdx/stdx_io.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,40 +36,20 @@ const LDKAssetMaterialData *ldk_asset_manager_material_get_const(
 }
 
 static bool s_path(const LDKMaterialIOContext *context, const char *path,
-    XFSPath *absolute, LDKMaterialIOResult *result)
+    LDKAssetPath *asset_path, LDKMaterialIOResult *result)
 {
   s_error(result, "");
-  if (!context || !context->assets || !path || !path[0] ||
-      !context->runtree_path.length ||
-      !x_fs_path_is_absolute_cstr(context->runtree_path.buf))
+  if (!context || !context->assets || !context->assets->source ||
+      !ldk_asset_path_set(asset_path, path))
   {
-    s_error(result, "material asset requires an absolute runtree and a path");
-    return false;
-  }
-  XFSPath root = context->runtree_path, relative = {0};
-  x_fs_path_normalize(&root);
-  bool is_absolute = x_fs_path_is_absolute_cstr(path);
-  if (strlen(path) + (is_absolute ? 0 : root.length + 1) >=
-      sizeof(absolute->buf))
-  {
-    s_error(result, "material asset path is too long");
-    return false;
-  }
-  if (is_absolute)
-    x_fs_path_set(absolute, path);
-  else
-    x_fs_path(absolute, root.buf, path);
-  x_fs_path_normalize(absolute);
-  if (!x_fs_path_common_prefix(root.buf, absolute->buf, &relative) ||
-      !relative.length || strcmp(relative.buf, ".") == 0)
-  {
-    s_error(result, "material asset must be inside the project runtree");
+    s_error(result, "material asset requires a valid asset path");
     return false;
   }
   return true;
 }
 
-static LDKAssetMaterial s_find(LDKAssetManager *manager, const XFSPath *path)
+static LDKAssetMaterial s_find(
+    LDKAssetManager *manager, const LDKAssetPath *path)
 {
   XHPoolIter it = {0};
   XHandle h = x_handle_null();
@@ -76,6 +57,7 @@ static LDKAssetMaterial s_find(LDKAssetManager *manager, const XFSPath *path)
        info; info = x_hpool_iter_next(&manager->pool, &it, &h))
   {
     if (info->type == LDK_ASSET_TYPE_MATERIAL &&
+        info->source_revision == manager->source->revision &&
         strcmp(info->asset_path.buf, path->buf) == 0)
     {
       LDKAssetMaterial asset = {h};
@@ -85,7 +67,7 @@ static LDKAssetMaterial s_find(LDKAssetManager *manager, const XFSPath *path)
   return ldk_asset_material_null();
 }
 
-static LDKAssetMaterial s_insert(LDKAssetManager *manager, const XFSPath *path,
+static LDKAssetMaterial s_insert(LDKAssetManager *manager, const LDKAssetPath *path,
     const LDKMaterialDesc *descriptor, bool dirty, LDKMaterialIOResult *result)
 {
   LDKAssetMaterial asset = ldk_asset_material_null();
@@ -102,6 +84,7 @@ static LDKAssetMaterial s_insert(LDKAssetManager *manager, const XFSPath *path,
       data->is_missing = false;
       info->type = LDK_ASSET_TYPE_MATERIAL;
       info->asset_path = *path;
+      info->source_revision = manager->source->revision;
       info->data = data;
       info->load_timestamp = dirty ? 0 : (u64)time(NULL);
       return asset;
@@ -124,7 +107,7 @@ static void s_report_missing(const LDKMaterialIOContext *context,
 }
 
 static LDKAssetMaterial s_missing(const LDKMaterialIOContext *context,
-    const XFSPath *path, LDKMaterialIOResult *result)
+    const LDKAssetPath *path, LDKMaterialIOResult *result)
 {
   /* Reuse the manager-owned procedural missing-image checker. */
   LDKMaterialDesc descriptor;
@@ -151,48 +134,68 @@ LDKAssetMaterial ldk_asset_manager_material_create(
     const LDKMaterialIOContext *context, const char *path,
     const LDKMaterialDesc *descriptor, LDKMaterialIOResult *result)
 {
-  XFSPath absolute = {0};
-  if (!s_path(context, path, &absolute, result))
+  LDKAssetPath asset_path;
+  LDKAssetSourceFile existing;
+
+  if (!s_path(context, path, &asset_path, result))
     return ldk_asset_material_null();
   if (!ldk_material_desc_is_valid(descriptor))
   {
     s_error(result, "invalid material descriptor");
     return ldk_asset_material_null();
   }
-  if (!x_handle_is_null(s_find(context->assets, &absolute).h) ||
-      x_fs_path_exists(&absolute))
+  if (!x_handle_is_null(s_find(context->assets, &asset_path).h) ||
+      ldk_asset_source_find(context->assets->source, asset_path.buf, &existing))
   {
     s_error(result, "material asset path already exists");
     return ldk_asset_material_null();
   }
-  return s_insert(context->assets, &absolute, descriptor, true, result);
+  return s_insert(context->assets, &asset_path, descriptor, true, result);
 }
 
 LDKAssetMaterial ldk_asset_manager_material_load_shared(
     const LDKMaterialIOContext *context, const char *path,
     LDKMaterialIOResult *result)
 {
-  XFSPath absolute = {0};
-  if (!s_path(context, path, &absolute, result))
+  LDKAssetPath asset_path;
+  LDKAssetSourceFile file;
+  u64 size;
+  char *text;
+
+  if (!s_path(context, path, &asset_path, result))
     return ldk_asset_material_null();
-  LDKAssetMaterial asset = s_find(context->assets, &absolute);
+  LDKAssetMaterial asset = s_find(context->assets, &asset_path);
   if (!x_handle_is_null(asset.h))
   {
     if (ldk_asset_manager_material_get_const(context->assets, asset)->is_missing)
-      s_report_missing(context, absolute.buf);
+      s_report_missing(context, asset_path.buf);
     return asset;
   }
-  size_t size = 0;
-  errno = 0;
-  char *text = x_io_read_text(absolute.buf, &size);
-  if (!text && (errno == ENOENT || errno == ENOTDIR))
-    return s_missing(context, &absolute, result);
-  if (!text || memchr(text, 0, size))
+  if (!ldk_asset_source_find(context->assets->source, asset_path.buf, &file))
+    return s_missing(context, &asset_path, result);
+
+  size = ldk_asset_source_file_size(&file);
+  if (size > (u64)SIZE_MAX - 1u)
+  {
+    s_error(result, "material asset is too large");
+    return asset;
+  }
+
+  text = malloc((size_t)size + 1u);
+  if (!text || !ldk_asset_source_file_read(&file, text, size))
   {
     free(text);
-    s_error(result, "cannot read material file");
+    s_error(result, "cannot read material asset");
     return asset;
   }
+  text[size] = 0;
+  if (memchr(text, 0, (size_t)size))
+  {
+    free(text);
+    s_error(result, "cannot read material asset");
+    return asset;
+  }
+
   TMLParseResult parsed = tml_parse(text);
   free(text);
   if (!parsed.ok)
@@ -207,7 +210,7 @@ LDKAssetMaterial ldk_asset_manager_material_load_shared(
     s_error(result, "material file must contain one material node");
   else if (ldk_material_desc_read(context, parsed.document, node,
                &descriptor, result))
-    asset = s_insert(context->assets, &absolute, &descriptor, false, result);
+    asset = s_insert(context->assets, &asset_path, &descriptor, false, result);
   tml_document_free(parsed.document);
   return asset;
 }
@@ -236,13 +239,14 @@ bool ldk_asset_manager_material_save(const LDKMaterialIOContext *context,
 {
   s_error(result, "");
   LDKAssetInfo *info = context ? s_info(context->assets, asset) : NULL;
-  if (!info)
+  if (!info || !context->assets->source ||
+      info->source_revision != context->assets->source->revision)
   {
     s_error(result, "invalid material asset");
     return false;
   }
-  XFSPath absolute = {0};
-  if (!s_path(context, info->asset_path.buf, &absolute, result))
+  LDKAssetPath asset_path;
+  if (!s_path(context, info->asset_path.buf, &asset_path, result))
     return false;
   LDKAssetMaterialData *data = info->data;
   if (data->is_missing)
@@ -258,19 +262,11 @@ bool ldk_asset_manager_material_save(const LDKMaterialIOContext *context,
   }
   x_strbuilder_append(out, "material:\n");
   bool ok = ldk_material_desc_write(context, &data->descriptor, out, 1, result);
-  if (ok)
+  if (ok && !ldk_asset_source_file_write(context->assets->source,
+                asset_path.buf, out->data, (u64)out->length))
   {
-    FILE *file = fopen(absolute.buf, "wb");
-    if (!file)
-      ok = false;
-    else
-    {
-      ok = fwrite(out->data, 1, out->length, file) == out->length;
-      if (fclose(file) != 0)
-        ok = false;
-    }
-    if (!ok)
-      s_error(result, "failed to write material file");
+    s_error(result, "failed to write material file");
+    ok = false;
   }
   x_strbuilder_destroy(out);
   if (ok)

@@ -1,5 +1,6 @@
 #include "../ldk_stdx.h"
 #include "ldk_editor_internal.h"
+#include "module/ldk_ui.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -168,6 +169,7 @@ typedef struct LDKEditorInspectorWindowData
 
 typedef struct LDKEditorDockState
 {
+  LDKEditorContext *editor;
   LDKEditorDockWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
   u32 window_count;
 
@@ -211,9 +213,15 @@ typedef struct LDKEditorDockLayoutNode
   } data;
 } LDKEditorDockLayoutNode;
 
+typedef struct LDKEditorDockLayoutProperties
+{
+  float inspector_label_width;
+} LDKEditorDockLayoutProperties;
+
 typedef struct LDKEditorDockLayout
 {
   char name[LDK_EDITOR_DOCK_LAYOUT_NAME_CAPACITY];
+  LDKEditorDockLayoutProperties properties;
   LDKEditorDockLayoutWindow windows[LDK_EDITOR_WINDOW_CAPACITY];
   LDKEditorDockLayoutNode nodes[LDK_EDITOR_DOCK_NODE_CAPACITY];
   u32 window_count;
@@ -432,8 +440,12 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
     height = 0.0f;
   }
 
-  return (LDKUIRect){ui->viewport.x,
-                     ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP, ui->viewport.w, height - LDK_UI_DEFAULT_CONTROL_HEIGHT}; // give space for the status bar at the bottom
+  return (LDKUIRect)
+  {
+    ui->viewport.x,
+    ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP,
+    ui->viewport.w,
+    height - LDK_EDITOR_STATUS_BAR_HEIGHT}; // give space for the status bar at the bottom
 }
 
 static void s_editor_dock_resize_reset(LDKEditorDockResize *resize)
@@ -629,6 +641,11 @@ static bool s_editor_dock_leaf_remove(
     }
 
     leaf->window_count -= 1;
+
+    if (leaf->pressed_window == window)
+    {
+      leaf->pressed_window = LDK_EDITOR_WINDOW_ID_INVALID;
+    }
 
     if (leaf->window_count > 0 && leaf->active_window == window)
     {
@@ -1177,9 +1194,9 @@ static void s_editor_project_explorer_window(
   const char *root_path = NULL;
   (void)data;
 
-  if (editor->project.loaded && editor->project.project_root_path.length > 0)
+  if (editor->project.loaded && editor->project.run_root_path.length)
   {
-    root_path = editor->project.project_root_path.buf;
+    root_path = editor->project.run_root_path.buf;
   }
   else if (editor->engine_runtree.length > 0)
   {
@@ -1220,6 +1237,7 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
         ui->hot_id == 0 &&
         ui->hovered_window_id == ui->current_window->id &&
         !editor->gizmo.dragging &&
+        !editor->gizmo.drag_block_pick &&
         editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
         ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
@@ -1336,14 +1354,14 @@ static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
   }
 }
 
-static void s_editor_dock_leaf_draw(
+static LDKEditorWindowId s_editor_dock_leaf_draw(
     LDKEditorDockState *dock, LDKEditorContext *editor, i32 leaf_index)
 {
   LDKEditorDockNode *node = &dock->nodes[leaf_index];
   LDKEditorDockLeaf *leaf = &node->data.leaf;
   if (leaf->window_count == 0)
   {
-    return;
+    return LDK_EDITOR_WINDOW_ID_INVALID;
   }
 
   if (!s_editor_dock_leaf_contains(leaf, leaf->active_window))
@@ -1392,6 +1410,20 @@ static void s_editor_dock_leaf_draw(
     leaf->active_window = leaf->windows[tab_result.active_index];
   }
 
+  LDKEditorWindowId close_requested = LDK_EDITOR_WINDOW_ID_INVALID;
+  LDKUIRect close_button_rect = leaf->tab_bar_rect;
+  close_button_rect.x +=
+      close_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+  close_button_rect.w = 24.0f;
+  close_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+
+  const LDKUIId close_button_id =
+      (LDKUIId)(0x444F4300u + (u32)leaf_index);
+  if (ldk_ui_widget_button_flat(ui, close_button_id, "x", close_button_rect))
+  {
+    close_requested = leaf->active_window;
+  }
+
   LDKEditorDockWindow *active_window =
       s_editor_dock_window_get(dock, leaf->active_window);
 
@@ -1402,6 +1434,7 @@ static void s_editor_dock_leaf_draw(
   }
 
   ldk_ui_end_window(ui);
+  return close_requested;
 }
 
 static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
@@ -1428,6 +1461,8 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
 static void s_editor_dock_windows_draw(
     LDKEditorDockState *dock, LDKEditorContext *editor)
 {
+  LDKEditorWindowId close_requested = LDK_EDITOR_WINDOW_ID_INVALID;
+
   for (i32 node_index = 0; node_index < LDK_EDITOR_DOCK_NODE_CAPACITY;
       ++node_index)
   {
@@ -1447,7 +1482,12 @@ static void s_editor_dock_windows_draw(
     LDKEditorDockNode *node = &dock->nodes[node_index];
     if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
     {
-      s_editor_dock_leaf_draw(dock, editor, node_index);
+      LDKEditorWindowId request =
+          s_editor_dock_leaf_draw(dock, editor, node_index);
+      if (request != LDK_EDITOR_WINDOW_ID_INVALID)
+      {
+        close_requested = request;
+      }
     }
   }
 
@@ -1458,6 +1498,11 @@ static void s_editor_dock_windows_draw(
     {
       s_editor_dock_floating_window_draw(dock, editor, window);
     }
+  }
+
+  if (close_requested != LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    ldki_editor_window_hide(close_requested);
   }
 }
 
@@ -2307,6 +2352,11 @@ static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
   memset(layout, 0, sizeof(*layout));
   memcpy(layout->name, name, name_length + 1);
   layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+  layout->properties.inspector_label_width =
+      dock->editor && isfinite(dock->editor->inspector_label_width) &&
+              dock->editor->inspector_label_width > 0.0f
+          ? dock->editor->inspector_label_width
+          : LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
 
   LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY] = {0};
   for (u32 i = 0; i < dock->window_count; ++i)
@@ -2420,6 +2470,8 @@ static bool s_editor_dock_layout_write(
   bool visited_nodes[LDK_EDITOR_DOCK_NODE_CAPACITY] = {false};
 
   if (out == NULL || layout == NULL || layout->name[0] == 0 ||
+      !isfinite(layout->properties.inspector_label_width) ||
+      layout->properties.inspector_label_width <= 0.0f ||
       layout->window_count > LDK_EDITOR_WINDOW_CAPACITY ||
       layout->node_count > LDK_EDITOR_DOCK_NODE_CAPACITY)
   {
@@ -2430,6 +2482,11 @@ static bool s_editor_dock_layout_write(
   x_strbuilder_append(out, "- name: ");
   s_editor_dock_tml_string_append(out, layout->name);
   x_strbuilder_append_char(out, '\n');
+  s_editor_dock_tml_indent(out, 3);
+  x_strbuilder_append(out, "properties:\n");
+  s_editor_dock_tml_indent(out, 4);
+  x_strbuilder_append_format(out, "inspector_label_width: %.9g\n",
+      (double)layout->properties.inspector_label_width);
   s_editor_dock_tml_indent(out, 3);
   x_strbuilder_append(out, "windows:\n");
 
@@ -2727,6 +2784,7 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
     LDKEditorDockLayout *layout)
 {
   LDKEditorDockLayoutReadContext context;
+  const TMLNode *properties_node;
   const TMLNode *windows_node;
   const TMLNode *tree_node;
   TMLString name;
@@ -2740,10 +2798,26 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
 
   memset(layout, 0, sizeof(*layout));
   layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
+  layout->properties.inspector_label_width =
+      LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
 
   if (!s_editor_dock_layout_name_copy(layout->name, sizeof(layout->name), name))
   {
     return false;
+  }
+
+  properties_node = tml_node_find_child(document, layout_node, "properties");
+  if (properties_node != NULL)
+  {
+    const TMLEntry *entry = tml_node_find_entry(
+        document, properties_node, "inspector_label_width");
+    if (entry != NULL &&
+        (!s_editor_dock_float_from_entry(
+             entry, &layout->properties.inspector_label_width) ||
+            layout->properties.inspector_label_width <= 0.0f))
+    {
+      return false;
+    }
   }
 
   windows_node = tml_node_find_child(document, layout_node, "windows");
@@ -2875,6 +2949,11 @@ static bool s_editor_dock_layout_apply(
 
   s_editor_dock_window_locations_refresh(&candidate);
   *dock = candidate;
+  if (dock->editor)
+  {
+    dock->editor->inspector_label_width =
+        layout->properties.inspector_label_width;
+  }
   return true;
 }
 
@@ -3426,6 +3505,13 @@ bool ldk_editor_dock_init(LDKEditorContext *editor)
 
   LDKEditorDockState *dock = &s_editor_dock;
   s_editor_dock_layout_reset_preserving_windows(dock);
+  dock->editor = editor;
+  if (!isfinite(editor->inspector_label_width) ||
+      editor->inspector_label_width <= 0.0f)
+  {
+    editor->inspector_label_width =
+        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  }
 
   if (!s_editor_builtin_windows_add(editor, dock))
   {

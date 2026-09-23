@@ -495,6 +495,49 @@ inline static LDKWindow s_ldkwindow_from_win32_hwnd(HWND hWnd)
   return NULL;
 }
 
+static u8 s_win32_keyboard_physical_key_state(i32 vk_code)
+{
+  return (GetAsyncKeyState(vk_code) & 0x8000)
+      ? LDK_KEYBOARD_PRESSED_BIT
+      : 0;
+}
+
+static void s_win32_keyboard_modifiers_sync(void)
+{
+  u8 left_control = s_win32_keyboard_physical_key_state(VK_LCONTROL);
+  u8 right_control = s_win32_keyboard_physical_key_state(VK_RCONTROL);
+  u8 left_shift = s_win32_keyboard_physical_key_state(VK_LSHIFT);
+  u8 right_shift = s_win32_keyboard_physical_key_state(VK_RSHIFT);
+  u8 left_alt = s_win32_keyboard_physical_key_state(VK_LMENU);
+  u8 right_alt = s_win32_keyboard_physical_key_state(VK_RMENU);
+
+  s_oswin32.keyboard_state.key[VK_LCONTROL] = left_control;
+  s_oswin32.keyboard_state.key[VK_RCONTROL] = right_control;
+  s_oswin32.keyboard_state.key[VK_CONTROL] = left_control | right_control;
+
+  s_oswin32.keyboard_state.key[VK_LSHIFT] = left_shift;
+  s_oswin32.keyboard_state.key[VK_RSHIFT] = right_shift;
+  s_oswin32.keyboard_state.key[VK_SHIFT] = left_shift | right_shift;
+
+  s_oswin32.keyboard_state.key[VK_LMENU] = left_alt;
+  s_oswin32.keyboard_state.key[VK_RMENU] = right_alt;
+  s_oswin32.keyboard_state.key[VK_MENU] = left_alt | right_alt;
+}
+
+static void s_win32_input_state_clear(void)
+{
+  memset(&s_oswin32.keyboard_state, 0, sizeof(s_oswin32.keyboard_state));
+
+  for (i32 button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
+  {
+    s_oswin32.mouse_state.button[button] = 0;
+  }
+
+  s_oswin32.mouse_state.wheel_delta = 0;
+  s_oswin32.mouse_state.cursor_relative.x = 0;
+  s_oswin32.mouse_state.cursor_relative.y = 0;
+}
+
 // ---------------------------------------------------------------------------
 // Initialization
 // ---------------------------------------------------------------------------
@@ -503,6 +546,7 @@ bool ldk_os_initialize()
 {
   // s_ = (LDKWin32s_*) ldk_os_memory_alloc(sizeof(LDKWin32s_));
   // memset(s_oswin32, 0, sizeof(LDKWin32s_));
+  s_win32_input_state_clear();
   QueryPerformanceFrequency(&s_oswin32.frequency);
   s_xinput_init();
   return true;
@@ -853,6 +897,12 @@ bool ldk_os_events_poll(LDKEvent *event)
     s_oswin32.mouse_state.wheel_delta = 0;
     s_oswin32.mouse_state.cursor_relative.x = 0;
     s_oswin32.mouse_state.cursor_relative.y = 0;
+
+    // Modifier key-up messages can be lost while focus changes (for example
+    // when launching the application with Ctrl+F5). Reconcile the persistent
+    // state with the physical keyboard before processing this frame's events.
+    s_win32_keyboard_modifiers_sync();
+
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
       TranslateMessage(&msg);
@@ -1274,8 +1324,6 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
   case WM_NCHITTEST:
   {
-    // Get the default behaviour but set the arrow cursor if it's in the client
-    // area
     LRESULT result = DefWindowProc(hwnd, uMsg, wParam, lParam);
     if (result == HTCLIENT)
     {
@@ -1321,27 +1369,22 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
           return HTCAPTION;
         }
 
-        // ldk_os_cursor_type_set(LDK_CURSOR_ARROW);
         return result;
       }
     }
-    else if (result == HTTOP || result == HTBOTTOM)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NS);
-    }
-    else if (result == HTLEFT || result == HTRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_WE);
-    }
-    else if (result == HTBOTTOMLEFT || result == HTTOPRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-    }
-    else if (result == HTTOPLEFT || result == HTBOTTOMRIGHT)
-    {
-      ldk_os_cursor_type_set(LDK_CURSOR_SIZE_NESW);
-    }
     return result;
+  }
+  break;
+
+  case WM_SETCURSOR:
+  {
+    if (LOWORD(lParam) == HTCLIENT)
+    {
+      ldk_os_cursor_type_set(s_oswin32.cursor_type);
+      return TRUE;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
   }
   break;
 
@@ -1349,6 +1392,19 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
   {
     bool activate =
         (LOWORD(wParam) == WA_ACTIVE || LOWORD(wParam) == WA_CLICKACTIVE);
+
+    if (activate)
+    {
+      s_win32_keyboard_modifiers_sync();
+    }
+    else
+    {
+      // Windows does not guarantee key/button release messages after focus is
+      // lost. Clear persistent input state so modifiers and mouse buttons do
+      // not remain stuck when the window becomes active again.
+      s_win32_input_state_clear();
+    }
+
     LDKEvent *e = s_win32_event_new();
     e->type = LDK_EVENT_TYPE_WINDOW;
     e->window_event.type =

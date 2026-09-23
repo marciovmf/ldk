@@ -348,6 +348,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
+  if (strcmp(type_name, "LDKAssetMaterial") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_ASSET_MATERIAL");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_MATERIAL");
+    return true;
+  }
+
   if (strcmp(type_name, "LDKResourceMesh") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_RESOURCE_MESH");
@@ -1172,7 +1179,7 @@ static bool ldk_meta_push_system(LDKMetaState *state, LDKMetaSystem *system)
     if (strcmp(state->systems[i].symbol_name, system->symbol_name) == 0 ||
         state->systems[i].id == system->id)
     {
-      ldk_meta_set_error(state, "duplicate system name or system hash collision");
+      ldk_meta_set_error(state, "duplicate system name or system id");
       return false;
     }
   }
@@ -1686,6 +1693,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "  {\n");
     fprintf(out, "    \"%s\",\n", system->name);
     fprintf(out, "    ldk_system_id(%s),\n", system->symbol_name);
+    fprintf(out, "    %s,\n", system->flags);
     if (system->stateful)
     {
       fprintf(out, "    sizeof(%s),\n", system->type_name);
@@ -1726,13 +1734,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "      return NULL;\n");
   fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
-  fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
 
-  /* Registration belongs to the game TU, never the engine metadata TU.
-   * Headers have already been included by the CMake-generated companion.
-   * Prototypes also make externally linked callbacks in source files usable.
-   */
-  fprintf(out, "\n#ifdef LDK_GAME_SYSTEM_REGISTRATION_IMPLEMENTATION\n\n");
   for (i = 0; i < state->system_count; ++i)
   {
     const LDKMetaSystem *system = &state->systems[i];
@@ -1752,33 +1754,38 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
       fprintf(out, "extern void %s(void *data);\n", system->terminate);
     }
   }
-
-  fprintf(out, "\nbool game_register_systems(void)\n{\n");
-  if (state->system_count > 0u)
+  if (state->system_count)
   {
-    fprintf(out, "  const LDKSystemDesc *descriptors[] =\n  {\n");
-    for (i = 0; i < state->system_count; ++i)
-    {
-      fprintf(out, "    ldk_system_desc(%s),\n", state->systems[i].symbol_name);
-    }
-    fprintf(out, "  };\n\n");
-    fprintf(out, "  for (u32 i = 0; i < %uu; ++i)\n  {\n", state->system_count);
-    fprintf(out, "    if (!ldk_ecs_system_register(descriptors[i]))\n    {\n");
-    fprintf(out, "      ldk_log_error(\"Failed to register system %%s.\\n\", "
-                 "descriptors[i]->name);\n");
-    fprintf(out, "      while (i > 0u)\n      {\n");
-    fprintf(out, "        --i;\n");
-    fprintf(
-        out, "        if (!ldk_ecs_system_unregister(descriptors[i]->id))\n");
-    fprintf(out, "        {\n");
-    fprintf(out, "          ldk_log_error(\"Failed to unregister system %%s "
-                 "during rollback.\\n\", descriptors[i]->name);\n");
-    fprintf(out, "        }\n      }\n");
-    fprintf(out, "      return false;\n    }\n  }\n\n");
+    fprintf(out, "\n");
   }
-  fprintf(out, "  return true;\n}\n\n");
-  fprintf(out, "#endif // LDK_GAME_SYSTEM_REGISTRATION_IMPLEMENTATION\n");
 
+  fprintf(out, "u32 game_system_descriptor_count(void)\n");
+  fprintf(out, "{\n");
+  fprintf(out, "  return %uu;\n", state->system_count);
+  fprintf(out, "}\n\n");
+
+  fprintf(out,
+      "bool game_system_descriptor_get(u32 index, LDKSystemDesc *out)\n");
+  fprintf(out, "{\n");
+  fprintf(out, "  if (!out)\n");
+  fprintf(out, "  {\n");
+  fprintf(out, "    return false;\n");
+  fprintf(out, "  }\n\n");
+  fprintf(out, "  switch (index)\n");
+  fprintf(out, "  {\n");
+  for (i = 0; i < state->system_count; ++i)
+  {
+    fprintf(out, "    case %uu:\n", i);
+    fprintf(out, "      *out = *ldk_system_desc(%s);\n",
+        state->systems[i].symbol_name);
+    fprintf(out, "      return true;\n\n");
+  }
+  fprintf(out, "    default:\n");
+  fprintf(out, "      return false;\n");
+  fprintf(out, "  }\n");
+  fprintf(out, "}\n\n");
+
+  fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
   fclose(out);

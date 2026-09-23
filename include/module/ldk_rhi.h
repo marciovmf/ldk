@@ -660,6 +660,10 @@ extern "C"
     LDKRHICullMode cull_mode;
     LDKRHIFrontFace front_face;
     bool scissor_enabled;
+    // Positive bias moves depth away from the light for LESS/LESS_EQUAL.
+    bool depth_bias_enabled;
+    float depth_bias_slope_factor;
+    float depth_bias_constant_factor;
   } LDKRHIRasterState;
 
   typedef struct LDKRHIVertexAttributeDesc

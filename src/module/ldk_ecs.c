@@ -1,4 +1,6 @@
 #include "component/ldk_mesh_source.h"
+#include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_particle_emitter.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -26,6 +28,10 @@
 
 #ifndef LDK_DEFAULT_MESHSOURCE_COUNT
 #define LDK_DEFAULT_MESHSOURCE_COUNT 4
+#endif
+
+#ifndef LDK_DEFAULT_PARTICLE_EMITTER_COUNT
+#define LDK_DEFAULT_PARTICLE_EMITTER_COUNT 16
 #endif
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
@@ -1137,6 +1143,22 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc instanced_desc =
+      ldk_instanced_mesh_source_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &instanced_desc))
+  {
+    ldk_log_error("Failed to register component: InstancedMeshSource.");
+    error = true;
+  }
+
+  LDKComponentDesc particle_emitter_desc =
+      ldk_particle_emitter_component_desc(LDK_DEFAULT_PARTICLE_EMITTER_COUNT);
+  if (!ldk_component_register(&context->component, &particle_emitter_desc))
+  {
+    ldk_log_error("Failed to register component: ParticleEmitter.");
+    error = true;
+  }
+
   if (error)
   {
     s_grouping_registry_terminate(context);
@@ -1172,15 +1194,32 @@ void ldk_ecs_terminate(void)
      * mesh-owned renderer resources while their owners and renderer live.
      * Do not detach here: iteration must not swap/remove store entries.
      */
-    XArray *owners = ldk_component_owners_get(
-        component_registry, LDK_COMPONENT_TYPE_MESH_SOURCE);
-    if (owners && entity_registry)
+    const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
+    for (u32 type_index = 0; type_index < 2; ++type_index)
     {
-      for (u32 i = 0; i < x_array_count(owners); i++)
+      XArray *owners = ldk_component_owners_get(
+          component_registry, mesh_types[type_index]);
+      if (owners && entity_registry)
       {
-        LDKEntity *owner = x_array_get(owners, i);
-        ldk_component_destroy_data(component_registry, entity_registry, *owner,
-            LDK_COMPONENT_TYPE_MESH_SOURCE, i);
+        for (u32 i = 0; i < x_array_count(owners); i++)
+        {
+          LDKEntity *owner = x_array_get(owners, i);
+          ldk_component_destroy_data(component_registry, entity_registry,
+              *owner, mesh_types[type_index], i);
+        }
+      }
+    }
+
+    XArray *particle_owners = ldk_component_owners_get(
+        component_registry, LDK_COMPONENT_TYPE_PARTICLE_EMITTER);
+    if (particle_owners && entity_registry)
+    {
+      for (u32 i = 0; i < x_array_count(particle_owners); ++i)
+      {
+        LDKEntity *owner = x_array_get(particle_owners, i);
+        ldk_component_destroy_data(component_registry, entity_registry,
+            *owner, LDK_COMPONENT_TYPE_PARTICLE_EMITTER, i);
       }
     }
     ldk_component_registry_terminate(component_registry);

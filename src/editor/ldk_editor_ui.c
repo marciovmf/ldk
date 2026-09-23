@@ -5,8 +5,10 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <ldk_mesh.h>
+#include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_scene_manager.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
@@ -14,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
+    LDKEditorConsoleEntryType *out_type);
 
 //------------------------------------------------------------
 // Menu bar
@@ -279,47 +284,96 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   ldk_ui_end_window(ui);
 }
 
+static LDKUIIcon s_editor_status_message_icon(
+    LDKEditorContext *editor, LDKEditorConsoleEntryType type)
+{
+  LDKUIIcon icon = {0};
+
+  if (editor == NULL || type == LDK_EDITOR_CONSOLE_ENTRY_RAW)
+  {
+    return icon;
+  }
+
+  icon.size = ldk_sizef(
+      LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_TEXT];
+
+  if (type == LDK_EDITOR_CONSOLE_ENTRY_INFO)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_INFO];
+  }
+  else if (type == LDK_EDITOR_CONSOLE_ENTRY_WARNING)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
+    icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+  }
+  else if (type == LDK_EDITOR_CONSOLE_ENTRY_ERROR)
+  {
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
+    icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+  }
+
+  return icon;
+}
+
 static void s_editor_status_bar(LDKEditorContext *editor)
 {
   static u8 alpha = 0;
   static double acc = 0.0f;
 
-  LDKUIIcon icon = {0};
   LDKUIContext *ui = &editor->ui;
-  ui = &editor->ui;
-  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
-      LDK_UI_DEFAULT_CONTROL_HEIGHT);
-  icon.texture =
-    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
+  LDKEditorConsoleEntryType message_type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
+  const char *message =
+      ldki_editor_console_last_message_get(editor, &message_type);
+  LDKUIIcon message_icon =
+      s_editor_status_message_icon(editor, message_type);
+  LDKUIIcon build_icon = {0};
 
+  build_icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  build_icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  build_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  build_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
+
+  const u32 status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT;
   LDKUIRect rect = {
     0,
-    ui->viewport.h - LDK_UI_DEFAULT_CONTROL_HEIGHT,
+    ui->viewport.h - status_bar_height,
     ui->viewport.w,
-    LDK_UI_DEFAULT_CONTROL_HEIGHT};
+    status_bar_height};
+
   ldk_ui_begin_window(ui, "", rect, 0);
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_begin_horizontal(ui);
+
+  if (message != NULL && message[0] != 0)
+  {
+    ldk_ui_set_next_weight(ui, 1.0f);
+    ldk_ui_icon_label(ui, message_icon, message);
+  }
+  else
+  {
+    ldk_ui_spacer(ui);
+  }
 
   if (editor->project_build.active)
   {
-    // pulse alpha
-    ldk_ui_begin_horizontal(ui);
     acc += editor->ui.delta_time * 2;
-    alpha = (u8) (127 + (127 * sinf(acc)));
-    //ldk_ui_label(ui, "Building...");
-    ldk_ui_spacer(ui);
-    icon.color &= 0xFFFFFF00;
-    icon.color |= alpha;
-    ldk_ui_set_next_weight(ui, 0);
-    ldk_ui_icon_button(ui, icon, NULL);
+    alpha = (u8)(127 + (127 * sinf(acc)));
+
+    build_icon.color &= 0xFFFFFF00;
+    build_icon.color |= alpha;
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_icon_button(ui, build_icon, NULL);
   }
 
   ldk_ui_end_horizontal(ui);
   ldk_ui_end_window(ui);
-
 }
-
 
 //------------------------------------------------------------
 // Toolbar
@@ -716,6 +770,62 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   ldk_ui_pop_id(ui);
 }
 
+static void s_editor_scene_view_camera_buttons(LDKEditorContext *editor)
+{
+  LDKUIContext *ui;
+  LDKECS *ecs;
+  LDKCamera *camera;
+  LDKEntity selected = x_handle_null();
+  bool has_selection;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  ecs = ldk_module_get(LDK_MODULE_ECS);
+  camera = ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  has_selection = ecs != NULL &&
+                  ldki_editor_selected_entity_get(editor, ecs, &selected) &&
+                  !ldk_entity_internal_flags_has(
+                      &ecs->entity, selected, LDK_ENTITY_INTERNAL_EDITOR);
+
+  ldk_ui_push_id_cstr(ui, "scene-camera");
+
+  ldk_ui_begin_disabled(ui, !has_selection);
+  ldk_ui_set_next_width(ui, ldk_ui_px(76.0f));
+  if (ldk_ui_button(ui, "Focus (F)"))
+  {
+    ldki_editor_camera_focus_selected(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(ui, camera == NULL);
+  ldk_ui_set_next_width(ui, ldk_ui_px(104.0f));
+  if (ldk_ui_button(ui,
+          camera != NULL &&
+                  camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC
+              ? "Orthographic"
+              : "Perspective"))
+  {
+    ldki_editor_camera_projection_toggle(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_begin_disabled(
+      ui, !has_selection || editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  ldk_ui_set_next_width(ui, ldk_ui_px(112.0f));
+  if (ldk_ui_button(ui, "Align with View"))
+  {
+    ldki_editor_selected_align_with_view(editor);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_pop_id(ui);
+}
+
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
 {
   if (editor == NULL)
@@ -731,6 +841,9 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
   ldk_ui_spacer(ui);
   s_editor_gizmo_space_buttons(editor);
+  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
+  ldk_ui_spacer(ui);
+  s_editor_scene_view_camera_buttons(editor);
   ldk_ui_spacer(ui);
   ldk_ui_end_horizontal(ui);
 }
@@ -828,6 +941,13 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
 
   ldk_ui_spacer(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  editor->show_statistics =
+      ldk_ui_toggle(ui, editor->show_statistics);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, "Statistics");
+
   s_editor_layout_combo_box(editor);
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
@@ -1383,4 +1503,3 @@ void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
   ldki_editor_console_append(editor, LDK_EDITOR_CONSOLE_ENTRY_INFO, msg);
   ldk_log_info(msg);
 }
-

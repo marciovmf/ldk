@@ -14,6 +14,7 @@
 #include <module/ldk_ui.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
@@ -68,6 +69,19 @@ static LDKRendererViewId s_editor_view_id_from_entity(LDKEntity entity)
   return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
 }
 
+static void s_editor_camera_settings_apply(
+    const LDKEditorContext *editor, LDKCamera *camera)
+{
+  if (editor == NULL || camera == NULL)
+  {
+    return;
+  }
+
+  camera->fov_y = deg_to_rad(editor->editor_camera_fov);
+  camera->near_plane = editor->editor_camera_near_clip;
+  camera->far_plane = editor->editor_camera_far_clip;
+}
+
 static bool s_editor_camera_ensure(LDKEditorContext *editor)
 {
   LDKECS *ecs;
@@ -92,6 +106,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor)
 
     if (camera != NULL && camera->role == LDK_CAMERA_ROLE_EDITOR)
     {
+      s_editor_camera_settings_apply(editor, camera);
       editor->scene_view =
           s_editor_view_id_from_entity(editor->editor_camera);
       return true;
@@ -117,6 +132,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor)
 
   camera->role = LDK_CAMERA_ROLE_EDITOR;
   camera->enabled = true;
+  s_editor_camera_settings_apply(editor, camera);
   ldk_entity_internal_flags_add(
       &ecs->entity, entity, LDK_ENTITY_INTERNAL_EDITOR);
   ldk_transform_set_local_position(
@@ -388,6 +404,11 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       {
         editor->gizmo.mode =
             (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
+      }
+      else if (event->keyboard_event.keyCode == LDK_KEYCODE_F)
+      {
+        ldki_editor_camera_focus_selected(editor);
+        return true;
       }
     }
   }
@@ -1002,6 +1023,204 @@ bool ldki_editor_view_texture_show(LDKEditorContext *editor,
   return true;
 }
 
+static void s_editor_game_statistics_overlay(
+    LDKEditorContext *editor, LDKUIRect image_rect)
+{
+  if (editor == NULL || editor->renderer == NULL ||
+      !editor->show_statistics || image_rect.w <= 0.0f ||
+      image_rect.h <= 0.0f)
+  {
+    return;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  LDKRendererFrameStats stats =
+      ldk_renderer_last_frame_stats_get(editor->renderer);
+
+  const float margin = 12.0f;
+  const float padding = 8.0f;
+  const float row_height = 18.0f;
+  const float desired_width = 276.0f;
+  const float value_column_width = 80.0f;
+  const float column_gap = 8.0f;
+  const u32 row_count = 16;
+
+  float panel_width = desired_width;
+  float max_width = image_rect.w - margin * 2.0f;
+
+  if (panel_width > max_width)
+  {
+    panel_width = max_width;
+  }
+
+  if (panel_width < 220.0f)
+  {
+    return;
+  }
+
+  float panel_height = padding * 2.0f + row_height * (float)row_count;
+  float max_height = image_rect.h - margin * 2.0f;
+
+  if (panel_height > max_height)
+  {
+    panel_height = max_height;
+  }
+
+  if (panel_height < padding * 2.0f + row_height * 4.0f)
+  {
+    return;
+  }
+
+  LDKUIRect panel_rect = {
+      image_rect.x + margin,
+      image_rect.y + margin,
+      panel_width,
+      panel_height};
+
+  rgba32 previous_panel_bg =
+      ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
+  rgba32 previous_text =
+      ui->theme.colors[LDK_UI_COLOR_TEXT];
+
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = 0x101010C0u;
+  ui->theme.colors[LDK_UI_COLOR_TEXT] = 0xffffffffu;
+
+  ldk_ui_widget_panel(ui, 0x53544154u, panel_rect);
+
+  float label_width =
+      panel_rect.w - padding * 2.0f - column_gap - value_column_width;
+
+  float value_x =
+      panel_rect.x + padding + label_width + column_gap;
+
+  char value_text[32];
+  u32 row = 0;
+
+  {
+    LDKUIRect title_rect = {
+        panel_rect.x + padding,
+        panel_rect.y + padding,
+        panel_rect.w - padding * 2.0f,
+        row_height};
+
+    ldk_ui_widget_label(
+        ui, 0x53540000u, "Statistics", title_rect);
+
+    ++row;
+  }
+
+#define LDK_EDITOR_STAT_ROW(label, ...)                                      \
+  do                                                                         \
+  {                                                                          \
+    float row_y =                                                            \
+        panel_rect.y + padding + row_height * (float)row;                    \
+                                                                             \
+    if (row_y + row_height <=                                                \
+        panel_rect.y + panel_rect.h - padding)                               \
+    {                                                                        \
+      LDKUIRect label_rect = {                                               \
+          panel_rect.x + padding,                                            \
+          row_y,                                                             \
+          label_width,                                                       \
+          row_height};                                                       \
+                                                                             \
+      LDKUIRect value_rect = {                                               \
+          value_x,                                                           \
+          row_y,                                                             \
+          value_column_width,                                                \
+          row_height};                                                       \
+                                                                             \
+      snprintf(value_text, sizeof(value_text), __VA_ARGS__);                 \
+                                                                             \
+      ldk_ui_widget_label(                                                   \
+          ui, 0x53541000u + row * 2u, label, label_rect);                   \
+      ldk_ui_widget_label(                                                   \
+          ui, 0x53541001u + row * 2u, value_text, value_rect);              \
+    }                                                                        \
+                                                                             \
+    ++row;                                                                   \
+  } while (0)
+
+  float fps = editor->statistics_frame_time_ms > 0.0f
+      ? 1000.0f / editor->statistics_frame_time_ms
+      : 0.0f;
+
+  LDK_EDITOR_STAT_ROW(
+      "FPS",
+      "%.1f",
+      fps);
+
+  LDK_EDITOR_STAT_ROW(
+      "Frame (ms)",
+      "%.2f",
+      editor->statistics_frame_time_ms);
+
+  LDK_EDITOR_STAT_ROW(
+      "Renderer CPU (ms)",
+      "%.2f",
+      stats.cpu_time_ms);
+
+  LDK_EDITOR_STAT_ROW(
+      "Game draw calls",
+      "%u",
+      stats.game.draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Editor draw calls",
+      "%u",
+      stats.non_game.draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Opaque items",
+      "%u",
+      stats.game.opaque_mesh_render_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Overlay items",
+      "%u",
+      stats.game.overlay_mesh_render_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Batches",
+      "%u",
+      stats.game.batch_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Instanced batches",
+      "%u",
+      stats.game.instanced_batch_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Instanced objects",
+      "%u",
+      stats.game.instanced_instance_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Max batch",
+      "%u",
+      stats.game.max_batch_size);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Opaque mesh",
+      "%u",
+      stats.game.opaque_mesh_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Shadow",
+      "%u",
+      stats.game.shadow_draw_call_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Overlay mesh",
+      "%u",
+      stats.game.overlay_mesh_draw_call_count);
+
+#undef LDK_EDITOR_STAT_ROW
+
+  ui->theme.colors[LDK_UI_COLOR_TEXT] = previous_text;
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = previous_panel_bg;
+}
+
 static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
@@ -1015,6 +1234,8 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
   {
     return;
   }
+
+  s_editor_game_statistics_overlay(editor, image_rect);
 
   ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
       image_rect.h, editor->renderer->game_width,
@@ -1041,6 +1262,26 @@ static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
+  if (delta_time > 0.0f)
+  {
+    float frame_time_ms = delta_time * 1000.0f;
+    float alpha = delta_time * 6.0f;
+    if (alpha > 1.0f)
+    {
+      alpha = 1.0f;
+    }
+
+    if (editor->statistics_frame_time_ms <= 0.0f)
+    {
+      editor->statistics_frame_time_ms = frame_time_ms;
+    }
+    else
+    {
+      editor->statistics_frame_time_ms +=
+          (frame_time_ms - editor->statistics_frame_time_ms) * alpha;
+    }
+  }
+
   ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);
   ldki_editor_scene_catalog_sync(editor);
@@ -1107,8 +1348,43 @@ static bool s_editor_config_load_from_ini(
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   x_smallstr_from_cstr(
       &editor->editor_theme, x_ini_get(ini, EDITOR, "theme", "dark"));
-  x_fs_path(&editor->editor_font, config->runtree_path,
-      x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf"));
+  if (!ldk_asset_path_set(&editor->editor_font,
+          x_ini_get(ini, EDITOR, "font", "assets/InterDisplay-Regular.ttf")))
+  {
+    ldk_log_error("Invalid .editor font asset path.\n");
+    return false;
+  }
+
+  editor->editor_camera_fov =
+      x_ini_get_f32(ini, EDITOR, "camera_fov", 60.0f);
+  editor->editor_camera_near_clip =
+      x_ini_get_f32(ini, EDITOR, "camera_near_clip", 0.1f);
+  editor->editor_camera_far_clip =
+      x_ini_get_f32(ini, EDITOR, "camera_far_clip", 1000.0f);
+
+  if (editor->editor_camera_fov <= 1.0f ||
+      editor->editor_camera_fov >= 179.0f)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_fov. Falling back to 60 degrees.\n");
+    editor->editor_camera_fov = 60.0f;
+  }
+
+  if (editor->editor_camera_near_clip <= 0.0f)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_near_clip. Falling back to 0.1.\n");
+    editor->editor_camera_near_clip = 0.1f;
+  }
+
+  if (editor->editor_camera_far_clip <= editor->editor_camera_near_clip)
+  {
+    ldk_log_warning(
+        "Invalid .editor camera_far_clip. It must be greater than "
+        "camera_near_clip.\n");
+    editor->editor_camera_far_clip =
+        float_max(1000.0f, editor->editor_camera_near_clip * 1000.0f);
+  }
 
   // load a te texture atlas
   XFSPath atlas_path;
@@ -1198,17 +1474,6 @@ static bool s_editor_gui_initialize(
   ui_cfg.initial_window_capacity = LDK_DEFAULT_UI_INITIAL_WINDOW_CAPACITY;
   ui_cfg.initial_id_stack_capacity = LDK_DEFAULT_UI_INITIAL_STACK_CAPACITY;
   ui_cfg.font = editor->font_instance;
-
-  if (strncmp(editor->editor_theme.buf, "light", 5) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  else if (strncmp(editor->editor_theme.buf, "dark", 4) == 0)
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_DARK;
-  else
-  {
-    ldk_log_warning("Unknown Editor theme name '%s'. Default to 'light'.",
-        editor->editor_theme.buf);
-    ui_cfg.theme = LDK_UI_THEME_DEFAULT_LIGHT;
-  }
 
   ui_cfg.font_texture_user = renderer;
   ui_cfg.get_font_page_texture = ldk_renderer_get_font_page_texture_callback;
@@ -1587,8 +1852,7 @@ static bool s_project_game_module_runtime_load(LDKEditorContext *editor,
 
   scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   if (!ldk_scene_manager_configure_file(scene_manager,
-          editor->project.project_file_path.buf, &editor->project.run_root_path,
-          &scene_result))
+          editor->project.project_file_path.buf, &scene_result))
   {
     ldki_editor_log_error(editor, scene_result.error);
     ldk_game_instance_unload();
@@ -1932,6 +2196,14 @@ static bool s_project_load(
   if (!ldk_project_load(&editor->project, project_file_path))
     return false;
 
+  LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  if (!asset_source || !ldk_asset_source_runtree_set(
+                           asset_source, editor->project.run_root_path.buf))
+  {
+    ldk_log_error("Failed to configure project asset source.\n");
+    goto fail;
+  }
+
   if (!ldk_engine_render_resolution_set(
           editor->project.project_resolution_width,
           editor->project.project_resolution_height))
@@ -1939,6 +2211,13 @@ static bool s_project_load(
     ldk_log_error("Invalid project render resolution %dx%d.\n",
         editor->project.project_resolution_width,
         editor->project.project_resolution_height);
+    goto fail;
+  }
+
+  if (!ldk_engine_shadow_settings_set(editor->project.shadow_map_resolution,
+          editor->project.shadow_distance))
+  {
+    ldk_log_error("Failed to apply project shadow settings.\n");
     goto fail;
   }
 
@@ -1966,8 +2245,7 @@ static bool s_project_load(
 
   LDKSceneResult scene_result;
   if (!ldk_scene_manager_configure_file(scene_manager,
-          editor->project.project_file_path.buf, &editor->project.run_root_path,
-          &scene_result))
+          editor->project.project_file_path.buf, &scene_result))
   {
     ldki_editor_log_error(editor, scene_result.error);
     goto fail;

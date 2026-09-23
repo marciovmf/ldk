@@ -5,6 +5,7 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_instanced_mesh_source.h>
 #include <module/ldk_scene_manager.h>
 #include <ctype.h>
 #include <errno.h>
@@ -18,6 +19,39 @@
 enum
 {
   LDK_EDITOR_INSPECTOR_INPUT_CAPACITY = 64,
+};
+
+static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
+{
+  {
+    "Ambient Color",
+    LDK_FIELD_U32,
+    offsetof(LDKSceneProperties, ambient_color),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_COLOR,
+    0.0f,
+    0.0f,
+    NULL,
+  },
+  {
+    "Ambient Intensity",
+    LDK_FIELD_FLOAT,
+    offsetof(LDKSceneProperties, ambient_intensity),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_FLOAT,
+    0.0f,
+    0.0f,
+    NULL,
+  },
+};
+
+static const LDKComponentMeta s_editor_scene_properties_meta =
+{
+  "Scene Properties",
+  0,
+  sizeof(LDKSceneProperties),
+  s_editor_scene_properties_fields,
+  2,
 };
 
 typedef struct LDKEditorInspectorInputState
@@ -64,14 +98,162 @@ typedef struct LDKEditorInspectorFlagsState
   bool selector_open;
 } LDKEditorInspectorFlagsState;
 
+typedef struct LDKEditorInspectorColumnState
+{
+  float drag_start_width;
+  i32 drag_start_x;
+  bool dragging;
+} LDKEditorInspectorColumnState;
+
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
 static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
+static LDKEditorInspectorColumnState s_editor_inspector_column_state = {0};
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
+static const float s_editor_inspector_label_width_min = 60.0f;
+static const float s_editor_inspector_control_width_min = 80.0f;
+static const float s_editor_inspector_splitter_hit_width = 8.0f;
+
 static void s_editor_inspector_input_state_clear(void);
+static void s_editor_material_diagnostic(const char *message, void *user);
+static bool s_editor_material_asset_editor(LDKEditorContext *editor,
+    LDKAssetMaterial *material_asset, bool readonly,
+    const LDKMaterialIOContext *context);
+
+static float s_editor_inspector_label_width_clamp(
+    LDKUIContext *ui, float width)
+{
+  float max_width = s_editor_inspector_label_width_min;
+
+  if (ui && ui->current_layout)
+  {
+    max_width = ui->current_layout->content_rect.w -
+                s_editor_inspector_control_width_min;
+    if (max_width < s_editor_inspector_label_width_min)
+    {
+      max_width = s_editor_inspector_label_width_min;
+    }
+  }
+
+  if (width < s_editor_inspector_label_width_min)
+  {
+    return s_editor_inspector_label_width_min;
+  }
+  if (width > max_width)
+  {
+    return max_width;
+  }
+  return width;
+}
+
+static void s_editor_inspector_column_update(LDKEditorContext *editor)
+{
+  LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
+  LDKUIContext *ui;
+  LDKPoint cursor;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  if (!isfinite(editor->inspector_label_width) ||
+      editor->inspector_label_width <= 0.0f)
+  {
+    editor->inspector_label_width =
+        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  }
+
+  editor->inspector_label_width = s_editor_inspector_label_width_clamp(
+      ui, editor->inspector_label_width);
+
+  if (!state->dragging)
+  {
+    return;
+  }
+
+  if (!ui->mouse)
+  {
+    state->dragging = false;
+    return;
+  }
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  editor->inspector_label_width = s_editor_inspector_label_width_clamp(ui,
+      state->drag_start_width + (float)(cursor.x - state->drag_start_x));
+  ui->cursor_type = LDK_CURSOR_SIZE_WE;
+
+  if (!ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = false;
+  }
+}
+
+static void s_editor_inspector_row_begin(
+    LDKEditorContext *editor, const char *label)
+{
+  LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
+  LDKUIContext *ui;
+  LDKUIRect label_rect;
+  LDKUIRect splitter_rect;
+  LDKPoint cursor;
+  float spacing;
+  float hit_width;
+  bool hovered;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
+  ldk_ui_label(ui, label ? label : "");
+
+  if (!ui->mouse || !ui->current_window)
+  {
+    return;
+  }
+
+  label_rect = ldk_ui_last_bounding_rect(ui);
+  spacing = ui->current_layout ? ui->current_layout->spacing
+                               : LDK_UI_DEFAULT_SPACING;
+  hit_width = spacing > s_editor_inspector_splitter_hit_width
+                  ? spacing
+                  : s_editor_inspector_splitter_hit_width;
+  splitter_rect = label_rect;
+  splitter_rect.x =
+      label_rect.x + label_rect.w - (hit_width - spacing);
+  splitter_rect.w = hit_width;
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  hovered = ui->hovered_window_id == ui->current_window->id &&
+            ldk_rectf_contains(
+                &splitter_rect, (float)cursor.x, (float)cursor.y) &&
+            ldk_rectf_contains(
+                &ui->clip_rect, (float)cursor.x, (float)cursor.y);
+
+  if (hovered || state->dragging)
+  {
+    ui->cursor_type = LDK_CURSOR_SIZE_WE;
+  }
+
+  if (hovered && !state->dragging &&
+      ldk_os_mouse_button_down(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = true;
+    state->drag_start_x = cursor.x;
+    state->drag_start_width = editor->inspector_label_width;
+  }
+}
 
 static void s_editor_inspector_area_state_sync(LDKEntity entity)
 {
@@ -469,10 +651,7 @@ static void s_editor_inspector_flags_draw(
   ldk_ui_push_id_cstr(ui, "entity_flags");
   ldk_ui_push_id_u32(ui, entity.index);
   ldk_ui_push_id_u32(ui, entity.version);
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, "Flags");
+  s_editor_inspector_row_begin(editor, "Flags");
 
   result = ldk_ui_input_box(ui, s_editor_inspector_flags_state.input,
       (u32)sizeof(s_editor_inspector_flags_state.input));
@@ -611,6 +790,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     break;
   case LDK_FIELD_RESOURCE_MESH:
     snprintf(out, out_size, "<resource mesh>");
+    break;
+  case LDK_FIELD_ASSET_MATERIAL:
+    snprintf(out, out_size, "<asset material>");
     break;
   default:
     snprintf(out, out_size, "<unsupported>");
@@ -998,10 +1180,7 @@ static void s_editor_inspector_mesh_selector(
   }
 
   selected_index = mesh->mesh_index;
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, "Mesh");
+  s_editor_inspector_row_begin(editor, "Mesh");
 
   if (mesh_count == 1)
   {
@@ -1050,25 +1229,74 @@ static void s_editor_inspector_mesh_selector(
   free(names);
 }
 
-static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
-    const char *label, LDKMeshSource *mesh, bool readonly)
+static bool s_editor_inspector_asset_path_validate(
+    LDKEditorContext *editor, const XFSPath *path, const char *title,
+    const char *message, LDKAssetPath *out_asset_path)
 {
-  LDKUIContext *ui = &editor->ui;
-  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  LDKAssetHandle handle = {mesh->source_asset.h};
-  const LDKAssetInfo *info = assets && !x_handle_is_null(mesh->source_asset.h)
-      ? ldk_asset_get_info_const(assets, handle)
-      : NULL;
+  XFSPath normalized = {0};
+  XFSPath root;
+  XFSPath relative = {0};
+
+  if (!editor || !path || !out_asset_path)
+  {
+    return false;
+  }
+
+  normalized = *path;
+  root = editor->project.run_root_path;
+  x_fs_path_normalize(&normalized);
+  x_fs_path_normalize(&root);
+
+  if (!editor->project.loaded || !root.length ||
+      !x_fs_path_common_prefix(root.buf, normalized.buf, &relative) ||
+      !relative.length || strcmp(relative.buf, ".") == 0)
+  {
+    ldk_os_dialog_show_error(editor->window, title, message);
+    return false;
+  }
+
+  for (size_t i = 0; relative.buf[i]; ++i)
+  {
+    if (relative.buf[i] == '\\')
+    {
+      relative.buf[i] = '/';
+    }
+  }
+
+  if (!ldk_asset_path_set(out_asset_path, relative.buf))
+  {
+    ldk_os_dialog_show_error(editor->window, title, message);
+    return false;
+  }
+  return true;
+}
+
+static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetMesh *value, bool readonly)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
   XFSPath path = {0};
   char display[sizeof(path.buf)];
   bool assign = false;
 
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+
   snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, label);
+  s_editor_inspector_row_begin(editor, label);
 
   ldk_ui_begin_disabled(ui, true);
   ldk_ui_input_box(ui, display, sizeof(display));
@@ -1103,43 +1331,143 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
 
   if (!assign)
   {
-    s_editor_inspector_mesh_selector(editor, mesh, readonly);
     return false;
   }
 
-  XFSPath normalized = {0};
-  XFSPath root = editor->project.run_root_path;
-  XFSPath relative = {0};
-  x_fs_path_set(&normalized, path.buf);
-  x_fs_path_normalize(&normalized);
-  x_fs_path_normalize(&root);
-
-  if (!editor->project.loaded || !root.length ||
-      !x_fs_path_common_prefix(root.buf, normalized.buf, &relative) ||
-      !relative.length || strcmp(relative.buf, ".") == 0)
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Mesh",
+          "Choose a mesh inside the project's runtree folder.", &asset_path))
   {
-    ldk_os_dialog_show_error(editor->window, "Mesh",
-        "Choose a mesh inside the project's runtree folder.");
+    return false;
+  }
+
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
     return false;
   }
 
   LDKMeshAssetResult result;
   LDKAssetMesh asset =
-      ldk_asset_manager_mesh_load_shared(assets, normalized.buf, &result);
+      ldk_asset_manager_mesh_load_shared(assets, asset_path.buf, &result);
   if (x_handle_is_null(asset.h))
   {
     ldki_editor_log_error(editor, result.error);
     return false;
   }
 
-  if (!ldk_mesh_source_set_data(mesh, asset) ||
-      !ldk_mesh_source_materials_sync(mesh, assets))
+  *value = asset;
+  return true;
+}
+
+static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetMaterial *value, bool readonly, bool optional)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+  bool clear = false;
+
+  if (!editor || !value)
   {
-    ldki_editor_log_error(editor, "Failed to assign mesh asset.");
     return false;
   }
 
-  s_editor_inspector_mesh_selector(editor, mesh, readonly);
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  s_editor_inspector_row_begin(editor, label);
+
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose material",
+        "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
+  }
+  ldk_ui_end_disabled(ui);
+
+  if (optional)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
+  }
+
+  ldk_ui_end_horizontal(ui);
+
+  if (clear)
+  {
+    *value = ldk_asset_material_null();
+    return true;
+  }
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Material",
+          "Choose a material inside the project's runtree folder.",
+          &asset_path))
+  {
+    return false;
+  }
+
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+
+  LDKMaterialIOContext context = {0};
+  LDKMaterialIOResult result;
+  context.assets = assets;
+  context.diagnostic = s_editor_material_diagnostic;
+  context.user = editor;
+
+  LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
+      &context, asset_path.buf, &result);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, result.error);
+    return false;
+  }
+
+  *value = asset;
   return true;
 }
 
@@ -1165,7 +1493,8 @@ static void s_editor_inspector_field_draw(
 
   ldk_ui_push_id_cstr(ui, field->name);
 
-  if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
+  if ((component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+        component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
       field->type == LDK_FIELD_U32 &&
       field->offset == offsetof(LDKMeshSource, mesh_index))
   {
@@ -1173,20 +1502,56 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
-  if (field->type == LDK_FIELD_ASSET_MESH &&
-      component_type == LDK_COMPONENT_TYPE_MESH_SOURCE &&
-      field->offset == offsetof(LDKMeshSource, source_asset))
+  if (field->type == LDK_FIELD_ASSET_MESH)
   {
-    s_editor_inspector_mesh_asset_field(
-        editor, field->name, (LDKMeshSource *)component, readonly);
+    LDKAssetMesh value = *(LDKAssetMesh *)field_value;
+    bool changed = s_editor_inspector_mesh_asset_field(
+        editor, field->name, &value, readonly);
+
+    if ((component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+        component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
+        field->offset == offsetof(LDKMeshSource, source_asset))
+    {
+      LDKMeshSource *mesh = (LDKMeshSource *)component;
+      LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+
+      if (changed &&
+          (!assets || !ldk_mesh_source_set_data(mesh, value) ||
+              !ldk_mesh_source_materials_sync(mesh, assets)))
+      {
+        ldki_editor_log_error(editor, "Failed to assign mesh asset.");
+      }
+
+      s_editor_inspector_mesh_selector(editor, mesh, readonly);
+    }
+    else if (changed)
+    {
+      *(LDKAssetMesh *)field_value = value;
+    }
+
     ldk_ui_pop_id(ui);
     return;
   }
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, field->name);
+  if (field->type == LDK_FIELD_ASSET_MATERIAL)
+  {
+    LDKAssetMaterial *value = (LDKAssetMaterial *)field_value;
+    LDKMaterialIOContext context = {0};
+
+    (void)s_editor_inspector_material_asset_field(
+        editor, field->name, value, readonly, true);
+
+    context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    context.diagnostic = s_editor_material_diagnostic;
+    context.user = editor;
+    (void)s_editor_material_asset_editor(
+        editor, value, readonly, &context);
+
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  s_editor_inspector_row_begin(editor, field->name);
 
   if (field->type == LDK_FIELD_ENUM && field->enum_meta)
   {
@@ -1440,6 +1805,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
   case LDK_FIELD_RESOURCE_MESH:
+  case LDK_FIELD_ASSET_MATERIAL:
   default:
     s_editor_inspector_field_value_format(
         value_text, sizeof(value_text), field, field_value);
@@ -1451,12 +1817,63 @@ static void s_editor_inspector_field_draw(
   ldk_ui_pop_id(ui);
 }
 
-static void s_editor_material_row_begin(LDKUIContext *ui, const char *title)
+static void s_editor_inspector_scene_properties_draw(
+    LDKEditorContext *editor)
 {
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, title);
+  const LDKSceneProperties *current;
+  LDKSceneProperties properties;
+  LDKComponentFieldMeta fields[2];
+  LDKComponentMeta meta = s_editor_scene_properties_meta;
+  LDKEntity key = x_handle_null();
+  bool readonly;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  current = ldk_scene_properties_get();
+  if (!current)
+  {
+    ldk_ui_label(&editor->ui, "Scene properties unavailable.");
+    return;
+  }
+
+  properties = *current;
+  readonly = editor->editor_state != LDK_EDITOR_STATE_STOPED;
+  memcpy(fields, s_editor_scene_properties_fields, sizeof(fields));
+  if (readonly)
+  {
+    fields[0].flags |= LDK_FIELD_FLAG_READONLY;
+    fields[1].flags |= LDK_FIELD_FLAG_READONLY;
+  }
+  meta.fields = fields;
+
+  ldk_ui_push_id_cstr(&editor->ui, "scene_properties");
+  ldk_ui_label(&editor->ui, "Scene Properties");
+  ldk_ui_horizontal_line(&editor->ui);
+
+  for (u32 i = 0; i < meta.field_count; ++i)
+  {
+    s_editor_inspector_field_draw(
+        editor, key, 0, &meta, &meta.fields[i], &properties);
+  }
+
+  if (!readonly && isfinite(properties.ambient_intensity) &&
+      properties.ambient_intensity >= 0.0f &&
+      (properties.ambient_color != current->ambient_color ||
+          properties.ambient_intensity != current->ambient_intensity))
+  {
+    (void)ldk_scene_properties_set(&properties);
+  }
+
+  ldk_ui_pop_id(&editor->ui);
+}
+
+static void s_editor_material_row_begin(
+    LDKEditorContext *editor, const char *title)
+{
+  s_editor_inspector_row_begin(editor, title);
 }
 
 static void s_editor_material_diagnostic(const char *message, void *user)
@@ -1528,73 +1945,123 @@ static u64 s_editor_mesh_material_revision(
   return binding ? binding->material_revision : 0;
 }
 
-static bool s_editor_material_asset_field(LDKEditorContext *editor,
-    LDKMeshSource *mesh, u32 material_slot, const char *slot_label,
-    const LDKMaterialIOContext *context)
+static bool s_editor_material_asset_equal(
+    LDKAssetMaterial a, LDKAssetMaterial b)
 {
-  LDKUIContext *ui = &editor->ui;
-  LDKAssetMaterial material_asset =
-      s_editor_mesh_material_asset(mesh, material_slot);
-  u64 material_revision =
-      s_editor_mesh_material_revision(mesh, material_slot);
-  LDKAssetHandle handle = {material_asset.h};
-  const LDKAssetInfo *info = material_revision
-      ? ldk_asset_get_info_const(context->assets, handle) : NULL;
-  XFSPath path = {0};
-  char display[sizeof(path.buf)];
+  return a.h.index == b.h.index && a.h.version == b.h.version;
+}
 
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-  s_editor_material_row_begin(ui, slot_label);
+static bool s_editor_material_image_editor(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, LDKAssetImage *image,
+    bool readonly, bool optional, const LDKMaterialIOContext *context)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle asset;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display_path[sizeof(path.buf)];
+  bool assign = false;
+  bool clear = false;
+
+  if (!editor || !label || !dialog_title || !image || !context ||
+      !context->assets)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = context->assets;
+  asset.h = image->h;
+  info = !x_handle_is_null(image->h) ? ldk_asset_get_info_const(assets, asset)
+                                     : NULL;
+  snprintf(display_path, sizeof(display_path), "%s",
+      info
+          ? (info->asset_path.length ? info->asset_path.buf : "Generated image")
+          : "");
+
+  ldk_ui_push_id_cstr(ui, label);
+  s_editor_material_row_begin(editor, label);
   ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
+  ldk_ui_input_box(ui, display_path, sizeof(display_path));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
 
-  bool assign = false;
-  if (ui->mouse && ui->active_id && ui->current_window &&
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
     if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
         ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
     {
-      u32 type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(&type, &path) &&
-          type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+      u32 payload_type = 0;
+      assign =
+          ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
+          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
     }
   }
 
   ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
   if (ldk_ui_button(ui, "..."))
   {
-    assign = ldk_os_dialog_show_open_file(editor->window, "Choose material",
-        "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
+    assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
+        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path.buf,
+        sizeof(path.buf));
   }
-  ldk_ui_end_horizontal(ui);
+  ldk_ui_end_disabled(ui);
 
-  if (assign)
+  if (optional)
   {
-    LDKMaterialIOResult result;
-    LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
-        context, path.buf, &result);
-    if (x_handle_is_null(asset.h))
-    {
-      ldki_editor_log_error(editor, result.error);
-    }
-    else
-    {
-      return ldk_mesh_source_set_material_asset_at(
-          mesh, context->assets, material_slot, asset);
-    }
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(image->h));
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
   }
 
-  return false;
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+
+  if (clear)
+  {
+    image->h = x_handle_null();
+    return true;
+  }
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, dialog_title,
+          "Choose an image inside the project's runtree folder.", &asset_path))
+  {
+    return false;
+  }
+
+  LDKAssetImage selected =
+      ldk_asset_manager_image_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldk_os_dialog_show_error(editor->window, dialog_title,
+        "The selected image could not be loaded.");
+    return false;
+  }
+
+  if (selected.h.index == image->h.index &&
+      selected.h.version == image->h.version)
+  {
+    return false;
+  }
+
+  *image = selected;
+  return true;
 }
 
-static void s_editor_inspector_material_slot(LDKEditorContext *editor,
-    LDKMeshSource *mesh, u32 material_slot, const char *slot_label,
+static bool s_editor_material_desc_editor(LDKEditorContext *editor,
+    LDKMaterialDesc *desc, bool readonly,
     const LDKMaterialIOContext *context)
 {
   static const char *const names[] = {
@@ -1602,189 +2069,498 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   static const LDKMaterialType types[] = {
       LDK_MATERIAL_TYPE_TEXTURED_UNLIT, LDK_MATERIAL_TYPE_TEXTURED,
       LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT, LDK_MATERIAL_TYPE_VERTEX_COLOR};
-  LDKUIContext *ui = &editor->ui;
+  LDKUIContext *ui;
+  bool changed = false;
+  u32 selected = 3;
 
-  ldk_ui_push_id_u32(ui, material_slot);
-  ldk_ui_horizontal_line(ui);
-  s_editor_material_asset_field(
-      editor, mesh, material_slot, slot_label, context);
-
-  LDKAssetMaterial material_asset =
-      s_editor_mesh_material_asset(mesh, material_slot);
-  u64 material_revision =
-      s_editor_mesh_material_revision(mesh, material_slot);
-  const LDKAssetMaterialData *bound = material_revision
-      ? ldk_asset_manager_material_get_const(context->assets, material_asset)
-      : NULL;
-  if (bound && bound->is_missing)
+  if (!editor || !desc || !context || !context->assets)
   {
-    s_editor_material_row_begin(ui, "Status");
-    ldk_ui_label(ui, "Missing material (magenta checker)");
-    ldk_ui_end_horizontal(ui);
-    ldk_ui_pop_id(ui);
-    return;
+    return false;
   }
 
-  LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
-  u32 selected = 3;
+  ui = &editor->ui;
   for (u32 i = 0; i < 4; ++i)
   {
-    if (desc.type == types[i])
+    if (desc->type == types[i])
     {
       selected = i;
     }
   }
 
-  s_editor_material_row_begin(ui, "Type");
+  s_editor_material_row_begin(editor, "Type");
+  ldk_ui_begin_disabled(ui, readonly);
   u32 next = ldk_ui_combo_box(ui, names, 4, selected);
+  ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
-  if (next < 4 && next != selected)
+  if (!readonly && next < 4 && next != selected &&
+      ldk_material_desc_defaults(types[next], desc))
   {
-    ldk_material_desc_defaults(types[next], &desc);
+    changed = true;
   }
 
-  bool textured = desc.type == LDK_MATERIAL_TYPE_TEXTURED ||
-      desc.type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
-  rgba32 *color = textured ? &desc.args.textured.color
-                           : &desc.args.vertex_color.color;
-  char color_label[40];
-  s_editor_material_row_begin(ui, "Tint");
-  snprintf(color_label, sizeof(color_label), "#%08X...", (u32)*color);
-  if (ldk_ui_color_view(ui, *color))
+  bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  bool lit = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  rgba32 *color = textured ? &desc->args.textured.color
+                           : &desc->args.vertex_color.color;
+
+  s_editor_material_row_begin(editor, "Tint");
+  rgba32 previous_color = *color;
+  if (ldk_ui_color_view(ui, *color) && !readonly)
   {
     ldk_os_dialog_color_picker_show(editor->window, color);
   }
+  if (!readonly && *color != previous_color)
+  {
+    changed = true;
+  }
   ldk_ui_end_horizontal(ui);
 
-  s_editor_material_row_begin(ui, "Alpha");
+  s_editor_material_row_begin(editor, "Alpha");
+  u32 previous_alpha = (u32)(*color & 255u);
+  ldk_ui_begin_disabled(ui, readonly);
   u32 alpha =
-      (u32)(ldk_ui_slider(ui, (float)(*color & 255), 0, 255) + 0.5f);
-  *color = (*color & 0xffffff00u) | alpha;
+      (u32)(ldk_ui_slider(ui, (float)previous_alpha, 0, 255) + 0.5f);
+  ldk_ui_end_disabled(ui);
+  if (!readonly && alpha != previous_alpha)
+  {
+    *color = (*color & 0xffffff00u) | alpha;
+    changed = true;
+  }
   ldk_ui_end_horizontal(ui);
 
   if (textured)
   {
-    LDKAssetManager *assets = context->assets;
-    LDKAssetHandle asset = {desc.args.textured.texture.h};
-    const LDKAssetInfo *info = ldk_asset_get_info_const(assets, asset);
-    XFSPath path = {0};
-    char display_path[sizeof(path.buf)];
-    snprintf(display_path, sizeof(display_path), "%s",
-        info ? (info->asset_path.length ? info->asset_path.buf
-                                       : "Generated image") : "");
-    s_editor_material_row_begin(ui, "Texture");
-    ldk_ui_begin_disabled(ui, true);
-    ldk_ui_input_box(ui, display_path, sizeof(display_path));
-    LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-    ldk_ui_end_disabled(ui);
-    bool assign = false;
-
-    if (ui->mouse && ui->active_id && ui->current_window &&
-        ui->hovered_window_id == ui->current_window->id &&
-        ldk_os_mouse_button_up(
-            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+    static const char *const alpha_mode_names[] = {
+        "Opaque", "Cutout", "Blend"};
+    u32 alpha_mode = (u32)desc->args.textured.alpha_mode;
+    if (alpha_mode > (u32)LDK_MATERIAL_ALPHA_MODE_BLEND)
     {
-      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-      if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-          ldk_rectf_contains(
-              &ui->clip_rect, (float)cursor.x, (float)cursor.y))
-      {
-        u32 payload_type = 0;
-        assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                     &payload_type, &path) &&
-            payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
-      }
+      alpha_mode = (u32)LDK_MATERIAL_ALPHA_MODE_OPAQUE;
     }
 
-    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    if (ldk_ui_button(ui, "..."))
+    s_editor_material_row_begin(editor, "Alpha Mode");
+    ldk_ui_begin_disabled(ui, readonly);
+    u32 next_alpha_mode =
+        ldk_ui_combo_box(ui, alpha_mode_names, 3, alpha_mode);
+    ldk_ui_end_disabled(ui);
+    ldk_ui_end_horizontal(ui);
+    if (!readonly && next_alpha_mode < 3u && next_alpha_mode != alpha_mode)
     {
-      assign = ldk_os_dialog_show_open_file(editor->window,
-          "Choose material image",
-          "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0",
-          path.buf, sizeof(path.buf));
+      desc->args.textured.alpha_mode =
+          (LDKMaterialAlphaMode)next_alpha_mode;
+      changed = true;
+    }
+
+    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    {
+      s_editor_material_row_begin(editor, "Alpha Cutoff");
+      ldk_ui_begin_disabled(ui, readonly);
+      float alpha_cutoff =
+          ldk_ui_slider(ui, desc->args.textured.alpha_cutoff, 0.0f, 1.0f);
+      ldk_ui_end_disabled(ui);
+      if (!readonly && alpha_cutoff != desc->args.textured.alpha_cutoff)
+      {
+        desc->args.textured.alpha_cutoff = alpha_cutoff;
+        changed = true;
+      }
+      ldk_ui_end_horizontal(ui);
+    }
+  }
+
+  if (lit)
+  {
+    s_editor_material_row_begin(editor, "Specular");
+    ldk_ui_begin_disabled(ui, readonly);
+    float specular = ldk_ui_slider(ui, desc->surface.specular, 0.0f, 1.0f);
+    ldk_ui_end_disabled(ui);
+    if (!readonly && specular != desc->surface.specular)
+    {
+      desc->surface.specular = specular;
+      changed = true;
     }
     ldk_ui_end_horizontal(ui);
 
-    if (assign)
+    s_editor_material_row_begin(editor, "Shininess");
+    float shininess =
+        desc->surface.shininess == 0.0f ? 32.0f : desc->surface.shininess;
+    ldk_ui_begin_disabled(ui, readonly);
+    float next_shininess = ldk_ui_slider(ui, shininess, 1.0f, 256.0f);
+    ldk_ui_end_disabled(ui);
+    if (!readonly && next_shininess != shininess)
     {
-      XFSPath normalized = {0};
-      XFSPath root = editor->project.run_root_path;
-      XFSPath relative = {0};
-      x_fs_path_set(&normalized, path.buf);
-      x_fs_path_normalize(&normalized);
-      x_fs_path_normalize(&root);
-      if (!editor->project.loaded || !root.length ||
-          !x_fs_path_common_prefix(root.buf, normalized.buf, &relative) ||
-          !relative.length || strcmp(relative.buf, ".") == 0)
+      desc->surface.shininess = next_shininess;
+      changed = true;
+    }
+    ldk_ui_end_horizontal(ui);
+
+    s_editor_material_row_begin(editor, "Emission");
+    ldk_ui_begin_disabled(ui, readonly);
+    float emission = ldk_ui_slider(ui, desc->surface.emission, 0.0f, 4.0f);
+    ldk_ui_end_disabled(ui);
+    if (!readonly && emission != desc->surface.emission)
+    {
+      desc->surface.emission = emission;
+      changed = true;
+    }
+    ldk_ui_end_horizontal(ui);
+  }
+
+  if (textured &&
+      s_editor_material_image_editor(editor, "Texture", "Choose material image",
+          &desc->args.textured.texture, readonly, false, context))
+  {
+    changed = true;
+  }
+
+  if (lit)
+  {
+    if (s_editor_material_image_editor(editor, "Normal Map",
+            "Choose normal map", &desc->surface.normal_map, readonly, true,
+            context))
+    {
+      changed = true;
+    }
+    if (s_editor_material_image_editor(editor, "Specular Map",
+            "Choose specular map", &desc->surface.specular_map, readonly, true,
+            context))
+    {
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+static bool s_editor_material_asset_editor(LDKEditorContext *editor,
+    LDKAssetMaterial *material_asset, bool readonly,
+    const LDKMaterialIOContext *context)
+{
+  typedef struct MaterialDraft
+  {
+    LDKAssetMaterial *binding;
+    LDKMaterialDesc descriptor;
+    struct MaterialDraft *next;
+  } MaterialDraft;
+
+  static MaterialDraft *drafts = NULL;
+
+  LDKUIContext *ui;
+  const LDKAssetMaterialData *data;
+  LDKMaterialDesc desc;
+  MaterialDraft *draft = NULL;
+  MaterialDraft *previous_draft = NULL;
+  bool binding_changed = false;
+
+  if (!editor || !material_asset || !context || !context->assets)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+
+  for (draft = drafts; draft; draft = draft->next)
+  {
+    if (draft->binding == material_asset)
+    {
+      break;
+    }
+
+    previous_draft = draft;
+  }
+
+  /*
+   * An assigned asset owns the descriptor. Any draft that previously
+   * belonged to this binding is no longer needed.
+   */
+  if (!x_handle_is_null(material_asset->h))
+  {
+    if (draft)
+    {
+      if (previous_draft)
       {
-        ldk_os_dialog_show_error(editor->window, "Material image",
-            "Choose an image inside the project's runtree folder.");
+        previous_draft->next = draft->next;
       }
       else
       {
-        LDKAssetImage image =
-            ldk_asset_manager_image_load_shared(assets, normalized.buf);
-        if (x_handle_is_null(image.h))
+        drafts = draft->next;
+      }
+
+      free(draft);
+      draft = NULL;
+    }
+
+    data = ldk_asset_manager_material_get_const(
+        context->assets, *material_asset);
+    if (!data)
+    {
+      return false;
+    }
+
+    ldk_ui_horizontal_line(ui);
+
+    if (data->is_missing)
+    {
+      s_editor_material_row_begin(editor, "Status");
+      ldk_ui_label(ui, "Missing material (magenta checker)");
+      ldk_ui_end_horizontal(ui);
+      return false;
+    }
+
+    desc = data->descriptor;
+
+    if (s_editor_material_desc_editor(
+            editor, &desc, readonly, context) &&
+        !ldk_asset_manager_material_update(
+            context->assets, *material_asset, &desc))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to update material asset.");
+    }
+
+    data = ldk_asset_manager_material_get_const(
+        context->assets, *material_asset);
+
+    s_editor_material_row_begin(
+        editor, data ? (data->dirty ? "Shared *" : "Shared") : "");
+
+    ldk_ui_begin_disabled(ui, readonly);
+
+    if (data && ldk_ui_button(ui, "Save Material"))
+    {
+      LDKMaterialIOResult result;
+
+      if (!ldk_asset_manager_material_save(
+              context, *material_asset, &result))
+      {
+        ldki_editor_log_error(editor, result.error);
+      }
+    }
+
+    if (ldk_ui_button(ui, "Save As..."))
+    {
+      XFSPath path = {0};
+
+      if (ldk_os_dialog_show_save_file(editor->window,
+              "Create material", "Materials\0*.tml\0\0",
+              path.buf, sizeof(path.buf)))
+      {
+        LDKAssetPath asset_path;
+        if (s_editor_inspector_asset_path_validate(editor, &path,
+                "Create material",
+                "Create the material inside the project's runtree folder.",
+                &asset_path))
         {
-          ldk_os_dialog_show_error(editor->window, "Material image",
-              "The selected image could not be loaded.");
+          LDKMaterialIOResult result;
+          LDKAssetMaterial asset =
+              ldk_asset_manager_material_create(
+                  context, asset_path.buf, &desc, &result);
+
+          if (x_handle_is_null(asset.h))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
+          else
+          {
+            *material_asset = asset;
+            binding_changed = true;
+
+            if (!ldk_asset_manager_material_save(
+                    context, asset, &result))
+            {
+              ldki_editor_log_error(editor, result.error);
+            }
+          }
+        }
+      }
+    }
+
+    ldk_ui_end_disabled(ui);
+    ldk_ui_end_horizontal(ui);
+    return binding_changed;
+  }
+
+  /*
+   * No asset is assigned. Keep an editor-only descriptor until the user
+   * chooses Save As..., at which point it becomes a real material asset.
+   */
+  if (!draft)
+  {
+    draft = calloc(1, sizeof(*draft));
+    if (!draft)
+    {
+      return false;
+    }
+
+    draft->binding = material_asset;
+
+    if (!ldk_material_desc_defaults(
+            LDK_MATERIAL_TYPE_VERTEX_COLOR, &draft->descriptor))
+    {
+      free(draft);
+      return false;
+    }
+
+    draft->next = drafts;
+    drafts = draft;
+    previous_draft = NULL;
+  }
+
+  ldk_ui_horizontal_line(ui);
+
+  (void)s_editor_material_desc_editor(
+      editor, &draft->descriptor, readonly, context);
+
+  s_editor_material_row_begin(editor, "Draft");
+  ldk_ui_begin_disabled(ui, readonly);
+
+  if (ldk_ui_button(ui, "Save As..."))
+  {
+    XFSPath path = {0};
+
+    if (ldk_os_dialog_show_save_file(editor->window,
+            "Create material", "Materials\0*.tml\0\0",
+            path.buf, sizeof(path.buf)))
+    {
+      LDKAssetPath asset_path;
+      if (s_editor_inspector_asset_path_validate(editor, &path,
+              "Create material",
+              "Create the material inside the project's runtree folder.",
+              &asset_path))
+      {
+        LDKMaterialIOResult result;
+        LDKAssetMaterial asset =
+            ldk_asset_manager_material_create(
+                context, asset_path.buf, &draft->descriptor, &result);
+
+        if (x_handle_is_null(asset.h))
+        {
+          ldki_editor_log_error(editor, result.error);
         }
         else
         {
-          desc.args.textured.texture = image;
+          *material_asset = asset;
+          binding_changed = true;
+
+          if (!ldk_asset_manager_material_save(
+                  context, asset, &result))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
+
+          if (previous_draft)
+          {
+            previous_draft->next = draft->next;
+          }
+          else
+          {
+            drafts = draft->next;
+          }
+
+          free(draft);
         }
       }
     }
   }
 
-  if (material_revision)
-  {
-    ldk_asset_manager_material_update(
-        context->assets, material_asset, &desc);
-    ldk_mesh_source_material_sync(mesh, context->assets);
-  }
-  else
-  {
-    ldk_mesh_source_set_material_at(mesh, material_slot, &desc);
-  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  return binding_changed;
+}
+
+static void s_editor_inspector_material_slot(LDKEditorContext *editor,
+    LDKMeshSource *mesh, u32 material_slot, const char *slot_label,
+    const LDKMaterialIOContext *context)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetMaterial material_asset;
+  LDKAssetMaterial selected_asset;
+  u64 material_revision;
+
+  ldk_ui_push_id_u32(ui, material_slot);
+  ldk_ui_horizontal_line(ui);
 
   material_asset = s_editor_mesh_material_asset(mesh, material_slot);
-  material_revision = s_editor_mesh_material_revision(mesh, material_slot);
-  const LDKAssetMaterialData *data = material_revision
-      ? ldk_asset_manager_material_get_const(context->assets, material_asset)
-      : NULL;
-  s_editor_material_row_begin(
-      ui, data ? (data->dirty ? "Shared *" : "Shared") : "");
-  if (data && ldk_ui_button(ui, "Save Material"))
+  selected_asset = material_asset;
+  if (s_editor_inspector_material_asset_field(
+          editor, slot_label, &selected_asset, false, true))
   {
-    LDKMaterialIOResult result;
-    if (!ldk_asset_manager_material_save(context, material_asset, &result))
+    if (x_handle_is_null(selected_asset.h))
     {
-      ldki_editor_log_error(editor, result.error);
+      LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
+      if (!ldk_mesh_source_set_material_at(mesh, material_slot, &desc))
+      {
+        ldki_editor_log_error(editor, "Failed to clear material asset.");
+      }
     }
+    else if (!ldk_mesh_source_set_material_asset_at(
+                 mesh, context->assets, material_slot, selected_asset))
+    {
+      ldki_editor_log_error(editor, "Failed to assign material asset.");
+    }
+    material_asset = s_editor_mesh_material_asset(mesh, material_slot);
   }
 
+  material_revision = s_editor_mesh_material_revision(mesh, material_slot);
+  if (material_revision != 0)
+  {
+    selected_asset = material_asset;
+    if (s_editor_material_asset_editor(
+            editor, &selected_asset, false, context) &&
+        !s_editor_material_asset_equal(selected_asset, material_asset))
+    {
+      if (!ldk_mesh_source_set_material_asset_at(
+              mesh, context->assets, material_slot, selected_asset))
+      {
+        ldki_editor_log_error(editor, "Failed to assign material asset.");
+      }
+    }
+
+    (void)ldk_mesh_source_material_sync(mesh, context->assets);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
+  if (s_editor_material_desc_editor(editor, &desc, false, context) &&
+      !ldk_mesh_source_set_material_at(mesh, material_slot, &desc))
+  {
+    ldki_editor_log_error(editor, "Failed to update inline material.");
+  }
+
+  s_editor_material_row_begin(editor, "");
   if (ldk_ui_button(ui, "Save As..."))
   {
     XFSPath path = {0};
     if (ldk_os_dialog_show_save_file(editor->window, "Create material",
             "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
     {
-      LDKMaterialIOResult result;
-      LDKAssetMaterial asset = ldk_asset_manager_material_create(
-          context, path.buf, &desc, &result);
-      if (x_handle_is_null(asset.h))
+      LDKAssetPath asset_path;
+      if (s_editor_inspector_asset_path_validate(editor, &path,
+              "Create material",
+              "Create the material inside the project's runtree folder.",
+              &asset_path))
       {
-        ldki_editor_log_error(editor, result.error);
-      }
-      else
-      {
-        ldk_mesh_source_set_material_asset_at(
-            mesh, context->assets, material_slot, asset);
-        if (!ldk_asset_manager_material_save(context, asset, &result))
+        LDKMaterialIOResult result;
+        LDKAssetMaterial asset = ldk_asset_manager_material_create(
+            context, asset_path.buf, &desc, &result);
+        if (x_handle_is_null(asset.h))
         {
           ldki_editor_log_error(editor, result.error);
+        }
+        else
+        {
+          if (!ldk_mesh_source_set_material_asset_at(
+                  mesh, context->assets, material_slot, asset))
+          {
+            ldki_editor_log_error(editor, "Failed to assign material asset.");
+          }
+          if (!ldk_asset_manager_material_save(context, asset, &result))
+          {
+            ldki_editor_log_error(editor, result.error);
+          }
         }
       }
     }
@@ -1814,7 +2590,6 @@ static void s_editor_inspector_material(
   }
 
   context.assets = assets;
-  context.runtree_path = editor->project.run_root_path;
   context.diagnostic = s_editor_material_diagnostic;
   context.user = editor;
 
@@ -1951,10 +2726,7 @@ static void s_editor_inspector_system_grouping_draw(
   labels = (const char **)calloc(item_count, sizeof(*labels));
   ids = (u64 *)calloc(item_count, sizeof(*ids));
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
-  ldk_ui_label(ui, "Grouping");
+  s_editor_inspector_row_begin(editor, "Grouping");
 
   if (!labels || !ids)
   {
@@ -2111,13 +2883,284 @@ static bool s_editor_inspector_system_draw(
   return true;
 }
 
+enum
+{
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_POSITION = 0,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_ROTATION,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_SCALE,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_COUNT,
+  LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_OFFSET_BASE = 0x80000000u,
+};
+
+static u32 s_editor_inspector_instance_field_offset(
+    u32 instance_index, u32 field_index)
+{
+  return LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_OFFSET_BASE +
+         instance_index * LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_COUNT +
+         field_index;
+}
+
+static bool s_editor_inspector_instance_vec3_draw(LDKEditorContext *editor,
+    LDKEntity entity, const char *label, u32 field_offset, Vec3 *value)
+{
+  LDKComponentFieldMeta field = {0};
+  LDKUIContext *ui;
+  bool changed = false;
+
+  if (!editor || !label || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  field.name = label;
+  field.type = LDK_FIELD_VEC3;
+  field.offset = field_offset;
+  field.flags = LDK_FIELD_FLAG_NONE;
+  field.widget = LDK_FIELD_WIDGET_VEC3;
+
+  s_editor_inspector_row_begin(editor, label);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "X");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 0, &value->x, false);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "Y");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 1, &value->y, false);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "Z");
+  changed |= s_editor_inspector_float_input(ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 2, &value->z, false);
+
+  ldk_ui_end_horizontal(ui);
+  return changed;
+}
+
+static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 field_offset, Mat4 *instance, Quat *rotation)
+{
+  LDKComponentFieldMeta field = {0};
+  Quat original;
+
+  if (!editor || !instance || !rotation)
+  {
+    return false;
+  }
+
+  field.name = "Rotation";
+  field.type = LDK_FIELD_QUAT;
+  field.offset = field_offset;
+  field.flags = LDK_FIELD_FLAG_NONE;
+  field.widget = LDK_FIELD_WIDGET_EULER;
+  original = *rotation;
+
+  s_editor_inspector_row_begin(editor, field.name);
+  s_editor_inspector_euler_field_draw(&editor->ui, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance, rotation,
+      false);
+  ldk_ui_end_horizontal(&editor->ui);
+
+  return !s_editor_inspector_euler_quat_equal(original, *rotation);
+}
+
+static bool s_editor_inspector_instance_matrix_finite(Mat4 matrix)
+{
+  for (u32 i = 0; i < 16; ++i)
+  {
+    if (!isfinite(matrix.m[i]))
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool s_editor_inspector_instance_add(LDKInstancedMeshSource *source)
+{
+  Mat4 *instances;
+  u32 count;
+  bool result;
+
+  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4))
+  {
+    return false;
+  }
+
+  count = source->instance_count + 1u;
+  instances = malloc((size_t)count * sizeof(*instances));
+  if (!instances)
+  {
+    return false;
+  }
+
+  if (source->instance_count)
+  {
+    memcpy(instances, source->instances,
+        (size_t)source->instance_count * sizeof(*instances));
+  }
+  instances[count - 1u] = mat4_identity();
+
+  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
+  free(instances);
+  return result;
+}
+
+static bool s_editor_inspector_instance_remove(
+    LDKInstancedMeshSource *source, u32 index)
+{
+  Mat4 *instances;
+  u32 count;
+  bool result;
+
+  if (!source || index >= source->instance_count)
+  {
+    return false;
+  }
+
+  count = source->instance_count - 1u;
+  if (!count)
+  {
+    return ldk_instanced_mesh_source_set_instances(source, NULL, 0);
+  }
+
+  instances = malloc((size_t)count * sizeof(*instances));
+  if (!instances)
+  {
+    return false;
+  }
+
+  if (index)
+  {
+    memcpy(instances, source->instances, (size_t)index * sizeof(*instances));
+  }
+  if (index + 1u < source->instance_count)
+  {
+    memcpy(&instances[index], &source->instances[index + 1u],
+        (size_t)(source->instance_count - index - 1u) * sizeof(*instances));
+  }
+
+  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
+  free(instances);
+  return result;
+}
+
+static void s_editor_inspector_instanced_mesh_instances_draw(
+    LDKEditorContext *editor, LDKEntity entity, LDKInstancedMeshSource *source)
+{
+  LDKUIContext *ui;
+  char label[64];
+
+  if (!editor || !source)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_begin_horizontal(ui);
+  snprintf(label, sizeof(label), "Instances (%u)", source->instance_count);
+  ldk_ui_label(ui, label);
+  if (ldk_ui_button(ui, "+ Add Instance"))
+  {
+    if (!s_editor_inspector_instance_add(source))
+    {
+      ldk_os_dialog_show_error(
+          editor->window, "Add Instance", "Failed to add mesh instance.");
+    }
+    else
+    {
+      s_editor_inspector_input_state_clear();
+      memset(&s_editor_inspector_euler_state, 0,
+          sizeof(s_editor_inspector_euler_state));
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+
+  for (u32 i = 0; i < source->instance_count; ++i)
+  {
+    Vec3 position;
+    Vec3 scale;
+    Quat rotation;
+    bool changed = false;
+    bool remove = false;
+
+    ldk_ui_push_id_u32(ui, i);
+    ldk_ui_begin_horizontal(ui);
+    snprintf(label, sizeof(label), "Instance %u", i);
+    ldk_ui_label(ui, label);
+    remove = ldk_ui_button_flat(ui, "Remove");
+    ldk_ui_end_horizontal(ui);
+
+    if (remove)
+    {
+      if (!s_editor_inspector_instance_remove(source, i))
+      {
+        ldk_os_dialog_show_error(editor->window, "Remove Instance",
+            "Failed to remove mesh instance.");
+      }
+      else
+      {
+        s_editor_inspector_input_state_clear();
+        memset(&s_editor_inspector_euler_state, 0,
+            sizeof(s_editor_inspector_euler_state));
+      }
+      ldk_ui_pop_id(ui);
+      break;
+    }
+
+    mat4_decompose(source->instances[i], &position, &rotation, &scale);
+
+    changed |= s_editor_inspector_instance_vec3_draw(editor, entity,
+        "Position",
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_POSITION),
+        &position);
+    changed |= s_editor_inspector_instance_rotation_draw(editor, entity,
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_ROTATION),
+        &source->instances[i], &rotation);
+    changed |= s_editor_inspector_instance_vec3_draw(editor, entity, "Scale",
+        s_editor_inspector_instance_field_offset(
+            i, LDK_EDITOR_INSPECTOR_INSTANCE_FIELD_SCALE),
+        &scale);
+
+    if (changed)
+    {
+      Mat4 matrix = mat4_compose(position, rotation, scale);
+      if (s_editor_inspector_instance_matrix_finite(matrix))
+      {
+        source->instances[i] = matrix;
+      }
+      else
+      {
+        ldki_editor_log_error(
+            editor, "Instance transform produced an invalid matrix.");
+      }
+    }
+
+    if (i + 1u < source->instance_count)
+    {
+      ldk_ui_horizontal_line(ui);
+    }
+    ldk_ui_pop_id(ui);
+  }
+}
+
 static void s_editor_inspector_add_component_draw(
     LDKEditorContext *editor, LDKECS *ecs, LDKGame *game, LDKEntity entity)
 {
   const LDKUIId popup_id = 0x41434D50u;
   LDKUIContext *ui;
+  LDKUIRect button_rect;
+  float popup_content_width;
   u32 available_count = 0;
   bool added = false;
+  bool open_popup;
 
   if (!editor || !ecs || !game)
   {
@@ -2127,10 +3170,21 @@ static void s_editor_inspector_add_component_draw(
   ui = &editor->ui;
 
   ldk_ui_set_next_width(ui, ldk_ui_fill());
-  if (ldk_ui_button(ui, "+ Add Component"))
+  open_popup = ldk_ui_button(ui, "+ Add Component");
+  button_rect = ldk_ui_last_bounding_rect(ui);
+  if (open_popup)
   {
-    ldk_ui_open_popup(ui, popup_id);
+    LDKUIPoint popup_position = {
+        button_rect.x,
+        button_rect.y + button_rect.h,
+    };
+    ldk_ui_open_popup_at(ui, popup_id, popup_position);
   }
+
+  popup_content_width =
+      button_rect.w > LDK_UI_DEFAULT_PADDING * 2.0f
+          ? button_rect.w - LDK_UI_DEFAULT_PADDING * 2.0f
+          : 0.0f;
 
   if (!ldk_ui_begin_popup(ui, popup_id))
   {
@@ -2139,6 +3193,7 @@ static void s_editor_inspector_add_component_draw(
 
   if (!game->metadata_count || !game->metadata_get)
   {
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     ldk_ui_label(ui, "Component metadata unavailable.");
     ldk_ui_end_popup(ui);
     return;
@@ -2157,7 +3212,10 @@ static void s_editor_inspector_add_component_draw(
     }
 
     component_type = ldk_scene_component_meta_runtime_type(meta);
-    if (!ldk_component_is_registered(&ecs->component, component_type) ||
+    LDKComponentDesc component_desc = {0};
+    if (!ldk_component_desc_get(
+            &ecs->component, component_type, &component_desc) ||
+        (component_desc.flags & LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u ||
         ldk_entity_component_has(&ecs->entity, entity, component_type))
     {
       continue;
@@ -2176,9 +3234,24 @@ static void s_editor_inspector_add_component_draw(
 
     ++available_count;
     ldk_ui_push_id_u32(ui, component_type);
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     if (ldk_ui_button_flat(ui, component_name))
     {
-      if (ldk_ecs_component_add(entity, component_type, NULL))
+      void *component = ldk_ecs_component_add(entity, component_type, NULL);
+      bool initialized = component != NULL;
+
+      if (initialized &&
+          component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        initialized = s_editor_inspector_instance_add(
+            (LDKInstancedMeshSource *)component);
+        if (!initialized)
+        {
+          (void)ldk_ecs_component_remove(entity, component_type);
+        }
+      }
+
+      if (initialized)
       {
         s_editor_inspector_component_expanded_set(component_type, true);
         ldk_ui_close_current_popup(ui);
@@ -2186,6 +3259,7 @@ static void s_editor_inspector_add_component_draw(
       }
       else
       {
+        ldki_editor_log_error(editor, "Failed to add the selected component.");
         ldk_os_dialog_show_error(editor->window, "Add Component",
             "Failed to add the selected component.");
       }
@@ -2200,6 +3274,7 @@ static void s_editor_inspector_add_component_draw(
 
   if (!added && available_count == 0)
   {
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_content_width));
     ldk_ui_label(ui, "No components available.");
   }
 
@@ -2221,8 +3296,26 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
+  s_editor_inspector_column_update(editor);
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
+
+  if (editor->scene_properties_selected)
+  {
+    if (editor->current_scene_path.length == 0)
+    {
+      editor->scene_properties_selected = false;
+    }
+    else
+    {
+      scroll = ldk_ui_begin_scrollview(
+          ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      s_editor_inspector_scene_properties_draw(editor);
+      ldk_ui_end_scrollview(ui);
+      s_editor_inspector_column_update(editor);
+      return;
+    }
+  }
 
   if (editor->selected_system_id != 0)
   {
@@ -2235,6 +3328,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       (void)s_editor_inspector_system_draw(
           editor, game, editor->selected_system_id);
       ldk_ui_end_scrollview(ui);
+      s_editor_inspector_column_update(editor);
       return;
     }
     editor->selected_system_id = 0;
@@ -2246,6 +3340,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         sizeof(s_editor_inspector_euler_state));
     s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
+    s_editor_inspector_column_update(editor);
     return;
   }
 
@@ -2257,6 +3352,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         sizeof(s_editor_inspector_euler_state));
     s_editor_inspector_input_state_clear();
     ldk_ui_label(ui, "No entity selected.");
+    s_editor_inspector_column_update(editor);
     return;
   }
 
@@ -2271,7 +3367,6 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
 
   const rgba32 flat_color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  const rgba32 white = 0xFFFFFFFF;
 
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
@@ -2306,7 +3401,15 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       component_i++)
   {
     u32 component_type = info->components.component_type[component_i];
+    LDKComponentDesc component_desc = {0};
     bool has_delete_button = true;
+
+    if (ldk_component_desc_get(
+            &ecs->component, component_type, &component_desc) &&
+        (component_desc.flags & LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u)
+    {
+      continue;
+    }
 
     // custom icons for native components
     if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
@@ -2376,14 +3479,33 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
        * not use scene serialization rules: runtime/non-serialized fields may
        * still be useful to inspect.
        */
-      for (u32 field_i = 0; field_i < meta->field_count; field_i++)
+      const LDKComponentMeta *fields_meta = meta;
+      void *fields_component = component;
+      u32 fields_type = component_type;
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
-        s_editor_inspector_field_draw(editor, entity, component_type, meta,
-            &meta->fields[field_i], component);
+        LDKInstancedMeshSource *instances = component;
+        fields_meta = ldk_scene_component_meta_find_by_type(
+            game, LDK_COMPONENT_TYPE_MESH_SOURCE);
+        fields_component = &instances->source;
       }
-      if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE)
+      if (fields_meta)
       {
-        s_editor_inspector_material(editor, component);
+        for (u32 field_i = 0; field_i < fields_meta->field_count; field_i++)
+        {
+          s_editor_inspector_field_draw(editor, entity, fields_type,
+              fields_meta, &fields_meta->fields[field_i], fields_component);
+        }
+      }
+      if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+          fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        s_editor_inspector_material(editor, fields_component);
+      }
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      {
+        s_editor_inspector_instanced_mesh_instances_draw(
+            editor, entity, (LDKInstancedMeshSource *)component);
       }
     }
 
@@ -2409,4 +3531,5 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   s_editor_inspector_add_component_draw(editor, ecs, game, entity);
 
   ldk_ui_end_scrollview(ui);
+  s_editor_inspector_column_update(editor);
 }
