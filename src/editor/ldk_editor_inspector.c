@@ -32,6 +32,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     0.0f,
     0.0f,
     NULL,
+    NULL,
   },
   {
     "Ambient Intensity",
@@ -41,6 +42,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     LDK_FIELD_WIDGET_FLOAT,
     0.0f,
     0.0f,
+    NULL,
     NULL,
   },
 };
@@ -52,6 +54,8 @@ static const LDKComponentMeta s_editor_scene_properties_meta =
   sizeof(LDKSceneProperties),
   s_editor_scene_properties_fields,
   2,
+  NULL,
+  0,
 };
 
 typedef struct LDKEditorInspectorInputState
@@ -105,11 +109,28 @@ typedef struct LDKEditorInspectorColumnState
   bool dragging;
 } LDKEditorInspectorColumnState;
 
+typedef struct LDKEditorInspectorCollapsedGroup
+{
+  u64 owner_id;
+  u32 group_index;
+  u32 domain;
+} LDKEditorInspectorCollapsedGroup;
+
+enum
+{
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT = 1u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM = 2u,
+};
+
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
 static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
 static LDKEditorInspectorColumnState s_editor_inspector_column_state = {0};
+static LDKEditorInspectorCollapsedGroup *s_editor_inspector_collapsed_groups = NULL;
+static u32 s_editor_inspector_collapsed_group_count = 0u;
+static u32 s_editor_inspector_collapsed_group_capacity = 0u;
+static u32 s_editor_inspector_row_group_depth = 0u;
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
@@ -204,6 +225,8 @@ static void s_editor_inspector_row_begin(
   LDKPoint cursor;
   float spacing;
   float hit_width;
+  float indent_width = 0.0f;
+  float label_width;
   bool hovered;
 
   if (!editor)
@@ -212,9 +235,26 @@ static void s_editor_inspector_row_begin(
   }
 
   ui = &editor->ui;
+  if (s_editor_inspector_row_group_depth > 0u)
+  {
+    indent_width = LDK_UI_TREE_NODE_CHEVRON_WIDTH + LDK_UI_DEFAULT_SPACING +
+        (float)(s_editor_inspector_row_group_depth - 1u) *
+            LDK_UI_TREE_NODE_INDENT_WIDTH;
+  }
+  label_width = editor->inspector_label_width - indent_width;
+  if (label_width < 1.0f)
+  {
+    label_width = 1.0f;
+  }
+
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
+  if (indent_width > 0.0f)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(indent_width));
+    ldk_ui_spacer(ui);
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(label_width));
   ldk_ui_label(ui, label ? label : "");
 
   if (!ui->mouse || !ui->current_window)
@@ -320,6 +360,81 @@ static void s_editor_inspector_component_expanded_set(
   u32 last_index = --s_editor_inspector_area_state.collapsed_component_count;
   s_editor_inspector_area_state.collapsed_component_types[index] =
       s_editor_inspector_area_state.collapsed_component_types[last_index];
+}
+
+
+static i32 s_editor_inspector_collapsed_group_index(
+    u32 domain, u64 owner_id, u32 group_index)
+{
+  for (u32 i = 0; i < s_editor_inspector_collapsed_group_count; ++i)
+  {
+    const LDKEditorInspectorCollapsedGroup *group =
+        &s_editor_inspector_collapsed_groups[i];
+    if (group->domain == domain && group->owner_id == owner_id &&
+        group->group_index == group_index)
+    {
+      return (i32)i;
+    }
+  }
+  return -1;
+}
+
+static bool s_editor_inspector_group_expanded(
+    u32 domain, u64 owner_id, u32 group_index)
+{
+  return s_editor_inspector_collapsed_group_index(
+             domain, owner_id, group_index) < 0;
+}
+
+static void s_editor_inspector_group_expanded_set(
+    u32 domain, u64 owner_id, u32 group_index, bool expanded)
+{
+  i32 collapsed_index = s_editor_inspector_collapsed_group_index(
+      domain, owner_id, group_index);
+
+  if (!expanded)
+  {
+    if (collapsed_index >= 0)
+    {
+      return;
+    }
+
+    if (s_editor_inspector_collapsed_group_count ==
+        s_editor_inspector_collapsed_group_capacity)
+    {
+      u32 new_capacity = s_editor_inspector_collapsed_group_capacity == 0u
+          ? 32u
+          : s_editor_inspector_collapsed_group_capacity * 2u;
+      LDKEditorInspectorCollapsedGroup *new_groups =
+          (LDKEditorInspectorCollapsedGroup *)realloc(
+              s_editor_inspector_collapsed_groups,
+              sizeof(*new_groups) * new_capacity);
+      if (!new_groups)
+      {
+        return;
+      }
+      s_editor_inspector_collapsed_groups = new_groups;
+      s_editor_inspector_collapsed_group_capacity = new_capacity;
+    }
+
+    LDKEditorInspectorCollapsedGroup *group =
+        &s_editor_inspector_collapsed_groups[
+            s_editor_inspector_collapsed_group_count++];
+    group->domain = domain;
+    group->owner_id = owner_id;
+    group->group_index = group_index;
+    return;
+  }
+
+  if (collapsed_index < 0)
+  {
+    return;
+  }
+
+  u32 index = (u32)collapsed_index;
+  u32 last = --s_editor_inspector_collapsed_group_count;
+  s_editor_inspector_collapsed_groups[index] =
+      s_editor_inspector_collapsed_groups[last];
 }
 
 static void s_editor_inspector_input_state_clear(void)
@@ -1640,12 +1755,16 @@ static void s_editor_inspector_field_draw(
   {
     if (field->widget == LDK_FIELD_WIDGET_COLOR)
     {
-      rgba32 color = *(u32 *)field_value;
+      rgba32 *field_color = (rgba32 *)field_value;
+      rgba32 color = *field_color;
       ldk_ui_begin_disabled(ui, readonly);
       if (ldk_ui_color_view(ui, color) && !readonly)
       {
-        ldk_os_dialog_color_picker_show(editor->window, &color);
-        *(u32 *)field_value = color;
+        color |= 0x000000ffu;
+        if (ldk_os_dialog_color_picker_show(editor->window, &color))
+        {
+          *field_color = color;
+        }
       }
       ldk_ui_end_disabled(ui);
       break;
@@ -1815,6 +1934,182 @@ static void s_editor_inspector_field_draw(
 
   ldk_ui_end_horizontal(ui);
   ldk_ui_pop_id(ui);
+}
+
+static bool s_editor_inspector_group_pointer_index(
+    const LDKComponentMeta *meta, const LDKComponentGroupMeta *group,
+    u32 *out_index)
+{
+  ptrdiff_t index;
+
+  if (!meta || !meta->groups || meta->group_count == 0u || !group ||
+      !out_index)
+  {
+    return false;
+  }
+
+  if (group < meta->groups || group >= meta->groups + meta->group_count)
+  {
+    return false;
+  }
+
+  index = group - meta->groups;
+  if (index < 0 || (u32)index >= meta->group_count)
+  {
+    return false;
+  }
+
+  *out_index = (u32)index;
+  return true;
+}
+
+static u32 s_editor_inspector_group_path_build(
+    const LDKComponentMeta *meta, const LDKComponentGroupMeta *group,
+    u32 *path, u32 capacity)
+{
+  u32 count = 0u;
+
+  while (group)
+  {
+    u32 index;
+    if (count >= capacity ||
+        !s_editor_inspector_group_pointer_index(meta, group, &index))
+    {
+      return 0u;
+    }
+
+    path[count++] = index;
+    group = group->parent;
+  }
+
+  for (u32 i = 0; i < count / 2u; ++i)
+  {
+    u32 opposite = count - 1u - i;
+    u32 tmp = path[i];
+    path[i] = path[opposite];
+    path[opposite] = tmp;
+  }
+
+  return count;
+}
+
+static void s_editor_inspector_fields_draw(
+    LDKEditorContext *editor, LDKEntity entity, u32 component_type,
+    const LDKComponentMeta *meta, void *component, u32 group_domain,
+    u64 group_owner_id)
+{
+  LDKUIContext *ui;
+  u32 *previous_path = NULL;
+  u32 *current_path = NULL;
+  u32 previous_count = 0u;
+
+  if (!editor || !meta || !component || !meta->fields)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+
+  if (!meta->groups || meta->group_count == 0u)
+  {
+    s_editor_inspector_row_group_depth = 0u;
+    for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
+    {
+      s_editor_inspector_field_draw(editor, entity, component_type,
+          meta, &meta->fields[field_i], component);
+    }
+    return;
+  }
+
+  previous_path = (u32 *)malloc(sizeof(u32) * meta->group_count);
+  current_path = (u32 *)malloc(sizeof(u32) * meta->group_count);
+  if (!previous_path || !current_path)
+  {
+    free(previous_path);
+    free(current_path);
+    s_editor_inspector_row_group_depth = 0u;
+    for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
+    {
+      s_editor_inspector_field_draw(editor, entity, component_type,
+          meta, &meta->fields[field_i], component);
+    }
+    return;
+  }
+
+  for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[field_i];
+    u32 current_count = s_editor_inspector_group_path_build(
+        meta, field->group, current_path, meta->group_count);
+    u32 common_count = 0u;
+    bool visible = true;
+
+    while (common_count < previous_count && common_count < current_count &&
+           previous_path[common_count] == current_path[common_count])
+    {
+      ++common_count;
+    }
+
+    for (u32 depth = 0; depth < common_count; ++depth)
+    {
+      if (!s_editor_inspector_group_expanded(
+              group_domain, group_owner_id, current_path[depth]))
+      {
+        visible = false;
+        break;
+      }
+    }
+
+    for (u32 depth = common_count; depth < current_count; ++depth)
+    {
+      u32 group_index = current_path[depth];
+      bool expanded = s_editor_inspector_group_expanded(
+          group_domain, group_owner_id, group_index);
+
+      if (visible)
+      {
+        const LDKComponentGroupMeta *group = &meta->groups[group_index];
+        bool next_expanded;
+
+        ldk_ui_push_id_cstr(ui, "property_group");
+        ldk_ui_push_id_u32(ui, group_index);
+        next_expanded = ldk_ui_tree_node(ui,
+            group->name ? group->name : "<unnamed group>", expanded,
+            depth, LDK_UI_TREE_NODE_NONE);
+        ldk_ui_pop_id(ui);
+        ldk_ui_pop_id(ui);
+
+        if (next_expanded != expanded)
+        {
+          s_editor_inspector_group_expanded_set(
+              group_domain, group_owner_id, group_index, next_expanded);
+          expanded = next_expanded;
+        }
+      }
+
+      if (!expanded)
+      {
+        visible = false;
+      }
+    }
+
+    if (visible)
+    {
+      s_editor_inspector_row_group_depth = current_count;
+      s_editor_inspector_field_draw(editor, entity, component_type,
+          meta, field, component);
+    }
+
+    if (current_count > 0u)
+    {
+      memcpy(previous_path, current_path, sizeof(u32) * current_count);
+    }
+    previous_count = current_count;
+  }
+
+  s_editor_inspector_row_group_depth = 0u;
+  free(current_path);
+  free(previous_path);
 }
 
 static void s_editor_inspector_scene_properties_draw(
@@ -2868,12 +3163,11 @@ static bool s_editor_inspector_system_draw(
       field_meta.size = meta->size;
       field_meta.fields = meta->fields;
       field_meta.field_count = meta->field_count;
+      field_meta.groups = meta->groups;
+      field_meta.group_count = meta->group_count;
 
-      for (u32 i = 0; i < meta->field_count; ++i)
-      {
-        s_editor_inspector_field_draw(
-            editor, key, 0, &field_meta, &meta->fields[i], data);
-      }
+      s_editor_inspector_fields_draw(editor, key, 0, &field_meta, data,
+          LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM, system_id);
     }
   }
 
@@ -3491,11 +3785,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       }
       if (fields_meta)
       {
-        for (u32 field_i = 0; field_i < fields_meta->field_count; field_i++)
-        {
-          s_editor_inspector_field_draw(editor, entity, fields_type,
-              fields_meta, &fields_meta->fields[field_i], fields_component);
-        }
+        u64 group_owner_id = fields_meta->type != 0u
+            ? (u64)fields_meta->type
+            : (u64)fields_type;
+        s_editor_inspector_fields_draw(editor, entity, fields_type,
+            fields_meta, fields_component,
+            LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT, group_owner_id);
       }
       if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
           fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)

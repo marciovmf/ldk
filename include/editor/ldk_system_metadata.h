@@ -14,6 +14,8 @@ typedef struct LDKSystemMeta
   u32 size;
   const LDKComponentFieldMeta *fields;
   u32 field_count;
+  const LDKComponentGroupMeta *groups;
+  u32 group_count;
 } LDKSystemMeta;
 
 LDK_API u32 ldk_engine_system_metadata_count(void);

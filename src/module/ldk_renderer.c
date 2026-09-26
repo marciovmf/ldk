@@ -298,6 +298,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
 static void s_renderer_grid_pass_terminate(LDKRendererGridPass* pass);
 static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
+static void s_renderer_destroy_instance_set_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_material_resources(LDKRenderer* renderer);
 static LDKRendererMaterialResource* s_renderer_material_get_resource(
@@ -897,6 +898,258 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->mesh_sort_material_id_capacity = 0;
 }
 
+LDKResourceInstanceSet ldk_renderer_instance_set_null(void)
+{
+  return LDK_RESOURCE_INSTANCE_SET_INVALID;
+}
+
+static LDKRendererInstanceSetResource *s_renderer_instance_set_get_resource(
+    LDKRenderer *renderer, LDKResourceInstanceSet instance_set)
+{
+  if (renderer == NULL || instance_set.id == LDK_RHI_INVALID_RESOURCE)
+  {
+    return NULL;
+  }
+
+  u32 index = (u32)instance_set.id - 1u;
+  if (index >= renderer->instance_set_count ||
+      !renderer->instance_sets[index].alive)
+  {
+    return NULL;
+  }
+  return &renderer->instance_sets[index];
+}
+
+bool ldk_renderer_instance_set_is_valid(
+    LDKRenderer *renderer, LDKResourceInstanceSet instance_set)
+{
+  return s_renderer_instance_set_get_resource(renderer, instance_set) != NULL;
+}
+
+static bool s_renderer_grow_instance_set_cache(LDKRenderer *renderer)
+{
+  u32 capacity = renderer->instance_set_capacity == 0u
+      ? 16u : renderer->instance_set_capacity * 2u;
+  if (capacity <= renderer->instance_set_capacity ||
+      capacity > UINT32_MAX / sizeof(LDKRendererInstanceSetResource))
+  {
+    return false;
+  }
+
+  size_t size = (size_t)capacity * sizeof(LDKRendererInstanceSetResource);
+  LDKRendererInstanceSetResource *resources =
+      (LDKRendererInstanceSetResource *)LDK_RENDERER_REALLOC(
+          renderer->instance_sets, size);
+  if (resources == NULL)
+  {
+    return false;
+  }
+
+  memset(resources + renderer->instance_set_capacity, 0,
+      (size_t)(capacity - renderer->instance_set_capacity) *
+          sizeof(*resources));
+  renderer->instance_sets = resources;
+  renderer->instance_set_capacity = capacity;
+  return true;
+}
+
+static bool s_renderer_instance_matrices_are_valid(
+    const Mat4 *instances, u32 instance_count)
+{
+  if (instances == NULL || instance_count == 0u ||
+      instance_count > UINT32_MAX / sizeof(Mat4))
+  {
+    return false;
+  }
+
+  for (u32 i = 0u; i < instance_count; ++i)
+  {
+    for (u32 element = 0u; element < 16u; ++element)
+    {
+      if (!isfinite(instances[i].m[element]))
+      {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
+    LDKRendererInstanceSetResource *resource, const Mat4 *instances,
+    u32 instance_count, u32 capacity)
+{
+  if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4) ||
+      capacity > UINT32_MAX / sizeof(LDKRHIColor))
+  {
+    return false;
+  }
+
+  LDKRHIColor *colors = (LDKRHIColor *)LDK_RENDERER_ALLOC(
+      (size_t)capacity * sizeof(LDKRHIColor));
+  if (colors == NULL)
+  {
+    return false;
+  }
+  for (u32 i = 0u; i < capacity; ++i)
+  {
+    colors[i] = ldk_renderer_color_from_rgba32(0xffffffffu);
+  }
+
+  LDKRHIBufferDesc desc = {0};
+  ldk_rhi_buffer_desc_defaults(&desc);
+  desc.size = capacity * (u32)sizeof(Mat4);
+  desc.usage =
+      LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  LDKRHIBuffer transform_buffer =
+      ldk_rhi_buffer_create(renderer->rhi, &desc);
+
+  desc.size = capacity * (u32)sizeof(LDKRHIColor);
+  desc.initial_data = colors;
+  LDKRHIBuffer color_buffer = ldk_rhi_buffer_create(renderer->rhi, &desc);
+  LDK_RENDERER_FREE(colors);
+
+  if (transform_buffer == LDK_RHI_INVALID_RESOURCE ||
+      color_buffer == LDK_RHI_INVALID_RESOURCE ||
+      !ldk_rhi_buffer_update(renderer->rhi, transform_buffer, 0,
+          instance_count * (u32)sizeof(Mat4), instances))
+  {
+    ldk_rhi_buffer_destroy(renderer->rhi, transform_buffer);
+    ldk_rhi_buffer_destroy(renderer->rhi, color_buffer);
+    return false;
+  }
+
+  ldk_rhi_buffer_destroy(renderer->rhi, resource->transform_buffer);
+  ldk_rhi_buffer_destroy(renderer->rhi, resource->color_buffer);
+  resource->transform_buffer = transform_buffer;
+  resource->color_buffer = color_buffer;
+  resource->instance_count = instance_count;
+  resource->instance_capacity = capacity;
+  return true;
+}
+
+LDKResourceInstanceSet ldk_renderer_instance_set_create(
+    LDKRenderer *renderer, const Mat4 *instances, u32 instance_count)
+{
+  LDKResourceInstanceSet invalid = ldk_renderer_instance_set_null();
+  if (renderer == NULL || !renderer->is_initialized ||
+      renderer->rhi->functions.draw_indexed_instanced == NULL ||
+      !s_renderer_instance_matrices_are_valid(instances, instance_count))
+  {
+    return invalid;
+  }
+
+  if (renderer->instance_set_count == renderer->instance_set_capacity &&
+      !s_renderer_grow_instance_set_cache(renderer))
+  {
+    return invalid;
+  }
+
+  u32 capacity = 256u;
+  while (capacity < instance_count)
+  {
+    if (capacity > UINT32_MAX / 2u)
+    {
+      capacity = instance_count;
+      break;
+    }
+    capacity *= 2u;
+  }
+
+  u32 index = renderer->instance_set_count;
+  LDKRendererInstanceSetResource *resource = &renderer->instance_sets[index];
+  memset(resource, 0, sizeof(*resource));
+  if (!s_renderer_instance_set_buffers_create(
+          renderer, resource, instances, instance_count, capacity))
+  {
+    return invalid;
+  }
+
+  resource->alive = true;
+  ++renderer->instance_set_count;
+  LDKResourceInstanceSet result = {(LDKRHIResource)(index + 1u)};
+  return result;
+}
+
+bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
+    LDKResourceInstanceSet instance_set, const Mat4 *instances,
+    u32 instance_count)
+{
+  LDKRendererInstanceSetResource *resource =
+      s_renderer_instance_set_get_resource(renderer, instance_set);
+  if (resource == NULL)
+  {
+    return false;
+  }
+  if (instance_count == 0u)
+  {
+    resource->instance_count = 0u;
+    return true;
+  }
+  if (!s_renderer_instance_matrices_are_valid(instances, instance_count))
+  {
+    return false;
+  }
+
+  if (instance_count > resource->instance_capacity)
+  {
+    u32 capacity = resource->instance_capacity;
+    while (capacity < instance_count)
+    {
+      if (capacity > UINT32_MAX / 2u)
+      {
+        capacity = instance_count;
+        break;
+      }
+      capacity *= 2u;
+    }
+    return s_renderer_instance_set_buffers_create(
+        renderer, resource, instances, instance_count, capacity);
+  }
+
+  if (!ldk_rhi_buffer_update(renderer->rhi, resource->transform_buffer, 0,
+          instance_count * (u32)sizeof(Mat4), instances))
+  {
+    return false;
+  }
+  resource->instance_count = instance_count;
+  return true;
+}
+
+void ldk_renderer_instance_set_destroy(
+    LDKRenderer *renderer, LDKResourceInstanceSet instance_set)
+{
+  LDKRendererInstanceSetResource *resource =
+      s_renderer_instance_set_get_resource(renderer, instance_set);
+  if (resource == NULL || renderer->rhi == NULL)
+  {
+    return;
+  }
+
+  ldk_rhi_buffer_destroy(renderer->rhi, resource->transform_buffer);
+  ldk_rhi_buffer_destroy(renderer->rhi, resource->color_buffer);
+  memset(resource, 0, sizeof(*resource));
+}
+
+static void s_renderer_destroy_instance_set_resources(LDKRenderer *renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  for (u32 i = 0u; i < renderer->instance_set_count; ++i)
+  {
+    LDKResourceInstanceSet instance_set = {(LDKRHIResource)(i + 1u)};
+    ldk_renderer_instance_set_destroy(renderer, instance_set);
+  }
+  LDK_RENDERER_FREE(renderer->instance_sets);
+  renderer->instance_sets = NULL;
+  renderer->instance_set_count = 0u;
+  renderer->instance_set_capacity = 0u;
+}
+
 static bool s_renderer_grow_mesh_submit_queue(LDKRenderer* renderer)
 {
   u32 new_capacity = renderer->submitted_mesh_capacity == 0
@@ -929,7 +1182,7 @@ static bool s_renderer_grow_mesh_submit_queue(LDKRenderer* renderer)
 #define LDK_RENDERER_MESH_SORT_COMPACT_ID_MAX UINT16_MAX
 #define LDK_RENDERER_MESH_SORT_SUBMIT_INDEX_MAX 0x00ffffffu
 
-LDK_STATIC_ASSERT(LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND <= UINT8_MAX,
+LDK_STATIC_ASSERT(LDK_RENDERER_MATERIAL_SELECTION_VEGETATION <= UINT8_MAX,
     mesh_sort_pipeline_id_bits);
 
 static bool s_renderer_mesh_sort_storage_ensure(
@@ -1190,7 +1443,9 @@ static bool s_renderer_mesh_sort_queue_build(LDKRenderer* renderer,
 static bool s_renderer_mesh_submit_same_batch(
     const LDKRendererMeshSubmit* a, const LDKRendererMeshSubmit* b)
 {
-  if (a == NULL || b == NULL || a->instance_count || b->instance_count)
+  if (a == NULL || b == NULL || a->instance_count || b->instance_count ||
+      a->instance_set.id != LDK_RHI_INVALID_RESOURCE ||
+      b->instance_set.id != LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
@@ -1200,6 +1455,23 @@ static bool s_renderer_mesh_submit_same_batch(
   return a->mesh.id == b->mesh.id && a->material.id == b->material.id &&
          a->first_index == b->first_index &&
          a->index_count == b->index_count;
+}
+
+static u32 s_renderer_mesh_submit_instance_count(
+    LDKRenderer *renderer, const LDKRendererMeshSubmit *submit)
+{
+  if (submit == NULL)
+  {
+    return 0u;
+  }
+  if (submit->instance_count != 0u)
+  {
+    return submit->instance_count;
+  }
+
+  LDKRendererInstanceSetResource *resource =
+      s_renderer_instance_set_get_resource(renderer, submit->instance_set);
+  return resource ? resource->instance_count : 0u;
 }
 
 typedef struct LDKRendererMeshCameraParams
@@ -1223,6 +1495,8 @@ typedef struct LDKRendererMeshMaterialParams
   float shininess;
   float emission;
   float alpha_cutoff;
+  /* Curvature, wind strength, wind speed, reserved. */
+  float vegetation[4];
 } LDKRendererMeshMaterialParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
@@ -1233,7 +1507,7 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, instance_color) == 64,
     mesh_object_color_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
-LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 32,
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 48,
     mesh_material_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, specular) == 16,
     mesh_material_surface_std140_offset);
@@ -1244,19 +1518,35 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, emission) == 24,
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererMeshMaterialParams, alpha_cutoff) == 28,
     mesh_material_alpha_cutoff_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, vegetation) == 32,
+    mesh_material_vegetation_std140_offset);
+
+typedef struct LDKRendererShadowCameraParams
+{
+  Mat4 view_projection;
+  float animation[4];
+} LDKRendererShadowCameraParams;
+
+LDK_STATIC_ASSERT(sizeof(LDKRendererShadowCameraParams) == 80,
+    shadow_camera_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererShadowCameraParams, animation) == 64,
+    shadow_camera_animation_std140_offset);
 
 typedef struct LDKRendererShadowMaterialParams
 {
   float color_alpha;
   float alpha_cutoff;
   float padding[2];
+  float vegetation[4];
 } LDKRendererShadowMaterialParams;
 
-LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 16,
+LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 32,
     shadow_material_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererShadowMaterialParams, alpha_cutoff) == 4,
     shadow_material_alpha_cutoff_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererShadowMaterialParams, vegetation) == 16,
+    shadow_material_vegetation_std140_offset);
 
 typedef struct LDKRendererLightParams
 {
@@ -1443,6 +1733,8 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
     }
 
     ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->cutout_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->cutout_pipeline);
@@ -1453,11 +1745,15 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->instanced_vertex_shader_module);
     ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_instanced_vertex_shader_module);
+    ldk_rhi_shader_module_destroy(
         pass->rhi, pass->cutout_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->cutout_vertex_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_vertex_shader_module);
     ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->camera_buffer);
@@ -1472,16 +1768,22 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
 static void s_renderer_shadow_pass_disable_instancing(
     LDKRendererShadowPass *pass)
 {
+  ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->cutout_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->instanced_pipeline);
   ldk_rhi_shader_module_destroy(
       pass->rhi, pass->cutout_instanced_vertex_shader_module);
+  ldk_rhi_shader_module_destroy(
+      pass->rhi, pass->vegetation_instanced_vertex_shader_module);
   ldk_rhi_shader_module_destroy(pass->rhi, pass->instanced_vertex_shader_module);
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
 
   pass->cutout_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
+  pass->vegetation_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->cutout_instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
+  pass->vegetation_instanced_vertex_shader_module =
+      LDK_RHI_INVALID_RESOURCE;
   pass->instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
   pass->instance_buffer = LDK_RHI_INVALID_RESOURCE;
   pass->instance_capacity = 0;
@@ -1585,7 +1887,7 @@ static LDKRHIBindings s_renderer_shadow_pass_create_cutout_bindings(
   desc.binding_count = 4;
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = pass->camera_buffer;
-  desc.bindings[0].buffer_size = sizeof(Mat4);
+  desc.bindings[0].buffer_size = sizeof(LDKRendererShadowCameraParams);
   desc.bindings[1].slot = 1;
   desc.bindings[1].buffer = pass->object_buffer;
   desc.bindings[1].buffer_size = sizeof(Mat4);
@@ -1700,6 +2002,9 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
       rhi, LDK_SHADER_SHADOW_PASS_CUTOUT, LDK_RHI_SHADER_STAGE_VERTEX);
   pass->cutout_fragment_shader_module = ldk_rhi_create_builtin_shader_module(
       rhi, LDK_SHADER_SHADOW_PASS_CUTOUT, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->vegetation_vertex_shader_module = ldk_rhi_create_builtin_shader_module(
+      rhi, LDK_SHADER_SHADOW_PASS_VEGETATION,
+      LDK_RHI_SHADER_STAGE_VERTEX);
 
   if (rhi->functions.draw_indexed_instanced != NULL)
   {
@@ -1709,8 +2014,14 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
         ldk_rhi_create_builtin_shader_module(rhi,
             LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED,
             LDK_RHI_SHADER_STAGE_VERTEX);
+    pass->vegetation_instanced_vertex_shader_module =
+        ldk_rhi_create_builtin_shader_module(rhi,
+            LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
+            LDK_RHI_SHADER_STAGE_VERTEX);
     if (pass->instanced_vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
         pass->cutout_instanced_vertex_shader_module ==
+            LDK_RHI_INVALID_RESOURCE ||
+        pass->vegetation_instanced_vertex_shader_module ==
             LDK_RHI_INVALID_RESOURCE)
     {
       s_renderer_shadow_pass_disable_instancing(pass);
@@ -1719,18 +2030,20 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
 
   LDKRHIBufferDesc buffer;
   ldk_rhi_buffer_desc_defaults(&buffer);
-  buffer.size = sizeof(Mat4);
+  buffer.size = sizeof(LDKRendererShadowCameraParams);
   buffer.usage =
       LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   buffer.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
   pass->camera_buffer = ldk_rhi_buffer_create(rhi, &buffer);
+  buffer.size = sizeof(Mat4);
   pass->object_buffer = ldk_rhi_buffer_create(rhi, &buffer);
   buffer.size = sizeof(LDKRendererShadowMaterialParams);
   pass->material_buffer = ldk_rhi_buffer_create(rhi, &buffer);
 
   if (!pass->depth_texture || !pass->sampler || !pass->vertex_shader_module ||
       !pass->fragment_shader_module || !pass->cutout_vertex_shader_module ||
-      !pass->cutout_fragment_shader_module || !pass->camera_buffer ||
+      !pass->cutout_fragment_shader_module ||
+      !pass->vegetation_vertex_shader_module || !pass->camera_buffer ||
       !pass->object_buffer || !pass->material_buffer)
   {
     goto fail;
@@ -1747,7 +2060,8 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
   layout.entries[1].stages = LDK_RHI_SHADER_STAGE_VERTEX;
   layout.entries[2].slot = 2;
   layout.entries[2].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  layout.entries[2].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  layout.entries[2].stages =
+      LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT;
   layout.entries[3].slot = 3;
   layout.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   layout.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -1763,11 +2077,19 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
   pipeline.fragment_shader_module = pass->fragment_shader_module;
   pipeline.bindings_layout = pass->bindings_layout;
   pipeline.vertex_layout.stride = sizeof(LDKMeshVertex);
-  pipeline.vertex_layout.attribute_count = 1;
+  pipeline.vertex_layout.attribute_count = 3;
   pipeline.vertex_layout.attributes[0].location = 0;
   pipeline.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
   pipeline.vertex_layout.attributes[0].offset =
       (u32)offsetof(LDKMeshVertex, position);
+  pipeline.vertex_layout.attributes[1].location = 2;
+  pipeline.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
+  pipeline.vertex_layout.attributes[1].offset =
+      (u32)offsetof(LDKMeshVertex, uv);
+  pipeline.vertex_layout.attributes[2].location = 8;
+  pipeline.vertex_layout.attributes[2].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
+  pipeline.vertex_layout.attributes[2].offset =
+      (u32)offsetof(LDKMeshVertex, tangent);
   pipeline.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
   pipeline.color_attachment_count = 0;
   pipeline.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
@@ -1788,12 +2110,16 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
     goto fail;
   }
 
+  pipeline.vertex_shader_module = pass->vegetation_vertex_shader_module;
+  pipeline.fragment_shader_module = pass->fragment_shader_module;
+  pass->vegetation_pipeline = ldk_rhi_pipeline_create(rhi, &pipeline);
+  if (!pass->vegetation_pipeline)
+  {
+    goto fail;
+  }
+
   pipeline.vertex_shader_module = pass->cutout_vertex_shader_module;
   pipeline.fragment_shader_module = pass->cutout_fragment_shader_module;
-  pipeline.vertex_layout.attribute_count = 2;
-  pipeline.vertex_layout.attributes[1].location = 2;
-  pipeline.vertex_layout.attributes[1].format = LDK_RHI_VERTEX_FORMAT_FLOAT2;
-  pipeline.vertex_layout.attributes[1].offset = (u32)offsetof(LDKMeshVertex, uv);
   pass->cutout_pipeline = ldk_rhi_pipeline_create(rhi, &pipeline);
   if (!pass->cutout_pipeline)
   {
@@ -1802,28 +2128,31 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
 
   if (pass->instanced_vertex_shader_module != LDK_RHI_INVALID_RESOURCE &&
       pass->cutout_instanced_vertex_shader_module !=
+          LDK_RHI_INVALID_RESOURCE &&
+      pass->vegetation_instanced_vertex_shader_module !=
           LDK_RHI_INVALID_RESOURCE)
   {
     pipeline.vertex_shader_module = pass->instanced_vertex_shader_module;
     pipeline.fragment_shader_module = pass->fragment_shader_module;
-    pipeline.vertex_layout.attribute_count = 1;
     s_renderer_shadow_pass_instance_layout(&pipeline);
     pass->instanced_pipeline = ldk_rhi_pipeline_create(rhi, &pipeline);
 
     pipeline.vertex_shader_module =
+        pass->vegetation_instanced_vertex_shader_module;
+    pipeline.fragment_shader_module = pass->fragment_shader_module;
+    s_renderer_shadow_pass_instance_layout(&pipeline);
+    pass->vegetation_instanced_pipeline =
+        ldk_rhi_pipeline_create(rhi, &pipeline);
+
+    pipeline.vertex_shader_module =
         pass->cutout_instanced_vertex_shader_module;
     pipeline.fragment_shader_module = pass->cutout_fragment_shader_module;
-    pipeline.vertex_layout.attribute_count = 2;
-    pipeline.vertex_layout.attributes[1].location = 2;
-    pipeline.vertex_layout.attributes[1].format =
-        LDK_RHI_VERTEX_FORMAT_FLOAT2;
-    pipeline.vertex_layout.attributes[1].offset =
-        (u32)offsetof(LDKMeshVertex, uv);
     s_renderer_shadow_pass_instance_layout(&pipeline);
     pass->cutout_instanced_pipeline =
         ldk_rhi_pipeline_create(rhi, &pipeline);
 
     if (pass->instanced_pipeline == LDK_RHI_INVALID_RESOURCE ||
+        pass->vegetation_instanced_pipeline == LDK_RHI_INVALID_RESOURCE ||
         pass->cutout_instanced_pipeline == LDK_RHI_INVALID_RESOURCE)
     {
       s_renderer_shadow_pass_disable_instancing(pass);
@@ -1833,13 +2162,16 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
   LDKRHIBindingsDesc bindings;
   ldk_rhi_bindings_desc_defaults(&bindings);
   bindings.layout = pass->bindings_layout;
-  bindings.binding_count = 2;
+  bindings.binding_count = 3;
   bindings.bindings[0].slot = 0;
   bindings.bindings[0].buffer = pass->camera_buffer;
-  bindings.bindings[0].buffer_size = sizeof(Mat4);
+  bindings.bindings[0].buffer_size = sizeof(LDKRendererShadowCameraParams);
   bindings.bindings[1].slot = 1;
   bindings.bindings[1].buffer = pass->object_buffer;
   bindings.bindings[1].buffer_size = sizeof(Mat4);
+  bindings.bindings[2].slot = 2;
+  bindings.bindings[2].buffer = pass->material_buffer;
+  bindings.bindings[2].buffer_size = sizeof(LDKRendererShadowMaterialParams);
   pass->bindings = ldk_rhi_bindings_create(rhi, &bindings);
   if (!pass->bindings)
   {
@@ -2002,12 +2334,39 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     return;
   }
 
-  const Mat4 *worlds = first_submit->instance_count
+  LDKRendererInstanceSetResource *instance_set =
+      s_renderer_instance_set_get_resource(
+          renderer, first_submit->instance_set);
+  const Mat4 *worlds = !instance_set && first_submit->instance_count
       ? renderer->submitted_instance_worlds + first_submit->instance_offset
       : NULL;
+  u32 instance_buffer_offset = 0u;
+  if (first_submit->instance_set.id != LDK_RHI_INVALID_RESOURCE &&
+      instance_set == NULL)
+  {
+    return;
+  }
   if (worlds)
   {
     submit_count = first_submit->instance_count;
+  }
+  else if (instance_set)
+  {
+    if (first_submit->instance_count != 0u)
+    {
+      if (first_submit->instance_offset > instance_set->instance_count ||
+          first_submit->instance_count >
+              instance_set->instance_count - first_submit->instance_offset)
+      {
+        return;
+      }
+      submit_count = first_submit->instance_count;
+      instance_buffer_offset = first_submit->instance_offset;
+    }
+    else
+    {
+      submit_count = instance_set->instance_count;
+    }
   }
 
   LDKRendererMeshResource *mesh =
@@ -2020,10 +2379,20 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   }
 
   bool cutout = s_renderer_shadow_material_is_cutout(material);
-  LDKRHIPipeline pipeline = cutout ? pass->cutout_pipeline : pass->pipeline;
-  LDKRHIPipeline instanced_pipeline =
-      cutout ? pass->cutout_instanced_pipeline : pass->instanced_pipeline;
+  bool vegetation = material->selection ==
+      LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
+  LDKRHIPipeline pipeline = vegetation
+      ? pass->vegetation_pipeline
+      : (cutout ? pass->cutout_pipeline : pass->pipeline);
+  LDKRHIPipeline instanced_pipeline = vegetation
+      ? pass->vegetation_instanced_pipeline
+      : (cutout ? pass->cutout_instanced_pipeline : pass->instanced_pipeline);
   LDKRHIBindings bindings = pass->bindings;
+  LDKRendererShadowMaterialParams material_params = {0};
+
+  material_params.vegetation[0] = material->desc.vegetation_curvature;
+  material_params.vegetation[1] = material->desc.vegetation_wind_strength;
+  material_params.vegetation[2] = material->desc.vegetation_wind_speed;
 
   if (cutout)
   {
@@ -2041,41 +2410,53 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
       return;
     }
 
-    LDKRendererShadowMaterialParams material_params = {0};
     material_params.color_alpha =
         ldk_renderer_color_from_rgba32(material->desc.color).a;
     material_params.alpha_cutoff = material->desc.alpha_cutoff;
-    ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
-        sizeof(material_params), &material_params);
+  }
+  ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
+      sizeof(material_params), &material_params);
+
+  LDKRHIBuffer instance_buffer = LDK_RHI_INVALID_RESOURCE;
+  if (instance_set)
+  {
+    instance_buffer = instance_set->transform_buffer;
+  }
+  else if (worlds &&
+      s_renderer_shadow_pass_ensure_instance_capacity(pass, submit_count) &&
+      ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0,
+          submit_count * (u32)sizeof(Mat4), worlds))
+  {
+    instance_buffer = pass->instance_buffer;
   }
 
-  if (worlds &&
+  if (instance_buffer != LDK_RHI_INVALID_RESOURCE &&
       pass->rhi->functions.draw_indexed_instanced != NULL &&
-      instanced_pipeline != LDK_RHI_INVALID_RESOURCE &&
-      s_renderer_shadow_pass_ensure_instance_capacity(pass, submit_count))
+      instanced_pipeline != LDK_RHI_INVALID_RESOURCE)
   {
-    u32 byte_count = submit_count * (u32)sizeof(Mat4);
-    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0, byte_count,
-            worlds))
-    {
-      s_renderer_shadow_pass_bind(pass, instanced_pipeline, bindings,
-          bound_pipeline, bound_bindings);
-      ldk_rhi_vertex_buffer_bind_at(pass->rhi, 0, mesh->vertex_buffer, 0);
-      ldk_rhi_vertex_buffer_bind_at(pass->rhi, 1, pass->instance_buffer, 0);
-      ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
-          LDK_RHI_INDEX_TYPE_UINT32);
+    s_renderer_shadow_pass_bind(pass, instanced_pipeline, bindings,
+        bound_pipeline, bound_bindings);
+    ldk_rhi_vertex_buffer_bind_at(pass->rhi, 0, mesh->vertex_buffer, 0);
+    ldk_rhi_vertex_buffer_bind_at(pass->rhi, 1, instance_buffer,
+        instance_buffer_offset * (u32)sizeof(Mat4));
+    ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
+        LDK_RHI_INDEX_TYPE_UINT32);
 
-      LDKRHIDrawIndexedInstancedDesc draw = {0};
-      draw.first_index = first_submit->first_index;
-      draw.index_count = first_submit->index_count;
-      draw.instance_count = submit_count;
-      draw.vertex_offset = 0;
-      draw.first_instance = 0;
-      ldk_rhi_draw_indexed_instanced(pass->rhi, &draw);
-      stats->draw_call_count += 1;
-      stats->shadow_draw_call_count += 1;
-      return;
-    }
+    LDKRHIDrawIndexedInstancedDesc draw = {0};
+    draw.first_index = first_submit->first_index;
+    draw.index_count = first_submit->index_count;
+    draw.instance_count = submit_count;
+    draw.vertex_offset = 0;
+    draw.first_instance = 0;
+    ldk_rhi_draw_indexed_instanced(pass->rhi, &draw);
+    stats->draw_call_count += 1;
+    stats->shadow_draw_call_count += 1;
+    return;
+  }
+
+  if (instance_set)
+  {
+    return;
   }
 
   if (pipeline == LDK_RHI_INVALID_RESOURCE)
@@ -2154,8 +2535,11 @@ static void s_renderer_shadow_pass_draw(LDKRenderer *renderer,
     return;
   }
 
-  ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0, sizeof(Mat4),
-      &lighting->params.shadow_view_projection);
+  LDKRendererShadowCameraParams camera = {0};
+  camera.view_projection = lighting->params.shadow_view_projection;
+  camera.animation[0] = renderer->animation_time_seconds;
+  ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0, sizeof(camera),
+      &camera);
 
   LDKRHIPassDesc desc;
   ldk_rhi_pass_desc_defaults(&desc);
@@ -2288,11 +2672,27 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
     return false;
   }
 
+  pass->vegetation_vertex_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_VEGETATION_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
+  pass->vegetation_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_VEGETATION_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->vegetation_vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
+      pass->vegetation_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
   if (pass->rhi->functions.draw_indexed_instanced != NULL)
   {
     pass->instanced_vertex_shader_module = ldk_rhi_create_builtin_shader_module(
         pass->rhi, LDK_SHADER_MESH_PASS_INSTANCED,
         LDK_RHI_SHADER_STAGE_VERTEX);
+    pass->vegetation_instanced_vertex_shader_module =
+        ldk_rhi_create_builtin_shader_module(pass->rhi,
+            LDK_SHADER_VEGETATION_PASS_INSTANCED,
+            LDK_RHI_SHADER_STAGE_VERTEX);
   }
 
   return true;
@@ -2313,7 +2713,8 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_VERTEX;
   desc.entries[2].slot = 2;
   desc.entries[2].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  desc.entries[2].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.entries[2].stages =
+      LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT;
   desc.entries[3].slot = 3;
   desc.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -2379,7 +2780,10 @@ static void s_renderer_mesh_pass_disable_instancing(
   ldk_rhi_pipeline_destroy(
       pass->rhi, pass->vertex_color_unlit_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_instanced_pipeline);
+  ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
   ldk_rhi_shader_module_destroy(pass->rhi, pass->instanced_vertex_shader_module);
+  ldk_rhi_shader_module_destroy(
+      pass->rhi, pass->vegetation_instanced_vertex_shader_module);
 
   pass->textured_unlit_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->textured_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
@@ -2389,7 +2793,9 @@ static void s_renderer_mesh_pass_disable_instancing(
   pass->textured_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vertex_color_unlit_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vertex_color_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
+  pass->vegetation_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
+  pass->vegetation_instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
 }
 
 static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
@@ -2442,7 +2848,18 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
     return false;
   }
 
+  desc.vertex_shader_module = pass->vegetation_vertex_shader_module;
+  desc.fragment_shader_module = pass->vegetation_fragment_shader_module;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
+  pass->vegetation_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vegetation_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+  desc.vertex_shader_module = pass->vertex_shader_module;
   desc.fragment_shader_module = pass->overlay_fragment_shader_module;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_BACK;
+
   pass->vertex_color_unlit_pipeline =
       ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->vertex_color_unlit_pipeline == LDK_RHI_INVALID_RESOURCE)
@@ -2545,6 +2962,8 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   }
 
   if (pass->instanced_vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
+      pass->vegetation_instanced_vertex_shader_module ==
+          LDK_RHI_INVALID_RESOURCE ||
       pass->rhi->functions.draw_indexed_instanced == NULL)
   {
     return true;
@@ -2564,6 +2983,19 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
     s_renderer_mesh_pass_disable_instancing(pass);
     return true;
   }
+
+  desc.vertex_shader_module = pass->vegetation_instanced_vertex_shader_module;
+  desc.fragment_shader_module = pass->vegetation_fragment_shader_module;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
+  pass->vegetation_instanced_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vegetation_instanced_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_mesh_pass_disable_instancing(pass);
+    return true;
+  }
+  desc.vertex_shader_module = pass->instanced_vertex_shader_module;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_BACK;
 
   desc.fragment_shader_module = pass->overlay_fragment_shader_module;
   pass->vertex_color_unlit_instanced_pipeline =
@@ -3073,6 +3505,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(
         pass->rhi, pass->vertex_color_unlit_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_instanced_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_unlit_blend_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_blend_pipeline);
     ldk_rhi_pipeline_destroy(
@@ -3085,6 +3518,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(pass->rhi, pass->overlay_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_pipeline);
     ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->textured_unlit_cutout_fragment_shader_module);
@@ -3100,6 +3534,12 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->instanced_vertex_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_instanced_vertex_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_fragment_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_vertex_shader_module);
   }
 
   LDK_RENDERER_FREE(pass->material_bindings_cache);
@@ -3133,7 +3573,9 @@ static bool s_renderer_mesh_pass_material_is_lit(
              material->selection ==
                  LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND ||
              material->selection ==
-                 LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR);
+                 LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR ||
+             material->selection ==
+                 LDK_RENDERER_MATERIAL_SELECTION_VEGETATION);
 }
 
 static LDKRHIPipeline s_renderer_mesh_pass_pipeline(
@@ -3189,6 +3631,9 @@ static LDKRHIPipeline s_renderer_mesh_pass_pipeline(
     case LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND:
       return instanced ? pass->textured_unlit_blend_instanced_pipeline
                        : pass->textured_unlit_blend_pipeline;
+    case LDK_RENDERER_MATERIAL_SELECTION_VEGETATION:
+      return instanced ? pass->vegetation_instanced_pipeline
+                       : pass->vegetation_pipeline;
     case LDK_RENDERER_MATERIAL_SELECTION_INVALID:
     default:
       return LDK_RHI_INVALID_RESOURCE;
@@ -3222,15 +3667,42 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     return;
   }
 
-  const Mat4 *worlds = first_submit->instance_count
+  LDKRendererInstanceSetResource *instance_set =
+      s_renderer_instance_set_get_resource(
+          renderer, first_submit->instance_set);
+  const Mat4 *worlds = !instance_set && first_submit->instance_count
       ? renderer->submitted_instance_worlds + first_submit->instance_offset
       : NULL;
-  const LDKRHIColor *colors = first_submit->instance_count
+  const LDKRHIColor *colors = !instance_set && first_submit->instance_count
       ? renderer->submitted_instance_colors + first_submit->instance_offset
       : NULL;
+  u32 instance_buffer_offset = 0u;
+  if (first_submit->instance_set.id != LDK_RHI_INVALID_RESOURCE &&
+      instance_set == NULL)
+  {
+    return;
+  }
   if (worlds)
   {
     submit_count = first_submit->instance_count;
+  }
+  else if (instance_set)
+  {
+    if (first_submit->instance_count != 0u)
+    {
+      if (first_submit->instance_offset > instance_set->instance_count ||
+          first_submit->instance_count >
+              instance_set->instance_count - first_submit->instance_offset)
+      {
+        return;
+      }
+      submit_count = first_submit->instance_count;
+      instance_buffer_offset = first_submit->instance_offset;
+    }
+    else
+    {
+      submit_count = instance_set->instance_count;
+    }
   }
 
   LDKRendererMeshSubmit* first = first_submit;
@@ -3312,6 +3784,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.color =
       ldk_renderer_color_from_rgba32(material->desc.color);
   material_params.alpha_cutoff = material->desc.alpha_cutoff;
+  material_params.vegetation[0] = material->desc.vegetation_curvature;
+  material_params.vegetation[1] = material->desc.vegetation_wind_strength;
+  material_params.vegetation[2] = material->desc.vegetation_wind_speed;
   if (lit)
   {
     material_params.specular = material->desc.specular;
@@ -3321,49 +3796,66 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
       sizeof(material_params), &material_params);
 
-  if (!overlay && worlds &&
-      pass->rhi->functions.draw_indexed_instanced != NULL &&
-      s_renderer_mesh_pass_ensure_instance_capacity(pass, submit_count))
+  LDKRHIBuffer transform_buffer = LDK_RHI_INVALID_RESOURCE;
+  LDKRHIBuffer color_buffer = LDK_RHI_INVALID_RESOURCE;
+  if (instance_set)
   {
-    u32 transform_bytes = submit_count * (u32)sizeof(Mat4);
-    u32 color_bytes = submit_count * (u32)sizeof(LDKRHIColor);
-    if (ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0,
-            transform_bytes, worlds) &&
-        ldk_rhi_buffer_update(pass->rhi, pass->instance_color_buffer, 0,
-            color_bytes, colors))
-    {
-      LDKRHIPipeline pipeline = s_renderer_mesh_pass_pipeline(
-          pass, material->selection, first->flags, true);
-      if (pipeline != LDK_RHI_INVALID_RESOURCE)
-      {
-        ldk_rhi_pipeline_bind(pass->rhi, pipeline);
-        ldk_rhi_bindings_bind(pass->rhi, bindings);
-        ldk_rhi_vertex_buffer_bind_at(
-            pass->rhi, 0, mesh->vertex_buffer, 0);
-        ldk_rhi_vertex_buffer_bind_at(
-            pass->rhi, 1, pass->instance_buffer, 0);
-        ldk_rhi_vertex_buffer_bind_at(
-            pass->rhi, 2, pass->instance_color_buffer, 0);
-        ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
-            LDK_RHI_INDEX_TYPE_UINT32);
+    transform_buffer = instance_set->transform_buffer;
+    color_buffer = instance_set->color_buffer;
+  }
+  else if (worlds &&
+      s_renderer_mesh_pass_ensure_instance_capacity(pass, submit_count) &&
+      ldk_rhi_buffer_update(pass->rhi, pass->instance_buffer, 0,
+          submit_count * (u32)sizeof(Mat4), worlds) &&
+      ldk_rhi_buffer_update(pass->rhi, pass->instance_color_buffer, 0,
+          submit_count * (u32)sizeof(LDKRHIColor), colors))
+  {
+    transform_buffer = pass->instance_buffer;
+    color_buffer = pass->instance_color_buffer;
+  }
 
-        LDKRHIDrawIndexedInstancedDesc draw = {0};
-        draw.index_count = first->index_count;
-        draw.instance_count = submit_count;
-        draw.first_index = first->first_index;
-        draw.vertex_offset = 0;
-        draw.first_instance = 0;
-        ldk_rhi_draw_indexed_instanced(pass->rhi, &draw);
-        stats->draw_call_count += 1;
-        if (!translucent)
-        {
-          stats->opaque_mesh_draw_call_count += 1;
-        }
-        stats->instanced_batch_count += 1;
-        stats->instanced_instance_count += submit_count;
-        return;
+  if (!overlay && transform_buffer != LDK_RHI_INVALID_RESOURCE &&
+      color_buffer != LDK_RHI_INVALID_RESOURCE &&
+      pass->rhi->functions.draw_indexed_instanced != NULL)
+  {
+    LDKRHIPipeline pipeline = s_renderer_mesh_pass_pipeline(
+        pass, material->selection, first->flags, true);
+    if (pipeline != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_pipeline_bind(pass->rhi, pipeline);
+      ldk_rhi_bindings_bind(pass->rhi, bindings);
+      ldk_rhi_vertex_buffer_bind_at(
+          pass->rhi, 0, mesh->vertex_buffer, 0);
+      ldk_rhi_vertex_buffer_bind_at(
+          pass->rhi, 1, transform_buffer,
+          instance_buffer_offset * (u32)sizeof(Mat4));
+      ldk_rhi_vertex_buffer_bind_at(
+          pass->rhi, 2, color_buffer,
+          instance_buffer_offset * (u32)sizeof(LDKRHIColor));
+      ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
+          LDK_RHI_INDEX_TYPE_UINT32);
+
+      LDKRHIDrawIndexedInstancedDesc draw = {0};
+      draw.index_count = first->index_count;
+      draw.instance_count = submit_count;
+      draw.first_index = first->first_index;
+      draw.vertex_offset = 0;
+      draw.first_instance = 0;
+      ldk_rhi_draw_indexed_instanced(pass->rhi, &draw);
+      stats->draw_call_count += 1;
+      if (!translucent)
+      {
+        stats->opaque_mesh_draw_call_count += 1;
       }
+      stats->instanced_batch_count += 1;
+      stats->instanced_instance_count += submit_count;
+      return;
     }
+  }
+
+  if (instance_set)
+  {
+    return;
   }
 
   LDKRHIPipeline pipeline = s_renderer_mesh_pass_pipeline(
@@ -3441,13 +3933,17 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
 
     if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
     {
+      u32 instance_count =
+          s_renderer_mesh_submit_instance_count(renderer, submit);
       stats->overlay_mesh_render_count +=
-          submit->instance_count ? submit->instance_count : 1;
+          instance_count ? instance_count : 1u;
     }
     else
     {
+      u32 instance_count =
+          s_renderer_mesh_submit_instance_count(renderer, submit);
       stats->opaque_mesh_render_count +=
-          submit->instance_count ? submit->instance_count : 1;
+          instance_count ? instance_count : 1u;
       stats->batch_count += 1;
       if (stats->max_batch_size < 1)
       {
@@ -3512,9 +4008,11 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
     }
 
     u32 batch_size = end - i;
-    if (submit->instance_count)
+    u32 instance_count =
+        s_renderer_mesh_submit_instance_count(renderer, submit);
+    if (instance_count)
     {
-      stats->opaque_mesh_render_count += submit->instance_count - 1;
+      stats->opaque_mesh_render_count += instance_count - 1u;
     }
     stats->batch_count += 1;
     if (batch_size > stats->max_batch_size)
@@ -3533,7 +4031,8 @@ static float s_renderer_mesh_submit_depth(const LDKRenderer *renderer,
 {
   Vec3 center = vec3_make(
       submit->world.m[12], submit->world.m[13], submit->world.m[14]);
-  if (submit->instance_count)
+  if (submit->instance_count &&
+      submit->instance_set.id == LDK_RHI_INVALID_RESOURCE)
   {
     const Mat4 *worlds =
         renderer->submitted_instance_worlds + submit->instance_offset;
@@ -3824,7 +4323,7 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   camera_params.camera_position[0] = camera_position.x;
   camera_params.camera_position[1] = camera_position.y;
   camera_params.camera_position[2] = camera_position.z;
-  camera_params.camera_position[3] = 1.0f;
+  camera_params.camera_position[3] = renderer->animation_time_seconds;
   ldk_rhi_buffer_update(pass->rhi, pass->camera_buffer, 0,
       sizeof(camera_params), &camera_params);
 
@@ -5436,7 +5935,9 @@ static LDKRendererMaterialSelection s_renderer_material_selection(
     case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
       return LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
     case LDK_MATERIAL_TYPE_VERTEX_COLOR:
-      return LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR;
+      return desc->vegetation
+          ? LDK_RENDERER_MATERIAL_SELECTION_VEGETATION
+          : LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR;
     case LDK_MATERIAL_TYPE_INVALID:
     default:
       return LDK_RENDERER_MATERIAL_SELECTION_INVALID;
@@ -5453,6 +5954,10 @@ static bool s_renderer_material_desc_is_valid(
     LDKRenderer* renderer, LDKRendererMaterialDesc const* desc)
 {
   if (desc == NULL || !ldk_material_type_is_valid(desc->type))
+  {
+    return false;
+  }
+  if (desc->vegetation && desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR)
   {
     return false;
   }
@@ -5473,7 +5978,12 @@ static bool s_renderer_material_desc_is_valid(
 
   if (!s_renderer_material_type_is_lit(desc->type))
   {
-    return true;
+    return isfinite(desc->vegetation_curvature) &&
+           desc->vegetation_curvature >= 0.0f &&
+           isfinite(desc->vegetation_wind_strength) &&
+           desc->vegetation_wind_strength >= 0.0f &&
+           isfinite(desc->vegetation_wind_speed) &&
+           desc->vegetation_wind_speed >= 0.0f;
   }
 
   if ((desc->normal_map.id != LDK_RHI_INVALID_RESOURCE &&
@@ -5486,7 +5996,13 @@ static bool s_renderer_material_desc_is_valid(
 
   return isfinite(desc->specular) && desc->specular >= 0.0f &&
          isfinite(desc->shininess) && desc->shininess >= 0.0f &&
-         isfinite(desc->emission) && desc->emission >= 0.0f;
+         isfinite(desc->emission) && desc->emission >= 0.0f &&
+         isfinite(desc->vegetation_curvature) &&
+         desc->vegetation_curvature >= 0.0f &&
+         isfinite(desc->vegetation_wind_strength) &&
+         desc->vegetation_wind_strength >= 0.0f &&
+         isfinite(desc->vegetation_wind_speed) &&
+         desc->vegetation_wind_speed >= 0.0f;
 }
 
 LDKResourceMaterial ldk_renderer_material_create(
@@ -5530,6 +6046,10 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.shininess =
       lit && desc->shininess != 0.0f ? desc->shininess : 32.0f;
   resource->desc.emission = lit ? desc->emission : 0.0f;
+  resource->desc.vegetation_curvature = desc->vegetation_curvature;
+  resource->desc.vegetation_wind_strength = desc->vegetation_wind_strength;
+  resource->desc.vegetation_wind_speed = desc->vegetation_wind_speed;
+  resource->desc.vegetation = desc->vegetation;
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);
   resource->alive = true;
@@ -5800,6 +6320,7 @@ bool ldk_renderer_initialize(
   renderer->present_game = config->present_game;
   renderer->ambient_light.color = 0xffffffffu;
   renderer->ambient_light.intensity = 0.0f;
+  renderer->animation_start_ticks = ldk_os_time_ticks_get();
 
   if (!s_renderer_shadow_pass_initialize(&renderer->shadow_pass, config->rhi,
           config->shadow_map_resolution ? config->shadow_map_resolution : 2048u,
@@ -5889,6 +6410,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
   s_renderer_destroy_font_page_cache(renderer);
   s_renderer_destroy_material_resources(renderer);
   s_renderer_destroy_texture_resources(renderer);
+  s_renderer_destroy_instance_set_resources(renderer);
   s_renderer_destroy_mesh_resources(renderer);
   s_renderer_ui_pass_terminate(&renderer->ui_pass);
   s_renderer_grid_pass_terminate(&renderer->grid_pass);
@@ -5907,6 +6429,9 @@ void ldk_renderer_render_frame(
   }
 
   u64 frame_start_ticks = ldk_os_time_ticks_get();
+  renderer->animation_time_seconds = (float)
+      ldk_os_time_ticks_interval_get_seconds(
+          renderer->animation_start_ticks, frame_start_ticks);
 
   memset(&renderer->current_frame_stats, 0,
       sizeof(renderer->current_frame_stats));
@@ -6022,6 +6547,130 @@ LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
   return (LDKUITextureHandle)view->overlay_target.color_texture;
 }
 
+static bool s_renderer_view_frustum_update(LDKRendererView *view)
+{
+  Mat4 matrix;
+  Vec4 planes[6];
+
+  if (view == NULL)
+  {
+    return false;
+  }
+
+  matrix = mat4_mul(view->projection, view->view);
+  planes[0] = vec4_make(matrix.m[3] + matrix.m[0],
+      matrix.m[7] + matrix.m[4], matrix.m[11] + matrix.m[8],
+      matrix.m[15] + matrix.m[12]);
+  planes[1] = vec4_make(matrix.m[3] - matrix.m[0],
+      matrix.m[7] - matrix.m[4], matrix.m[11] - matrix.m[8],
+      matrix.m[15] - matrix.m[12]);
+  planes[2] = vec4_make(matrix.m[3] + matrix.m[1],
+      matrix.m[7] + matrix.m[5], matrix.m[11] + matrix.m[9],
+      matrix.m[15] + matrix.m[13]);
+  planes[3] = vec4_make(matrix.m[3] - matrix.m[1],
+      matrix.m[7] - matrix.m[5], matrix.m[11] - matrix.m[9],
+      matrix.m[15] - matrix.m[13]);
+  planes[4] = vec4_make(matrix.m[3] + matrix.m[2],
+      matrix.m[7] + matrix.m[6], matrix.m[11] + matrix.m[10],
+      matrix.m[15] + matrix.m[14]);
+  planes[5] = vec4_make(matrix.m[3] - matrix.m[2],
+      matrix.m[7] - matrix.m[6], matrix.m[11] - matrix.m[10],
+      matrix.m[15] - matrix.m[14]);
+
+  for (u32 i = 0u; i < 6u; ++i)
+  {
+    float length = sqrtf(planes[i].x * planes[i].x +
+        planes[i].y * planes[i].y + planes[i].z * planes[i].z);
+
+    if (!isfinite(length) || length <= STDXM_EPS ||
+        !isfinite(planes[i].w))
+    {
+      return false;
+    }
+
+    view->frustum_planes[i] = vec4_make(planes[i].x / length,
+        planes[i].y / length, planes[i].z / length,
+        planes[i].w / length);
+  }
+  return true;
+}
+
+static bool s_renderer_view_bounds_visible(
+    const LDKRendererView *view, Vec3 center, Vec3 extents)
+{
+  if (view == NULL || !view->frustum_valid)
+  {
+    return true;
+  }
+
+  for (u32 i = 0u; i < 6u; ++i)
+  {
+    const Vec4 plane = view->frustum_planes[i];
+    float distance = plane.x * center.x + plane.y * center.y +
+        plane.z * center.z + plane.w;
+    float radius = fabsf(plane.x) * extents.x +
+        fabsf(plane.y) * extents.y + fabsf(plane.z) * extents.z;
+
+    if (distance + radius < 0.0f)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ldk_renderer_view_bounds_visible(const LDKRenderer *renderer,
+    LDKRendererViewId view_id, Vec3 bounds_min, Vec3 bounds_max)
+{
+  Vec3 center;
+  Vec3 extents;
+
+  if (renderer == NULL ||
+      !isfinite(bounds_min.x) || !isfinite(bounds_min.y) ||
+      !isfinite(bounds_min.z) || !isfinite(bounds_max.x) ||
+      !isfinite(bounds_max.y) || !isfinite(bounds_max.z) ||
+      bounds_min.x > bounds_max.x || bounds_min.y > bounds_max.y ||
+      bounds_min.z > bounds_max.z)
+  {
+    return true;
+  }
+
+  center = vec3_mul(vec3_add(bounds_min, bounds_max), 0.5f);
+  extents = vec3_mul(vec3_sub(bounds_max, bounds_min), 0.5f);
+
+  if (view_id == LDK_RENDERER_VIEW_ALL)
+  {
+    bool found = false;
+
+    for (u32 i = 0u; i < renderer->view_count; ++i)
+    {
+      const LDKRendererView *view = &renderer->views[i];
+
+      if (!view->submitted)
+      {
+        continue;
+      }
+      found = true;
+      if (s_renderer_view_bounds_visible(view, center, extents))
+      {
+        return true;
+      }
+    }
+    return !found;
+  }
+
+  for (u32 i = 0u; i < renderer->view_count; ++i)
+  {
+    const LDKRendererView *view = &renderer->views[i];
+
+    if (view->submitted && view->id == view_id)
+    {
+      return s_renderer_view_bounds_visible(view, center, extents);
+    }
+  }
+  return true;
+}
+
 bool ldk_renderer_submit_view(LDKRenderer* renderer,
     LDKRendererViewId view_id, Mat4 view_matrix, Mat4 projection)
 {
@@ -6049,6 +6698,7 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
 
   view->view = view_matrix;
   view->projection = projection;
+  view->frustum_valid = s_renderer_view_frustum_update(view);
   view->submitted = true;
   return true;
 }
@@ -6125,6 +6775,7 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   submit->flags = flags;
   submit->instance_offset = 0;
   submit->instance_count = 0;
+  submit->instance_set = ldk_renderer_instance_set_null();
   renderer->submitted_mesh_count += 1;
   return true;
 }
@@ -6258,6 +6909,61 @@ bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
   return ldk_renderer_submit_mesh_instances_colored(renderer, view_id, mesh,
       material, first_index, index_count, parent_world, instances, NULL,
       instance_count, flags);
+}
+
+bool ldk_renderer_submit_mesh_instance_set(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, u32 first_index, u32 index_count,
+    LDKResourceInstanceSet instance_set, u32 flags)
+{
+  LDKRendererInstanceSetResource *resource =
+      s_renderer_instance_set_get_resource(renderer, instance_set);
+  if (resource == NULL || resource->instance_count == 0u ||
+      view_id == LDK_RENDERER_VIEW_INVALID)
+  {
+    return false;
+  }
+
+  if (!s_renderer_submit_mesh(renderer, view_id, mesh, material, first_index,
+          index_count, mat4_identity(), flags))
+  {
+    return false;
+  }
+
+  renderer->submitted_meshes[renderer->submitted_mesh_count - 1u]
+      .instance_set = instance_set;
+  return true;
+}
+
+bool ldk_renderer_submit_mesh_instance_set_range(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh,
+    LDKResourceMaterial material, u32 first_index, u32 index_count,
+    LDKResourceInstanceSet instance_set, u32 first_instance,
+    u32 instance_count, u32 flags)
+{
+  LDKRendererInstanceSetResource *resource =
+      s_renderer_instance_set_get_resource(renderer, instance_set);
+  LDKRendererMeshSubmit *submit;
+
+  if (resource == NULL || instance_count == 0u ||
+      first_instance > resource->instance_count ||
+      instance_count > resource->instance_count - first_instance ||
+      view_id == LDK_RENDERER_VIEW_INVALID)
+  {
+    return false;
+  }
+
+  if (!s_renderer_submit_mesh(renderer, view_id, mesh, material, first_index,
+          index_count, mat4_identity(), flags))
+  {
+    return false;
+  }
+
+  submit = &renderer->submitted_meshes[renderer->submitted_mesh_count - 1u];
+  submit->instance_offset = first_instance;
+  submit->instance_count = instance_count;
+  submit->instance_set = instance_set;
+  return true;
 }
 
 bool ldk_renderer_submit_mesh(LDKRenderer *renderer, LDKResourceMesh mesh,

@@ -53,7 +53,11 @@ extern "C" {
     LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT,
     LDK_SHADER_SHADOW_PASS_CUTOUT,
     LDK_SHADER_SHADOW_PASS_INSTANCED,
-    LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED
+    LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED,
+    LDK_SHADER_VEGETATION_PASS,
+    LDK_SHADER_VEGETATION_PASS_INSTANCED,
+    LDK_SHADER_SHADOW_PASS_VEGETATION,
+    LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -74,6 +78,15 @@ extern "C" {
     u32 index_count;
     bool alive;
   } LDKRendererMeshResource;
+
+  typedef struct LDKRendererInstanceSetResource
+  {
+    LDKRHIBuffer transform_buffer;
+    LDKRHIBuffer color_buffer;
+    u32 instance_count;
+    u32 instance_capacity;
+    bool alive;
+  } LDKRendererInstanceSetResource;
 
   typedef u64 LDKRendererViewId;
 
@@ -128,6 +141,7 @@ extern "C" {
     // Zero count denotes an ordinary submit; offsets index renderer-owned data.
     u32 instance_offset;
     u32 instance_count;
+    LDKResourceInstanceSet instance_set;
   } LDKRendererMeshSubmit;
 
   /* Internal frame data for the shared triangular line prism. */
@@ -260,11 +274,15 @@ extern "C" {
     LDKRHIShaderModule cutout_fragment_shader_module;
     LDKRHIShaderModule instanced_vertex_shader_module;
     LDKRHIShaderModule cutout_instanced_vertex_shader_module;
+    LDKRHIShaderModule vegetation_vertex_shader_module;
+    LDKRHIShaderModule vegetation_instanced_vertex_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline pipeline;
     LDKRHIPipeline cutout_pipeline;
     LDKRHIPipeline instanced_pipeline;
     LDKRHIPipeline cutout_instanced_pipeline;
+    LDKRHIPipeline vegetation_pipeline;
+    LDKRHIPipeline vegetation_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -289,6 +307,9 @@ extern "C" {
     LDKRHIShaderModule textured_unlit_fragment_shader_module;
     LDKRHIShaderModule textured_cutout_fragment_shader_module;
     LDKRHIShaderModule textured_unlit_cutout_fragment_shader_module;
+    LDKRHIShaderModule vegetation_vertex_shader_module;
+    LDKRHIShaderModule vegetation_instanced_vertex_shader_module;
+    LDKRHIShaderModule vegetation_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
@@ -309,6 +330,8 @@ extern "C" {
     LDKRHIPipeline textured_unlit_cutout_instanced_pipeline;
     LDKRHIPipeline textured_blend_instanced_pipeline;
     LDKRHIPipeline textured_unlit_blend_instanced_pipeline;
+    LDKRHIPipeline vegetation_pipeline;
+    LDKRHIPipeline vegetation_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -376,6 +399,7 @@ extern "C" {
     LDKRendererViewId id;
     Mat4 view;
     Mat4 projection;
+    Vec4 frustum_planes[6];
     LDKRendererTarget target;
     LDKRendererTarget overlay_target;
     bool separate_overlay;
@@ -384,6 +408,7 @@ extern "C" {
     float grid_spacing;
     bool grid_submitted;
     bool submitted;
+    bool frustum_valid;
   } LDKRendererView;
 
   typedef enum LDKRendererTextureFlag
@@ -444,6 +469,11 @@ extern "C" {
     float specular;
     float shininess;
     float emission;
+    /* Optional vertex deformation used by procedural vegetation. */
+    float vegetation_curvature;
+    float vegetation_wind_strength;
+    float vegetation_wind_speed;
+    bool vegetation;
   } LDKRendererMaterialDesc;
 
   typedef enum LDKRendererMaterialSelection
@@ -456,7 +486,8 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
-    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND
+    LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND,
+    LDK_RENDERER_MATERIAL_SELECTION_VEGETATION
   } LDKRendererMaterialSelection;
 
   typedef u64 LDKRendererRenderKey;
@@ -491,6 +522,11 @@ extern "C" {
     LDKRendererMeshResource* meshes;
     u32 mesh_count;
     u32 mesh_capacity;
+
+    // Persistent instance sets
+    LDKRendererInstanceSetResource *instance_sets;
+    u32 instance_set_count;
+    u32 instance_set_capacity;
 
     // Texture cache
     LDKRendererTextureResource* textures;
@@ -543,6 +579,9 @@ extern "C" {
     // completed renderer frame; current_frame_stats is internal accumulation.
     LDKRendererFrameStats current_frame_stats;
     LDKRendererFrameStats last_frame_stats;
+
+    u64 animation_start_ticks;
+    float animation_time_seconds;
 
     bool is_initialized;
   } LDKRenderer;
@@ -1134,6 +1173,40 @@ extern "C" {
       LDKResourceMaterial material, u32 first_index, u32 index_count,
       Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
       u32 instance_count, u32 flags);
+
+  /** Persistent world-space instances uploaded only when the set changes. */
+  LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_create(
+      LDKRenderer *renderer, const Mat4 *instances, u32 instance_count);
+  LDK_API bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
+      LDKResourceInstanceSet instance_set, const Mat4 *instances,
+      u32 instance_count);
+  LDK_API void ldk_renderer_instance_set_destroy(LDKRenderer *renderer,
+      LDKResourceInstanceSet instance_set);
+  LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_null(void);
+  LDK_API bool ldk_renderer_instance_set_is_valid(
+      LDKRenderer *renderer, LDKResourceInstanceSet instance_set);
+
+  /** Submit one persistent instance set without copying its transforms. */
+  LDK_API bool ldk_renderer_submit_mesh_instance_set(LDKRenderer *renderer,
+      LDKRendererViewId view_id, LDKResourceMesh mesh,
+      LDKResourceMaterial material, u32 first_index, u32 index_count,
+      LDKResourceInstanceSet instance_set, u32 flags);
+
+  /** Submit a contiguous range of a persistent instance set. */
+  LDK_API bool ldk_renderer_submit_mesh_instance_set_range(
+      LDKRenderer *renderer, LDKRendererViewId view_id,
+      LDKResourceMesh mesh, LDKResourceMaterial material,
+      u32 first_index, u32 index_count,
+      LDKResourceInstanceSet instance_set, u32 first_instance,
+      u32 instance_count, u32 flags);
+
+  /** True when an AABB is visible to the selected submitted view. VIEW_ALL
+   * tests every submitted view and succeeds when any view intersects it.
+   * Invalid bounds or unavailable frusta fail open and return true.
+   */
+  LDK_API bool ldk_renderer_view_bounds_visible(
+      const LDKRenderer *renderer, LDKRendererViewId view_id,
+      Vec3 bounds_min, Vec3 bounds_max);
 
   /**
    * @brief Submit a mesh instance for scene rendering this frame.

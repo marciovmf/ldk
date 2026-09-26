@@ -1,6 +1,7 @@
 #include "player_character_controller.h"
 
 #include "../component/player_character.h"
+#include "island_terrain.h"
 
 #include <component/ldk_transform.h>
 #include <generated_component_metadata.h>
@@ -9,6 +10,11 @@
 #include <stdx/stdx_math.h>
 
 #include <math.h>
+
+#define PLAYER_HIGH_GRASS_HEIGHT 0.6f
+#define PLAYER_HIGH_GRASS_DENSITY_MIN 90.0f
+#define PLAYER_HIGH_GRASS_SPEED_SCALE 0.8f
+#define PLAYER_GRASS_CUT_DENSITY_SCALE 0.75f
 
 static Vec3 s_move_towards(Vec3 current, Vec3 target, float max_delta)
 {
@@ -57,8 +63,41 @@ static Vec3 s_player_input_direction(LDKKeyboardState *keyboard)
   return direction;
 }
 
+static float s_player_grass_speed_scale(
+    LDKEntity entity, bool cut_grass)
+{
+  Mat4 world;
+  Vec3 position;
+  float density;
+  float min_height;
+
+  if (!ldk_transform_get_world_matrix(entity, &world))
+  {
+    return 1.0f;
+  }
+
+  position = vec3_make(world.m[12], world.m[13], world.m[14]);
+  if (!island_terrain_grass_state_at(
+          position, &density, &min_height) ||
+      min_height < PLAYER_HIGH_GRASS_HEIGHT)
+  {
+    return 1.0f;
+  }
+
+  if (cut_grass && island_terrain_grass_density_multiply_at(
+                       position, PLAYER_GRASS_CUT_DENSITY_SCALE))
+  {
+    density *= PLAYER_GRASS_CUT_DENSITY_SCALE;
+  }
+
+  return density >= PLAYER_HIGH_GRASS_DENSITY_MIN
+      ? PLAYER_HIGH_GRASS_SPEED_SCALE
+      : 1.0f;
+}
+
 static void s_player_character_update(LDKEntity entity,
-    PlayerCharacterComponent *player, Vec3 input_direction, float dt)
+    PlayerCharacterComponent *player, Vec3 input_direction,
+    bool cut_grass, float dt)
 {
   Vec3 position;
   Vec3 target_velocity;
@@ -72,6 +111,7 @@ static void s_player_character_update(LDKEntity entity,
   }
 
   speed = isfinite(player->speed) ? float_max(player->speed, 0.0f) : 0.0f;
+  speed *= s_player_grass_speed_scale(entity, cut_grass);
   acceleration = isfinite(player->acceleration)
       ? float_max(player->acceleration, 0.0f)
       : 0.0f;
@@ -108,6 +148,7 @@ void player_character_controller_system_update(
   LDKKeyboardState keyboard;
   Vec3 input_direction;
   u32 component_type = ldk_component_type(PlayerCharacterComponent);
+  bool cut_grass;
 
   (void)data;
 
@@ -118,6 +159,8 @@ void player_character_controller_system_update(
 
   ldk_input_keyboard_state_get(&keyboard);
   input_direction = s_player_input_direction(&keyboard);
+  cut_grass =
+      ldk_input_keyboard_key_down(&keyboard, LDK_KEYCODE_SPACE);
 
   for (u32 i = 0u; i < group->count; ++i)
   {
@@ -131,6 +174,6 @@ void player_character_controller_system_update(
     }
 
     s_player_character_update(
-        group->entities[i], player, input_direction, dt);
+        group->entities[i], player, input_direction, cut_grass, dt);
   }
 }

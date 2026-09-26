@@ -73,6 +73,12 @@ extern "C"
     void (*write)(void *value, i64 raw);
   } LDKEnumMeta;
 
+  typedef struct LDKComponentGroupMeta
+  {
+    const char *name;
+    const struct LDKComponentGroupMeta *parent;
+  } LDKComponentGroupMeta;
+
   typedef struct LDKComponentFieldMeta
   {
     const char *name;
@@ -83,6 +89,7 @@ extern "C"
     float min_value;
     float max_value;
     const LDKEnumMeta *enum_meta;
+    const LDKComponentGroupMeta *group;
   } LDKComponentFieldMeta;
 
   typedef struct LDKComponentMeta
@@ -92,6 +99,8 @@ extern "C"
     u32 size;
     const LDKComponentFieldMeta *fields;
     u32 field_count;
+    const LDKComponentGroupMeta *groups;
+    u32 group_count;
   } LDKComponentMeta;
 
   LDK_API u32 ldk_engine_component_metadata_count(void);

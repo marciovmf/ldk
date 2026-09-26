@@ -166,6 +166,35 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "  out_color = tex * v_color;\n"
 "}\n";
 
+#define LDK_GL33_VEGETATION_GLSL                                            \
+  "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n"       \
+  "    vec2 uv, vec4 tangent, vec4 vegetation, float time)\n"            \
+  "{\n"                                                                    \
+  "  vec4 world_position = world * vec4(local_position, 1.0);\n"            \
+  "  float height = clamp(uv.y, 0.0, 1.0);\n"                           \
+  "  float weight = height * height;\n"                                    \
+  "  if (weight > 0.0 && (vegetation.x > 0.0 || vegetation.y > 0.0))\n" \
+  "  {\n"                                                                  \
+  "    mat3 basis = mat3(world);\n"                                       \
+  "    vec3 curve_direction = basis * tangent.xyz;\n"                     \
+  "    float curve_length = length(curve_direction);\n"                      \
+  "    if (curve_length <= 1e-6)\n"                                      \
+  "      curve_direction = basis * vec3(0.0, 0.0, 1.0);\n"              \
+  "    curve_direction /= max(length(curve_direction), 1e-6);\n"             \
+  "    float blade_height = max(length(basis[1]), 1e-6);\n"               \
+  "    vec2 wind_direction = normalize(vec2(0.83, 0.56));\n"               \
+  "    float phase = time * vegetation.z * 6.28318530718 +\n"             \
+  "        dot(world[3].xz, wind_direction) * 0.75;\n"                      \
+  "    float sway = 0.65 * sin(phase) +\n"                               \
+  "        0.35 * sin(phase * 1.73 + 1.2);\n"                              \
+  "    vec3 wind = vec3(wind_direction.x, 0.0, wind_direction.y);\n"      \
+  "    vec3 bend = curve_direction * vegetation.x +\n"                   \
+  "        wind * (vegetation.y * sway);\n"                                  \
+  "    world_position.xyz += bend * (blade_height * weight);\n"             \
+  "  }\n"                                                                  \
+  "  return world_position.xyz;\n"                                         \
+  "}\n"
+
 static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "#version 330 core\n"
     "layout(location = 0) in vec3 a_position;\n"
@@ -180,6 +209,12 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "layout(location = 7) in vec4 i_world_3;\n"
     "layout(location = 9) in vec4 i_instance_color;\n"
     "#endif\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
     "layout(std140) uniform LDK_UBO_0\n"
     "{\n"
     "  mat4 u_view;\n"
@@ -238,19 +273,43 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "  gl_Position = u_projection * u_view * world_position;\n"
     "}\n";
 
-static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
-    "#version 330 core\n"
+static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
+    "#version 330 core\n" LDK_GL33_VEGETATION_GLSL
     "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 1) in vec3 a_normal;\n"
+    "layout(location = 2) in vec2 a_uv;\n"
+    "layout(location = 3) in vec4 a_color;\n"
+    "layout(location = 8) in vec4 a_tangent;\n"
     "#ifdef LDK_INSTANCED\n"
     "layout(location = 4) in vec4 i_world_0;\n"
     "layout(location = 5) in vec4 i_world_1;\n"
     "layout(location = 6) in vec4 i_world_2;\n"
     "layout(location = 7) in vec4 i_world_3;\n"
+    "layout(location = 9) in vec4 i_instance_color;\n"
     "#endif\n"
-    "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_view;\n"
+    "  mat4 u_projection;\n"
+    "  vec4 u_camera_position;\n"
+    "};\n"
     "#ifndef LDK_INSTANCED\n"
-    "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "layout(std140) uniform LDK_UBO_1\n"
+    "{\n"
+    "  mat4 u_world;\n"
+    "  vec4 u_instance_color;\n"
+    "};\n"
     "#endif\n"
+    "out vec3 v_normal;\n"
+    "out vec3 v_world_position;\n"
+    "out vec4 v_color;\n"
+    "out vec4 v_instance_color;\n"
     "void main()\n"
     "{\n"
     "#ifdef LDK_INSTANCED\n"
@@ -258,8 +317,88 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
     "#else\n"
     "  mat4 world = u_world;\n"
     "#endif\n"
-    "  gl_Position = u_light_view_projection * world * vec4(a_position, "
-    "1.0);\n"
+    "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n"
+    "      a_tangent, u_vegetation, u_camera_position.w);\n"
+    "  v_normal = mat3(world) * a_normal;\n"
+    "  v_world_position = position;\n"
+    "  v_color = a_color;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "  v_instance_color = i_instance_color;\n"
+    "#else\n"
+    "  v_instance_color = u_instance_color;\n"
+    "#endif\n"
+    "  gl_Position = u_projection * u_view * vec4(position, 1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
+    "#version 330 core\n"
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 2) in vec2 a_uv;\n"
+    "layout(location = 8) in vec4 a_tangent;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "layout(location = 4) in vec4 i_world_0;\n"
+    "layout(location = 5) in vec4 i_world_1;\n"
+    "layout(location = 6) in vec4 i_world_2;\n"
+    "layout(location = 7) in vec4 i_world_3;\n"
+    "#endif\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_light_view_projection;\n"
+    "  vec4 u_animation;\n"
+    "};\n"
+    "#ifndef LDK_INSTANCED\n"
+    "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "#endif\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_cutout;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
+    "void main()\n"
+    "{\n"
+    "#ifdef LDK_INSTANCED\n"
+    "  mat4 world = mat4(i_world_0, i_world_1, i_world_2, i_world_3);\n"
+    "#else\n"
+    "  mat4 world = u_world;\n"
+    "#endif\n"
+    "  vec3 position = (world * vec4(a_position, 1.0)).xyz;\n"
+    "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_SHADOW_PASS_VEGETATION_VERTEX_SHADER =
+    "#version 330 core\n" LDK_GL33_VEGETATION_GLSL
+    "layout(location = 0) in vec3 a_position;\n"
+    "layout(location = 2) in vec2 a_uv;\n"
+    "layout(location = 8) in vec4 a_tangent;\n"
+    "#ifdef LDK_INSTANCED\n"
+    "layout(location = 4) in vec4 i_world_0;\n"
+    "layout(location = 5) in vec4 i_world_1;\n"
+    "layout(location = 6) in vec4 i_world_2;\n"
+    "layout(location = 7) in vec4 i_world_3;\n"
+    "#endif\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_light_view_projection;\n"
+    "  vec4 u_animation;\n"
+    "};\n"
+    "#ifndef LDK_INSTANCED\n"
+    "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
+    "#endif\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_cutout;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
+    "void main()\n"
+    "{\n"
+    "#ifdef LDK_INSTANCED\n"
+    "  mat4 world = mat4(i_world_0, i_world_1, i_world_2, i_world_3);\n"
+    "#else\n"
+    "  mat4 world = u_world;\n"
+    "#endif\n"
+    "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n"
+    "      a_tangent, u_vegetation, u_animation.x);\n"
+    "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER =
@@ -270,16 +409,26 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER =
     "#version 330 core\n"
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 2) in vec2 a_uv;\n"
+    "layout(location = 8) in vec4 a_tangent;\n"
     "#ifdef LDK_INSTANCED\n"
     "layout(location = 4) in vec4 i_world_0;\n"
     "layout(location = 5) in vec4 i_world_1;\n"
     "layout(location = 6) in vec4 i_world_2;\n"
     "layout(location = 7) in vec4 i_world_3;\n"
     "#endif\n"
-    "layout(std140) uniform LDK_UBO_0 { mat4 u_light_view_projection; };\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_light_view_projection;\n"
+    "  vec4 u_animation;\n"
+    "};\n"
     "#ifndef LDK_INSTANCED\n"
     "layout(std140) uniform LDK_UBO_1 { mat4 u_world; };\n"
     "#endif\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_cutout;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
     "out vec2 v_uv;\n"
     "void main()\n"
     "{\n"
@@ -289,8 +438,8 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER =
     "  mat4 world = u_world;\n"
     "#endif\n"
     "  v_uv = a_uv;\n"
-    "  gl_Position = u_light_view_projection * world * vec4(a_position, "
-    "1.0);\n"
+    "  vec3 position = (world * vec4(a_position, 1.0)).xyz;\n"
+    "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_FRAGMENT_SHADER =
@@ -299,6 +448,7 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_FRAGMENT_SHADER =
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
     "  vec4 u_cutout;\n"
+    "  vec4 u_vegetation;\n"
     "};\n"
     "uniform sampler2D LDK_TEXTURE_3;\n"
     "void main()\n"
@@ -440,6 +590,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
     "{\n"
     "  vec4 u_material_color;\n"
     "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
     "};\n"
     "out vec4 out_color;\n"
     "void main()\n"
@@ -455,6 +606,31 @@ static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
     "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
     "}\n";
 
+static char const *LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER =
+    "#version 330 core\n" LDK_GL33_LIGHTING_GLSL
+    "in vec3 v_normal;\n"
+    "in vec4 v_color;\n"
+    "in vec4 v_instance_color;\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
+    "out vec4 out_color;\n"
+    "void main()\n"
+    "{\n"
+    "  vec3 normal = v_normal / max(length(v_normal), 1e-6);\n"
+    "  if (!gl_FrontFacing)\n"
+    "    normal = -normal;\n"
+    "  vec3 diffuse;\n"
+    "  vec3 specular;\n"
+    "  ldk_lighting(normal, u_surface.x, u_surface.y, diffuse, specular);\n"
+    "  vec4 color = v_color * u_material_color * v_instance_color;\n"
+    "  vec3 emission = color.rgb * u_surface.z;\n"
+    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "}\n";
+
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec4 v_color;\n"
@@ -462,6 +638,8 @@ static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
+"  vec4 u_surface;\n"
+"  vec4 u_vegetation;\n"
 "};\n"
 "out vec4 out_color;\n"
 "void main()\n"
@@ -477,6 +655,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
     "{\n"
     "  vec4 u_material_color;\n"
     "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
     "};\n"
     "uniform sampler2D LDK_TEXTURE_3;\n"
     "out vec4 out_color;\n"
@@ -501,6 +680,8 @@ static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
 "layout(std140) uniform LDK_UBO_2\n"
 "{\n"
 "  vec4 u_material_color;\n"
+"  vec4 u_surface;\n"
+"  vec4 u_vegetation;\n"
 "};\n"
 "uniform sampler2D LDK_TEXTURE_3;\n"
 "out vec4 out_color;\n"
@@ -517,6 +698,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
     "{\n"
     "  vec4 u_material_color;\n"
     "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
     "};\n"
     "uniform sampler2D LDK_TEXTURE_3;\n"
     "out vec4 out_color;\n"
@@ -544,6 +726,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER 
     "{\n"
     "  vec4 u_material_color;\n"
     "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
     "};\n"
     "uniform sampler2D LDK_TEXTURE_3;\n"
     "out vec4 out_color;\n"
@@ -682,6 +865,19 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     }
   }
 
+  if (shader == LDK_SHADER_SHADOW_PASS_VEGETATION ||
+      shader == LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED)
+  {
+    if (stage == LDK_RHI_SHADER_STAGE_VERTEX)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_VEGETATION_VERTEX_SHADER;
+    }
+    if (stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+    {
+      return LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER;
+    }
+  }
+
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
     return LDK_RHI_GL33_UI_PASS_VERTEX_SHADER;
@@ -710,6 +906,20 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_MESH_PASS_INSTANCED && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER;
+  }
+
+  if ((shader == LDK_SHADER_VEGETATION_PASS ||
+          shader == LDK_SHADER_VEGETATION_PASS_INSTANCED) &&
+      stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER;
+  }
+
+  if ((shader == LDK_SHADER_VEGETATION_PASS ||
+          shader == LDK_SHADER_VEGETATION_PASS_INSTANCED) &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_MESH_PASS_UNLIT &&
@@ -793,10 +1003,12 @@ LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(LDKRHIContext* rhi, uint
   desc.code = code;
   desc.code_size = ldk_rhi_gl33_cstr_size(code);
 
-  if ((shader == LDK_SHADER_MESH_PASS_INSTANCED ||
+  if (stage == LDK_RHI_SHADER_STAGE_VERTEX &&
+      (shader == LDK_SHADER_MESH_PASS_INSTANCED ||
           shader == LDK_SHADER_SHADOW_PASS_INSTANCED ||
-          shader == LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED) &&
-      stage == LDK_RHI_SHADER_STAGE_VERTEX)
+          shader == LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED ||
+          shader == LDK_SHADER_VEGETATION_PASS_INSTANCED ||
+          shader == LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED))
   {
     return ldk_rhi_gl33_shader_module_create_with_prefix(
         rhi->backend_user_data, &desc, "#define LDK_INSTANCED\n");

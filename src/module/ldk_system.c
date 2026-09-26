@@ -1,5 +1,6 @@
 #include <module/ldk_system.h>
 #include <ldk.h>
+#include <ldk_profiler.h>
 
 #ifndef LDK_ALLOC
 #include <stdlib.h>
@@ -16,6 +17,7 @@ typedef struct LDKRegisteredSystem
   void *data;
   const LDKEntityGroup *group;
   u32 registration_index;
+  LDKProfilerSource profiler_source;
   u8 is_initialized;
 } LDKRegisteredSystem;
 
@@ -32,6 +34,26 @@ typedef struct LDKSystemRegistryInternal
 } LDKSystemRegistryInternal;
 
 static const LDKEntityGroup s_empty_group = {0};
+
+static LDKProfilerSource s_bucket_profiler_source[LDK_SYSTEM_BUCKET_COUNT] = {
+    0};
+
+static const char *s_system_bucket_profiler_name(LDKSystemBucket bucket)
+{
+  switch (bucket)
+  {
+  case LDK_SYSTEM_BUCKET_UPDATE:
+    return "Bucket: Update";
+  case LDK_SYSTEM_BUCKET_PRE_UPDATE:
+    return "Bucket: Pre Update";
+  case LDK_SYSTEM_BUCKET_POST_UPDATE:
+    return "Bucket: Post Update";
+  case LDK_SYSTEM_BUCKET_RENDER:
+    return "Bucket: Render";
+  default:
+    return "Bucket";
+  }
+}
 
 static int s_system_desc_has_any_callback(const LDKSystemDesc *desc)
 {
@@ -703,6 +725,10 @@ bool ldk_system_registry_run_bucket(
     return false;
   }
 
+  ldk_profiler_zone_begin_source(&s_bucket_profiler_source[bucket],
+      LDK_PROFILER_ZONE_BUCKET, s_system_bucket_profiler_name(bucket), __FILE__,
+      __func__, __LINE__);
+
   bucket_list = internal->buckets[bucket];
   internal->in_callback = 1;
 
@@ -731,17 +757,27 @@ bool ldk_system_registry_run_bucket(
       continue;
     }
 
+    ldk_profiler_zone_begin_source(&system->profiler_source,
+        LDK_PROFILER_ZONE_SYSTEM,
+        system->desc.name ? system->desc.name : "<unnamed system>", "", "", 0);
+
     system->desc.update(system->data, group, dt);
+
+    ldk_profiler_zone_end_kind(LDK_PROFILER_ZONE_SYSTEM);
 
     if (internal->callback_sync &&
         !internal->callback_sync(internal->callback_sync_user))
     {
       internal->in_callback = 0;
+      ldk_profiler_zone_end_kind(LDK_PROFILER_ZONE_BUCKET);
       return false;
     }
   }
 
   internal->in_callback = 0;
+
+  ldk_profiler_zone_end_kind(LDK_PROFILER_ZONE_BUCKET);
+
   return true;
 }
 

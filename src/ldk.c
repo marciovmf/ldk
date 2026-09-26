@@ -25,6 +25,7 @@
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 #include <module/ldk_scene_manager.h>
+#include <system/ldk_grass.h>
 
 #include "ldk_rhi_gl33.h" // we only have one backend inplementation at the moment
 
@@ -390,6 +391,7 @@ static void s_terminate_all_modules(LDKRoot *e)
   ldk_scene_manager_terminate(&e->scene_manager);
   ldk_ecs_terminate();
   ldk_event_queue_terminate(&e->event_queue);
+  ldk_grass_system_terminate();
   ldk_renderer_terminate(&e->renderer);
   ldk_asset_manager_terminate(&e->asset_manager);
   ldk_asset_source_terminate(&e->asset_source);
@@ -1215,6 +1217,13 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     return false;
   }
 
+  if (!ldk_grass_system_initialize(&e->renderer))
+  {
+    ldk_log_error("Failed to initialize system: Grass.\n");
+    ldk_engine_terminate();
+    return false;
+  }
+
   g_engine_initialized = true;
   e->previous_ticks = 0;
   e->running = true;
@@ -1682,6 +1691,8 @@ void ldk_engine_frame(void)
         }
       }
     }
+
+    ldk_grass_system_submit();
   }
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_SUBMIT_AFTER, current_ticks, delta_time);

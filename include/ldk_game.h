@@ -15,6 +15,7 @@
 #include <ldk_event.h>
 #include <ldk_mesh.h>
 #include <ldk_os.h>
+#include <ldk_profiler.h>
 
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>

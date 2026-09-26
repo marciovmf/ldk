@@ -948,6 +948,11 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, "Statistics");
 
+  ldk_ui_set_next_weight(ui, 0.0f);
+  editor->profile = ldk_ui_toggle(ui, editor->profile);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, "Profile");
+
   s_editor_layout_combo_box(editor);
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);

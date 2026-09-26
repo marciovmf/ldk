@@ -25,9 +25,16 @@ typedef struct LDKMetaField
   u32 flags;
   float min_value;
   float max_value;
+  i32 group_index;
   bool has_min;
   bool has_max;
 } LDKMetaField;
+
+typedef struct LDKMetaGroup
+{
+  char name[128];
+  i32 parent_index;
+} LDKMetaGroup;
 
 typedef struct LDKMetaComponent
 {
@@ -36,6 +43,8 @@ typedef struct LDKMetaComponent
   u32 type_id;
   u32 first_field;
   u32 field_count;
+  u32 first_group;
+  u32 group_count;
 } LDKMetaComponent;
 
 typedef struct LDKMetaSystem
@@ -53,6 +62,8 @@ typedef struct LDKMetaSystem
   u64 id;
   u32 first_field;
   u32 field_count;
+  u32 first_group;
+  u32 group_count;
   bool stateful;
 } LDKMetaSystem;
 
@@ -72,6 +83,10 @@ typedef struct LDKMetaState
   LDKMetaField* fields;
   u32 field_count;
   u32 field_capacity;
+
+  LDKMetaGroup *groups;
+  u32 group_count;
+  u32 group_capacity;
 
   LDKMetaSystem *systems;
   u32 system_count;
@@ -266,6 +281,30 @@ static bool ldk_meta_push_field(LDKMetaState* state, const LDKMetaField* field)
 
   state->fields[state->field_count] = *field;
   state->field_count += 1u;
+  return true;
+}
+
+static bool ldk_meta_push_group(LDKMetaState *state, const LDKMetaGroup *group)
+{
+  LDKMetaGroup *new_groups = NULL;
+  u32 new_capacity = 0;
+
+  if (state->group_count == state->group_capacity)
+  {
+    new_capacity = state->group_capacity == 0u ? 32u : state->group_capacity * 2u;
+    new_groups = (LDKMetaGroup *)realloc(
+        state->groups, sizeof(LDKMetaGroup) * new_capacity);
+    if (!new_groups)
+    {
+      return false;
+    }
+
+    state->groups = new_groups;
+    state->group_capacity = new_capacity;
+  }
+
+  state->groups[state->group_count] = *group;
+  state->group_count += 1u;
   return true;
 }
 
@@ -707,19 +746,40 @@ static void ldk_meta_write_enum_reference(FILE *out, LDKMetaState *state,
 {
   if (ldk_meta_enum_find(state, field->type_name))
   {
-    fprintf(out, "&ldk_enum_%s },\n", field->type_name);
+    fprintf(out, "&ldk_enum_%s", field->type_name);
   }
   else
   {
-    fprintf(out, "NULL },\n");
+    fprintf(out, "NULL");
   }
+}
+
+static void ldk_meta_write_c_string(FILE *out, const char *text)
+{
+  const unsigned char *p = (const unsigned char *)(text ? text : "");
+  fputc('"', out);
+  while (*p)
+  {
+    switch (*p)
+    {
+    case '\\': fprintf(out, "\\\\"); break;
+    case '"': fprintf(out, "\\\""); break;
+    case '\n': fprintf(out, "\\n"); break;
+    case '\r': fprintf(out, "\\r"); break;
+    case '\t': fprintf(out, "\\t"); break;
+    default: fputc((int)*p, out); break;
+    }
+    ++p;
+  }
+  fputc('"', out);
 }
 
 static bool ldk_meta_parse_field_line(
     LDKMetaState* state,
     const char* component_name,
     char* line,
-    const char* pending_annotation)
+    const char* pending_annotation,
+    i32 group_index)
 {
   LDKMetaField field;
   char* semi = NULL;
@@ -730,6 +790,7 @@ static bool ldk_meta_parse_field_line(
   char* type = NULL;
 
   memset(&field, 0, sizeof(field));
+  field.group_index = group_index;
 
   comment = strstr(line, "//");
   if (comment)
@@ -809,14 +870,87 @@ static bool ldk_meta_parse_field_line(
   return true;
 }
 
+static bool ldk_meta_group_stack_push(
+    i32 **stack, u32 *count, u32 *capacity, i32 value)
+{
+  i32 *new_stack;
+  u32 new_capacity;
+
+  if (*count == *capacity)
+  {
+    new_capacity = *capacity == 0u ? 8u : *capacity * 2u;
+    new_stack = (i32 *)realloc(*stack, sizeof(i32) * new_capacity);
+    if (!new_stack)
+    {
+      return false;
+    }
+    *stack = new_stack;
+    *capacity = new_capacity;
+  }
+
+  (*stack)[(*count)++] = value;
+  return true;
+}
+
+static bool ldk_meta_parse_group_name(
+    LDKMetaState *state, const char *annotation, char *out_name, size_t out_size)
+{
+  const char *p = annotation;
+  const char *begin;
+  const char *end;
+  size_t len;
+
+  while (*p && isspace((unsigned char)*p))
+  {
+    ++p;
+  }
+  if (*p != '"')
+  {
+    ldk_meta_set_error(state, "expected quoted name after //@begin_group");
+    return false;
+  }
+
+  begin = ++p;
+  while (*p && *p != '"')
+  {
+    ++p;
+  }
+  if (*p != '"')
+  {
+    ldk_meta_set_error(state, "unterminated quoted name in //@begin_group");
+    return false;
+  }
+  end = p;
+  len = (size_t)(end - begin);
+  if (len == 0u)
+  {
+    ldk_meta_set_error(state, "//@begin_group name cannot be empty");
+    return false;
+  }
+  if (len >= out_size)
+  {
+    ldk_meta_set_error(state, "//@begin_group name is too long");
+    return false;
+  }
+
+  memcpy(out_name, begin, len);
+  out_name[len] = 0;
+  return true;
+}
+
 static bool ldk_meta_parse_struct_body(
     LDKMetaState* state,
     const char* component_name,
     const char* body_begin,
-    const char* body_end)
+    const char* body_end,
+    u32 first_group)
 {
   char pending_annotation[512];
   const char* cursor = body_begin;
+  i32 *group_stack = NULL;
+  u32 group_stack_count = 0u;
+  u32 group_stack_capacity = 0u;
+  bool ok = true;
 
   pending_annotation[0] = 0;
 
@@ -824,6 +958,8 @@ static bool ldk_meta_parse_struct_body(
   {
     char line[1024];
     char* inspect = NULL;
+    char* begin_group = NULL;
+    char* end_group = NULL;
     const char* next = cursor;
     size_t len = 0;
     bool field_ended;
@@ -843,16 +979,66 @@ static bool ldk_meta_parse_struct_body(
     line[len] = 0;
     field_ended = strchr(line, ';') != NULL;
 
+    begin_group = strstr(line, "//@begin_group");
+    end_group = strstr(line, "//@end_group");
     inspect = strstr(line, "//@inspect");
-    if (inspect)
+
+    if (begin_group)
     {
-      snprintf(pending_annotation, sizeof(pending_annotation), "%s", inspect + strlen("//@inspect"));
+      LDKMetaGroup group;
+      i32 local_index = (i32)(state->group_count - first_group);
+
+      memset(&group, 0, sizeof(group));
+      group.parent_index = group_stack_count > 0u
+          ? group_stack[group_stack_count - 1u]
+          : -1;
+      if (!ldk_meta_parse_group_name(state,
+              begin_group + strlen("//@begin_group"),
+              group.name, sizeof(group.name)))
+      {
+        ok = false;
+        break;
+      }
+      if (!ldk_meta_push_group(state, &group))
+      {
+        ldk_meta_set_error(state, "failed to push metadata group");
+        ok = false;
+        break;
+      }
+      if (!ldk_meta_group_stack_push(&group_stack, &group_stack_count,
+              &group_stack_capacity, local_index))
+      {
+        ldk_meta_set_error(state, "failed to grow metadata group stack");
+        ok = false;
+        break;
+      }
+    }
+    else if (end_group)
+    {
+      if (group_stack_count == 0u)
+      {
+        ldk_meta_set_error(state, "//@end_group without matching //@begin_group");
+        ok = false;
+        break;
+      }
+      group_stack_count -= 1u;
+    }
+    else if (inspect)
+    {
+      snprintf(pending_annotation, sizeof(pending_annotation), "%s",
+          inspect + strlen("//@inspect"));
     }
     else
     {
-      if (!ldk_meta_parse_field_line(state, component_name, line, pending_annotation[0] ? pending_annotation : NULL))
+      i32 group_index = group_stack_count > 0u
+          ? group_stack[group_stack_count - 1u]
+          : -1;
+      if (!ldk_meta_parse_field_line(state, component_name, line,
+              pending_annotation[0] ? pending_annotation : NULL,
+              group_index))
       {
-        return false;
+        ok = false;
+        break;
       }
 
       if (field_ended)
@@ -868,7 +1054,14 @@ static bool ldk_meta_parse_struct_body(
     }
   }
 
-  return true;
+  if (ok && group_stack_count != 0u)
+  {
+    ldk_meta_set_error(state, "unclosed //@begin_group in reflected struct");
+    ok = false;
+  }
+
+  free(group_stack);
+  return ok;
 }
 
 static const char* ldk_meta_find_matching_brace(const char* open_brace)
@@ -959,14 +1152,17 @@ static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
   snprintf(component.meta_fn_name, sizeof(component.meta_fn_name), "%s_component_meta", component.type_name);
   component.type_id = ldk_meta_hash_fnv1a32(component.type_name);
   component.first_field = state->field_count;
+  component.first_group = state->group_count;
 
   first_field = state->field_count;
-  if (!ldk_meta_parse_struct_body(state, component.type_name, open_brace + 1, close_brace))
+  if (!ldk_meta_parse_struct_body(state, component.type_name, open_brace + 1,
+          close_brace, component.first_group))
   {
     return false;
   }
 
   component.field_count = state->field_count - first_field;
+  component.group_count = state->group_count - component.first_group;
 
   if (!ldk_meta_push_component(state, &component))
   {
@@ -1297,13 +1493,15 @@ static bool ldk_meta_parse_system_struct(LDKMetaState *state,
   }
   system->stateful = true;
   system->first_field = state->field_count;
+  system->first_group = state->group_count;
   first_field = state->field_count;
-  if (!ldk_meta_parse_struct_body(
-          state, system->type_name, open_brace + 1, close_brace))
+  if (!ldk_meta_parse_struct_body(state, system->type_name, open_brace + 1,
+          close_brace, system->first_group))
   {
     return false;
   }
   system->field_count = state->field_count - first_field;
+  system->group_count = state->group_count - system->first_group;
 
   if (!system->update[0] && !system->initialize[0] && !system->terminate[0])
   {
@@ -1521,6 +1719,35 @@ static bool ldk_meta_check_collisions(LDKMetaState* state)
   return true;
 }
 
+static void ldk_meta_write_groups(FILE *out, LDKMetaState *state,
+    u32 first_group, u32 group_count)
+{
+  if (!group_count)
+  {
+    return;
+  }
+
+  fprintf(out, "  static const LDKComponentGroupMeta groups[] =\n");
+  fprintf(out, "  {\n");
+  for (u32 i = 0; i < group_count; ++i)
+  {
+    const LDKMetaGroup *group = &state->groups[first_group + i];
+    fprintf(out, "    { ");
+    ldk_meta_write_c_string(out, group->name);
+    fprintf(out, ", ");
+    if (group->parent_index >= 0)
+    {
+      fprintf(out, "&groups[%d]", group->parent_index);
+    }
+    else
+    {
+      fprintf(out, "NULL");
+    }
+    fprintf(out, " },\n");
+  }
+  fprintf(out, "  };\n\n");
+}
+
 static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 {
   FILE* out = NULL;
@@ -1600,6 +1827,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 
     fprintf(out, "static inline const LDKComponentMeta* %s(void)\n", component->meta_fn_name);
     fprintf(out, "{\n");
+    ldk_meta_write_groups(out, state, component->first_group, component->group_count);
     fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
     fprintf(out, "  {\n");
 
@@ -1622,6 +1850,16 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           min_value,
           max_value);
       ldk_meta_write_enum_reference(out, state, field);
+      fprintf(out, ", ");
+      if (field->group_index >= 0)
+      {
+        fprintf(out, "&groups[%d]", field->group_index);
+      }
+      else
+      {
+        fprintf(out, "NULL");
+      }
+      fprintf(out, " },\n");
     }
 
     fprintf(out, "  };\n\n");
@@ -1631,7 +1869,16 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "    ldk_component_type(%s),\n", component->type_name);
     fprintf(out, "    sizeof(%s),\n", component->type_name);
     fprintf(out, "    fields,\n");
-    fprintf(out, "    %uu\n", component->field_count);
+    fprintf(out, "    %uu,\n", component->field_count);
+    if (component->group_count)
+    {
+      fprintf(out, "    groups,\n");
+    }
+    else
+    {
+      fprintf(out, "    NULL,\n");
+    }
+    fprintf(out, "    %uu\n", component->group_count);
     fprintf(out, "  };\n\n");
     fprintf(out, "  return &meta;\n");
     fprintf(out, "}\n\n");
@@ -1667,6 +1914,10 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "static inline const LDKSystemMeta *%s_system_meta(void)\n",
         system->symbol_name);
     fprintf(out, "{\n");
+    if (system->stateful)
+    {
+      ldk_meta_write_groups(out, state, system->first_group, system->group_count);
+    }
     if (system->stateful && system->field_count)
     {
       fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
@@ -1685,6 +1936,16 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
             field->field_name, emitted_flags, field->widget, min_value,
             max_value);
         ldk_meta_write_enum_reference(out, state, field);
+        fprintf(out, ", ");
+        if (field->group_index >= 0)
+        {
+          fprintf(out, "&groups[%d]", field->group_index);
+        }
+        else
+        {
+          fprintf(out, "NULL");
+        }
+        fprintf(out, " },\n");
       }
       fprintf(out, "  };\n\n");
     }
@@ -1710,7 +1971,16 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     {
       fprintf(out, "    NULL,\n");
     }
-    fprintf(out, "    %uu\n", system->field_count);
+    fprintf(out, "    %uu,\n", system->field_count);
+    if (system->stateful && system->group_count)
+    {
+      fprintf(out, "    groups,\n");
+    }
+    else
+    {
+      fprintf(out, "    NULL,\n");
+    }
+    fprintf(out, "    %uu\n", system->group_count);
     fprintf(out, "  };\n\n");
     fprintf(out, "  return &meta;\n");
     fprintf(out, "}\n\n");
@@ -1858,6 +2128,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 
   free(state.components);
   free(state.fields);
+  free(state.groups);
   free(state.systems);
   free(state.enums);
 

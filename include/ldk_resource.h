@@ -33,9 +33,15 @@ typedef struct LDKResourceMaterial
   LDKRHIResource id;
 } LDKResourceMaterial;
 
+typedef struct LDKResourceInstanceSet
+{
+  LDKRHIResource id;
+} LDKResourceInstanceSet;
+
 #define LDK_RESOURCE_TEXTURE_INVALID  ((LDKResourceTexture){LDK_RHI_INVALID_RESOURCE})
 #define LDK_RESOURCE_MESH_INVALID     ((LDKResourceMesh){LDK_RHI_INVALID_RESOURCE})
 #define LDK_RESOURCE_SHADER_INVALID   ((LDKResourceShader){LDK_RHI_INVALID_RESOURCE})
 #define LDK_RESOURCE_MATERIAL_INVALID ((LDKResourceMaterial){LDK_RHI_INVALID_RESOURCE})
+#define LDK_RESOURCE_INSTANCE_SET_INVALID ((LDKResourceInstanceSet){LDK_RHI_INVALID_RESOURCE})
 
 #endif //LDK_RESOURCE_H

@@ -372,6 +372,7 @@ list(APPEND LDK_SOURCE
 
   # Core
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
+  ${INCLUDE_DIR}/ldk_profiler.h     src/ldk_profiler.c
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h
   ${INCLUDE_DIR}/ldk_asset.h
@@ -421,6 +422,8 @@ list(APPEND LDK_SOURCE
   src/component/ldk_particle_emitter.c
 
   # Systems
+  ${INCLUDE_DIR}/system/ldk_grass.h
+  src/system/ldk_grass.c
   ${INCLUDE_DIR}/system/ldk_particle_system.h
   src/system/ldk_particle_system.c
 )

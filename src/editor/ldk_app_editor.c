@@ -3,6 +3,7 @@
 
 #include <ldk_common.h>
 #include <ldk_game.h>
+#include <ldk_profiler.h>
 #include <ldk_event.h>
 #include <ldk_os.h>
 #include <ldk_image.h>
@@ -433,11 +434,144 @@ static bool on_event_text(const LDKEvent *event, void *state)
   return false;
 }
 
+bool ldki_editor_profiler_path_get(
+    const LDKEditorContext *editor, XFSPath *path)
+{
+  if (!editor || !editor->project.loaded ||
+      !editor->project.game_dll_path.length ||
+      !x_fs_path_dirname(&editor->project.game_dll_path, path) ||
+      !x_fs_path_join(path, ".ldk/profiling/play.ldkp"))
+  {
+    return false;
+  }
+  x_fs_path_normalize(path);
+  return true;
+}
+
+static void s_editor_profiler_stop(LDKEditorContext *editor)
+{
+  if (!editor->profiler_recording)
+  {
+    return;
+  }
+  if (editor->profiler_frame_open)
+  {
+    ldk_profiler_frame_end();
+    editor->profiler_frame_open = false;
+  }
+  ldk_profiler_capture_stop();
+  editor->profiler_recording = false;
+  editor->profiler_revision += 1u;
+}
+
+static bool s_editor_profiler_session_requested(LDKEditorContext *editor)
+{
+  return editor->profile && editor->project.loaded &&
+         editor->editor_state != LDK_EDITOR_STATE_STOPED;
+}
+
+static void s_editor_profiler_frame_event(
+    LDKEditorContext *editor, const LDKEvent *event)
+{
+  static LDKProfilerSource update_source = {0};
+  static LDKProfilerSource submit_source = {0};
+  static LDKProfilerSource render_source = {0};
+
+  if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_BEFORE)
+  {
+    XFSPath path = {0};
+    bool requested = s_editor_profiler_session_requested(editor);
+    bool running = editor->editor_state == LDK_EDITOR_STATE_PLAYING ||
+                   editor->editor_state == LDK_EDITOR_STATE_STEPPING;
+    bool has_path = ldki_editor_profiler_path_get(editor, &path);
+    bool path_changed = strcmp(path.buf, editor->profiler_path.buf) != 0;
+
+    ldki_editor_profiler_update();
+    if (editor->profiler_recording && (!requested || !has_path || path_changed))
+    {
+      s_editor_profiler_stop(editor);
+    }
+    if (!requested || path_changed)
+    {
+      editor->profiler_failed = false;
+    }
+    editor->profiler_path = path;
+
+    if (requested && running && !editor->profiler_recording &&
+        !editor->profiler_failed)
+    {
+      XFSPath root = {0};
+      if (!has_path ||
+          !x_fs_path_dirname(&editor->project.game_dll_path, &root) ||
+          !x_fs_path_join(&root, ".ldk") ||
+          !ldk_profiler_initialize(root.buf) ||
+          !ldk_profiler_capture_start(path.buf))
+      {
+        editor->profiler_failed = true;
+        ldki_editor_log_error(editor, "Failed to start Play profiling.");
+      }
+      else
+      {
+        editor->profiler_recording = true;
+      }
+    }
+    if (editor->profiler_recording && running)
+    {
+      ldk_profiler_capture_collect(true);
+      ldk_profiler_frame_begin();
+      editor->profiler_frame_open = true;
+      ldk_profiler_zone_begin_source(&update_source, LDK_PROFILER_ZONE_PHASE,
+          "Update", __FILE__, __func__, __LINE__);
+    }
+    return;
+  }
+
+  if (!editor->profiler_frame_open)
+  {
+    if (editor->profiler_recording &&
+        !s_editor_profiler_session_requested(editor))
+    {
+      s_editor_profiler_stop(editor);
+    }
+    return;
+  }
+
+  switch (event->frame_event.type)
+  {
+  case LDK_FRAME_EVENT_UPDATE_AFTER:
+  case LDK_FRAME_EVENT_SUBMIT_AFTER:
+    ldk_profiler_zone_end_kind(LDK_PROFILER_ZONE_PHASE);
+    break;
+  case LDK_FRAME_EVENT_SUBMIT_BEFORE:
+    ldk_profiler_zone_begin_source(&submit_source, LDK_PROFILER_ZONE_PHASE,
+        "Submit", __FILE__, __func__, __LINE__);
+    break;
+  case LDK_FRAME_EVENT_RENDER_BEFORE:
+    ldk_profiler_zone_begin_source(&render_source, LDK_PROFILER_ZONE_PHASE,
+        "Render", __FILE__, __func__, __LINE__);
+    break;
+  case LDK_FRAME_EVENT_RENDER_AFTER:
+    ldk_profiler_zone_end_kind(LDK_PROFILER_ZONE_PHASE);
+    ldk_profiler_frame_end();
+    editor->profiler_frame_open = false;
+    ldk_profiler_capture_collect(false);
+    if (!s_editor_profiler_session_requested(editor))
+    {
+      s_editor_profiler_stop(editor);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
 static bool on_event_frame(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
   if (event->type != LDK_EVENT_TYPE_FRAME)
     return false;
+
+  s_editor_profiler_frame_event(editor, event);
 
   if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_AFTER)
   {
@@ -2125,6 +2259,7 @@ static bool s_project_unload(LDKEditorContext *editor)
   }
 
   s_editor_state_set_stop(editor);
+  s_editor_profiler_stop(editor);
   has_editor_game_dll_path =
       s_project_editor_game_dll_path_get(
           &editor->project, &editor_game_dll_path);
@@ -2905,6 +3040,8 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  s_editor_profiler_stop(editor);
+  ldk_profiler_terminate();
   s_project_game_module_watch_close();
   ldki_editor_scene_catalog_close(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);

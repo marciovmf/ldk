@@ -244,6 +244,12 @@ typedef struct LDKEditorContext
   char input_window_buffer[X_SMALLSTR_MAX_LENGTH];
   bool show_input_window;
 
+  bool profile;
+  bool profiler_recording;
+  bool profiler_frame_open;
+  bool profiler_failed;
+  u64 profiler_revision;
+  XFSPath profiler_path;
   bool show_statistics;
   float statistics_frame_time_ms;
 
@@ -394,6 +400,10 @@ typedef struct LDKEditorWindow
 u32 ldki_editor_window_count(void);
 const LDKEditorWindow *ldki_editor_window_at(u32 index);
 bool ldki_editor_window_show(LDKEditorWindowId window_id);
+bool ldki_editor_profiler_path_get(
+    const LDKEditorContext *editor, XFSPath *path);
+void ldki_editor_profiler_update(void);
+
 bool ldki_editor_window_is_open(LDKEditorWindowId window_id);
 bool ldki_editor_window_hide(LDKEditorWindowId window_id);
 bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
