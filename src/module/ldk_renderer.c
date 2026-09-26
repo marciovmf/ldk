@@ -5229,6 +5229,12 @@ typedef struct LDKRendererPostProcessParams
   float blur_options[4];
   float vignette[4];
   float lens[4];
+  float heat[4];
+  float stylization_options[4];
+  float retro[4];
+  float drunk_primary[4];
+  float drunk_secondary[4];
+  float animation[4];
 } LDKRendererPostProcessParams;
 
 typedef struct LDKRendererBlurParams
@@ -5253,6 +5259,24 @@ static float s_renderer_saturate(float value)
   return value;
 }
 
+static float s_renderer_clamp_finite(
+    float value, float min_value, float max_value, float fallback)
+{
+  if (!isfinite(value))
+  {
+    return fallback;
+  }
+  if (value < min_value)
+  {
+    return min_value;
+  }
+  if (value > max_value)
+  {
+    return max_value;
+  }
+  return value;
+}
+
 static bool s_renderer_blur_active(
     LDKRendererPostProcessing const* post_processing)
 {
@@ -5271,7 +5295,12 @@ static bool s_renderer_post_processing_active(
           post_processing->color_enabled ||
           post_processing->vignette_enabled ||
           post_processing->screen_distortion_enabled ||
-          post_processing->chromatic_aberration_enabled);
+          post_processing->chromatic_aberration_enabled ||
+          post_processing->heat_enabled ||
+          post_processing->inverse_enabled ||
+          post_processing->black_and_white_enabled ||
+          post_processing->retro_enabled ||
+          post_processing->drunk_enabled);
 }
 
 static void s_renderer_post_process_bindings_destroy(
@@ -6089,6 +6118,43 @@ static bool s_renderer_post_process_draw(
       s_renderer_saturate(view->post_processing.chromatic_aberration_strength);
   params.lens[3] =
       view->post_processing.chromatic_aberration_enabled ? 1.0f : 0.0f;
+  params.heat[0] =
+      s_renderer_saturate(view->post_processing.heat_strength);
+  params.heat[1] = s_renderer_clamp_finite(
+      view->post_processing.heat_amplitude, 0.0f, 32.0f, 4.0f);
+  params.heat[2] = s_renderer_clamp_finite(
+      view->post_processing.heat_scale, 0.25f, 4.0f, 1.0f);
+  params.heat[3] = s_renderer_clamp_finite(
+      view->post_processing.heat_speed, 0.0f, 4.0f, 1.0f);
+  params.stylization_options[0] =
+      view->post_processing.heat_enabled ? 1.0f : 0.0f;
+  params.stylization_options[1] =
+      view->post_processing.inverse_enabled ? 1.0f : 0.0f;
+  params.stylization_options[2] =
+      view->post_processing.black_and_white_enabled ? 1.0f : 0.0f;
+  params.stylization_options[3] =
+      view->post_processing.retro_enabled ? 1.0f : 0.0f;
+  params.retro[0] = s_renderer_clamp_finite(
+      view->post_processing.retro_pixel_size, 1.0f, 16.0f, 2.0f);
+  params.retro[1] = s_renderer_clamp_finite(
+      view->post_processing.retro_color_levels, 2.0f, 16.0f, 4.0f);
+  params.retro[2] =
+      s_renderer_saturate(view->post_processing.retro_dither_strength);
+  params.retro[3] = s_renderer_clamp_finite(
+      view->post_processing.retro_pattern_scale, 1.0f, 8.0f, 1.0f);
+  params.drunk_primary[0] =
+      s_renderer_saturate(view->post_processing.drunk_strength);
+  params.drunk_primary[1] = s_renderer_clamp_finite(
+      view->post_processing.drunk_speed, 0.0f, 4.0f, 1.0f);
+  params.drunk_primary[2] = s_renderer_clamp_finite(
+      view->post_processing.drunk_movement, 0.0f, 3.0f, 0.5f);
+  params.drunk_primary[3] =
+      view->post_processing.drunk_enabled ? 1.0f : 0.0f;
+  params.drunk_secondary[0] =
+      s_renderer_saturate(view->post_processing.drunk_ghosting);
+  params.drunk_secondary[1] = s_renderer_saturate(
+      view->post_processing.drunk_chromatic_aberration);
+  params.animation[0] = renderer->animation_time_seconds;
   if (!ldk_rhi_buffer_update(renderer->rhi,
           renderer->post_process_pass.params_buffer, 0, sizeof(params),
           &params))

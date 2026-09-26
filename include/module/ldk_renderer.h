@@ -392,6 +392,24 @@ extern "C" {
     float screen_distortion_strength;
     bool chromatic_aberration_enabled;
     float chromatic_aberration_strength;
+    bool heat_enabled;
+    float heat_strength;
+    float heat_amplitude;
+    float heat_scale;
+    float heat_speed;
+    bool inverse_enabled;
+    bool black_and_white_enabled;
+    bool retro_enabled;
+    float retro_pixel_size;
+    float retro_color_levels;
+    float retro_dither_strength;
+    float retro_pattern_scale;
+    bool drunk_enabled;
+    float drunk_strength;
+    float drunk_speed;
+    float drunk_ghosting;
+    float drunk_chromatic_aberration;
+    float drunk_movement;
   } LDKRendererPostProcessing;
 
   typedef struct LDKRendererPostProcessPass

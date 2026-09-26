@@ -1522,6 +1522,42 @@ void ldk_engine_frame(void)
             post_processing->chromatic_aberration_enabled;
         renderer_post_processing.chromatic_aberration_strength =
             post_processing->chromatic_aberration_strength;
+        renderer_post_processing.heat_enabled =
+            post_processing->heat_enabled;
+        renderer_post_processing.heat_strength =
+            post_processing->heat_strength;
+        renderer_post_processing.heat_amplitude =
+            post_processing->heat_amplitude;
+        renderer_post_processing.heat_scale =
+            post_processing->heat_scale;
+        renderer_post_processing.heat_speed =
+            post_processing->heat_speed;
+        renderer_post_processing.inverse_enabled =
+            post_processing->inverse_enabled;
+        renderer_post_processing.black_and_white_enabled =
+            post_processing->black_and_white_enabled;
+        renderer_post_processing.retro_enabled =
+            post_processing->retro_enabled;
+        renderer_post_processing.retro_pixel_size =
+            post_processing->retro_pixel_size;
+        renderer_post_processing.retro_color_levels =
+            post_processing->retro_color_levels;
+        renderer_post_processing.retro_dither_strength =
+            post_processing->retro_dither_strength;
+        renderer_post_processing.retro_pattern_scale =
+            post_processing->retro_pattern_scale;
+        renderer_post_processing.drunk_enabled =
+            post_processing->drunk_enabled;
+        renderer_post_processing.drunk_strength =
+            post_processing->drunk_strength;
+        renderer_post_processing.drunk_speed =
+            post_processing->drunk_speed;
+        renderer_post_processing.drunk_ghosting =
+            post_processing->drunk_ghosting;
+        renderer_post_processing.drunk_chromatic_aberration =
+            post_processing->drunk_chromatic_aberration;
+        renderer_post_processing.drunk_movement =
+            post_processing->drunk_movement;
         (void)ldk_renderer_view_post_processing_set(
             &e->renderer, view_id, &renderer_post_processing);
       }

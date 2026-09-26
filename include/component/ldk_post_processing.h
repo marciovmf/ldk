@@ -73,6 +73,49 @@ extern "C" {
     //@inspect slider min=0.0 max=1.0
     float chromatic_aberration_strength;
     //@end_group
+
+    //@begin_group "Heat"
+    bool heat_enabled;
+    //@inspect slider min=0.0 max=1.0
+    float heat_strength;
+    //@inspect slider min=0.0 max=32.0
+    float heat_amplitude;
+    //@inspect slider min=0.25 max=4.0
+    float heat_scale;
+    //@inspect slider min=0.0 max=4.0
+    float heat_speed;
+    //@end_group
+
+    //@begin_group "Image Effects"
+    bool inverse_enabled;
+    bool black_and_white_enabled;
+    //@end_group
+
+    //@begin_group "Retro"
+    bool retro_enabled;
+    //@inspect slider min=1.0 max=16.0
+    float retro_pixel_size;
+    //@inspect slider min=2.0 max=16.0
+    float retro_color_levels;
+    //@inspect slider min=0.0 max=1.0
+    float retro_dither_strength;
+    //@inspect slider min=1.0 max=8.0
+    float retro_pattern_scale;
+    //@end_group
+
+    //@begin_group "Drunk"
+    bool drunk_enabled;
+    //@inspect slider min=0.0 max=1.0
+    float drunk_strength;
+    //@inspect slider min=0.0 max=4.0
+    float drunk_speed;
+    //@inspect slider min=0.0 max=1.0
+    float drunk_ghosting;
+    //@inspect slider min=0.0 max=1.0
+    float drunk_chromatic_aberration;
+    //@inspect slider min=0.0 max=3.0
+    float drunk_movement;
+    //@end_group
   } LDKPostProcessing;
 
 #ifdef LDK_ENGINE

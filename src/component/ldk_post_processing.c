@@ -37,6 +37,24 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.screen_distortion_strength = 0.25f;
   post_processing.chromatic_aberration_enabled = false;
   post_processing.chromatic_aberration_strength = 0.25f;
+  post_processing.heat_enabled = false;
+  post_processing.heat_strength = 1.0f;
+  post_processing.heat_amplitude = 4.0f;
+  post_processing.heat_scale = 1.0f;
+  post_processing.heat_speed = 1.0f;
+  post_processing.inverse_enabled = false;
+  post_processing.black_and_white_enabled = false;
+  post_processing.retro_enabled = false;
+  post_processing.retro_pixel_size = 2.0f;
+  post_processing.retro_color_levels = 4.0f;
+  post_processing.retro_dither_strength = 1.0f;
+  post_processing.retro_pattern_scale = 1.0f;
+  post_processing.drunk_enabled = false;
+  post_processing.drunk_strength = 0.75f;
+  post_processing.drunk_speed = 1.0f;
+  post_processing.drunk_ghosting = 0.5f;
+  post_processing.drunk_chromatic_aberration = 0.35f;
+  post_processing.drunk_movement = 0.5f;
   return post_processing;
 }
 
