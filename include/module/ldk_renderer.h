@@ -384,6 +384,14 @@ extern "C" {
     float brightness;
     float contrast;
     float saturation;
+    bool vignette_enabled;
+    float vignette_intensity;
+    float vignette_radius;
+    float vignette_softness;
+    bool screen_distortion_enabled;
+    float screen_distortion_strength;
+    bool chromatic_aberration_enabled;
+    float chromatic_aberration_strength;
   } LDKRendererPostProcessing;
 
   typedef struct LDKRendererPostProcessPass

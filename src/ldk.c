@@ -1506,6 +1506,22 @@ void ldk_engine_frame(void)
         renderer_post_processing.brightness = post_processing->brightness;
         renderer_post_processing.contrast = post_processing->contrast;
         renderer_post_processing.saturation = post_processing->saturation;
+        renderer_post_processing.vignette_enabled =
+            post_processing->vignette_enabled;
+        renderer_post_processing.vignette_intensity =
+            post_processing->vignette_intensity;
+        renderer_post_processing.vignette_radius =
+            post_processing->vignette_radius;
+        renderer_post_processing.vignette_softness =
+            post_processing->vignette_softness;
+        renderer_post_processing.screen_distortion_enabled =
+            post_processing->screen_distortion_enabled;
+        renderer_post_processing.screen_distortion_strength =
+            post_processing->screen_distortion_strength;
+        renderer_post_processing.chromatic_aberration_enabled =
+            post_processing->chromatic_aberration_enabled;
+        renderer_post_processing.chromatic_aberration_strength =
+            post_processing->chromatic_aberration_strength;
         (void)ldk_renderer_view_post_processing_set(
             &e->renderer, view_id, &renderer_post_processing);
       }

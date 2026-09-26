@@ -29,6 +29,14 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.brightness = 0.0f;
   post_processing.contrast = 1.0f;
   post_processing.saturation = 1.0f;
+  post_processing.vignette_enabled = false;
+  post_processing.vignette_intensity = 0.5f;
+  post_processing.vignette_radius = 0.5f;
+  post_processing.vignette_softness = 0.5f;
+  post_processing.screen_distortion_enabled = false;
+  post_processing.screen_distortion_strength = 0.25f;
+  post_processing.chromatic_aberration_enabled = false;
+  post_processing.chromatic_aberration_strength = 0.25f;
   return post_processing;
 }
 

@@ -51,6 +51,28 @@ extern "C" {
     //@inspect slider min=0.0 max=2.0
     float saturation;
     //@end_group
+
+    //@begin_group "Vignette"
+    bool vignette_enabled;
+    //@inspect slider min=0.0 max=1.0
+    float vignette_intensity;
+    //@inspect slider min=0.0 max=1.0
+    float vignette_radius;
+    //@inspect slider min=0.0 max=1.0
+    float vignette_softness;
+    //@end_group
+
+    //@begin_group "Screen Distortion"
+    bool screen_distortion_enabled;
+    //@inspect slider min=-1.0 max=1.0
+    float screen_distortion_strength;
+    //@end_group
+
+    //@begin_group "Chromatic Aberration"
+    bool chromatic_aberration_enabled;
+    //@inspect slider min=0.0 max=1.0
+    float chromatic_aberration_strength;
+    //@end_group
   } LDKPostProcessing;
 
 #ifdef LDK_ENGINE

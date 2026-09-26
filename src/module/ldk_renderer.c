@@ -5227,6 +5227,8 @@ typedef struct LDKRendererPostProcessParams
   float color_adjustments[4];
   float blur_focus[4];
   float blur_options[4];
+  float vignette[4];
+  float lens[4];
 } LDKRendererPostProcessParams;
 
 typedef struct LDKRendererBlurParams
@@ -5266,7 +5268,10 @@ static bool s_renderer_post_processing_active(
   return post_processing != NULL && post_processing->enabled &&
       (post_processing->tonemapping_enabled ||
           s_renderer_blur_active(post_processing) ||
-          post_processing->color_enabled);
+          post_processing->color_enabled ||
+          post_processing->vignette_enabled ||
+          post_processing->screen_distortion_enabled ||
+          post_processing->chromatic_aberration_enabled);
 }
 
 static void s_renderer_post_process_bindings_destroy(
@@ -6057,6 +6062,33 @@ static bool s_renderer_post_process_draw(
       view->post_processing.blur_inverted ? 1.0f : 0.0f;
   params.blur_options[2] =
       (float)renderer->game_width / (float)renderer->game_height;
+  params.vignette[0] =
+      s_renderer_saturate(view->post_processing.vignette_intensity);
+  params.vignette[1] =
+      s_renderer_saturate(view->post_processing.vignette_radius);
+  params.vignette[2] =
+      s_renderer_saturate(view->post_processing.vignette_softness);
+  params.vignette[3] =
+      view->post_processing.vignette_enabled ? 1.0f : 0.0f;
+  float distortion_strength =
+      isfinite(view->post_processing.screen_distortion_strength)
+      ? view->post_processing.screen_distortion_strength
+      : 0.0f;
+  if (distortion_strength < -1.0f)
+  {
+    distortion_strength = -1.0f;
+  }
+  else if (distortion_strength > 1.0f)
+  {
+    distortion_strength = 1.0f;
+  }
+  params.lens[0] = distortion_strength;
+  params.lens[1] =
+      view->post_processing.screen_distortion_enabled ? 1.0f : 0.0f;
+  params.lens[2] =
+      s_renderer_saturate(view->post_processing.chromatic_aberration_strength);
+  params.lens[3] =
+      view->post_processing.chromatic_aberration_enabled ? 1.0f : 0.0f;
   if (!ldk_rhi_buffer_update(renderer->rhi,
           renderer->post_process_pass.params_buffer, 0, sizeof(params),
           &params))
