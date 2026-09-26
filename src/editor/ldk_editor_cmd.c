@@ -346,7 +346,6 @@ void ldki_editor_register_commands(LDKEditorContext *editor)
 
   ldk_editor_command_register(editor, "help",
       "Shows help information for a given command.", s_editor_command_help);
-
   ldk_editor_command_register(
       editor, "projnew", "Creates a new project.", s_editor_command_projnew);
   ldk_editor_command_register(editor, "projbuild",
