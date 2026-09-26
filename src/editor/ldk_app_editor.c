@@ -486,7 +486,6 @@ static void s_editor_profiler_frame_event(
     bool has_path = ldki_editor_profiler_path_get(editor, &path);
     bool path_changed = strcmp(path.buf, editor->profiler_path.buf) != 0;
 
-    ldki_editor_profiler_update();
     if (editor->profiler_recording && (!requested || !has_path || path_changed))
     {
       s_editor_profiler_stop(editor);
@@ -1394,8 +1393,15 @@ static void s_editor_hierarchy_window(LDKEditor *opaque_editor, void *data)
 // Editor Udpate
 //----------------------------------------------------------
 
+static void s_editor_profiler_window(LDKEditor *opaque_editor, void *data)
+{
+  (void)data;
+  ldk_editor_profiler_show(opaque_editor);
+}
+
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
+  ldki_editor_profiler_update();
   if (delta_time > 0.0f)
   {
     float frame_time_ms = delta_time * 1000.0f;
@@ -3042,6 +3048,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
 {
   s_editor_profiler_stop(editor);
   ldk_profiler_terminate();
+  ldki_editor_profiler_terminate();
   s_project_game_module_watch_close();
   ldki_editor_scene_catalog_close(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
@@ -3489,6 +3496,19 @@ static i32 s_editor_main(const char *project_file_path)
     ldk_engine_terminate();
     return 1;
   }
+
+  LDKEditorWindow profiler_window = {.id = LDK_EDITOR_WINDOW_PROFILER,
+      .title = "Profiler",
+      .function = s_editor_profiler_window,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &profiler_window))
+  {
+    ldk_log_error("Failed to register the Profiler editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_PROFILER);
 
   LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
       .title = "Scene Catalog",

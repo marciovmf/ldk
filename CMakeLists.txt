@@ -598,6 +598,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_inspector.c
     src/editor/ldk_editor_file_explorer.c
     src/editor/ldk_editor_hierarchy_viewer.c
+    src/editor/ldk_editor_profiler.c
     src/editor/ldk_editor_cmd.c
     src/editor/ldk_ui_drag_n_drop.h
     src/editor/ldk_ui_drag_n_drop.c

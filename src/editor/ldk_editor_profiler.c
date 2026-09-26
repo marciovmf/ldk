@@ -1,3 +1,6 @@
+#include "ldk_editor_internal.h"
+#include "ldk_os.h"
+#include "stdx/stdx_filesystem.h"
 #include "../ldk_profiler_format.h"
 
 #include <math.h>
@@ -5,8 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
 
 #ifndef LDK_EDITOR_PROFILER_CAPTURE_CAPACITY
 #define LDK_EDITOR_PROFILER_CAPTURE_CAPACITY 128u
@@ -88,7 +89,8 @@ typedef struct LDKEditorProfilerState
   XFSPath automatic_path;
 } LDKEditorProfilerState;
 
-static LDKEditorProfilerState s_editor_profiler = {0};
+static LDKEditorProfilerState s_editor_profiler = {
+    .captures_dirty = true, .auto_load_pending = true};
 
 static void s_editor_profiler_error(const char *message)
 {
@@ -1405,13 +1407,11 @@ static void s_editor_profiler_splitter(LDKUIContext *ui)
   }
 }
 
-static void s_editor_profiler_window(LDKEditor *opaque_editor, void *data)
+static void s_editor_profiler_show(LDKEditorContext *editor)
 {
-  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
   LDKUIContext *ui;
   char text[512];
 
-  (void)data;
   if (!editor)
   {
     return;
@@ -1512,21 +1512,36 @@ static void s_editor_profiler_window(LDKEditor *opaque_editor, void *data)
   ldk_ui_end_vertical(ui);
 }
 
-static bool s_editor_profiler_register(LDKEditorContext *editor)
+void ldk_editor_profiler_show(LDKEditor *opaque_editor)
 {
-  LDKEditorWindow window = {
-      .id = LDK_EDITOR_WINDOW_PROFILER,
-      .title = "Profiler",
-      .function = s_editor_profiler_window,
-      .data = NULL};
-
-  s_editor_profiler.captures_dirty = true;
-  s_editor_profiler.auto_load_pending = true;
-  if (!ldk_editor_window_add((LDKEditor *)editor, &window))
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  if (!editor)
   {
-    return false;
+    return;
   }
 
-  ldki_editor_window_hide(LDK_EDITOR_WINDOW_PROFILER);
-  return true;
+  LDKUIContext *ui = &editor->ui;
+  bool owns_window = ui->current_window == NULL;
+  static LDKUIRect window_rect = {80.0f, 80.0f, 960.0f, 640.0f};
+  if (owns_window)
+  {
+    window_rect =
+        ldk_ui_begin_window(ui, "Profiler", window_rect, LDK_UI_WINDOW_TOOL);
+  }
+  s_editor_profiler_show(editor);
+  if (owns_window)
+  {
+    ldk_ui_end_window(ui);
+  }
+}
+
+void ldki_editor_profiler_terminate(void)
+{
+  free(s_editor_profiler.frames);
+  free(s_editor_profiler.samples);
+  free(s_editor_profiler.counter_samples);
+  free(s_editor_profiler.tree);
+  memset(&s_editor_profiler, 0, sizeof(s_editor_profiler));
+  s_editor_profiler.captures_dirty = true;
+  s_editor_profiler.auto_load_pending = true;
 }

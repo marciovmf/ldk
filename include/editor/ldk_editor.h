@@ -37,6 +37,11 @@ extern "C"
   void ldk_editor_hierarchy_show(LDKEditor *editor, LDKECS *ecs);
 
   /**
+   * Shows the profiler window
+   */
+  void ldk_editor_profiler_show(LDKEditor *editor);
+
+  /**
    * Enter PLAY mode
    */
   void ldk_editor_state_set_play(LDKEditor *editor);

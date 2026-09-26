@@ -403,6 +403,7 @@ bool ldki_editor_window_show(LDKEditorWindowId window_id);
 bool ldki_editor_profiler_path_get(
     const LDKEditorContext *editor, XFSPath *path);
 void ldki_editor_profiler_update(void);
+void ldki_editor_profiler_terminate(void);
 
 bool ldki_editor_window_is_open(LDKEditorWindowId window_id);
 bool ldki_editor_window_hide(LDKEditorWindowId window_id);
@@ -422,5 +423,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_TAG_CATALOG ((LDKEditorWindowId)0x4C444B09u)
 #define LDK_EDITOR_WINDOW_GROUPING_CATALOG ((LDKEditorWindowId)0x4C444B0Au)
 #define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Bu)
+
+#define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
 
 #endif // LDK_EDITOR_INTERNAL

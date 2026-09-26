@@ -6,8 +6,6 @@
 #include <stdx/stdx_string.h>
 #include <string.h>
 
-#include "ldk_editor_profiler.inl"
-
 //------------------------------------------------------------
 // Command System
 //------------------------------------------------------------
@@ -345,11 +343,6 @@ void ldki_editor_register_commands(LDKEditorContext *editor)
   LDK_ASSERT(editor->commands == NULL);
   editor->commands = x_array_create(
       sizeof(LDKEditorCommand), LDK_EDITOR_COMMAND_INITIAL_CAPACITY);
-
-  if (!s_editor_profiler_register(editor))
-  {
-    ldk_log_warning("Failed to register Profiler editor window.\n");
-  }
 
   ldk_editor_command_register(editor, "help",
       "Shows help information for a given command.", s_editor_command_help);
