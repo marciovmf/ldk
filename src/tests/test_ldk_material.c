@@ -810,6 +810,8 @@ static bool s_test_renderer_instancing_setup(LDKRenderer *renderer,
   renderer->views[0].target.depth_texture = 502;
   renderer->views[0].target.width = 640;
   renderer->views[0].target.height = 480;
+  renderer->views[0].target.color_format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  renderer->views[0].target.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
 
   LDKResourceMesh mesh = {1};
   LDKResourceMaterial material = {1};

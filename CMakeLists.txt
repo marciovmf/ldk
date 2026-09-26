@@ -420,6 +420,8 @@ list(APPEND LDK_SOURCE
   src/component/ldk_instanced_mesh_source.c
   ${INCLUDE_DIR}/component/ldk_particle_emitter.h
   src/component/ldk_particle_emitter.c
+  ${INCLUDE_DIR}/component/ldk_post_processing.h
+  src/component/ldk_post_processing.c
 
   # Systems
   ${INCLUDE_DIR}/system/ldk_grass.h

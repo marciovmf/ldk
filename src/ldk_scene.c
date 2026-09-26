@@ -199,6 +199,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     {
       return LDK_COMPONENT_TYPE_PARTICLE_EMITTER;
     }
+
+    if (strcmp(meta->name, "LDKPostProcessing") == 0)
+    {
+      return LDK_COMPONENT_TYPE_POST_PROCESSING;
+    }
   }
 
   return meta->type;

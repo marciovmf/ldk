@@ -1,6 +1,7 @@
 #include "component/ldk_mesh_source.h"
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
+#include <component/ldk_post_processing.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -32,6 +33,10 @@
 
 #ifndef LDK_DEFAULT_PARTICLE_EMITTER_COUNT
 #define LDK_DEFAULT_PARTICLE_EMITTER_COUNT 16
+#endif
+
+#ifndef LDK_DEFAULT_POST_PROCESSING_COUNT
+#define LDK_DEFAULT_POST_PROCESSING_COUNT 4
 #endif
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
@@ -1076,6 +1081,15 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &camera_component_desc))
   {
     ldk_log_error("Failed to register component: Camera.");
+    error = true;
+  }
+
+  LDKComponentDesc post_processing_component_desc =
+      ldk_post_processing_component_desc(LDK_DEFAULT_POST_PROCESSING_COUNT);
+  if (!ldk_component_register(
+          &context->component, &post_processing_component_desc))
+  {
+    ldk_log_error("Failed to register component: PostProcessing.");
     error = true;
   }
 

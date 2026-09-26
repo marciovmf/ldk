@@ -12,6 +12,7 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_post_processing.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 
@@ -1474,6 +1475,39 @@ void ldk_engine_frame(void)
               &e->renderer, view_id, camera_view, camera_projection))
       {
         continue;
+      }
+
+      const LDKPostProcessing *post_processing =
+          (const LDKPostProcessing *)ldk_ecs_component_get_const(
+              *entity, LDK_COMPONENT_TYPE_POST_PROCESSING);
+      if (post_processing != NULL)
+      {
+        LDKRendererPostProcessing renderer_post_processing = {0};
+        renderer_post_processing.enabled = post_processing->enabled;
+        renderer_post_processing.tonemapping_enabled =
+            post_processing->tonemapping_enabled;
+        renderer_post_processing.exposure = post_processing->exposure;
+        renderer_post_processing.blur_enabled =
+            post_processing->blur_enabled;
+        renderer_post_processing.blur_strength =
+            post_processing->blur_strength;
+        renderer_post_processing.blur_focus_x =
+            0.5f + post_processing->blur_focus_offset_x;
+        renderer_post_processing.blur_focus_y =
+            0.5f + post_processing->blur_focus_offset_y;
+        renderer_post_processing.blur_focus_size =
+            post_processing->blur_focus_size;
+        renderer_post_processing.blur_focus_feather =
+            post_processing->blur_focus_feather;
+        renderer_post_processing.blur_inverted =
+            post_processing->blur_inverted;
+        renderer_post_processing.color_enabled =
+            post_processing->color_enabled;
+        renderer_post_processing.brightness = post_processing->brightness;
+        renderer_post_processing.contrast = post_processing->contrast;
+        renderer_post_processing.saturation = post_processing->saturation;
+        (void)ldk_renderer_view_post_processing_set(
+            &e->renderer, view_id, &renderer_post_processing);
       }
 
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)

@@ -57,7 +57,9 @@ extern "C" {
     LDK_SHADER_VEGETATION_PASS,
     LDK_SHADER_VEGETATION_PASS_INSTANCED,
     LDK_SHADER_SHADOW_PASS_VEGETATION,
-    LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED
+    LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
+    LDK_SHADER_POST_PROCESS_PASS,
+    LDK_SHADER_BLUR_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -366,6 +368,51 @@ extern "C" {
     bool is_initialized;
   } LDKRendererGridPass;
 
+  typedef struct LDKRendererPostProcessing
+  {
+    bool enabled;
+    bool tonemapping_enabled;
+    float exposure;
+    bool blur_enabled;
+    float blur_strength;
+    float blur_focus_x;
+    float blur_focus_y;
+    float blur_focus_size;
+    float blur_focus_feather;
+    bool blur_inverted;
+    bool color_enabled;
+    float brightness;
+    float contrast;
+    float saturation;
+  } LDKRendererPostProcessing;
+
+  typedef struct LDKRendererPostProcessPass
+  {
+    LDKRHIContext* rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer params_buffer;
+    LDKRHISampler sampler;
+    bool is_initialized;
+  } LDKRendererPostProcessPass;
+
+  typedef struct LDKRendererBlurPass
+  {
+    LDKRHIContext* rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline ldr_pipeline;
+    LDKRHIPipeline hdr_pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer params_buffer;
+    LDKRHISampler sampler;
+    bool is_initialized;
+  } LDKRendererBlurPass;
+
   typedef struct LDKRendererFontPageCacheEntry
   {
     LDKFontInstance* font;
@@ -402,6 +449,15 @@ extern "C" {
     Vec4 frustum_planes[6];
     LDKRendererTarget target;
     LDKRendererTarget overlay_target;
+    LDKRHITexture post_process_texture;
+    LDKRHIBindings post_process_bindings;
+    LDKRHITexture post_process_input_texture;
+    LDKRHITexture post_process_blurred_texture;
+    LDKRHITexture post_process_blur_textures[2];
+    LDKRHIBindings post_process_blur_bindings[2];
+    LDKRHITexture post_process_blur_input_textures[2];
+    LDKRHIFormat post_process_blur_format;
+    LDKRendererPostProcessing post_processing;
     bool separate_overlay;
     Vec3 grid_center;
     float grid_extent;
@@ -507,6 +563,8 @@ extern "C" {
     LDKRendererMeshPass mesh_pass;
     LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
+    LDKRendererBlurPass blur_pass;
+    LDKRendererPostProcessPass post_process_pass;
     LDKUIRenderData const* submitted_ui;
     u32 game_width;
     u32 game_height;
@@ -734,6 +792,23 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+  /**
+   * @brief Set post-processing configuration for a submitted view.
+   *
+   * The configuration is transient and must be supplied again after the view is
+   * submitted on each frame. Disabled post-processing bypasses the post-process
+   * pass and exposes the scene color target directly.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of a view submitted for the current frame.
+   * @param post_processing Post-processing configuration for the view.
+   * @return true when the configuration was accepted, false otherwise.
+   */
+  LDK_API bool ldk_renderer_view_post_processing_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      LDKRendererPostProcessing const* post_processing);
+
   /* Route overlay meshes to a transparent texture for this frame. Request
    * before rendering and compose the texture above other viewer UI layers. */
   LDK_API LDKUITextureHandle ldk_renderer_view_overlay_texture_request(

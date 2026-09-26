@@ -832,6 +832,103 @@ static char const* LDK_RHI_GL33_PRESENT_PASS_FRAGMENT_SHADER =
 "{\n"
 "  out_color = texture(LDK_TEXTURE_0, v_uv);\n"
 "}\n";
+
+static char const* LDK_RHI_GL33_POST_PROCESS_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec2 a_position;\n"
+"layout(location = 1) in vec2 a_uv;\n"
+"out vec2 v_uv;\n"
+"void main()\n"
+"{\n"
+"  v_uv = a_uv;\n"
+"  gl_Position = vec4(a_position, 0.0, 1.0);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"out vec4 out_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  vec4 u_tonemapping;\n"
+"  vec4 u_color_adjustments;\n"
+"  vec4 u_blur_focus;\n"
+"  vec4 u_blur_options;\n"
+"};\n"
+"uniform sampler2D LDK_TEXTURE_1;\n"
+"uniform sampler2D LDK_TEXTURE_2;\n"
+"vec3 ldk_aces_tonemap(vec3 color)\n"
+"{\n"
+"  const float a = 2.51;\n"
+"  const float b = 0.03;\n"
+"  const float c = 2.43;\n"
+"  const float d = 0.59;\n"
+"  const float e = 0.14;\n"
+"  return clamp((color * (a * color + b)) /\n"
+"      (color * (c * color + d) + e), 0.0, 1.0);\n"
+"}\n"
+"float ldk_blur_mask(vec2 uv)\n"
+"{\n"
+"  vec2 delta = uv - u_blur_focus.xy;\n"
+"  float aspect = max(u_blur_options.z, 1e-6);\n"
+"  delta.x *= aspect;\n"
+"  float half_diagonal = 0.5 * length(vec2(aspect, 1.0));\n"
+"  float distance_to_focus = length(delta) / max(half_diagonal, 1e-6);\n"
+"  float size = clamp(u_blur_focus.z, 0.0, 1.0);\n"
+"  float feather = max(clamp(u_blur_focus.w, 0.0, 1.0), 1e-5);\n"
+"  float mask = smoothstep(size, size + feather, distance_to_focus);\n"
+"  if (u_blur_options.y > 0.5)\n"
+"    mask = 1.0 - mask;\n"
+"  return mask;\n"
+"}\n"
+"void main()\n"
+"{\n"
+"  vec4 original = texture(LDK_TEXTURE_1, v_uv);\n"
+"  vec4 color = original;\n"
+"  if (u_blur_options.x > 0.5)\n"
+"  {\n"
+"    vec4 blurred = texture(LDK_TEXTURE_2, v_uv);\n"
+"    color = mix(original, blurred, ldk_blur_mask(v_uv));\n"
+"  }\n"
+"  if (u_tonemapping.y > 0.5)\n"
+"  {\n"
+"    color.rgb *= exp2(u_tonemapping.x);\n"
+"    color.rgb = ldk_aces_tonemap(color.rgb);\n"
+"  }\n"
+"  if (u_color_adjustments.w > 0.5)\n"
+"  {\n"
+"    color.rgb += vec3(u_color_adjustments.x);\n"
+"    color.rgb = (color.rgb - vec3(0.5)) * u_color_adjustments.y +\n"
+"        vec3(0.5);\n"
+"    float luminance = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));\n"
+"    color.rgb = mix(vec3(luminance), color.rgb, u_color_adjustments.z);\n"
+"  }\n"
+"  out_color = color;\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_BLUR_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"out vec4 out_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  vec4 u_direction;\n"
+"};\n"
+"uniform sampler2D LDK_TEXTURE_1;\n"
+"void main()\n"
+"{\n"
+"  vec2 direction = u_direction.xy;\n"
+"  vec4 color = texture(LDK_TEXTURE_1, v_uv) * 0.2270270270;\n"
+"  color += texture(LDK_TEXTURE_1, v_uv + direction * 1.3846153846) *\n"
+"      0.3162162162;\n"
+"  color += texture(LDK_TEXTURE_1, v_uv - direction * 1.3846153846) *\n"
+"      0.3162162162;\n"
+"  color += texture(LDK_TEXTURE_1, v_uv + direction * 3.2307692308) *\n"
+"      0.0702702703;\n"
+"  color += texture(LDK_TEXTURE_1, v_uv - direction * 3.2307692308) *\n"
+"      0.0702702703;\n"
+"  out_color = color;\n"
+"}\n";
 static uint32_t ldk_rhi_gl33_cstr_size(char const* cstr)
 {
   return (uint32_t)strlen(cstr);
@@ -976,6 +1073,24 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
   if (shader == LDK_SHADER_PRESENT_PASS && stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_PRESENT_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_POST_PROCESS_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_POST_PROCESS_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_POST_PROCESS_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_BLUR_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_BLUR_PASS_FRAGMENT_SHADER;
   }
 
   return NULL;
