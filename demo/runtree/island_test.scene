@@ -23,6 +23,13 @@ scene:
             near_plane: 0.100000001
             far_plane: 1000.00000
             enabled: true
+        - type: 4294967286 # LDKPostProcessing
+          fields:
+            enabled: true
+            color_enabled: true
+            brightness: 0.00000000
+            contrast: 1.00000000
+            saturation: 1.00000000
     - entity: 1
       parent: -1
       flags: 0
@@ -113,7 +120,42 @@ scene:
         dry_resource_chance: 0.00200000009
         shore_resource_chance: 0.00150000001
         shallow_water_resource_chance: 0.00100000005
-        radius: 10
+        dry_grass_density: 6.00000000
+        dry_grass_min_height: 0.119999997
+        dry_grass_max_height: 0.219999999
+        dry_grass_blade_width: 0.0299999993
+        grass_density: 50.0000000
+        grass_min_height: 0.600000024
+        grass_max_height: 0.649999976
+        grass_blade_width: 0.0799999982
+        forest_grass_density: 1.00000000
+        forest_grass_min_height: 0.100000001
+        forest_grass_max_height: 0.150000006
+        forest_grass_blade_width: 0.0700000003
+        dry_grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
+        dry_grass_blade_curvature: 0.00000000
+        grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
+        grass_blade_curvature: 0.159999996
+        forest_grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
+        forest_grass_blade_curvature: 0.00000000
+        grass_min_tilt_degrees: 45.0000000
+        grass_max_tilt_degrees: 62.5000000
+        grass_tilt_direction_degrees: 320.000000
+        dry_grass_wind_strength: 0.00000000
+        grass_wind_strength: 0.160148978
+        forest_grass_wind_strength: 0.00000000
+        grass_wind_speed: 0.214152709
+        grass_specular: 0.00000000
+        grass_shininess: 32.0000000
+        grass_emission: 0.00000000
+        dry_grass_bottom_color: 1364014591
+        dry_grass_top_color: 2845532671
+        grass_bottom_color: 3908261119
+        grass_top_color: 2309577983
+        forest_grass_bottom_color: 255
+        forest_grass_top_color: 1703431679
+        grass_casts_shadows: false
+        radius: 8
         cell_size: 1.00000000
         elevation: 0.100000001
         forward_offset: 0.00000000
