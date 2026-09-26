@@ -575,7 +575,8 @@ if (OPTION_BUILD_EDITOR)
     message(FATAL_ERROR "OPTION_BUILD_EDITOR cannot use OPTION_LDK_USE_PREBUILT. Build the editor with the engine sources.")
   endif()
 
-  add_executable(ldk_editor src/editor/ldk_app_editor.c
+  add_executable(ldk_editor
+    src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
     src/editor/ldk_editor_scene_catalog.c
@@ -596,6 +597,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_ui_drag_n_drop.h
     src/editor/ldk_ui_drag_n_drop.c
   )
+  set_target_properties(ldk_editor PROPERTIES OUTPUT_NAME "ldk")
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
 
