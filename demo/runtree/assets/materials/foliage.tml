@@ -1,0 +1,9 @@
+material:
+  material_type: 2
+  material_color: 0x86d95eff
+  material_texture: "assets/textures/foliage/shaded/sprite_0074.png"
+  material_alpha_mode: 1
+  material_alpha_cutoff: 0.5
+  material_specular: 0.787749827
+  material_shininess: 255.669678
+  material_emission: 0.441894889
