@@ -458,6 +458,9 @@ void ldki_editor_scene_view_pick(
           !ldk_entity_is_alive(&ecs->entity, *entity) ||
           ldk_entity_internal_flags_has(
               &ecs->entity, *entity, LDK_ENTITY_INTERNAL_EDITOR) ||
+          ldk_entity_component_flags_has(&ecs->entity, *entity,
+              mesh_types[type_index],
+              LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR) ||
           !ldk_transform_get_world_matrix(*entity, &world))
       {
         continue;

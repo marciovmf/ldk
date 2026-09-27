@@ -88,6 +88,14 @@ static bool s_particle_emitter_attach(LDKEntityRegistry *entities,
     value.random_state = 0x6d2b79f5u;
   }
   *target = value;
+
+  if (!ldk_entity_component_flags_add(entities, entity,
+          LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE,
+          LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR))
+  {
+    return false;
+  }
+
   return true;
 }
 
@@ -106,6 +114,10 @@ static void s_particle_emitter_destroy(LDKEntityRegistry *entities,
         "ParticleEmitter entity %u: failed to clear particle instances.\n",
         entity.index);
   }
+
+  (void)ldk_entity_component_flags_remove(entities, entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE,
+      LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR);
 
   ldk_particle_emitter_clear((LDKParticleEmitter *)component);
 }

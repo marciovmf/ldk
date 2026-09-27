@@ -132,7 +132,11 @@ static bool s_editor_gizmo_target_get(LDKEditorContext *editor,
 
   LDKInstancedMeshSource *instances = ldk_ecs_component_get(
       selected, LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE);
-  if (instances == NULL || instances->instances == NULL ||
+  if (instances == NULL ||
+      ldk_entity_component_flags_has(&ecs->entity, selected,
+          LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE,
+          LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR) ||
+      instances->instances == NULL ||
       editor->selected_instance >= instances->instance_count)
   {
     s_editor_gizmo_instance_selection_clear(editor);

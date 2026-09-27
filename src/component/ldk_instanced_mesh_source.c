@@ -215,7 +215,6 @@ LDKComponentDesc ldk_instanced_mesh_source_component_desc(u32 initial_capacity)
   desc.type = LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE;
   desc.entry_size = sizeof(LDKInstancedMeshSource);
   desc.initial_capacity = initial_capacity;
-  desc.flags = LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR;
   desc.attach = s_instanced_mesh_source_attach;
   desc.destroy = s_instanced_mesh_source_destroy;
   return desc;

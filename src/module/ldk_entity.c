@@ -41,6 +41,7 @@ static bool s_entity_component_ref_add(LDKEntityRegistry* module, LDKEntity enti
 
   info->components.component_type[count] = component_type;
   info->components.component_index[count] = component_index;
+  info->components.component_flags[count] = LDK_COMPONENT_INSTANCE_FLAG_NONE;
   info->components.component_count = (u16)(count + 1);
   info->components.version += 1;
 
@@ -107,10 +108,14 @@ static bool s_entity_component_ref_remove(LDKEntityRegistry* module, LDKEntity e
 
     info->components.component_index[slot] =
       info->components.component_index[last];
+
+    info->components.component_flags[slot] =
+      info->components.component_flags[last];
   }
 
   info->components.component_type[last] = 0;
   info->components.component_index[last] = 0;
+  info->components.component_flags[last] = LDK_COMPONENT_INSTANCE_FLAG_NONE;
   info->components.component_count = (u16)(count - 1);
   info->components.version += 1;
 
@@ -424,6 +429,79 @@ bool ldk_entity_component_find(LDKEntityRegistry* module, LDKEntity entity, u32 
 bool ldk_entity_component_has(LDKEntityRegistry* module, LDKEntity entity, u32 component_type)
 {
   return ldk_entity_component_find(module, entity, component_type, NULL, NULL);
+}
+
+u16 ldk_entity_component_flags_get(LDKEntityRegistry* module,
+    LDKEntity entity, u32 component_type)
+{
+  const LDKEntityInfo* info = ldk_entity_info_get_const(module, entity);
+  u32 slot = 0;
+
+  if (!info ||
+      !ldk_entity_component_find(module, entity, component_type, &slot, NULL))
+  {
+    return LDK_COMPONENT_INSTANCE_FLAG_NONE;
+  }
+
+  return info->components.component_flags[slot];
+}
+
+bool ldk_entity_component_flags_set(LDKEntityRegistry* module,
+    LDKEntity entity, u32 component_type, u16 flags)
+{
+  LDKEntityInfo* info = ldk_entity_info_get(module, entity);
+  u32 slot = 0;
+
+  if (!info ||
+      !ldk_entity_component_find(module, entity, component_type, &slot, NULL))
+  {
+    return false;
+  }
+
+  info->components.component_flags[slot] = flags;
+  return true;
+}
+
+bool ldk_entity_component_flags_add(LDKEntityRegistry* module,
+    LDKEntity entity, u32 component_type, u16 flags)
+{
+  u16 current = ldk_entity_component_flags_get(
+      module, entity, component_type);
+
+  if (!ldk_entity_component_has(module, entity, component_type))
+  {
+    return false;
+  }
+
+  return ldk_entity_component_flags_set(
+      module, entity, component_type, (u16)(current | flags));
+}
+
+bool ldk_entity_component_flags_remove(LDKEntityRegistry* module,
+    LDKEntity entity, u32 component_type, u16 flags)
+{
+  u16 current = ldk_entity_component_flags_get(
+      module, entity, component_type);
+
+  if (!ldk_entity_component_has(module, entity, component_type))
+  {
+    return false;
+  }
+
+  return ldk_entity_component_flags_set(
+      module, entity, component_type, (u16)(current & (u16)~flags));
+}
+
+bool ldk_entity_component_flags_has(LDKEntityRegistry* module,
+    LDKEntity entity, u32 component_type, u16 flags)
+{
+  if (!flags || !ldk_entity_component_has(module, entity, component_type))
+  {
+    return false;
+  }
+
+  return (ldk_entity_component_flags_get(module, entity, component_type) &
+             flags) == flags;
 }
 
 LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,

@@ -46,6 +46,12 @@ typedef enum LDKEntityInternalFlags
  * User components IDs can go from 1 to (UINT32_MAX - N)
  * where N is the number of components in this enum.
  */
+typedef enum LDKComponentInstanceFlags
+{
+  LDK_COMPONENT_INSTANCE_FLAG_NONE = 0,
+  LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR = 1 << 0
+} LDKComponentInstanceFlags;
+
 typedef enum LDKBuiltinComponentType
 {
   LDK_COMPONENT_TYPE_TRANSFORM    = UINT32_MAX - 1,
@@ -66,6 +72,7 @@ typedef struct LDKComponentDirectory
 {
   u32 component_type[LDK_ENTITY_MAX_COMPONENTS];
   u32 component_index[LDK_ENTITY_MAX_COMPONENTS];
+  u16 component_flags[LDK_ENTITY_MAX_COMPONENTS];
   u16 component_count;
   u16 version;
 } LDKComponentDirectory;
@@ -128,6 +135,16 @@ LDK_API const LDKTransform* ldk_entity_transform_get_const(LDKEntityRegistry* en
     LDKComponentRegistry* component_module, LDKEntity entity);
 
 LDK_API bool ldk_entity_component_has(LDKEntityRegistry* system, LDKEntity entity, u32 component_type);
+LDK_API u16 ldk_entity_component_flags_get(LDKEntityRegistry* system,
+    LDKEntity entity, u32 component_type);
+LDK_API bool ldk_entity_component_flags_set(LDKEntityRegistry* system,
+    LDKEntity entity, u32 component_type, u16 flags);
+LDK_API bool ldk_entity_component_flags_add(LDKEntityRegistry* system,
+    LDKEntity entity, u32 component_type, u16 flags);
+LDK_API bool ldk_entity_component_flags_remove(LDKEntityRegistry* system,
+    LDKEntity entity, u32 component_type, u16 flags);
+LDK_API bool ldk_entity_component_flags_has(LDKEntityRegistry* system,
+    LDKEntity entity, u32 component_type, u16 flags);
 LDK_API bool ldk_component_ref_is_valid(LDKEntityRegistry* system, LDKComponentRef ref);
 LDK_API void ldk_entity_foreach(LDKEntityRegistry* system, LDKEntityIterFn fn, void* user);
 LDK_API bool ldk_entity_component_ref_get(LDKEntityRegistry* system, LDKEntity entity, u32 component_type, LDKComponentRef* out_ref);

@@ -3276,73 +3276,37 @@ static bool s_editor_inspector_instance_matrix_finite(Mat4 matrix)
 
 static bool s_editor_inspector_instance_add(LDKInstancedMeshSource *source)
 {
-  Mat4 *instances;
-  u32 count;
-  bool result;
-
-  if (!source || source->instance_count >= UINT32_MAX / sizeof(Mat4) ||
-      (source->instance_count && !source->instances))
+  if (!source || source->instance_count == UINT32_MAX)
   {
     return false;
   }
 
-  count = source->instance_count + 1u;
-  instances = malloc((size_t)count * sizeof(*instances));
-  if (!instances)
-  {
-    return false;
-  }
-
-  if (source->instance_count)
-  {
-    memcpy(instances, source->instances,
-        (size_t)source->instance_count * sizeof(*instances));
-  }
-  instances[count - 1u] = mat4_identity();
-
-  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
-  free(instances);
-  return result;
+  return ldk_instanced_mesh_source_resize_instances(
+      source, source->instance_count + 1u);
 }
 
 static bool s_editor_inspector_instance_remove(
     LDKInstancedMeshSource *source, u32 index)
 {
-  Mat4 *instances;
-  u32 count;
-  bool result;
-
   if (!source || index >= source->instance_count ||
-      (source->instance_count && !source->instances))
+      (source->instance_count &&
+          (!source->instances || !source->instance_colors)))
   {
     return false;
   }
 
-  count = source->instance_count - 1u;
-  if (!count)
-  {
-    return ldk_instanced_mesh_source_set_instances(source, NULL, 0);
-  }
-
-  instances = malloc((size_t)count * sizeof(*instances));
-  if (!instances)
-  {
-    return false;
-  }
-
-  if (index)
-  {
-    memcpy(instances, source->instances, (size_t)index * sizeof(*instances));
-  }
   if (index + 1u < source->instance_count)
   {
-    memcpy(&instances[index], &source->instances[index + 1u],
-        (size_t)(source->instance_count - index - 1u) * sizeof(*instances));
+    u32 move_count = source->instance_count - index - 1u;
+    memmove(&source->instances[index], &source->instances[index + 1u],
+        (size_t)move_count * sizeof(*source->instances));
+    memmove(&source->instance_colors[index],
+        &source->instance_colors[index + 1u],
+        (size_t)move_count * sizeof(*source->instance_colors));
   }
 
-  result = ldk_instanced_mesh_source_set_instances(source, instances, count);
-  free(instances);
-  return result;
+  return ldk_instanced_mesh_source_resize_instances(
+      source, source->instance_count - 1u);
 }
 
 static void s_editor_inspector_instance_selection_clear(
@@ -3427,7 +3391,6 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       editor->selected_entity = entity;
       editor->selected_instance_entity = entity;
       editor->selected_instance = i;
-      selected = true;
     }
     remove = ldk_ui_button_flat(ui, "Remove");
     ldk_ui_end_horizontal(ui);
@@ -3608,6 +3571,7 @@ static void s_editor_inspector_add_component_draw(
       {
         if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
         {
+          editor->selected_entity = entity;
           editor->selected_instance_entity = entity;
           editor->selected_instance = 0;
         }
@@ -3769,10 +3733,20 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     LDKComponentDesc component_desc = {0};
     bool has_delete_button = true;
 
-    if (ldk_component_desc_get(
-            &ecs->component, component_type, &component_desc) &&
-        (component_desc.flags & LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u)
+    if ((ldk_component_desc_get(
+             &ecs->component, component_type, &component_desc) &&
+            (component_desc.flags &
+                LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR) != 0u) ||
+        ldk_entity_component_flags_has(&ecs->entity, entity, component_type,
+            LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR))
     {
+      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE &&
+          !x_handle_is_null(editor->selected_instance_entity) &&
+          ldki_editor_entity_equal(
+              editor->selected_instance_entity, entity))
+      {
+        s_editor_inspector_instance_selection_clear(editor);
+      }
       continue;
     }
 
