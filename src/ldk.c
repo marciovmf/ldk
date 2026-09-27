@@ -14,6 +14,7 @@
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_post_processing.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
 
 #include <module/ldk_system.h>
@@ -1719,6 +1720,12 @@ void ldk_engine_frame(void)
         u32 submit_flags = mesh->casts_shadows
                                ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
                                : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+        if (instances &&
+            ldk_ecs_component_get_const(
+                *entity, LDK_COMPONENT_TYPE_PARTICLE_EMITTER))
+        {
+          submit_flags |= LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD;
+        }
         u32 submesh_count = ldk_asset_manager_mesh_submesh_count(
             &e->asset_manager, mesh->source_asset, mesh->mesh_index);
         if (submesh_count == 0)

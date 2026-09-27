@@ -73,6 +73,48 @@ scene:
             near_plane: 0.100000001
             far_plane: 1000.00000
             enabled: true
+        - type: 4294967286 # LDKPostProcessing
+          fields:
+            enabled: true
+            tonemapping_enabled: false
+            exposure: -0.950783730
+            blur_enabled: true
+            blur_strength: 0.500000000
+            blur_focus_size: 0.250000000
+            blur_focus_feather: 0.150000006
+            blur_inverted: false
+            blur_focus_offset_x: 0.00000000
+            blur_focus_offset_y: 0.00000000
+            color_enabled: false
+            brightness: 0.00000000
+            contrast: 1.00000000
+            saturation: 1.00000000
+            vignette_enabled: false
+            vignette_intensity: 0.500000000
+            vignette_radius: 0.500000000
+            vignette_softness: 0.500000000
+            screen_distortion_enabled: false
+            screen_distortion_strength: 0.250000000
+            chromatic_aberration_enabled: false
+            chromatic_aberration_strength: 0.250000000
+            heat_enabled: false
+            heat_strength: 1.00000000
+            heat_amplitude: 4.00000000
+            heat_scale: 1.00000000
+            heat_speed: 1.00000000
+            inverse_enabled: false
+            black_and_white_enabled: false
+            retro_enabled: false
+            retro_pixel_size: 2.00000000
+            retro_color_levels: 4.00000000
+            retro_dither_strength: 1.00000000
+            retro_pattern_scale: 1.00000000
+            drunk_enabled: false
+            drunk_strength: 0.750000000
+            drunk_speed: 1.00000000
+            drunk_ghosting: 0.500000000
+            drunk_chromatic_aberration: 0.349999994
+            drunk_movement: 0.500000000
     - entity: 4
       parent: -1
       flags: 0

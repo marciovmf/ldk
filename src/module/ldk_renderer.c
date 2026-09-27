@@ -1500,6 +1500,7 @@ typedef struct LDKRendererMeshObjectParams
 {
   Mat4 world;
   LDKRHIColor instance_color;
+  float options[4];
 } LDKRendererMeshObjectParams;
 
 typedef struct LDKRendererMeshMaterialParams
@@ -1516,10 +1517,12 @@ typedef struct LDKRendererMeshMaterialParams
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
     mesh_camera_std140_size);
-LDK_STATIC_ASSERT(sizeof(LDKRendererMeshObjectParams) == 80,
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshObjectParams) == 96,
     mesh_object_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, instance_color) == 64,
     mesh_object_color_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, options) == 80,
+    mesh_object_options_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 48,
@@ -3837,6 +3840,15 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         pass, material->selection, first->flags, true);
     if (pipeline != LDK_RHI_INVALID_RESOURCE)
     {
+      LDKRendererMeshObjectParams object = {0};
+      object.world = mat4_identity();
+      object.instance_color = ldk_renderer_color_from_rgba32(0xffffffffu);
+      object.options[0] =
+          (first->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)
+          ? 1.0f : 0.0f;
+      ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
+          sizeof(object), &object);
+
       ldk_rhi_pipeline_bind(pass->rhi, pipeline);
       ldk_rhi_bindings_bind(pass->rhi, bindings);
       ldk_rhi_vertex_buffer_bind_at(
@@ -3901,6 +3913,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     object.instance_color = colors
         ? colors[i]
         : ldk_renderer_color_from_rgba32(0xffffffffu);
+    object.options[0] =
+        (submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)
+        ? 1.0f : 0.0f;
     ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
         sizeof(object), &object);
 
@@ -7802,7 +7817,8 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
 {
   if (renderer == NULL || !renderer->is_initialized ||
       (flags & ~(LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
-                   LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS)) != 0)
+                   LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS |
+                   LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)) != 0)
   {
     return false;
   }

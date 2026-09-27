@@ -84,20 +84,22 @@ static void s_camera_diagnostic_set(u32 diagnostic)
   {
   case LDK_PARTICLE_CAMERA_DIAGNOSTIC_MISSING:
     ldk_log_error(
-        "ParticleSystem requires exactly one camera with role MAIN. "
-        "No MAIN camera was found.\n");
+        "ParticleSystem back-to-front sorting requires exactly one camera "
+        "with role MAIN. No MAIN camera was found.\n");
     break;
   case LDK_PARTICLE_CAMERA_DIAGNOSTIC_MULTIPLE:
     ldk_log_error(
-        "ParticleSystem requires exactly one camera with role MAIN. "
-        "Multiple MAIN cameras were found.\n");
+        "ParticleSystem back-to-front sorting requires exactly one camera "
+        "with role MAIN. Multiple MAIN cameras were found.\n");
     break;
   case LDK_PARTICLE_CAMERA_DIAGNOSTIC_DISABLED:
-    ldk_log_error("ParticleSystem MAIN camera is disabled.\n");
+    ldk_log_error(
+        "ParticleSystem back-to-front sorting MAIN camera is disabled.\n");
     break;
   case LDK_PARTICLE_CAMERA_DIAGNOSTIC_TRANSFORM:
     ldk_log_error(
-        "ParticleSystem failed to resolve the MAIN camera transform.\n");
+        "ParticleSystem failed to resolve the MAIN camera transform for "
+        "back-to-front sorting.\n");
     break;
   default:
     break;
@@ -297,7 +299,7 @@ static Vec3 s_random_velocity(LDKParticleEmitter *emitter)
   return vec3_add(emitter->initial_velocity, variation);
 }
 
-static bool s_main_camera_get(Mat4 *out_view, Quat *out_rotation)
+static bool s_main_camera_view_get(Mat4 *out_view)
 {
   LDKComponentRegistry *components = ldk_ecs_component_registry_get();
   XArray *cameras;
@@ -306,7 +308,7 @@ static bool s_main_camera_get(Mat4 *out_view, Quat *out_rotation)
   const LDKEntity *main_entity = NULL;
   u32 main_count = 0;
 
-  if (!components || !out_view || !out_rotation)
+  if (!components || !out_view)
   {
     s_camera_diagnostic_set(LDK_PARTICLE_CAMERA_DIAGNOSTIC_MISSING);
     return false;
@@ -350,18 +352,13 @@ static bool s_main_camera_get(Mat4 *out_view, Quat *out_rotation)
     return false;
   }
 
-  Mat4 camera_world = mat4_identity();
-  Vec3 translation = vec3_make(0.0f, 0.0f, 0.0f);
-  Vec3 scale = vec3_make(1.0f, 1.0f, 1.0f);
   if (!ldk_scenegraph_update_entity(*main_entity) ||
-      !ldk_camera_get_world_matrix(*main_entity, &camera_world))
+      !ldk_camera_get_view_matrix(*main_entity, out_view))
   {
     s_camera_diagnostic_set(LDK_PARTICLE_CAMERA_DIAGNOSTIC_TRANSFORM);
     return false;
   }
 
-  mat4_decompose(camera_world, &translation, out_rotation, &scale);
-  *out_view = mat4_inverse_affine(camera_world);
   s_camera_diagnostic_set(LDK_PARTICLE_CAMERA_DIAGNOSTIC_VALID);
   return true;
 }
@@ -562,8 +559,7 @@ static bool s_particle_instances_clear(LDKParticleEmitter *emitter,
 }
 
 static bool s_particle_instances_write(LDKParticleEmitter *emitter,
-    LDKEntity entity, LDKInstancedMeshSource *mesh, Mat4 emitter_world,
-    Quat camera_rotation)
+    LDKEntity entity, LDKInstancedMeshSource *mesh, Mat4 emitter_world)
 {
   if (!ldk_instanced_mesh_source_resize_instances(
           mesh, emitter->particle_count))
@@ -601,9 +597,8 @@ static bool s_particle_instances_write(LDKParticleEmitter *emitter,
     }
 
     Quat roll = quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), rotation);
-    Quat billboard_rotation = quat_norm(quat_mul(camera_rotation, roll));
-    Mat4 particle_world = mat4_compose(position, billboard_rotation,
-        vec3_make(scale, scale, scale));
+    Mat4 particle_world = mat4_compose(
+        position, roll, vec3_make(scale, scale, scale));
     mesh->instances[i] = mat4_mul(inverse_emitter, particle_world);
     mesh->instance_colors[i] = s_particle_color_pack(tint, alpha);
   }
@@ -745,8 +740,8 @@ void ldk_particle_system_update(
   }
 
   Mat4 camera_view = mat4_identity();
-  Quat camera_rotation = quat_id();
-  bool has_camera = s_main_camera_get(&camera_view, &camera_rotation);
+  bool sort_camera_checked = false;
+  bool has_sort_camera = false;
   for (u32 i = 0; i < x_array_count(emitters); ++i)
   {
     LDKParticleEmitter *emitter = x_array_get(emitters, i);
@@ -816,26 +811,28 @@ void ldk_particle_system_update(
     {
       continue;
     }
-    if (!has_camera)
-    {
-      (void)s_particle_instances_clear(emitter, *entity, mesh);
-      continue;
-    }
     if (!s_particle_proxy_prepare(emitter, *entity, mesh))
     {
       (void)s_particle_instances_clear(emitter, *entity, mesh);
       continue;
     }
-    if (!s_particle_instances_write(
-            emitter, *entity, mesh, emitter_world, camera_rotation))
+    if (!s_particle_instances_write(emitter, *entity, mesh, emitter_world))
     {
       continue;
     }
 
     if (emitter->sort_mode == LDK_PARTICLE_SORT_BACK_TO_FRONT)
     {
-      s_particle_instances_sort_back_to_front(
-          mesh, emitter_world, camera_view);
+      if (!sort_camera_checked)
+      {
+        has_sort_camera = s_main_camera_view_get(&camera_view);
+        sort_camera_checked = true;
+      }
+      if (has_sort_camera)
+      {
+        s_particle_instances_sort_back_to_front(
+            mesh, emitter_world, camera_view);
+      }
     }
   }
 }

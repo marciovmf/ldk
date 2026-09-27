@@ -124,11 +124,15 @@ extern "C" {
     float intensity;
   } LDKRendererAmbientLight;
 
+  /* BILLBOARD affects the color pass only. Billboard transforms are expected
+   * to encode translation, XY roll and scale; camera-facing orientation is
+   * applied from the current render view in the vertex shader. */
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
     LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0,
-    LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS = 1 << 1
+    LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS = 1 << 1,
+    LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD = 1 << 2
   } LDKRendererMeshSubmitFlag;
 
   typedef struct LDKRendererMeshSubmit

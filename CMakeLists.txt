@@ -604,6 +604,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_ui_drag_n_drop.c
   )
   set_target_properties(ldk_editor PROPERTIES OUTPUT_NAME "ldk")
+  set_target_properties(ldk_editor PROPERTIES PDB_NAME "ldk_editor")
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
 
