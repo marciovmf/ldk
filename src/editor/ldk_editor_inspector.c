@@ -1358,6 +1358,15 @@ static bool s_editor_inspector_asset_path_validate(
   }
 
   normalized = *path;
+  if (!x_fs_path_is_absolute(&normalized))
+  {
+    for (size_t i = 0; normalized.buf[i]; ++i)
+    {
+      if (normalized.buf[i] == '\\') normalized.buf[i] = '/';
+    }
+    return ldk_asset_path_set(out_asset_path, normalized.buf);
+  }
+
   root = editor->project.run_root_path;
   x_fs_path_normalize(&normalized);
   x_fs_path_normalize(&root);
@@ -1430,7 +1439,8 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
       u32 payload_type = 0;
       assign = ldk_ui_drag_n_drop_payload_get_and_remove(
                    &payload_type, &path) &&
-          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
     }
   }
 
@@ -1520,7 +1530,8 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
       u32 payload_type = 0;
       assign = ldk_ui_drag_n_drop_payload_get_and_remove(
                    &payload_type, &path) &&
-          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
     }
   }
 
@@ -2293,7 +2304,8 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
       u32 payload_type = 0;
       assign =
           ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
-          payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH;
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
     }
   }
 

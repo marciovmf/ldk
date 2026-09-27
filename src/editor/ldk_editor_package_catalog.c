@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct LDKEditorPackageRule
 {
@@ -17,6 +18,7 @@ typedef struct LDKEditorPackageDefinition
 {
   XSmallstr name;
   XArray *rules;
+  bool expanded;
 } LDKEditorPackageDefinition;
 
 typedef struct LDKEditorPackageCatalogState
@@ -284,6 +286,7 @@ static bool s_package_definition_add(const char *name)
     return false;
   }
 
+  package.expanded = true;
   x_smallstr_from_cstr(&package.name, name);
   if (package.name.length != strlen(name) ||
       x_array_add(s_package_catalog.packages, &package) != 0)
@@ -491,6 +494,48 @@ static bool s_package_catalog_section_is_packages(
   return close - p == 8 && memcmp(p, "packages", 8) == 0;
 }
 
+static bool s_package_catalog_rules_validate(void)
+{
+  if (!s_package_catalog.packages)
+  {
+    return false;
+  }
+
+  for (u32 package_i = 0;
+       package_i < x_array_count(s_package_catalog.packages); ++package_i)
+  {
+    LDKEditorPackageDefinition *package =
+        x_array_get(s_package_catalog.packages, package_i);
+    for (u32 rule_i = 0; rule_i < x_array_count(package->rules); ++rule_i)
+    {
+      LDKEditorPackageRule *rule = x_array_get(package->rules, rule_i);
+      XSmallstr normalized = {0};
+      if (!s_package_rule_normalize(rule->text.buf, &normalized))
+      {
+        snprintf(s_package_catalog.error, sizeof(s_package_catalog.error),
+            "Rule %u in package '%s' is invalid.", rule_i + 1u,
+            package->name.buf);
+        return false;
+      }
+
+      for (u32 other_i = 0; other_i < rule_i; ++other_i)
+      {
+        LDKEditorPackageRule *other = x_array_get(package->rules, other_i);
+        if (strcmp(other->text.buf, normalized.buf) == 0)
+        {
+          snprintf(s_package_catalog.error, sizeof(s_package_catalog.error),
+              "Package '%s' contains duplicate rule '%s'.",
+              package->name.buf, normalized.buf);
+          return false;
+        }
+      }
+      rule->text = normalized;
+    }
+  }
+
+  return true;
+}
+
 static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
 {
   XFSPath path;
@@ -506,6 +551,11 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
   long file_size;
 
   if (!editor || !editor->project.loaded || !s_package_catalog.packages)
+  {
+    return false;
+  }
+
+  if (!s_package_catalog_rules_validate())
   {
     return false;
   }
@@ -1014,16 +1064,17 @@ static bool s_package_catalog_rule_add_input(void)
   return true;
 }
 
-static bool s_package_catalog_rule_remove(u32 rule_index)
+static bool s_package_catalog_rule_remove(
+    u32 package_index, u32 rule_index)
 {
   if (!s_package_catalog.packages ||
-      s_package_catalog.selected >= x_array_count(s_package_catalog.packages))
+      package_index >= x_array_count(s_package_catalog.packages))
   {
     return false;
   }
 
   LDKEditorPackageDefinition *package =
-      x_array_get(s_package_catalog.packages, s_package_catalog.selected);
+      x_array_get(s_package_catalog.packages, package_index);
   if (rule_index >= x_array_count(package->rules))
   {
     return false;
@@ -1067,6 +1118,154 @@ static void s_package_catalog_drop(LDKEditorContext *editor)
       editor, s_package_catalog.selected, &path, is_directory);
 }
 
+
+static bool s_package_catalog_build_arguments_create(
+    LDKEditorContext *editor, i32 package_index, XStrBuilder **out_arguments)
+{
+  XStrBuilder *arguments;
+
+  if (!editor || !editor->project.loaded || !out_arguments ||
+      !s_package_catalog.packages ||
+      (package_index >= 0 &&
+          (u32)package_index >= x_array_count(s_package_catalog.packages)))
+  {
+    return false;
+  }
+
+  arguments = x_strbuilder_create();
+  if (!arguments)
+  {
+    return false;
+  }
+
+  x_strbuilder_append_format(arguments, "pack --root \"%s\" --output \"%s\"",
+      x_fs_path_cstr(&editor->project.run_root_path),
+      x_fs_path_cstr(&editor->project.run_root_path));
+
+  for (u32 package_i = 0;
+       package_i < x_array_count(s_package_catalog.packages); ++package_i)
+  {
+    if (package_index >= 0 && package_i != (u32)package_index)
+    {
+      continue;
+    }
+
+    LDKEditorPackageDefinition *package =
+        x_array_get(s_package_catalog.packages, package_i);
+    x_strbuilder_append_format(arguments, " --package \"%s\" \"",
+        package->name.buf);
+    for (u32 rule_i = 0; rule_i < x_array_count(package->rules); ++rule_i)
+    {
+      LDKEditorPackageRule *rule = x_array_get(package->rules, rule_i);
+      if (rule_i > 0)
+      {
+        x_strbuilder_append(arguments, "|");
+      }
+      x_strbuilder_append(arguments, rule->text.buf);
+    }
+    x_strbuilder_append(arguments, "\"");
+  }
+
+  *out_arguments = arguments;
+  return true;
+}
+
+static bool s_package_catalog_build_request(
+    LDKEditorContext *editor, i32 package_index)
+{
+  XStrBuilder *arguments = NULL;
+  bool result;
+
+  if (!editor || editor->project_build.active ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  if (!s_package_catalog_manifest_save(editor) ||
+      !s_package_catalog_build_arguments_create(
+          editor, package_index, &arguments))
+  {
+    return false;
+  }
+
+  result = ldki_editor_package_build_request(
+      editor, x_strbuilder_to_string(arguments));
+  x_strbuilder_destroy(arguments);
+  if (!result)
+  {
+    s_package_catalog_error_set("Could not start package build.");
+  }
+  return result;
+}
+
+static void s_package_catalog_size_format(
+    size_t size, char *out, size_t out_size)
+{
+  const double kib = 1024.0;
+  const double mib = 1024.0 * 1024.0;
+  const double gib = 1024.0 * 1024.0 * 1024.0;
+
+  if (size >= (size_t)gib)
+  {
+    snprintf(out, out_size, "%.2f GB", (double)size / gib);
+  }
+  else if (size >= (size_t)mib)
+  {
+    snprintf(out, out_size, "%.2f MB", (double)size / mib);
+  }
+  else if (size >= (size_t)kib)
+  {
+    snprintf(out, out_size, "%.1f KB", (double)size / kib);
+  }
+  else
+  {
+    snprintf(out, out_size, "%zu B", size);
+  }
+}
+
+static void s_package_catalog_build_info_show(
+    LDKEditorContext *editor, const LDKEditorPackageDefinition *definition)
+{
+  XFSPath path = {0};
+  FSFileStat stat = {0};
+  LDKPackage *package = NULL;
+  char size_text[32];
+  char date_text[64];
+  char label[192];
+  struct tm *time_info;
+
+  if (!editor || !definition ||
+      !x_fs_path(&path, x_fs_path_cstr(&editor->project.run_root_path),
+          definition->name.buf) ||
+      !x_fs_path_is_file(&path) ||
+      !x_fs_file_stat(path.buf, &stat))
+  {
+    ldk_ui_label(&editor->ui, "Never built");
+    return;
+  }
+
+  package = ldk_package_open(path.buf);
+  if (!package)
+  {
+    ldk_ui_label(&editor->ui, "Build artifact is invalid");
+    return;
+  }
+
+  s_package_catalog_size_format(stat.size, size_text, sizeof(size_text));
+  time_info = localtime(&stat.modification_time);
+  if (!time_info ||
+      strftime(date_text, sizeof(date_text), "%Y-%m-%d %H:%M", time_info) == 0)
+  {
+    snprintf(date_text, sizeof(date_text), "unknown");
+  }
+
+  snprintf(label, sizeof(label), "Last build: %s  |  %u files  |  %s",
+      date_text, ldk_package_entry_count(package), size_text);
+  ldk_package_close(package);
+  ldk_ui_label(&editor->ui, label);
+}
+
 void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
 {
   enum
@@ -1099,111 +1298,149 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
   bool editable = !editor->project_build.active &&
                   editor->editor_state == LDK_EDITOR_STATE_STOPED;
   u32 action = ACTION_NONE;
-  u32 action_index = UINT32_MAX;
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui,
-      "Packages are stored in [packages] in the project .ldk file.\n"
-      "Rules are relative to runtree. Prefix a rule with ! to exclude it.\n"
-      "Changes remain a draft until Save.\n"
-      "Drop files or folders from Project Explorer to add a rule to the "
-      "selected package.");
+  u32 action_package = UINT32_MAX;
+  u32 action_rule = UINT32_MAX;
 
   ldk_ui_begin_disabled(ui, !editable);
-  s_package_catalog.scroll = ldk_ui_begin_scrollview(
-      ui, s_package_catalog.scroll,
-      LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  ldk_ui_label(ui, "Packages");
-  for (u32 i = 0; i < x_array_count(s_package_catalog.packages); ++i)
-  {
-    LDKEditorPackageDefinition *package =
-        x_array_get(s_package_catalog.packages, i);
-    ldk_ui_push_id_u32(ui, i);
-    ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_label(ui, s_package_catalog.selected == i ? ">" : "");
-    if (ldk_ui_button_flat(ui, package->name.buf))
-    {
-      s_package_catalog.selected = i;
-    }
-    if (ldk_ui_button(ui, "remove"))
-    {
-      action = ACTION_REMOVE_PACKAGE;
-      action_index = i;
-    }
-    ldk_ui_end_horizontal(ui);
-    ldk_ui_pop_id(ui);
-  }
-
+  ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_begin_horizontal(ui);
   u32 package_input_result = ldk_ui_input_box(ui,
       s_package_catalog.package_input,
       (u32)sizeof(s_package_catalog.package_input));
-  bool add_package = ldk_ui_button(ui, "+ Add package") ||
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool add_package = ldk_ui_button(ui, "Add Package") ||
                      (package_input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0;
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool build_all = ldk_ui_button(ui, "BUILD ALL");
   ldk_ui_end_horizontal(ui);
-
-  ldk_ui_horizontal_line(ui);
-
-  if (s_package_catalog.selected < x_array_count(s_package_catalog.packages))
-  {
-    LDKEditorPackageDefinition *package = x_array_get(
-        s_package_catalog.packages, s_package_catalog.selected);
-    ldk_ui_label(ui, package->name.buf);
-
-    for (u32 i = 0; i < x_array_count(package->rules); ++i)
-    {
-      LDKEditorPackageRule *rule = x_array_get(package->rules, i);
-      ldk_ui_push_id_u32(ui, i);
-      ldk_ui_begin_horizontal(ui);
-      ldk_ui_label(ui, rule->text.buf);
-      if (ldk_ui_button(ui, "remove"))
-      {
-        action = ACTION_REMOVE_RULE;
-        action_index = i;
-      }
-      ldk_ui_end_horizontal(ui);
-      ldk_ui_pop_id(ui);
-    }
-
-    ldk_ui_begin_horizontal(ui);
-    u32 rule_input_result = ldk_ui_input_box(ui, s_package_catalog.rule_input,
-        (u32)sizeof(s_package_catalog.rule_input));
-    bool add_rule = ldk_ui_button(ui, "+ Add rule") ||
-                    (rule_input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0;
-    ldk_ui_end_horizontal(ui);
-
-    if (add_rule)
-    {
-      s_package_catalog_rule_add_input();
-    }
-  }
-  else
-  {
-    ldk_ui_label(ui, "Add or select a package to edit its rules.");
-  }
 
   if (add_package)
   {
     s_package_catalog_package_add();
+  }
+  if (build_all && x_array_count(s_package_catalog.packages) > 0)
+  {
+    s_package_catalog_build_request(editor, -1);
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui,
+      "Rules: * matches within a directory  |  ** matches recursively  |  ! excludes a path");
+
+  s_package_catalog.scroll = ldk_ui_begin_scrollview(
+      ui, s_package_catalog.scroll,
+      LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  for (u32 package_i = 0;
+       package_i < x_array_count(s_package_catalog.packages); ++package_i)
+  {
+    LDKEditorPackageDefinition *package =
+        x_array_get(s_package_catalog.packages, package_i);
+
+    ldk_ui_push_id_u32(ui, package_i);
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_weight(ui, 1.0f);
+    u32 tree_result = ldk_ui_tree_node_ex(ui, package->name.buf,
+        (LDKUIIcon){0}, package->expanded, 0,
+        LDK_UI_TREE_NODE_NONE);
+    LDKUIRect package_rect = ldk_ui_last_bounding_rect(ui);
+    if (tree_result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+    {
+      package->expanded = !package->expanded;
+    }
+    if (tree_result & LDK_UI_TREE_NODE_RESULT_CLICKED)
+    {
+      s_package_catalog.selected = package_i;
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+    if (ldk_ui_button(ui, "BUILD"))
+    {
+      s_package_catalog_build_request(editor, (i32)package_i);
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+    if (ldk_ui_button(ui, "+ Rule"))
+    {
+      LDKEditorPackageRule rule = {0};
+      x_smallstr_from_cstr(&rule.text, "assets/**");
+      if (x_array_add(package->rules, &rule) == 0)
+      {
+        package->expanded = true;
+        s_package_catalog.selected = package_i;
+      }
+      else
+      {
+        s_package_catalog_error_set("Could not add package rule.");
+      }
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+    if (ldk_ui_button(ui, "Delete"))
+    {
+      action = ACTION_REMOVE_PACKAGE;
+      action_package = package_i;
+    }
+    ldk_ui_end_horizontal(ui);
+
+    if (editable && ui->mouse && ui->active_id && ui->current_window &&
+        ui->hovered_window_id == ui->current_window->id &&
+        ldk_os_mouse_button_up(
+            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+    {
+      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+      if (ldk_rectf_contains(&package_rect, (float)cursor.x, (float)cursor.y) &&
+          ldk_rectf_contains(
+              &ui->clip_rect, (float)cursor.x, (float)cursor.y))
+      {
+        s_package_catalog.selected = package_i;
+        s_package_catalog_drop(editor);
+      }
+    }
+
+    if (package->expanded)
+    {
+      for (u32 rule_i = 0; rule_i < x_array_count(package->rules); ++rule_i)
+      {
+        LDKEditorPackageRule *rule = x_array_get(package->rules, rule_i);
+        ldk_ui_push_id_u32(ui, rule_i);
+        ldk_ui_begin_horizontal(ui);
+        ldk_ui_input_box(ui, rule->text.buf, (u32)sizeof(rule->text.buf));
+        rule->text.length = (u32)strlen(rule->text.buf);
+        ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+        if (ldk_ui_button(ui, "Delete"))
+        {
+          action = ACTION_REMOVE_RULE;
+          action_package = package_i;
+          action_rule = rule_i;
+        }
+        ldk_ui_end_horizontal(ui);
+
+        ldk_ui_begin_horizontal(ui);
+        ldk_ui_spacer(ui);
+        s_package_catalog_build_info_show(editor, package);
+        ldk_ui_spacer(ui);
+        ldk_ui_end_horizontal(ui);
+
+        ldk_ui_pop_id(ui);
+      }
+    }
+
+    ldk_ui_spacer(ui);
+    ldk_ui_horizontal_line(ui);
+    ldk_ui_pop_id(ui);
   }
 
   ldk_ui_end_scrollview(ui);
 
   if (action == ACTION_REMOVE_PACKAGE)
   {
-    s_package_catalog_package_remove(action_index);
+    s_package_catalog_package_remove(action_package);
   }
   else if (action == ACTION_REMOVE_RULE)
   {
-    s_package_catalog_rule_remove(action_index);
-  }
-
-  if (editable &&
-      s_package_catalog.selected < x_array_count(s_package_catalog.packages))
-  {
-    s_package_catalog_drop(editor);
+    s_package_catalog_rule_remove(action_package, action_rule);
   }
 
   if (s_package_catalog.error[0])
@@ -1228,20 +1465,22 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
   ldk_ui_set_next_weight(ui, 0.0f);
   bool saved = ldk_ui_button(ui, "Save") &&
                s_package_catalog_manifest_save(editor);
-  ldk_ui_end_disabled(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
   bool canceled = ldk_ui_button(ui, "Cancel");
   ldk_ui_end_horizontal(ui);
+  ldk_ui_end_disabled(ui);
 
   if (saved)
   {
     s_package_catalog.error[0] = 0;
     ldki_editor_log_info(editor, "Package catalog saved.");
-    s_package_catalog.close_requested = true;
   }
   else if (canceled)
   {
-    s_package_catalog.close_requested = true;
+    XFSPath project_path = editor->project.project_file_path;
+    s_package_catalog_clear();
+    s_package_catalog.project_path = project_path;
+    s_package_catalog_load(editor);
   }
 }

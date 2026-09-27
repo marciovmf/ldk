@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH 0x46494C45u
+#define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH 0x41535354u
 
 #ifdef __cplusplus
 extern "C"

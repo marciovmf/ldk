@@ -156,7 +156,8 @@ typedef enum LDKEditorProjectActionType
   LDK_EDITOR_PROJECT_ACTION_OPEN,
   LDK_EDITOR_PROJECT_ACTION_CREATE,
   LDK_EDITOR_PROJECT_ACTION_BUILD,
-  LDK_EDITOR_PROJECT_ACTION_RELEASE
+  LDK_EDITOR_PROJECT_ACTION_RELEASE,
+  LDK_EDITOR_PROJECT_ACTION_PACKAGE
 } LDKEditorProjectActionType;
 
 typedef struct LDKEditorProjectAction
@@ -175,7 +176,8 @@ typedef enum LDKEditorProjectBuildStage
   LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE,
   LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD,
   LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE,
-  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD
+  LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE
 } LDKEditorProjectBuildStage;
 
 typedef struct LDKEditorProjectBuild
@@ -186,6 +188,7 @@ typedef struct LDKEditorProjectBuild
   LDKProject project;
   XFSPath project_file_path;
   XFSPath log_path;
+  XStrBuilder *package_arguments;
   bool active;
   bool cancel_requested;
   bool cancel_sent;
@@ -305,6 +308,8 @@ bool ldki_editor_project_create_request(LDKEditorContext *editor,
 bool ldki_editor_project_open_request(
     LDKEditorContext *editor, const char *project_file_path);
 bool ldki_editor_project_build_request(LDKEditorContext *editor);
+bool ldki_editor_package_build_request(
+    LDKEditorContext *editor, const char *arguments);
 bool ldki_editor_project_release_request(LDKEditorContext *editor);
 bool ldki_editor_project_build_cancel_request(LDKEditorContext *editor);
 void ldki_editor_register_commands(LDKEditorContext *editor);
@@ -425,5 +430,9 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Bu)
 
 #define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
+
+/* Mounts a physical .box file as a read-only root in Project Explorer. */
+bool ldki_editor_file_explorer_package_mount(
+    LDKEditorContext *editor, const XFSPath *package_path);
 
 #endif // LDK_EDITOR_INTERNAL

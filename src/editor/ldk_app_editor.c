@@ -2502,6 +2502,8 @@ static const char *s_editor_project_build_stage_label(
     return "Release configure";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
     return "Release build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+    return "Package build";
   default:
     return "Build";
   }
@@ -2520,6 +2522,8 @@ static const char *s_editor_project_build_log_name(
     return "release-configure.log";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
     return "release-build.log";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+    return "package-build.log";
   default:
     return "build.log";
   }
@@ -2612,6 +2616,12 @@ static void s_editor_project_build_state_clear(LDKEditorContext *editor)
     build->process = NULL;
   }
 
+  if (build->package_arguments != NULL)
+  {
+    x_strbuilder_destroy(build->package_arguments);
+    build->package_arguments = NULL;
+  }
+
   ldk_project_unload(&build->project);
   *build = (LDKEditorProjectBuild){0};
 }
@@ -2630,7 +2640,8 @@ static bool s_editor_project_build_stage_start(LDKEditorContext *editor)
 
   build = &editor->project_build;
   config = s_editor_project_build_config(build);
-  if (!s_editor_project_build_desc_init(editor, config, &build_desc))
+  if (build->stage != LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE &&
+      !s_editor_project_build_desc_init(editor, config, &build_desc))
   {
     return false;
   }
@@ -2669,6 +2680,35 @@ static bool s_editor_project_build_stage_start(LDKEditorContext *editor)
     build->process = ldk_project_build_game_launcher_start(
         &build->project, &build_desc, &process_result);
     break;
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+  {
+    XFSPath executable = {0};
+    LDKOSProcessDesc process_desc = {0};
+#ifdef _WIN32
+    const char *executable_name = "box.exe";
+#else
+    const char *executable_name = "box";
+#endif
+    XFSPath executable_directory = {0};
+    if (build->package_arguments == NULL ||
+        !x_fs_path_from_executable(&executable_directory) ||
+        !x_fs_path_dirname(&executable_directory, &executable_directory) ||
+        !x_fs_path(&executable, x_fs_path_cstr(&executable_directory),
+            executable_name) ||
+        !x_fs_path_is_file(&executable))
+    {
+      return false;
+    }
+
+    process_desc.executable = x_fs_path_cstr(&executable);
+    process_desc.arguments =
+        x_strbuilder_to_string(build->package_arguments);
+    process_desc.working_directory =
+        x_fs_path_cstr(&build->project.project_root_path);
+    process_desc.new_console = false;
+    build->process = ldk_os_process_start(&process_desc, &process_result);
+    break;
+  }
   default:
     return false;
   }
@@ -2732,6 +2772,10 @@ static void s_editor_project_build_report_finish(
     {
       ldki_editor_log_error(editor, "Project release build failed.");
     }
+    else if (action_type == LDK_EDITOR_PROJECT_ACTION_PACKAGE)
+    {
+      ldki_editor_log_error(editor, "Package build failed.");
+    }
     else
     {
       ldki_editor_log_error(editor, "Project build failed.");
@@ -2755,6 +2799,10 @@ static void s_editor_project_build_report_finish(
   else if (action_type == LDK_EDITOR_PROJECT_ACTION_RELEASE)
   {
     ldki_editor_log_info(editor, "Project release build completed.");
+  }
+  else if (action_type == LDK_EDITOR_PROJECT_ACTION_PACKAGE)
+  {
+    ldki_editor_log_info(editor, "Package build completed.");
   }
   else
   {
@@ -2876,6 +2924,9 @@ static bool s_editor_project_build_update(LDKEditorContext *editor)
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
     build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD;
     break;
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+    s_editor_project_build_report_finish(editor, true, false);
+    return true;
   case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
     if (!s_editor_project_build_output_validate(build))
@@ -3150,6 +3201,43 @@ bool ldki_editor_project_build_request(LDKEditorContext *editor)
 
   editor->pending_project_action = (LDKEditorProjectAction){0};
   editor->pending_project_action.type = LDK_EDITOR_PROJECT_ACTION_BUILD;
+  return true;
+}
+
+bool ldki_editor_package_build_request(
+    LDKEditorContext *editor, const char *arguments)
+{
+  LDKEditorProjectBuild *build;
+
+  if (editor == NULL || !editor->project.loaded || arguments == NULL ||
+      arguments[0] == 0 || editor->project_build.active ||
+      editor->pending_project_action.type != LDK_EDITOR_PROJECT_ACTION_NONE)
+  {
+    return false;
+  }
+
+  build = &editor->project_build;
+  *build = (LDKEditorProjectBuild){0};
+  build->package_arguments = x_strbuilder_create();
+  if (build->package_arguments == NULL)
+  {
+    *build = (LDKEditorProjectBuild){0};
+    return false;
+  }
+  x_strbuilder_append(build->package_arguments, arguments);
+
+  build->project = editor->project;
+  build->project_file_path = editor->project.project_file_path;
+  build->action_type = LDK_EDITOR_PROJECT_ACTION_PACKAGE;
+  build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE;
+  build->active = true;
+
+  if (!s_editor_project_build_stage_start(editor))
+  {
+    s_editor_project_build_state_clear(editor);
+    return false;
+  }
+
   return true;
 }
 

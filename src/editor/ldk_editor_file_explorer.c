@@ -4,8 +4,11 @@
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
 #include <ldk_image.h>
+#include <ldk_package.h>
+#include <module/ldk_asset_source.h>
 #include <ldk_scene.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,16 +33,36 @@ typedef struct ProjectExplorerNode
   XFSPath path;
   XSmallstr name;
   u32 depth;
+  u32 package_index;
   bool root;
+  bool package_backed;
 } ProjectExplorerNode;
+
+typedef struct ProjectExplorerPackageExpandedPath
+{
+  LDKPackage *package;
+  XFSPath path;
+} ProjectExplorerPackageExpandedPath;
 
 typedef struct ProjectExplorerEntry
 {
   XFSPath path;
   XSmallstr name;
+  LDKAssetPath asset_path;
   size_t size;
   time_t last_modified;
+  LDKPackage *package;
+  bool package_backed;
+  bool is_directory;
 } ProjectExplorerEntry;
+
+typedef struct ProjectExplorerPackageMount
+{
+  XFSPath path;
+  XSmallstr name;
+  LDKPackage *package;
+  LDKAssetSourcePackage *asset_source_package;
+} ProjectExplorerPackageMount;
 
 typedef struct ProjectExplorerTileResult
 {
@@ -80,6 +103,7 @@ typedef struct ProjectExplorerThumbnail
   XFSPath path;
   size_t size;
   time_t last_modified;
+  LDKPackage *package;
   LDKResourceTexture texture;
   u32 width;
   u32 height;
@@ -106,9 +130,13 @@ typedef struct ProjectExplorerState
   XFSPath selected_file;
   u64 last_click_ticks;
   XArray *expanded_paths;
+  XArray *package_expanded_paths;
   XArray *stack;
   XArray *dirs;
   XArray *files;
+  XArray *package_mounts;
+  i32 selected_package;
+  XSmallstr selected_package_directory;
   ProjectExplorerThumbnailCache thumbnails;
   ProjectExplorerContextTarget context_target;
   LDKUIRect rename_input_rect;
@@ -124,6 +152,7 @@ typedef struct ProjectExplorerState
 static ProjectExplorerState s_project_explorer_state = {
     .window_rect = {10.0f, 60.0f, 640.0f, 420.0f},
     .root_expanded = true,
+    .selected_package = -1,
     .icon_size = 48.0f,
 };
 
@@ -160,6 +189,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"fbx", LDK_EDITOR_ICON_OBJECT},
     {"gltf", LDK_EDITOR_ICON_OBJECT},
     {"glb", LDK_EDITOR_ICON_OBJECT},
+    {"box", LDK_EDITOR_ICON_BOX},
 };
 
 static LDKEditorIcon s_project_explorer_file_icon_get(const XFSPath *path)
@@ -290,9 +320,48 @@ static void s_project_explorer_thumbnail_resize(const LDKImageInfo *source,
 }
 
 static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
-    const XFSPath *path, ProjectExplorerThumbnail *thumbnail)
+    const XFSPath *path, LDKPackage *package,
+    ProjectExplorerThumbnail *thumbnail)
 {
-  LDKImage *image = ldk_image_load(x_fs_path_cstr(path));
+  LDKImage *image = NULL;
+  void *package_data = NULL;
+
+  if (package)
+  {
+    const LDKPackageEntry *package_entry =
+        ldk_package_entry_find(package, x_fs_path_cstr(path));
+    if (!package_entry)
+    {
+      return false;
+    }
+
+    u64 package_data_size = ldk_package_entry_get_size(package_entry);
+    if (package_data_size == 0 || package_data_size > UINT32_MAX ||
+        package_data_size > SIZE_MAX)
+    {
+      return false;
+    }
+
+    package_data = malloc((size_t)package_data_size);
+    if (!package_data)
+    {
+      return false;
+    }
+
+    if (!ldk_package_entry_read(
+            package, package_entry, package_data, package_data_size))
+    {
+      free(package_data);
+      return false;
+    }
+
+    image = ldk_image_create_from_memory(package_data, (u32)package_data_size);
+    free(package_data);
+  }
+  else
+  {
+    image = ldk_image_load(x_fs_path_cstr(path));
+  }
   LDKImageInfo info = {0};
   if (!image)
   {
@@ -399,6 +468,7 @@ static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
   {
     ProjectExplorerThumbnail *it = &cache->entries[i];
     if (it->status != PROJECT_EXPLORER_THUMBNAIL_EMPTY &&
+        it->package == entry->package &&
         x_fs_path_compare(&it->path, &entry->path) == 0)
     {
       if (it->size != entry->size || it->last_modified != entry->last_modified)
@@ -444,6 +514,7 @@ static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
   available->path = entry->path;
   available->size = entry->size;
   available->last_modified = entry->last_modified;
+  available->package = entry->package;
   available->last_used = ++cache->access_counter;
   available->last_seen_frame = cache->frame;
   available->status = PROJECT_EXPLORER_THUMBNAIL_PENDING;
@@ -469,7 +540,7 @@ static void s_project_explorer_thumbnail_process(
   if (pending)
   {
     pending->status = s_project_explorer_thumbnail_create(
-        cache->renderer, &pending->path, pending)
+        cache->renderer, &pending->path, pending->package, pending)
         ? PROJECT_EXPLORER_THUMBNAIL_READY
         : PROJECT_EXPLORER_THUMBNAIL_FAILED;
   }
@@ -513,7 +584,7 @@ static void s_project_explorer_on_right_click(LDKUIContext *ui,
 static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
 static void s_project_explorer_path_drag_source(
-    LDKUIContext *ui, const XFSPath *path, LDKUIIcon icon);
+    LDKUIContext *ui, const ProjectExplorerEntry *entry, LDKUIIcon icon);
 
 static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
     const XFSPath *path, ProjectExplorerSurface surface)
@@ -529,6 +600,12 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
   {
     state->expanded_paths =
         x_array_create(sizeof(XFSPath), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  }
+
+  if (state->package_expanded_paths == NULL)
+  {
+    state->package_expanded_paths = x_array_create(
+        sizeof(ProjectExplorerPackageExpandedPath), PROJECT_EXPLORER_INITIAL_CAPACITY);
   }
 
   if (state->stack == NULL)
@@ -549,8 +626,16 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
         sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
   }
 
-  return state->expanded_paths != NULL && state->stack != NULL &&
-         state->dirs != NULL && state->files != NULL;
+  if (state->package_mounts == NULL)
+  {
+    state->package_mounts = x_array_create(
+        sizeof(ProjectExplorerPackageMount), 8);
+  }
+
+  return state->expanded_paths != NULL &&
+         state->package_expanded_paths != NULL && state->stack != NULL &&
+         state->dirs != NULL && state->files != NULL &&
+         state->package_mounts != NULL;
 }
 
 static bool s_project_start_process(LDKEditorContext *editor,
@@ -600,6 +685,76 @@ static i32 s_project_explorer_expanded_path_index(
   return -1;
 }
 
+static i32 s_project_explorer_package_expanded_path_index(
+    ProjectExplorerState *state, LDKPackage *package, const XFSPath *path)
+{
+  for (u32 i = 0; i < x_array_count(state->package_expanded_paths); ++i)
+  {
+    ProjectExplorerPackageExpandedPath *expanded =
+        x_array_get(state->package_expanded_paths, i);
+    if (expanded->package == package &&
+        x_fs_path_compare(&expanded->path, path) == 0)
+    {
+      return (i32)i;
+    }
+  }
+
+  return -1;
+}
+
+static void s_project_explorer_package_expanded_path_set(
+    ProjectExplorerState *state, LDKPackage *package, const XFSPath *path,
+    bool expanded)
+{
+  i32 index =
+      s_project_explorer_package_expanded_path_index(state, package, path);
+  if (expanded)
+  {
+    if (index < 0)
+    {
+      ProjectExplorerPackageExpandedPath value = {0};
+      value.package = package;
+      value.path = *path;
+      x_array_add(state->package_expanded_paths, &value);
+    }
+  }
+  else if (index >= 0)
+  {
+    x_array_delete_at(state->package_expanded_paths, (u32)index);
+  }
+}
+
+static void s_project_explorer_package_mounts_clear(
+    ProjectExplorerState *state)
+{
+  if (!state || !state->package_mounts)
+  {
+    return;
+  }
+
+  LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  for (u32 i = 0; i < x_array_count(state->package_mounts); ++i)
+  {
+    ProjectExplorerPackageMount *mount = x_array_get(state->package_mounts, i);
+    if (asset_source && mount->asset_source_package)
+    {
+      ldk_asset_source_package_close(asset_source, mount->asset_source_package);
+    }
+    if (mount->package)
+    {
+      ldk_package_close(mount->package);
+    }
+  }
+  x_array_clear(state->package_mounts);
+  if (state->package_expanded_paths)
+  {
+    x_array_clear(state->package_expanded_paths);
+  }
+  state->selected_package = -1;
+  memset(&state->selected_package_directory, 0,
+      sizeof(state->selected_package_directory));
+}
+
 static bool s_project_explorer_root_set(
     ProjectExplorerState *state, const char *root_path)
 {
@@ -620,6 +775,7 @@ static bool s_project_explorer_root_set(
   if (state->root.length == 0 || x_fs_path_compare(&state->root, &root) != 0)
   {
     s_project_explorer_thumbnail_cache_clear(&state->thumbnails);
+    s_project_explorer_package_mounts_clear(state);
     state->root = root;
     state->selected_directory = root;
     memset(&state->selected_file, 0, sizeof(state->selected_file));
@@ -633,6 +789,9 @@ static bool s_project_explorer_root_set(
     x_array_clear(state->expanded_paths);
     state->last_click_ticks = 0;
     state->root_expanded = true;
+    state->selected_package = -1;
+    memset(&state->selected_package_directory, 0,
+        sizeof(state->selected_package_directory));
   }
 
   return true;
@@ -642,6 +801,8 @@ static void s_project_explorer_directory_select(
     ProjectExplorerState *state, const XFSPath *path, bool expand)
 {
   state->selected_directory = *path;
+  state->selected_package = -1;
+  memset(&state->selected_package_directory, 0, sizeof(state->selected_package_directory));
   memset(&state->selected_file, 0, sizeof(state->selected_file));
 
   if (!expand)
@@ -722,6 +883,144 @@ static void s_project_explorer_directory_read(
   {
     x_fs_find_close(dir);
   }
+}
+
+static bool s_project_explorer_package_directory_read(
+    ProjectExplorerState *state, u32 package_index, const char *directory,
+    XArray *dirs, XArray *files)
+{
+  if (!state || !state->package_mounts ||
+      package_index >= x_array_count(state->package_mounts))
+  {
+    return false;
+  }
+
+  if (dirs) x_array_clear(dirs);
+  if (files) x_array_clear(files);
+
+  ProjectExplorerPackageMount *mount =
+      x_array_get(state->package_mounts, package_index);
+  size_t directory_length = directory ? strlen(directory) : 0;
+
+  for (u32 i = 0; i < ldk_package_entry_count(mount->package); ++i)
+  {
+    const LDKPackageEntry *package_entry =
+        ldk_package_entry_at(mount->package, i);
+    const char *entry_path = ldk_package_entry_get_path(package_entry);
+    if (!entry_path) continue;
+
+    const char *relative = entry_path;
+    if (directory_length)
+    {
+      if (strncmp(entry_path, directory, directory_length) != 0 ||
+          entry_path[directory_length] != '/')
+      {
+        continue;
+      }
+      relative = entry_path + directory_length + 1;
+    }
+
+    if (!relative[0]) continue;
+    const char *slash = strchr(relative, '/');
+    ProjectExplorerEntry entry = {0};
+    size_t name_length = slash ? (size_t)(slash - relative) : strlen(relative);
+    if (name_length == 0 || name_length > X_SMALLSTR_MAX_LENGTH) continue;
+
+    char name[X_SMALLSTR_MAX_LENGTH + 1];
+    memcpy(name, relative, name_length);
+    name[name_length] = 0;
+    x_smallstr_from_cstr(&entry.name, name);
+    entry.package = mount->package;
+    entry.package_backed = true;
+    entry.is_directory = slash != NULL;
+
+    char logical[LDK_ASSET_PATH_MAX_LENGTH + 1];
+    int written = directory_length
+        ? snprintf(logical, sizeof(logical), "%s/%s", directory, name)
+        : snprintf(logical, sizeof(logical), "%s", name);
+    if (written <= 0 || (size_t)written >= sizeof(logical)) continue;
+    x_fs_path_set(&entry.path, logical);
+
+    if (entry.is_directory)
+    {
+      bool exists = false;
+      if (dirs)
+      {
+        for (u32 d = 0; d < x_array_count(dirs); ++d)
+        {
+          ProjectExplorerEntry *existing = x_array_get(dirs, d);
+          if (strcmp(existing->name.buf, entry.name.buf) == 0)
+          {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) s_project_explorer_entry_insert_sorted(dirs, &entry);
+      }
+    }
+    else if (files && ldk_asset_path_set(&entry.asset_path, entry_path))
+    {
+      entry.size = (size_t)ldk_package_entry_get_size(package_entry);
+      s_project_explorer_entry_insert_sorted(files, &entry);
+    }
+  }
+  return true;
+}
+
+bool ldki_editor_file_explorer_package_mount(
+    LDKEditorContext *editor, const XFSPath *package_path)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+  if (!editor || !package_path || !x_fs_path_is_file(package_path) ||
+      !s_project_explorer_initialize(state))
+  {
+    return false;
+  }
+
+  XFSPath normalized = *package_path;
+  x_fs_path_normalize(&normalized);
+  for (u32 i = 0; i < x_array_count(state->package_mounts); ++i)
+  {
+    ProjectExplorerPackageMount *existing =
+        x_array_get(state->package_mounts, i);
+    if (x_fs_path_compare(&existing->path, &normalized) == 0)
+    {
+      state->selected_package = (i32)i;
+      memset(&state->selected_package_directory, 0,
+          sizeof(state->selected_package_directory));
+      return true;
+    }
+  }
+
+  LDKPackage *package = ldk_package_open(normalized.buf);
+  if (!package) return false;
+
+  LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  LDKAssetSourcePackage *source_package = asset_source
+      ? ldk_asset_source_package_open(asset_source, normalized.buf) : NULL;
+  if (asset_source && !source_package)
+  {
+    ldk_package_close(package);
+    return false;
+  }
+
+  ProjectExplorerPackageMount mount = {0};
+  mount.path = normalized;
+  mount.package = package;
+  mount.asset_source_package = source_package;
+  x_fs_path_basename(&normalized, &mount.name);
+  if (x_array_add(state->package_mounts, &mount) != 0)
+  {
+    if (source_package) ldk_asset_source_package_close(asset_source, source_package);
+    ldk_package_close(package);
+    return false;
+  }
+
+  state->selected_package = (i32)x_array_count(state->package_mounts) - 1;
+  memset(&state->selected_package_directory, 0,
+      sizeof(state->selected_package_directory));
+  memset(&state->selected_file, 0, sizeof(state->selected_file));
+  return true;
 }
 
 static bool s_project_explorer_rect_visible(LDKUIRect rect, LDKUIRect clip)
@@ -814,7 +1113,10 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
 
   if (!renaming)
   {
-    s_project_explorer_path_drag_source(ui, &node->path, folder_icon);
+    ProjectExplorerEntry drag_entry = {0};
+    drag_entry.path = node->path;
+    drag_entry.is_directory = true;
+    s_project_explorer_path_drag_source(ui, &drag_entry, folder_icon);
   }
 
   if (renaming)
@@ -872,6 +1174,47 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
   return expanded;
 }
 
+static bool s_project_explorer_package_tree_node(
+    ProjectExplorerState *state, LDKUIContext *ui,
+    const ProjectExplorerNode *node, LDKUIIcon icon)
+{
+  ProjectExplorerPackageMount *mount =
+      x_array_get(state->package_mounts, node->package_index);
+  bool was_expanded = s_project_explorer_package_expanded_path_index(
+          state, mount->package, &node->path) >= 0;
+  u32 flags = 0;
+
+  if (state->selected_package == (i32)node->package_index &&
+      strcmp(state->selected_package_directory.buf, node->path.buf) == 0)
+  {
+    flags |= LDK_UI_TREE_NODE_SELECTED;
+  }
+
+  u32 result = ldk_ui_tree_node_ex(
+      ui, node->name.buf, icon, was_expanded, node->depth, flags);
+  bool expanded = was_expanded;
+
+  if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
+  {
+    state->selected_package = (i32)node->package_index;
+    x_smallstr_from_cstr(&state->selected_package_directory, node->path.buf);
+    memset(&state->selected_file, 0, sizeof(state->selected_file));
+  }
+
+  if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+  {
+    expanded = !was_expanded;
+  }
+
+  if (expanded != was_expanded)
+  {
+    s_project_explorer_package_expanded_path_set(
+        state, mount->package, &node->path, expanded);
+  }
+
+  return expanded;
+}
+
 static void s_project_explorer_tree_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon)
 {
@@ -916,6 +1259,50 @@ static void s_project_explorer_tree_draw(LDKEditorContext *editor,
     }
   }
 
+  for (u32 i = 0; i < x_array_count(state->package_mounts); ++i)
+  {
+    ProjectExplorerPackageMount *mount = x_array_get(state->package_mounts, i);
+    LDKUIIcon package_icon = folder_icon;
+    package_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BOX];
+
+    x_array_clear(state->stack);
+    ProjectExplorerNode package_root = {0};
+    package_root.name = mount->name;
+    package_root.package_index = i;
+    package_root.package_backed = true;
+    package_root.root = true;
+    x_array_add(state->stack, &package_root);
+
+    while (x_array_count(state->stack) > 0)
+    {
+      u32 stack_index = x_array_count(state->stack) - 1;
+      ProjectExplorerNode *node_ptr = x_array_get(state->stack, stack_index);
+      ProjectExplorerNode node = *node_ptr;
+      x_array_delete_at(state->stack, stack_index);
+
+      LDKUIIcon node_icon = node.root ? package_icon : folder_icon;
+      if (!s_project_explorer_package_tree_node(
+              state, ui, &node, node_icon))
+      {
+        continue;
+      }
+
+      s_project_explorer_package_directory_read(
+          state, i, node.path.buf, state->dirs, NULL);
+      for (u32 d = x_array_count(state->dirs); d > 0; --d)
+      {
+        ProjectExplorerEntry *entry = x_array_get(state->dirs, d - 1);
+        ProjectExplorerNode child = {0};
+        child.path = entry->path;
+        child.name = entry->name;
+        child.depth = node.depth + 1;
+        child.package_index = i;
+        child.package_backed = true;
+        x_array_add(state->stack, &child);
+      }
+    }
+  }
+
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
 }
@@ -942,7 +1329,15 @@ static void s_project_explorer_on_file_double_click(
     return;
   }
 
-  if (ldki_editor_scene_path_is_scene(&entry->path))
+  XSlice extension = x_fs_path_extension_as_slice(&entry->path);
+  if (x_slice_eq_ci(extension, x_slice("box")))
+  {
+    if (!ldki_editor_file_explorer_package_mount(editor, &entry->path))
+    {
+      ldki_editor_log_error(editor, "Failed to mount package.");
+    }
+  }
+  else if (ldki_editor_scene_path_is_scene(&entry->path))
   {
     ldki_editor_scene_load(editor, &entry->path);
   }
@@ -958,7 +1353,16 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
 {
   if (is_directory)
   {
-    s_project_explorer_directory_select(state, &entry->path, true);
+    if (entry->package_backed)
+    {
+      x_smallstr_from_cstr(
+          &state->selected_package_directory, entry->path.buf);
+      memset(&state->selected_file, 0, sizeof(state->selected_file));
+    }
+    else
+    {
+      s_project_explorer_directory_select(state, &entry->path, true);
+    }
     return;
   }
 
@@ -1718,9 +2122,9 @@ static ProjectExplorerTileResult s_project_explorer_tile(
 }
 
 static void s_project_explorer_path_drag_source(
-    LDKUIContext *ui, const XFSPath *path, LDKUIIcon icon)
+    LDKUIContext *ui, const ProjectExplorerEntry *entry, LDKUIIcon icon)
 {
-  if (ui == NULL || path == NULL || ui->mouse == NULL ||
+  if (ui == NULL || entry == NULL || ui->mouse == NULL ||
       ui->active_id != ui->last_id)
   {
     return;
@@ -1730,8 +2134,18 @@ static void s_project_explorer_path_drag_source(
 
   if (ldk_os_mouse_button_down(mouse, LDK_MOUSE_BUTTON_LEFT))
   {
-    ldk_ui_drag_n_drop_payload_set(
-        LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, path);
+    if (entry->package_backed && !entry->is_directory && entry->asset_path.length)
+    {
+      XSmallstr payload = {0};
+      x_smallstr_from_cstr(&payload, entry->asset_path.buf);
+      ldk_ui_drag_n_drop_payload_set(
+          LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH, &payload);
+    }
+    else if (!entry->package_backed)
+    {
+      ldk_ui_drag_n_drop_payload_set(
+          LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH, &entry->path);
+    }
   }
 
   ldk_ui_drag_n_drop_preview_draw(ui, icon);
@@ -1767,7 +2181,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       ldk_ui_set_next_weight(ui, 0.0f);
       bool icon_clicked = ldk_ui_icon_button(ui, entry_icon, NULL);
       s_project_explorer_path_drag_source(
-          ui, &entry->path, entry_icon);
+          ui, entry, entry_icon);
       bool renaming = s_project_explorer_rename_matches(
           state, &entry->path, PROJECT_EXPLORER_SURFACE_FILES);
       bool label_clicked = false;
@@ -1779,7 +2193,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       {
         label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
         s_project_explorer_path_drag_source(
-            ui, &entry->path, entry_icon);
+            ui, entry, entry_icon);
       }
 
       ldk_ui_end_horizontal(ui);
@@ -1792,7 +2206,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
         s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }
 
-      if (right_clicked)
+      if (right_clicked && !entry->package_backed)
       {
         s_project_explorer_on_right_click(
             ui, state, entry, is_directory, PROJECT_EXPLORER_SURFACE_FILES);
@@ -1838,14 +2252,14 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
       s_project_explorer_path_drag_source(
-          ui, &entry->path, entry_icon);
+          ui, entry, entry_icon);
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
         s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }
 
-      if (result.right_clicked)
+      if (result.right_clicked && !entry->package_backed)
       {
         s_project_explorer_on_right_click(
             ui, state, entry, is_directory, PROJECT_EXPLORER_SURFACE_FILES);
@@ -1883,7 +2297,11 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
 
   XFSPath relative_directory = {0};
   const char* path = NULL;
-  if (x_fs_path_relative_to(
+  if (state->selected_package >= 0)
+  {
+    path = state->selected_package_directory.buf;
+  }
+  else if (x_fs_path_relative_to(
           &state->root, &state->selected_directory, &relative_directory) > 0)
   {
     path = relative_directory.buf;
@@ -1897,16 +2315,40 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   bool toplevel = strncmp(path, ".", 1) == 0 || strlen(path) == 0;
   ldk_ui_begin_disabled(ui, toplevel);
   if (ldk_ui_icon_button(ui, up_dir_icon, NULL))
-  {    XFSPath up_path = {0};
-    x_fs_directory_parent(&state->selected_directory, &up_path);
-    s_project_explorer_directory_select(state, &up_path, true);
-    printf("UP to %.*s\n", (i32) up_path.length, up_path.buf);
+  {
+    if (state->selected_package >= 0)
+    {
+      char parent[LDK_ASSET_PATH_MAX_LENGTH + 1];
+      snprintf(parent, sizeof(parent), "%s", state->selected_package_directory.buf);
+      char *slash = strrchr(parent, '/');
+      if (slash) *slash = 0; else parent[0] = 0;
+      x_smallstr_from_cstr(&state->selected_package_directory, parent);
+      memset(&state->selected_file, 0, sizeof(state->selected_file));
+    }
+    else
+    {
+      XFSPath up_path = {0};
+      x_fs_directory_parent(&state->selected_directory, &up_path);
+      s_project_explorer_directory_select(state, &up_path, true);
+    }
     return;
   }
   ldk_ui_end_disabled(ui);
 
   // full path label
-  ldk_ui_label(ui, path);
+  if (state->selected_package >= 0)
+  {
+    ProjectExplorerPackageMount *mount =
+        x_array_get(state->package_mounts, (u32)state->selected_package);
+    char package_path[X_SMALLSTR_MAX_LENGTH + LDK_ASSET_PATH_MAX_LENGTH + 4];
+    snprintf(package_path, sizeof(package_path), "%s%s%s", mount->name.buf,
+        path[0] ? "/" : "", path);
+    ldk_ui_label(ui, package_path);
+  }
+  else
+  {
+    ldk_ui_label(ui, path);
+  }
   ldk_ui_spacer(ui);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
@@ -1927,13 +2369,23 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
       ui, state->file_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
   LDKUIRect file_view_rect = ui->clip_rect;
 
-  s_project_explorer_directory_read(
-      &state->selected_directory, state->dirs, state->files);
+  if (state->selected_package >= 0)
+  {
+    s_project_explorer_package_directory_read(state,
+        (u32)state->selected_package, state->selected_package_directory.buf,
+        state->dirs, state->files);
+  }
+  else
+  {
+    s_project_explorer_directory_read(
+        &state->selected_directory, state->dirs, state->files);
+  }
   bool right_click_handled = s_project_explorer_entries_draw(
       editor, state, ui, folder_icon, file_icon);
 
-  if (!right_click_handled && s_project_explorer_rect_button_down(
-                                  ui, file_view_rect, LDK_MOUSE_BUTTON_RIGHT))
+  if (state->selected_package < 0 && !right_click_handled &&
+      s_project_explorer_rect_button_down(
+          ui, file_view_rect, LDK_MOUSE_BUTTON_RIGHT))
   {
     ProjectExplorerEntry directory_entry = {0};
     directory_entry.path = state->selected_directory;
