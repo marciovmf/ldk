@@ -1416,15 +1416,14 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
           action_rule = rule_i;
         }
         ldk_ui_end_horizontal(ui);
+        ldk_ui_pop_id(ui);
+      }
 
         ldk_ui_begin_horizontal(ui);
         ldk_ui_spacer(ui);
         s_package_catalog_build_info_show(editor, package);
         ldk_ui_spacer(ui);
         ldk_ui_end_horizontal(ui);
-
-        ldk_ui_pop_id(ui);
-      }
     }
 
     ldk_ui_spacer(ui);
