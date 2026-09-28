@@ -706,6 +706,22 @@ static bool s_ui_input_keyboard_enter_pressed(LDKUIContext *ctx)
 }
 
 /**
+ * Checks whether Space was pressed during the current frame.
+ * @arg ctx UI context that provides the current keyboard state.
+ * @return true when Space was pressed. False otherwise.
+ */
+static bool s_ui_input_keyboard_space_pressed(LDKUIContext *ctx)
+{
+  if (ctx->keyboard == NULL)
+  {
+    return false;
+  }
+
+  return ldk_os_keyboard_key_down(
+      (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SPACE);
+}
+
+/**
  * Checks whether the Left Arrow key was pressed during the current frame.
  * @arg ctx UI context that provides the current keyboard state.
  * @return true when Left Arrow was pressed. False otherwise.
@@ -2050,17 +2066,128 @@ static bool s_ui_take_next_disabled(LDKUIContext *ctx)
 }
 
 /**
+ * Finds the control that should receive focus after a Tab key press.
+ * Uses the focus order collected during the previous frame so forward and
+ * backward traversal have identical behavior in immediate mode.
+ * @arg ctx UI context containing the previous frame focus order.
+ * @arg backwards Whether traversal should move to the previous control.
+ */
+static void s_ui_tab_focus_resolve(LDKUIContext *ctx, bool backwards)
+{
+  u32 count;
+  u32 first_index = UINT32_MAX;
+  u32 last_index = UINT32_MAX;
+  u32 previous_index = UINT32_MAX;
+  u32 next_index = UINT32_MAX;
+  u32 focused_index = UINT32_MAX;
+  LDKUIId window_id;
+
+  if (ctx == NULL || ctx->previous_tab_focus_entries == NULL)
+  {
+    return;
+  }
+
+  count = x_array_ldk_ui_tab_focus_entry_count(
+      ctx->previous_tab_focus_entries);
+  window_id = ctx->focused_window_id;
+
+  for (u32 i = 0; i < count; ++i)
+  {
+    LDKUITabFocusEntry *entry = x_array_ldk_ui_tab_focus_entry_get(
+        ctx->previous_tab_focus_entries, i);
+
+    if (entry == NULL || entry->window_id != window_id)
+    {
+      continue;
+    }
+
+    if (first_index == UINT32_MAX)
+    {
+      first_index = i;
+    }
+
+    last_index = i;
+
+    if (focused_index == UINT32_MAX)
+    {
+      if (entry->item_id == ctx->focused_id)
+      {
+        focused_index = i;
+      }
+      else
+      {
+        previous_index = i;
+      }
+    }
+    else if (next_index == UINT32_MAX)
+    {
+      next_index = i;
+    }
+  }
+
+  if (first_index == UINT32_MAX)
+  {
+    return;
+  }
+
+  u32 target_index;
+
+  if (focused_index == UINT32_MAX)
+  {
+    target_index = backwards ? last_index : first_index;
+  }
+  else if (backwards)
+  {
+    target_index = previous_index != UINT32_MAX ? previous_index : last_index;
+  }
+  else
+  {
+    target_index = next_index != UINT32_MAX ? next_index : first_index;
+  }
+
+  LDKUITabFocusEntry *target = x_array_ldk_ui_tab_focus_entry_get(
+      ctx->previous_tab_focus_entries, target_index);
+
+  if (target != NULL)
+  {
+    ctx->tab_focus_id = target->item_id;
+    ctx->tab_focus_window_id = target->window_id;
+  }
+}
+
+/**
+ * Registers a focusable control in the current frame Tab order.
+ * @arg ctx UI context that owns the focus order.
+ * @arg id Identifier of the focusable control.
+ */
+static void s_ui_tab_focus_register(LDKUIContext *ctx, LDKUIId id)
+{
+  LDKUITabFocusEntry entry = {0};
+
+  if (ctx == NULL || ctx->tab_focus_entries == NULL || id == 0)
+  {
+    return;
+  }
+
+  entry.window_id = ctx->current_window != NULL ? ctx->current_window->id : 0;
+  entry.item_id = id;
+  x_array_ldk_ui_tab_focus_entry_push(ctx->tab_focus_entries, entry);
+}
+
+/**
  * Calculates item interaction and visual state for the current frame.
  * @arg ctx UI context containing mouse, focus, and active item state.
  * @arg id Identifier of the item being evaluated.
  * @arg rect Screen-space rectangle occupied by the item.
  * @arg clip Clip rectangle that limits the item's interactive area.
  * @arg focusable Whether pressing the item can assign keyboard focus.
+ * @arg keyboard_clickable Whether Enter or Space can activate the item.
  * @arg disabled Whether the item must ignore interaction.
  * @return Complete per-frame interaction and visual state for the item.
  */
 static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
-    LDKUIRect rect, LDKUIRect clip, bool focusable, bool disabled)
+    LDKUIRect rect, LDKUIRect clip, bool focusable, bool keyboard_clickable,
+    bool disabled)
 {
   LDKUIFrameState state = {0};
   bool focus_requested = false;
@@ -2079,6 +2206,21 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
   if (focus_requested)
   {
     ctx->next_focus = false;
+  }
+
+  if (focusable && !disabled)
+  {
+    LDKUIId window_id =
+        ctx->current_window != NULL ? ctx->current_window->id : 0;
+
+    s_ui_tab_focus_register(ctx, id);
+
+    if (ctx->tab_focus_id == id && ctx->tab_focus_window_id == window_id)
+    {
+      focus_requested = true;
+      ctx->tab_focus_id = 0;
+      ctx->tab_focus_window_id = 0;
+    }
   }
 
   if (disabled)
@@ -2153,7 +2295,14 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
 
   state.clicked = state.active && state.hot && state.released;
 
-  if (state.active && state.hot)
+  if (focusable && keyboard_clickable && state.focused &&
+      (s_ui_input_keyboard_enter_pressed(ctx) ||
+          s_ui_input_keyboard_space_pressed(ctx)))
+  {
+    state.clicked = true;
+  }
+
+  if (state.active && (state.hot || state.focused))
   {
     state.visual_state = LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED;
   }
@@ -2161,7 +2310,7 @@ static LDKUIFrameState s_ui_frame_state(LDKUIContext *ctx, LDKUIId id,
   {
     state.visual_state = LDK_UI_CONTROL_VISUAL_STATE_ACTIVE;
   }
-  else if (state.hot)
+  else if (state.hot || state.focused)
   {
     state.visual_state = LDK_UI_CONTROL_VISUAL_STATE_HOVERED;
   }
@@ -2203,6 +2352,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
       x_array_ldk_ui_draw_cmd_create(config->initial_command_capacity);
   ctx->disabled_stack = x_array_ldk_ui_bool_create(8);
   ctx->hit_candidates = x_array_ldk_ui_hit_candidate_create(128);
+  ctx->tab_focus_entries = x_array_ldk_ui_tab_focus_entry_create(128);
+  ctx->previous_tab_focus_entries = x_array_ldk_ui_tab_focus_entry_create(128);
   ctx->layout_stack =
       x_array_ldk_ui_layout_create(LDK_UI_LAYOUT_STACK_CAPACITY);
   ctx->windows = x_array_ldk_ui_window_create(initial_window_capacity);
@@ -2245,7 +2396,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
          ctx->commands != NULL && ctx->popup_vertices != NULL &&
          ctx->popup_indices != NULL && ctx->popup_commands != NULL &&
          ctx->disabled_stack != NULL && ctx->hit_candidates != NULL &&
-         ctx->layout_stack != NULL && ctx->open_popups != NULL &&
+         ctx->tab_focus_entries != NULL &&
+         ctx->previous_tab_focus_entries != NULL && ctx->layout_stack != NULL && ctx->open_popups != NULL &&
          ctx->popup_stack != NULL && ctx->popup_frame_entries != NULL &&
          ctx->popup_cache != NULL && ctx->windows != NULL &&
          ctx->window_stack != NULL && ctx->measure_entries != NULL &&
@@ -2274,6 +2426,8 @@ void ldk_ui_terminate(LDKUIContext *ctx)
   x_array_destroy(ctx->popup_commands);
   x_array_destroy(ctx->disabled_stack);
   x_array_destroy(ctx->hit_candidates);
+  x_array_destroy(ctx->tab_focus_entries);
+  x_array_destroy(ctx->previous_tab_focus_entries);
   x_array_destroy(ctx->layout_stack);
   x_array_destroy(ctx->open_popups);
   x_array_destroy(ctx->popup_stack);
@@ -2338,6 +2492,25 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   ctx->hit_order = 0;
   ctx->last_rect = (LDKUIRect){0};
   ctx->last_bounding_rect = (LDKUIRect){0};
+  ctx->tab_focus_id = 0;
+  ctx->tab_focus_window_id = 0;
+
+  {
+    XArray_ldk_ui_tab_focus_entry *previous =
+        ctx->previous_tab_focus_entries;
+    ctx->previous_tab_focus_entries = ctx->tab_focus_entries;
+    ctx->tab_focus_entries = previous;
+    x_array_ldk_ui_tab_focus_entry_clear(ctx->tab_focus_entries);
+  }
+
+  if (ctx->keyboard != NULL &&
+      ldk_os_keyboard_key_down(
+          (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_TAB))
+  {
+    bool backwards = ldk_os_keyboard_key_is_pressed(
+        (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_SHIFT);
+    s_ui_tab_focus_resolve(ctx, backwards);
+  }
 
   x_arena_reset_keep_head(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);

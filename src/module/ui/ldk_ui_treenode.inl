@@ -92,7 +92,7 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   }
 
   LDKUIFrameState frame =
-      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
   if ((flags & LDK_UI_TREE_NODE_SELECTED))
   {

@@ -521,7 +521,14 @@ extern "C"
     u32 order;
   };
 
+  typedef struct LDKUITabFocusEntry
+  {
+    LDKUIId window_id;
+    LDKUIId item_id;
+  } LDKUITabFocusEntry;
+
   X_ARRAY_TYPE_NAMED(LDKUIHitCandidate, ldk_ui_hit_candidate);
+  X_ARRAY_TYPE_NAMED(LDKUITabFocusEntry, ldk_ui_tab_focus_entry);
 
   typedef struct LDKUIAreaStackEntry
   {
@@ -602,6 +609,8 @@ extern "C"
     XArray_ldk_ui_draw_cmd *popup_commands;
     XArray_ldk_ui_bool *disabled_stack;
     XArray_ldk_ui_hit_candidate *hit_candidates;
+    XArray_ldk_ui_tab_focus_entry *tab_focus_entries;
+    XArray_ldk_ui_tab_focus_entry *previous_tab_focus_entries;
 
     XArray_ldk_ui_layout *layout_stack;
     u32 layout_frame_index;
@@ -650,6 +659,8 @@ extern "C"
     LDKUIId focused_id;
     LDKUIId last_id;
     LDKUIId input_box_id;
+    LDKUIId tab_focus_id;
+    LDKUIId tab_focus_window_id;
 
     LDKUIId hovered_window_id;
     LDKUIId focused_window_id;

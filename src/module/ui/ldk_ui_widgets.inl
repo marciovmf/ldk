@@ -123,7 +123,7 @@ bool ldk_ui_widget_button(
     return false;
   }
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   text_size = s_ui_widget_text_size(ctx, text);
 
   bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
@@ -156,7 +156,7 @@ bool ldk_ui_widget_color_view(
     return false;
   }
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   //bg = s_ui_render_control_bg_color(ctx, color);
   border = s_ui_render_control_border_color(ctx, frame.visual_state);
 
@@ -186,7 +186,7 @@ bool ldk_ui_widget_button_flat(
     return false;
   }
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   text_size = s_ui_widget_text_size(ctx, text);
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
@@ -222,7 +222,7 @@ bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   }
 
   LDKUIFrameState frame =
-      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
   u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
@@ -281,7 +281,7 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   }
 
   LDKUIFrameState frame =
-      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
   u32 bg = active ? ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BG]
                   : ctx->theme.colors[LDK_UI_COLOR_TAB_BG];
@@ -334,7 +334,7 @@ bool ldk_ui_widget_toggle(
     return value;
   }
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
   if (frame.clicked)
   {
@@ -400,7 +400,7 @@ float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
     return value;
   }
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
   base_height = s_ui_maxf(box.rect.h, 1.0f);
   track_height_factor = s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
@@ -494,7 +494,7 @@ static float s_ui_widget_scrollbar(LDKUIContext *ctx, LDKUIId id, float scroll,
   s_ui_scrollbar_rects(box.rect, visible_size, content_size, scroll, horizontal,
       &track_rect, &thumb_rect);
 
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
   if (frame.hot && frame.pressed)
   {
@@ -1224,7 +1224,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
 
   buffer_len = s_ui_text_cstr_len_u32(buffer);
   text_size = s_ui_widget_text_size(ctx, buffer);
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
   previous_text_cursor = ctx->text_cursor;
   previous_text_select_start = ctx->text_select_start;
@@ -1501,7 +1501,7 @@ static void s_ui_widget_selectable_text(LDKUIContext *ctx, LDKUIId id,
   }
 
   text_length = s_ui_text_cstr_len_u32(text);
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
   if (frame.pressed && frame.hot)
   {
@@ -1703,7 +1703,7 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
   }
 
   LDKUIFrameState frame =
-      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, box.disabled);
+      s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
   u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
