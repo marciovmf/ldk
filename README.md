@@ -3,7 +3,7 @@
 ![ldk_editor](ldk_editor_a.png)
 ![ldk_editor](ldk_editor_b.png)
 
-LDK is a 3D game engine written in C, built from scratch on top of [STDX](https://handmadegame.dev/stdx/).
+LDK is a 3D game engine written in C, built from scratch on top of [STDX](https://github.com/marciovmf/stdx).
 
 It is made for the games I want to build. It is not trying to be a universal engine, replace C with an object model, or hide the runtime behind an editor.
 
