@@ -89,6 +89,44 @@ static u64 s_path_hash(const char *path)
   return hash;
 }
 
+bool ldk_package_file_hash(const char *path, u64 *out_hash)
+{
+  FILE *file;
+  u8 buffer[LDK_PACKAGE_IO_BUFFER_SIZE];
+  size_t read_size;
+  u64 hash = 14695981039346656037ull;
+
+  if (!path || !path[0] || !out_hash)
+  {
+    return false;
+  }
+
+  file = fopen(path, "rb");
+  if (!file)
+  {
+    return false;
+  }
+
+  while ((read_size = fread(buffer, 1, sizeof(buffer), file)) > 0)
+  {
+    for (size_t i = 0; i < read_size; ++i)
+    {
+      hash ^= buffer[i];
+      hash *= 1099511628211ull;
+    }
+  }
+
+  if (ferror(file))
+  {
+    fclose(file);
+    return false;
+  }
+
+  fclose(file);
+  *out_hash = hash;
+  return true;
+}
+
 static bool s_package_path_component_valid(
     const char *component, size_t length)
 {

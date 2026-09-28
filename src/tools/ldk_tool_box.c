@@ -955,6 +955,7 @@ static void s_usage(const char *program)
   printf("      --package <file.box> <rules> "
          "[--package <file.box> <rules> ...]\n");
   printf("  %s list <package.box>\n", program);
+  printf("  %s manifest --input <game.ini> --package <file.box> [--package <file.box> ...]\n", program);
   printf("  %s extract <package.box> <entry> <destination>\n", program);
   printf("  %s extract-all <package.box> <destination-directory>\n", program);
 }
@@ -1033,6 +1034,266 @@ static int s_extract_all(
   return ok ? 0 : 1;
 }
 
+static bool s_ini_line_is_section(const char *line, const char *name)
+{
+  const char *p = line;
+  const char *end;
+  size_t name_length;
+
+  while (*p == ' ' || *p == '\t')
+  {
+    ++p;
+  }
+  if (*p != '[')
+  {
+    return false;
+  }
+
+  end = strchr(p + 1, ']');
+  if (!end)
+  {
+    return false;
+  }
+
+  ++p;
+  while (p < end && isspace((unsigned char)*p))
+  {
+    ++p;
+  }
+  while (end > p && isspace((unsigned char)end[-1]))
+  {
+    --end;
+  }
+
+  name_length = strlen(name);
+  return (size_t)(end - p) == name_length &&
+         memcmp(p, name, name_length) == 0;
+}
+
+static bool s_ini_line_starts_section(const char *line)
+{
+  const char *p = line;
+  while (*p == ' ' || *p == '\t')
+  {
+    ++p;
+  }
+  return *p == '[' && strchr(p + 1, ']') != NULL;
+}
+
+static const char *s_path_basename(const char *path)
+{
+  const char *name = path;
+  if (!path)
+  {
+    return NULL;
+  }
+
+  for (const char *p = path; *p; ++p)
+  {
+    if (*p == '/' || *p == '\\')
+    {
+      name = p + 1;
+    }
+  }
+  return name;
+}
+
+static int s_manifest(int argc, char **argv)
+{
+  const char *input = NULL;
+  const char **packages = NULL;
+  u32 package_count = 0;
+  u32 package_capacity = 0;
+  char *temporary = NULL;
+  char *backup = NULL;
+  FILE *in = NULL;
+  FILE *out = NULL;
+  bool skip_packages = false;
+  bool ok = false;
+  int result = 1;
+
+  for (int i = 2; i < argc; ++i)
+  {
+    if (strcmp(argv[i], "--input") == 0 && i + 1 < argc)
+    {
+      input = argv[++i];
+    }
+    else if (strcmp(argv[i], "--package") == 0 && i + 1 < argc)
+    {
+      if (package_count == package_capacity)
+      {
+        u32 capacity = package_capacity ? package_capacity * 2u : 8u;
+        const char **resized = realloc(packages,
+            sizeof(*packages) * (size_t)capacity);
+        if (!resized)
+        {
+          goto done;
+        }
+        packages = resized;
+        package_capacity = capacity;
+      }
+      packages[package_count++] = argv[++i];
+    }
+    else
+    {
+      fprintf(stderr, "Invalid manifest argument '%s'.\n", argv[i]);
+      goto done;
+    }
+  }
+
+  if (!input || !input[0])
+  {
+    fprintf(stderr, "manifest requires --input <game.ini>.\n");
+    goto done;
+  }
+
+  size_t input_length = strlen(input);
+  temporary = malloc(input_length + strlen(".box-manifest.tmp") + 1u);
+  backup = malloc(input_length + strlen(".box-manifest.bak") + 1u);
+  if (!temporary || !backup)
+  {
+    goto done;
+  }
+  memcpy(temporary, input, input_length);
+  memcpy(temporary + input_length, ".box-manifest.tmp",
+      strlen(".box-manifest.tmp") + 1u);
+  memcpy(backup, input, input_length);
+  memcpy(backup + input_length, ".box-manifest.bak",
+      strlen(".box-manifest.bak") + 1u);
+
+  if (x_fs_path_exists_cstr(temporary) || x_fs_path_exists_cstr(backup))
+  {
+    fprintf(stderr, "Runtime manifest update blocked by stale temporary files.\n");
+    goto done;
+  }
+  in = fopen(input, "rb");
+  out = fopen(temporary, "wb");
+  if (!in || !out)
+  {
+    fprintf(stderr, "Failed to open runtime manifest '%s'.\n", input);
+    goto done;
+  }
+
+  char line[4096];
+  while (fgets(line, sizeof(line), in))
+  {
+    if (s_ini_line_starts_section(line))
+    {
+      skip_packages = s_ini_line_is_section(line, "packages");
+    }
+    if (!skip_packages && fputs(line, out) == EOF)
+    {
+      goto done;
+    }
+  }
+  if (ferror(in))
+  {
+    goto done;
+  }
+
+  if (package_count > 0)
+  {
+    if (fputs("\n[packages]\n", out) == EOF)
+    {
+      goto done;
+    }
+
+    for (u32 i = 0; i < package_count; ++i)
+    {
+      const char *name = s_path_basename(packages[i]);
+      u64 hash;
+      LDKPackage *package;
+      if (!name || !name[0] || strchr(name, '=') || strchr(name, '\n') ||
+          strchr(name, '\r'))
+      {
+        fprintf(stderr, "Invalid runtime package path '%s'.\n", packages[i]);
+        goto done;
+      }
+
+      package = ldk_package_open(packages[i]);
+      if (!package)
+      {
+        fprintf(stderr, "Invalid runtime package '%s'.\n", packages[i]);
+        goto done;
+      }
+      ldk_package_close(package);
+
+      if (!ldk_package_file_hash(packages[i], &hash))
+      {
+        fprintf(stderr, "Failed to hash package '%s'.\n", packages[i]);
+        goto done;
+      }
+
+      for (u32 j = 0; j < i; ++j)
+      {
+        const char *other = s_path_basename(packages[j]);
+        if (other && strcmp(other, name) == 0)
+        {
+          fprintf(stderr, "Duplicate runtime package name '%s'.\n", name);
+          goto done;
+        }
+      }
+
+      if (fprintf(out, "%s=%016llx\n", name,
+              (unsigned long long)hash) < 0)
+      {
+        goto done;
+      }
+    }
+  }
+
+  if (fclose(in) != 0)
+  {
+    in = NULL;
+    goto done;
+  }
+  in = NULL;
+  if (fclose(out) != 0)
+  {
+    out = NULL;
+    goto done;
+  }
+  out = NULL;
+
+  if (!x_fs_file_rename(input, backup))
+  {
+    fprintf(stderr, "Failed to back up runtime package manifest '%s'.\n", input);
+    goto done;
+  }
+  if (!x_fs_file_rename(temporary, input))
+  {
+    x_fs_file_rename(backup, input);
+    fprintf(stderr, "Failed to install runtime package manifest '%s'.\n", input);
+    goto done;
+  }
+  if (!x_fs_file_delete(backup))
+  {
+    fprintf(stderr, "Warning: failed to remove runtime manifest backup '%s'.\n",
+        backup);
+  }
+
+  ok = true;
+  result = 0;
+
+done:
+  if (in)
+  {
+    fclose(in);
+  }
+  if (out)
+  {
+    fclose(out);
+  }
+  if (!ok && temporary)
+  {
+    remove(temporary);
+  }
+  free(temporary);
+  free(backup);
+  free(packages);
+  return result;
+}
+
 int main(int argc, char **argv)
 {
   if (argc >= 2 && strcmp(argv[1], "pack") == 0)
@@ -1043,6 +1304,11 @@ int main(int argc, char **argv)
   if (argc == 3 && strcmp(argv[1], "list") == 0)
   {
     return s_list(argv[2]);
+  }
+
+  if (argc >= 4 && strcmp(argv[1], "manifest") == 0)
+  {
+    return s_manifest(argc, argv);
   }
 
   if (argc == 5 && strcmp(argv[1], "extract") == 0)

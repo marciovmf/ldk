@@ -967,12 +967,24 @@ static bool s_project_explorer_package_directory_read(
   return true;
 }
 
+
+void ldki_editor_file_explorer_package_mounts_clear(void)
+{
+  s_project_explorer_package_mounts_clear(&s_project_explorer_state);
+}
+
 bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path)
 {
   ProjectExplorerState *state = &s_project_explorer_state;
   if (!editor || !package_path || !x_fs_path_is_file(package_path) ||
       !s_project_explorer_initialize(state))
+  {
+    return false;
+  }
+
+  if (editor->project.loaded &&
+      !s_project_explorer_root_set(state, editor->project.run_root_path.buf))
   {
     return false;
   }

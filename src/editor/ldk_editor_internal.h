@@ -434,5 +434,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path);
+void ldki_editor_file_explorer_package_mounts_clear(void);
+bool ldki_editor_project_import_packages_reload(LDKEditorContext *editor);
 
 #endif // LDK_EDITOR_INTERNAL

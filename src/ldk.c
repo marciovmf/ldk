@@ -1034,6 +1034,42 @@ void *ldk_module_get(LDKModuleType module_type)
   return NULL;
 }
 
+static bool s_package_hash_parse(const char *text, u64 *out_hash)
+{
+  u64 value = 0;
+
+  if (!text || !out_hash || strlen(text) != 16u)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < 16u; ++i)
+  {
+    unsigned char c = (unsigned char)text[i];
+    u64 digit;
+    if (c >= '0' && c <= '9')
+    {
+      digit = (u64)(c - '0');
+    }
+    else if (c >= 'a' && c <= 'f')
+    {
+      digit = (u64)(c - 'a' + 10u);
+    }
+    else if (c >= 'A' && c <= 'F')
+    {
+      digit = (u64)(c - 'A' + 10u);
+    }
+    else
+    {
+      return false;
+    }
+    value = (value << 4u) | digit;
+  }
+
+  *out_hash = value;
+  return true;
+}
+
 static bool s_asset_packages_open(
     LDKAssetSource *source, const XIni *ini)
 {
@@ -1065,13 +1101,25 @@ static bool s_asset_packages_open(
   for (int i = 0; i < x_ini_key_count(ini, section); ++i)
   {
     const char *name = x_ini_key_name(ini, section, i);
+    const char *hash_text = x_ini_value_at(ini, section, i);
     XFSPath package_path = {0};
+    u64 expected_hash;
+    u64 actual_hash;
+
     if (!name || !name[0] ||
+        !s_package_hash_parse(hash_text, &expected_hash) ||
         !x_fs_path(&package_path, executable_directory.buf, name) ||
-        !ldk_asset_source_package_open(source, package_path.buf))
+        !ldk_package_file_hash(package_path.buf, &actual_hash) ||
+        actual_hash != expected_hash)
     {
-      ldk_log_error("Failed to open asset package '%s'.\n",
+      ldk_log_error("Asset package '%s' is missing, invalid, or does not match its manifest hash.\n",
           name ? name : "");
+      return false;
+    }
+
+    if (!ldk_asset_source_package_open(source, package_path.buf))
+    {
+      ldk_log_error("Failed to open asset package '%s'.\n", name);
       return false;
     }
   }

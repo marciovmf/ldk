@@ -23,6 +23,9 @@ extern "C"
   /* Returns true when path is a valid logical path inside a package. */
   LDK_API bool ldk_package_path_is_valid(const char *path);
 
+  /* Computes the FNV-1a 64-bit hash of the complete package file. */
+  LDK_API bool ldk_package_file_hash(const char *path, u64 *out_hash);
+
   /* Opens a package and loads its manifest. The package keeps its file handle
    * open until ldk_package_close(). */
   LDK_API LDKPackage *ldk_package_open(const char *path);

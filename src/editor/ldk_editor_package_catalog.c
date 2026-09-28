@@ -21,10 +21,27 @@ typedef struct LDKEditorPackageDefinition
   bool expanded;
 } LDKEditorPackageDefinition;
 
+typedef struct LDKEditorPackageImport
+{
+  XSmallstr path;
+  bool distribute;
+} LDKEditorPackageImport;
+
+typedef struct LDKEditorEnginePackage
+{
+  XSmallstr name;
+  bool selected;
+} LDKEditorEnginePackage;
+
+#define LDK_EDITOR_PACKAGE_IMPORT_POPUP_ID 0x504b4749u
+
 typedef struct LDKEditorPackageCatalogState
 {
   XFSPath project_path;
   XArray *packages;
+  XArray *imports;
+  XArray *engine_packages;
+  LDKUIPoint engine_packages_scroll;
   u32 selected;
   LDKUIPoint scroll;
   char package_input[X_SMALLSTR_MAX_LENGTH + 1];
@@ -65,6 +82,14 @@ static void s_package_catalog_clear(void)
       s_package_definition_terminate(package);
     }
     x_array_destroy(s_package_catalog.packages);
+  }
+  if (s_package_catalog.imports)
+  {
+    x_array_destroy(s_package_catalog.imports);
+  }
+  if (s_package_catalog.engine_packages)
+  {
+    x_array_destroy(s_package_catalog.engine_packages);
   }
 
   memset(&s_package_catalog, 0, sizeof(s_package_catalog));
@@ -363,7 +388,9 @@ static bool s_package_catalog_load(LDKEditorContext *editor)
   s_package_catalog_clear();
   s_package_catalog.packages =
       x_array_create(sizeof(LDKEditorPackageDefinition), 8);
-  if (!s_package_catalog.packages)
+  s_package_catalog.imports =
+      x_array_create(sizeof(LDKEditorPackageImport), 8);
+  if (!s_package_catalog.packages || !s_package_catalog.imports)
   {
     s_package_catalog_error_set("Could not allocate package catalog.");
     return false;
@@ -382,7 +409,41 @@ static bool s_package_catalog_load(LDKEditorContext *editor)
   for (i32 section_i = 0; section_i < x_ini_section_count(&ini); ++section_i)
   {
     const char *section = x_ini_section_name(&ini, section_i);
-    if (!section || strcmp(section, "packages") != 0)
+    if (!section)
+    {
+      continue;
+    }
+
+    if (strcmp(section, ".box_imports") == 0 || strcmp(section, ".import") == 0)
+    {
+      i32 key_count = x_ini_key_count(&ini, section_i);
+      for (i32 key_i = 0; key_i < key_count; ++key_i)
+      {
+        const char *path = x_ini_key_name(&ini, section_i, key_i);
+        const char *value = x_ini_value_at(&ini, section_i, key_i);
+        LDKEditorPackageImport import = {0};
+        if (!path || !path[0] || !value ||
+            (strcmp(value, "0") != 0 && strcmp(value, "1") != 0) ||
+            strlen(path) > X_SMALLSTR_MAX_LENGTH)
+        {
+          snprintf(s_package_catalog.error, sizeof(s_package_catalog.error),
+              "Invalid [.box_imports] entry '%s'.", path ? path : "");
+          x_ini_free(&ini);
+          return false;
+        }
+        x_smallstr_from_cstr(&import.path, path);
+        import.distribute = strcmp(value, "1") == 0;
+        if (x_array_add(s_package_catalog.imports, &import) != 0)
+        {
+          s_package_catalog_error_set("Could not allocate imported package.");
+          x_ini_free(&ini);
+          return false;
+        }
+      }
+      continue;
+    }
+
+    if (strcmp(section, ".box") != 0 && strcmp(section, "packages") != 0)
     {
       continue;
     }
@@ -460,8 +521,8 @@ static bool s_package_catalog_line_is_section(
          memchr(line, ']', (size_t)(end - line)) != NULL;
 }
 
-static bool s_package_catalog_section_is_packages(
-    const char *line, const char *end)
+static bool s_package_catalog_section_is_named(
+    const char *line, const char *end, const char *name)
 {
   const char *p = line;
   const char *close;
@@ -491,7 +552,9 @@ static bool s_package_catalog_section_is_packages(
     --close;
   }
 
-  return close - p == 8 && memcmp(p, "packages", 8) == 0;
+  size_t name_length = strlen(name);
+  return (size_t)(close - p) == name_length &&
+         memcmp(p, name, name_length) == 0;
 }
 
 static bool s_package_catalog_rules_validate(void)
@@ -550,7 +613,8 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
   bool ok = false;
   long file_size;
 
-  if (!editor || !editor->project.loaded || !s_package_catalog.packages)
+  if (!editor || !editor->project.loaded || !s_package_catalog.packages ||
+      !s_package_catalog.imports)
   {
     return false;
   }
@@ -623,7 +687,10 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
 
     if (s_package_catalog_line_is_section(line, end))
     {
-      skip = s_package_catalog_section_is_packages(line, end);
+      skip = s_package_catalog_section_is_named(line, end, ".box") ||
+             s_package_catalog_section_is_named(line, end, ".box_imports") ||
+             s_package_catalog_section_is_named(line, end, "packages") ||
+             s_package_catalog_section_is_named(line, end, ".import");
     }
 
     if (!skip && fwrite(line, 1, (size_t)(end - line), out) !=
@@ -635,7 +702,7 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
     line = end;
   }
 
-  fputs("\n[packages]\n", out);
+  fputs("\n[.box]\n", out);
   for (u32 package_i = 0;
        package_i < x_array_count(s_package_catalog.packages); ++package_i)
   {
@@ -674,6 +741,18 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
       }
     }
     fputs("\"\n", out);
+  }
+
+  if (x_array_count(s_package_catalog.imports) > 0)
+  {
+    fputs("\n[.box_imports]\n", out);
+    for (u32 import_i = 0;
+         import_i < x_array_count(s_package_catalog.imports); ++import_i)
+    {
+      LDKEditorPackageImport *import =
+          x_array_get(s_package_catalog.imports, import_i);
+      fprintf(out, "%s=%u\n", import->path.buf, import->distribute ? 1u : 0u);
+    }
   }
 
   if (ferror(out) || fclose(out) != 0)
@@ -829,6 +908,365 @@ static bool s_package_catalog_path_rule(LDKEditorContext *editor,
   }
 
   return s_package_rule_normalize(relative.buf, out_rule);
+}
+
+static bool s_package_catalog_import_path_create(LDKEditorContext *editor,
+    const XFSPath *path, bool from_engine, XSmallstr *out_path)
+{
+  XFSPath root;
+  XFSPath normalized;
+  XFSPath relative = {0};
+  char buffer[X_SMALLSTR_MAX_LENGTH + 1];
+
+  if (!editor || !editor->project.loaded || !path || !out_path ||
+      !x_fs_path_is_file(path))
+  {
+    return false;
+  }
+
+  if (from_engine)
+  {
+    x_fs_path(&root, &editor->engine_root, "runtree");
+  }
+  else
+  {
+    root = editor->project.run_root_path;
+  }
+  normalized = *path;
+  x_fs_path_normalize(&root);
+  x_fs_path_normalize(&normalized);
+  if (x_fs_path_relative_to(&root, &normalized, &relative) == 0)
+  {
+    return false;
+  }
+  x_fs_path_normalize(&relative);
+  if (x_fs_path_is_absolute(&relative) || strcmp(relative.buf, "..") == 0 ||
+      strncmp(relative.buf, "../", 3) == 0 ||
+      strncmp(relative.buf, "..\\", 3) == 0)
+  {
+    return false;
+  }
+
+  const char *extension = strrchr(relative.buf, '.');
+  if (!extension || strcmp(extension, LDK_PACKAGE_FILE_EXTENSION) != 0)
+  {
+    return false;
+  }
+
+  for (char *p = relative.buf; *p; ++p)
+  {
+    if (*p == '\\')
+    {
+      *p = '/';
+    }
+  }
+
+  int written = snprintf(buffer, sizeof(buffer), "%s%s",
+      from_engine ? "@" : "", relative.buf);
+  if (written <= 0 || (size_t)written >= sizeof(buffer))
+  {
+    return false;
+  }
+  x_smallstr_from_cstr(out_path, buffer);
+  return true;
+}
+
+static bool s_package_catalog_import_add(LDKEditorContext *editor,
+    const XFSPath *path, bool from_engine)
+{
+  LDKEditorPackageImport import = {0};
+
+  if (!s_package_catalog.imports ||
+      !s_package_catalog_import_path_create(
+          editor, path, from_engine, &import.path))
+  {
+    s_package_catalog_error_set(from_engine
+        ? "Choose a .box file inside the engine RunTree."
+        : "Choose a .box file inside the project RunTree.");
+    return false;
+  }
+
+  for (u32 i = 0; i < x_array_count(s_package_catalog.imports); ++i)
+  {
+    LDKEditorPackageImport *existing =
+        x_array_get(s_package_catalog.imports, i);
+    if (strcmp(existing->path.buf, import.path.buf) == 0)
+    {
+      s_package_catalog_error_set("Package is already imported.");
+      return false;
+    }
+  }
+
+  import.distribute = false;
+  if (x_array_add(s_package_catalog.imports, &import) != 0)
+  {
+    s_package_catalog_error_set("Could not add imported package.");
+    return false;
+  }
+  s_package_catalog.error[0] = 0;
+  return true;
+}
+
+static void s_package_catalog_import_dialog(LDKEditorContext *editor)
+{
+  char path_buffer[sizeof(((XFSPath *)0)->buf)] = {0};
+  XFSPath path = {0};
+
+  if (!ldk_os_dialog_show_open_file(editor->window, "Import Package",
+          "*.box", path_buffer, sizeof(path_buffer)))
+  {
+    return;
+  }
+
+  x_fs_path_set(&path, path_buffer);
+  s_package_catalog_import_add(editor, &path, false);
+}
+
+static bool s_package_catalog_engine_imported(const char *name)
+{
+  char path[X_SMALLSTR_MAX_LENGTH + 1];
+  int written;
+
+  if (!name || !s_package_catalog.imports)
+  {
+    return false;
+  }
+
+  written = snprintf(path, sizeof(path), "@package/%s", name);
+  if (written <= 0 || (size_t)written >= sizeof(path))
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < x_array_count(s_package_catalog.imports); ++i)
+  {
+    const LDKEditorPackageImport *import =
+        x_array_get(s_package_catalog.imports, i);
+    if (strcmp(import->path.buf, path) == 0)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int s_package_catalog_engine_package_compare(
+    const void *left, const void *right)
+{
+  const LDKEditorEnginePackage *a = left;
+  const LDKEditorEnginePackage *b = right;
+  return strcmp(a->name.buf, b->name.buf);
+}
+
+static bool s_package_catalog_engine_packages_scan(LDKEditorContext *editor)
+{
+  XFSPath directory = {0};
+  XFSDireEntry entry = {0};
+  XFSDireHandle *handle;
+
+  if (s_package_catalog.engine_packages)
+  {
+    x_array_destroy(s_package_catalog.engine_packages);
+    s_package_catalog.engine_packages = NULL;
+  }
+
+  s_package_catalog.engine_packages =
+      x_array_create(sizeof(LDKEditorEnginePackage), 16);
+  if (!s_package_catalog.engine_packages)
+  {
+    s_package_catalog_error_set("Could not allocate engine package list.");
+    return false;
+  }
+
+  x_fs_path(&directory, &editor->engine_runtree, "package");
+  x_fs_path_normalize(&directory);
+  if (!x_fs_path_is_directory(&directory))
+  {
+    s_package_catalog.engine_packages_scroll = (LDKUIPoint){0};
+    return true;
+  }
+
+  handle = x_fs_find_first_file(directory.buf, &entry);
+  if (handle)
+  {
+    do
+    {
+      const char *extension;
+      LDKEditorEnginePackage package = {0};
+
+      if (entry.is_directory || !entry.name[0])
+      {
+        continue;
+      }
+
+      extension = strrchr(entry.name, '.');
+      if (!extension || strcmp(extension, LDK_PACKAGE_FILE_EXTENSION) != 0 ||
+          s_package_catalog_engine_imported(entry.name))
+      {
+        continue;
+      }
+
+      x_smallstr_from_cstr(&package.name, entry.name);
+      if (x_array_add(s_package_catalog.engine_packages, &package) != 0)
+      {
+        x_fs_find_close(handle);
+        s_package_catalog_error_set("Could not build engine package list.");
+        return false;
+      }
+    } while (x_fs_find_next_file(handle, &entry));
+    x_fs_find_close(handle);
+  }
+
+  if (x_array_count(s_package_catalog.engine_packages) > 1)
+  {
+    qsort(x_array_data(s_package_catalog.engine_packages),
+        x_array_count(s_package_catalog.engine_packages),
+        sizeof(LDKEditorEnginePackage),
+        s_package_catalog_engine_package_compare);
+  }
+
+  s_package_catalog.engine_packages_scroll = (LDKUIPoint){0};
+  s_package_catalog.error[0] = 0;
+  return true;
+}
+
+static void s_package_catalog_engine_packages_import_selected(
+    LDKEditorContext *editor)
+{
+  XFSPath directory = {0};
+
+  if (!s_package_catalog.engine_packages)
+  {
+    return;
+  }
+
+  x_fs_path(&directory, &editor->engine_runtree, "package");
+  for (u32 i = 0; i < x_array_count(s_package_catalog.engine_packages); ++i)
+  {
+    LDKEditorEnginePackage *package =
+        x_array_get(s_package_catalog.engine_packages, i);
+    XFSPath path = {0};
+
+    if (!package->selected)
+    {
+      continue;
+    }
+
+    x_fs_path(&path, &directory, package->name.buf);
+    if (!s_package_catalog_import_add(editor, &path, true))
+    {
+      return;
+    }
+  }
+
+  ldk_ui_close_popup(&editor->ui, LDK_EDITOR_PACKAGE_IMPORT_POPUP_ID);
+}
+
+static void s_package_catalog_engine_packages_popup(
+    LDKEditorContext *editor, LDKUIContext *ui, float content_width)
+{
+  u32 count;
+  bool has_selection = false;
+
+  if (!ldk_ui_begin_popup(ui, LDK_EDITOR_PACKAGE_IMPORT_POPUP_ID))
+  {
+    return;
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(content_width));
+  ldk_ui_label(ui, "Select engine packages to import:");
+
+  count = s_package_catalog.engine_packages
+      ? x_array_count(s_package_catalog.engine_packages)
+      : 0;
+  if (count == 0)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(content_width));
+    ldk_ui_label(ui, "All engine packages are already imported.");
+  }
+  else
+  {
+    float list_height = (float)count * (LDK_UI_DEFAULT_CONTROL_HEIGHT +
+        LDK_UI_DEFAULT_SPACING);
+    if (list_height > 280.0f)
+    {
+      list_height = 280.0f;
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(content_width));
+    ldk_ui_set_next_height(ui, ldk_ui_px(list_height));
+    s_package_catalog.engine_packages_scroll = ldk_ui_begin_scrollview(ui,
+        s_package_catalog.engine_packages_scroll,
+        LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+    for (u32 i = 0; i < count; ++i)
+    {
+      LDKEditorEnginePackage *package =
+          x_array_get(s_package_catalog.engine_packages, i);
+      ldk_ui_push_id_u32(ui, i);
+      ldk_ui_begin_horizontal(ui);
+      ldk_ui_spacer(ui);
+      ldk_ui_set_next_weight(ui, 0.0f);
+      ldk_ui_label(ui, package->name.buf);
+      ldk_ui_set_next_weight(ui, 0.0f);
+      package->selected = ldk_ui_toggle(ui, package->selected);
+      ldk_ui_end_horizontal(ui);
+      ldk_ui_pop_id(ui);
+      has_selection = has_selection || package->selected;
+    }
+
+    ldk_ui_end_scrollview(ui);
+  }
+
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+  if (ldk_ui_button(ui, "Cancel"))
+  {
+    ldk_ui_close_current_popup(ui);
+  }
+  ldk_ui_set_next_disabled(ui, !has_selection);
+  ldk_ui_set_next_width(ui, ldk_ui_px(120.0f));
+  if (ldk_ui_button(ui, "Import selected") && has_selection)
+  {
+    s_package_catalog_engine_packages_import_selected(editor);
+  }
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_end_popup(ui);
+}
+
+static void s_package_catalog_import_drop(LDKEditorContext *editor)
+{
+  u32 type = 0;
+  XSmallstr payload = {0};
+  XFSPath path = {0};
+
+  if (!ldk_ui_drag_n_drop_payload_get_and_remove(&type, &payload) ||
+      type != LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH)
+  {
+    return;
+  }
+
+  x_fs_path_set(&path, payload.buf);
+  if (!x_fs_path_is_file(&path))
+  {
+    s_package_catalog_error_set("Only physical .box files can be imported.");
+    return;
+  }
+
+  if (s_package_catalog_import_add(editor, &path, false))
+  {
+    return;
+  }
+
+  s_package_catalog.error[0] = 0;
+  if (!s_package_catalog_import_add(editor, &path, true))
+  {
+    s_package_catalog_error_set(
+        "Dropped .box must be inside the project or engine RunTree.");
+  }
 }
 
 static void s_package_catalog_window_register(LDKEditorContext *editor)
@@ -1183,6 +1621,7 @@ static bool s_package_catalog_build_request(
   }
 
   if (!s_package_catalog_manifest_save(editor) ||
+      !ldki_editor_project_import_packages_reload(editor) ||
       !s_package_catalog_build_arguments_create(
           editor, package_index, &arguments))
   {
@@ -1273,6 +1712,7 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
     ACTION_NONE,
     ACTION_REMOVE_PACKAGE,
     ACTION_REMOVE_RULE,
+    ACTION_REMOVE_IMPORT,
   };
 
   (void)data;
@@ -1300,6 +1740,7 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
   u32 action = ACTION_NONE;
   u32 action_package = UINT32_MAX;
   u32 action_rule = UINT32_MAX;
+  u32 action_import = UINT32_MAX;
 
   ldk_ui_begin_disabled(ui, !editable);
 
@@ -1431,6 +1872,72 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
     ldk_ui_pop_id(ui);
   }
 
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  ldk_ui_label(ui, "Imported Packages");
+  ldk_ui_set_next_width(ui, ldk_ui_px(88.0f));
+  bool import_package = ldk_ui_button(ui, "Import");
+  ldk_ui_set_next_width(ui, ldk_ui_px(144.0f));
+  bool import_engine_package = ldk_ui_button(ui, "Import from engine");
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_label(ui, "Drop .box files from File Explorer here");
+  LDKUIRect import_drop_rect = ldk_ui_last_bounding_rect(ui);
+  if (editable && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(
+            &import_drop_rect, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(
+            &ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      s_package_catalog_import_drop(editor);
+    }
+  }
+
+  if (import_package)
+  {
+    s_package_catalog_import_dialog(editor);
+  }
+  if (import_engine_package &&
+      s_package_catalog_engine_packages_scan(editor))
+  {
+    ldk_ui_open_popup(ui, LDK_EDITOR_PACKAGE_IMPORT_POPUP_ID);
+  }
+
+  float import_popup_width = ui->current_layout->content_rect.w >
+          LDK_UI_DEFAULT_PADDING * 2.0f
+      ? ui->current_layout->content_rect.w - LDK_UI_DEFAULT_PADDING * 2.0f
+      : 0.0f;
+  s_package_catalog_engine_packages_popup(editor, ui, import_popup_width);
+
+  for (u32 import_i = 0;
+       import_i < x_array_count(s_package_catalog.imports); ++import_i)
+  {
+    LDKEditorPackageImport *import =
+        x_array_get(s_package_catalog.imports, import_i);
+    ldk_ui_push_id_u32(ui, 0x80000000u | import_i);
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_weight(ui, 1.0f);
+    ldk_ui_label(ui, import->path.buf);
+    ldk_ui_set_next_weight(ui, 0.0f);
+    import->distribute = ldk_ui_toggle(ui, import->distribute);
+    ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+    ldk_ui_label(ui, "Distribute");
+    ldk_ui_set_next_width(ui, ldk_ui_px(72.0f));
+    if (ldk_ui_button(ui, "Delete"))
+    {
+      action = ACTION_REMOVE_IMPORT;
+      action_import = import_i;
+    }
+    ldk_ui_end_horizontal(ui);
+    ldk_ui_pop_id(ui);
+  }
+
   ldk_ui_end_scrollview(ui);
 
   if (action == ACTION_REMOVE_PACKAGE)
@@ -1440,6 +1947,11 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
   else if (action == ACTION_REMOVE_RULE)
   {
     s_package_catalog_rule_remove(action_package, action_rule);
+  }
+  else if (action == ACTION_REMOVE_IMPORT && s_package_catalog.imports &&
+           action_import < x_array_count(s_package_catalog.imports))
+  {
+    x_array_delete_at(s_package_catalog.imports, action_import);
   }
 
   if (s_package_catalog.error[0])
@@ -1472,8 +1984,16 @@ void ldki_editor_package_catalog_show(LDKEditor *instance, void *data)
 
   if (saved)
   {
-    s_package_catalog.error[0] = 0;
-    ldki_editor_log_info(editor, "Package catalog saved.");
+    if (!ldki_editor_project_import_packages_reload(editor))
+    {
+      s_package_catalog_error_set(
+          "Package catalog saved, but imported packages could not be reloaded.");
+    }
+    else
+    {
+      s_package_catalog.error[0] = 0;
+      ldki_editor_log_info(editor, "Package catalog saved.");
+    }
   }
   else if (canceled)
   {

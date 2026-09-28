@@ -6,6 +6,7 @@
 #include <ldk_profiler.h>
 #include <ldk_event.h>
 #include <ldk_os.h>
+#include <ldk_package.h>
 #include <ldk_image.h>
 #include <ldk_scene.h>
 #include <ldk_project.h>
@@ -23,6 +24,7 @@
 #include "ldk_ui_drag_n_drop.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #ifndef LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY
 #define LDK_DEFAULT_UI_INITIAL_INDEX_CAPACITY 256
@@ -51,6 +53,7 @@ static void s_editor_state_set_stop(LDKEditorContext *editor);
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path);
 static bool s_project_unload(LDKEditorContext *editor);
+static bool s_project_import_packages_mount(LDKEditorContext *editor);
 static bool s_editor_project_action_process(LDKEditorContext *editor);
 static bool s_editor_camera_ensure(LDKEditorContext *editor);
 static void s_project_game_module_watch_update(LDKEditorContext *editor);
@@ -2236,6 +2239,133 @@ static void s_project_game_module_watch_update(LDKEditorContext *editor)
   }
 }
 
+static bool s_project_import_packages_mount(LDKEditorContext *editor)
+{
+  XIni ini = {0};
+  XIniError error = {0};
+  i32 import_section = -1;
+
+  if (!editor || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  if (!x_ini_load_file(
+          editor->project.project_file_path.buf, &ini, &error))
+  {
+    ldk_log_error("Failed to read project imports from '%s'.\n",
+        editor->project.project_file_path.buf);
+    return false;
+  }
+
+  for (i32 i = 0; i < x_ini_section_count(&ini); ++i)
+  {
+    const char *section_name = x_ini_section_name(&ini, i);
+    if (section_name && (strcmp(section_name, ".box_imports") == 0 ||
+                         strcmp(section_name, ".import") == 0))
+    {
+      import_section = i;
+      break;
+    }
+  }
+
+  if (import_section < 0)
+  {
+    x_ini_free(&ini);
+    return true;
+  }
+
+  i32 import_count = x_ini_key_count(&ini, import_section);
+  for (i32 i = 0; i < import_count; ++i)
+  {
+    const char *import_path = x_ini_key_name(&ini, import_section, i);
+    const char *copy_value = x_ini_value_at(&ini, import_section, i);
+    const XFSPath *root;
+    const char *relative_path;
+    XFSPath package_path = {0};
+
+    if (!import_path || !import_path[0] || !copy_value ||
+        (strcmp(copy_value, "0") != 0 && strcmp(copy_value, "1") != 0))
+    {
+      ldk_log_error("Invalid [.box_imports] entry in '%s'.\n",
+          editor->project.project_file_path.buf);
+      x_ini_free(&ini);
+      return false;
+    }
+
+    if (x_fs_path_is_absolute_cstr(import_path) ||
+        strstr(import_path, "../") || strstr(import_path, "..\\"))
+    {
+      ldk_log_error("Import path must stay relative to its RunTree: '%s'.\n",
+          import_path);
+      x_ini_free(&ini);
+      return false;
+    }
+
+    XFSPath engine_runtree = {0};
+    if (import_path[0] == '@')
+    {
+      x_fs_path(&engine_runtree, &editor->engine_root, "runtree");
+      x_fs_path_normalize(&engine_runtree);
+      root = &engine_runtree;
+      relative_path = import_path + 1;
+    }
+    else
+    {
+      root = &editor->project.run_root_path;
+      relative_path = import_path;
+    }
+
+    if (!relative_path[0] || x_fs_path_is_absolute_cstr(relative_path))
+    {
+      ldk_log_error("Import path is invalid in '%s': '%s'.\n",
+          editor->project.project_file_path.buf, import_path);
+      x_ini_free(&ini);
+      return false;
+    }
+
+    const char *extension = strrchr(relative_path, '.');
+    if (!extension || strcmp(extension, LDK_PACKAGE_FILE_EXTENSION) != 0)
+    {
+      ldk_log_error("Imported package must be a .box file: '%s'.\n",
+          import_path);
+      x_ini_free(&ini);
+      return false;
+    }
+
+    x_fs_path(&package_path, root->buf, relative_path);
+    x_fs_path_normalize(&package_path);
+    if (!x_fs_path_is_file(&package_path))
+    {
+      ldk_log_error("Imported package not found: '%s'.\n", package_path.buf);
+      x_ini_free(&ini);
+      return false;
+    }
+
+    if (!ldki_editor_file_explorer_package_mount(editor, &package_path))
+    {
+      ldk_log_error("Failed to mount imported package '%s'.\n",
+          package_path.buf);
+      x_ini_free(&ini);
+      return false;
+    }
+  }
+
+  x_ini_free(&ini);
+  return true;
+}
+
+bool ldki_editor_project_import_packages_reload(LDKEditorContext *editor)
+{
+  if (!editor || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  ldki_editor_file_explorer_package_mounts_clear();
+  return s_project_import_packages_mount(editor);
+}
+
 static bool s_project_unload(LDKEditorContext *editor)
 {
   ldki_editor_scene_catalog_close(editor);
@@ -2313,6 +2443,7 @@ static bool s_project_unload(LDKEditorContext *editor)
   {
     x_array_clear(editor->hierarchy_expanded_entities);
   }
+  ldki_editor_file_explorer_package_mounts_clear();
   ldk_project_unload(&editor->project);
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   s_editor_set_title(editor);
@@ -2341,6 +2472,11 @@ static bool s_project_load(
                            asset_source, editor->project.run_root_path.buf))
   {
     ldk_log_error("Failed to configure project asset source.\n");
+    goto fail;
+  }
+
+  if (!s_project_import_packages_mount(editor))
+  {
     goto fail;
   }
 

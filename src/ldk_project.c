@@ -191,26 +191,80 @@ static bool s_line_is_private_section(const char *line, bool *out_is_section)
   return *p == '.';
 }
 
+static bool s_line_is_section_named(const char *line, const char *name)
+{
+  const char *p;
+  const char *end;
+  size_t name_length;
+
+  if (!line || !name)
+  {
+    return false;
+  }
+
+  p = line;
+  if (strncmp(p, "\xef\xbb\xbf", 3) == 0)
+  {
+    p += 3;
+  }
+  while (*p && isspace((unsigned char)*p))
+  {
+    ++p;
+  }
+  if (*p != '[')
+  {
+    return false;
+  }
+
+  end = strchr(p + 1, ']');
+  if (!end)
+  {
+    return false;
+  }
+
+  ++p;
+  while (p < end && isspace((unsigned char)*p))
+  {
+    ++p;
+  }
+  while (end > p && isspace((unsigned char)end[-1]))
+  {
+    --end;
+  }
+
+  name_length = strlen(name);
+  return (size_t)(end - p) == name_length &&
+         memcmp(p, name, name_length) == 0;
+}
+
 static bool s_copy_runtime_sections(FILE *in_file, FILE *out_file)
 {
   char line[4096];
   bool skip_section = false;
   bool wrote_any_line = false;
 
+  if (!in_file || !out_file)
+  {
+    return false;
+  }
+
   while (fgets(line, sizeof(line), in_file))
   {
     bool is_section;
-    bool private_section;
+    bool private_section = s_line_is_private_section(line, &is_section);
 
-    private_section = s_line_is_private_section(line, &is_section);
     if (is_section)
     {
-      skip_section = private_section;
+      skip_section = private_section ||
+                     s_line_is_section_named(line, "packages");
     }
 
     if (!skip_section)
     {
-      fputs(line, out_file);
+      if (fputs(line, out_file) == EOF)
+      {
+        return false;
+      }
       wrote_any_line = true;
     }
   }
