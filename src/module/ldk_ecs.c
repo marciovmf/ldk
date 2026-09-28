@@ -738,6 +738,75 @@ static bool s_grouping_callback_sync(void *user)
   return s_grouping_flush((LDKECS *)user);
 }
 
+static bool s_grouping_runtime_reset(LDKECS *ecs)
+{
+  LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
+  XHashtable_grouping_slot *new_dirty_set = NULL;
+  XHashtable_grouping_slot **new_slots = NULL;
+
+  if (!ecs || !internal)
+  {
+    return false;
+  }
+
+  /*
+   * Grouping definitions live with the ECS registry, but membership is derived
+   * scene/runtime state. A full scene clear must not carry entity handles,
+   * slot maps, or pending dirty handles into the next scene instance. Build
+   * replacement hash tables first so a failed reset leaves the old state
+   * intact instead of partially clearing the registry.
+   */
+  new_dirty_set = x_hashtable_grouping_slot_create();
+  if (!new_dirty_set)
+  {
+    return false;
+  }
+
+  if (internal->count)
+  {
+    new_slots = (XHashtable_grouping_slot **)calloc(
+        internal->count, sizeof(*new_slots));
+    if (!new_slots)
+    {
+      x_hashtable_grouping_slot_destroy(new_dirty_set);
+      return false;
+    }
+
+    for (u32 i = 0; i < internal->count; ++i)
+    {
+      new_slots[i] = x_hashtable_grouping_slot_create();
+      if (!new_slots[i])
+      {
+        for (u32 j = 0; j < i; ++j)
+        {
+          x_hashtable_grouping_slot_destroy(new_slots[j]);
+        }
+        free(new_slots);
+        x_hashtable_grouping_slot_destroy(new_dirty_set);
+        return false;
+      }
+    }
+  }
+
+  x_hashtable_grouping_slot_destroy(internal->dirty_set);
+  internal->dirty_set = new_dirty_set;
+  internal->dirty_count = 0;
+  internal->rebuild_pending = false;
+
+  for (u32 i = 0; i < internal->count; ++i)
+  {
+    LDKRegisteredGrouping *grouping = internal->groupings[i];
+    x_hashtable_grouping_slot_destroy(grouping->slots);
+    grouping->slots = new_slots[i];
+    grouping->entity_count = 0;
+    grouping->view.entities = grouping->entities;
+    grouping->view.count = 0;
+  }
+
+  free(new_slots);
+  return true;
+}
+
 static void s_grouping_systems_unbind_group(
     LDKECS *ecs, const LDKEntityGroup *group)
 {
@@ -1187,6 +1256,18 @@ void ldk_ecs_terminate(void)
   {
     ldk_entity_module_terminate(entity_registry);
   }
+}
+
+bool ldk_ecs_grouping_runtime_reset(void)
+{
+  LDKECS *ecs = s_ecs();
+
+  if (!ecs || ldk_system_registry_is_busy(&ecs->system))
+  {
+    return false;
+  }
+
+  return s_grouping_runtime_reset(ecs);
 }
 
 // ---------------------------------------------------------------------------

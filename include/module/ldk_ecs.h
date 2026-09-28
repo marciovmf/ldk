@@ -137,6 +137,12 @@ LDK_API bool ldk_ecs_system_registry_start(LDKECS *context);
 LDK_API bool ldk_ecs_system_bucket_run(
     LDKECS *context, LDKSystemBucket bucket, float delta_time);
 LDK_API bool ldk_ecs_system_registry_stop(LDKECS *context);
+
+/**
+ * Clear all runtime membership state for registered Entity Groups while
+ * preserving their definitions. Intended for full scene/ECS entity resets.
+ */
+LDK_API bool ldk_ecs_grouping_runtime_reset(void);
 #endif
 
 #ifdef __cplusplus

@@ -1099,6 +1099,14 @@ static bool s_editor_scene_ecs_clear(void)
   }
 
   x_array_destroy(list.entities);
+
+  /* The editor reloads a scene into the same ECS registries. Group
+   * definitions remain registered, but membership must start empty. */
+  if (!ldk_ecs_grouping_runtime_reset())
+  {
+    return false;
+  }
+
   return true;
 }
 

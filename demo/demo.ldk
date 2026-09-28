@@ -1,54 +1,62 @@
 [.project]
-project_name = demo
-project_cmake_root = workspace
-project_run_root = runtree
-project_cmake_generator = Visual Studio 18 2026
+project_name=demo
+project_cmake_root=workspace
+project_run_root=runtree
+project_cmake_generator=Visual Studio 18 2026
 
 [graphics]
 resolution_width=1280
 resolution_height=720
-shadow_map_resolution = 2048
-shadow_distance = 15
+shadow_map_resolution=2048
+shadow_distance=15
 
 [general]
-asset_root = "assets"
-log_file = "ldk.log"
+asset_root=assets
+log_file=ldk.log
 width=1024
 height=768
 
 [display]
-title = "My Awesome Game"
-width = 1280
-height = 720
-fullscreen = false
+title=My Awesome Game
+width=1280
+height=720
+fullscreen=false
 
 [.editor]
-play_current_scene = false
+play_current_scene=true
 
 [.flags]
-tag_0 = "Hero"
-tag_1 = "Vegetation"
-tag_2 = "Props"
-tag_3 = "tag_3"
-tag_4 = "tag_4"
-tag_5 = "tag_5"
-tag_6 = "tag_6"
-tag_7 = "tag_7"
-tag_8 = "tag_8"
-tag_9 = "tag_9"
-tag_10 = "tag_10"
-tag_11 = "tag_11"
-tag_12 = "tag_12"
-tag_13 = "tag_13"
-tag_14 = "tag_14"
-tag_15 = "tag_15"
+tag_0=Hero
+tag_1=Vegetation
+tag_2=Props
+tag_3=tag_3
+tag_4=tag_4
+tag_5=tag_5
+tag_6=tag_6
+tag_7=tag_7
+tag_8=tag_8
+tag_9=tag_9
+tag_10=tag_10
+tag_11=tag_11
+tag_12=tag_12
+tag_13=tag_13
+tag_14=tag_14
+tag_15=tag_15
 
 [scenes]
-count = 2
-0.path = "island_test.scene"
-0.name = "island_test"
-1.path = "base.scene"
-1.name = "base"
+count=2
+0.path=island_test.scene
+0.name=island_test
+1.path=base.scene
+1.name=base
+
+[.box]
+dummy.box=assets/tftf_island.material|assets/ldk.ico
+
+[.box_imports]
+@package/ldk_prototype_textures.box=1
+@package/ldk_particles.box=0
+
 
 [groupings]
 count = 6
@@ -78,11 +86,3 @@ next_id = "0x8000000000000006"
 5.name = "TFTF_BULB_PLANT_AI"
 5.component_count = 1
 5.component_0 = "0x760baaec"
-
-
-[.box]
-dummy.box = "assets/tftf_island.material|assets/ldk.ico"
-
-[.box_imports]
-@package/ldk_prototype_textures.box=1
-@package/ldk_particles.box=0

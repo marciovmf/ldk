@@ -28,7 +28,7 @@ scene:
             enabled: true
             tonemapping_enabled: false
             exposure: 0.00000000
-            blur_enabled: false
+            blur_enabled: true
             blur_strength: 0.500000000
             blur_focus_size: 0.250000000
             blur_focus_feather: 0.150000006
@@ -45,7 +45,7 @@ scene:
             vignette_softness: 0.500000000
             screen_distortion_enabled: false
             screen_distortion_strength: 0.250000000
-            chromatic_aberration_enabled: false
+            chromatic_aberration_enabled: true
             chromatic_aberration_strength: 0.250000000
             heat_enabled: false
             heat_strength: 1.00000000
@@ -147,7 +147,93 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.00000000, -3.24956036
+            local_position: -2.46804237, 0.790740013, -3.24956036
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+        - type: 1980476140 # TFTFBulbPlantAIComponent
+          fields:
+            enabled: true
+            activation_range: 12.0000000
+            cooldown: 1.50000000
+            burst_offset: 0.00000000, 0.500000000, 0.00000000
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -3.96513271, 0.546570301, 0.00000000
+            local_scale: 1.75000000, 1.75000000, 1.75000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 7
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 3.65173626, 0.546570301, -6.57120180
+            local_scale: 1.75000000, 1.75000000, 1.75000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 8
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 4.34253407, 1.47044468, -9.43671227
+            local_scale: 0.611383975, 2.85074186, 0.585422695
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 9
+      parent: -1
+      flags: 0
+      name: "BulbPlantEnemy"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 2.31390619, 0.790740013, 5.33332729
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource

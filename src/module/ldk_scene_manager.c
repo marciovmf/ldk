@@ -234,6 +234,14 @@ static bool s_ecs_clear(void)
   }
 
   free(list.entities);
+
+  /* Entity Group membership is derived scene state. Do not carry handles or
+   * pending dirty entries from the previous scene into the next one. */
+  if (!ldk_ecs_grouping_runtime_reset())
+  {
+    return false;
+  }
+
   ldk_scene_properties_reset();
   return true;
 }
