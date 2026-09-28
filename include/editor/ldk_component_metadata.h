@@ -92,6 +92,7 @@ extern "C"
     float max_value;
     const LDKEnumMeta *enum_meta;
     const LDKComponentGroupMeta *group;
+    const char *display_name;
   } LDKComponentFieldMeta;
 
   typedef struct LDKComponentMeta

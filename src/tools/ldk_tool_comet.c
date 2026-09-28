@@ -21,7 +21,7 @@ typedef struct LDKMetaField
   char field_name[128];
   char field_kind[64];
   char widget[64];
-  char label[128];
+  char display_name[128];
   u32 flags;
   float min_value;
   float max_value;
@@ -187,6 +187,46 @@ static bool ldk_meta_read_file(const char* path, char** out_text, size_t* out_si
   *out_text = text;
   *out_size = read_size;
   return true;
+}
+
+static void ldk_meta_display_name_from_field_name(
+    char *out, size_t out_size, const char *name)
+{
+  size_t write_index = 0u;
+  bool capitalize = true;
+
+  if (!out || out_size == 0u)
+  {
+    return;
+  }
+
+  out[0] = 0;
+  if (!name)
+  {
+    return;
+  }
+
+  for (size_t i = 0u; name[i] != 0 && write_index + 1u < out_size; ++i)
+  {
+    unsigned char c = (unsigned char)name[i];
+
+    if (c == '_')
+    {
+      out[write_index++] = ' ';
+      capitalize = true;
+      continue;
+    }
+
+    if (capitalize)
+    {
+      c = (unsigned char)toupper(c);
+      capitalize = false;
+    }
+
+    out[write_index++] = (char)c;
+  }
+
+  out[write_index] = 0;
 }
 
 static char* ldk_meta_trim(char* text)
@@ -842,7 +882,8 @@ static bool ldk_meta_parse_field_line(
   snprintf(field.component_name, sizeof(field.component_name), "%s", component_name);
   snprintf(field.type_name, sizeof(field.type_name), "%s", type);
   snprintf(field.field_name, sizeof(field.field_name), "%s", name);
-  snprintf(field.label, sizeof(field.label), "%s", name);
+  ldk_meta_display_name_from_field_name(
+      field.display_name, sizeof(field.display_name), name);
 
   if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
   {
@@ -1866,7 +1907,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
       {
         fprintf(out, "NULL");
       }
-      fprintf(out, " },\n");
+      fprintf(out, ", \"%s\" },\n", field->display_name);
     }
 
     fprintf(out, "  };\n\n");
@@ -1952,7 +1993,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
         {
           fprintf(out, "NULL");
         }
-        fprintf(out, " },\n");
+        fprintf(out, ", \"%s\" },\n", field->display_name);
       }
       fprintf(out, "  };\n\n");
     }

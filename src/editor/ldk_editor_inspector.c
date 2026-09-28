@@ -34,6 +34,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     0.0f,
     NULL,
     NULL,
+    "Ambient Color",
   },
   {
     "Ambient Intensity",
@@ -45,6 +46,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     0.0f,
     NULL,
     NULL,
+    "Ambient Intensity",
   },
 };
 
@@ -1614,6 +1616,22 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   return true;
 }
 
+static const char *s_editor_inspector_field_display_name(
+    const LDKComponentFieldMeta *field)
+{
+  if (!field)
+  {
+    return "";
+  }
+
+  if (field->display_name && field->display_name[0] != 0)
+  {
+    return field->display_name;
+  }
+
+  return field->name ? field->name : "";
+}
+
 static void s_editor_inspector_field_draw(
     LDKEditorContext *editor, LDKEntity entity,
     u32 component_type, const LDKComponentMeta *meta,
@@ -1621,6 +1639,7 @@ static void s_editor_inspector_field_draw(
 {
   LDKUIContext *ui;
   char value_text[128];
+  const char *display_name;
   u8 *field_value;
   bool readonly;
 
@@ -1630,6 +1649,7 @@ static void s_editor_inspector_field_draw(
   }
 
   ui = &editor->ui;
+  display_name = s_editor_inspector_field_display_name(field);
 
   field_value = (u8 *)component + field->offset;
   readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
@@ -1649,7 +1669,7 @@ static void s_editor_inspector_field_draw(
   {
     LDKAssetMesh value = *(LDKAssetMesh *)field_value;
     bool changed = s_editor_inspector_mesh_asset_field(
-        editor, field->name, &value, readonly);
+        editor, display_name, &value, readonly);
 
     if ((component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
         component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
@@ -1682,7 +1702,7 @@ static void s_editor_inspector_field_draw(
     LDKMaterialIOContext context = {0};
 
     (void)s_editor_inspector_material_asset_field(
-        editor, field->name, value, readonly, true);
+        editor, display_name, value, readonly, true);
 
     context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
     context.diagnostic = s_editor_material_diagnostic;
@@ -1694,7 +1714,7 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
-  s_editor_inspector_row_begin(editor, field->name);
+  s_editor_inspector_row_begin(editor, display_name);
 
   if (field->type == LDK_FIELD_ENUM && field->enum_meta)
   {
