@@ -1504,6 +1504,9 @@ static bool s_editor_config_load_from_ini(
       x_ini_get_f32(ini, EDITOR, "camera_near_clip", 0.1f);
   editor->editor_camera_far_clip =
       x_ini_get_f32(ini, EDITOR, "camera_far_clip", 1000.0f);
+  editor->profile = x_ini_get_bool(ini, EDITOR, "profile", false);
+  editor->show_statistics =
+      x_ini_get_bool(ini, EDITOR, "show_statistics", false);
 
   if (editor->editor_camera_fov <= 1.0f ||
       editor->editor_camera_fov >= 179.0f)
@@ -3593,6 +3596,7 @@ static i32 s_editor_main(const char *project_file_path)
 
   x_fs_path(&editor_config_directory, appdata, "ldk");
   x_fs_path(&editor_ini_path, &editor_config_directory, "editor.ini");
+  editor->editor_config_path = editor_ini_path;
 
   if (!x_fs_path_exists(&editor_ini_path))
   {

@@ -10,6 +10,7 @@
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_scene_manager.h>
+#include <stdx/stdx_ini.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
 #include <stddef.h>
@@ -848,6 +849,36 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   ldk_ui_end_horizontal(ui);
 }
 
+static bool s_editor_ini_bool_write(
+    const XFSPath *path, const char *key, bool value)
+{
+  XIni ini = {0};
+  XIniError error = {0};
+  bool result;
+
+  if (path == NULL || key == NULL || !x_ini_load_file(path->buf, &ini, &error))
+  {
+    return false;
+  }
+
+  result = x_ini_set_bool(&ini, ".editor", key, value) &&
+           x_ini_write_file(path->buf, &ini, &error);
+  x_ini_free(&ini);
+  return result;
+}
+
+static bool s_editor_project_play_current_scene_write(
+    LDKEditorContext *editor, bool value)
+{
+  if (editor == NULL || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  return s_editor_ini_bool_write(
+      &editor->project.project_file_path, "play_current_scene", value);
+}
+
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
@@ -875,9 +906,21 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     static const char *const play_sources[] = {
         "Play Project", "Play Current Scene"};
     ldk_ui_set_next_width(ui, ldk_ui_px(168.0f));
-    editor->project.play_current_scene =
+    bool play_current_scene =
         ldk_ui_combo_box(ui, play_sources, 2,
             editor->project.play_current_scene ? 1 : 0) == 1;
+    if (play_current_scene != editor->project.play_current_scene)
+    {
+      if (!s_editor_project_play_current_scene_write(editor, play_current_scene))
+      {
+        ldki_editor_log_warning(
+            editor, "Could not save the project play mode.");
+      }
+      else
+      {
+        editor->project.play_current_scene = play_current_scene;
+      }
+    }
 
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
@@ -943,13 +986,38 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_spacer(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  editor->show_statistics =
-      ldk_ui_toggle(ui, editor->show_statistics);
+  bool show_statistics = ldk_ui_toggle(ui, editor->show_statistics);
+  if (show_statistics != editor->show_statistics)
+  {
+    if (!s_editor_ini_bool_write(
+            &editor->editor_config_path, "show_statistics", show_statistics))
+    {
+      ldki_editor_log_warning(
+          editor, "Could not save the Statistics preference.");
+    }
+    else
+    {
+      editor->show_statistics = show_statistics;
+    }
+  }
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, "Statistics");
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  editor->profile = ldk_ui_toggle(ui, editor->profile);
+  bool profile = ldk_ui_toggle(ui, editor->profile);
+  if (profile != editor->profile)
+  {
+    if (!s_editor_ini_bool_write(
+            &editor->editor_config_path, "profile", profile))
+    {
+      ldki_editor_log_warning(
+          editor, "Could not save the Profile preference.");
+    }
+    else
+    {
+      editor->profile = profile;
+    }
+  }
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, "Profile");
 

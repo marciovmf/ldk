@@ -233,6 +233,7 @@ typedef struct LDKEditorContext
   LDKEditorState editor_state;
   XFSPath engine_runtree;
   XFSPath engine_root;
+  XFSPath editor_config_path;
   XFSPath cmake_path;
   LDKSceneSystems current_scene_systems;
   LDKResourceTexture ui_atlas;
