@@ -631,6 +631,12 @@ bool ldk_rhi_is_valid_buffer_desc(const LDKRHIBufferDesc* desc)
     return false;
   }
 
+  if (desc->stats_class < LDK_RHI_BUFFER_STATS_AUTO ||
+      desc->stats_class > LDK_RHI_BUFFER_STATS_OTHER)
+  {
+    return false;
+  }
+
   return true;
 }
 
@@ -1303,6 +1309,16 @@ void ldk_rhi_frame_end(LDKRHIContext* context)
     ldk_rhi_reset_bound_state(context);
     context->frame_index++;
   }
+}
+
+LDKRHIFrameStats ldk_rhi_last_frame_stats_get(const LDKRHIContext* context)
+{
+  if (!ldk_rhi_has_backend(context) || context->functions.frame_stats_get == NULL)
+  {
+    return (LDKRHIFrameStats){0};
+  }
+
+  return context->functions.frame_stats_get(context->backend_user_data);
 }
 
 void ldk_rhi_pass_begin(LDKRHIContext* context, const LDKRHIPassDesc* desc)

@@ -1179,7 +1179,7 @@ static void s_editor_game_statistics_overlay(
   const float desired_width = 276.0f;
   const float value_column_width = 80.0f;
   const float column_gap = 8.0f;
-  const u32 row_count = 16;
+  const u32 row_count = 21;
 
   float panel_width = desired_width;
   float max_width = image_rect.w - margin * 2.0f;
@@ -1295,6 +1295,64 @@ static void s_editor_game_statistics_overlay(
       "Renderer CPU (ms)",
       "%.2f",
       stats.cpu_time_ms);
+
+  LDK_EDITOR_STAT_ROW(
+      "Buffer +/-",
+      "%u / %u",
+      stats.rhi.buffer_create_count,
+      stats.rhi.buffer_destroy_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Texture +/-",
+      "%u / %u",
+      stats.rhi.texture_create_count,
+      stats.rhi.texture_destroy_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "FBO +/-",
+      "%u / %u",
+      stats.rhi.framebuffer_create_count,
+      stats.rhi.framebuffer_destroy_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Buffer updates",
+      "%u",
+      stats.rhi.buffer_update_count);
+
+  LDK_EDITOR_STAT_ROW(
+      "Buffer upload",
+      "%.1f KB",
+      (double)stats.rhi.buffer_update_bytes / 1024.0);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Uniform",
+      "%u / %.1f KB",
+      stats.rhi.uniform_buffer_update_count,
+      (double)stats.rhi.uniform_buffer_update_bytes / 1024.0);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Vertex",
+      "%u / %.1f KB",
+      stats.rhi.vertex_buffer_update_count,
+      (double)stats.rhi.vertex_buffer_update_bytes / 1024.0);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Index",
+      "%u / %.1f KB",
+      stats.rhi.index_buffer_update_count,
+      (double)stats.rhi.index_buffer_update_bytes / 1024.0);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Instance",
+      "%u / %.1f KB",
+      stats.rhi.instance_buffer_update_count,
+      (double)stats.rhi.instance_buffer_update_bytes / 1024.0);
+
+  LDK_EDITOR_STAT_ROW(
+      "  Other",
+      "%u / %.1f KB",
+      stats.rhi.other_buffer_update_count,
+      (double)stats.rhi.other_buffer_update_bytes / 1024.0);
 
   LDK_EDITOR_STAT_ROW(
       "Game draw calls",

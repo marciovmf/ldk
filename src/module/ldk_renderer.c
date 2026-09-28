@@ -1017,6 +1017,7 @@ static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
   desc.usage =
       LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  desc.stats_class = LDK_RHI_BUFFER_STATS_INSTANCE;
   LDKRHIBuffer transform_buffer =
       ldk_rhi_buffer_create(renderer->rhi, &desc);
 
@@ -1859,6 +1860,7 @@ static bool s_renderer_shadow_pass_ensure_instance_capacity(
   desc.usage =
       LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  desc.stats_class = LDK_RHI_BUFFER_STATS_INSTANCE;
 
   LDKRHIBuffer buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
   if (buffer == LDK_RHI_INVALID_RESOURCE)
@@ -3172,6 +3174,7 @@ static bool s_renderer_mesh_pass_ensure_instance_capacity(
   desc.usage =
       LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  desc.stats_class = LDK_RHI_BUFFER_STATS_INSTANCE;
 
   LDKRHIBuffer transform_buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
   if (transform_buffer == LDK_RHI_INVALID_RESOURCE)
@@ -7558,6 +7561,8 @@ void ldk_renderer_render_frame(
   }
 
   ldk_rhi_frame_end(renderer->rhi);
+  renderer->current_frame_stats.rhi =
+      ldk_rhi_last_frame_stats_get(renderer->rhi);
 
   renderer->submitted_mesh_count = 0;
   renderer->submitted_instance_count = 0;

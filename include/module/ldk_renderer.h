@@ -204,6 +204,7 @@ extern "C" {
   typedef struct LDKRendererFrameStats
   {
     double cpu_time_ms;
+    LDKRHIFrameStats rhi;
 
     // Submission count is global because a VIEW_ALL submission may be rendered
     // into both game and non-game views. The remaining counters describe actual

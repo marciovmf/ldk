@@ -382,6 +382,17 @@ extern "C"
     LDK_RHI_MEMORY_USAGE_GPU_TO_CPU
   } LDKRHIMemoryUsage;
 
+  /** Optional diagnostic classification for per-frame buffer upload statistics. */
+  typedef enum LDKRHIBufferStatsClass
+  {
+    LDK_RHI_BUFFER_STATS_AUTO = 0,
+    LDK_RHI_BUFFER_STATS_UNIFORM,
+    LDK_RHI_BUFFER_STATS_VERTEX,
+    LDK_RHI_BUFFER_STATS_INDEX,
+    LDK_RHI_BUFFER_STATS_INSTANCE,
+    LDK_RHI_BUFFER_STATS_OTHER
+  } LDKRHIBufferStatsClass;
+
   typedef enum LDKRHITextureType
   {
     LDK_RHI_TEXTURE_TYPE_2D = 0,
@@ -597,6 +608,7 @@ extern "C"
     uint32_t usage;
     LDKRHIMemoryUsage memory_usage;
     const void* initial_data;
+    LDKRHIBufferStatsClass stats_class;
   } LDKRHIBufferDesc;
 
   typedef struct LDKRHITextureDesc
@@ -795,6 +807,31 @@ extern "C"
     uint32_t first_vertex;
   } LDKRHIDrawDesc;
 
+  /** Per-frame backend resource activity, useful for spotting resource churn. */
+  typedef struct LDKRHIFrameStats
+  {
+    uint32_t buffer_create_count;
+    uint32_t buffer_destroy_count;
+    uint32_t buffer_update_count;
+    uint64_t buffer_update_bytes;
+
+    uint32_t uniform_buffer_update_count;
+    uint64_t uniform_buffer_update_bytes;
+    uint32_t vertex_buffer_update_count;
+    uint64_t vertex_buffer_update_bytes;
+    uint32_t index_buffer_update_count;
+    uint64_t index_buffer_update_bytes;
+    uint32_t instance_buffer_update_count;
+    uint64_t instance_buffer_update_bytes;
+    uint32_t other_buffer_update_count;
+    uint64_t other_buffer_update_bytes;
+
+    uint32_t texture_create_count;
+    uint32_t texture_destroy_count;
+    uint32_t framebuffer_create_count;
+    uint32_t framebuffer_destroy_count;
+  } LDKRHIFrameStats;
+
   typedef struct LDKRHIDrawInstancedDesc
   {
     uint32_t vertex_count;
@@ -832,6 +869,7 @@ extern "C"
 
     void (*frame_begin)(void* backend_user_data);
     void (*frame_end)(void* backend_user_data);
+    LDKRHIFrameStats (*frame_stats_get)(void* backend_user_data);
 
     void (*pass_begin)(void* backend_user_data, const LDKRHIPassDesc* desc);
     void (*pass_end)(void* backend_user_data);
@@ -1199,6 +1237,13 @@ extern "C"
    * @param context RHI context.
    */
   LDK_API void ldk_rhi_frame_end(LDKRHIContext* context);
+
+  /**
+   * @brief Returns backend resource activity for the last completed RHI frame.
+   * @param context RHI context.
+   * @return Per-frame resource creation, destruction and upload counters.
+   */
+  LDK_API LDKRHIFrameStats ldk_rhi_last_frame_stats_get(const LDKRHIContext* context);
 
   /**
    * @brief Begins a rendering pass.
@@ -1619,6 +1664,14 @@ extern "C"
    * @param context RHI context.
    */
   LDK_API void ldk_rhi_frame_end(LDKRHIContext* context);
+
+  /**
+   * @brief Returns backend resource activity for the last completed RHI frame.
+   *
+   * @param context RHI context.
+   * @return Per-frame resource creation, destruction and upload counters.
+   */
+  LDK_API LDKRHIFrameStats ldk_rhi_last_frame_stats_get(const LDKRHIContext* context);
 
   /**
    * @brief Begins a render pass using the supplied pass descriptor.

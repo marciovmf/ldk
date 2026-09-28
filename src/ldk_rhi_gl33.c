@@ -20,6 +20,7 @@ typedef struct LDKRHIGL33TextureInfo
 typedef struct LDKRHIGL33BufferInfo
 {
   GLenum target;
+  LDKRHIBufferStatsClass stats_class;
 } LDKRHIGL33BufferInfo;
 
 typedef struct LDKRHIGL33BindingsLayoutEntry
@@ -92,7 +93,12 @@ typedef struct LDKRHIGL33Backend
   LDKRHIGL33PipelineObject* pipelines;
   uint32_t pipeline_capacity;
 
+  // diagnostics
+  LDKRHIFrameStats pending_frame_stats;
+  LDKRHIFrameStats last_frame_stats;
+
   // state
+  GLuint pass_fbo;
   GLuint current_fbo;
   GLsizei current_framebuffer_width;
   GLsizei current_framebuffer_height;
@@ -1476,6 +1482,59 @@ static GLenum ldk_rhi_gl33_buffer_target(uint32_t usage)
   return GL_ARRAY_BUFFER;
 }
 
+static LDKRHIBufferStatsClass ldk_rhi_gl33_buffer_stats_class_resolve(
+    const LDKRHIBufferDesc* desc)
+{
+  if (desc->stats_class != LDK_RHI_BUFFER_STATS_AUTO)
+  {
+    return desc->stats_class;
+  }
+
+  if ((desc->usage & LDK_RHI_BUFFER_USAGE_UNIFORM) != 0)
+  {
+    return LDK_RHI_BUFFER_STATS_UNIFORM;
+  }
+  if ((desc->usage & LDK_RHI_BUFFER_USAGE_INDEX) != 0)
+  {
+    return LDK_RHI_BUFFER_STATS_INDEX;
+  }
+  if ((desc->usage & LDK_RHI_BUFFER_USAGE_VERTEX) != 0)
+  {
+    return LDK_RHI_BUFFER_STATS_VERTEX;
+  }
+  return LDK_RHI_BUFFER_STATS_OTHER;
+}
+
+static void ldk_rhi_gl33_buffer_update_stats_add(
+    LDKRHIFrameStats* stats, LDKRHIBufferStatsClass stats_class, uint32_t size)
+{
+  switch (stats_class)
+  {
+    case LDK_RHI_BUFFER_STATS_UNIFORM:
+      stats->uniform_buffer_update_count++;
+      stats->uniform_buffer_update_bytes += (uint64_t)size;
+      break;
+    case LDK_RHI_BUFFER_STATS_VERTEX:
+      stats->vertex_buffer_update_count++;
+      stats->vertex_buffer_update_bytes += (uint64_t)size;
+      break;
+    case LDK_RHI_BUFFER_STATS_INDEX:
+      stats->index_buffer_update_count++;
+      stats->index_buffer_update_bytes += (uint64_t)size;
+      break;
+    case LDK_RHI_BUFFER_STATS_INSTANCE:
+      stats->instance_buffer_update_count++;
+      stats->instance_buffer_update_bytes += (uint64_t)size;
+      break;
+    case LDK_RHI_BUFFER_STATS_AUTO:
+    case LDK_RHI_BUFFER_STATS_OTHER:
+    default:
+      stats->other_buffer_update_count++;
+      stats->other_buffer_update_bytes += (uint64_t)size;
+      break;
+  }
+}
+
 static GLenum ldk_rhi_gl33_buffer_usage(LDKRHIMemoryUsage usage)
 {
   if (usage == LDK_RHI_MEMORY_USAGE_CPU_TO_GPU)
@@ -1860,6 +1919,14 @@ static void ldk_rhi_gl33_shutdown(void* backend_user_data)
     }
   }
 
+  if (backend->pass_fbo != 0)
+  {
+    glDeleteFramebuffers(1, &backend->pass_fbo);
+    backend->pending_frame_stats.framebuffer_destroy_count++;
+    backend->pass_fbo = 0;
+    backend->current_fbo = 0;
+  }
+
   free(backend->textures);
   free(backend->buffers);
   free(backend->bindings_layouts);
@@ -1877,6 +1944,10 @@ static LDKRHIBuffer ldk_rhi_gl33_buffer_create(void* backend_user_data, const LD
   GLenum usage = ldk_rhi_gl33_buffer_usage(desc->memory_usage);
 
   glGenBuffers(1, &buffer);
+  if (buffer != 0)
+  {
+    backend->pending_frame_stats.buffer_create_count++;
+  }
   glBindBuffer(target, buffer);
   glBufferData(target, (GLsizeiptr)desc->size, desc->initial_data, usage);
   glBindBuffer(target, 0);
@@ -1890,10 +1961,13 @@ static LDKRHIBuffer ldk_rhi_gl33_buffer_create(void* backend_user_data, const LD
   if (!ok)
   {
     glDeleteBuffers(1, &buffer);
+    backend->pending_frame_stats.buffer_destroy_count++;
     return LDK_RHI_INVALID_RESOURCE;
   }
 
   backend->buffers[buffer].target = target;
+  backend->buffers[buffer].stats_class =
+      ldk_rhi_gl33_buffer_stats_class_resolve(desc);
 
   return (LDKRHIBuffer)buffer;
 }
@@ -1904,6 +1978,7 @@ static void ldk_rhi_gl33_buffer_destroy(void* backend_user_data, LDKRHIBuffer bu
 
   GLuint gl_buffer = (GLuint)buffer;
   glDeleteBuffers(1, &gl_buffer);
+  backend->pending_frame_stats.buffer_destroy_count++;
 
   if (buffer < backend->buffer_capacity)
   {
@@ -1928,6 +2003,10 @@ static bool ldk_rhi_gl33_buffer_update(void* backend_user_data, LDKRHIBuffer buf
 
   glBindBuffer(target, (GLuint)buffer);
   glBufferSubData(target, (GLintptr)offset, (GLsizeiptr)size, data);
+  backend->pending_frame_stats.buffer_update_count++;
+  backend->pending_frame_stats.buffer_update_bytes += (uint64_t)size;
+  ldk_rhi_gl33_buffer_update_stats_add(
+      &backend->pending_frame_stats, backend->buffers[buffer].stats_class, size);
 
   return true;
 }
@@ -1941,6 +2020,10 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
   GLenum external_format = ldk_rhi_gl33_external_format(desc->format);
   GLenum external_type = ldk_rhi_gl33_external_type(desc->format);
   glGenTextures(1, &texture);
+  if (texture != 0)
+  {
+    backend->pending_frame_stats.texture_create_count++;
+  }
   glBindTexture(target, texture);
 
   glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1969,15 +2052,20 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
   }
 
   bool ok = ldk_rhi_gl33_grow((void**)&backend->textures, &backend->texture_capacity, sizeof(backend->textures[0]), texture + 1);
-  if (ok)
+  if (!ok)
   {
-    backend->textures[texture].target = target;
-    backend->textures[texture].format = desc->format;
-    backend->textures[texture].width = desc->width;
-    backend->textures[texture].height = desc->height;
-    backend->textures[texture].depth = desc->depth;
-    backend->textures[texture].mip_count = desc->mip_count;
+    glBindTexture(target, 0);
+    glDeleteTextures(1, &texture);
+    backend->pending_frame_stats.texture_destroy_count++;
+    return LDK_RHI_INVALID_RESOURCE;
   }
+
+  backend->textures[texture].target = target;
+  backend->textures[texture].format = desc->format;
+  backend->textures[texture].width = desc->width;
+  backend->textures[texture].height = desc->height;
+  backend->textures[texture].depth = desc->depth;
+  backend->textures[texture].mip_count = desc->mip_count;
 
   glBindTexture(target, 0);
   return (LDKRHITexture)texture;
@@ -1988,6 +2076,7 @@ static void ldk_rhi_gl33_texture_destroy(void* backend_user_data, LDKRHITexture 
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   GLuint gl_texture = (GLuint)texture;
   glDeleteTextures(1, &gl_texture);
+  backend->pending_frame_stats.texture_destroy_count++;
 
   if (texture < backend->texture_capacity)
   {
@@ -2361,20 +2450,54 @@ static void ldk_rhi_gl33_bindings_destroy(void* backend_user_data, LDKRHIBinding
   memset(&backend->bindings[bindings], 0, sizeof(backend->bindings[bindings]));
 }
 
+static bool ldk_rhi_gl33_pass_fbo_ensure(LDKRHIGL33Backend* backend)
+{
+  if (backend->pass_fbo != 0)
+  {
+    return true;
+  }
+
+  /*
+   * The GL33 backend is initialized before the engine creates a window and
+   * makes the real OpenGL context current.  Therefore GL objects must not be
+   * created from ldk_rhi_gl33_initialize().  Lazily create the scratch pass
+   * framebuffer once rendering starts, when a context is guaranteed current.
+   */
+  glGenFramebuffers(1, &backend->pass_fbo);
+  if (backend->pass_fbo == 0)
+  {
+    return false;
+  }
+
+  backend->pending_frame_stats.framebuffer_create_count++;
+  return true;
+}
+
 static void ldk_rhi_gl33_frame_begin(void* backend_user_data)
 {
-  (void)backend_user_data;
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+  if (!ldk_rhi_gl33_pass_fbo_ensure(backend))
+  {
+    fprintf(stderr, "LDK RHI GL33: failed to create persistent pass framebuffer\n");
+  }
 }
 
 static void ldk_rhi_gl33_frame_end(void* backend_user_data)
 {
-  (void)backend_user_data;
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+  backend->last_frame_stats = backend->pending_frame_stats;
+  memset(&backend->pending_frame_stats, 0, sizeof(backend->pending_frame_stats));
+}
+
+static LDKRHIFrameStats ldk_rhi_gl33_frame_stats_get(void* backend_user_data)
+{
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+  return backend != NULL ? backend->last_frame_stats : (LDKRHIFrameStats){0};
 }
 
 static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
-  GLuint fbo = 0;
   bool use_default_framebuffer = false;
 
   ldk_rhi_gl33_reset_bound_state(backend);
@@ -2387,23 +2510,59 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
   if (use_default_framebuffer)
   {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    backend->current_fbo = 0;
   }
   else if (desc->color_attachment_count > 0 || desc->depth_attachment.valid)
   {
-    glGenFramebuffers(1, &fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    if (!ldk_rhi_gl33_pass_fbo_ensure(backend))
+    {
+      fprintf(stderr, "LDK RHI GL33: no framebuffer available for render pass\n");
+      glBindFramebuffer(GL_FRAMEBUFFER, 0);
+      backend->current_fbo = 0;
+      return;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, backend->pass_fbo);
+    backend->current_fbo = backend->pass_fbo;
+
+    /*
+     * pass_fbo is intentionally persistent. Detach the previous pass first so
+     * a pass with fewer/no color attachments or no depth attachment cannot
+     * retain references to textures from the previous pass.
+     */
+    for (uint32_t i = 0; i < LDK_RHI_COLOR_ATTACHMENT_MAX; i++)
+    {
+      glFramebufferTexture2D(
+          GL_FRAMEBUFFER,
+          GL_COLOR_ATTACHMENT0 + i,
+          GL_TEXTURE_2D,
+          0,
+          0);
+    }
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER,
+        GL_DEPTH_ATTACHMENT,
+        GL_TEXTURE_2D,
+        0,
+        0);
 
     GLenum draw_buffers[LDK_RHI_COLOR_ATTACHMENT_MAX];
     for (uint32_t i = 0; i < desc->color_attachment_count; i++)
     {
       GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
-      glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, GL_TEXTURE_2D, (GLuint)desc->color_attachments[i].texture, (GLint)desc->color_attachments[i].mip_level);
+      glFramebufferTexture2D(
+          GL_FRAMEBUFFER,
+          attachment,
+          GL_TEXTURE_2D,
+          (GLuint)desc->color_attachments[i].texture,
+          (GLint)desc->color_attachments[i].mip_level);
       draw_buffers[i] = attachment;
     }
 
     if (desc->color_attachment_count > 0)
     {
       glDrawBuffers((GLsizei)desc->color_attachment_count, draw_buffers);
+      glReadBuffer(GL_COLOR_ATTACHMENT0);
     }
     else
     {
@@ -2413,15 +2572,29 @@ static void ldk_rhi_gl33_pass_begin(void* backend_user_data, const LDKRHIPassDes
 
     if (desc->depth_attachment.valid)
     {
-      glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, (GLuint)desc->depth_attachment.texture, (GLint)desc->depth_attachment.mip_level);
+      glFramebufferTexture2D(
+          GL_FRAMEBUFFER,
+          GL_DEPTH_ATTACHMENT,
+          GL_TEXTURE_2D,
+          (GLuint)desc->depth_attachment.texture,
+          (GLint)desc->depth_attachment.mip_level);
     }
+
+#ifdef LDK_DEBUG
+    GLenum framebuffer_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (framebuffer_status != GL_FRAMEBUFFER_COMPLETE)
+    {
+      fprintf(stderr,
+          "LDK RHI GL33: incomplete framebuffer in pass_begin (0x%04X)\n",
+          (unsigned int)framebuffer_status);
+    }
+#endif
   }
   else
   {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    backend->current_fbo = 0;
   }
-
-  backend->current_fbo = fbo;
 
   if (desc->has_viewport)
   {
@@ -2494,9 +2667,7 @@ static void ldk_rhi_gl33_pass_end(void* backend_user_data)
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (backend->current_fbo != 0)
   {
-    GLuint fbo = backend->current_fbo;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &fbo);
     backend->current_fbo = 0;
   }
 
@@ -2801,6 +2972,7 @@ bool ldk_rhi_gl33_initialize(LDKRHIContext* context)
   functions.bindings_destroy = ldk_rhi_gl33_bindings_destroy;
   functions.frame_begin = ldk_rhi_gl33_frame_begin;
   functions.frame_end = ldk_rhi_gl33_frame_end;
+  functions.frame_stats_get = ldk_rhi_gl33_frame_stats_get;
   functions.pass_begin = ldk_rhi_gl33_pass_begin;
   functions.pass_end = ldk_rhi_gl33_pass_end;
   functions.pipeline_bind = ldk_rhi_gl33_pipeline_bind;
