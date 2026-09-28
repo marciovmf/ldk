@@ -7,6 +7,7 @@
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <module/ldk_scene_manager.h>
+#include <stdx/stdx_string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -863,6 +864,22 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_FLOAT:
     snprintf(out, out_size, "%.9g", (double)*(const float *)value);
     break;
+  case LDK_FIELD_STRING:
+  {
+    const XSmallstr *string = (const XSmallstr *)value;
+
+    if (string->length > X_SMALLSTR_MAX_LENGTH ||
+        string->buf[string->length] != 0 ||
+        strlen(string->buf) != string->length)
+    {
+      snprintf(out, out_size, "<invalid string>");
+    }
+    else
+    {
+      snprintf(out, out_size, "%s", string->buf);
+    }
+    break;
+  }
   case LDK_FIELD_VEC2:
   {
     const Vec2 *v = (const Vec2 *)value;
@@ -1828,6 +1845,32 @@ static void s_editor_inspector_field_draw(
       {
         *(float *)field_value = value;
       }
+    }
+    break;
+  }
+
+  case LDK_FIELD_STRING:
+  {
+    XSmallstr *value = (XSmallstr *)field_value;
+    u32 result;
+
+    if (value->length > X_SMALLSTR_MAX_LENGTH ||
+        value->buf[value->length] != 0 ||
+        strlen(value->buf) != value->length)
+    {
+      ldk_ui_label(ui, "<invalid string>");
+      break;
+    }
+
+    ldk_ui_begin_disabled(ui, readonly);
+    result = ldk_ui_input_box(
+        ui, value->buf, (u32)sizeof(value->buf));
+    ldk_ui_end_disabled(ui);
+
+    if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      value->buf[X_SMALLSTR_MAX_LENGTH] = 0;
+      value->length = strlen(value->buf);
     }
     break;
   }

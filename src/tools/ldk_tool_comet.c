@@ -338,6 +338,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
+  if (strcmp(type_name, "XSmallstr") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_STRING");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_STRING");
+    return true;
+  }
+
   if (strcmp(type_name, "Vec2") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_VEC2");

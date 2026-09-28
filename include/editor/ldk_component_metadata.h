@@ -24,6 +24,7 @@ extern "C"
     LDK_FIELD_ASSET_MESH,
     LDK_FIELD_RESOURCE_MESH,
     LDK_FIELD_ASSET_MATERIAL,
+    LDK_FIELD_STRING,
   } LDKFieldType;
 
   typedef enum LDKFieldWidget
@@ -46,6 +47,7 @@ extern "C"
     LDK_FIELD_WIDGET_EULER,
     LDK_FIELD_WIDGET_COLOR,
     LDK_FIELD_WIDGET_ASSET_MATERIAL,
+    LDK_FIELD_WIDGET_STRING,
   } LDKFieldWidget;
 
   typedef enum LDKFieldFlags

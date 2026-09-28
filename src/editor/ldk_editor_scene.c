@@ -6,6 +6,7 @@
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
 #include <stdx/stdx_hpool.h>
+#include <stdx/stdx_string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -418,6 +419,21 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
+  case LDK_FIELD_STRING:
+  {
+    const XSmallstr *value = (const XSmallstr *)ptr;
+
+    if (value->length > X_SMALLSTR_MAX_LENGTH ||
+        value->buf[value->length] != 0 ||
+        strlen(value->buf) != value->length)
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, value->buf);
+  }
+  break;
+
   case LDK_FIELD_VEC2:
   {
     const Vec2 *value = (const Vec2 *)ptr;
@@ -669,6 +685,25 @@ static bool s_apply_field_value(const TMLDocument *doc, const TMLEntry *entry,
     }
 
     *(float *)ptr = (float)value;
+  }
+  break;
+
+  case LDK_FIELD_STRING:
+  {
+    TMLString value;
+    XSmallstr *string = (XSmallstr *)ptr;
+    XSlice slice;
+
+    if (!tml_entry_get_string(entry, &value) ||
+        value.size > X_SMALLSTR_MAX_LENGTH ||
+        (value.size > 0u && memchr(value.data, 0, value.size)))
+    {
+      return false;
+    }
+
+    slice.ptr = value.data;
+    slice.length = value.size;
+    (void)x_smallstr_from_slice(slice, string);
   }
   break;
 

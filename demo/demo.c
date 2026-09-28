@@ -19,8 +19,12 @@
 #include <stdx/stdx_math.h>
 
 #include "src/component/player_character.h"
+#include "src/component/tftf_bulb_plant_ai.h"
+#include "src/component/tftf_projectile.h"
 #include "src/system/hello.h"
 #include "src/system/island_terrain.h"
+#include "src/system/tftf_bulb_plant_ai_system.h"
+#include "src/system/tftf_bullet_system.h"
 #include <generated_component_metadata.h>
 
 LDKGame game = {0};
@@ -74,6 +78,18 @@ bool game_initialize(LDKGame *game)
   if (!player_character_component_register())
   {
     ldk_log_error("Failed to register PlayerCharacterComponent.\n");
+    return false;
+  }
+
+  if (!tftf_projectile_component_register())
+  {
+    ldk_log_error("Failed to register TFTFProjectileComponent.\n");
+    return false;
+  }
+
+  if (!tftf_bulb_plant_ai_component_register())
+  {
+    ldk_log_error("Failed to register TFTFBulbPlantAIComponent.\n");
     return false;
   }
 

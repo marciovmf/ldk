@@ -21,6 +21,7 @@
 #include <module/ldk_scene_manager.h>
 
 #include <stdx/stdx_hpool.h>
+#include <stdx/stdx_string.h>
 #include <stdx/stdx_tml.h>
 
 #include <math.h>
@@ -847,6 +848,25 @@ static bool s_apply_field_value(const TMLDocument *doc,
   }
   break;
 
+  case LDK_FIELD_STRING:
+  {
+    TMLString value;
+    XSmallstr *string = (XSmallstr *)ptr;
+    XSlice slice;
+
+    if (!tml_entry_get_string(entry, &value) ||
+        value.size > X_SMALLSTR_MAX_LENGTH ||
+        (value.size > 0u && memchr(value.data, 0, value.size)))
+    {
+      return false;
+    }
+
+    slice.ptr = value.data;
+    slice.length = value.size;
+    (void)x_smallstr_from_slice(slice, string);
+  }
+  break;
+
   case LDK_FIELD_VEC2:
   {
     Vec2 *value = (Vec2 *)ptr;
@@ -1604,6 +1624,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(float);
       alignment = _Alignof(float);
       break;
+    case LDK_FIELD_STRING:
+      field_size = sizeof(XSmallstr);
+      alignment = _Alignof(XSmallstr);
+      break;
     case LDK_FIELD_VEC2:
       field_size = sizeof(Vec2);
       alignment = _Alignof(Vec2);
@@ -2155,6 +2179,21 @@ static bool s_write_field_value(XStrBuilder *out,
   {
     const float *value = (const float *)ptr;
     x_strbuilder_append_format(out, "%#.9g", (double)*value);
+  }
+  break;
+
+  case LDK_FIELD_STRING:
+  {
+    const XSmallstr *value = (const XSmallstr *)ptr;
+
+    if (value->length > X_SMALLSTR_MAX_LENGTH ||
+        value->buf[value->length] != 0 ||
+        strlen(value->buf) != value->length)
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, value->buf);
   }
   break;
 
