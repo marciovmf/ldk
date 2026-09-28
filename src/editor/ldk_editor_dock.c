@@ -188,6 +188,7 @@ typedef struct LDKEditorDockLayoutWindow
 {
   LDKEditorWindowId id;
   LDKUIRect floating_rect;
+  bool open;
 } LDKEditorDockLayoutWindow;
 
 typedef struct LDKEditorDockLayoutNode
@@ -1239,16 +1240,29 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
         !editor->gizmo.dragging &&
         !editor->gizmo.drag_block_pick &&
         editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
-        ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+        ldk_os_mouse_button_up(
+            (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
     {
       LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-      if (ldk_rectf_contains(&image_rect, (float)cursor.x, (float)cursor.y) &&
-          ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+      if (ldk_rectf_contains(
+              &image_rect, (float)cursor.x, (float)cursor.y) &&
+          ldk_rectf_contains(
+              &ui->clip_rect, (float)cursor.x, (float)cursor.y))
       {
         if (icon_hovered)
+        {
           editor->selected_entity = icon_entity;
+        }
         else
+        {
           ldki_editor_scene_view_pick(editor, cursor);
+        }
+
+        if (!x_handle_is_null(editor->selected_entity))
+        {
+          editor->selected_system_id = 0;
+          editor->scene_properties_selected = false;
+        }
       }
     }
   }
@@ -2376,6 +2390,7 @@ static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
         &layout->windows[layout->window_count - 1];
     saved->id = window->window.id;
     saved->floating_rect = window->floating_rect;
+    saved->open = window->open;
   }
 
   if (dock->root == LDK_EDITOR_DOCK_INVALID_NODE)
@@ -2505,6 +2520,8 @@ static bool s_editor_dock_layout_write(
     s_editor_dock_tml_indent(out, 4);
     x_strbuilder_append_format(out, "- id: %u\n", window->id);
     s_editor_dock_tml_indent(out, 5);
+    x_strbuilder_append_format(out, "open: %s\n", window->open ? "true" : "false");
+    s_editor_dock_tml_indent(out, 5);
     x_strbuilder_append_format(out, "floating_rect: [%.9g, %.9g, %.9g, %.9g]\n",
         (double)rect->x, (double)rect->y, (double)rect->w, (double)rect->h);
   }
@@ -2590,6 +2607,7 @@ static bool s_editor_dock_layout_windows_read(
         tml_node_find_entry(context->document, window_node, "floating_rect");
     LDKEditorWindowId id;
     LDKUIRect rect;
+    u8 open = 0;
 
     if (!s_editor_dock_window_id_from_entry(id_entry, &id) ||
         !s_editor_dock_rect_from_entry(context->document, rect_entry, &rect) ||
@@ -2599,15 +2617,25 @@ static bool s_editor_dock_layout_windows_read(
       return false;
     }
 
-    if (s_editor_dock_window_get_const(context->dock, id) == NULL)
+    const LDKEditorDockWindow *dock_window =
+        s_editor_dock_window_get_const(context->dock, id);
+    if (dock_window == NULL)
     {
       continue;
+    }
+
+    const TMLEntry *open_entry =
+        tml_node_find_entry(context->document, window_node, "open");
+    if (open_entry != NULL && !tml_entry_get_bool(open_entry, &open))
+    {
+      return false;
     }
 
     LDKEditorDockLayoutWindow *window =
         &context->layout->windows[context->layout->window_count++];
     window->id = id;
     window->floating_rect = rect;
+    window->open = open_entry != NULL ? open != 0 : dock_window->open;
   }
 
   return true;
@@ -2932,6 +2960,7 @@ static bool s_editor_dock_layout_apply(
     if (window != NULL)
     {
       window->floating_rect = layout->windows[i].floating_rect;
+      window->open = layout->windows[i].open;
     }
   }
 
