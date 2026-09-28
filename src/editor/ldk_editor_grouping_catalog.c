@@ -39,7 +39,6 @@ typedef struct LDKEditorGroupingCatalogState
 } LDKEditorGroupingCatalogState;
 
 static LDKEditorGroupingCatalogState s_grouping_catalog = {0};
-static bool s_grouping_catalog_window_registered = false;
 
 static void s_grouping_catalog_clear(void)
 {
@@ -684,25 +683,6 @@ static bool s_grouping_catalog_apply(LDKEditorContext *editor)
   return true;
 }
 
-static void s_grouping_catalog_window_register(LDKEditorContext *editor)
-{
-  if (s_grouping_catalog_window_registered || !editor)
-  {
-    return;
-  }
-
-  LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_GROUPING_CATALOG,
-      .title = "Grouping Catalog",
-      .function = ldki_editor_grouping_catalog_show,
-      .data = NULL};
-
-  if (ldk_editor_window_add((LDKEditor *)editor, &window))
-  {
-    s_grouping_catalog_window_registered = true;
-    ldki_editor_window_hide(LDK_EDITOR_WINDOW_GROUPING_CATALOG);
-  }
-}
-
 void ldki_editor_grouping_catalog_open(LDKEditorContext *editor)
 {
   if (!editor)
@@ -710,7 +690,6 @@ void ldki_editor_grouping_catalog_open(LDKEditorContext *editor)
     return;
   }
 
-  s_grouping_catalog_window_register(editor);
   s_grouping_catalog_load(editor);
   ldki_editor_window_show(LDK_EDITOR_WINDOW_GROUPING_CATALOG);
 }

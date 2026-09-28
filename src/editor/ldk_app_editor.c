@@ -20,6 +20,7 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
+#include "ldk_editor_package_catalog.h"
 #include "ldk_editor_theme.h"
 #include "ldk_ui_drag_n_drop.h"
 
@@ -3746,6 +3747,46 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_SCENE_CATALOG);
+
+  LDKEditorWindow tag_catalog_window = {.id = LDK_EDITOR_WINDOW_TAG_CATALOG,
+      .title = "Tag Catalog",
+      .function = ldki_editor_tag_catalog_show,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &tag_catalog_window))
+  {
+    ldk_log_error("Failed to register the Tag Catalog editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_TAG_CATALOG);
+
+  LDKEditorWindow grouping_catalog_window = {
+      .id = LDK_EDITOR_WINDOW_GROUPING_CATALOG,
+      .title = "Grouping Catalog",
+      .function = ldki_editor_grouping_catalog_show,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &grouping_catalog_window))
+  {
+    ldk_log_error("Failed to register the Grouping Catalog editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_GROUPING_CATALOG);
+
+  LDKEditorWindow package_catalog_window = {.id = LDK_EDITOR_WINDOW_PACKAGE_CATALOG,
+      .title = "Packages",
+      .function = ldki_editor_package_catalog_show,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &package_catalog_window))
+  {
+    ldk_log_error("Failed to register the Packages editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_PACKAGE_CATALOG);
 
   if (!ldk_editor_dock_init(editor))
   {

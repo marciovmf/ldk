@@ -20,7 +20,6 @@ typedef struct LDKEditorTagCatalogState
 } LDKEditorTagCatalogState;
 
 static LDKEditorTagCatalogState s_tag_catalog = {0};
-static bool s_tag_catalog_window_registered = false;
 
 static void s_tag_catalog_defaults(
     char names[LDK_EDITOR_TAG_COUNT][LDK_EDITOR_TAG_NAME_CAPACITY])
@@ -376,29 +375,11 @@ static void s_tag_catalog_draft_load(LDKEditorContext *editor)
   s_tag_catalog.draft_loaded = true;
 }
 
-static void s_tag_catalog_window_register(LDKEditorContext *editor)
-{
-  if (s_tag_catalog_window_registered || !editor)
-    return;
-
-  LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_TAG_CATALOG,
-      .title = "Tag Catalog",
-      .function = ldki_editor_tag_catalog_show,
-      .data = NULL};
-
-  if (ldk_editor_window_add((LDKEditor *)editor, &window))
-  {
-    s_tag_catalog_window_registered = true;
-    ldki_editor_window_hide(LDK_EDITOR_WINDOW_TAG_CATALOG);
-  }
-}
-
 void ldki_editor_tag_catalog_open(LDKEditorContext *editor)
 {
   if (!editor)
     return;
 
-  s_tag_catalog_window_register(editor);
   ldki_editor_window_show(LDK_EDITOR_WINDOW_TAG_CATALOG);
 }
 
@@ -416,8 +397,6 @@ void ldki_editor_tag_catalog_sync(LDKEditorContext *editor)
 {
   if (!editor)
     return;
-
-  s_tag_catalog_window_register(editor);
 
   if (!editor->project.loaded)
   {

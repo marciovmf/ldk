@@ -54,7 +54,6 @@ typedef struct LDKEditorPackageCatalogState
 static LDKEditorPackageCatalogState s_package_catalog = {
     .selected = UINT32_MAX,
 };
-static bool s_package_catalog_window_registered = false;
 
 static void s_package_definition_terminate(LDKEditorPackageDefinition *package)
 {
@@ -1269,33 +1268,12 @@ static void s_package_catalog_import_drop(LDKEditorContext *editor)
   }
 }
 
-static void s_package_catalog_window_register(LDKEditorContext *editor)
-{
-  if (s_package_catalog_window_registered || !editor)
-  {
-    return;
-  }
-
-  LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_PACKAGE_CATALOG,
-      .title = "Packages",
-      .function = ldki_editor_package_catalog_show,
-      .data = NULL};
-
-  if (ldk_editor_window_add((LDKEditor *)editor, &window))
-  {
-    s_package_catalog_window_registered = true;
-    ldki_editor_window_hide(LDK_EDITOR_WINDOW_PACKAGE_CATALOG);
-  }
-}
-
 void ldki_editor_package_catalog_sync(LDKEditorContext *editor)
 {
   if (!editor)
   {
     return;
   }
-
-  s_package_catalog_window_register(editor);
 
   if (!editor->project.loaded)
   {
@@ -1323,7 +1301,6 @@ void ldki_editor_package_catalog_open(LDKEditorContext *editor)
     return;
   }
 
-  s_package_catalog_window_register(editor);
   s_package_catalog_load(editor);
   ldki_editor_window_show(LDK_EDITOR_WINDOW_PACKAGE_CATALOG);
 }
