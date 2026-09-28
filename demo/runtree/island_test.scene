@@ -213,7 +213,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 4.34253407, 1.47044468, -9.43671227
+            local_position: 3.65173626, 1.47044468, 4.59259272
             local_scale: 0.611383975, 2.85074186, 0.585422695
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -229,12 +229,12 @@ scene:
     - entity: 9
       parent: -1
       flags: 0
-      name: "BulbPlantEnemy"
+      name: "Cube"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 2.31390619, 0.790740013, 5.33332729
-            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_position: 4.34253407, 1.47044468, -9.43671227
+            local_scale: 0.611383975, 2.85074186, 0.585422695
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
@@ -246,12 +246,26 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-        - type: 1980476140 # TFTFBulbPlantAIComponent
+    - entity: 10
+      parent: -1
+      flags: 0
+      name: "Cube"
+      components:
+        - type: 4294967294 # LDKTransform
           fields:
-            enabled: true
-            activation_range: 12.0000000
-            cooldown: 1.50000000
-            burst_offset: 0.00000000, 0.500000000, 0.00000000
+            local_position: 2.02493763, 0.241831779, 0.908796310
+            local_scale: 0.942550361, 1.47454798, 0.902526677
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
   systems:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"

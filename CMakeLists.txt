@@ -736,6 +736,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
     message(FATAL_ERROR "OPTION_BUILD_TESTS cannot use OPTION_LDK_PREBUILT. Tests require building the engine target.")
   endif()
 
+  ldk_test_build(TARGET test_stdx_hashtable SOURCES src/tests/test_stdx_hashtable.c)
   ldk_test_build(TARGET test_module_entity SOURCES src/tests/test_ldk_entity.c)
   ldk_test_build(TARGET test_module_component SOURCES src/tests/test_ldk_component.c)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)

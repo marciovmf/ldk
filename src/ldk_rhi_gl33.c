@@ -134,7 +134,10 @@ static void ldk_rhi_gl33_reset_bound_state(LDKRHIGL33Backend* backend)
 
   glBindVertexArray(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  /* GL_ELEMENT_ARRAY_BUFFER binding belongs to the currently bound VAO.
+   * In a core profile, changing it while VAO 0 is bound is invalid. Each
+   * indexed draw binds its element buffer explicitly after binding the
+   * pipeline VAO, so only reset the backend's logical state here. */
 }
 
 static char const* LDK_RHI_GL33_UI_PASS_VERTEX_SHADER =
@@ -1948,9 +1951,14 @@ static LDKRHIBuffer ldk_rhi_gl33_buffer_create(void* backend_user_data, const LD
   {
     backend->pending_frame_stats.buffer_create_count++;
   }
-  glBindBuffer(target, buffer);
-  glBufferData(target, (GLsizeiptr)desc->size, desc->initial_data, usage);
-  glBindBuffer(target, 0);
+
+  /* Buffer storage is not tied to the target used for allocation. Use a
+   * neutral transfer binding so index-buffer creation never depends on a
+   * VAO being current. GL_ELEMENT_ARRAY_BUFFER is VAO state in core GL. */
+  glBindBuffer(GL_COPY_WRITE_BUFFER, buffer);
+  glBufferData(GL_COPY_WRITE_BUFFER, (GLsizeiptr)desc->size,
+      desc->initial_data, usage);
+  glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
 
   bool ok = ldk_rhi_gl33_grow(
       (void**)&backend->buffers,
@@ -2001,8 +2009,14 @@ static bool ldk_rhi_gl33_buffer_update(void* backend_user_data, LDKRHIBuffer buf
     return false;
   }
 
-  glBindBuffer(target, (GLuint)buffer);
-  glBufferSubData(target, (GLintptr)offset, (GLsizeiptr)size, data);
+  /* Do not upload through GL_ELEMENT_ARRAY_BUFFER. Its binding is stored in
+   * the current VAO and is invalid when VAO 0 is bound in a core profile.
+   * COPY_WRITE_BUFFER provides target-independent buffer uploads without
+   * disturbing vertex/index draw state. */
+  glBindBuffer(GL_COPY_WRITE_BUFFER, (GLuint)buffer);
+  glBufferSubData(
+      GL_COPY_WRITE_BUFFER, (GLintptr)offset, (GLsizeiptr)size, data);
+  glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
   backend->pending_frame_stats.buffer_update_count++;
   backend->pending_frame_stats.buffer_update_bytes += (uint64_t)size;
   ldk_rhi_gl33_buffer_update_stats_add(

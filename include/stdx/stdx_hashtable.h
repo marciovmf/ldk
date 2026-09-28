@@ -735,6 +735,21 @@ extern "C" {
       }
     }
 
+    /*
+     * A probe may traverse the entire table without finding a FREE slot while
+     * still finding one or more DELETED slots. This happens naturally after
+     * repeated insert/remove cycles because tombstones do not contribute to
+     * table->count and therefore do not trigger the load-factor resize above.
+     * A deleted slot is a valid insertion point, so preserve the first one
+     * instead of reporting the table as full.
+     */
+    if (first_deleted != (size_t)-1)
+    {
+      *out_index_found = first_deleted;
+      *found = false;
+      return first_deleted;
+    }
+
     *out_index_found = (size_t)-1;
     *found = false;
     return (size_t)-1;
