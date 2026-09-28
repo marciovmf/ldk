@@ -4,6 +4,9 @@
 #define X_IMPL_FILESYSTEM
 #include <stdx/stdx_filesystem.h>
 
+#define X_IMPL_INI
+#include <stdx/stdx_ini.h>
+
 #include <ldk_package.h>
 
 #include <ctype.h>
@@ -1034,52 +1037,6 @@ static int s_extract_all(
   return ok ? 0 : 1;
 }
 
-static bool s_ini_line_is_section(const char *line, const char *name)
-{
-  const char *p = line;
-  const char *end;
-  size_t name_length;
-
-  while (*p == ' ' || *p == '\t')
-  {
-    ++p;
-  }
-  if (*p != '[')
-  {
-    return false;
-  }
-
-  end = strchr(p + 1, ']');
-  if (!end)
-  {
-    return false;
-  }
-
-  ++p;
-  while (p < end && isspace((unsigned char)*p))
-  {
-    ++p;
-  }
-  while (end > p && isspace((unsigned char)end[-1]))
-  {
-    --end;
-  }
-
-  name_length = strlen(name);
-  return (size_t)(end - p) == name_length &&
-         memcmp(p, name, name_length) == 0;
-}
-
-static bool s_ini_line_starts_section(const char *line)
-{
-  const char *p = line;
-  while (*p == ' ' || *p == '\t')
-  {
-    ++p;
-  }
-  return *p == '[' && strchr(p + 1, ']') != NULL;
-}
-
 static const char *s_path_basename(const char *path)
 {
   const char *name = path;
@@ -1106,9 +1063,9 @@ static int s_manifest(int argc, char **argv)
   u32 package_capacity = 0;
   char *temporary = NULL;
   char *backup = NULL;
-  FILE *in = NULL;
-  FILE *out = NULL;
-  bool skip_packages = false;
+  XIni ini = {0};
+  XIniError ini_error = {0};
+  bool ini_loaded = false;
   bool ok = false;
   int result = 1;
 
@@ -1166,94 +1123,71 @@ static int s_manifest(int argc, char **argv)
     fprintf(stderr, "Runtime manifest update blocked by stale temporary files.\n");
     goto done;
   }
-  in = fopen(input, "rb");
-  out = fopen(temporary, "wb");
-  if (!in || !out)
+
+  if (!x_ini_load_file(input, &ini, &ini_error))
   {
-    fprintf(stderr, "Failed to open runtime manifest '%s'.\n", input);
+    fprintf(stderr, "Failed to load runtime manifest '%s': %s.\n", input,
+        x_ini_err_str(ini_error.code));
     goto done;
   }
+  ini_loaded = true;
 
-  char line[4096];
-  while (fgets(line, sizeof(line), in))
-  {
-    if (s_ini_line_starts_section(line))
-    {
-      skip_packages = s_ini_line_is_section(line, "packages");
-    }
-    if (!skip_packages && fputs(line, out) == EOF)
-    {
-      goto done;
-    }
-  }
-  if (ferror(in))
-  {
-    goto done;
-  }
+  x_ini_remove_section(&ini, "packages");
 
-  if (package_count > 0)
+  for (u32 i = 0; i < package_count; ++i)
   {
-    if (fputs("\n[packages]\n", out) == EOF)
+    const char *name = s_path_basename(packages[i]);
+    u64 hash;
+    char hash_text[17];
+    LDKPackage *package;
+
+    if (!name || !name[0] || strchr(name, '=') || strchr(name, '\n') ||
+        strchr(name, '\r'))
     {
+      fprintf(stderr, "Invalid runtime package path '%s'.\n", packages[i]);
       goto done;
     }
 
-    for (u32 i = 0; i < package_count; ++i)
+    package = ldk_package_open(packages[i]);
+    if (!package)
     {
-      const char *name = s_path_basename(packages[i]);
-      u64 hash;
-      LDKPackage *package;
-      if (!name || !name[0] || strchr(name, '=') || strchr(name, '\n') ||
-          strchr(name, '\r'))
-      {
-        fprintf(stderr, "Invalid runtime package path '%s'.\n", packages[i]);
-        goto done;
-      }
+      fprintf(stderr, "Invalid runtime package '%s'.\n", packages[i]);
+      goto done;
+    }
+    ldk_package_close(package);
 
-      package = ldk_package_open(packages[i]);
-      if (!package)
-      {
-        fprintf(stderr, "Invalid runtime package '%s'.\n", packages[i]);
-        goto done;
-      }
-      ldk_package_close(package);
+    if (!ldk_package_file_hash(packages[i], &hash))
+    {
+      fprintf(stderr, "Failed to hash package '%s'.\n", packages[i]);
+      goto done;
+    }
 
-      if (!ldk_package_file_hash(packages[i], &hash))
+    for (u32 j = 0; j < i; ++j)
+    {
+      const char *other = s_path_basename(packages[j]);
+      if (other && strcmp(other, name) == 0)
       {
-        fprintf(stderr, "Failed to hash package '%s'.\n", packages[i]);
-        goto done;
-      }
-
-      for (u32 j = 0; j < i; ++j)
-      {
-        const char *other = s_path_basename(packages[j]);
-        if (other && strcmp(other, name) == 0)
-        {
-          fprintf(stderr, "Duplicate runtime package name '%s'.\n", name);
-          goto done;
-        }
-      }
-
-      if (fprintf(out, "%s=%016llx\n", name,
-              (unsigned long long)hash) < 0)
-      {
+        fprintf(stderr, "Duplicate runtime package name '%s'.\n", name);
         goto done;
       }
     }
+
+    int hash_length = snprintf(hash_text, sizeof(hash_text), "%016llx",
+        (unsigned long long)hash);
+    if (hash_length != 16 ||
+        !x_ini_set(&ini, "packages", name, hash_text))
+    {
+      fprintf(stderr, "Failed to update runtime package '%s'.\n", name);
+      goto done;
+    }
   }
 
-  if (fclose(in) != 0)
+  if (!x_ini_write_file(temporary, &ini, &ini_error))
   {
-    in = NULL;
+    fprintf(stderr, "Failed to write runtime manifest '%s': %s.\n", input,
+        x_ini_err_str(ini_error.code));
     goto done;
   }
-  in = NULL;
-  if (fclose(out) != 0)
-  {
-    out = NULL;
-    goto done;
-  }
-  out = NULL;
 
   if (!x_fs_file_rename(input, backup))
   {
@@ -1276,13 +1210,9 @@ static int s_manifest(int argc, char **argv)
   result = 0;
 
 done:
-  if (in)
+  if (ini_loaded)
   {
-    fclose(in);
-  }
-  if (out)
-  {
-    fclose(out);
+    x_ini_free(&ini);
   }
   if (!ok && temporary)
   {
