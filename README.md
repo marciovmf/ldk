@@ -1,7 +1,7 @@
 # LDK
 
-![ldk_editor](ldk_editor_a.png)
-![ldk_editor](ldk_editor_b.png)
+![screenshot_a](ldk_editor_a.png)
+![screenshot_b](ldk_editor_b.png)
 
 LDK is a 3D game engine written in C, built from scratch on top of [STDX](https://github.com/marciovmf/stdx).
 
