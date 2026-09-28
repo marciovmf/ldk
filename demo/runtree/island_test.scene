@@ -140,6 +140,32 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
+    - entity: 5
+      parent: -1
+      flags: 0
+      name: "BulbPlantEnemy"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, -3.24956036
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+        - type: 1980476140 # TFTFBulbPlantAIComponent
+          fields:
+            enabled: true
+            activation_range: 12.0000000
+            cooldown: 1.50000000
+            burst_offset: 0.00000000, 0.500000000, 0.00000000
   systems:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
@@ -215,3 +241,58 @@ scene:
         material: "assets/tftf_island.material"
     - id: "0x758d97a0f482b923"
       grouping: "0x8000000000000002"
+    - id: "0xea9d0015f4bf0348"
+      grouping: "0x8000000000000004"
+      data:
+        projectile_mesh: -1
+        projectile_material: -1
+        pattern_0_name: "TFTF_BULLET_PATTERN_NAME_RING"
+        pattern_0_type: "TFTF_BULLET_PATTERN_TYPE_RING"
+        pattern_0_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_0_count: 16
+        pattern_0_speed: 2.50000000
+        pattern_0_lifetime: 5.00000000
+        pattern_0_radius: 0.150000006
+        pattern_0_damage: 0.00000000
+        pattern_0_scale: 0.150000006
+        pattern_0_height_offset: 0.00000000
+        pattern_0_angle_offset_degrees: 0.00000000
+        pattern_0_color: 4294967295
+        pattern_1_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_1_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_1_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_1_count: 0
+        pattern_1_speed: 0.00000000
+        pattern_1_lifetime: 0.00000000
+        pattern_1_radius: 0.00000000
+        pattern_1_damage: 0.00000000
+        pattern_1_scale: 0.00000000
+        pattern_1_height_offset: 0.00000000
+        pattern_1_angle_offset_degrees: 0.00000000
+        pattern_1_color: 0
+        pattern_2_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_2_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_2_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_2_count: 0
+        pattern_2_speed: 0.00000000
+        pattern_2_lifetime: 0.00000000
+        pattern_2_radius: 0.00000000
+        pattern_2_damage: 0.00000000
+        pattern_2_scale: 0.00000000
+        pattern_2_height_offset: 0.00000000
+        pattern_2_angle_offset_degrees: 0.00000000
+        pattern_2_color: 0
+        pattern_3_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_3_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_3_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_3_count: 0
+        pattern_3_speed: 0.00000000
+        pattern_3_lifetime: 0.00000000
+        pattern_3_radius: 0.00000000
+        pattern_3_damage: 0.00000000
+        pattern_3_scale: 0.00000000
+        pattern_3_height_offset: 0.00000000
+        pattern_3_angle_offset_degrees: 0.00000000
+        pattern_3_color: 0
+    - id: "0xc438be868c0566d0"
+      grouping: "0x8000000000000005"

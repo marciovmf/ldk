@@ -623,6 +623,11 @@ static bool s_package_catalog_manifest_save(LDKEditorContext *editor)
     return false;
   }
 
+  if (!s_package_catalog_rules_validate())
+  {
+    return false;
+  }
+
   path = editor->project.project_file_path;
   if (!s_package_catalog_file_path_with_suffix(
           &path, ".packages.tmp", &temporary) ||
