@@ -2135,18 +2135,25 @@ static bool s_island_terrain_mesh_rebuild(
   if (ldk_renderer_mesh_is_valid(renderer, system->mesh))
   {
     updated = ldk_renderer_mesh_update(renderer, system->mesh, &desc);
+    if (!updated)
+    {
+      /* mesh_update() preserves the previous GPU buffers on failure. Keep the
+       * old terrain visible and retry this rebuild on the next frame instead
+       * of dropping the ground entirely. */
+      system->has_geometry = true;
+      return false;
+    }
   }
   else
   {
     system->mesh = ldk_renderer_mesh_create(renderer, &desc);
     updated = ldk_renderer_mesh_is_valid(renderer, system->mesh);
-  }
-
-  if (!updated)
-  {
-    system->mesh = ldk_renderer_mesh_null();
-    system->has_geometry = false;
-    return false;
+    if (!updated)
+    {
+      system->mesh = ldk_renderer_mesh_null();
+      system->has_geometry = false;
+      return false;
+    }
   }
 
   system->mesh_update_count += 1u;
@@ -2286,17 +2293,17 @@ void island_terrain_system_update(
   center_x = (i32)floorf((center_world_x - origin_x) / system->cell_size);
   center_y = (i32)floorf((center_world_z - origin_z) / system->cell_size);
 
-  if (!s_island_terrain_tiles_sync(system, center_x, center_y))
+  bool tiles_synced =
+      s_island_terrain_tiles_sync(system, center_x, center_y);
+
+  if (tiles_synced && system->mesh_dirty)
   {
-    return;
+    (void)s_island_terrain_mesh_rebuild(system, renderer);
   }
 
-  if (system->mesh_dirty &&
-      !s_island_terrain_mesh_rebuild(system, renderer))
-  {
-    return;
-  }
-
+  /* Streaming/grass/mesh rebuild failures are transient and must not make a
+   * previously valid terrain mesh disappear. If synchronization or rebuild
+   * failed, submit the last known-good GPU mesh and retry on a later frame. */
   if (!system->has_geometry ||
       !ldk_renderer_mesh_is_valid(renderer, system->mesh))
   {

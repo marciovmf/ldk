@@ -78,6 +78,8 @@ extern "C" {
     LDKRHIBuffer index_buffer;
     u32 vertex_count;
     u32 index_count;
+    u32 vertex_capacity;
+    u32 index_capacity;
     bool alive;
   } LDKRendererMeshResource;
 

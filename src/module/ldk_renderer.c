@@ -700,38 +700,68 @@ static bool s_renderer_mesh_desc_is_valid(
     return false;
   }
 
+  if (desc->vertex_count > UINT32_MAX / (u32)sizeof(LDKMeshVertex) ||
+      desc->index_count > UINT32_MAX / (u32)sizeof(u32))
+  {
+    return false;
+  }
+
   return true;
+}
+
+static const LDKMeshVertex* s_renderer_mesh_upload_vertices_prepare(
+    LDKRendererMeshDesc const* desc, LDKMeshVertex** out_owned)
+{
+  LDKMeshVertex* sanitized_vertices;
+  size_t vertex_bytes;
+
+  if (out_owned == NULL || desc == NULL)
+  {
+    return NULL;
+  }
+
+  *out_owned = NULL;
+  if (desc->has_tangents)
+  {
+    return desc->vertices;
+  }
+
+  vertex_bytes = (size_t)desc->vertex_count * sizeof(LDKMeshVertex);
+  sanitized_vertices = (LDKMeshVertex*)LDK_RENDERER_ALLOC(vertex_bytes);
+  if (sanitized_vertices == NULL)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < desc->vertex_count; ++i)
+  {
+    sanitized_vertices[i].position = desc->vertices[i].position;
+    sanitized_vertices[i].normal = desc->vertices[i].normal;
+    sanitized_vertices[i].uv = desc->vertices[i].uv;
+    sanitized_vertices[i].color = desc->vertices[i].color;
+    sanitized_vertices[i].tangent =
+        vec4_make(0.0f, 0.0f, 0.0f, 0.0f);
+  }
+
+  *out_owned = sanitized_vertices;
+  return sanitized_vertices;
 }
 
 static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
     LDKRendererMeshResource* resource, LDKRendererMeshDesc const* desc)
 {
-  LDKMeshVertex *sanitized_vertices = NULL;
-  const LDKMeshVertex *upload_vertices = desc->vertices;
-
-  if (!desc->has_tangents)
+  LDKMeshVertex* owned_vertices = NULL;
+  const LDKMeshVertex* upload_vertices =
+      s_renderer_mesh_upload_vertices_prepare(desc, &owned_vertices);
+  if (upload_vertices == NULL)
   {
-    size_t vertex_bytes = (size_t)desc->vertex_count * sizeof(LDKMeshVertex);
-    sanitized_vertices = (LDKMeshVertex *)LDK_RENDERER_ALLOC(vertex_bytes);
-    if (!sanitized_vertices)
-    {
-      return false;
-    }
-
-    for (u32 i = 0; i < desc->vertex_count; ++i)
-    {
-      sanitized_vertices[i].position = desc->vertices[i].position;
-      sanitized_vertices[i].normal = desc->vertices[i].normal;
-      sanitized_vertices[i].uv = desc->vertices[i].uv;
-      sanitized_vertices[i].color = desc->vertices[i].color;
-      sanitized_vertices[i].tangent = vec4_make(0.0f, 0.0f, 0.0f, 0.0f);
-    }
-    upload_vertices = sanitized_vertices;
+    return false;
   }
 
   LDKRHIBufferDesc vertex_desc = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_desc);
-  vertex_desc.size = desc->vertex_count * (u32)sizeof(LDKMeshVertex);
+  vertex_desc.size =
+      desc->vertex_count * (u32)sizeof(LDKMeshVertex);
   vertex_desc.usage =
       LDK_RHI_BUFFER_USAGE_VERTEX | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   vertex_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
@@ -739,7 +769,7 @@ static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
 
   resource->vertex_buffer =
       ldk_rhi_buffer_create(renderer->rhi, &vertex_desc);
-  LDK_RENDERER_FREE(sanitized_vertices);
+  LDK_RENDERER_FREE(owned_vertices);
   if (resource->vertex_buffer == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
@@ -764,6 +794,8 @@ static bool s_renderer_mesh_resource_create_buffers(LDKRenderer* renderer,
 
   resource->vertex_count = desc->vertex_count;
   resource->index_count = desc->index_count;
+  resource->vertex_capacity = desc->vertex_count;
+  resource->index_capacity = desc->index_count;
   return true;
 }
 
@@ -807,32 +839,71 @@ LDKResourceMesh ldk_renderer_mesh_create(
 bool ldk_renderer_mesh_update(LDKRenderer* renderer, LDKResourceMesh mesh,
     LDKRendererMeshDesc const* desc)
 {
+  LDKRendererMeshResource* resource;
+  LDKMeshVertex* owned_vertices = NULL;
+  const LDKMeshVertex* upload_vertices;
+
   if (renderer == NULL || !renderer->is_initialized ||
       !s_renderer_mesh_desc_is_valid(desc))
   {
     return false;
   }
 
-  LDKRendererMeshResource* resource =
-      s_renderer_mesh_get_resource(renderer, mesh);
+  resource = s_renderer_mesh_get_resource(renderer, mesh);
   if (resource == NULL)
   {
     return false;
   }
 
-  ldk_rhi_buffer_destroy(renderer->rhi, resource->vertex_buffer);
-  ldk_rhi_buffer_destroy(renderer->rhi, resource->index_buffer);
-  resource->vertex_buffer = LDK_RHI_INVALID_RESOURCE;
-  resource->index_buffer = LDK_RHI_INVALID_RESOURCE;
-  resource->vertex_count = 0;
-  resource->index_count = 0;
-
-  if (!s_renderer_mesh_resource_create_buffers(renderer, resource, desc))
+  /* Reuse the existing GPU objects while the new geometry fits. Procedural
+   * meshes such as IslandTerrain rebuild frequently as their streamed tile
+   * window moves; destroying and recreating both buffers for each rebuild is
+   * unnecessary driver churn. */
+  if (desc->vertex_count <= resource->vertex_capacity &&
+      desc->index_count <= resource->index_capacity)
   {
-    resource->alive = false;
+    upload_vertices =
+        s_renderer_mesh_upload_vertices_prepare(desc, &owned_vertices);
+    if (upload_vertices == NULL)
+    {
+      return false;
+    }
+
+    bool vertex_updated = ldk_rhi_buffer_update(renderer->rhi,
+        resource->vertex_buffer, 0,
+        desc->vertex_count * (u32)sizeof(LDKMeshVertex),
+        upload_vertices);
+    LDK_RENDERER_FREE(owned_vertices);
+    if (!vertex_updated ||
+        !ldk_rhi_buffer_update(renderer->rhi, resource->index_buffer, 0,
+            desc->index_count * (u32)sizeof(u32), desc->indices))
+    {
+      return false;
+    }
+
+    resource->vertex_count = desc->vertex_count;
+    resource->index_count = desc->index_count;
+    return true;
+  }
+
+  /* Growth is transactional. Build a complete replacement before touching
+   * the live mesh so a failed allocation cannot turn a valid mesh into an
+   * invalid one. Capacity then becomes a high-water mark for later updates. */
+  LDKRendererMeshResource replacement = {0};
+  if (!s_renderer_mesh_resource_create_buffers(renderer, &replacement, desc))
+  {
     return false;
   }
 
+  LDKRHIBuffer old_vertex_buffer = resource->vertex_buffer;
+  LDKRHIBuffer old_index_buffer = resource->index_buffer;
+  bool alive = resource->alive;
+
+  *resource = replacement;
+  resource->alive = alive;
+
+  ldk_rhi_buffer_destroy(renderer->rhi, old_vertex_buffer);
+  ldk_rhi_buffer_destroy(renderer->rhi, old_index_buffer);
   return true;
 }
 
