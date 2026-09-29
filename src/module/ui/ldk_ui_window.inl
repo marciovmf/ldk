@@ -1063,7 +1063,7 @@ bool ldk_ui_begin_window_open(LDKUIContext *ctx, char const *title,
   new_rect = s_ui_begin_window_internal(ctx, title, *rect, flags);
   *rect = new_rect;
 
-  if (ctx->last_window_close_requested)
+  if (ctx->current_window != NULL && ctx->current_window->close_requested)
   {
     if (open != NULL)
     {
@@ -1082,6 +1082,11 @@ bool ldk_ui_window_close_requested(LDKUIContext *ctx)
   if (ctx == NULL)
   {
     return false;
+  }
+
+  if (ctx->current_window != NULL)
+  {
+    return ctx->current_window->close_requested;
   }
 
   return ctx->last_window_close_requested;
