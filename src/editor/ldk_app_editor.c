@@ -1723,7 +1723,7 @@ bool ldki_editor_font_apply(
   font_atlas_desc.page_height = 256;
   new_instance = ldk_ttf_get_instance(
       font_data->face, (float)font_size, &font_atlas_desc);
-  if (new_instance == NULL)
+  if (new_instance == NULL || !ldk_ttf_preload_basic_ascii(new_instance))
   {
     ldk_asset_manager_font_unload(asset_manager, new_font);
     return false;

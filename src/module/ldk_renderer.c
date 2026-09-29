@@ -7753,52 +7753,90 @@ static bool s_renderer_grow_font_page_cache(LDKRenderer* renderer)
   return true;
 }
 
-LDKUITextureHandle ldk_renderer_get_font_page_texture(
-    LDKRenderer* renderer, LDKFontInstance* font, u32 page_index)
+static LDKRHITexture s_renderer_font_page_texture_create(
+    LDKRenderer *renderer, const LDKFontPageInfo *page)
 {
+  LDKRHITextureDesc texture_desc = {0};
+
+  if (renderer == NULL || page == NULL || page->pixels == NULL ||
+      page->width == 0 || page->height == 0)
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  ldk_rhi_texture_desc_defaults(&texture_desc);
+  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  texture_desc.format = LDK_RHI_FORMAT_R8_UNORM;
+  texture_desc.width = page->width;
+  texture_desc.height = page->height;
+  texture_desc.depth = 1;
+  texture_desc.mip_count = 1;
+  texture_desc.layer_count = 1;
+  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  texture_desc.initial_data = page->pixels;
+  texture_desc.initial_data_size = page->width * page->height;
+  texture_desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
+
+  return ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture(
+    LDKRenderer *renderer, LDKFontInstance *font, u32 page_index)
+{
+  LDKFontPageInfo page = {0};
+
   if (renderer == NULL || renderer->rhi == NULL || font == NULL)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  if (!ldk_ttf_get_page_info(font, page_index, &page) ||
+      page.pixels == NULL || page.width == 0 || page.height == 0)
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
   }
 
   for (u32 i = 0; i < renderer->font_page_count; i++)
   {
-    LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
-    if (entry->font == font && entry->page_index == page_index)
+    LDKRendererFontPageCacheEntry *entry = &renderer->font_pages[i];
+    if (entry->font != font || entry->page_index != page_index)
     {
-      return (LDKUITextureHandle)entry->texture;
+      continue;
     }
+
+    if (entry->width != page.width || entry->height != page.height)
+    {
+      LDKRHITexture texture =
+          s_renderer_font_page_texture_create(renderer, &page);
+      if (texture == LDK_RHI_INVALID_RESOURCE)
+      {
+        return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+      }
+
+      ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
+      entry->texture = texture;
+      entry->width = page.width;
+      entry->height = page.height;
+      ldk_ttf_clear_page_dirty(font, page_index);
+    }
+    else if (page.dirty)
+    {
+      if (!ldk_rhi_texture_update(renderer->rhi, entry->texture, 0, 0,
+              page.pixels, page.width * page.height))
+      {
+        return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+      }
+
+      ldk_ttf_clear_page_dirty(font, page_index);
+    }
+
+    return (LDKUITextureHandle)entry->texture;
   }
 
-  LDKFontPageInfo page = {0};
-  if (!ldk_ttf_get_page_info(font, page_index, &page))
-  {
-    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
-  }
-
-  if (page.pixels == NULL || page.width == 0 || page.height == 0)
-  {
-    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
-  }
-
-  LDKRHITextureDesc texture_desc = {0};
-  ldk_rhi_texture_desc_defaults(&texture_desc);
-  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
-  texture_desc.format = LDK_RHI_FORMAT_R8_UNORM;
-  texture_desc.width = page.width;
-  texture_desc.height = page.height;
-  texture_desc.depth = 1;
-  texture_desc.mip_count = 1;
-  texture_desc.layer_count = 1;
-  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
-  texture_desc.initial_data = page.pixels;
-  texture_desc.initial_data_size = page.width * page.height;
-  texture_desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
-
-  LDKRHITexture texture = ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+  LDKRHITexture texture = s_renderer_font_page_texture_create(renderer, &page);
   if (texture == LDK_RHI_INVALID_RESOURCE)
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
@@ -7813,7 +7851,7 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(
     }
   }
 
-  LDKRendererFontPageCacheEntry* entry =
+  LDKRendererFontPageCacheEntry *entry =
       &renderer->font_pages[renderer->font_page_count];
   entry->font = font;
   entry->page_index = page_index;

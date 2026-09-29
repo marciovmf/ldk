@@ -1035,13 +1035,15 @@ typedef struct LDKEditorSettingsDraft
   u32 file_association_count;
 } LDKEditorSettingsDraft;
 
-static void s_editor_settings_association_name_refresh(
+static void s_editor_settings_association_name_suggest(
     LDKEditorFileAssociation *association)
 {
   XSlice stem;
   size_t length;
 
-  if (association == NULL || association->program[0] == 0)
+  if (association == NULL || association->program[0] == 0 ||
+      (association->name[0] != 0 &&
+          strcmp(association->name, "New program") != 0))
   {
     return;
   }
@@ -1227,7 +1229,6 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
     char section[64];
     LDKEditorFileAssociation *association = &draft->file_associations[i];
 
-    s_editor_settings_association_name_refresh(association);
     snprintf(section, sizeof(section), ".file_association.%u", i);
 
     ok = x_ini_set(&ini, section, "name", association->name) &&
@@ -1285,10 +1286,9 @@ static u32 s_editor_settings_input_row(LDKUIContext *ui, const char *label,
   u32 result;
 
   ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, label);
-  result = ldk_ui_input_label(ui, buffer, buffer_size);
+  result = ldk_ui_input_box(ui, buffer, buffer_size);
   ldk_ui_end_horizontal(ui);
   return result;
 }
@@ -1300,11 +1300,9 @@ static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
   u32 result = 0;
 
   ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, label);
-  result = ldk_ui_input_label(ui, buffer, buffer_size);
-  ldk_ui_set_next_width(ui, ldk_ui_px(34.0f));
+  result = ldk_ui_input_box(ui, buffer, buffer_size);
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "..."))
   {
@@ -1367,9 +1365,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   {
     bool restore_last_project;
     ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_width(ui, ldk_ui_px(240.0f));
     ldk_ui_set_next_weight(ui, 0.0f);
     ldk_ui_label(ui, "Restore last project");
+    ldk_ui_set_next_weight(ui, 0.0f);
     restore_last_project =
         ldk_ui_toggle(ui, draft.restore_last_project);
     if (restore_last_project != draft.restore_last_project)
@@ -1388,7 +1386,6 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       ui, "External programs", external_programs_expanded, 0, 0);
   ldk_ui_set_next_disabled(ui,
       draft.file_association_count >= LDK_EDITOR_FILE_ASSOCIATION_CAPACITY);
-  ldk_ui_set_next_width(ui, ldk_ui_px(56.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "Add"))
   {
@@ -1422,7 +1419,6 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       ldk_ui_set_next_weight(ui, 1.0f);
       program_expanded[i] =
           ldk_ui_tree_node(ui, title, program_expanded[i], 1, 0);
-      ldk_ui_set_next_width(ui, ldk_ui_px(68.0f));
       ldk_ui_set_next_weight(ui, 0.0f);
       if (ldk_ui_button(ui, "Remove"))
       {
@@ -1433,13 +1429,18 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
 
       if (program_expanded[i])
       {
-        result |= s_editor_settings_browse_row(editor, ui, "Program",
+        u32 program_result;
+
+        result |= s_editor_settings_input_row(ui, "Name", association->name,
+            (u32)sizeof(association->name));
+        program_result = s_editor_settings_browse_row(editor, ui, "Program",
             association->program, (u32)sizeof(association->program),
             "Choose Program", "Programs\0*.exe\0All Files\0*.*\0\0");
-        if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+        if ((program_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
         {
-          s_editor_settings_association_name_refresh(association);
+          s_editor_settings_association_name_suggest(association);
         }
+        result |= program_result;
         result |= s_editor_settings_input_row(ui, "Arguments",
             association->arguments, (u32)sizeof(association->arguments));
         result |= s_editor_settings_input_row(ui, "Associations",
@@ -1482,9 +1483,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     u32 result = 0;
 
     ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_width(ui, ldk_ui_px(240.0f));
     ldk_ui_set_next_weight(ui, 0.0f);
     ldk_ui_label(ui, "Open folders with single click");
+    ldk_ui_set_next_weight(ui, 0.0f);
     single_click = ldk_ui_toggle(ui, draft.open_folders_single_click);
     if (single_click != draft.open_folders_single_click)
     {
@@ -1512,7 +1513,6 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   ldk_ui_begin_horizontal(ui);
   ldk_ui_spacer(ui);
   ldk_ui_set_next_disabled(ui, !draft.dirty);
-  ldk_ui_set_next_width(ui, ldk_ui_px(96.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "Save"))
   {
