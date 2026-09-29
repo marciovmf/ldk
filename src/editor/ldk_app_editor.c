@@ -20,6 +20,8 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include "ldk_editor_internal.h"
+#include "ldk_editor_project_create.h"
+#include "ldk_editor_scene_ops.h"
 #include "ldk_editor_package_catalog.h"
 #include "ldk_editor_theme.h"
 #include "ldk_ui_drag_n_drop.h"

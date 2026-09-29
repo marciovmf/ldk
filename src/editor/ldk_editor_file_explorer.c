@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include "ldk_editor_scene_ops.h"
 #include "ldk_editor_package_catalog.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_ui.h"

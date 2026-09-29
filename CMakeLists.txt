@@ -587,6 +587,16 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_settings.h
+    src/editor/ldk_editor_settings.c
+    src/editor/ldk_editor_project_options.h
+    src/editor/ldk_editor_project_options.c
+    src/editor/ldk_editor_project_window.h
+    src/editor/ldk_editor_project_window.c
+    src/editor/ldk_editor_project_create.h
+    src/editor/ldk_editor_project_create.c
+    src/editor/ldk_editor_scene_ops.h
+    src/editor/ldk_editor_scene_ops.c
     src/editor/ldk_editor_scene_catalog.c
     src/editor/ldk_editor_grouping_catalog.c
     src/editor/ldk_editor_package_catalog.h

@@ -1,5 +1,7 @@
 #include "../ldk_stdx.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_settings.h"
+#include "ldk_editor_project_window.h"
 #include "module/ldk_ui.h"
 #include <float.h>
 #include <math.h>

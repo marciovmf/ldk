@@ -354,8 +354,6 @@ void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_status_show(LDKEditorContext *editor);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
-void ldki_editor_settings_show(LDKEditor *editor, void *data);
-void ldki_editor_project_window_show(LDKEditor *editor, void *data);
 bool ldki_editor_project_settings_apply(
     LDKEditorContext *editor, const LDKProject *project);
 bool ldki_editor_project_clean_build_request(LDKEditorContext *editor);
@@ -381,8 +379,6 @@ bool ldki_editor_view_texture_show(LDKEditorContext *editor,
 u32 ldki_editor_input_window(LDKEditorContext *editor, const char *title);
 bool ldki_editor_layout_save_as(LDKEditorContext *editor);
 void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme);
-void ldki_editor_project_create_show(LDKEditorContext *editor);
-void ldki_editor_project_create_window(LDKEditor *editor, void *data);
 const char *ldki_editor_cmake_native_arch_get(void);
 bool ldki_editor_project_create_window_open(LDKEditorContext *editor);
 bool ldki_editor_project_create_request(LDKEditorContext *editor,
@@ -442,7 +438,6 @@ bool ldki_editor_entity_add(LDKEditorContext *editor, LDKECS *ecs);
 bool ldki_editor_selected_entity_remove(
     LDKEditorContext *editor, LDKECS *ecs);
 
-void ldki_editor_scene_state_sync(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_open(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_close(LDKEditorContext *editor);
 void ldki_editor_scene_catalog_show(LDKEditor *editor, void *data);
@@ -457,16 +452,6 @@ void ldki_editor_grouping_catalog_open(LDKEditorContext *editor);
 void ldki_editor_grouping_catalog_show(LDKEditor *editor, void *data);
 
 bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
-bool ldki_editor_scene_clear(LDKEditorContext *editor);
-bool ldki_editor_scene_save(LDKEditorContext *editor);
-bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
-bool ldki_editor_scene_path_is_scene(const XFSPath *path);
-bool ldki_editor_scene_new(LDKEditorContext *editor);
-bool ldki_editor_scene_new_at_path(
-    LDKEditorContext *editor, const XFSPath *path);
-
-bool ldki_editor_scene_add_primitive(
-    LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
 
 // Editor window IDs are stored in the docking layout and must therefore be
 // stable across runs. The value is intentionally just an application-defined
