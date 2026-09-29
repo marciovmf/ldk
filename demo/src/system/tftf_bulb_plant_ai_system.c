@@ -101,7 +101,8 @@ void tftf_bulb_plant_ai_system_update(
     }
 
     enemy_position = vec3_add(enemy_position, ai->burst_offset);
-    if (tftf_burst_by_name("RING", enemy_position))
+    if (tftf_burst(
+            TFTF_BULLET_PATTERN_NAME_RING, enemy_position, to_player))
     {
       ai->cooldown_remaining = isfinite(ai->cooldown)
           ? float_max(ai->cooldown, 0.0f)

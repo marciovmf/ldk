@@ -1768,9 +1768,10 @@ void ldk_engine_frame(void)
         u32 submit_flags = mesh->casts_shadows
                                ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
                                : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
-        if (instances &&
-            ldk_ecs_component_get_const(
-                *entity, LDK_COMPONENT_TYPE_PARTICLE_EMITTER))
+        if (mesh->billboard ||
+            (instances &&
+                ldk_ecs_component_get_const(
+                    *entity, LDK_COMPONENT_TYPE_PARTICLE_EMITTER)))
         {
           submit_flags |= LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD;
         }

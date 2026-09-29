@@ -36,6 +36,8 @@ extern "C" {
     LDKAssetMesh source_asset;
     u32 mesh_index;
     bool casts_shadows;
+    /* Face the active render view in the color pass. */
+    bool billboard;
     //@inspect hidden
     LDKMaterialDesc material;
     //@inspect hidden

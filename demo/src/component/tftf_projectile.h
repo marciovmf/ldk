@@ -7,7 +7,8 @@
 //@enum
 typedef enum TFTFProjectileMovement
 {
-  TFTF_PROJECTILE_MOVEMENT_LINEAR = 0
+  TFTF_PROJECTILE_MOVEMENT_LINEAR = 0,
+  TFTF_PROJECTILE_MOVEMENT_SINE
 } TFTFProjectileMovement;
 
 typedef enum TFTFProjectileFlags
@@ -29,6 +30,23 @@ typedef struct TFTFProjectileComponent
   Vec3 position;
   //@inspect readonly runtime
   Vec3 velocity;
+  //@inspect readonly runtime
+  Vec3 spawn_position;
+  //@inspect readonly runtime
+  Vec3 forward;
+  //@inspect readonly runtime
+  Vec3 side;
+
+  //@inspect readonly runtime
+  float initial_speed;
+  //@inspect readonly runtime
+  float acceleration;
+  //@inspect readonly runtime
+  float sine_amplitude;
+  //@inspect readonly runtime
+  float sine_frequency;
+  //@inspect readonly runtime
+  float sine_phase_degrees;
 
   //@inspect readonly runtime
   float age;
