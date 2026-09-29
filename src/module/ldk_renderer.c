@@ -4936,7 +4936,8 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
   pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
   pass_desc.color_attachments[0].clear_color =
-      ldk_renderer_color_from_rgba32(frame_desc->clear_color);
+      ldk_renderer_color_from_rgba32(
+          view->clear_color_set ? view->clear_color : frame_desc->clear_color);
   pass_desc.depth_attachment.valid = true;
   pass_desc.depth_attachment.texture = view->target.depth_texture;
   pass_desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
@@ -8313,8 +8314,31 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
   view->view = view_matrix;
   view->projection = projection;
   view->post_processing = (LDKRendererPostProcessing){0};
+  view->clear_color = 0;
+  view->clear_color_set = false;
   view->frustum_valid = s_renderer_view_frustum_update(view);
   view->submitted = true;
+  return true;
+}
+
+bool ldk_renderer_view_clear_color_set(LDKRenderer* renderer,
+    LDKRendererViewId view_id, rgba32 clear_color)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
+  {
+    return false;
+  }
+
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+  if (view == NULL || !view->submitted)
+  {
+    return false;
+  }
+
+  view->clear_color = clear_color;
+  view->clear_color_set = true;
   return true;
 }
 

@@ -508,6 +508,8 @@ extern "C" {
     LDKRHITexture post_process_blur_input_textures[2];
     LDKRHIFormat post_process_blur_format;
     LDKRendererPostProcessing post_processing;
+    rgba32 clear_color;
+    bool clear_color_set;
     bool separate_overlay;
     Vec3 grid_center;
     float grid_extent;
@@ -1259,6 +1261,17 @@ extern "C" {
       LDKRendererViewId view_id,
       Mat4 view,
       Mat4 projection);
+
+  /**
+   * @brief Override the clear color used by a submitted view this frame.
+   *
+   * This is transient view state and must be set again after submit_view on
+   * each frame. Alpha is preserved, allowing transparent camera backgrounds.
+   */
+  LDK_API bool ldk_renderer_view_clear_color_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      rgba32 clear_color);
 
   /**
    * @brief Select the submitted view used as the game output.

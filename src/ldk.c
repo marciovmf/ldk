@@ -1583,12 +1583,27 @@ void ldk_engine_frame(void)
         continue;
       }
 
-      s_camera_skybox_runtime_sync(e, camera);
-      if (ldk_renderer_skybox_is_valid(
-              &e->renderer, camera->renderer_skybox))
+      rgba32 background_color = camera->background_mode ==
+          LDK_CAMERA_BACKGROUND_NONE ? 0x00000000u : camera->background_color;
+      (void)ldk_renderer_view_clear_color_set(
+          &e->renderer, view_id, background_color);
+
+      if (camera->background_mode == LDK_CAMERA_BACKGROUND_SKYBOX)
       {
-        (void)ldk_renderer_submit_skybox_to_view(
-            &e->renderer, view_id, camera->renderer_skybox);
+        s_camera_skybox_runtime_sync(e, camera);
+        if (ldk_renderer_skybox_is_valid(
+                &e->renderer, camera->renderer_skybox))
+        {
+          (void)ldk_renderer_submit_skybox_to_view(
+              &e->renderer, view_id, camera->renderer_skybox);
+        }
+      }
+      else if (ldk_renderer_skybox_is_valid(
+                   &e->renderer, camera->renderer_skybox))
+      {
+        ldk_renderer_skybox_destroy(
+            &e->renderer, camera->renderer_skybox);
+        s_camera_skybox_runtime_clear(camera);
       }
 
       const LDKPostProcessing *post_processing =

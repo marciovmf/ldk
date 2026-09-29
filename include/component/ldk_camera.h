@@ -35,6 +35,14 @@ extern "C" {
     LDK_CAMERA_ROLE_RENDER_TARGET
   } LDKCameraRole;
 
+  //@enum
+  typedef enum LDKCameraBackgroundMode
+  {
+    LDK_CAMERA_BACKGROUND_COLOR = 0,
+    LDK_CAMERA_BACKGROUND_SKYBOX,
+    LDK_CAMERA_BACKGROUND_NONE
+  } LDKCameraBackgroundMode;
+
   //@component
   typedef struct LDKCamera
   {
@@ -45,6 +53,9 @@ extern "C" {
     float near_plane;
     float far_plane;
     bool enabled;
+    LDKCameraBackgroundMode background_mode;
+    //@inspect widget=COLOR
+    u32 background_color;
     LDKAssetSkybox skybox_asset;
     //@inspect hidden runtime
     u64 skybox_revision;
