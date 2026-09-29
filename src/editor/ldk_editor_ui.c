@@ -1359,28 +1359,102 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
   return true;
 }
 
-static u32 s_editor_settings_input_row(LDKUIContext *ui, const char *label,
-    char *buffer, u32 buffer_size)
+static const float s_editor_settings_label_width_min = 80.0f;
+static const float s_editor_settings_control_width_min = 100.0f;
+
+static float s_editor_settings_label_width_clamp(
+    LDKUIContext *ui, float width)
 {
+  float max_width = s_editor_settings_label_width_min;
+  float spacing = LDK_UI_DEFAULT_SPACING;
+
+  if (ui != NULL && ui->current_layout != NULL)
+  {
+    spacing = ui->current_layout->spacing;
+    max_width = ui->current_layout->content_rect.w -
+                s_editor_settings_control_width_min - spacing;
+    if (max_width < s_editor_settings_label_width_min)
+    {
+      max_width = s_editor_settings_label_width_min;
+    }
+  }
+
+  if (width < s_editor_settings_label_width_min)
+  {
+    return s_editor_settings_label_width_min;
+  }
+  if (width > max_width)
+  {
+    return max_width;
+  }
+  return width;
+}
+
+static void s_editor_settings_row_begin(
+    LDKEditorContext *editor, const char *label)
+{
+  LDKUIContext *ui = &editor->ui;
+  float spacing;
+  float label_width;
+  float max_width;
+
+  if (!isfinite(editor->settings_label_width) ||
+      editor->settings_label_width <= 0.0f)
+  {
+    editor->settings_label_width = LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT;
+  }
+
+  editor->settings_label_width =
+      s_editor_settings_label_width_clamp(ui, editor->settings_label_width);
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+
+  spacing = ui->current_layout != NULL ? ui->current_layout->spacing
+                                       : LDK_UI_DEFAULT_SPACING;
+  label_width = editor->settings_label_width - spacing;
+  if (label_width < 1.0f)
+  {
+    label_width = 1.0f;
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(label_width));
+  ldk_ui_label(ui, label != NULL ? label : "");
+
+  max_width = ui->current_layout != NULL
+                  ? ui->current_layout->content_rect.w -
+                        s_editor_settings_control_width_min - spacing
+                  : editor->settings_label_width;
+  if (max_width < s_editor_settings_label_width_min)
+  {
+    max_width = s_editor_settings_label_width_min;
+  }
+
+  editor->settings_label_width = ldk_ui_resize_handle_vertical(ui,
+      editor->settings_label_width, s_editor_settings_label_width_min,
+      max_width);
+}
+
+static u32 s_editor_settings_input_row(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size)
+{
+  LDKUIContext *ui = &editor->ui;
   u32 result;
 
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui, label);
+  s_editor_settings_row_begin(editor, label);
   result = ldk_ui_input_box(ui, buffer, buffer_size);
   ldk_ui_end_horizontal(ui);
   return result;
 }
 
 static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
-    LDKUIContext *ui, const char *label, char *buffer, u32 buffer_size,
-    const char *dialog_title, const char *filter)
+    const char *label, char *buffer, u32 buffer_size, const char *dialog_title,
+    const char *filter)
 {
+  LDKUIContext *ui = &editor->ui;
   u32 result = 0;
 
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui, label);
+  s_editor_settings_row_begin(editor, label);
   result = ldk_ui_input_box(ui, buffer, buffer_size);
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "..."))
@@ -1443,12 +1517,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   if (general_expanded)
   {
     bool restore_last_project;
-    ldk_ui_begin_horizontal(ui);
+    s_editor_settings_row_begin(editor, "Restore last project");
     ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_label(ui, "Restore last project");
-    ldk_ui_set_next_weight(ui, 0.0f);
-    restore_last_project =
-        ldk_ui_toggle(ui, draft.restore_last_project);
+    restore_last_project = ldk_ui_toggle(ui, draft.restore_last_project);
     if (restore_last_project != draft.restore_last_project)
     {
       draft.restore_last_project = restore_last_project;
@@ -1510,9 +1581,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       {
         u32 program_result;
 
-        result |= s_editor_settings_input_row(ui, "Name", association->name,
+        result |= s_editor_settings_input_row(editor, "Name", association->name,
             (u32)sizeof(association->name));
-        program_result = s_editor_settings_browse_row(editor, ui, "Program",
+        program_result = s_editor_settings_browse_row(editor, "Program",
             association->program, (u32)sizeof(association->program),
             "Choose Program", "Programs\0*.exe\0All Files\0*.*\0\0");
         if ((program_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -1520,9 +1591,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
           s_editor_settings_association_name_suggest(association);
         }
         result |= program_result;
-        result |= s_editor_settings_input_row(ui, "Arguments",
+        result |= s_editor_settings_input_row(editor, "Arguments",
             association->arguments, (u32)sizeof(association->arguments));
-        result |= s_editor_settings_input_row(ui, "Associations",
+        result |= s_editor_settings_input_row(editor, "Associations",
             association->extensions, (u32)sizeof(association->extensions));
       }
       ldk_ui_pop_id(ui);
@@ -1561,9 +1632,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     bool single_click;
     u32 result = 0;
 
-    ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_label(ui, "Open folders with single click");
+    s_editor_settings_row_begin(editor, "Open folders with single click");
     ldk_ui_set_next_weight(ui, 0.0f);
     single_click = ldk_ui_toggle(ui, draft.open_folders_single_click);
     if (single_click != draft.open_folders_single_click)
@@ -1575,10 +1644,10 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     ldk_ui_end_horizontal(ui);
 
     result |= s_editor_settings_input_row(
-        ui, "UI scale", draft.ui_scale, (u32)sizeof(draft.ui_scale));
+        editor, "UI scale", draft.ui_scale, (u32)sizeof(draft.ui_scale));
     result |= s_editor_settings_input_row(
-        ui, "Font size", draft.font_size, (u32)sizeof(draft.font_size));
-    result |= s_editor_settings_browse_row(editor, ui, "Editor font",
+        editor, "Font size", draft.font_size, (u32)sizeof(draft.font_size));
+    result |= s_editor_settings_browse_row(editor, "Editor font",
         draft.font_path, (u32)sizeof(draft.font_path), "Choose Editor Font",
         "TrueType Font\0*.ttf\0All Files\0*.*\0\0");
 
@@ -1659,28 +1728,20 @@ static void s_editor_project_settings_draft_reset(
       s_editor_project_generator_index_get(draft->cmake_generator);
 }
 
-typedef struct LDKEditorProjectColumnState
-{
-  float drag_start_width;
-  i32 drag_start_x;
-  bool dragging;
-} LDKEditorProjectColumnState;
-
-static LDKEditorProjectColumnState s_editor_project_column_state = {0};
-
 static const float s_editor_project_label_width_min = 80.0f;
 static const float s_editor_project_control_width_min = 100.0f;
-static const float s_editor_project_splitter_hit_width = 8.0f;
 
 static float s_editor_project_label_width_clamp(
     LDKUIContext *ui, float width)
 {
   float max_width = s_editor_project_label_width_min;
+  float spacing = LDK_UI_DEFAULT_SPACING;
 
   if (ui != NULL && ui->current_layout != NULL)
   {
+    spacing = ui->current_layout->spacing;
     max_width = ui->current_layout->content_rect.w -
-                s_editor_project_control_width_min;
+                s_editor_project_control_width_min - spacing;
     if (max_width < s_editor_project_label_width_min)
     {
       max_width = s_editor_project_label_width_min;
@@ -1698,18 +1759,14 @@ static float s_editor_project_label_width_clamp(
   return width;
 }
 
-static void s_editor_project_column_update(LDKEditorContext *editor)
+static void s_editor_project_row_begin(
+    LDKEditorContext *editor, const char *label)
 {
-  LDKEditorProjectColumnState *state = &s_editor_project_column_state;
-  LDKUIContext *ui;
-  LDKPoint cursor;
+  LDKUIContext *ui = &editor->ui;
+  float spacing;
+  float label_width;
+  float max_width;
 
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  ui = &editor->ui;
   if (!isfinite(editor->project_label_width) ||
       editor->project_label_width <= 0.0f)
   {
@@ -1719,82 +1776,32 @@ static void s_editor_project_column_update(LDKEditorContext *editor)
   editor->project_label_width =
       s_editor_project_label_width_clamp(ui, editor->project_label_width);
 
-  if (!state->dragging)
-  {
-    return;
-  }
-
-  if (ui->mouse == NULL)
-  {
-    state->dragging = false;
-    return;
-  }
-
-  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  editor->project_label_width = s_editor_project_label_width_clamp(ui,
-      state->drag_start_width + (float)(cursor.x - state->drag_start_x));
-  ui->cursor_type = LDK_CURSOR_SIZE_WE;
-
-  if (!ldk_os_mouse_button_is_pressed(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    state->dragging = false;
-  }
-}
-
-static void s_editor_project_row_begin(
-    LDKEditorContext *editor, const char *label)
-{
-  LDKEditorProjectColumnState *state = &s_editor_project_column_state;
-  LDKUIContext *ui = &editor->ui;
-  LDKUIRect label_rect;
-  LDKUIRect splitter_rect;
-  LDKPoint cursor;
-  float spacing;
-  float hit_width;
-  bool hovered;
-
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(editor->project_label_width));
-  ldk_ui_label(ui, label != NULL ? label : "");
 
-  if (ui->mouse == NULL || ui->current_window == NULL)
-  {
-    return;
-  }
-
-  label_rect = ldk_ui_last_bounding_rect(ui);
   spacing = ui->current_layout != NULL ? ui->current_layout->spacing
                                        : LDK_UI_DEFAULT_SPACING;
-  hit_width = spacing > s_editor_project_splitter_hit_width
-                  ? spacing
-                  : s_editor_project_splitter_hit_width;
-  splitter_rect = label_rect;
-  splitter_rect.x =
-      label_rect.x + label_rect.w - (hit_width - spacing);
-  splitter_rect.w = hit_width;
-
-  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  hovered = ui->hovered_window_id == ui->current_window->id &&
-            ldk_rectf_contains(
-                &splitter_rect, (float)cursor.x, (float)cursor.y) &&
-            ldk_rectf_contains(
-                &ui->clip_rect, (float)cursor.x, (float)cursor.y);
-
-  if (hovered || state->dragging)
+  label_width = editor->project_label_width - spacing;
+  if (label_width < 1.0f)
   {
-    ui->cursor_type = LDK_CURSOR_SIZE_WE;
+    label_width = 1.0f;
   }
 
-  if (hovered && !state->dragging &&
-      ldk_os_mouse_button_down(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  ldk_ui_set_next_width(ui, ldk_ui_px(label_width));
+  ldk_ui_label(ui, label != NULL ? label : "");
+
+  max_width = ui->current_layout != NULL
+                  ? ui->current_layout->content_rect.w -
+                        s_editor_project_control_width_min - spacing
+                  : editor->project_label_width;
+  if (max_width < s_editor_project_label_width_min)
   {
-    state->dragging = true;
-    state->drag_start_x = cursor.x;
-    state->drag_start_width = editor->project_label_width;
+    max_width = s_editor_project_label_width_min;
   }
+
+  editor->project_label_width = ldk_ui_resize_handle_vertical(ui,
+      editor->project_label_width, s_editor_project_label_width_min,
+      max_width);
 }
 
 static u32 s_editor_project_input_row(LDKEditorContext *editor,
@@ -1892,7 +1899,6 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
   }
 
   ui = &editor->ui;
-  s_editor_project_column_update(editor);
   if (!editor->project.loaded)
   {
     draft = (LDKEditorProjectSettingsDraft){0};
@@ -2073,7 +2079,6 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
 
   ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
-  s_editor_project_column_update(editor);
 }
 
 static bool s_editor_project_play_current_scene_write(

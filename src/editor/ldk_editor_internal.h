@@ -70,6 +70,14 @@ typedef enum LDKEditorConsoleEntryType
 #define LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT 150.0f
 #endif
 
+#ifndef LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT
+#define LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT 150.0f
+#endif
+
+#ifndef LDK_EDITOR_FILE_EXPLORER_TREE_WIDTH_DEFAULT
+#define LDK_EDITOR_FILE_EXPLORER_TREE_WIDTH_DEFAULT 220.0f
+#endif
+
 typedef struct LDKEditorCommand
 {
   char name[LDK_EDITOR_COMMAND_MAX_LENGTH];
@@ -266,6 +274,7 @@ typedef struct LDKEditorContext
   LDKUIContext ui;
   float inspector_label_width;
   float project_label_width;
+  float settings_label_width;
   LDKAssetFont font;
   LDKFontInstance *font_instance;
   LDKRenderer *renderer;
@@ -517,6 +526,8 @@ void ldki_editor_file_explorer_package_mounts_clear(void);
 void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor);
 float ldki_editor_file_explorer_zoom_get(void);
 void ldki_editor_file_explorer_zoom_set(float zoom);
+float ldki_editor_file_explorer_tree_width_get(void);
+void ldki_editor_file_explorer_tree_width_set(float width);
 bool ldki_editor_project_import_packages_reload(LDKEditorContext *editor);
 
 #endif // LDK_EDITOR_INTERNAL

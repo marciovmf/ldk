@@ -302,6 +302,7 @@ extern "C"
     LDK_UI_ITEM_ICON_LABEL = 15,
     LDK_UI_ITEM_COMBO_BOX = 16,
     LDK_UI_ITEM_TAB_BAR = 17,
+    LDK_UI_ITEM_RESIZE_HANDLE = 18,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -691,6 +692,8 @@ extern "C"
     LDKUIRect resize_start_rect;
     float scrollbar_drag_offset_x;
     float scrollbar_drag_offset_y;
+    float resize_handle_drag_start_cursor;
+    float resize_handle_drag_start_value;
     LDKCursorType cursor_type;
   };
 
@@ -822,6 +825,10 @@ extern "C"
   LDK_API u32 ldk_ui_input_label(
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
+  LDK_API float ldk_ui_resize_handle_horizontal(LDKUIContext *ctx,
+      float value, float min_value, float max_value);
+  LDK_API float ldk_ui_resize_handle_vertical(LDKUIContext *ctx,
+      float value, float min_value, float max_value);
   LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
   LDK_API LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
       LDKUITabBarItem const *items, u32 item_count, u32 active_index);
@@ -860,6 +867,12 @@ extern "C"
       char *buffer, u32 buffer_size, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       char const *text, LDKUIRect rect, bool active);
+  LDK_API float ldk_ui_widget_resize_handle_horizontal(LDKUIContext *ctx,
+      LDKUIId id, float value, float min_value, float max_value,
+      LDKUIRect rect);
+  LDK_API float ldk_ui_widget_resize_handle_vertical(LDKUIContext *ctx,
+      LDKUIId id, float value, float min_value, float max_value,
+      LDKUIRect rect);
 
   //----------------------------------------------------------
   // Theme IO

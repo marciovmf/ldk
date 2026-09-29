@@ -218,7 +218,9 @@ typedef struct LDKEditorDockLayoutProperties
 {
   float inspector_label_width;
   float project_label_width;
+  float settings_label_width;
   float project_explorer_icon_size;
+  float project_explorer_tree_width;
 } LDKEditorDockLayoutProperties;
 
 typedef struct LDKEditorDockLayout
@@ -2420,8 +2422,15 @@ static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
               dock->editor->project_label_width > 0.0f
           ? dock->editor->project_label_width
           : LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT;
+  layout->properties.settings_label_width =
+      dock->editor && isfinite(dock->editor->settings_label_width) &&
+              dock->editor->settings_label_width > 0.0f
+          ? dock->editor->settings_label_width
+          : LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT;
   layout->properties.project_explorer_icon_size =
       ldki_editor_file_explorer_zoom_get();
+  layout->properties.project_explorer_tree_width =
+      ldki_editor_file_explorer_tree_width_get();
 
   LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY] = {0};
   for (u32 i = 0; i < dock->window_count; ++i)
@@ -2540,6 +2549,10 @@ static bool s_editor_dock_layout_write(
       layout->properties.inspector_label_width <= 0.0f ||
       !isfinite(layout->properties.project_label_width) ||
       layout->properties.project_label_width <= 0.0f ||
+      !isfinite(layout->properties.settings_label_width) ||
+      layout->properties.settings_label_width <= 0.0f ||
+      !isfinite(layout->properties.project_explorer_tree_width) ||
+      layout->properties.project_explorer_tree_width <= 0.0f ||
       layout->window_count > LDK_EDITOR_WINDOW_CAPACITY ||
       layout->node_count > LDK_EDITOR_DOCK_NODE_CAPACITY)
   {
@@ -2559,8 +2572,14 @@ static bool s_editor_dock_layout_write(
   x_strbuilder_append_format(out, "project_label_width: %.9g\n",
       (double)layout->properties.project_label_width);
   s_editor_dock_tml_indent(out, 4);
+  x_strbuilder_append_format(out, "settings_label_width: %.9g\n",
+      (double)layout->properties.settings_label_width);
+  s_editor_dock_tml_indent(out, 4);
   x_strbuilder_append_format(out, "project_explorer_icon_size: %.9g\n",
       (double)layout->properties.project_explorer_icon_size);
+  s_editor_dock_tml_indent(out, 4);
+  x_strbuilder_append_format(out, "project_explorer_tree_width: %.9g\n",
+      (double)layout->properties.project_explorer_tree_width);
   s_editor_dock_tml_indent(out, 3);
   x_strbuilder_append(out, "windows:\n");
 
@@ -2889,7 +2908,11 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
       LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
   layout->properties.project_label_width =
       LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT;
+  layout->properties.settings_label_width =
+      LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT;
   layout->properties.project_explorer_icon_size = 48.0f;
+  layout->properties.project_explorer_tree_width =
+      LDK_EDITOR_FILE_EXPLORER_TREE_WIDTH_DEFAULT;
 
   if (!s_editor_dock_layout_name_copy(layout->name, sizeof(layout->name), name))
   {
@@ -2919,12 +2942,32 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
       return false;
     }
 
+    entry =
+        tml_node_find_entry(document, properties_node, "settings_label_width");
+    if (entry != NULL &&
+        (!s_editor_dock_float_from_entry(
+             entry, &layout->properties.settings_label_width) ||
+            layout->properties.settings_label_width <= 0.0f))
+    {
+      return false;
+    }
+
     entry = tml_node_find_entry(
         document, properties_node, "project_explorer_icon_size");
     if (entry != NULL &&
         (!s_editor_dock_float_from_entry(
              entry, &layout->properties.project_explorer_icon_size) ||
             layout->properties.project_explorer_icon_size <= 0.0f))
+    {
+      return false;
+    }
+
+    entry = tml_node_find_entry(
+        document, properties_node, "project_explorer_tree_width");
+    if (entry != NULL &&
+        (!s_editor_dock_float_from_entry(
+             entry, &layout->properties.project_explorer_tree_width) ||
+            layout->properties.project_explorer_tree_width <= 0.0f))
     {
       return false;
     }
@@ -3066,8 +3109,12 @@ static bool s_editor_dock_layout_apply(
         layout->properties.inspector_label_width;
     dock->editor->project_label_width =
         layout->properties.project_label_width;
+    dock->editor->settings_label_width =
+        layout->properties.settings_label_width;
     ldki_editor_file_explorer_zoom_set(
         layout->properties.project_explorer_icon_size);
+    ldki_editor_file_explorer_tree_width_set(
+        layout->properties.project_explorer_tree_width);
   }
   return true;
 }
@@ -3632,6 +3679,12 @@ bool ldk_editor_dock_init(LDKEditorContext *editor)
   {
     editor->project_label_width =
         LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT;
+  }
+  if (!isfinite(editor->settings_label_width) ||
+      editor->settings_label_width <= 0.0f)
+  {
+    editor->settings_label_width =
+        LDK_EDITOR_SETTINGS_LABEL_WIDTH_DEFAULT;
   }
 
   if (!s_editor_builtin_windows_add(editor, dock))

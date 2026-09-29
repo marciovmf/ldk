@@ -31,6 +31,8 @@ enum
 };
 
 #define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
+#define PROJECT_EXPLORER_TREE_WIDTH_MIN 100.0f
+#define PROJECT_EXPLORER_FILES_WIDTH_MIN 120.0f
 
 typedef struct ProjectExplorerNode
 {
@@ -152,6 +154,7 @@ typedef struct ProjectExplorerState
   bool rename_had_focus;
   bool root_expanded;
   float icon_size;
+  float tree_width;
 } ProjectExplorerState;
 
 static ProjectExplorerState s_project_explorer_state = {
@@ -159,6 +162,7 @@ static ProjectExplorerState s_project_explorer_state = {
     .root_expanded = true,
     .selected_package = -1,
     .icon_size = 48.0f,
+    .tree_width = LDK_EDITOR_FILE_EXPLORER_TREE_WIDTH_DEFAULT,
 };
 
 float ldki_editor_file_explorer_zoom_get(void)
@@ -178,6 +182,21 @@ void ldki_editor_file_explorer_zoom_set(float zoom)
   }
 
   s_project_explorer_state.icon_size = zoom;
+}
+
+float ldki_editor_file_explorer_tree_width_get(void)
+{
+  return s_project_explorer_state.tree_width;
+}
+
+void ldki_editor_file_explorer_tree_width_set(float width)
+{
+  if (width < PROJECT_EXPLORER_TREE_WIDTH_MIN)
+  {
+    width = PROJECT_EXPLORER_TREE_WIDTH_MIN;
+  }
+
+  s_project_explorer_state.tree_width = width;
 }
 
 static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
@@ -1449,7 +1468,6 @@ static bool s_project_explorer_package_tree_node(
 static void s_project_explorer_tree_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon)
 {
-  ldk_ui_set_next_width(ui, ldk_ui_px(220.0f));
   state->tree_scroll = ldk_ui_begin_scrollview(
       ui, state->tree_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
@@ -2917,8 +2935,35 @@ static void s_editor_project_explorer(
       PROJECT_EXPLORER_TREE_ICON_SIZE, PROJECT_EXPLORER_TREE_ICON_SIZE);
 
   ldk_ui_begin_horizontal(ui);
-  s_project_explorer_tree_draw(editor, state, ui, tree_folder_icon);
-  s_project_explorer_files_draw(editor, state, ui, folder_icon, file_icon);
+  {
+    float spacing = ui->current_layout != NULL
+                        ? ui->current_layout->spacing
+                        : LDK_UI_DEFAULT_SPACING;
+    float max_tree_width = ui->current_layout != NULL
+                               ? ui->current_layout->content_rect.w -
+                                     PROJECT_EXPLORER_FILES_WIDTH_MIN -
+                                     2.0f * spacing
+                               : state->tree_width;
+
+    if (max_tree_width < PROJECT_EXPLORER_TREE_WIDTH_MIN)
+    {
+      max_tree_width = PROJECT_EXPLORER_TREE_WIDTH_MIN;
+    }
+    if (state->tree_width < PROJECT_EXPLORER_TREE_WIDTH_MIN)
+    {
+      state->tree_width = PROJECT_EXPLORER_TREE_WIDTH_MIN;
+    }
+    if (state->tree_width > max_tree_width)
+    {
+      state->tree_width = max_tree_width;
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(state->tree_width));
+    s_project_explorer_tree_draw(editor, state, ui, tree_folder_icon);
+    state->tree_width = ldk_ui_resize_handle_vertical(ui, state->tree_width,
+        PROJECT_EXPLORER_TREE_WIDTH_MIN, max_tree_width);
+    s_project_explorer_files_draw(editor, state, ui, folder_icon, file_icon);
+  }
   ldk_ui_end_horizontal(ui);
 
   if (owns_window)
