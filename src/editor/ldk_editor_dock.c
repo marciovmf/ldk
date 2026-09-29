@@ -217,6 +217,7 @@ typedef struct LDKEditorDockLayoutNode
 typedef struct LDKEditorDockLayoutProperties
 {
   float inspector_label_width;
+  float project_explorer_icon_size;
 } LDKEditorDockLayoutProperties;
 
 typedef struct LDKEditorDockLayout
@@ -1349,6 +1350,27 @@ static bool s_editor_builtin_windows_add(
     }
   }
 
+  if (s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_SETTINGS) == NULL)
+  {
+    LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_SETTINGS,
+        .title = "Editor Settings",
+        .function = ldki_editor_settings_show,
+        .data = NULL};
+
+    if (!s_editor_dock_window_add(
+            dock, &window, (LDKUIRect){260.0f, 140.0f, 700.0f, 520.0f}))
+    {
+      return false;
+    }
+
+    LDKEditorDockWindow *settings =
+        s_editor_dock_window_get(dock, LDK_EDITOR_WINDOW_SETTINGS);
+    if (settings != NULL)
+    {
+      settings->open = false;
+    }
+  }
+
   (void)editor;
   return true;
 }
@@ -2371,6 +2393,8 @@ static bool s_editor_dock_layout_snapshot(LDKEditorDockLayout *layout,
               dock->editor->inspector_label_width > 0.0f
           ? dock->editor->inspector_label_width
           : LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  layout->properties.project_explorer_icon_size =
+      ldki_editor_file_explorer_zoom_get();
 
   LDKEditorWindowId saved_windows[LDK_EDITOR_WINDOW_CAPACITY] = {0};
   for (u32 i = 0; i < dock->window_count; ++i)
@@ -2502,6 +2526,9 @@ static bool s_editor_dock_layout_write(
   s_editor_dock_tml_indent(out, 4);
   x_strbuilder_append_format(out, "inspector_label_width: %.9g\n",
       (double)layout->properties.inspector_label_width);
+  s_editor_dock_tml_indent(out, 4);
+  x_strbuilder_append_format(out, "project_explorer_icon_size: %.9g\n",
+      (double)layout->properties.project_explorer_icon_size);
   s_editor_dock_tml_indent(out, 3);
   x_strbuilder_append(out, "windows:\n");
 
@@ -2828,6 +2855,7 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
   layout->root = LDK_EDITOR_DOCK_INVALID_NODE;
   layout->properties.inspector_label_width =
       LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  layout->properties.project_explorer_icon_size = 48.0f;
 
   if (!s_editor_dock_layout_name_copy(layout->name, sizeof(layout->name), name))
   {
@@ -2843,6 +2871,16 @@ static bool s_editor_dock_layout_read(const TMLDocument *document,
         (!s_editor_dock_float_from_entry(
              entry, &layout->properties.inspector_label_width) ||
             layout->properties.inspector_label_width <= 0.0f))
+    {
+      return false;
+    }
+
+    entry = tml_node_find_entry(
+        document, properties_node, "project_explorer_icon_size");
+    if (entry != NULL &&
+        (!s_editor_dock_float_from_entry(
+             entry, &layout->properties.project_explorer_icon_size) ||
+            layout->properties.project_explorer_icon_size <= 0.0f))
     {
       return false;
     }
@@ -2982,6 +3020,8 @@ static bool s_editor_dock_layout_apply(
   {
     dock->editor->inspector_label_width =
         layout->properties.inspector_label_width;
+    ldki_editor_file_explorer_zoom_set(
+        layout->properties.project_explorer_icon_size);
   }
   return true;
 }

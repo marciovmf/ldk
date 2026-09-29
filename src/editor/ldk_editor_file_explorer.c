@@ -4,10 +4,14 @@
 #include "module/ldk_ui.h"
 #include "stdx/stdx_filesystem.h"
 #include <ldk_image.h>
+#include <ldk_material_io.h>
 #include <ldk_package.h>
-#include <module/ldk_asset_source.h>
 #include <ldk_scene.h>
+#include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
+#include <stdx/stdx_io.h>
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,6 +132,7 @@ typedef struct ProjectExplorerState
   XFSPath root;
   XFSPath selected_directory;
   XFSPath selected_file;
+  LDKPackage *last_click_package;
   u64 last_click_ticks;
   XArray *expanded_paths;
   XArray *package_expanded_paths;
@@ -155,6 +160,25 @@ static ProjectExplorerState s_project_explorer_state = {
     .selected_package = -1,
     .icon_size = 48.0f,
 };
+
+float ldki_editor_file_explorer_zoom_get(void)
+{
+  return s_project_explorer_state.icon_size;
+}
+
+void ldki_editor_file_explorer_zoom_set(float zoom)
+{
+  if (zoom < PROJECT_EXPLORER_MIN_ICON_SIZE)
+  {
+    zoom = PROJECT_EXPLORER_MIN_ICON_SIZE;
+  }
+  else if (zoom > 72.0f)
+  {
+    zoom = 72.0f;
+  }
+
+  s_project_explorer_state.icon_size = zoom;
+}
 
 static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"c", LDK_EDITOR_ICON_CODE},
@@ -639,36 +663,211 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
          state->package_mounts != NULL;
 }
 
-static bool s_project_start_process(LDKEditorContext *editor,
-                                    LDKOSProcessDesc* desc)
+static bool s_project_open_default(
+    LDKEditorContext *editor, const char *path)
 {
-  LDKOSProcessResult result;
-  result = ldk_os_process_run(desc);
-  bool success = (result.started && result.completed && result.exit_code) == 0;
-  if (!success)
+  if (path == NULL || path[0] == 0 || !ldk_os_open_default(path))
   {
-    ldki_editor_log_error(editor, "Failed to start process\n");
-  }
-  return success;
-}
-
-static bool s_project_open_with_explorer(LDKEditorContext* editor, const char *path)
-{
-  XFSPath explorer_path = {0};
-  const char *windir = getenv("WINDIR");
-  if (!windir || !windir[0])
-  {
-    ldk_log_error("The WINDIR environment variable is not defined.\n");
+    ldki_editor_log_error(editor,
+        "Failed to open path with the operating system default handler.");
     return false;
   }
 
+  return true;
+}
+
+static bool s_project_explorer_extension_list_contains(
+    const char *extensions, XSlice extension)
+{
+  const char *cursor;
+
+  if (extensions == NULL || extension.ptr == NULL || extension.length == 0)
+  {
+    return false;
+  }
+
+  cursor = extensions;
+  while (*cursor != 0)
+  {
+    const char *begin;
+    const char *end;
+    size_t length;
+
+    while (*cursor != 0 &&
+           (*cursor == ',' || *cursor == ';' || isspace((u8)*cursor)))
+    {
+      ++cursor;
+    }
+
+    begin = cursor;
+    while (*cursor != 0 && *cursor != ',' && *cursor != ';' &&
+           !isspace((u8)*cursor))
+    {
+      ++cursor;
+    }
+    end = cursor;
+
+    while (begin < end && (*begin == '*' || *begin == '.'))
+    {
+      ++begin;
+    }
+    while (end > begin && isspace((u8)end[-1]))
+    {
+      --end;
+    }
+
+    length = (size_t)(end - begin);
+    if (length == extension.length)
+    {
+      bool matches = true;
+      for (size_t i = 0; i < length; ++i)
+      {
+        if (tolower((u8)begin[i]) != tolower((u8)extension.ptr[i]))
+        {
+          matches = false;
+          break;
+        }
+      }
+
+      if (matches)
+      {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+static const LDKEditorFileAssociation *s_project_explorer_association_find(
+    const LDKEditorContext *editor, const XFSPath *path)
+{
+  XSlice extension;
+
+  if (editor == NULL || path == NULL)
+  {
+    return NULL;
+  }
+
+  extension = x_fs_path_extension_as_slice(path);
+  if (extension.length == 0)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < editor->file_association_count; ++i)
+  {
+    const LDKEditorFileAssociation *association = &editor->file_associations[i];
+    if (association->program[0] != 0 &&
+        s_project_explorer_extension_list_contains(
+            association->extensions, extension))
+    {
+      return association;
+    }
+  }
+
+  return NULL;
+}
+
+static bool s_project_explorer_arguments_expand(const char *arguments,
+    const char *path, char *out, size_t capacity)
+{
+  static const char placeholder[] = "%file%";
+  size_t used = 0;
+  bool replaced = false;
+  const char *cursor = arguments != NULL ? arguments : "";
+
+  if (path == NULL || out == NULL || capacity == 0)
+  {
+    return false;
+  }
+
+  while (*cursor != 0)
+  {
+    if (strncmp(cursor, placeholder, sizeof(placeholder) - 1u) == 0)
+    {
+      int written = snprintf(out + used, capacity - used, "\"%s\"", path);
+      if (written < 0 || (size_t)written >= capacity - used)
+      {
+        return false;
+      }
+      used += (size_t)written;
+      cursor += sizeof(placeholder) - 1u;
+      replaced = true;
+      continue;
+    }
+
+    if (used + 1 >= capacity)
+    {
+      return false;
+    }
+    out[used++] = *cursor++;
+    out[used] = 0;
+  }
+
+  if (!replaced)
+  {
+    int written = snprintf(out + used, capacity - used, "%s\"%s\"",
+        used > 0 ? " " : "", path);
+    if (written < 0 || (size_t)written >= capacity - used)
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool s_project_explorer_association_launch(LDKEditorContext *editor,
+    const LDKEditorFileAssociation *association, const XFSPath *path)
+{
+  char arguments[LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY +
+                 X_FS_PATH_MAX_LENGTH * 2u + 32u];
+  XFSPath working_directory = {0};
   LDKOSProcessDesc process_desc = {0};
-  process_desc.executable = explorer_path.buf;
-  process_desc.arguments = path;
-  process_desc.working_directory = ".";
-  process_desc.new_console = "ldk editor";
-  x_fs_path(&explorer_path, windir, "explorer.exe");
-  return s_project_start_process(editor, &process_desc);
+  LDKOSProcessResult result;
+
+  if (editor == NULL || association == NULL || path == NULL ||
+      association->program[0] == 0 ||
+      !s_project_explorer_arguments_expand(
+          association->arguments, path->buf, arguments, sizeof(arguments)))
+  {
+    ldki_editor_log_error(editor, "Invalid file association.");
+    return false;
+  }
+
+  x_fs_path_dirname(path, &working_directory);
+  process_desc.executable = association->program;
+  process_desc.arguments = arguments;
+  process_desc.working_directory =
+      working_directory.length != 0 ? working_directory.buf : ".";
+  process_desc.new_console = false;
+  result = ldk_os_process_launch(&process_desc);
+
+  if (!result.started)
+  {
+    char message[256];
+    snprintf(message, sizeof(message),
+        "Failed to launch file association '%s'.",
+        association->name[0] != 0 ? association->name : association->program);
+    ldki_editor_log_error(editor, message);
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_project_explorer_file_open(
+    LDKEditorContext *editor, const XFSPath *path)
+{
+  const LDKEditorFileAssociation *association =
+      s_project_explorer_association_find(editor, path);
+  if (association != NULL)
+  {
+    return s_project_explorer_association_launch(editor, association, path);
+  }
+
+  return s_project_open_default(editor, path->buf);
 }
 
 static i32 s_project_explorer_expanded_path_index(
@@ -789,6 +988,7 @@ static bool s_project_explorer_root_set(
     state->rename_had_focus = false;
     x_array_clear(state->expanded_paths);
     state->last_click_ticks = 0;
+    state->last_click_package = NULL;
     state->root_expanded = true;
     state->selected_package = -1;
     memset(&state->selected_package_directory, 0,
@@ -805,6 +1005,8 @@ static void s_project_explorer_directory_select(
   state->selected_package = -1;
   memset(&state->selected_package_directory, 0, sizeof(state->selected_package_directory));
   memset(&state->selected_file, 0, sizeof(state->selected_file));
+  state->last_click_ticks = 0;
+  state->last_click_package = NULL;
 
   if (!expand)
   {
@@ -972,6 +1174,22 @@ static bool s_project_explorer_package_directory_read(
 void ldki_editor_file_explorer_package_mounts_clear(void)
 {
   s_project_explorer_package_mounts_clear(&s_project_explorer_state);
+}
+
+void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+
+  if (editor == NULL || !editor->project.loaded ||
+      !s_project_explorer_initialize(state) ||
+      !s_project_explorer_root_set(state, editor->project.run_root_path.buf))
+  {
+    return;
+  }
+
+  s_project_explorer_directory_select(state, &state->root, true);
+  state->tree_scroll = (LDKUIPoint){0};
+  state->file_scroll = (LDKUIPoint){0};
 }
 
 bool ldki_editor_file_explorer_package_mount(
@@ -1356,21 +1574,64 @@ static void s_project_explorer_on_file_double_click(
   }
   else
   {
-    s_project_open_with_explorer(editor, entry->path.buf);
+    s_project_explorer_file_open(editor, &entry->path);
   }
+}
+
+static bool s_project_explorer_entry_double_click(
+    ProjectExplorerState *state, const ProjectExplorerEntry *entry)
+{
+  u64 now;
+  bool same_entry;
+  bool double_click;
+
+  if (state == NULL || entry == NULL)
+  {
+    return false;
+  }
+
+  now = ldk_os_time_ticks_get();
+  same_entry = state->selected_file.length != 0 &&
+               state->last_click_package == entry->package &&
+               x_fs_path_compare(&state->selected_file, &entry->path) == 0;
+  double_click =
+      same_entry && state->last_click_ticks != 0 &&
+      ldk_os_time_ticks_interval_get_seconds(state->last_click_ticks, now) <=
+          PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS;
+
+  state->selected_file = entry->path;
+  state->last_click_package = entry->package;
+  state->last_click_ticks = double_click ? 0 : now;
+  return double_click;
 }
 
 static void s_project_explorer_entry_activate(LDKEditorContext *editor,
     ProjectExplorerState *state, const ProjectExplorerEntry *entry,
     bool is_directory)
 {
+  bool activate = false;
+
+  if (editor == NULL || state == NULL || entry == NULL)
+  {
+    return;
+  }
+
   if (is_directory)
   {
+    activate = editor->file_explorer_open_folders_single_click ||
+               s_project_explorer_entry_double_click(state, entry);
+    if (!activate)
+    {
+      return;
+    }
+
     if (entry->package_backed)
     {
       x_smallstr_from_cstr(
           &state->selected_package_directory, entry->path.buf);
       memset(&state->selected_file, 0, sizeof(state->selected_file));
+      state->last_click_ticks = 0;
+      state->last_click_package = NULL;
     }
     else
     {
@@ -1379,18 +1640,7 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
     return;
   }
 
-  u64 now = ldk_os_time_ticks_get();
-  bool same_file = state->selected_file.length != 0 &&
-                   x_fs_path_compare(&state->selected_file, &entry->path) == 0;
-  bool double_click =
-      same_file && state->last_click_ticks != 0 &&
-      ldk_os_time_ticks_interval_get_seconds(state->last_click_ticks, now) <=
-          PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS;
-
-  state->selected_file = entry->path;
-  state->last_click_ticks = double_click ? 0 : now;
-
-  if (double_click)
+  if (s_project_explorer_entry_double_click(state, entry))
   {
     s_project_explorer_on_file_double_click(editor, entry);
   }
@@ -1412,6 +1662,7 @@ static void s_project_explorer_on_right_click(LDKUIContext *ui,
   state->context_target.is_directory = is_directory;
   state->context_target.surface = surface;
   state->last_click_ticks = 0;
+  state->last_click_package = NULL;
 
   cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
   position.x = (float)cursor.x;
@@ -1577,6 +1828,34 @@ static void s_project_explorer_rename_end(ProjectExplorerState *state)
   state->rename_buffer[0] = 0;
 }
 
+static void s_project_explorer_current_scene_renamed(
+    LDKEditorContext *editor, const XFSPath *old_path,
+    const XFSPath *new_path)
+{
+  XFSPath current = {0};
+  XFSPath relative = {0};
+
+  if (editor == NULL || old_path == NULL || new_path == NULL ||
+      !editor->project.loaded || editor->current_scene_path.length == 0)
+  {
+    return;
+  }
+
+  x_fs_path(&current, editor->project.run_root_path.buf,
+      editor->current_scene_path.buf);
+  x_fs_path_normalize(&current);
+  if (x_fs_path_compare(&current, old_path) != 0)
+  {
+    return;
+  }
+
+  if (x_fs_path_relative_to(
+          &editor->project.run_root_path, new_path, &relative) > 0)
+  {
+    editor->current_scene_path = relative;
+  }
+}
+
 static bool s_project_explorer_rename_commit(
     LDKEditorContext *editor, ProjectExplorerState *state)
 {
@@ -1599,6 +1878,11 @@ static bool s_project_explorer_rename_commit(
   }
 
   state->context_target.path = renamed;
+
+  if (!state->context_target.is_directory)
+  {
+    s_project_explorer_current_scene_renamed(editor, &old_path, &renamed);
+  }
 
   if (state->context_target.is_directory)
   {
@@ -1720,6 +2004,150 @@ static void s_project_explorer_rename_before_draw(
   {
     s_project_explorer_rename_commit(editor, state);
   }
+}
+
+static bool s_project_explorer_unique_child_path(const XFSPath *directory,
+    const char *base_name, const char *extension, XFSPath *out_path)
+{
+  char name[X_SMALLSTR_MAX_LENGTH + 32];
+
+  if (directory == NULL || base_name == NULL || extension == NULL ||
+      out_path == NULL)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < 10000; ++i)
+  {
+    int written =
+        i == 0
+            ? snprintf(name, sizeof(name), "%s%s", base_name, extension)
+            : snprintf(name, sizeof(name), "%s %u%s", base_name, i + 1u,
+                  extension);
+    if (written <= 0 || (size_t)written >= sizeof(name))
+    {
+      return false;
+    }
+
+    x_fs_path(out_path, directory->buf, name);
+    x_fs_path_normalize(out_path);
+    if (!x_fs_path_exists(out_path))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool s_project_explorer_create_directory(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath parent;
+  XFSPath created = {0};
+  (void)editor;
+
+  if (state == NULL || !state->context_target.is_directory)
+  {
+    return false;
+  }
+
+  parent = state->context_target.path;
+  if (!s_project_explorer_unique_child_path(
+          &parent, "New Folder", "", &created) ||
+      !x_fs_directory_create(created.buf))
+  {
+    return false;
+  }
+
+  s_project_explorer_directory_select(state, &parent, true);
+  state->context_target.path = created;
+  state->context_target.is_directory = true;
+  state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
+  s_project_explorer_rename_begin(state);
+  return true;
+}
+
+static bool s_project_explorer_create_scene(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath parent;
+  XFSPath created = {0};
+
+  if (editor == NULL || state == NULL || !state->context_target.is_directory)
+  {
+    return false;
+  }
+
+  parent = state->context_target.path;
+  if (!s_project_explorer_unique_child_path(
+          &parent, "New Scene", ".scene", &created) ||
+      !ldki_editor_scene_new_at_path(editor, &created))
+  {
+    return false;
+  }
+
+  s_project_explorer_directory_select(state, &parent, true);
+  state->selected_file = created;
+  state->context_target.path = created;
+  state->context_target.is_directory = false;
+  state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
+  s_project_explorer_rename_begin(state);
+  return true;
+}
+
+static bool s_project_explorer_create_material(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath parent;
+  XFSPath created = {0};
+  LDKMaterialDesc material = {0};
+  LDKMaterialIOContext context = {0};
+  LDKMaterialIOResult result = {0};
+  XStrBuilder *out;
+  bool written;
+
+  if (editor == NULL || state == NULL || !state->context_target.is_directory)
+  {
+    return false;
+  }
+
+  parent = state->context_target.path;
+  if (!s_project_explorer_unique_child_path(
+          &parent, "New Material", ".tml", &created) ||
+      !ldk_material_desc_defaults(LDK_MATERIAL_TYPE_VERTEX_COLOR, &material))
+  {
+    return false;
+  }
+
+  context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  out = x_strbuilder_create();
+  if (out == NULL)
+  {
+    return false;
+  }
+
+  x_strbuilder_append(out, "material:\n");
+  written = ldk_material_desc_write(&context, &material, out, 1, &result) &&
+            x_io_write_text(created.buf, x_strbuilder_to_string(out));
+  x_strbuilder_destroy(out);
+
+  if (!written)
+  {
+    if (result.error[0] != 0)
+    {
+      ldki_editor_log_error(editor, result.error);
+    }
+    return false;
+  }
+
+  s_project_explorer_directory_select(state, &parent, true);
+  state->selected_file = created;
+  state->context_target.path = created;
+  state->context_target.is_directory = false;
+  state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
+  s_project_explorer_rename_begin(state);
+  return true;
 }
 
 static void s_project_explorer_context_menu_draw(
@@ -1861,22 +2289,43 @@ static void s_project_explorer_context_menu_draw(
     if (is_directory)
     {
       ldk_ui_horizontal_line(ui);
+      if (ldk_ui_button_flat(ui, "Create Directory"))
+      {
+        if (!s_project_explorer_create_directory(editor, state))
+        {
+          ldki_editor_log_error(editor, "Failed to create directory.");
+        }
+        ldk_ui_close_current_popup(ui);
+      }
+
+      bool can_create_asset = editor->project.loaded &&
+                              editor->editor_state == LDK_EDITOR_STATE_STOPED;
+      ldk_ui_begin_disabled(ui, !can_create_asset);
       if (ldk_ui_button_flat(ui, "New Scene"))
       {
+        if (!s_project_explorer_create_scene(editor, state))
+        {
+          ldki_editor_log_error(editor, "Failed to create scene.");
+        }
         ldk_ui_close_current_popup(ui);
       }
 
       if (ldk_ui_button_flat(ui, "New Material"))
       {
+        if (!s_project_explorer_create_material(editor, state))
+        {
+          ldki_editor_log_error(editor, "Failed to create material.");
+        }
         ldk_ui_close_current_popup(ui);
       }
+      ldk_ui_end_disabled(ui);
 
       ldk_ui_horizontal_line(ui);
 
       if (ldk_ui_button_flat(ui, "Open Explorer here"))
       {
         ldk_ui_close_current_popup(ui);
-        s_project_open_with_explorer(editor, state->context_target.path.buf);
+        s_project_open_default(editor, state->context_target.path.buf);
       }
     }
     else
@@ -1884,7 +2333,7 @@ static void s_project_explorer_context_menu_draw(
       if (ldk_ui_button_flat(ui, "Open default program"))
       {
         ldk_ui_close_current_popup(ui);
-        s_project_open_with_explorer(editor, state->context_target.path.buf);
+        s_project_open_default(editor, state->context_target.path.buf);
       }
     }
     ldk_ui_end_popup(ui);

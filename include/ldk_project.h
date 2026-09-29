@@ -45,6 +45,7 @@ extern "C"
   {
     bool loaded;
     bool play_current_scene;
+    bool build_on_play;
     XSmallstr name;
     XSmallstr cmake_generator;
     XSmallstr cmake_arch;

@@ -325,6 +325,10 @@ static void s_project_append_project_file_text(
       "project_cmake_generator = \"%s\"\n"
       "project_cmake_arch = \"%s\"\n"
       "\n"
+      "[.editor]\n"
+      "play_current_scene = false\n"
+      "build_on_play = false\n"
+      "\n"
       "[.flags]\n"
       "tag_0 = \"tag_0\"\n"
       "tag_1 = \"tag_1\"\n"
@@ -646,6 +650,8 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
 
   project->play_current_scene =
       x_ini_get_bool(&ini, ".editor", "play_current_scene", false);
+  project->build_on_play =
+      x_ini_get_bool(&ini, ".editor", "build_on_play", false);
 
   project->project_resolution_width =
       x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);

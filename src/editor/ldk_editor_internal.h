@@ -160,9 +160,17 @@ typedef enum LDKEditorProjectActionType
   LDK_EDITOR_PROJECT_ACTION_PACKAGE
 } LDKEditorProjectActionType;
 
+typedef enum LDKEditorProjectBuildContinuation
+{
+  LDK_EDITOR_PROJECT_BUILD_CONTINUATION_NONE = 0,
+  LDK_EDITOR_PROJECT_BUILD_CONTINUATION_LOAD_GAME_MODULE,
+  LDK_EDITOR_PROJECT_BUILD_CONTINUATION_PLAY
+} LDKEditorProjectBuildContinuation;
+
 typedef struct LDKEditorProjectAction
 {
   LDKEditorProjectActionType type;
+  LDKEditorProjectBuildContinuation build_continuation;
   XFSPath project_file_path;
   XFSPath project_root_path;
   XSmallstr project_name;
@@ -183,6 +191,7 @@ typedef enum LDKEditorProjectBuildStage
 typedef struct LDKEditorProjectBuild
 {
   LDKEditorProjectActionType action_type;
+  LDKEditorProjectBuildContinuation continuation;
   LDKEditorProjectBuildStage stage;
   LDKOSProcess *process;
   LDKProject project;
@@ -193,6 +202,46 @@ typedef struct LDKEditorProjectBuild
   bool cancel_requested;
   bool cancel_sent;
 } LDKEditorProjectBuild;
+
+typedef enum LDKEditorJobStatus
+{
+  LDK_EDITOR_JOB_STATUS_BUSY = 0,
+  LDK_EDITOR_JOB_STATUS_DONE,
+  LDK_EDITOR_JOB_STATUS_FAILED,
+  LDK_EDITOR_JOB_STATUS_CANCELLED
+} LDKEditorJobStatus;
+
+typedef struct LDKEditorJobHistoryEntry
+{
+  LDKEditorProjectActionType action_type;
+  LDKEditorJobStatus status;
+} LDKEditorJobHistoryEntry;
+
+#define LDK_EDITOR_JOB_HISTORY_CAPACITY 8u
+
+#ifndef LDK_EDITOR_FILE_ASSOCIATION_CAPACITY
+#define LDK_EDITOR_FILE_ASSOCIATION_CAPACITY 16u
+#endif
+
+#ifndef LDK_EDITOR_FILE_ASSOCIATION_NAME_CAPACITY
+#define LDK_EDITOR_FILE_ASSOCIATION_NAME_CAPACITY 64u
+#endif
+
+#ifndef LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY
+#define LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY 512u
+#endif
+
+#ifndef LDK_EDITOR_FILE_ASSOCIATION_EXTENSIONS_CAPACITY
+#define LDK_EDITOR_FILE_ASSOCIATION_EXTENSIONS_CAPACITY 512u
+#endif
+
+typedef struct LDKEditorFileAssociation
+{
+  char name[LDK_EDITOR_FILE_ASSOCIATION_NAME_CAPACITY];
+  char program[X_FS_PATH_MAX_LENGTH];
+  char arguments[LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY];
+  char extensions[LDK_EDITOR_FILE_ASSOCIATION_EXTENSIONS_CAPACITY];
+} LDKEditorFileAssociation;
 
 typedef struct LDKEditorSceneCatalog
 {
@@ -259,6 +308,9 @@ typedef struct LDKEditorContext
 
   LDKEditorProjectAction pending_project_action;
   LDKEditorProjectBuild project_build;
+  LDKEditorJobHistoryEntry job_history[LDK_EDITOR_JOB_HISTORY_CAPACITY];
+  u32 job_history_count;
+  bool jobs_popup_open_requested;
   bool create_project_window_show;
   bool create_project_window_open_requested;
   bool create_project_window_close_requested;
@@ -266,12 +318,19 @@ typedef struct LDKEditorContext
   LDKEditorThemeCatalog *theme_catalog;
 
   // config
-  LDKAssetPath editor_font;
+  XFSPath editor_font;
   XSmallstr editor_theme;
   i32 editor_font_size;
+  float editor_ui_scale;
+  bool restore_last_project;
+  XFSPath last_project_path;
   float editor_camera_fov;
   float editor_camera_near_clip;
   float editor_camera_far_clip;
+  bool file_explorer_open_folders_single_click;
+  LDKEditorFileAssociation
+      file_associations[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY];
+  u32 file_association_count;
 } LDKEditorContext;
 
 void ldki_editor_menubar_show(LDKEditorContext *editor);
@@ -279,6 +338,9 @@ void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_status_show(LDKEditorContext *editor);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
+void ldki_editor_settings_show(LDKEditor *editor, void *data);
+bool ldki_editor_font_apply(
+    LDKEditorContext *editor, const char *font_path, i32 font_size);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
 bool ldki_editor_camera_focus_selected(LDKEditorContext *editor);
 bool ldki_editor_camera_projection_toggle(LDKEditorContext *editor);
@@ -378,7 +440,10 @@ bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_clear(LDKEditorContext *editor);
 bool ldki_editor_scene_save(LDKEditorContext *editor);
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path);
+bool ldki_editor_scene_path_is_scene(const XFSPath *path);
 bool ldki_editor_scene_new(LDKEditorContext *editor);
+bool ldki_editor_scene_new_at_path(
+    LDKEditorContext *editor, const XFSPath *path);
 
 bool ldki_editor_scene_add_primitive(
     LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name);
@@ -431,11 +496,15 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_PACKAGE_CATALOG ((LDKEditorWindowId)0x4C444B0Bu)
 
 #define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
+#define LDK_EDITOR_WINDOW_SETTINGS ((LDKEditorWindowId)0x4C444B0Du)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path);
 void ldki_editor_file_explorer_package_mounts_clear(void);
+void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor);
+float ldki_editor_file_explorer_zoom_get(void);
+void ldki_editor_file_explorer_zoom_set(float zoom);
 bool ldki_editor_project_import_packages_reload(LDKEditorContext *editor);
 
 #endif // LDK_EDITOR_INTERNAL

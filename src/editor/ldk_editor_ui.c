@@ -13,7 +13,10 @@
 #include <stdx/stdx_ini.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
+#include <ctype.h>
+#include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -319,10 +322,124 @@ static LDKUIIcon s_editor_status_message_icon(
   return icon;
 }
 
+static const char *s_editor_job_action_label(
+    LDKEditorProjectActionType action_type)
+{
+  switch (action_type)
+  {
+  case LDK_EDITOR_PROJECT_ACTION_CREATE:
+    return "Creating project";
+  case LDK_EDITOR_PROJECT_ACTION_BUILD:
+    return "Building game DLL";
+  case LDK_EDITOR_PROJECT_ACTION_RELEASE:
+    return "Building game launcher";
+  case LDK_EDITOR_PROJECT_ACTION_PACKAGE:
+    return "Packaging game";
+  default:
+    return "Project task";
+  }
+}
+
+static const char *s_editor_job_status_label(LDKEditorJobStatus status)
+{
+  switch (status)
+  {
+  case LDK_EDITOR_JOB_STATUS_BUSY:
+    return "BUSY";
+  case LDK_EDITOR_JOB_STATUS_DONE:
+    return "DONE";
+  case LDK_EDITOR_JOB_STATUS_FAILED:
+    return "FAILED";
+  case LDK_EDITOR_JOB_STATUS_CANCELLED:
+    return "CANCELLED";
+  default:
+    return "";
+  }
+}
+
+static const char *s_editor_job_stage_label(LDKEditorProjectBuildStage stage)
+{
+  switch (stage)
+  {
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE:
+    return "CMake configure";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
+    return "Game build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
+    return "Release configure";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
+    return "Release build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+    return "Package build";
+  default:
+    return "";
+  }
+}
+
+static void s_editor_jobs_popup(LDKEditorContext *editor, LDKUIId popup_id)
+{
+  LDKUIContext *ui = &editor->ui;
+
+  if (!ldk_ui_begin_popup(ui, popup_id))
+  {
+    return;
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(420.0f));
+  ldk_ui_label(ui, "Processes");
+  ldk_ui_horizontal_line(ui);
+
+  if (editor->project_build.active)
+  {
+    char label[256];
+    const char *action_label =
+        s_editor_job_action_label(editor->project_build.action_type);
+    const char *stage_label =
+        s_editor_job_stage_label(editor->project_build.stage);
+
+    if (stage_label[0] != 0)
+    {
+      snprintf(label, sizeof(label), "%s - %s", action_label, stage_label);
+    }
+    else
+    {
+      snprintf(label, sizeof(label), "%s", action_label);
+    }
+
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(260.0f));
+    ldk_ui_label(ui, label);
+    ldk_ui_set_next_width(ui, ldk_ui_px(70.0f));
+    ldk_ui_label(ui, s_editor_job_status_label(LDK_EDITOR_JOB_STATUS_BUSY));
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    ldk_ui_set_next_disabled(ui, editor->project_build.cancel_requested);
+    if (ldk_ui_button(ui, "Cancel"))
+    {
+      ldki_editor_project_build_cancel_request(editor);
+    }
+    ldk_ui_end_horizontal(ui);
+  }
+
+  for (u32 i = 0; i < editor->job_history_count; ++i)
+  {
+    const LDKEditorJobHistoryEntry *entry = &editor->job_history[i];
+
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(330.0f));
+    ldk_ui_label(ui, s_editor_job_action_label(entry->action_type));
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    ldk_ui_label(ui, s_editor_job_status_label(entry->status));
+    ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_end_popup(ui);
+}
+
 static void s_editor_status_bar(LDKEditorContext *editor)
 {
   static u8 alpha = 0;
   static double acc = 0.0f;
+  const LDKUIId jobs_popup_id = 0x4A4F4253u;
 
   LDKUIContext *ui = &editor->ui;
   LDKEditorConsoleEntryType message_type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
@@ -331,6 +448,8 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   LDKUIIcon message_icon =
       s_editor_status_message_icon(editor, message_type);
   LDKUIIcon build_icon = {0};
+  bool has_jobs =
+      editor->project_build.active || editor->job_history_count > 0;
 
   build_icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
       LDK_UI_DEFAULT_CONTROL_HEIGHT);
@@ -339,12 +458,21 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   build_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   build_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
 
+  if (!editor->project_build.active && editor->job_history_count > 0)
+  {
+    if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_FAILED)
+    {
+      build_icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+    }
+    else if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_CANCELLED)
+    {
+      build_icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+    }
+  }
+
   const u32 status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT;
-  LDKUIRect rect = {
-    0,
-    ui->viewport.h - status_bar_height,
-    ui->viewport.w,
-    status_bar_height};
+  LDKUIRect rect = {0, ui->viewport.h - status_bar_height, ui->viewport.w,
+      status_bar_height};
 
   ldk_ui_begin_window(ui, "", rect, 0);
   ldk_ui_horizontal_line(ui);
@@ -360,20 +488,46 @@ static void s_editor_status_bar(LDKEditorContext *editor)
     ldk_ui_spacer(ui);
   }
 
-  if (editor->project_build.active)
+  if (has_jobs)
   {
-    acc += editor->ui.delta_time * 2;
-    alpha = (u8)(127 + (127 * sinf(acc)));
+    bool open_popup;
+    LDKUIRect icon_rect;
 
-    build_icon.color &= 0xFFFFFF00;
-    build_icon.color |= alpha;
+    if (editor->project_build.active)
+    {
+      acc += editor->ui.delta_time * 2;
+      alpha = (u8)(127 + (127 * sinf(acc)));
+
+      build_icon.color &= 0xFFFFFF00;
+      build_icon.color |= alpha;
+    }
 
     ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_icon_button(ui, build_icon, NULL);
+    open_popup = ldk_ui_icon_button(ui, build_icon, NULL);
+    icon_rect = ldk_ui_last_rect(ui);
+
+    if (open_popup && ldk_ui_popup_is_open(ui, jobs_popup_id))
+    {
+      ldk_ui_close_popup(ui, jobs_popup_id);
+    }
+    else if (open_popup || editor->jobs_popup_open_requested)
+    {
+      u32 popup_row_count = editor->job_history_count +
+                            (editor->project_build.active ? 1u : 0u);
+      float popup_height =
+          LDK_UI_DEFAULT_CONTROL_HEIGHT * (2.0f + (float)popup_row_count) +
+          LDK_UI_DEFAULT_PADDING * 4.0f;
+      LDKUIPoint popup_position = {icon_rect.x + icon_rect.w - 420.0f,
+          icon_rect.y - popup_height};
+      ldk_ui_open_popup_at(ui, jobs_popup_id, popup_position);
+      editor->jobs_popup_open_requested = false;
+    }
   }
 
   ldk_ui_end_horizontal(ui);
   ldk_ui_end_window(ui);
+
+  s_editor_jobs_popup(editor, jobs_popup_id);
 }
 
 //------------------------------------------------------------
@@ -867,6 +1021,518 @@ static bool s_editor_ini_bool_write(
   return result;
 }
 
+typedef struct LDKEditorSettingsDraft
+{
+  bool initialized;
+  bool dirty;
+  bool restore_last_project;
+  bool open_folders_single_click;
+  char ui_scale[32];
+  char font_size[32];
+  char font_path[X_FS_PATH_MAX_LENGTH];
+  LDKEditorFileAssociation
+      file_associations[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY];
+  u32 file_association_count;
+} LDKEditorSettingsDraft;
+
+static void s_editor_settings_association_name_refresh(
+    LDKEditorFileAssociation *association)
+{
+  XSlice stem;
+  size_t length;
+
+  if (association == NULL || association->program[0] == 0)
+  {
+    return;
+  }
+
+  stem = x_fs_path_stem_cstr(association->program);
+  length = stem.length;
+  if (length == 0)
+  {
+    return;
+  }
+
+  if (length >= sizeof(association->name))
+  {
+    length = sizeof(association->name) - 1u;
+  }
+
+  memcpy(association->name, stem.ptr, length);
+  association->name[length] = 0;
+}
+
+static void s_editor_settings_draft_reset(
+    LDKEditorSettingsDraft *draft, const LDKEditorContext *editor)
+{
+  if (draft == NULL || editor == NULL)
+  {
+    return;
+  }
+
+  memset(draft, 0, sizeof(*draft));
+  draft->initialized = true;
+  draft->restore_last_project = editor->restore_last_project;
+  draft->open_folders_single_click =
+      editor->file_explorer_open_folders_single_click;
+  snprintf(draft->ui_scale, sizeof(draft->ui_scale), "%.2f",
+      editor->editor_ui_scale);
+  snprintf(draft->font_size, sizeof(draft->font_size), "%d",
+      editor->editor_font_size);
+  snprintf(draft->font_path, sizeof(draft->font_path), "%s",
+      editor->editor_font.buf);
+  draft->file_association_count = editor->file_association_count;
+  memcpy(draft->file_associations, editor->file_associations,
+      sizeof(draft->file_associations));
+}
+
+static bool s_editor_settings_number_parse(
+    const char *text, float *out_value)
+{
+  char *end = NULL;
+  float value;
+
+  if (text == NULL || out_value == NULL)
+  {
+    return false;
+  }
+
+  value = strtof(text, &end);
+  if (end == text)
+  {
+    return false;
+  }
+
+  while (*end != 0 && isspace((u8)*end))
+  {
+    ++end;
+  }
+
+  if (*end != 0 || !isfinite(value))
+  {
+    return false;
+  }
+
+  *out_value = value;
+  return true;
+}
+
+static bool s_editor_settings_integer_parse(
+    const char *text, i32 *out_value)
+{
+  char *end = NULL;
+  long value;
+
+  if (text == NULL || out_value == NULL)
+  {
+    return false;
+  }
+
+  value = strtol(text, &end, 10);
+  if (end == text)
+  {
+    return false;
+  }
+
+  while (*end != 0 && isspace((u8)*end))
+  {
+    ++end;
+  }
+
+  if (*end != 0 || value < INT32_MIN || value > INT32_MAX)
+  {
+    return false;
+  }
+
+  *out_value = (i32)value;
+  return true;
+}
+
+static bool s_editor_settings_save(LDKEditorContext *editor,
+    LDKEditorSettingsDraft *draft)
+{
+  XIni ini = {0};
+  XIniError error = {0};
+  const char *association_prefix = ".file_association.";
+  size_t association_prefix_length = strlen(association_prefix);
+  float ui_scale;
+  i32 font_size;
+  XFSPath old_font_path;
+  LDKAssetFont old_font;
+  LDKFontInstance *old_font_instance;
+  i32 old_font_size;
+  bool font_changed;
+  bool ok;
+
+  if (editor == NULL || draft == NULL ||
+      editor->editor_config_path.length == 0 ||
+      !s_editor_settings_number_parse(draft->ui_scale, &ui_scale) ||
+      ui_scale < 0.5f || ui_scale > 3.0f ||
+      !s_editor_settings_integer_parse(draft->font_size, &font_size) ||
+      font_size < 6 || font_size > 96 || draft->font_path[0] == 0)
+  {
+    return false;
+  }
+
+  old_font_path = editor->editor_font;
+  old_font = editor->font;
+  old_font_instance = editor->font_instance;
+  old_font_size = editor->editor_font_size;
+  font_changed = strcmp(editor->editor_font.buf, draft->font_path) != 0 ||
+                 editor->editor_font_size != font_size;
+
+  if (font_changed &&
+      !ldki_editor_font_apply(editor, draft->font_path, font_size))
+  {
+    return false;
+  }
+
+  if (!x_ini_load_file(editor->editor_config_path.buf, &ini, &error))
+  {
+    if (font_changed)
+    {
+      editor->font = old_font;
+      editor->font_instance = old_font_instance;
+      editor->ui.font = old_font_instance;
+      editor->editor_font = old_font_path;
+      editor->editor_font_size = old_font_size;
+    }
+    return false;
+  }
+
+  for (i32 section_i = x_ini_section_count(&ini) - 1; section_i >= 0;
+       --section_i)
+  {
+    const char *section = x_ini_section_name(&ini, section_i);
+    if (section != NULL &&
+        strncmp(section, association_prefix, association_prefix_length) == 0)
+    {
+      char section_name[128];
+      snprintf(section_name, sizeof(section_name), "%s", section);
+      x_ini_remove_section(&ini, section_name);
+    }
+  }
+
+  ok = x_ini_set_bool(&ini, ".editor", "restore_last_project",
+           draft->restore_last_project) &&
+       x_ini_set_bool(&ini, ".editor",
+           "file_explorer_open_folders_single_click",
+           draft->open_folders_single_click) &&
+       x_ini_set_f32(&ini, ".editor", "ui_scale", ui_scale) &&
+       x_ini_set_i32(&ini, ".editor", "font_size", font_size) &&
+       x_ini_set(&ini, ".editor", "font", draft->font_path);
+
+  for (u32 i = 0; ok && i < draft->file_association_count; ++i)
+  {
+    char section[64];
+    LDKEditorFileAssociation *association = &draft->file_associations[i];
+
+    s_editor_settings_association_name_refresh(association);
+    snprintf(section, sizeof(section), ".file_association.%u", i);
+
+    ok = x_ini_set(&ini, section, "name", association->name) &&
+         x_ini_set(&ini, section, "program", association->program) &&
+         x_ini_set(&ini, section, "arguments", association->arguments) &&
+         x_ini_set(&ini, section, "extensions", association->extensions);
+  }
+
+  if (ok)
+  {
+    ok = x_ini_write_file(editor->editor_config_path.buf, &ini, &error);
+  }
+  x_ini_free(&ini);
+
+  if (!ok)
+  {
+    if (font_changed)
+    {
+      editor->font = old_font;
+      editor->font_instance = old_font_instance;
+      editor->ui.font = old_font_instance;
+      editor->editor_font = old_font_path;
+      editor->editor_font_size = old_font_size;
+    }
+    return false;
+  }
+
+  editor->restore_last_project = draft->restore_last_project;
+  editor->file_explorer_open_folders_single_click =
+      draft->open_folders_single_click;
+  editor->editor_ui_scale = ui_scale;
+  editor->editor_font_size = font_size;
+  x_fs_path_set(&editor->editor_font, draft->font_path);
+  if (x_fs_path_is_absolute_cstr(editor->editor_font.buf))
+  {
+    x_fs_path_normalize(&editor->editor_font);
+  }
+  editor->file_association_count = draft->file_association_count;
+  memcpy(editor->file_associations, draft->file_associations,
+      sizeof(editor->file_associations));
+
+  snprintf(draft->font_path, sizeof(draft->font_path), "%s",
+      editor->editor_font.buf);
+  snprintf(draft->ui_scale, sizeof(draft->ui_scale), "%.2f",
+      editor->editor_ui_scale);
+  snprintf(draft->font_size, sizeof(draft->font_size), "%d",
+      editor->editor_font_size);
+  draft->dirty = false;
+  return true;
+}
+
+static u32 s_editor_settings_input_row(LDKUIContext *ui, const char *label,
+    char *buffer, u32 buffer_size)
+{
+  u32 result;
+
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, label);
+  result = ldk_ui_input_label(ui, buffer, buffer_size);
+  ldk_ui_end_horizontal(ui);
+  return result;
+}
+
+static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
+    LDKUIContext *ui, const char *label, char *buffer, u32 buffer_size,
+    const char *dialog_title, const char *filter)
+{
+  u32 result = 0;
+
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, label);
+  result = ldk_ui_input_label(ui, buffer, buffer_size);
+  ldk_ui_set_next_width(ui, ldk_ui_px(34.0f));
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "..."))
+  {
+    char selected[X_FS_PATH_MAX_LENGTH] = {0};
+    if (ldk_os_dialog_show_open_file(editor->window, dialog_title, filter,
+            selected, sizeof(selected)))
+    {
+      XFSPath path = {0};
+      x_fs_path_set(&path, selected);
+      x_fs_path_normalize(&path);
+      snprintf(buffer, buffer_size, "%s", path.buf);
+      result |= LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED;
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+  return result;
+}
+
+void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
+{
+  static LDKUIPoint scroll = {0};
+  static LDKEditorSettingsDraft draft = {0};
+  static bool external_programs_expanded = true;
+  static bool look_and_feel_expanded = true;
+  static bool general_expanded = true;
+  static bool program_expanded[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY] = {0};
+  static bool expansion_initialized = false;
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKUIContext *ui;
+  bool delete_requested = false;
+  u32 delete_index = 0;
+  (void)data;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  if (!draft.initialized)
+  {
+    s_editor_settings_draft_reset(&draft, editor);
+  }
+
+  if (!expansion_initialized)
+  {
+    for (u32 i = 0; i < LDK_EDITOR_FILE_ASSOCIATION_CAPACITY; ++i)
+    {
+      program_expanded[i] = true;
+    }
+    expansion_initialized = true;
+  }
+
+  ui = &editor->ui;
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  general_expanded =
+      ldk_ui_tree_node(ui, "General", general_expanded, 0, 0);
+  if (general_expanded)
+  {
+    bool restore_last_project;
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(240.0f));
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, "Restore last project");
+    restore_last_project =
+        ldk_ui_toggle(ui, draft.restore_last_project);
+    if (restore_last_project != draft.restore_last_project)
+    {
+      draft.restore_last_project = restore_last_project;
+      draft.dirty = true;
+    }
+    ldk_ui_spacer(ui);
+    ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  external_programs_expanded = ldk_ui_tree_node(
+      ui, "External programs", external_programs_expanded, 0, 0);
+  ldk_ui_set_next_disabled(ui,
+      draft.file_association_count >= LDK_EDITOR_FILE_ASSOCIATION_CAPACITY);
+  ldk_ui_set_next_width(ui, ldk_ui_px(56.0f));
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "Add"))
+  {
+    u32 index = draft.file_association_count++;
+    LDKEditorFileAssociation *association = &draft.file_associations[index];
+    memset(association, 0, sizeof(*association));
+    snprintf(association->name, sizeof(association->name), "New program");
+    snprintf(association->arguments, sizeof(association->arguments),
+        "%%file%%");
+    program_expanded[index] = true;
+    external_programs_expanded = true;
+    draft.dirty = true;
+  }
+  ldk_ui_end_horizontal(ui);
+
+  if (external_programs_expanded)
+  {
+    ldk_ui_label(ui,
+        "Use %file% in Arguments. Extensions may be separated by spaces, "
+        "commas, or semicolons.");
+
+    for (u32 i = 0; i < draft.file_association_count; ++i)
+    {
+      LDKEditorFileAssociation *association = &draft.file_associations[i];
+      u32 result = 0;
+      const char *title =
+          association->name[0] != 0 ? association->name : "New program";
+
+      ldk_ui_push_id_u32(ui, i + 1u);
+      ldk_ui_begin_horizontal(ui);
+      ldk_ui_set_next_weight(ui, 1.0f);
+      program_expanded[i] =
+          ldk_ui_tree_node(ui, title, program_expanded[i], 1, 0);
+      ldk_ui_set_next_width(ui, ldk_ui_px(68.0f));
+      ldk_ui_set_next_weight(ui, 0.0f);
+      if (ldk_ui_button(ui, "Remove"))
+      {
+        delete_requested = true;
+        delete_index = i;
+      }
+      ldk_ui_end_horizontal(ui);
+
+      if (program_expanded[i])
+      {
+        result |= s_editor_settings_browse_row(editor, ui, "Program",
+            association->program, (u32)sizeof(association->program),
+            "Choose Program", "Programs\0*.exe\0All Files\0*.*\0\0");
+        if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+        {
+          s_editor_settings_association_name_refresh(association);
+        }
+        result |= s_editor_settings_input_row(ui, "Arguments",
+            association->arguments, (u32)sizeof(association->arguments));
+        result |= s_editor_settings_input_row(ui, "Associations",
+            association->extensions, (u32)sizeof(association->extensions));
+      }
+      ldk_ui_pop_id(ui);
+
+      if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+      {
+        draft.dirty = true;
+      }
+
+      if (delete_requested)
+      {
+        break;
+      }
+    }
+  }
+
+  if (delete_requested && delete_index < draft.file_association_count)
+  {
+    for (u32 i = delete_index; i + 1 < draft.file_association_count; ++i)
+    {
+      draft.file_associations[i] = draft.file_associations[i + 1];
+      program_expanded[i] = program_expanded[i + 1];
+    }
+    draft.file_association_count -= 1;
+    memset(&draft.file_associations[draft.file_association_count], 0,
+        sizeof(draft.file_associations[draft.file_association_count]));
+    program_expanded[draft.file_association_count] = true;
+    draft.dirty = true;
+  }
+
+  ldk_ui_spacer(ui);
+  look_and_feel_expanded =
+      ldk_ui_tree_node(ui, "Look and feel", look_and_feel_expanded, 0, 0);
+  if (look_and_feel_expanded)
+  {
+    bool single_click;
+    u32 result = 0;
+
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(240.0f));
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, "Open folders with single click");
+    single_click = ldk_ui_toggle(ui, draft.open_folders_single_click);
+    if (single_click != draft.open_folders_single_click)
+    {
+      draft.open_folders_single_click = single_click;
+      draft.dirty = true;
+    }
+    ldk_ui_spacer(ui);
+    ldk_ui_end_horizontal(ui);
+
+    result |= s_editor_settings_input_row(
+        ui, "UI scale", draft.ui_scale, (u32)sizeof(draft.ui_scale));
+    result |= s_editor_settings_input_row(
+        ui, "Font size", draft.font_size, (u32)sizeof(draft.font_size));
+    result |= s_editor_settings_browse_row(editor, ui, "Editor font",
+        draft.font_path, (u32)sizeof(draft.font_path), "Choose Editor Font",
+        "TrueType Font\0*.ttf\0All Files\0*.*\0\0");
+
+    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      draft.dirty = true;
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+  ldk_ui_set_next_disabled(ui, !draft.dirty);
+  ldk_ui_set_next_width(ui, ldk_ui_px(96.0f));
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "Save"))
+  {
+    if (!s_editor_settings_save(editor, &draft))
+    {
+      ldki_editor_log_error(editor,
+          "Failed to save editor settings. Check UI scale, font size, and font "
+          "path.");
+    }
+    else
+    {
+      ldki_editor_log_info(editor, "Editor settings saved.");
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+}
+
 static bool s_editor_project_play_current_scene_write(
     LDKEditorContext *editor, bool value)
 {
@@ -877,6 +1543,18 @@ static bool s_editor_project_play_current_scene_write(
 
   return s_editor_ini_bool_write(
       &editor->project.project_file_path, "play_current_scene", value);
+}
+
+static bool s_editor_project_build_on_play_write(
+    LDKEditorContext *editor, bool value)
+{
+  if (editor == NULL || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  return s_editor_ini_bool_write(
+      &editor->project.project_file_path, "build_on_play", value);
 }
 
 static void s_editor_tool_bar(LDKEditorContext *editor)
@@ -922,11 +1600,33 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
 
+    ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
+    ldk_ui_spacer(ui);
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    ldk_ui_set_next_weight(ui, 0.0f);
+    bool build_on_play = ldk_ui_toggle(ui, editor->project.build_on_play);
+    if (build_on_play != editor->project.build_on_play)
+    {
+      if (!s_editor_project_build_on_play_write(editor, build_on_play))
+      {
+        ldki_editor_log_warning(
+            editor, "Could not save the Build on Play preference.");
+      }
+      else
+      {
+        editor->project.build_on_play = build_on_play;
+      }
+    }
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, "Build on Play");
+
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
       LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-      bool can_play = editor->project.loaded &&
+      bool can_play = editor->project.loaded && !editor->project_build.active &&
+                      editor->pending_project_action.type ==
+                          LDK_EDITOR_PROJECT_ACTION_NONE &&
                       (editor->editor_state == LDK_EDITOR_STATE_PAUSED ||
                           (editor->project.play_current_scene
                                   ? editor->current_scene_path.length != 0
@@ -1308,14 +2008,53 @@ bool ldki_editor_scene_save(LDKEditorContext *editor)
   return true;
 }
 
-bool ldki_editor_scene_new(LDKEditorContext *editor)
+bool ldki_editor_scene_new_at_path(
+    LDKEditorContext *editor, const XFSPath *path)
 {
   LDKSceneResult result;
-  XFSPath path = {0};
+  XFSPath normalized = {0};
   XFSPath relative = {0};
-  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
 
   ldki_editor_scene_state_sync(editor);
+
+  if (!editor || !path || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  normalized = *path;
+  x_fs_path_normalize(&normalized);
+  x_fs_path_change_extension(&normalized, ".scene");
+
+  if (!s_editor_scene_path_relative(editor, &normalized, &relative))
+  {
+    ldk_os_dialog_show_error(editor->window, "Invalid scene path",
+        "Scene files must be saved inside the project runtree.");
+    return false;
+  }
+
+  if (!ldki_editor_scene_clear(editor))
+  {
+    return false;
+  }
+
+  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&normalized),
+          &editor->current_scene_systems, &result))
+  {
+    ldki_editor_log_error(editor, result.error);
+    return false;
+  }
+
+  editor->current_scene_path = relative;
+  ldki_editor_log_info(editor, "Scene created.");
+  return true;
+}
+
+bool ldki_editor_scene_new(LDKEditorContext *editor)
+{
+  XFSPath path = {0};
+  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
 
   if (!editor || !editor->project.loaded ||
       editor->editor_state != LDK_EDITOR_STATE_STOPED)
@@ -1330,31 +2069,7 @@ bool ldki_editor_scene_new(LDKEditorContext *editor)
   }
 
   x_fs_path_set(&path, selected_path);
-  x_fs_path_normalize(&path);
-  x_fs_path_change_extension(&path, ".scene");
-
-  if (!s_editor_scene_path_relative(editor, &path, &relative))
-  {
-    ldk_os_dialog_show_error(editor->window, "Invalid scene path",
-        "Scene files must be saved inside the project runtree.");
-    return false;
-  }
-
-  if (!ldki_editor_scene_clear(editor))
-  {
-    return false;
-  }
-
-  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
-          &editor->current_scene_systems, &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  editor->current_scene_path = relative;
-  ldki_editor_log_info(editor, "Scene created.");
-  return true;
+  return ldki_editor_scene_new_at_path(editor, &path);
 }
 
 bool ldki_editor_scene_add_primitive(

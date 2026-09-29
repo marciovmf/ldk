@@ -187,6 +187,21 @@ extern "C"
       const LDKOSProcessDesc *desc);
 
   /**
+   * Launches a process without waiting for it to exit and without retaining a
+   * process handle. This is intended for opening external editor applications
+   * rather than managed editor jobs.
+   *
+   * On success started is true and completed is false.
+   */
+  LDK_API LDKOSProcessResult ldk_os_process_launch(
+      const LDKOSProcessDesc *desc);
+
+  /**
+   * Opens a file or directory with the operating system default handler.
+   */
+  LDK_API bool ldk_os_open_default(const char *path);
+
+  /**
    * Starts a process and captures stdout and stderr into one output stream.
    *
    * The returned process must be destroyed with ldk_os_process_destroy().
