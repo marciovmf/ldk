@@ -284,13 +284,13 @@ static bool s_mesh_primitive_plane_create(LDKMeshData* mesh)
 static bool s_mesh_primitive_quad_create(LDKMeshData* mesh)
 {
   static const LDKMeshVertex vertices[] = {
-      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f},
+      {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f},
           LDK_MESH_PRIMITIVE_COLOR, {0}},
-      {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f},
+      {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f},
           LDK_MESH_PRIMITIVE_COLOR, {0}},
-      {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f},
+      {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f},
           LDK_MESH_PRIMITIVE_COLOR, {0}},
-      {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f},
+      {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f},
           LDK_MESH_PRIMITIVE_COLOR, {0}},
   };
   static const u32 indices[] = {0, 1, 2, 0, 2, 3};

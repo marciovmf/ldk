@@ -860,6 +860,19 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+
+  /**
+   * @brief Return the UV rectangle used to display renderer view textures.
+   *
+   * View textures are render targets and their storage origin may differ from
+   * ordinary image textures. Callers that display a view texture through the UI
+   * should use this rectangle instead of assuming a texture origin.
+   *
+   * @param renderer Renderer instance that owns the view texture.
+   * @return Normalized UV rectangle for sampling a renderer view texture.
+   */
+  LDK_API LDKUIRect ldk_renderer_view_texture_uv_get(
+      LDKRenderer const* renderer);
   /**
    * @brief Set post-processing configuration for a submitted view.
    *

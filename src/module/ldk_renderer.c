@@ -6576,12 +6576,16 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
   float present_x = ((float)width - present_width) * 0.5f;
   float present_y = ((float)height - present_height) * 0.5f;
 
+  LDKUIRect uv = ldk_renderer_view_texture_uv_get(renderer);
   LDKUIVertex vertices[4] =
   {
-    {present_x,                 present_y,                  0.0f, 0.0f, 0xffffffffu},
-    {present_x + present_width, present_y,                  1.0f, 0.0f, 0xffffffffu},
-    {present_x + present_width, present_y + present_height, 1.0f, 1.0f, 0xffffffffu},
-    {present_x,                 present_y + present_height, 0.0f, 1.0f, 0xffffffffu},
+    {present_x, present_y, uv.x, uv.y, 0xffffffffu},
+    {present_x + present_width, present_y,
+        uv.x + uv.w, uv.y, 0xffffffffu},
+    {present_x + present_width, present_y + present_height,
+        uv.x + uv.w, uv.y + uv.h, 0xffffffffu},
+    {present_x, present_y + present_height,
+        uv.x, uv.y + uv.h, 0xffffffffu},
   };
 
   u32 indices[6] =
@@ -8185,6 +8189,13 @@ LDKUITextureHandle ldk_renderer_view_texture_get(
   }
 
   return (LDKUITextureHandle)texture;
+}
+
+LDKUIRect ldk_renderer_view_texture_uv_get(LDKRenderer const* renderer)
+{
+  (void)renderer;
+
+  return (LDKUIRect){0.0f, 1.0f, 1.0f, -1.0f};
 }
 
 LDKUITextureHandle ldk_renderer_view_overlay_texture_request(

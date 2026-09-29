@@ -97,7 +97,7 @@ def _loop_uv(mesh, loop_index):
         return (0.0, 0.0)
 
     uv = uv_layer.data[loop_index].uv
-    return (float(uv.x), float(uv.y))
+    return (float(uv.x), 1.0 - float(uv.y))
 
 
 def _vertex_key(position, normal, uv, color, tangent):
@@ -211,7 +211,10 @@ def _collect_object_mesh(obj, depsgraph, geometry_matrix):
                         transformed_tangent = geometry_basis @ source_tangent
                         if transformed_tangent.length_squared > 0.0:
                             transformed_tangent.normalize()
-                            handedness = float(loop.bitangent_sign)
+                            # LDK stores V top-to-bottom. Flipping Blender's V
+                            # reverses the bitangent direction, so preserve the
+                            # tangent-space basis by reversing handedness too.
+                            handedness = -float(loop.bitangent_sign)
                             if mirrored:
                                 handedness = -handedness
                             tangent = (
