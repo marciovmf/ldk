@@ -1657,9 +1657,14 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     }
   }
 
-  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_begin_horizontal(ui);
   ldk_ui_spacer(ui);
+
   ldk_ui_set_next_disabled(ui, !draft.dirty);
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "Save"))
@@ -1675,10 +1680,13 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       ldki_editor_log_info(editor, "Editor settings saved.");
     }
   }
-  ldk_ui_end_horizontal(ui);
 
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "Cancel"))
+  {
+    s_editor_settings_draft_reset(&draft, editor);
+  }
+  ldk_ui_end_horizontal(ui);
 }
 
 typedef struct LDKEditorProjectSettingsDraft
@@ -2037,10 +2045,16 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
     ldk_ui_end_horizontal(ui);
   }
 
-  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_begin_horizontal(ui);
   ldk_ui_spacer(ui);
+
   ldk_ui_set_next_disabled(ui, !can_modify || !draft.dirty);
+  ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "Save"))
   {
     if (!s_editor_settings_integer_parse(
@@ -2075,10 +2089,13 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
       }
     }
   }
-  ldk_ui_end_horizontal(ui);
 
-  ldk_ui_spacer(ui);
-  ldk_ui_end_scrollview(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "Cancel"))
+  {
+    s_editor_project_settings_draft_reset(&draft, editor);
+  }
+  ldk_ui_end_horizontal(ui);
 }
 
 static bool s_editor_project_play_current_scene_write(
