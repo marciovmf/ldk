@@ -24,6 +24,74 @@
 const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
     LDKEditorConsoleEntryType *out_type);
 
+typedef struct LDKEditorProjectGenerator
+{
+  const char *cmake_generator;
+  const char *label;
+  bool uses_platform;
+} LDKEditorProjectGenerator;
+
+static const LDKEditorProjectGenerator s_editor_project_generators[] = {
+    {"Visual Studio 18 2026", "Visual Studio 2026", true},
+    {"Visual Studio 17 2022", "Visual Studio 2022", true},
+    {"Ninja", "Ninja", false},
+    {"Ninja Multi-Config", "Ninja Multi-Config", false},
+    {"NMake Makefiles", "NMake", false},
+    {"MinGW Makefiles", "MinGW Make", false},
+};
+
+static const char *s_editor_project_generator_labels[] = {
+    "Visual Studio 2026",
+    "Visual Studio 2022",
+    "Ninja",
+    "Ninja Multi-Config",
+    "NMake",
+    "MinGW Make",
+};
+
+static const char *s_editor_project_build_types[] = {
+    "Debug",
+    "Release",
+    "RelWithDebInfo",
+};
+
+static u32 s_editor_project_generator_index_get(const char *generator)
+{
+  if (generator != NULL)
+  {
+    for (u32 i = 0; i < (u32)(sizeof(s_editor_project_generators) /
+                                 sizeof(s_editor_project_generators[0]));
+         ++i)
+    {
+      if (strcmp(generator, s_editor_project_generators[i].cmake_generator) ==
+          0)
+      {
+        return i;
+      }
+    }
+  }
+
+  return 0;
+}
+
+static u32 s_editor_project_build_type_index_get(const char *build_type)
+{
+  if (build_type != NULL)
+  {
+    for (u32 i = 0; i < (u32)(sizeof(s_editor_project_build_types) /
+                                 sizeof(s_editor_project_build_types[0]));
+         ++i)
+    {
+      if (strcmp(build_type, s_editor_project_build_types[i]) == 0)
+      {
+        return i;
+      }
+    }
+  }
+
+  return 0;
+}
+
 //------------------------------------------------------------
 // Menu bar
 //------------------------------------------------------------
@@ -149,6 +217,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     LDKUIMark mark = ldk_ui_mark(ui);
 
     const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
+
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button_flat(ui, "Project Settings..."))
+    {
+      ldki_editor_window_show(LDK_EDITOR_WINDOW_PROJECT);
+      ldk_ui_close_current_popup(ui);
+    }
 
     ldk_ui_set_next_disabled(ui, can_not_build);
     if (ldk_ui_button_flat(ui, "Scene Catalog..."))
@@ -331,6 +406,8 @@ static const char *s_editor_job_action_label(
     return "Creating project";
   case LDK_EDITOR_PROJECT_ACTION_BUILD:
     return "Building game DLL";
+  case LDK_EDITOR_PROJECT_ACTION_CLEAN:
+    return "Cleaning game build";
   case LDK_EDITOR_PROJECT_ACTION_RELEASE:
     return "Building game launcher";
   case LDK_EDITOR_PROJECT_ACTION_PACKAGE:
@@ -365,6 +442,8 @@ static const char *s_editor_job_stage_label(LDKEditorProjectBuildStage stage)
     return "CMake configure";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
     return "Game build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
+    return "CMake clean";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
     return "Release configure";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
@@ -1533,6 +1612,470 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   ldk_ui_end_scrollview(ui);
 }
 
+typedef struct LDKEditorProjectSettingsDraft
+{
+  bool initialized;
+  bool dirty;
+  XFSPath project_file_path;
+  char game_name[X_SMALLSTR_MAX_LENGTH];
+  char icon_path[X_FS_PATH_MAX_LENGTH];
+  char resolution_width[32];
+  char resolution_height[32];
+  char build_config[X_SMALLSTR_MAX_LENGTH];
+  char cmake_generator[X_SMALLSTR_MAX_LENGTH];
+  char cmake_arch[X_SMALLSTR_MAX_LENGTH];
+  u32 build_type_index;
+  u32 generator_index;
+} LDKEditorProjectSettingsDraft;
+
+static void s_editor_project_settings_draft_reset(
+    LDKEditorProjectSettingsDraft *draft, const LDKEditorContext *editor)
+{
+  if (draft == NULL || editor == NULL || !editor->project.loaded)
+  {
+    return;
+  }
+
+  memset(draft, 0, sizeof(*draft));
+  draft->initialized = true;
+  draft->project_file_path = editor->project.project_file_path;
+  snprintf(draft->game_name, sizeof(draft->game_name), "%s",
+      editor->project.game_name.buf);
+  snprintf(draft->icon_path, sizeof(draft->icon_path), "%s",
+      editor->project.icon_path.buf);
+  snprintf(draft->resolution_width, sizeof(draft->resolution_width), "%d",
+      editor->project.project_resolution_width);
+  snprintf(draft->resolution_height, sizeof(draft->resolution_height), "%d",
+      editor->project.project_resolution_height);
+  snprintf(draft->build_config, sizeof(draft->build_config), "%s",
+      editor->project.build_config.buf);
+  snprintf(draft->cmake_generator, sizeof(draft->cmake_generator), "%s",
+      editor->project.cmake_generator.buf);
+  snprintf(draft->cmake_arch, sizeof(draft->cmake_arch), "%s",
+      editor->project.cmake_arch.buf);
+  draft->build_type_index =
+      s_editor_project_build_type_index_get(draft->build_config);
+  draft->generator_index =
+      s_editor_project_generator_index_get(draft->cmake_generator);
+}
+
+typedef struct LDKEditorProjectColumnState
+{
+  float drag_start_width;
+  i32 drag_start_x;
+  bool dragging;
+} LDKEditorProjectColumnState;
+
+static LDKEditorProjectColumnState s_editor_project_column_state = {0};
+
+static const float s_editor_project_label_width_min = 80.0f;
+static const float s_editor_project_control_width_min = 100.0f;
+static const float s_editor_project_splitter_hit_width = 8.0f;
+
+static float s_editor_project_label_width_clamp(
+    LDKUIContext *ui, float width)
+{
+  float max_width = s_editor_project_label_width_min;
+
+  if (ui != NULL && ui->current_layout != NULL)
+  {
+    max_width = ui->current_layout->content_rect.w -
+                s_editor_project_control_width_min;
+    if (max_width < s_editor_project_label_width_min)
+    {
+      max_width = s_editor_project_label_width_min;
+    }
+  }
+
+  if (width < s_editor_project_label_width_min)
+  {
+    return s_editor_project_label_width_min;
+  }
+  if (width > max_width)
+  {
+    return max_width;
+  }
+  return width;
+}
+
+static void s_editor_project_column_update(LDKEditorContext *editor)
+{
+  LDKEditorProjectColumnState *state = &s_editor_project_column_state;
+  LDKUIContext *ui;
+  LDKPoint cursor;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  if (!isfinite(editor->project_label_width) ||
+      editor->project_label_width <= 0.0f)
+  {
+    editor->project_label_width = LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT;
+  }
+
+  editor->project_label_width =
+      s_editor_project_label_width_clamp(ui, editor->project_label_width);
+
+  if (!state->dragging)
+  {
+    return;
+  }
+
+  if (ui->mouse == NULL)
+  {
+    state->dragging = false;
+    return;
+  }
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  editor->project_label_width = s_editor_project_label_width_clamp(ui,
+      state->drag_start_width + (float)(cursor.x - state->drag_start_x));
+  ui->cursor_type = LDK_CURSOR_SIZE_WE;
+
+  if (!ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = false;
+  }
+}
+
+static void s_editor_project_row_begin(
+    LDKEditorContext *editor, const char *label)
+{
+  LDKEditorProjectColumnState *state = &s_editor_project_column_state;
+  LDKUIContext *ui = &editor->ui;
+  LDKUIRect label_rect;
+  LDKUIRect splitter_rect;
+  LDKPoint cursor;
+  float spacing;
+  float hit_width;
+  bool hovered;
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(editor->project_label_width));
+  ldk_ui_label(ui, label != NULL ? label : "");
+
+  if (ui->mouse == NULL || ui->current_window == NULL)
+  {
+    return;
+  }
+
+  label_rect = ldk_ui_last_bounding_rect(ui);
+  spacing = ui->current_layout != NULL ? ui->current_layout->spacing
+                                       : LDK_UI_DEFAULT_SPACING;
+  hit_width = spacing > s_editor_project_splitter_hit_width
+                  ? spacing
+                  : s_editor_project_splitter_hit_width;
+  splitter_rect = label_rect;
+  splitter_rect.x =
+      label_rect.x + label_rect.w - (hit_width - spacing);
+  splitter_rect.w = hit_width;
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  hovered = ui->hovered_window_id == ui->current_window->id &&
+            ldk_rectf_contains(
+                &splitter_rect, (float)cursor.x, (float)cursor.y) &&
+            ldk_rectf_contains(
+                &ui->clip_rect, (float)cursor.x, (float)cursor.y);
+
+  if (hovered || state->dragging)
+  {
+    ui->cursor_type = LDK_CURSOR_SIZE_WE;
+  }
+
+  if (hovered && !state->dragging &&
+      ldk_os_mouse_button_down(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = true;
+    state->drag_start_x = cursor.x;
+    state->drag_start_width = editor->project_label_width;
+  }
+}
+
+static u32 s_editor_project_input_row(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size)
+{
+  LDKUIContext *ui = &editor->ui;
+  u32 result;
+
+  s_editor_project_row_begin(editor, label);
+  result = ldk_ui_input_box(ui, buffer, buffer_size);
+  ldk_ui_end_horizontal(ui);
+  return result;
+}
+
+static void s_editor_project_read_only_row(
+    LDKEditorContext *editor, const char *label, const char *value)
+{
+  LDKUIContext *ui = &editor->ui;
+  char buffer[X_FS_PATH_MAX_LENGTH];
+
+  snprintf(buffer, sizeof(buffer), "%s", value != NULL ? value : "");
+  s_editor_project_row_begin(editor, label);
+  ldk_ui_set_next_disabled(ui, true);
+  ldk_ui_input_box(ui, buffer, (u32)sizeof(buffer));
+  ldk_ui_end_horizontal(ui);
+}
+
+static bool s_editor_project_relative_path_is_inside(const XFSPath *path)
+{
+  if (path == NULL || path->length == 0)
+  {
+    return false;
+  }
+
+  return strcmp(path->buf, "..") != 0 && strncmp(path->buf, "../", 3) != 0 &&
+         strncmp(path->buf, "..\\", 3) != 0;
+}
+
+static u32 s_editor_project_icon_row(LDKEditorContext *editor,
+    LDKUIContext *ui, char *buffer, u32 buffer_size)
+{
+  u32 result;
+
+  s_editor_project_row_begin(editor, "Icon");
+  result = ldk_ui_input_box(ui, buffer, buffer_size);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_button(ui, "..."))
+  {
+    char selected[X_FS_PATH_MAX_LENGTH] = {0};
+    if (ldk_os_dialog_show_open_file(editor->window, "Choose Game Icon",
+            "Icon\0*.ico\0All Files\0*.*\0\0", selected,
+            sizeof(selected)))
+    {
+      XFSPath selected_path = {0};
+      XFSPath relative_path = {0};
+
+      x_fs_path_set(&selected_path, selected);
+      x_fs_path_normalize(&selected_path);
+      if (x_fs_path_relative_to(&editor->project.run_root_path,
+              &selected_path, &relative_path) != 0 &&
+          s_editor_project_relative_path_is_inside(&relative_path))
+      {
+        snprintf(buffer, buffer_size, "%s", relative_path.buf);
+      }
+      else
+      {
+        snprintf(buffer, buffer_size, "%s", selected_path.buf);
+      }
+      result |= LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED;
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+  return result;
+}
+
+void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
+{
+  static LDKUIPoint scroll = {0};
+  static LDKEditorProjectSettingsDraft draft = {0};
+  static bool project_expanded = true;
+  static bool identity_expanded = true;
+  static bool runtime_expanded = true;
+  static bool build_expanded = true;
+  LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
+  LDKUIContext *ui;
+  XFSPath game_dll_path = {0};
+  i32 resolution_width;
+  i32 resolution_height;
+  bool can_modify;
+  (void)data;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  s_editor_project_column_update(editor);
+  if (!editor->project.loaded)
+  {
+    draft = (LDKEditorProjectSettingsDraft){0};
+    ldk_ui_label(ui, "No project loaded.");
+    return;
+  }
+
+  if (!draft.initialized ||
+      strcmp(draft.project_file_path.buf,
+          editor->project.project_file_path.buf) != 0)
+  {
+    s_editor_project_settings_draft_reset(&draft, editor);
+  }
+
+  can_modify = editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+               !editor->project_build.active &&
+               editor->pending_project_action.type ==
+                   LDK_EDITOR_PROJECT_ACTION_NONE;
+
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+
+  project_expanded = ldk_ui_tree_node(ui, "Project", project_expanded, 0, 0);
+  if (project_expanded)
+  {
+    s_editor_project_read_only_row(
+        editor, "Project name", editor->project.name.buf);
+    s_editor_project_read_only_row(
+        editor, "Project file", editor->project.project_file_path.buf);
+    s_editor_project_read_only_row(
+        editor, "Project root", editor->project.project_root_path.buf);
+    s_editor_project_read_only_row(
+        editor, "RunTree", editor->project.run_root_path.buf);
+  }
+
+  ldk_ui_spacer(ui);
+  identity_expanded =
+      ldk_ui_tree_node(ui, "Identity", identity_expanded, 0, 0);
+  if (identity_expanded)
+  {
+    u32 result = 0;
+    ldk_ui_begin_disabled(ui, !can_modify);
+    result |= s_editor_project_input_row(editor, "Game name", draft.game_name,
+        (u32)sizeof(draft.game_name));
+    result |= s_editor_project_icon_row(
+        editor, ui, draft.icon_path, (u32)sizeof(draft.icon_path));
+    ldk_ui_end_disabled(ui);
+    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      draft.dirty = true;
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  runtime_expanded = ldk_ui_tree_node(
+      ui, "Runtime defaults", runtime_expanded, 0, 0);
+  if (runtime_expanded)
+  {
+    u32 result = 0;
+    ldk_ui_begin_disabled(ui, !can_modify);
+    result |= s_editor_project_input_row(editor, "Target width",
+        draft.resolution_width, (u32)sizeof(draft.resolution_width));
+    result |= s_editor_project_input_row(editor, "Target height",
+        draft.resolution_height, (u32)sizeof(draft.resolution_height));
+    ldk_ui_end_disabled(ui);
+    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      draft.dirty = true;
+    }
+  }
+
+  ldk_ui_spacer(ui);
+  build_expanded = ldk_ui_tree_node(ui, "Build", build_expanded, 0, 0);
+  if (build_expanded)
+  {
+    u32 new_build_type;
+    u32 new_generator;
+
+    ldk_ui_begin_disabled(ui, !can_modify);
+
+    s_editor_project_row_begin(editor, "Build type");
+    new_build_type = ldk_ui_combo_box(ui, s_editor_project_build_types,
+        (u32)(sizeof(s_editor_project_build_types) /
+              sizeof(s_editor_project_build_types[0])),
+        draft.build_type_index);
+    ldk_ui_end_horizontal(ui);
+    if (new_build_type != draft.build_type_index &&
+        new_build_type < (u32)(sizeof(s_editor_project_build_types) /
+                                  sizeof(s_editor_project_build_types[0])))
+    {
+      draft.build_type_index = new_build_type;
+      snprintf(draft.build_config, sizeof(draft.build_config), "%s",
+          s_editor_project_build_types[new_build_type]);
+      draft.dirty = true;
+    }
+
+    s_editor_project_row_begin(editor, "CMake generator");
+    new_generator = ldk_ui_combo_box(ui, s_editor_project_generator_labels,
+        (u32)(sizeof(s_editor_project_generator_labels) /
+              sizeof(s_editor_project_generator_labels[0])),
+        draft.generator_index);
+    ldk_ui_end_horizontal(ui);
+    if (new_generator != draft.generator_index &&
+        new_generator < (u32)(sizeof(s_editor_project_generators) /
+                                 sizeof(s_editor_project_generators[0])))
+    {
+      const LDKEditorProjectGenerator *generator =
+          &s_editor_project_generators[new_generator];
+      draft.generator_index = new_generator;
+      snprintf(draft.cmake_generator, sizeof(draft.cmake_generator), "%s",
+          generator->cmake_generator);
+      snprintf(draft.cmake_arch, sizeof(draft.cmake_arch), "%s",
+          generator->uses_platform ? ldki_editor_cmake_native_arch_get() : "");
+      draft.dirty = true;
+    }
+
+    ldk_ui_end_disabled(ui);
+
+    s_editor_project_read_only_row(
+        editor, "Build directory", editor->project.cmake_root_path.buf);
+    if (ldk_project_game_module_output_path_get(
+            &editor->project, draft.build_config, &game_dll_path))
+    {
+      s_editor_project_read_only_row(editor, "Game DLL", game_dll_path.buf);
+    }
+
+    s_editor_project_row_begin(editor, "");
+    ldk_ui_set_next_disabled(ui, !can_modify);
+    if (ldk_ui_button(ui, "Clean Build") &&
+        ldk_os_dialog_show_yes_no(editor->window, "Clean Build",
+            "Run the CMake clean target for the current build configuration?"))
+    {
+      ldki_editor_project_clean_build_request(editor);
+    }
+    ldk_ui_spacer(ui);
+    ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_spacer(ui);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+  ldk_ui_set_next_disabled(ui, !can_modify || !draft.dirty);
+  if (ldk_ui_button(ui, "Save"))
+  {
+    if (!s_editor_settings_integer_parse(
+            draft.resolution_width, &resolution_width) ||
+        !s_editor_settings_integer_parse(
+            draft.resolution_height, &resolution_height) ||
+        resolution_width <= 0 || resolution_height <= 0 ||
+        draft.game_name[0] == 0 || draft.build_config[0] == 0 ||
+        draft.cmake_generator[0] == 0)
+    {
+      ldki_editor_log_error(editor, "Invalid project settings.");
+    }
+    else
+    {
+      LDKProject updated = editor->project;
+      x_smallstr_from_cstr(&updated.game_name, draft.game_name);
+      x_smallstr_from_cstr(&updated.build_config, draft.build_config);
+      x_smallstr_from_cstr(&updated.cmake_generator, draft.cmake_generator);
+      x_smallstr_from_cstr(&updated.cmake_arch, draft.cmake_arch);
+      x_fs_path_set(&updated.icon_path, draft.icon_path);
+      updated.project_resolution_width = resolution_width;
+      updated.project_resolution_height = resolution_height;
+
+      if (!ldki_editor_project_settings_apply(editor, &updated))
+      {
+        ldki_editor_log_error(editor, "Failed to save project settings.");
+      }
+      else
+      {
+        s_editor_project_settings_draft_reset(&draft, editor);
+        ldki_editor_log_info(editor, "Project settings saved.");
+      }
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+
+  ldk_ui_spacer(ui);
+  ldk_ui_end_scrollview(ui);
+  s_editor_project_column_update(editor);
+}
+
 static bool s_editor_project_play_current_scene_write(
     LDKEditorContext *editor, bool value)
 {
@@ -2141,28 +2684,6 @@ void ldki_editor_status_show(LDKEditorContext *editor)
 
 void ldki_editor_project_create_show(LDKEditorContext *editor)
 {
-  typedef struct LDKEditorProjectGenerator
-  {
-    const char *cmake_generator;
-    bool uses_platform;
-  } LDKEditorProjectGenerator;
-
-  static const LDKEditorProjectGenerator s_generators[] = {
-      {"Visual Studio 18 2026", true},
-      {"Visual Studio 17 2022", true},
-      {"Ninja", false},
-      {"Ninja Multi-Config", false},
-      {"NMake Makefiles", false},
-      {"MinGW Makefiles", false},
-  };
-  static const char *s_generator_labels[] = {
-      "Visual Studio 2026",
-      "Visual Studio 2022",
-      "Ninja",
-      "Ninja Multi-Config",
-      "NMake",
-      "MinGW Make",
-  };
   static bool need_clean = false;
   static XSmallstr s_project_name = {0};
   static XFSPath s_project_path = {0};
@@ -2202,17 +2723,19 @@ void ldki_editor_project_create_show(LDKEditorContext *editor)
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
     ldk_ui_label(ui, "Generator");
-    s_generator = ldk_ui_combo_box(ui, s_generator_labels,
-        (u32)(sizeof(s_generator_labels) / sizeof(s_generator_labels[0])),
+    s_generator = ldk_ui_combo_box(ui, s_editor_project_generator_labels,
+        (u32)(sizeof(s_editor_project_generator_labels) /
+              sizeof(s_editor_project_generator_labels[0])),
         s_generator);
   }
   ldk_ui_end_horizontal(ui);
 
-  if (s_generator >= sizeof(s_generators) / sizeof(s_generators[0]))
+  if (s_generator >= sizeof(s_editor_project_generators) /
+                         sizeof(s_editor_project_generators[0]))
   {
     s_generator = 0;
   }
-  generator = &s_generators[s_generator];
+  generator = &s_editor_project_generators[s_generator];
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);

@@ -2270,21 +2270,20 @@ typedef struct LDKEditorGameModuleWatch
 
 static LDKEditorGameModuleWatch s_game_module_watch = {0};
 
-static bool s_project_game_module_sibling_path_get(
+static bool s_project_game_module_editor_path_get(
     const LDKProject *project, const char *filename, XFSPath *out_path)
 {
+  XFSPath editor_cache_path = {0};
+
   if (project == NULL || filename == NULL || filename[0] == 0 ||
-      out_path == NULL || project->game_dll_path.length == 0)
+      out_path == NULL || project->cache_path.length == 0)
   {
     return false;
   }
 
-  if (x_fs_path_dirname(&project->game_dll_path, out_path) == 0)
-  {
-    return false;
-  }
-
-  if (x_fs_path_join(out_path, filename) == 0)
+  if (!x_fs_path(&editor_cache_path, x_fs_path_cstr(&project->cache_path),
+          "editor") ||
+      !x_fs_path(out_path, x_fs_path_cstr(&editor_cache_path), filename))
   {
     return false;
   }
@@ -2296,7 +2295,7 @@ static bool s_project_game_module_sibling_path_get(
 static bool s_project_editor_game_dll_path_get(
     const LDKProject *project, XFSPath *out_path)
 {
-  return s_project_game_module_sibling_path_get(
+  return s_project_game_module_editor_path_get(
       project, "game_editor.dll", out_path);
 }
 
@@ -2422,6 +2421,14 @@ static bool s_project_game_module_load(LDKEditorContext *editor)
     return false;
   }
 
+  XFSPath editor_cache_path = {0};
+  if (x_fs_path_dirname(&editor_game_dll_path, &editor_cache_path) == 0 ||
+      !x_fs_directory_create_recursive(editor_cache_path.buf))
+  {
+    ldki_editor_log_error(editor, "Failed to create game module cache path.");
+    return false;
+  }
+
   if (x_fs_path_is_file(&editor_game_dll_path) &&
       !x_fs_file_delete(editor_game_dll_path.buf))
   {
@@ -2484,9 +2491,9 @@ static LDKEditorGameModuleReloadResult s_project_game_module_reload(
 
   if (!s_project_editor_game_dll_path_get(
           &editor->project, &active_path) ||
-      !s_project_game_module_sibling_path_get(
+      !s_project_game_module_editor_path_get(
           &editor->project, "game_editor_next.dll", &next_path) ||
-      !s_project_game_module_sibling_path_get(
+      !s_project_game_module_editor_path_get(
           &editor->project, "game_editor_previous.dll", &previous_path))
   {
     ldki_editor_log_error(editor, "Failed to resolve game module paths.");
@@ -2860,9 +2867,9 @@ static bool s_project_unload(LDKEditorContext *editor)
   has_editor_game_dll_path =
       s_project_editor_game_dll_path_get(
           &editor->project, &editor_game_dll_path);
-  has_editor_next_dll_path = s_project_game_module_sibling_path_get(
+  has_editor_next_dll_path = s_project_game_module_editor_path_get(
       &editor->project, "game_editor_next.dll", &editor_next_dll_path);
-  has_editor_previous_dll_path = s_project_game_module_sibling_path_get(
+  has_editor_previous_dll_path = s_project_game_module_editor_path_get(
       &editor->project, "game_editor_previous.dll",
       &editor_previous_dll_path);
 
@@ -3059,6 +3066,127 @@ static bool s_project_switch(
   return false;
 }
 
+static bool s_editor_project_cmake_root_can_clean(const LDKProject *project)
+{
+  XFSPath relative = {0};
+
+  if (project == NULL || project->project_root_path.length == 0 ||
+      project->cmake_root_path.length == 0 ||
+      x_fs_path_compare(
+          &project->project_root_path, &project->cmake_root_path) == 0 ||
+      x_fs_path_compare(&project->source_root_path, &project->cmake_root_path) ==
+          0 ||
+      x_fs_path_compare(&project->run_root_path, &project->cmake_root_path) ==
+          0 ||
+      x_fs_path_compare(&project->cache_path, &project->cmake_root_path) == 0 ||
+      x_fs_path_relative_to(&project->project_root_path,
+          &project->cmake_root_path, &relative) == 0 ||
+      relative.length == 0 || strcmp(relative.buf, ".") == 0 ||
+      strcmp(relative.buf, "..") == 0 || strncmp(relative.buf, "../", 3) == 0 ||
+      strncmp(relative.buf, "..\\", 3) == 0)
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool ldki_editor_project_settings_apply(
+    LDKEditorContext *editor, const LDKProject *project)
+{
+  LDKProject updated;
+  XFSPath output_directory = {0};
+  bool build_config_changed;
+  bool generator_changed;
+
+  if (editor == NULL || project == NULL || !editor->project.loaded ||
+      !project->loaded || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->project_build.active ||
+      editor->pending_project_action.type != LDK_EDITOR_PROJECT_ACTION_NONE ||
+      strcmp(editor->project.project_file_path.buf,
+          project->project_file_path.buf) != 0)
+  {
+    return false;
+  }
+
+  updated = *project;
+  build_config_changed = strcmp(editor->project.build_config.buf,
+                             updated.build_config.buf) != 0;
+  generator_changed = strcmp(editor->project.cmake_generator.buf,
+                          updated.cmake_generator.buf) != 0 ||
+                      strcmp(editor->project.cmake_arch.buf,
+                          updated.cmake_arch.buf) != 0;
+
+  if (generator_changed && x_fs_path_exists(&editor->project.cmake_root_path))
+  {
+    if (!s_editor_project_cmake_root_can_clean(&editor->project) ||
+        !x_fs_directory_delete_recursive(editor->project.cmake_root_path.buf))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to safely reset the CMake build directory.");
+      return false;
+    }
+  }
+
+  if (!ldk_project_save(&updated))
+  {
+    return false;
+  }
+
+  editor->project = updated;
+
+  if (!ldk_engine_render_resolution_set(
+          editor->project.project_resolution_width,
+          editor->project.project_resolution_height))
+  {
+    ldki_editor_log_warning(
+        editor, "Project saved, but target resolution could not be applied.");
+  }
+
+  if (!build_config_changed)
+  {
+    return true;
+  }
+
+  s_project_game_module_watch_close();
+  if (x_fs_path_dirname(
+          &editor->project.game_dll_path, &output_directory) != 0)
+  {
+    x_fs_directory_create_recursive(output_directory.buf);
+  }
+
+  if (x_fs_path_is_file(&editor->project.game_dll_path))
+  {
+    if (!s_project_game_module_refresh(editor))
+    {
+      ldki_editor_log_error(editor,
+          "Project settings were saved, but the selected game module could "
+          "not be loaded.");
+    }
+  }
+  else if (ldk_game_get() != NULL)
+  {
+    s_project_game_module_watch_open(editor);
+  }
+
+  return true;
+}
+
+bool ldki_editor_project_clean_build_request(LDKEditorContext *editor)
+{
+  if (editor == NULL || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->project_build.active ||
+      editor->pending_project_action.type != LDK_EDITOR_PROJECT_ACTION_NONE)
+  {
+    return false;
+  }
+
+  editor->pending_project_action = (LDKEditorProjectAction){0};
+  editor->pending_project_action.type = LDK_EDITOR_PROJECT_ACTION_CLEAN;
+  return true;
+}
+
 static bool s_editor_project_build_desc_init(LDKEditorContext *editor,
     const char *config, LDKProjectBuildDesc *out_desc)
 {
@@ -3102,7 +3230,12 @@ static const char *s_editor_project_build_config(
     return "Release";
   }
 
-  return LDK_BUILD_TYPE;
+  if (build != NULL && build->project.build_config.buf[0] != 0)
+  {
+    return build->project.build_config.buf;
+  }
+
+  return "Debug";
 }
 
 static const char *s_editor_project_build_stage_label(
@@ -3114,6 +3247,8 @@ static const char *s_editor_project_build_stage_label(
     return "CMake configure";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
     return "Game build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
+    return "Game clean";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
     return "Release configure";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
@@ -3134,6 +3269,8 @@ static const char *s_editor_project_build_log_name(
     return "configure.log";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
     return "build.log";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
+    return "clean.log";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
     return "release-configure.log";
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
@@ -3314,6 +3451,10 @@ static bool s_editor_project_build_stage_start(LDKEditorContext *editor)
     build->process = ldk_project_build_game_module_start(
         &build->project, &build_desc, &process_result);
     break;
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
+    build->process = ldk_project_clean_game_module_start(
+        &build->project, &build_desc, &process_result);
+    break;
   case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
     build->process = ldk_project_generate_game_launcher_start(
         &build->project, &build_desc, &process_result);
@@ -3395,12 +3536,21 @@ static void s_editor_project_build_report_finish(
   s_editor_job_history_push(editor, action_type, job_status);
   s_editor_project_build_state_clear(editor);
 
+  if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN && ldk_game_get() != NULL)
+  {
+    s_project_game_module_watch_open(editor);
+  }
+
   if (cancelled)
   {
     if (action_type == LDK_EDITOR_PROJECT_ACTION_CREATE)
     {
       ldki_editor_log_warning(editor,
           "Project creation cancelled. Generated files were left on disk.");
+    }
+    else if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+    {
+      ldki_editor_log_warning(editor, "Project clean cancelled.");
     }
     else
     {
@@ -3424,6 +3574,10 @@ static void s_editor_project_build_report_finish(
     else if (action_type == LDK_EDITOR_PROJECT_ACTION_PACKAGE)
     {
       ldki_editor_log_error(editor, "Package build failed.");
+    }
+    else if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+    {
+      ldki_editor_log_error(editor, "Project clean failed.");
     }
     else
     {
@@ -3456,6 +3610,12 @@ static void s_editor_project_build_report_finish(
   if (action_type == LDK_EDITOR_PROJECT_ACTION_PACKAGE)
   {
     ldki_editor_log_info(editor, "Package build completed.");
+    return;
+  }
+
+  if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+  {
+    ldki_editor_log_info(editor, "Project clean completed.");
     return;
   }
 
@@ -3594,6 +3754,7 @@ static bool s_editor_project_build_update(LDKEditorContext *editor)
     build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD;
     break;
   case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
     s_editor_project_build_report_finish(editor, true, false);
     return true;
   case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
@@ -3636,7 +3797,9 @@ static bool s_editor_project_build_begin(
 
   config = action->type == LDK_EDITOR_PROJECT_ACTION_RELEASE
                ? "Release"
-               : LDK_BUILD_TYPE;
+               : editor->project.loaded && editor->project.build_config.buf[0]
+                   ? editor->project.build_config.buf
+                   : "Debug";
   if (!s_editor_project_build_desc_init(editor, config, &build_desc))
   {
     return false;
@@ -3683,25 +3846,45 @@ static bool s_editor_project_build_begin(
 
     build->project = editor->project;
     build->project_file_path = editor->project.project_file_path;
-    build->stage = action->type == LDK_EDITOR_PROJECT_ACTION_RELEASE
-                       ? LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE
-                       : LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE;
+    if (action->type == LDK_EDITOR_PROJECT_ACTION_RELEASE)
+    {
+      build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE;
+    }
+    else if (action->type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+    {
+      build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN;
+    }
+    else
+    {
+      build->stage = LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE;
+    }
   }
 
-  if (!ldk_project_write_runtime_ini(&build->project))
+  if (action->type != LDK_EDITOR_PROJECT_ACTION_CLEAN &&
+      !ldk_project_write_runtime_ini(&build->project))
   {
     ldk_project_unload(&build->project);
     *build = (LDKEditorProjectBuild){0};
     return false;
   }
 
+  if (action->type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+  {
+    s_project_game_module_watch_close();
+  }
+
   build->active = true;
   editor->jobs_popup_open_requested = true;
   if (!s_editor_project_build_stage_start(editor))
   {
+    LDKEditorProjectActionType action_type = build->action_type;
     s_editor_job_history_push(
         editor, build->action_type, LDK_EDITOR_JOB_STATUS_FAILED);
     s_editor_project_build_state_clear(editor);
+    if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN && ldk_game_get() != NULL)
+    {
+      s_project_game_module_watch_open(editor);
+    }
     return false;
   }
 
@@ -3744,6 +3927,7 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
   if (action.type == LDK_EDITOR_PROJECT_ACTION_CREATE ||
       action.type == LDK_EDITOR_PROJECT_ACTION_BUILD ||
+      action.type == LDK_EDITOR_PROJECT_ACTION_CLEAN ||
       action.type == LDK_EDITOR_PROJECT_ACTION_RELEASE)
   {
     result = s_editor_project_build_begin(editor, &action);
@@ -3756,6 +3940,10 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
     else if (!result && action.type == LDK_EDITOR_PROJECT_ACTION_RELEASE)
     {
       ldki_editor_log_error(editor, "Project release build failed.");
+    }
+    else if (!result && action.type == LDK_EDITOR_PROJECT_ACTION_CLEAN)
+    {
+      ldki_editor_log_error(editor, "Project clean failed.");
     }
     else if (!result)
     {
@@ -3957,6 +4145,7 @@ bool ldki_editor_project_build_cancel_request(LDKEditorContext *editor)
 
   if (editor->pending_project_action.type == LDK_EDITOR_PROJECT_ACTION_CREATE ||
       editor->pending_project_action.type == LDK_EDITOR_PROJECT_ACTION_BUILD ||
+      editor->pending_project_action.type == LDK_EDITOR_PROJECT_ACTION_CLEAN ||
       editor->pending_project_action.type == LDK_EDITOR_PROJECT_ACTION_RELEASE)
   {
     editor->pending_project_action = (LDKEditorProjectAction){0};

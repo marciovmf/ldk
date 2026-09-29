@@ -66,6 +66,10 @@ typedef enum LDKEditorConsoleEntryType
 #define LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT 110.0f
 #endif
 
+#ifndef LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT
+#define LDK_EDITOR_PROJECT_LABEL_WIDTH_DEFAULT 150.0f
+#endif
+
 typedef struct LDKEditorCommand
 {
   char name[LDK_EDITOR_COMMAND_MAX_LENGTH];
@@ -156,6 +160,7 @@ typedef enum LDKEditorProjectActionType
   LDK_EDITOR_PROJECT_ACTION_OPEN,
   LDK_EDITOR_PROJECT_ACTION_CREATE,
   LDK_EDITOR_PROJECT_ACTION_BUILD,
+  LDK_EDITOR_PROJECT_ACTION_CLEAN,
   LDK_EDITOR_PROJECT_ACTION_RELEASE,
   LDK_EDITOR_PROJECT_ACTION_PACKAGE
 } LDKEditorProjectActionType;
@@ -183,6 +188,7 @@ typedef enum LDKEditorProjectBuildStage
   LDK_EDITOR_PROJECT_BUILD_STAGE_NONE = 0,
   LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE,
   LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD,
+  LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN,
   LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE,
   LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD,
   LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE
@@ -259,6 +265,7 @@ typedef struct LDKEditorContext
   LDKWindow window;
   LDKUIContext ui;
   float inspector_label_width;
+  float project_label_width;
   LDKAssetFont font;
   LDKFontInstance *font_instance;
   LDKRenderer *renderer;
@@ -339,6 +346,10 @@ void ldki_editor_status_show(LDKEditorContext *editor);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 void ldki_editor_settings_show(LDKEditor *editor, void *data);
+void ldki_editor_project_window_show(LDKEditor *editor, void *data);
+bool ldki_editor_project_settings_apply(
+    LDKEditorContext *editor, const LDKProject *project);
+bool ldki_editor_project_clean_build_request(LDKEditorContext *editor);
 bool ldki_editor_font_apply(
     LDKEditorContext *editor, const char *font_path, i32 font_size);
 void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time);
@@ -497,6 +508,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 
 #define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
 #define LDK_EDITOR_WINDOW_SETTINGS ((LDKEditorWindowId)0x4C444B0Du)
+#define LDK_EDITOR_WINDOW_PROJECT ((LDKEditorWindowId)0x4C444B0Eu)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
