@@ -7,6 +7,8 @@
 #define LDK_CAMERA_H
 
 #include <ldk_common.h>
+#include <ldk_resource.h>
+#include <ldk_skybox_asset.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <stdx/stdx_math.h>
@@ -43,6 +45,13 @@ extern "C" {
     float near_plane;
     float far_plane;
     bool enabled;
+    LDKAssetSkybox skybox_asset;
+    //@inspect hidden runtime
+    u64 skybox_revision;
+    //@inspect hidden runtime
+    LDKResourceSkybox renderer_skybox;
+    //@inspect hidden runtime
+    struct LDKRenderer* renderer;
   } LDKCamera;
 
 #ifdef LDK_ENGINE

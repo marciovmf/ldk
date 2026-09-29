@@ -123,7 +123,8 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
     }
   }
 
-  else if (info->type == LDK_ASSET_TYPE_MATERIAL)
+  else if (info->type == LDK_ASSET_TYPE_MATERIAL ||
+           info->type == LDK_ASSET_TYPE_SKYBOX)
   {
     free(info->data); /* Image references are owned by the manager. */
   }

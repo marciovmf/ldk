@@ -27,7 +27,8 @@ extern "C"
     LDK_ASSET_TYPE_FONT = 2,
     LDK_ASSET_TYPE_IMAGE = 3,
     LDK_ASSET_TYPE_MESH = 4,
-    LDK_ASSET_TYPE_MATERIAL = 5
+    LDK_ASSET_TYPE_MATERIAL = 5,
+    LDK_ASSET_TYPE_SKYBOX = 6
   } LDKAssetType;
 
   typedef struct LDKAssetHandle
@@ -59,6 +60,11 @@ extern "C"
   {
     LDKHandle h;
   } LDKAssetMesh;
+
+  typedef struct LDKAssetSkybox
+  {
+    LDKHandle h;
+  } LDKAssetSkybox;
 
 #ifdef __cplusplus
 }

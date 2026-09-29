@@ -1,0 +1,7 @@
+skybox:
+  positive_x: "assets/skybox/sky_01/px.png"
+  negative_x: "assets/skybox/sky_01/nx.png"
+  positive_y: "assets/skybox/sky_01/py.png"
+  negative_y: "assets/skybox/sky_01/ny.png"
+  positive_z: "assets/skybox/sky_01/pz.png"
+  negative_z: "assets/skybox/sky_01/nz.png"

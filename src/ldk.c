@@ -7,6 +7,7 @@
 #include <ldk_os.h>
 #include <ldk_mesh_asset.h>
 #include <ldk_scene.h>
+#include <ldk_skybox_asset.h>
 
 #include <ldk_event.h>
 #include <component/ldk_camera.h>
@@ -59,6 +60,62 @@ struct LDKRoot
   LDKGCtx graphics;
   u64 previous_ticks;
 };
+
+static void s_camera_skybox_runtime_clear(LDKCamera *camera)
+{
+  if (!camera)
+  {
+    return;
+  }
+
+  camera->renderer_skybox = LDK_RESOURCE_SKYBOX_INVALID;
+  camera->skybox_revision = 0;
+}
+
+static void s_camera_skybox_runtime_sync(LDKRoot *e, LDKCamera *camera)
+{
+  const LDKAssetSkyboxData *skybox_data;
+
+  if (!e || !camera)
+  {
+    return;
+  }
+
+  camera->renderer = &e->renderer;
+
+  if (x_handle_is_null(camera->skybox_asset.h))
+  {
+    ldk_renderer_skybox_destroy(&e->renderer, camera->renderer_skybox);
+    s_camera_skybox_runtime_clear(camera);
+    return;
+  }
+
+  skybox_data = ldk_asset_manager_skybox_get_const(
+      &e->asset_manager, camera->skybox_asset);
+  if (!skybox_data)
+  {
+    ldk_renderer_skybox_destroy(&e->renderer, camera->renderer_skybox);
+    s_camera_skybox_runtime_clear(camera);
+    return;
+  }
+
+  if (ldk_renderer_skybox_is_valid(&e->renderer, camera->renderer_skybox) &&
+      skybox_data->revision == camera->skybox_revision)
+  {
+    return;
+  }
+
+  ldk_renderer_skybox_destroy(&e->renderer, camera->renderer_skybox);
+  s_camera_skybox_runtime_clear(camera);
+
+  camera->renderer_skybox = ldk_renderer_skybox_create(
+      &e->renderer, &e->asset_manager, &skybox_data->descriptor);
+  if (ldk_renderer_skybox_is_valid(&e->renderer, camera->renderer_skybox))
+  {
+    camera->skybox_revision = skybox_data->revision;
+  }
+}
+
 
 static LDKRoot g_engine;
 static bool g_engine_initialized = false;
@@ -1524,6 +1581,14 @@ void ldk_engine_frame(void)
               &e->renderer, view_id, camera_view, camera_projection))
       {
         continue;
+      }
+
+      s_camera_skybox_runtime_sync(e, camera);
+      if (ldk_renderer_skybox_is_valid(
+              &e->renderer, camera->renderer_skybox))
+      {
+        (void)ldk_renderer_submit_skybox_to_view(
+            &e->renderer, view_id, camera->renderer_skybox);
       }
 
       const LDKPostProcessing *post_processing =

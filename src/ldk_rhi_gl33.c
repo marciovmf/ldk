@@ -1146,6 +1146,33 @@ static char const* LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER =
 "  out_color = color;\n"
 "}\n";
 
+static char const* LDK_RHI_GL33_SKYBOX_PASS_VERTEX_SHADER =
+"#version 330 core\n"
+"layout(location = 0) in vec3 a_position;\n"
+"out vec3 v_direction;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  mat4 u_view;\n"
+"  mat4 u_projection;\n"
+"};\n"
+"void main()\n"
+"{\n"
+"  v_direction = a_position;\n"
+"  vec4 position = u_projection * mat4(mat3(u_view)) *\n"
+"      vec4(a_position, 1.0);\n"
+"  gl_Position = position.xyww;\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_SKYBOX_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec3 v_direction;\n"
+"out vec4 out_color;\n"
+"uniform samplerCube LDK_TEXTURE_1;\n"
+"void main()\n"
+"{\n"
+"  out_color = texture(LDK_TEXTURE_1, normalize(v_direction));\n"
+"}\n";
+
 static char const* LDK_RHI_GL33_BLUR_PASS_FRAGMENT_SHADER =
 "#version 330 core\n"
 "in vec2 v_uv;\n"
@@ -1325,6 +1352,18 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_SKYBOX_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_SKYBOX_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_SKYBOX_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_SKYBOX_PASS_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_BLUR_PASS &&
@@ -2030,6 +2069,10 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
   glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  if (target == GL_TEXTURE_3D || target == GL_TEXTURE_CUBE_MAP)
+  {
+    glTexParameteri(target, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+  }
   glTexParameteri(target, GL_TEXTURE_MAX_LEVEL, (GLint)(desc->mip_count - 1));
 
   glTexParameteri(target, GL_TEXTURE_SWIZZLE_R, ldk_rhi_gl33_swizzle(desc->swizzle_r, GL_RED));
@@ -2044,6 +2087,15 @@ static LDKRHITexture ldk_rhi_gl33_texture_create(void* backend_user_data, const 
   else if (target == GL_TEXTURE_3D)
   {
     glTexImage3D(target, 0, (GLint)internal_format, (GLsizei)desc->width, (GLsizei)desc->height, (GLsizei)desc->depth, 0, external_format, external_type, desc->initial_data);
+  }
+  else if (target == GL_TEXTURE_CUBE_MAP)
+  {
+    for (uint32_t face = 0; face < 6; ++face)
+    {
+      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0,
+          (GLint)internal_format, (GLsizei)desc->width,
+          (GLsizei)desc->height, 0, external_format, external_type, NULL);
+    }
   }
 
   if (desc->mip_count > 1)
@@ -2086,7 +2138,6 @@ static void ldk_rhi_gl33_texture_destroy(void* backend_user_data, LDKRHITexture 
 
 static bool ldk_rhi_gl33_texture_update(void* backend_user_data, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size)
 {
-  (void)layer;
   (void)size;
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
   if (texture >= backend->texture_capacity)
@@ -2111,6 +2162,22 @@ static bool ldk_rhi_gl33_texture_update(void* backend_user_data, LDKRHITexture t
   else if (info.target == GL_TEXTURE_3D)
   {
     glTexSubImage3D(info.target, (GLint)mip_level, 0, 0, 0, (GLsizei)info.width, (GLsizei)info.height, (GLsizei)info.depth, external_format, external_type, data);
+  }
+  else if (info.target == GL_TEXTURE_CUBE_MAP)
+  {
+    if (layer >= 6)
+    {
+      glBindTexture(info.target, 0);
+      return false;
+    }
+    glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + layer,
+        (GLint)mip_level, 0, 0, (GLsizei)info.width,
+        (GLsizei)info.height, external_format, external_type, data);
+  }
+  else
+  {
+    glBindTexture(info.target, 0);
+    return false;
   }
 
   if (mip_level == 0 && info.mip_count > 1)

@@ -385,6 +385,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
   ${INCLUDE_DIR}/ldk_material_io.h src/ldk_material_io.c
   ${INCLUDE_DIR}/ldk_material_asset.h src/module/ldk_asset_material.c
+  ${INCLUDE_DIR}/ldk_skybox.h       src/ldk_skybox.c
+  ${INCLUDE_DIR}/ldk_skybox_io.h    src/ldk_skybox_io.c
+  ${INCLUDE_DIR}/ldk_skybox_asset.h src/module/ldk_asset_skybox.c
   ${INCLUDE_DIR}/ldk_resource.h
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
