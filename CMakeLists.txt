@@ -385,6 +385,9 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_material.h    src/ldk_material.c
   ${INCLUDE_DIR}/ldk_material_io.h src/ldk_material_io.c
   ${INCLUDE_DIR}/ldk_material_asset.h src/module/ldk_asset_material.c
+  ${INCLUDE_DIR}/ldk_skybox.h       src/ldk_skybox.c
+  ${INCLUDE_DIR}/ldk_skybox_io.h    src/ldk_skybox_io.c
+  ${INCLUDE_DIR}/ldk_skybox_asset.h src/module/ldk_asset_skybox.c
   ${INCLUDE_DIR}/ldk_resource.h
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
@@ -584,6 +587,16 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_settings.h
+    src/editor/ldk_editor_settings.c
+    src/editor/ldk_editor_project_options.h
+    src/editor/ldk_editor_project_options.c
+    src/editor/ldk_editor_project_window.h
+    src/editor/ldk_editor_project_window.c
+    src/editor/ldk_editor_project_create.h
+    src/editor/ldk_editor_project_create.c
+    src/editor/ldk_editor_scene_ops.h
+    src/editor/ldk_editor_scene_ops.c
     src/editor/ldk_editor_scene_catalog.c
     src/editor/ldk_editor_grouping_catalog.c
     src/editor/ldk_editor_package_catalog.h

@@ -73,6 +73,9 @@ scene:
             near_plane: 0.100000001
             far_plane: 1000.00000
             enabled: true
+            background_mode: 1
+            background_color: 2880154623
+            skybox_asset: "assets/skybox/sky_01.skybox"
         - type: 4294967286 # LDKPostProcessing
           fields:
             enabled: true
@@ -260,7 +263,7 @@ scene:
           fields:
             local_position: 0.00000000, 1.18987536, 6.19256592
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.999064922, 0.00000000, -0.0432350971
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/capsule"

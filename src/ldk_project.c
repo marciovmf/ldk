@@ -324,6 +324,11 @@ static void s_project_append_project_file_text(
       "project_run_root = \"runtree\"\n"
       "project_cmake_generator = \"%s\"\n"
       "project_cmake_arch = \"%s\"\n"
+      "project_build_config = \"%s\"\n"
+      "\n"
+      "[.editor]\n"
+      "play_current_scene = false\n"
+      "build_on_play = false\n"
       "\n"
       "[.flags]\n"
       "tag_0 = \"tag_0\"\n"
@@ -355,11 +360,13 @@ static void s_project_append_project_file_text(
       "\n"
       "[display]\n"
       "title = \"%s\"\n"
+      "icon_path = \"%s\"\n"
       "width = 1280\n"
       "height = 720\n"
       "fullscreen = false\n",
       project->name.buf, project->cmake_generator.buf,
-      has_arch ? project->cmake_arch.buf : "\"\"", project->name.buf);
+      has_arch ? project->cmake_arch.buf : "", project->build_config.buf,
+      project->game_name.buf, project->icon_path.buf);
 }
 
 static void s_project_append_game_cmake_text(XStrBuilder *builder)
@@ -529,9 +536,12 @@ bool ldk_project_create(const LDKProjectCreateDesc *desc)
                         : desc->cmake_generator;
 
   x_smallstr_from_cstr(&project.name, project_name);
+  x_smallstr_from_cstr(&project.game_name, project_name);
+  x_smallstr_from_cstr(&project.build_config, LDK_PROJECT_DEFAULT_CONFIG);
   x_smallstr_from_cstr(&project.cmake_generator, cmake_generator);
   x_smallstr_from_cstr(&project.cmake_arch,
       s_string_is_empty(desc->cmake_arch) ? "" : desc->cmake_arch);
+  x_fs_path_set(&project.icon_path, "assets/ldk.ico");
 
   x_fs_path_set(&project.project_root_path, desc->project_root_path);
   x_fs_path_normalize(&project.project_root_path);
@@ -596,6 +606,9 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
   const char *run_root;
   const char *cmake_generator;
   const char *cmake_arch;
+  const char *build_config;
+  const char *game_name;
+  const char *icon_path;
 
   if (project == NULL || s_string_is_empty(project_file_path))
   {
@@ -643,9 +656,27 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
   cmake_generator = x_ini_get(&ini, ".project", "project_cmake_generator",
       LDK_PROJECT_DEFAULT_CMAKE_GENERATOR);
   cmake_arch = x_ini_get(&ini, ".project", "project_cmake_arch", "");
+  build_config = x_ini_get(&ini, ".project", "project_build_config",
+      LDK_PROJECT_DEFAULT_CONFIG);
+  game_name = x_ini_get(&ini, "display", "title", project_name);
+  icon_path = x_ini_get(&ini, "display", "icon_path", "assets/ldk.ico");
+  if (s_string_is_empty(build_config))
+  {
+    build_config = LDK_PROJECT_DEFAULT_CONFIG;
+  }
+  if (s_string_is_empty(game_name))
+  {
+    game_name = project_name;
+  }
+  if (s_string_is_empty(icon_path))
+  {
+    icon_path = "assets/ldk.ico";
+  }
 
   project->play_current_scene =
       x_ini_get_bool(&ini, ".editor", "play_current_scene", false);
+  project->build_on_play =
+      x_ini_get_bool(&ini, ".editor", "build_on_play", false);
 
   project->project_resolution_width =
       x_ini_get_i32(&ini, "graphics", "resolution_width", 1024);
@@ -657,8 +688,11 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
       x_ini_get_f32(&ini, "graphics", "shadow_distance", 60.0f);
 
   x_smallstr_from_cstr(&project->name, project_name);
+  x_smallstr_from_cstr(&project->game_name, game_name);
+  x_smallstr_from_cstr(&project->build_config, build_config);
   x_smallstr_from_cstr(&project->cmake_generator, cmake_generator);
   x_smallstr_from_cstr(&project->cmake_arch, cmake_arch);
+  x_fs_path_set(&project->icon_path, icon_path);
 
   s_project_resolve_path(
       &project->project_root_path, &manifest_root, project_game_root);
@@ -666,7 +700,7 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
       &project->cmake_root_path, &project->project_root_path, cmake_root);
   s_project_resolve_path(
       &project->run_root_path, &project->project_root_path, run_root);
-  s_project_set_derived_paths(project, LDK_BUILD_TYPE);
+  s_project_set_derived_paths(project, project->build_config.buf);
 
   x_ini_free(&ini);
 
@@ -688,6 +722,51 @@ void ldk_project_unload(LDKProject *project)
   }
 
   memset(project, 0, sizeof(*project));
+}
+
+bool ldk_project_save(LDKProject *project)
+{
+  XIni ini = {0};
+  XIniError error = {0};
+  bool ok;
+
+  if (project == NULL || !project->loaded ||
+      s_string_is_empty(project->game_name.buf) ||
+      s_string_is_empty(project->build_config.buf) ||
+      s_string_is_empty(project->cmake_generator.buf) ||
+      project->project_resolution_width <= 0 ||
+      project->project_resolution_height <= 0)
+  {
+    return false;
+  }
+
+  if (!x_ini_load_file(project->project_file_path.buf, &ini, &error))
+  {
+    return false;
+  }
+
+  ok = x_ini_set(&ini, ".project", "project_cmake_generator",
+           project->cmake_generator.buf) &&
+       x_ini_set(&ini, ".project", "project_cmake_arch",
+           project->cmake_arch.buf) &&
+       x_ini_set(&ini, ".project", "project_build_config",
+           project->build_config.buf) &&
+       x_ini_set_i32(&ini, "graphics", "resolution_width",
+           project->project_resolution_width) &&
+       x_ini_set_i32(&ini, "graphics", "resolution_height",
+           project->project_resolution_height) &&
+       x_ini_set(&ini, "display", "title", project->game_name.buf) &&
+       x_ini_set(&ini, "display", "icon_path", project->icon_path.buf) &&
+       x_ini_write_file(project->project_file_path.buf, &ini, &error);
+
+  x_ini_free(&ini);
+  if (!ok)
+  {
+    return false;
+  }
+
+  s_project_set_derived_paths(project, project->build_config.buf);
+  return ldk_project_write_runtime_ini(project);
 }
 
 bool ldk_project_write_runtime_ini(const LDKProject *project)
@@ -1156,6 +1235,33 @@ LDKOSProcess *ldk_project_build_game_module_start(
 
   x_strbuilder_append_format(arguments,
       "--build \"%s\" --config \"%s\" --target game",
+      x_fs_path_cstr(&project->cmake_root_path), config);
+
+  return s_project_process_start(project, desc, arguments, out_result);
+}
+
+LDKOSProcess *ldk_project_clean_game_module_start(
+    const LDKProject *project, const LDKProjectBuildDesc *desc,
+    LDKOSProcessResult *out_result)
+{
+  XStrBuilder *arguments;
+  const char *config;
+
+  if (project == NULL || desc == NULL || !project->loaded ||
+      s_string_is_empty(desc->cmake_path))
+  {
+    return NULL;
+  }
+
+  config = s_project_build_config(desc->config);
+  arguments = x_strbuilder_create();
+  if (arguments == NULL)
+  {
+    return NULL;
+  }
+
+  x_strbuilder_append_format(arguments,
+      "--build \"%s\" --config \"%s\" --target clean",
       x_fs_path_cstr(&project->cmake_root_path), config);
 
   return s_project_process_start(project, desc, arguments, out_result);

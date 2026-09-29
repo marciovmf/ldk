@@ -80,7 +80,6 @@ typedef struct LDKEditorProfilerState
   LDKUIRect timeline_view_rect;
   LDKUIRect timeline_clip_rect;
   float overview_ratio;
-  bool splitter_dragging;
   char error[256];
   bool captures_dirty;
   bool window_was_open;
@@ -1308,7 +1307,6 @@ void ldki_editor_profiler_update(void)
   s_editor_profiler.window_was_open = open;
   if (!open)
   {
-    s_editor_profiler.splitter_dragging = false;
     s_editor_profiler.timeline_view_rect = (LDKUIRect){0};
   }
 }
@@ -1345,66 +1343,38 @@ static void s_editor_profiler_auto_load(LDKEditorContext *editor)
   }
 }
 
-static float s_editor_profiler_overview_height(
-    LDKUIContext *ui, float top, float available)
+static float s_editor_profiler_pane_min_height(float available)
 {
+  if (available <= 0.0f)
+  {
+    return 0.0f;
+  }
+
+  return available > 160.0f ? 80.0f : available * 0.25f;
+}
+
+static float s_editor_profiler_overview_height(float available)
+{
+  float minimum;
+
   if (s_editor_profiler.overview_ratio <= 0.0f)
   {
     s_editor_profiler.overview_ratio = 0.4f;
   }
 
-  if (s_editor_profiler.splitter_dragging)
+  minimum = s_editor_profiler_pane_min_height(available);
+  if (s_editor_profiler.overview_ratio * available < minimum)
   {
-    if (!ui->mouse || !ldk_os_mouse_button_is_pressed(
-                          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-    {
-      s_editor_profiler.splitter_dragging = false;
-    }
-    else if (available > 0.0f)
-    {
-      LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-      s_editor_profiler.overview_ratio = ((float)cursor.y - top) / available;
-      ui->cursor_type = LDK_CURSOR_SIZE_NS;
-    }
+    s_editor_profiler.overview_ratio =
+        available > 0.0f ? minimum / available : 0.0f;
+  }
+  if (s_editor_profiler.overview_ratio * available > available - minimum)
+  {
+    s_editor_profiler.overview_ratio =
+        available > 0.0f ? (available - minimum) / available : 0.0f;
   }
 
-  /* Keep both panes reachable, including in a small docked window. */
-  float minimum = available > 160.0f ? 80.0f / available : 0.25f;
-  if (s_editor_profiler.overview_ratio < minimum)
-  {
-    s_editor_profiler.overview_ratio = minimum;
-  }
-  if (s_editor_profiler.overview_ratio > 1.0f - minimum)
-  {
-    s_editor_profiler.overview_ratio = 1.0f - minimum;
-  }
   return available * s_editor_profiler.overview_ratio;
-}
-
-static void s_editor_profiler_splitter(LDKUIContext *ui)
-{
-  ldk_ui_set_next_height(ui, ldk_ui_px(6.0f));
-  ldk_ui_horizontal_line(ui);
-  LDKUIRect rect = ldk_ui_last_rect(ui);
-  if (!ui->mouse || !ui->current_window)
-  {
-    return;
-  }
-
-  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  bool hovered =
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y) &&
-      ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y);
-  if (hovered || s_editor_profiler.splitter_dragging)
-  {
-    ui->cursor_type = LDK_CURSOR_SIZE_NS;
-  }
-  if (hovered && ldk_os_mouse_button_down(
-                     (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    s_editor_profiler.splitter_dragging = true;
-  }
 }
 
 static void s_editor_profiler_show(LDKEditorContext *editor)
@@ -1442,13 +1412,12 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
   ldk_ui_set_next_height(ui, ldk_ui_fill());
   ldk_ui_begin_vertical(ui);
   LDKUILayout *layout = ui->current_layout;
-  float available = layout->content_rect.h - 20.0f - 3.0f * layout->spacing;
+  float available = layout->content_rect.h - 14.0f - 3.0f * layout->spacing;
   if (available < 0.0f)
   {
     available = 0.0f;
   }
-  float overview_height =
-      s_editor_profiler_overview_height(ui, layout->content_rect.y, available);
+  float overview_height = s_editor_profiler_overview_height(available);
   bool timeline_wheel = s_editor_profiler_timeline_wheel(ui);
   const LDKMouseState *saved_mouse = ui->mouse;
   LDKMouseState overview_mouse = {0};
@@ -1500,7 +1469,15 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
           : 1.0f,
       1.0f, ldk_ui_last_rect(ui));
 
-  s_editor_profiler_splitter(ui);
+  {
+    float minimum = s_editor_profiler_pane_min_height(available);
+    overview_height = ldk_ui_resize_handle_horizontal(
+        ui, overview_height, minimum, available - minimum);
+    if (available > 0.0f)
+    {
+      s_editor_profiler.overview_ratio = overview_height / available;
+    }
+  }
   ldk_ui_set_next_height(ui, ldk_ui_px(available - overview_height));
   s_editor_profiler.scroll = ldk_ui_begin_scrollview(ui,
       s_editor_profiler.scroll,

@@ -1,22 +1,14 @@
 #include "ldk_editor_atlas.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_scene_ops.h"
 #include "ldk_editor_theme.h"
 #include "ldk_os.h"
 #include "module/ldk_ui.h"
-#include <ldk_scene.h>
-#include <ldk_mesh.h>
-#include <component/ldk_camera.h>
-#include <component/ldk_mesh_source.h>
-#include <component/ldk_transform.h>
-#include <module/ldk_ecs.h>
 #include <module/ldk_scene_manager.h>
 #include <stdx/stdx_ini.h>
-#include <stdx/stdx_strbuilder.h>
-#include <stdx/stdx_string.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <math.h>
 
 const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
     LDKEditorConsoleEntryType *out_type);
@@ -146,6 +138,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     LDKUIMark mark = ldk_ui_mark(ui);
 
     const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
+
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button_flat(ui, "Project Settings..."))
+    {
+      ldki_editor_window_show(LDK_EDITOR_WINDOW_PROJECT);
+      ldk_ui_close_current_popup(ui);
+    }
 
     ldk_ui_set_next_disabled(ui, can_not_build);
     if (ldk_ui_button_flat(ui, "Scene Catalog..."))
@@ -319,10 +318,128 @@ static LDKUIIcon s_editor_status_message_icon(
   return icon;
 }
 
+static const char *s_editor_job_action_label(
+    LDKEditorProjectActionType action_type)
+{
+  switch (action_type)
+  {
+  case LDK_EDITOR_PROJECT_ACTION_CREATE:
+    return "Creating project";
+  case LDK_EDITOR_PROJECT_ACTION_BUILD:
+    return "Building game DLL";
+  case LDK_EDITOR_PROJECT_ACTION_CLEAN:
+    return "Cleaning game build";
+  case LDK_EDITOR_PROJECT_ACTION_RELEASE:
+    return "Building game launcher";
+  case LDK_EDITOR_PROJECT_ACTION_PACKAGE:
+    return "Packaging game";
+  default:
+    return "Project task";
+  }
+}
+
+static const char *s_editor_job_status_label(LDKEditorJobStatus status)
+{
+  switch (status)
+  {
+  case LDK_EDITOR_JOB_STATUS_BUSY:
+    return "BUSY";
+  case LDK_EDITOR_JOB_STATUS_DONE:
+    return "DONE";
+  case LDK_EDITOR_JOB_STATUS_FAILED:
+    return "FAILED";
+  case LDK_EDITOR_JOB_STATUS_CANCELLED:
+    return "CANCELLED";
+  default:
+    return "";
+  }
+}
+
+static const char *s_editor_job_stage_label(LDKEditorProjectBuildStage stage)
+{
+  switch (stage)
+  {
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CONFIGURE:
+    return "CMake configure";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_BUILD:
+    return "Game build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_GAME_CLEAN:
+    return "CMake clean";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_CONFIGURE:
+    return "Release configure";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_RELEASE_BUILD:
+    return "Release build";
+  case LDK_EDITOR_PROJECT_BUILD_STAGE_PACKAGE:
+    return "Package build";
+  default:
+    return "";
+  }
+}
+
+static void s_editor_jobs_popup(LDKEditorContext *editor, LDKUIId popup_id)
+{
+  LDKUIContext *ui = &editor->ui;
+
+  if (!ldk_ui_begin_popup(ui, popup_id))
+  {
+    return;
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(420.0f));
+  ldk_ui_label(ui, "Processes");
+  ldk_ui_horizontal_line(ui);
+
+  if (editor->project_build.active)
+  {
+    char label[256];
+    const char *action_label =
+        s_editor_job_action_label(editor->project_build.action_type);
+    const char *stage_label =
+        s_editor_job_stage_label(editor->project_build.stage);
+
+    if (stage_label[0] != 0)
+    {
+      snprintf(label, sizeof(label), "%s - %s", action_label, stage_label);
+    }
+    else
+    {
+      snprintf(label, sizeof(label), "%s", action_label);
+    }
+
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(260.0f));
+    ldk_ui_label(ui, label);
+    ldk_ui_set_next_width(ui, ldk_ui_px(70.0f));
+    ldk_ui_label(ui, s_editor_job_status_label(LDK_EDITOR_JOB_STATUS_BUSY));
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    ldk_ui_set_next_disabled(ui, editor->project_build.cancel_requested);
+    if (ldk_ui_button(ui, "Cancel"))
+    {
+      ldki_editor_project_build_cancel_request(editor);
+    }
+    ldk_ui_end_horizontal(ui);
+  }
+
+  for (u32 i = 0; i < editor->job_history_count; ++i)
+  {
+    const LDKEditorJobHistoryEntry *entry = &editor->job_history[i];
+
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(330.0f));
+    ldk_ui_label(ui, s_editor_job_action_label(entry->action_type));
+    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+    ldk_ui_label(ui, s_editor_job_status_label(entry->status));
+    ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_end_popup(ui);
+}
+
 static void s_editor_status_bar(LDKEditorContext *editor)
 {
   static u8 alpha = 0;
   static double acc = 0.0f;
+  const LDKUIId jobs_popup_id = 0x4A4F4253u;
 
   LDKUIContext *ui = &editor->ui;
   LDKEditorConsoleEntryType message_type = LDK_EDITOR_CONSOLE_ENTRY_RAW;
@@ -331,6 +448,8 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   LDKUIIcon message_icon =
       s_editor_status_message_icon(editor, message_type);
   LDKUIIcon build_icon = {0};
+  bool has_jobs =
+      editor->project_build.active || editor->job_history_count > 0;
 
   build_icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
       LDK_UI_DEFAULT_CONTROL_HEIGHT);
@@ -339,12 +458,21 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   build_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   build_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEXAGON];
 
+  if (!editor->project_build.active && editor->job_history_count > 0)
+  {
+    if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_FAILED)
+    {
+      build_icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+    }
+    else if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_CANCELLED)
+    {
+      build_icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+    }
+  }
+
   const u32 status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT;
-  LDKUIRect rect = {
-    0,
-    ui->viewport.h - status_bar_height,
-    ui->viewport.w,
-    status_bar_height};
+  LDKUIRect rect = {0, ui->viewport.h - status_bar_height, ui->viewport.w,
+      status_bar_height};
 
   ldk_ui_begin_window(ui, "", rect, 0);
   ldk_ui_horizontal_line(ui);
@@ -360,20 +488,46 @@ static void s_editor_status_bar(LDKEditorContext *editor)
     ldk_ui_spacer(ui);
   }
 
-  if (editor->project_build.active)
+  if (has_jobs)
   {
-    acc += editor->ui.delta_time * 2;
-    alpha = (u8)(127 + (127 * sinf(acc)));
+    bool open_popup;
+    LDKUIRect icon_rect;
 
-    build_icon.color &= 0xFFFFFF00;
-    build_icon.color |= alpha;
+    if (editor->project_build.active)
+    {
+      acc += editor->ui.delta_time * 2;
+      alpha = (u8)(127 + (127 * sinf(acc)));
+
+      build_icon.color &= 0xFFFFFF00;
+      build_icon.color |= alpha;
+    }
 
     ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_icon_button(ui, build_icon, NULL);
+    open_popup = ldk_ui_icon_button(ui, build_icon, NULL);
+    icon_rect = ldk_ui_last_rect(ui);
+
+    if (open_popup && ldk_ui_popup_is_open(ui, jobs_popup_id))
+    {
+      ldk_ui_close_popup(ui, jobs_popup_id);
+    }
+    else if (open_popup || editor->jobs_popup_open_requested)
+    {
+      u32 popup_row_count = editor->job_history_count +
+                            (editor->project_build.active ? 1u : 0u);
+      float popup_height =
+          LDK_UI_DEFAULT_CONTROL_HEIGHT * (2.0f + (float)popup_row_count) +
+          LDK_UI_DEFAULT_PADDING * 4.0f;
+      LDKUIPoint popup_position = {icon_rect.x + icon_rect.w - 420.0f,
+          icon_rect.y - popup_height};
+      ldk_ui_open_popup_at(ui, jobs_popup_id, popup_position);
+      editor->jobs_popup_open_requested = false;
+    }
   }
 
   ldk_ui_end_horizontal(ui);
   ldk_ui_end_window(ui);
+
+  s_editor_jobs_popup(editor, jobs_popup_id);
 }
 
 //------------------------------------------------------------
@@ -879,6 +1033,18 @@ static bool s_editor_project_play_current_scene_write(
       &editor->project.project_file_path, "play_current_scene", value);
 }
 
+static bool s_editor_project_build_on_play_write(
+    LDKEditorContext *editor, bool value)
+{
+  if (editor == NULL || !editor->project.loaded)
+  {
+    return false;
+  }
+
+  return s_editor_ini_bool_write(
+      &editor->project.project_file_path, "build_on_play", value);
+}
+
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
@@ -922,11 +1088,33 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       }
     }
 
+    ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
+    ldk_ui_spacer(ui);
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    ldk_ui_set_next_weight(ui, 0.0f);
+    bool build_on_play = ldk_ui_toggle(ui, editor->project.build_on_play);
+    if (build_on_play != editor->project.build_on_play)
+    {
+      if (!s_editor_project_build_on_play_write(editor, build_on_play))
+      {
+        ldki_editor_log_warning(
+            editor, "Could not save the Build on Play preference.");
+      }
+      else
+      {
+        editor->project.build_on_play = build_on_play;
+      }
+    }
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, "Build on Play");
+
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
       LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-      bool can_play = editor->project.loaded &&
+      bool can_play = editor->project.loaded && !editor->project_build.active &&
+                      editor->pending_project_action.type ==
+                          LDK_EDITOR_PROJECT_ACTION_NONE &&
                       (editor->editor_state == LDK_EDITOR_STATE_PAUSED ||
                           (editor->project.play_current_scene
                                   ? editor->current_scene_path.length != 0
@@ -1027,390 +1215,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 }
 
 //------------------------------------------------------------
-// Scene utils
-//------------------------------------------------------------
-
-typedef struct LDKEditorSceneEntityList
-{
-  XArray *entities;
-  bool ok;
-} LDKEditorSceneEntityList;
-
-static XFSPath s_editor_scene_runtree = {0};
-
-static void s_editor_scene_selection_clear(LDKEditorContext *editor)
-{
-  if (!editor)
-  {
-    return;
-  }
-
-  editor->selected_entity = x_handle_null();
-  editor->selected_system_id = 0;
-  if (editor->hierarchy_expanded_entities != NULL)
-  {
-    x_array_clear(editor->hierarchy_expanded_entities);
-  }
-}
-
-static bool s_editor_scene_entity_collect(LDKEntity entity, void *user)
-{
-  LDKEditorSceneEntityList *list = (LDKEditorSceneEntityList *)user;
-
-  if (!list || !list->ok || !list->entities)
-  {
-    return false;
-  }
-
-  if (x_array_add(list->entities, &entity) != XARRAY_OK)
-  {
-    list->ok = false;
-    return false;
-  }
-
-  return true;
-}
-
-static bool s_editor_scene_ecs_clear(void)
-{
-  LDKEditorSceneEntityList list = {0};
-
-  list.entities = x_array_create(sizeof(LDKEntity), 64);
-  list.ok = list.entities != NULL;
-
-  if (!list.ok)
-  {
-    return false;
-  }
-
-  if (!ldk_ecs_entity_foreach(s_editor_scene_entity_collect, &list) || !list.ok)
-  {
-    x_array_destroy(list.entities);
-    return false;
-  }
-
-  for (u32 i = 0; i < x_array_count(list.entities); ++i)
-  {
-    LDKEntity *entity = x_array_get(list.entities, i);
-    if (entity != NULL)
-    {
-      ldk_ecs_entity_destroy(*entity);
-    }
-  }
-
-  x_array_destroy(list.entities);
-
-  /* The editor reloads a scene into the same ECS registries. Group
-   * definitions remain registered, but membership must start empty. */
-  if (!ldk_ecs_grouping_runtime_reset())
-  {
-    return false;
-  }
-
-  return true;
-}
-
-void ldki_editor_scene_state_sync(LDKEditorContext *editor)
-{
-  XFSPath runtree = {0};
-
-  if (!editor)
-  {
-    return;
-  }
-
-  if (!editor->project.loaded)
-  {
-    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-    memset(&s_editor_scene_runtree, 0, sizeof(s_editor_scene_runtree));
-    ldk_scene_systems_clear(&editor->current_scene_systems);
-    return;
-  }
-
-  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
-  x_fs_path_normalize(&runtree);
-
-  if (s_editor_scene_runtree.length == 0 ||
-      x_fs_path_compare(&s_editor_scene_runtree, &runtree) != 0)
-  {
-    s_editor_scene_runtree = runtree;
-    memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-    ldk_scene_systems_clear(&editor->current_scene_systems);
-    s_editor_scene_selection_clear(editor);
-  }
-}
-
-bool ldki_editor_scene_path_is_scene(const XFSPath *path)
-{
-  const char *text;
-  size_t length;
-  const char *extension = ".scene";
-  size_t extension_length = strlen(extension);
-
-  if (!path)
-  {
-    return false;
-  }
-
-  text = x_fs_path_cstr(path);
-  if (!text)
-  {
-    return false;
-  }
-
-  length = strlen(text);
-  return length >= extension_length &&
-         strcmp(text + length - extension_length, extension) == 0;
-}
-
-static bool s_editor_scene_path_relative(
-    LDKEditorContext *editor, const XFSPath *path, XFSPath *out_relative)
-{
-  XFSPath runtree = {0};
-  XFSPath normalized = {0};
-  const char *relative;
-
-  if (!editor || !editor->project.loaded || !path || !out_relative)
-  {
-    return false;
-  }
-
-  x_fs_path_set(&runtree, editor->project.run_root_path.buf);
-  x_fs_path_normalize(&runtree);
-  normalized = *path;
-  x_fs_path_normalize(&normalized);
-
-  memset(out_relative, 0, sizeof(*out_relative));
-  if (!x_fs_path_common_prefix(
-          x_fs_path_cstr(&runtree), x_fs_path_cstr(&normalized), out_relative))
-  {
-    return false;
-  }
-
-  relative = x_fs_path_cstr(out_relative);
-  if (!relative || relative[0] == 0 || strcmp(relative, ".") == 0 ||
-      x_fs_path_is_absolute(out_relative))
-  {
-    memset(out_relative, 0, sizeof(*out_relative));
-    return false;
-  }
-
-  return true;
-}
-
-static bool s_editor_scene_full_path(
-    LDKEditorContext *editor, const XFSPath *relative, XFSPath *out_path)
-{
-  if (!editor || !editor->project.loaded || !relative || !out_path ||
-      relative->length == 0 || x_fs_path_is_absolute(relative))
-  {
-    return false;
-  }
-
-  x_fs_path(
-      out_path, editor->project.run_root_path.buf, x_fs_path_cstr(relative));
-  x_fs_path_normalize(out_path);
-  return true;
-}
-
-bool ldki_editor_scene_clear(LDKEditorContext *editor)
-{
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
-  {
-    return false;
-  }
-
-  if (!s_editor_scene_ecs_clear())
-  {
-    ldki_editor_log_error(editor, "Failed to clear the current scene.");
-    return false;
-  }
-
-  LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-  if (!manager || !ldk_scene_manager_current_reset(manager))
-  {
-    ldki_editor_log_error(editor, "Failed to reset Scene Manager state.");
-    return false;
-  }
-
-  ldk_scene_systems_clear(&editor->current_scene_systems);
-  s_editor_scene_selection_clear(editor);
-  memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
-  return true;
-}
-
-bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
-{
-  LDKSceneResult result;
-  LDKSceneSystems systems = {0};
-  XFSPath relative = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldki_editor_scene_path_is_scene(path) ||
-      !s_editor_scene_path_relative(editor, path, &relative))
-  {
-    return false;
-  }
-
-  /* Validate the association list before destroying the open scene. */
-  if (!ldk_scene_systems_load_tml_file(x_fs_path_cstr(path), &systems, &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  if (!ldki_editor_scene_clear(editor))
-  {
-    ldk_scene_systems_clear(&systems);
-    return false;
-  }
-
-  if (!ldk_scene_load_tml_file_with_systems(
-          x_fs_path_cstr(path), &systems, &result))
-  {
-    s_editor_scene_ecs_clear();
-    ldk_scene_systems_clear(&systems);
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  editor->current_scene_systems = systems;
-  editor->current_scene_path = relative;
-  ldki_editor_log_info(editor, "Scene loaded.");
-  return true;
-}
-
-bool ldki_editor_scene_save(LDKEditorContext *editor)
-{
-  LDKSceneResult result;
-  XFSPath path = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      editor->current_scene_path.length == 0 ||
-      !s_editor_scene_full_path(editor, &editor->current_scene_path, &path))
-  {
-    return false;
-  }
-
-  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
-          &editor->current_scene_systems, &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  ldki_editor_log_info(editor, "Scene saved.");
-  return true;
-}
-
-bool ldki_editor_scene_new(LDKEditorContext *editor)
-{
-  LDKSceneResult result;
-  XFSPath path = {0};
-  XFSPath relative = {0};
-  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED)
-  {
-    return false;
-  }
-
-  if (!ldk_os_dialog_show_save_file(editor->window, "New Scene", "*.scene",
-          selected_path, sizeof(selected_path)))
-  {
-    return false;
-  }
-
-  x_fs_path_set(&path, selected_path);
-  x_fs_path_normalize(&path);
-  x_fs_path_change_extension(&path, ".scene");
-
-  if (!s_editor_scene_path_relative(editor, &path, &relative))
-  {
-    ldk_os_dialog_show_error(editor->window, "Invalid scene path",
-        "Scene files must be saved inside the project runtree.");
-    return false;
-  }
-
-  if (!ldki_editor_scene_clear(editor))
-  {
-    return false;
-  }
-
-  if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
-          &editor->current_scene_systems, &result))
-  {
-    ldki_editor_log_error(editor, result.error);
-    return false;
-  }
-
-  editor->current_scene_path = relative;
-  ldki_editor_log_info(editor, "Scene created.");
-  return true;
-}
-
-bool ldki_editor_scene_add_primitive(
-    LDKEditorContext *editor, LDKMeshPrimitive primitive, const char *name)
-{
-  LDKAssetManager *asset_manager;
-  LDKAssetMesh asset;
-  LDKEntity entity;
-  LDKMeshSource *mesh_source;
-
-  ldki_editor_scene_state_sync(editor);
-
-  if (!editor || !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      editor->current_scene_path.length == 0)
-  {
-    return false;
-  }
-
-  asset_manager = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  if (!asset_manager)
-  {
-    return false;
-  }
-
-  asset = ldk_mesh_primitive_asset_get(asset_manager, primitive);
-  if (x_handle_is_null(asset.h))
-  {
-    return false;
-  }
-
-  entity = ldk_ecs_entity_create();
-  if (x_handle_is_null(entity))
-  {
-    return false;
-  }
-
-  if (name && name[0] != 0)
-  {
-    ldk_ecs_entity_name_set(entity, name);
-  }
-
-  mesh_source = (LDKMeshSource *)ldk_ecs_component_add(
-      entity, LDK_COMPONENT_TYPE_MESH_SOURCE, NULL);
-  if (!mesh_source || !ldk_mesh_source_set_data(mesh_source, asset))
-  {
-    ldk_ecs_entity_destroy(entity);
-    return false;
-  }
-
-  editor->selected_entity = entity;
-  editor->selected_system_id = 0;
-  return true;
-}
-
-//------------------------------------------------------------
 // Internal
 //------------------------------------------------------------
 
@@ -1422,144 +1226,6 @@ void ldki_editor_menubar_show(LDKEditorContext *editor)
 void ldki_editor_status_show(LDKEditorContext *editor)
 {
   s_editor_status_bar(editor);
-}
-
-void ldki_editor_project_create_show(LDKEditorContext *editor)
-{
-  typedef struct LDKEditorProjectGenerator
-  {
-    const char *cmake_generator;
-    bool uses_platform;
-  } LDKEditorProjectGenerator;
-
-  static const LDKEditorProjectGenerator s_generators[] = {
-      {"Visual Studio 18 2026", true},
-      {"Visual Studio 17 2022", true},
-      {"Ninja", false},
-      {"Ninja Multi-Config", false},
-      {"NMake Makefiles", false},
-      {"MinGW Makefiles", false},
-  };
-  static const char *s_generator_labels[] = {
-      "Visual Studio 2026",
-      "Visual Studio 2022",
-      "Ninja",
-      "Ninja Multi-Config",
-      "NMake",
-      "MinGW Make",
-  };
-  static bool need_clean = false;
-  static XSmallstr s_project_name = {0};
-  static XFSPath s_project_path = {0};
-  static u32 s_generator = 0;
-  LDKUIContext *ui;
-  const LDKEditorProjectGenerator *generator;
-  const char *cmake_arch;
-
-  if (editor == NULL)
-  {
-    return;
-  }
-
-  bool is_busy = editor->project_build.active;
-  if (need_clean && !is_busy)
-  {
-    x_smallstr_clear(&s_project_name);
-    x_smallstr_clear(&s_project_path);
-    s_generator = 0;
-    need_clean = false;
-  }
- 
-  ui = &editor->ui;
-  ldk_ui_begin_disabled(ui, is_busy);
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-    ldk_ui_label(ui, "Project name");
-    ldk_ui_input_box(ui, s_project_name.buf, (u32)sizeof(s_project_name.buf));
-  }
-  ldk_ui_end_horizontal(ui);
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-    ldk_ui_label(ui, "Generator");
-    s_generator = ldk_ui_combo_box(ui, s_generator_labels,
-        (u32)(sizeof(s_generator_labels) / sizeof(s_generator_labels[0])),
-        s_generator);
-  }
-  ldk_ui_end_horizontal(ui);
-
-  if (s_generator >= sizeof(s_generators) / sizeof(s_generators[0]))
-  {
-    s_generator = 0;
-  }
-  generator = &s_generators[s_generator];
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
-    ldk_ui_label(ui, "Project path");
-
-    ldk_ui_set_next_disabled(ui, true);
-    ldk_ui_input_box(ui, s_project_path.buf, (u32)sizeof(s_project_path.buf));
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(32.0f));
-    if (ldk_ui_button(ui, "..."))
-    {
-      ldk_os_dialog_show_open_folder(editor->window, "Project Location", "",
-          s_project_path.buf, (u32)sizeof(s_project_path.buf));
-    }
-  }
-  ldk_ui_end_horizontal(ui);
-
-  //----------------------------------------------------------------------
-  // Actions
-  //----------------------------------------------------------------------
-
-  ldk_ui_spacer(ui);
-  ldk_ui_horizontal_line(ui);
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_begin_horizontal(ui);
-  {
-    ldk_ui_spacer(ui);
-    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
-
-    if (ldk_ui_button(ui, "OK"))
-    {
-      need_clean = true;
-      cmake_arch = generator->uses_platform
-                       ? ldki_editor_cmake_native_arch_get()
-                       : "";
-
-      if (!ldki_editor_project_create_request(editor, s_project_name.buf,
-              s_project_path.buf, generator->cmake_generator, cmake_arch))
-      {
-        ldki_editor_log_error(editor, "Failed to queue project creation.");
-      }
-    }
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
-    
-    if (ldk_ui_button(ui, "CANCEL"))
-    {
-      need_clean = true;
-      editor->create_project_window_close_requested = true;
-    }
-  }
-  ldk_ui_end_horizontal(ui);
-  ldk_ui_end_disabled(ui);
-}
-
-void ldki_editor_project_create_window(LDKEditor *opaque_editor, void *data)
-{
-  (void)data;
-  ldki_editor_project_create_show((LDKEditorContext *)opaque_editor);
 }
 
 void ldki_editor_toolbar_show(LDKEditorContext *editor)

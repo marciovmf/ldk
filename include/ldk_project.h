@@ -45,9 +45,13 @@ extern "C"
   {
     bool loaded;
     bool play_current_scene;
+    bool build_on_play;
     XSmallstr name;
+    XSmallstr game_name;
+    XSmallstr build_config;
     XSmallstr cmake_generator;
     XSmallstr cmake_arch;
+    XFSPath icon_path;
     XFSPath assets_path;
     XFSPath cache_path;
     XFSPath cmake_root_path;
@@ -68,6 +72,7 @@ extern "C"
   LDK_API bool ldk_project_load(
       LDKProject *project, const char *project_file_path);
   LDK_API void ldk_project_unload(LDKProject *project);
+  LDK_API bool ldk_project_save(LDKProject *project);
   LDK_API bool ldk_project_write_runtime_ini(const LDKProject *project);
   /** Replace only [scenes] and export public sections. No ECS operations. */
   LDK_API bool ldk_project_scene_catalog_save(const LDKProject *project,
@@ -85,6 +90,9 @@ extern "C"
       const LDKProject *project, const LDKProjectBuildDesc *desc,
       LDKOSProcessResult *out_result);
   LDK_API LDKOSProcess *ldk_project_build_game_module_start(
+      const LDKProject *project, const LDKProjectBuildDesc *desc,
+      LDKOSProcessResult *out_result);
+  LDK_API LDKOSProcess *ldk_project_clean_game_module_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
       LDKOSProcessResult *out_result);
   LDK_API LDKOSProcess *ldk_project_generate_game_launcher_start(

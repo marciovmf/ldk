@@ -7,6 +7,7 @@
 #include <ldk_mesh_asset.h>
 #include <ldk_material_io.h>
 #include <ldk_material_asset.h>
+#include <ldk_skybox_asset.h>
 
 #include <component/ldk_camera.h>
 #include <component/ldk_mesh_source.h>
@@ -1081,6 +1082,64 @@ static bool s_apply_field_value(const TMLDocument *doc,
     return false;
   }
 
+  case LDK_FIELD_ASSET_SKYBOX:
+  {
+    if (entry->type == TML_VALUE_I64)
+    {
+      i32 asset_id;
+
+      if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+      {
+        return false;
+      }
+
+      *(LDKAssetSkybox *)ptr = ldk_asset_skybox_null();
+      break;
+    }
+
+    if (entry->type == TML_VALUE_STRING)
+    {
+      TMLString reference;
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+      LDKAssetPath asset_path;
+      LDKSkyboxIOContext context = {0};
+      LDKSkyboxIOResult skybox_result;
+      LDKAssetSkybox asset;
+
+      if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+          reference.size >= sizeof(reference_path) ||
+          memchr(reference.data, 0, reference.size))
+      {
+        return false;
+      }
+
+      memcpy(reference_path, reference.data, reference.size);
+      if (!ldk_asset_path_set(&asset_path, reference_path))
+      {
+        return false;
+      }
+
+      context.assets = (LDKAssetManager *)ldk_module_get(
+          LDK_MODULE_ASSET_MANAGER);
+      if (!context.assets)
+      {
+        return false;
+      }
+
+      asset = ldk_asset_manager_skybox_load_shared(
+          &context, asset_path.buf, &skybox_result);
+      if (x_handle_is_null(asset.h))
+      {
+        return false;
+      }
+
+      *(LDKAssetSkybox *)ptr = asset;
+      break;
+    }
+
+    return false;
+  }
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -1659,6 +1718,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     case LDK_FIELD_ASSET_MATERIAL:
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
+      break;
+    case LDK_FIELD_ASSET_SKYBOX:
+      field_size = sizeof(LDKAssetSkybox);
+      alignment = _Alignof(LDKAssetSkybox);
       break;
     default:
       return false;
@@ -2331,6 +2394,45 @@ static bool s_write_field_value(XStrBuilder *out,
     generic.h = value->h;
     info = ldk_asset_get_info_const(asset_manager, generic);
     if (!info || info->type != LDK_ASSET_TYPE_MATERIAL)
+    {
+      return false;
+    }
+
+    if (!asset_manager->source ||
+        info->source_revision != asset_manager->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
+    {
+      return false;
+    }
+
+    s_append_escaped_string(out, asset_path.buf);
+  }
+  break;
+
+  case LDK_FIELD_ASSET_SKYBOX:
+  {
+    const LDKAssetSkybox *value = (const LDKAssetSkybox *)ptr;
+    LDKAssetManager *asset_manager;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    LDKAssetPath asset_path;
+
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+
+    asset_manager = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    if (!asset_manager)
+    {
+      return false;
+    }
+
+    generic.h = value->h;
+    info = ldk_asset_get_info_const(asset_manager, generic);
+    if (!info || info->type != LDK_ASSET_TYPE_SKYBOX)
     {
       return false;
     }
