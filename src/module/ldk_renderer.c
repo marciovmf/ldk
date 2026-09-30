@@ -961,6 +961,11 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
   renderer->submitted_line_capacity = 0;
   renderer->line_mesh = ldk_renderer_mesh_null();
 
+  LDK_RENDERER_FREE(renderer->submitted_wireframes);
+  renderer->submitted_wireframes = NULL;
+  renderer->submitted_wireframe_count = 0;
+  renderer->submitted_wireframe_capacity = 0;
+
   LDK_RENDERER_FREE(renderer->submitted_lights);
   renderer->submitted_lights = NULL;
   renderer->submitted_light_count = 0;
@@ -2732,6 +2737,21 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
     return false;
   }
 
+  pass->solid_unlit_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_MESH_PASS_SOLID_UNLIT, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->solid_unlit_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->overlay_fragment_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+    pass->overlay_fragment_shader_module = LDK_RHI_INVALID_RESOURCE;
+    pass->fragment_shader_module = LDK_RHI_INVALID_RESOURCE;
+    pass->vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
+    return false;
+  }
+
   pass->textured_fragment_shader_module =
       ldk_rhi_create_builtin_shader_module(pass->rhi,
           LDK_SHADER_MESH_PASS_TEXTURED, LDK_RHI_SHADER_STAGE_FRAGMENT);
@@ -2979,8 +2999,36 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
     return false;
   }
 
+  desc.fragment_shader_module = pass->solid_unlit_fragment_shader_module;
+  desc.depth_state.test_enabled = true;
+  desc.depth_state.write_enabled = false;
+  desc.depth_state.compare_op = LDK_RHI_COMPARE_OP_LESS_EQUAL;
+  desc.blend_state.enabled = true;
+  desc.blend_state.src_color_factor = LDK_RHI_BLEND_FACTOR_SRC_ALPHA;
+  desc.blend_state.dst_color_factor =
+      LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  desc.blend_state.color_op = LDK_RHI_BLEND_OP_ADD;
+  desc.blend_state.src_alpha_factor = LDK_RHI_BLEND_FACTOR_ONE;
+  desc.blend_state.dst_alpha_factor =
+      LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  desc.blend_state.alpha_op = LDK_RHI_BLEND_OP_ADD;
+  desc.raster_state.polygon_mode = LDK_RHI_POLYGON_MODE_LINE;
+  desc.raster_state.depth_bias_enabled = true;
+  desc.raster_state.depth_bias_slope_factor = -1.0f;
+  desc.raster_state.depth_bias_constant_factor = -1.0f;
+  pass->wireframe_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->wireframe_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  desc.blend_state.enabled = false;
   desc.depth_state.test_enabled = true;
   desc.depth_state.write_enabled = true;
+  desc.raster_state.polygon_mode = LDK_RHI_POLYGON_MODE_FILL;
+  desc.raster_state.depth_bias_enabled = false;
+  desc.raster_state.depth_bias_slope_factor = 0.0f;
+  desc.raster_state.depth_bias_constant_factor = 0.0f;
   desc.fragment_shader_module = pass->textured_fragment_shader_module;
   pass->textured_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->textured_pipeline == LDK_RHI_INVALID_RESOURCE)
@@ -3614,6 +3662,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_overlay_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->wireframe_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->overlay_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
@@ -3627,6 +3676,8 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
         pass->rhi, pass->textured_unlit_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->textured_fragment_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->solid_unlit_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->overlay_fragment_shader_module);
     ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
@@ -4416,6 +4467,74 @@ static void s_renderer_lines_draw(LDKRenderer *renderer,
   }
 }
 
+static void s_renderer_wireframes_draw(LDKRenderer *renderer,
+    LDKRendererMeshPass *pass, const LDKRendererView *view)
+{
+  if (!renderer || !pass || !view ||
+      pass->wireframe_pipeline == LDK_RHI_INVALID_RESOURCE ||
+      renderer->submitted_wireframe_count == 0)
+  {
+    return;
+  }
+
+  LDKRendererFrameDomainStats *stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+  bool bound = false;
+
+  for (u32 i = 0; i < renderer->submitted_wireframe_count; ++i)
+  {
+    const LDKRendererWireframeSubmit *submit =
+        &renderer->submitted_wireframes[i];
+    if (submit->view_id != view->id)
+    {
+      continue;
+    }
+
+    LDKRendererMeshResource *mesh =
+        s_renderer_mesh_get_resource(renderer, submit->mesh);
+    if (!mesh || mesh->index_count == 0)
+    {
+      continue;
+    }
+
+    if (!bound)
+    {
+      ldk_rhi_pipeline_bind(pass->rhi, pass->wireframe_pipeline);
+      ldk_rhi_bindings_bind(pass->rhi, pass->bindings);
+      bound = true;
+    }
+
+    LDKRendererMeshObjectParams object = {0};
+    object.world = submit->world;
+    object.instance_color = ldk_renderer_color_from_rgba32(0xffffffffu);
+    object.options[0] =
+        (submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)
+        ? 1.0f : 0.0f;
+    LDKRendererMeshMaterialParams material = {0};
+    material.color = ldk_renderer_color_from_rgba32(submit->color);
+    ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
+        sizeof(object), &object);
+    ldk_rhi_buffer_update(pass->rhi, pass->material_buffer, 0,
+        sizeof(material), &material);
+    ldk_rhi_vertex_buffer_bind(pass->rhi, mesh->vertex_buffer, 0);
+    ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
+        LDK_RHI_INDEX_TYPE_UINT32);
+
+    ldk_rhi_line_width_set(pass->rhi, submit->line_width);
+
+    LDKRHIDrawIndexedDesc draw = {0};
+    draw.index_count = mesh->index_count;
+    ldk_rhi_draw_indexed(pass->rhi, &draw);
+    stats->draw_call_count += 1;
+    stats->line_draw_call_count += 1;
+  }
+
+  if (bound)
+  {
+    ldk_rhi_line_width_set(pass->rhi, 1.0f);
+  }
+}
+
 static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
     LDKRendererMeshPass* pass, LDKRendererView const* view, u32 flags)
 {
@@ -4958,6 +5077,7 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   s_renderer_grid_pass_draw(renderer, &renderer->grid_pass, view);
   s_renderer_mesh_pass_draw_translucent(
       renderer, &renderer->mesh_pass, view);
+  s_renderer_wireframes_draw(renderer, &renderer->mesh_pass, view);
   if (view->separate_overlay)
   {
     ldk_rhi_pass_end(renderer->rhi);
@@ -8138,6 +8258,7 @@ void ldk_renderer_render_frame(
   renderer->submitted_mesh_count = 0;
   renderer->submitted_instance_count = 0;
   renderer->submitted_line_count = 0;
+  renderer->submitted_wireframe_count = 0;
   renderer->submitted_light_count = 0;
   renderer->submitted_ui = NULL;
   s_renderer_finish_views(renderer);
@@ -8781,4 +8902,52 @@ bool ldk_renderer_submit_overlay_mesh_to_view(LDKRenderer* renderer,
   return s_renderer_submit_mesh(renderer, view_id, mesh, material,
       0, resource->index_count, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
+}
+
+bool ldk_renderer_submit_wireframe_mesh_to_view(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceMesh mesh, Mat4 world, u32 color,
+    float line_width, u32 flags)
+{
+  if (!renderer || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL || !isfinite(line_width) ||
+      line_width <= 0.0f ||
+      (flags & ~LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD) != 0 ||
+      !ldk_renderer_mesh_is_valid(renderer, mesh))
+  {
+    return false;
+  }
+
+  if (renderer->submitted_wireframe_count ==
+      renderer->submitted_wireframe_capacity)
+  {
+    u32 capacity = renderer->submitted_wireframe_capacity == 0
+        ? 16u : renderer->submitted_wireframe_capacity * 2u;
+    if (capacity <= renderer->submitted_wireframe_capacity ||
+        capacity > UINT32_MAX / sizeof(LDKRendererWireframeSubmit))
+    {
+      return false;
+    }
+
+    size_t size = (size_t)capacity * sizeof(LDKRendererWireframeSubmit);
+    LDKRendererWireframeSubmit *submits =
+        LDK_RENDERER_REALLOC(renderer->submitted_wireframes, size);
+    if (!submits)
+    {
+      return false;
+    }
+
+    renderer->submitted_wireframes = submits;
+    renderer->submitted_wireframe_capacity = capacity;
+  }
+
+  LDKRendererWireframeSubmit *submit =
+      &renderer->submitted_wireframes[renderer->submitted_wireframe_count++];
+  submit->mesh = mesh;
+  submit->world = world;
+  submit->view_id = view_id;
+  submit->color = color;
+  submit->line_width = line_width;
+  submit->flags = flags;
+  return true;
 }

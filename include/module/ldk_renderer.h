@@ -61,7 +61,8 @@ extern "C" {
     LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
     LDK_SHADER_POST_PROCESS_PASS,
     LDK_SHADER_BLUR_PASS,
-    LDK_SHADER_SKYBOX_PASS
+    LDK_SHADER_SKYBOX_PASS,
+    LDK_SHADER_MESH_PASS_SOLID_UNLIT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -162,6 +163,16 @@ extern "C" {
     u32 color;
     bool depth_test;
   } LDKRendererLineSubmit;
+
+  typedef struct LDKRendererWireframeSubmit
+  {
+    LDKResourceMesh mesh;
+    Mat4 world;
+    LDKRendererViewId view_id;
+    u32 color;
+    float line_width;
+    u32 flags;
+  } LDKRendererWireframeSubmit;
 
   typedef struct LDKRendererConfig
   {
@@ -316,6 +327,7 @@ extern "C" {
     LDKRHIShaderModule instanced_vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule overlay_fragment_shader_module;
+    LDKRHIShaderModule solid_unlit_fragment_shader_module;
     LDKRHIShaderModule textured_fragment_shader_module;
     LDKRHIShaderModule textured_unlit_fragment_shader_module;
     LDKRHIShaderModule textured_cutout_fragment_shader_module;
@@ -327,6 +339,7 @@ extern "C" {
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
     LDKRHIPipeline overlay_pipeline;
+    LDKRHIPipeline wireframe_pipeline;
     LDKRHIPipeline textured_pipeline;
     LDKRHIPipeline textured_unlit_pipeline;
     LDKRHIPipeline textured_overlay_pipeline;
@@ -681,6 +694,11 @@ extern "C" {
     LDKRendererLineSubmit *submitted_lines;
     u32 submitted_line_count;
     u32 submitted_line_capacity;
+
+    // Transient depth-tested wireframes, primarily used by editor tooling.
+    LDKRendererWireframeSubmit *submitted_wireframes;
+    u32 submitted_wireframe_count;
+    u32 submitted_wireframe_capacity;
 
     // Submitted meshes
     LDKRendererMeshSubmit* submitted_meshes;
@@ -1513,6 +1531,20 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+  /**
+   * @brief Submit a depth-tested wireframe mesh to one render view.
+   *
+   * The mesh is drawn after scene meshes and before editor overlays. It uses
+   * the scene depth buffer without writing depth, so hidden geometry remains
+   * occluded by the rendered scene. Color uses 0xRRGGBBAA and supports alpha
+   * blending. line_width is requested in pixels and may be clamped by the RHI
+   * backend. flags accepts LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD only.
+   */
+  LDK_API bool ldk_renderer_submit_wireframe_mesh_to_view(
+      LDKRenderer *renderer, LDKRendererViewId view_id,
+      LDKResourceMesh mesh, Mat4 world, u32 color, float line_width,
+      u32 flags);
 
 
 #ifdef __cplusplus

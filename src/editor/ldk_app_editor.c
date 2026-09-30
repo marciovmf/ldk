@@ -1793,6 +1793,7 @@ static bool s_editor_config_load_from_ini(
   const char *EDITOR = ".editor";
   const char *font_path;
   const char *last_project;
+  rgba32 legacy_selection_color;
 
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   if (editor->editor_font_size < 6 || editor->editor_font_size > 96)
@@ -1807,6 +1808,51 @@ static bool s_editor_config_load_from_ini(
   {
     ldk_log_warning("Invalid .editor ui_scale. Falling back to 1.0.\n");
     editor->editor_ui_scale = 1.0f;
+  }
+
+  editor->debug_color = x_ini_get_u32(
+      ini, EDITOR, "debug_color", LDK_EDITOR_DEBUG_COLOR_DEFAULT);
+
+  legacy_selection_color = x_ini_get_u32(
+      ini, EDITOR, "selection_color", LDK_EDITOR_SELECTION_COLOR_1_DEFAULT);
+  editor->selection_color_1 = x_ini_get_u32(
+      ini, EDITOR, "selection_color_1", legacy_selection_color);
+  editor->selection_color_2 = x_ini_get_u32(
+      ini, EDITOR, "selection_color_2", LDK_EDITOR_SELECTION_COLOR_2_DEFAULT);
+
+  editor->debug_line_width = x_ini_get_f32(ini, EDITOR,
+      "debug_line_width", LDK_EDITOR_DEBUG_LINE_WIDTH_DEFAULT);
+  if (!isfinite(editor->debug_line_width) ||
+      editor->debug_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      editor->debug_line_width > LDK_EDITOR_LINE_WIDTH_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor debug_line_width. Falling back to 1.0.\n");
+    editor->debug_line_width = LDK_EDITOR_DEBUG_LINE_WIDTH_DEFAULT;
+  }
+
+  editor->selection_line_width = x_ini_get_f32(ini, EDITOR,
+      "selection_line_width", LDK_EDITOR_SELECTION_LINE_WIDTH_DEFAULT);
+  if (!isfinite(editor->selection_line_width) ||
+      editor->selection_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      editor->selection_line_width > LDK_EDITOR_LINE_WIDTH_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor selection_line_width. Falling back to 1.0.\n");
+    editor->selection_line_width = LDK_EDITOR_SELECTION_LINE_WIDTH_DEFAULT;
+  }
+
+  editor->selection_pulse_seconds = x_ini_get_f32(ini, EDITOR,
+      "selection_pulse_seconds", LDK_EDITOR_SELECTION_PULSE_SECONDS_DEFAULT);
+  if (!isfinite(editor->selection_pulse_seconds) ||
+      editor->selection_pulse_seconds <
+          LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN ||
+      editor->selection_pulse_seconds > LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor selection_pulse_seconds. Falling back to 3.0.\n");
+    editor->selection_pulse_seconds =
+        LDK_EDITOR_SELECTION_PULSE_SECONDS_DEFAULT;
   }
 
   editor->restore_last_project =
