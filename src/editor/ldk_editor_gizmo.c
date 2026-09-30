@@ -1614,7 +1614,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     return;
   }
 
-  ldk_os_mouse_state_get(&mouse);
+  ldki_editor_mouse_state_get(editor, &mouse);
   if (!s_editor_gizmo_rect_contains(&editor->gizmo.scene_view_rect,
           (float)mouse.cursor.x, (float)mouse.cursor.y))
   {
@@ -1951,7 +1951,7 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
     return;
   }
 
-  ldk_os_mouse_state_get(&mouse);
+  ldki_editor_mouse_state_get(editor, &mouse);
   released = ldk_os_mouse_button_up(&mouse, LDK_MOUSE_BUTTON_LEFT);
   if (!released &&
       !ldk_os_mouse_button_is_pressed(&mouse, LDK_MOUSE_BUTTON_LEFT))

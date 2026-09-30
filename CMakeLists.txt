@@ -517,6 +517,29 @@ list(APPEND LDK_SOURCE
 )
 
 if (WIN32)
+  set(LDK_WINDOWS_DPI_MANIFEST
+    "${LDK_ROOT_DIR}/src/ldk_windows_dpi.manifest"
+  )
+
+  function(ldk_target_dpi_aware TARGET_NAME)
+    if (MSVC)
+      # Let CMake's vs_link_exe wrapper merge and embed the manifest once.
+      target_sources(${TARGET_NAME} PRIVATE
+        "${LDK_WINDOWS_DPI_MANIFEST}"
+      )
+    else()
+      # Resource-script fallback for other Windows toolchains.
+      configure_file(
+        "${LDK_ROOT_DIR}/src/ldk_windows_resources.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/ldk_windows_resources.rc"
+        @ONLY
+      )
+      target_sources(${TARGET_NAME} PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}/ldk_windows_resources.rc"
+      )
+    endif()
+  endfunction()
+
   list(APPEND LDK_SOURCE
     src/ldk_os_win32.c
   )
@@ -703,6 +726,7 @@ if (OPTION_BUILD_EDITOR)
   set_target_properties(ldk_editor PROPERTIES PDB_NAME "ldk_editor")
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
+  ldk_target_dpi_aware(ldk_editor)
 
   target_include_directories(ldk_editor PRIVATE
     ${INCLUDE_DIR}
@@ -795,6 +819,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
 
   add_executable(ldk_launcher src/launcher/ldk_app_launcher.c)
   ldk_target_defaults(ldk_launcher)
+  ldk_target_dpi_aware(ldk_launcher)
 
   target_include_directories(ldk_launcher PRIVATE
     ${INCLUDE_DIR}

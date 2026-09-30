@@ -78,6 +78,39 @@ static LDKEditorContext *s_editor_instance(void)
   return &editor;
 }
 
+static float s_editor_ui_scale_validated(float scale)
+{
+  return isfinite(scale) && scale >= 0.5f && scale <= 3.0f ? scale : 1.0f;
+}
+
+void ldki_editor_mouse_state_get(
+    const LDKEditorContext *editor, LDKMouseState *out_state)
+{
+  float scale;
+
+  if (out_state == NULL)
+  {
+    return;
+  }
+
+  ldk_os_mouse_state_get(out_state);
+  scale = editor != NULL
+              ? s_editor_ui_scale_validated(editor->ui_frame_scale)
+              : 1.0f;
+
+  if (scale == 1.0f)
+  {
+    return;
+  }
+
+  out_state->cursor.x = (i32)lroundf((float)out_state->cursor.x / scale);
+  out_state->cursor.y = (i32)lroundf((float)out_state->cursor.y / scale);
+  out_state->cursor_relative.x =
+      (i32)lroundf((float)out_state->cursor_relative.x / scale);
+  out_state->cursor_relative.y =
+      (i32)lroundf((float)out_state->cursor_relative.y / scale);
+}
+
 static LDKRendererViewId s_editor_view_id_from_entity(LDKEntity entity)
 {
   return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
@@ -1440,8 +1473,10 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 
   s_editor_game_statistics_overlay(editor, image_rect);
 
-  ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
-      image_rect.h, editor->renderer->game_width,
+  ldk_input_game_view_set(image_rect.x * editor->ui_frame_scale,
+      image_rect.y * editor->ui_frame_scale,
+      image_rect.w * editor->ui_frame_scale,
+      image_rect.h * editor->ui_frame_scale, editor->renderer->game_width,
       editor->renderer->game_height);
 }
 
@@ -1516,11 +1551,13 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 {
   LDKMouseState mouse_state;
   LDKKeyboardState kbd_state;
+  editor->ui_frame_scale =
+      s_editor_ui_scale_validated(editor->editor_ui_scale);
   LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f,
       .y = 0.0f,
-      .w = (float)window_width,
-      .h = (float)window_height};
-  ldk_os_mouse_state_get(&mouse_state);
+      .w = (float)window_width / editor->ui_frame_scale,
+      .h = (float)window_height / editor->ui_frame_scale};
+  ldki_editor_mouse_state_get(editor, &mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
   ldk_input_game_view_clear();
   ldki_editor_gizmo_begin_ui_frame(editor);

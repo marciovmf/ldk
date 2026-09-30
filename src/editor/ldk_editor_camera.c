@@ -1074,7 +1074,7 @@ void ldki_editor_camera_update(LDKEditorContext *editor, float delta_time)
   editor->camera_controller.pan_block_pick =
       editor->camera_controller.panning &&
       editor->camera_controller.pan_with_left;
-  ldk_os_mouse_state_get(&mouse);
+  ldki_editor_mouse_state_get(editor, &mouse);
   ldk_os_keyboard_state_get(&keyboard);
   pan_modifier = ldk_os_keyboard_key_is_pressed(
       &keyboard, LDK_KEYCODE_LEFT_CONTROL);

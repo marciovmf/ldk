@@ -6261,10 +6261,24 @@ static void s_renderer_ui_pass(LDKRenderer* owner,
 
   i32 framebuffer_width = frame_desc->framebuffer_width;
   i32 framebuffer_height = frame_desc->framebuffer_height;
+  float ui_width = render_data->viewport_size.w;
+  float ui_height = render_data->viewport_size.h;
 
   if (framebuffer_width <= 0 || framebuffer_height <= 0)
   {
     return;
+  }
+
+  /* Older/manual render-data producers may not provide a logical viewport.
+   * In that case UI coordinates keep their historical one-unit-per-pixel
+   * behavior. */
+  if (!isfinite(ui_width) || ui_width <= 0.0f)
+  {
+    ui_width = (float)framebuffer_width;
+  }
+  if (!isfinite(ui_height) || ui_height <= 0.0f)
+  {
+    ui_height = (float)framebuffer_height;
   }
 
   if (render_data->vertex_count == 0 || render_data->index_count == 0 ||
@@ -6305,8 +6319,8 @@ static void s_renderer_ui_pass(LDKRenderer* owner,
   ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
 
   LDKRendererUIParams params = {0};
-  params.viewport_size[0] = (float)framebuffer_width;
-  params.viewport_size[1] = (float)framebuffer_height;
+  params.viewport_size[0] = ui_width;
+  params.viewport_size[1] = ui_height;
 
   ldk_rhi_buffer_update(renderer->rhi, renderer->params_buffer, 0,
       sizeof(params), &params);
@@ -6344,11 +6358,18 @@ static void s_renderer_ui_pass(LDKRenderer* owner,
       continue;
     }
 
+    float scale_x = (float)framebuffer_width / ui_width;
+    float scale_y = (float)framebuffer_height / ui_height;
     LDKRHIRect scissor = {0};
-    float x0 = floorf(cmd->clip_rect.x);
-    float y0 = floorf(cmd->clip_rect.y);
-    float x1 = ceilf(cmd->clip_rect.x + cmd->clip_rect.w);
-    float y1 = ceilf(cmd->clip_rect.y + cmd->clip_rect.h);
+    float x0 = floorf(cmd->clip_rect.x * scale_x);
+    float y0 = floorf(cmd->clip_rect.y * scale_y);
+    float x1 = ceilf((cmd->clip_rect.x + cmd->clip_rect.w) * scale_x);
+    float y1 = ceilf((cmd->clip_rect.y + cmd->clip_rect.h) * scale_y);
+
+    x0 = fmaxf(0.0f, fminf(x0, (float)framebuffer_width));
+    y0 = fmaxf(0.0f, fminf(y0, (float)framebuffer_height));
+    x1 = fmaxf(0.0f, fminf(x1, (float)framebuffer_width));
+    y1 = fmaxf(0.0f, fminf(y1, (float)framebuffer_height));
 
     scissor.x = (i32)x0;
     scissor.y = (i32)y0;
@@ -7463,6 +7484,8 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
   render_data.index_count = 6;
   render_data.commands = &command;
   render_data.command_count = 1;
+  render_data.viewport_size.w = (float)width;
+  render_data.viewport_size.h = (float)height;
 
   LDKRendererFrameDesc present_desc = *frame_desc;
   present_desc.clear_color = 0x000000FFu;

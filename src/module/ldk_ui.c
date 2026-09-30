@@ -2222,6 +2222,8 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   ctx->render_data.index_count = x_array_ldk_ui_u32_count(ctx->indices);
   ctx->render_data.commands = x_array_ldk_ui_draw_cmd_data_const(ctx->commands);
   ctx->render_data.command_count = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+  ctx->render_data.viewport_size.w = ctx->viewport.w;
+  ctx->render_data.viewport_size.h = ctx->viewport.h;
 
   if (ctx->cursor_type != ldk_os_cursor_type_get())
   {

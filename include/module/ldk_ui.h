@@ -275,6 +275,8 @@ extern "C"
     u32 index_count;
     LDKUIDrawCmd const *commands;
     uint32_t command_count;
+    /** Logical viewport used to generate the vertices and clip rectangles. */
+    LDKUISize viewport_size;
   } LDKUIRenderData;
 
   typedef enum LDKUILayoutDirection

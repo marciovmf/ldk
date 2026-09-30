@@ -282,6 +282,7 @@ typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
+  float ui_frame_scale;
   float inspector_label_width;
   float project_label_width;
   float settings_label_width;
@@ -368,6 +369,8 @@ typedef struct LDKEditorContext
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_status_show(LDKEditorContext *editor);
+void ldki_editor_mouse_state_get(
+    const LDKEditorContext *editor, LDKMouseState *out_state);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 bool ldki_editor_project_settings_apply(
