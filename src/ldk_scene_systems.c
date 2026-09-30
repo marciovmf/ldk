@@ -2,6 +2,7 @@
 #include <ldk.h>
 #include <ldk_game.h>
 #include <ldk_material_asset.h>
+#include <ldk_skybox_asset.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
 
@@ -67,6 +68,10 @@ static bool s_scene_system_data_initialize_handles(
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
       break;
+    case LDK_FIELD_ASSET_SKYBOX:
+      field_size = sizeof(LDKAssetSkybox);
+      alignment = _Alignof(LDKAssetSkybox);
+      break;
     default:
       continue;
     }
@@ -88,6 +93,10 @@ static bool s_scene_system_data_initialize_handles(
     case LDK_FIELD_ASSET_MATERIAL:
       *(LDKAssetMaterial *)(base + field->offset) =
           ldk_asset_material_null();
+      break;
+    case LDK_FIELD_ASSET_SKYBOX:
+      *(LDKAssetSkybox *)(base + field->offset) =
+          ldk_asset_skybox_null();
       break;
     default:
       break;

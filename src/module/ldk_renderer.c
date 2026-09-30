@@ -296,6 +296,7 @@
 static void s_renderer_ui_pass_terminate(LDKRendererUIPass* renderer);
 static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass);
 static void s_renderer_grid_pass_terminate(LDKRendererGridPass* pass);
+static void s_renderer_skybox_pass_terminate(LDKRendererSkyboxPass *pass);
 static void s_renderer_post_process_pass_terminate(
     LDKRendererPostProcessPass* pass);
 static void s_renderer_blur_pass_terminate(LDKRendererBlurPass* pass);
@@ -309,6 +310,7 @@ static void s_renderer_destroy_font_page_cache(LDKRenderer* renderer);
 static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_instance_set_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
+static void s_renderer_destroy_skybox_resources(LDKRenderer *renderer);
 static void s_renderer_destroy_material_resources(LDKRenderer* renderer);
 static LDKRendererMaterialResource* s_renderer_material_get_resource(
     LDKRenderer* renderer,
@@ -316,6 +318,8 @@ static LDKRendererMaterialResource* s_renderer_material_get_resource(
 static LDKRendererTextureResource* s_renderer_texture_get_resource(
     LDKRenderer* renderer,
     LDKResourceTexture texture);
+static LDKRendererSkyboxResource *s_renderer_skybox_get_resource(
+    LDKRenderer *renderer, LDKResourceSkybox skybox);
 static void s_renderer_ui_pass_remove_texture_bindings(
     LDKRendererUIPass* renderer,
     LDKRHITexture texture);
@@ -394,6 +398,8 @@ static void s_renderer_frame_stats_finalize(LDKRendererFrameStats* stats)
       game->line_draw_call_count + non_game->line_draw_call_count;
   stats->grid_draw_call_count =
       game->grid_draw_call_count + non_game->grid_draw_call_count;
+  stats->skybox_draw_call_count =
+      game->skybox_draw_call_count + non_game->skybox_draw_call_count;
   stats->ui_draw_call_count =
       game->ui_draw_call_count + non_game->ui_draw_call_count;
   stats->present_draw_call_count =
@@ -598,6 +604,7 @@ static void s_renderer_finish_views(LDKRenderer* renderer)
     {
       view->submitted = false;
       view->grid_submitted = false;
+      view->skybox = ldk_renderer_skybox_null();
       view->separate_overlay = false;
       index += 1;
       continue;
@@ -4435,6 +4442,230 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   s_renderer_lines_draw(renderer, pass, view, flags);
 }
 // ---------------------------------------------------------------------------
+// Internal pass: Skybox
+// ---------------------------------------------------------------------------
+
+#define LDK_RENDERER_SKYBOX_VERTEX_COUNT 36u
+
+typedef struct LDKRendererSkyboxVertex
+{
+  float x;
+  float y;
+  float z;
+} LDKRendererSkyboxVertex;
+
+typedef struct LDKRendererSkyboxParams
+{
+  Mat4 view;
+  Mat4 projection;
+} LDKRendererSkyboxParams;
+
+static bool s_renderer_skybox_pass_create_shaders(LDKRendererSkyboxPass *pass)
+{
+  pass->vertex_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_SKYBOX_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
+  if (pass->vertex_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_SKYBOX_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  if (pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+    pass->vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
+    return false;
+  }
+
+  return true;
+}
+
+static bool s_renderer_skybox_pass_create_bindings_layout(
+    LDKRendererSkyboxPass *pass)
+{
+  LDKRHIBindingsLayoutDesc desc = {0};
+  ldk_rhi_bindings_layout_desc_defaults(&desc);
+  desc.entry_count = 2;
+  desc.entries[0].slot = 0;
+  desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[1].slot = 1;
+  desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+
+  pass->bindings_layout =
+      ldk_rhi_bindings_layout_create(pass->rhi, &desc);
+  return pass->bindings_layout != LDK_RHI_INVALID_RESOURCE;
+}
+
+static LDKRHIPipeline s_renderer_skybox_pass_create_pipeline(
+    LDKRendererSkyboxPass *pass, LDKRHIFormat color_format)
+{
+  LDKRHIPipelineDesc desc = {0};
+  ldk_rhi_pipeline_desc_defaults(&desc);
+  desc.vertex_shader_module = pass->vertex_shader_module;
+  desc.fragment_shader_module = pass->fragment_shader_module;
+  desc.bindings_layout = pass->bindings_layout;
+  desc.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
+  desc.depth_state.test_enabled = false;
+  desc.depth_state.write_enabled = false;
+  desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
+  desc.raster_state.scissor_enabled = false;
+  desc.vertex_layout.stride = sizeof(LDKRendererSkyboxVertex);
+  desc.vertex_layout.attribute_count = 1;
+  desc.vertex_layout.attributes[0].location = 0;
+  desc.vertex_layout.attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT3;
+  desc.vertex_layout.attributes[0].offset = 0;
+  desc.color_attachment_count = 1;
+  desc.color_formats[0] = color_format;
+  desc.depth_format = LDK_RHI_FORMAT_D32_FLOAT;
+  return ldk_rhi_pipeline_create(pass->rhi, &desc);
+}
+
+static bool s_renderer_skybox_pass_create_buffers(LDKRendererSkyboxPass *pass)
+{
+  static const LDKRendererSkyboxVertex
+      vertices[LDK_RENDERER_SKYBOX_VERTEX_COUNT] = {
+      {-1.0f, 1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f},
+      {1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f},
+      {1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f},
+      {-1.0f, -1.0f, 1.0f}, {-1.0f, -1.0f, -1.0f},
+      {-1.0f, 1.0f, -1.0f}, {-1.0f, 1.0f, -1.0f},
+      {-1.0f, 1.0f, 1.0f}, {-1.0f, -1.0f, 1.0f},
+      {1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, 1.0f},
+      {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+      {1.0f, 1.0f, -1.0f}, {1.0f, -1.0f, -1.0f},
+      {-1.0f, -1.0f, 1.0f}, {-1.0f, 1.0f, 1.0f},
+      {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+      {1.0f, -1.0f, 1.0f}, {-1.0f, -1.0f, 1.0f},
+      {-1.0f, 1.0f, -1.0f}, {1.0f, 1.0f, -1.0f},
+      {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f},
+      {-1.0f, 1.0f, 1.0f}, {-1.0f, 1.0f, -1.0f},
+      {-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, 1.0f},
+      {1.0f, -1.0f, -1.0f}, {1.0f, -1.0f, -1.0f},
+      {-1.0f, -1.0f, 1.0f}, {1.0f, -1.0f, 1.0f},
+  };
+
+  LDKRHIBufferDesc vertex_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&vertex_desc);
+  vertex_desc.size = sizeof(vertices);
+  vertex_desc.usage = LDK_RHI_BUFFER_USAGE_VERTEX;
+  vertex_desc.memory_usage = LDK_RHI_MEMORY_USAGE_GPU;
+  vertex_desc.initial_data = vertices;
+  pass->vertex_buffer = ldk_rhi_buffer_create(pass->rhi, &vertex_desc);
+  if (pass->vertex_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  LDKRHIBufferDesc params_desc = {0};
+  ldk_rhi_buffer_desc_defaults(&params_desc);
+  params_desc.size = sizeof(LDKRendererSkyboxParams);
+  params_desc.usage =
+      LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
+  params_desc.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
+  pass->params_buffer = ldk_rhi_buffer_create(pass->rhi, &params_desc);
+  return pass->params_buffer != LDK_RHI_INVALID_RESOURCE;
+}
+
+static bool s_renderer_skybox_pass_initialize(
+    LDKRendererSkyboxPass *pass, const LDKRendererConfig *config)
+{
+  if (!pass || !config || !config->rhi)
+  {
+    return false;
+  }
+
+  memset(pass, 0, sizeof(*pass));
+  pass->rhi = config->rhi;
+  if (!s_renderer_skybox_pass_create_shaders(pass) ||
+      !s_renderer_skybox_pass_create_bindings_layout(pass))
+  {
+    s_renderer_skybox_pass_terminate(pass);
+    return false;
+  }
+
+  pass->ldr_pipeline = s_renderer_skybox_pass_create_pipeline(
+      pass, LDK_RHI_FORMAT_RGBA8_UNORM);
+  pass->hdr_pipeline = s_renderer_skybox_pass_create_pipeline(
+      pass, LDK_RHI_FORMAT_RGBA16_FLOAT);
+  if (pass->ldr_pipeline == LDK_RHI_INVALID_RESOURCE ||
+      pass->hdr_pipeline == LDK_RHI_INVALID_RESOURCE ||
+      !s_renderer_skybox_pass_create_buffers(pass))
+  {
+    s_renderer_skybox_pass_terminate(pass);
+    return false;
+  }
+
+  pass->is_initialized = true;
+  return true;
+}
+
+static void s_renderer_skybox_pass_terminate(LDKRendererSkyboxPass *pass)
+{
+  if (!pass)
+  {
+    return;
+  }
+
+  if (pass->rhi)
+  {
+    ldk_rhi_buffer_destroy(pass->rhi, pass->params_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->vertex_buffer);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->hdr_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->ldr_pipeline);
+    ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->fragment_shader_module);
+    ldk_rhi_shader_module_destroy(pass->rhi, pass->vertex_shader_module);
+  }
+
+  memset(pass, 0, sizeof(*pass));
+}
+
+static void s_renderer_skybox_pass_draw(LDKRenderer *renderer,
+    LDKRendererSkyboxPass *pass, const LDKRendererView *view)
+{
+  if (!renderer || !pass || !pass->is_initialized || !view ||
+      !view->submitted)
+  {
+    return;
+  }
+
+  LDKRendererSkyboxResource *resource =
+      s_renderer_skybox_get_resource(renderer, view->skybox);
+  if (!resource)
+  {
+    return;
+  }
+
+  LDKRendererSkyboxParams params = {0};
+  params.view = view->view;
+  params.projection = view->projection;
+  if (!ldk_rhi_buffer_update(pass->rhi, pass->params_buffer, 0,
+          sizeof(params), &params))
+  {
+    return;
+  }
+
+  LDKRHIPipeline pipeline =
+      view->target.color_format == LDK_RHI_FORMAT_RGBA16_FLOAT
+      ? pass->hdr_pipeline : pass->ldr_pipeline;
+  ldk_rhi_pipeline_bind(pass->rhi, pipeline);
+  ldk_rhi_bindings_bind(pass->rhi, resource->bindings);
+  ldk_rhi_vertex_buffer_bind(pass->rhi, pass->vertex_buffer, 0);
+
+  LDKRHIDrawDesc draw = {0};
+  draw.vertex_count = LDK_RENDERER_SKYBOX_VERTEX_COUNT;
+  ldk_rhi_draw(pass->rhi, &draw);
+
+  LDKRendererFrameDomainStats *stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+  stats->draw_call_count += 1;
+  stats->skybox_draw_call_count += 1;
+}
+
+// ---------------------------------------------------------------------------
 // Internal pass: Procedural grid
 // ---------------------------------------------------------------------------
 
@@ -4705,7 +4936,8 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
   pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
   pass_desc.color_attachments[0].clear_color =
-      ldk_renderer_color_from_rgba32(frame_desc->clear_color);
+      ldk_renderer_color_from_rgba32(
+          view->clear_color_set ? view->clear_color : frame_desc->clear_color);
   pass_desc.depth_attachment.valid = true;
   pass_desc.depth_attachment.texture = view->target.depth_texture;
   pass_desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
@@ -4720,6 +4952,7 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   pass_desc.viewport.max_depth = 1.0f;
 
   ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
+  s_renderer_skybox_pass_draw(renderer, &renderer->skybox_pass, view);
   s_renderer_mesh_pass_draw(renderer, &renderer->mesh_pass, view,
       LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
   s_renderer_grid_pass_draw(renderer, &renderer->grid_pass, view);
@@ -6343,12 +6576,16 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
   float present_x = ((float)width - present_width) * 0.5f;
   float present_y = ((float)height - present_height) * 0.5f;
 
+  LDKUIRect uv = ldk_renderer_view_texture_uv_get(renderer);
   LDKUIVertex vertices[4] =
   {
-    {present_x,                 present_y,                  0.0f, 0.0f, 0xffffffffu},
-    {present_x + present_width, present_y,                  1.0f, 0.0f, 0xffffffffu},
-    {present_x + present_width, present_y + present_height, 1.0f, 1.0f, 0xffffffffu},
-    {present_x,                 present_y + present_height, 0.0f, 1.0f, 0xffffffffu},
+    {present_x, present_y, uv.x, uv.y, 0xffffffffu},
+    {present_x + present_width, present_y,
+        uv.x + uv.w, uv.y, 0xffffffffu},
+    {present_x + present_width, present_y + present_height,
+        uv.x + uv.w, uv.y + uv.h, 0xffffffffu},
+    {present_x, present_y + present_height,
+        uv.x, uv.y + uv.h, 0xffffffffu},
   };
 
   u32 indices[6] =
@@ -6383,8 +6620,225 @@ static void s_renderer_present_view_pass(LDKRenderer* renderer,
 }
 
 // ---------------------------------------------------------------------------
-// Internal renderer resources: Mesh
+// Internal renderer resources: Skybox
 // ---------------------------------------------------------------------------
+
+static LDKRendererSkyboxResource *s_renderer_skybox_get_resource(
+    LDKRenderer *renderer, LDKResourceSkybox skybox)
+{
+  if (!renderer || skybox.id == LDK_RHI_INVALID_RESOURCE)
+  {
+    return NULL;
+  }
+
+  u32 index = (u32)(skybox.id - 1u);
+  if (index >= renderer->skybox_count)
+  {
+    return NULL;
+  }
+
+  LDKRendererSkyboxResource *resource = &renderer->skyboxes[index];
+  return resource->alive ? resource : NULL;
+}
+
+static bool s_renderer_grow_skybox_cache(LDKRenderer *renderer)
+{
+  u32 new_capacity = renderer->skybox_capacity == 0
+      ? 16u : renderer->skybox_capacity * 2u;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererSkyboxResource);
+  LDKRendererSkyboxResource *new_skyboxes = renderer->skyboxes == NULL
+      ? (LDKRendererSkyboxResource *)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererSkyboxResource *)LDK_RENDERER_REALLOC(
+            renderer->skyboxes, new_size);
+  if (!new_skyboxes)
+  {
+    return false;
+  }
+
+  memset(new_skyboxes + renderer->skybox_capacity, 0,
+      (size_t)(new_capacity - renderer->skybox_capacity) *
+          sizeof(LDKRendererSkyboxResource));
+  renderer->skyboxes = new_skyboxes;
+  renderer->skybox_capacity = new_capacity;
+  return true;
+}
+
+static bool s_renderer_skybox_faces_get(LDKAssetManager *assets,
+    const LDKSkyboxDesc *desc, LDKImageInfo out_faces[LDK_SKYBOX_FACE_COUNT])
+{
+  if (!assets || !desc || !ldk_skybox_desc_is_valid(desc))
+  {
+    return false;
+  }
+
+  u32 size = 0;
+  for (u32 i = 0; i < LDK_SKYBOX_FACE_COUNT; ++i)
+  {
+    const LDKAssetImageData *data =
+        ldk_asset_manager_image_get_const(assets, desc->faces[i]);
+    if (!data || data->is_missing || !data->image ||
+        !ldk_image_get_info(data->image, &out_faces[i]) ||
+        out_faces[i].width == 0 ||
+        out_faces[i].width != out_faces[i].height ||
+        out_faces[i].channel_count != 4 ||
+        out_faces[i].byte_count > UINT32_MAX)
+    {
+      return false;
+    }
+
+    if (i == 0)
+    {
+      size = out_faces[i].width;
+    }
+    else if (out_faces[i].width != size)
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+LDKResourceSkybox ldk_renderer_skybox_null(void)
+{
+  return LDK_RESOURCE_SKYBOX_INVALID;
+}
+
+bool ldk_renderer_skybox_is_valid(
+    LDKRenderer *renderer, LDKResourceSkybox skybox)
+{
+  return s_renderer_skybox_get_resource(renderer, skybox) != NULL;
+}
+
+LDKResourceSkybox ldk_renderer_skybox_create(LDKRenderer *renderer,
+    LDKAssetManager *assets, const LDKSkyboxDesc *desc)
+{
+  LDKResourceSkybox invalid = ldk_renderer_skybox_null();
+  LDKImageInfo faces[LDK_SKYBOX_FACE_COUNT] = {0};
+
+  if (!renderer || !renderer->is_initialized ||
+      !s_renderer_skybox_faces_get(assets, desc, faces))
+  {
+    return invalid;
+  }
+
+  if (renderer->skybox_count == renderer->skybox_capacity &&
+      !s_renderer_grow_skybox_cache(renderer))
+  {
+    return invalid;
+  }
+
+  LDKRendererSkyboxResource resource = {0};
+  LDKRHITextureDesc texture_desc = {0};
+  ldk_rhi_texture_desc_defaults(&texture_desc);
+  texture_desc.type = LDK_RHI_TEXTURE_TYPE_CUBE;
+  texture_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  texture_desc.width = faces[0].width;
+  texture_desc.height = faces[0].height;
+  texture_desc.depth = 1;
+  texture_desc.mip_count = 1;
+  texture_desc.layer_count = LDK_SKYBOX_FACE_COUNT;
+  texture_desc.usage =
+      LDK_RHI_TEXTURE_USAGE_SAMPLED | LDK_RHI_TEXTURE_USAGE_TRANSFER_DST;
+  resource.texture = ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+  if (resource.texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return invalid;
+  }
+
+  for (u32 i = 0; i < LDK_SKYBOX_FACE_COUNT; ++i)
+  {
+    if (!ldk_rhi_texture_update(renderer->rhi, resource.texture, 0, i,
+            faces[i].pixels, (u32)faces[i].byte_count))
+    {
+      ldk_rhi_texture_destroy(renderer->rhi, resource.texture);
+      return invalid;
+    }
+  }
+
+  LDKRHISamplerDesc sampler_desc = {0};
+  sampler_desc.min_filter = LDK_RHI_FILTER_LINEAR;
+  sampler_desc.mag_filter = LDK_RHI_FILTER_LINEAR;
+  sampler_desc.mip_filter = LDK_RHI_FILTER_LINEAR;
+  sampler_desc.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  sampler_desc.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  sampler_desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  resource.sampler = ldk_rhi_sampler_create(renderer->rhi, &sampler_desc);
+  if (resource.sampler == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_texture_destroy(renderer->rhi, resource.texture);
+    return invalid;
+  }
+
+  LDKRHIBindingsDesc bindings_desc = {0};
+  ldk_rhi_bindings_desc_defaults(&bindings_desc);
+  bindings_desc.layout = renderer->skybox_pass.bindings_layout;
+  bindings_desc.binding_count = 2;
+  bindings_desc.bindings[0].slot = 0;
+  bindings_desc.bindings[0].buffer = renderer->skybox_pass.params_buffer;
+  bindings_desc.bindings[0].buffer_size = sizeof(LDKRendererSkyboxParams);
+  bindings_desc.bindings[1].slot = 1;
+  bindings_desc.bindings[1].texture = resource.texture;
+  bindings_desc.bindings[1].sampler = resource.sampler;
+  resource.bindings = ldk_rhi_bindings_create(renderer->rhi, &bindings_desc);
+  if (resource.bindings == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_sampler_destroy(renderer->rhi, resource.sampler);
+    ldk_rhi_texture_destroy(renderer->rhi, resource.texture);
+    return invalid;
+  }
+
+  resource.size = faces[0].width;
+  resource.alive = true;
+  u32 index = renderer->skybox_count++;
+  renderer->skyboxes[index] = resource;
+
+  LDKResourceSkybox skybox = {(LDKRHIResource)(index + 1u)};
+  return skybox;
+}
+
+void ldk_renderer_skybox_destroy(
+    LDKRenderer *renderer, LDKResourceSkybox skybox)
+{
+  LDKRendererSkyboxResource *resource =
+      s_renderer_skybox_get_resource(renderer, skybox);
+  if (!resource)
+  {
+    return;
+  }
+
+  ldk_rhi_bindings_destroy(renderer->rhi, resource->bindings);
+  ldk_rhi_sampler_destroy(renderer->rhi, resource->sampler);
+  ldk_rhi_texture_destroy(renderer->rhi, resource->texture);
+  memset(resource, 0, sizeof(*resource));
+}
+
+static void s_renderer_destroy_skybox_resources(LDKRenderer *renderer)
+{
+  if (!renderer)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < renderer->skybox_count; ++i)
+  {
+    LDKRendererSkyboxResource *resource = &renderer->skyboxes[i];
+    if (!resource->alive)
+    {
+      continue;
+    }
+    ldk_rhi_bindings_destroy(renderer->rhi, resource->bindings);
+    ldk_rhi_sampler_destroy(renderer->rhi, resource->sampler);
+    ldk_rhi_texture_destroy(renderer->rhi, resource->texture);
+  }
+
+  LDK_RENDERER_FREE(renderer->skyboxes);
+  renderer->skyboxes = NULL;
+  renderer->skybox_count = 0;
+  renderer->skybox_capacity = 0;
+}
+
 // Internal renderer resources: Texture
 // ---------------------------------------------------------------------------
 
@@ -7303,52 +7757,90 @@ static bool s_renderer_grow_font_page_cache(LDKRenderer* renderer)
   return true;
 }
 
-LDKUITextureHandle ldk_renderer_get_font_page_texture(
-    LDKRenderer* renderer, LDKFontInstance* font, u32 page_index)
+static LDKRHITexture s_renderer_font_page_texture_create(
+    LDKRenderer *renderer, const LDKFontPageInfo *page)
 {
+  LDKRHITextureDesc texture_desc = {0};
+
+  if (renderer == NULL || page == NULL || page->pixels == NULL ||
+      page->width == 0 || page->height == 0)
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  ldk_rhi_texture_desc_defaults(&texture_desc);
+  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  texture_desc.format = LDK_RHI_FORMAT_R8_UNORM;
+  texture_desc.width = page->width;
+  texture_desc.height = page->height;
+  texture_desc.depth = 1;
+  texture_desc.mip_count = 1;
+  texture_desc.layer_count = 1;
+  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  texture_desc.initial_data = page->pixels;
+  texture_desc.initial_data_size = page->width * page->height;
+  texture_desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
+  texture_desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
+
+  return ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+}
+
+LDKUITextureHandle ldk_renderer_get_font_page_texture(
+    LDKRenderer *renderer, LDKFontInstance *font, u32 page_index)
+{
+  LDKFontPageInfo page = {0};
+
   if (renderer == NULL || renderer->rhi == NULL || font == NULL)
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
+
+  if (!ldk_ttf_get_page_info(font, page_index, &page) ||
+      page.pixels == NULL || page.width == 0 || page.height == 0)
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
   }
 
   for (u32 i = 0; i < renderer->font_page_count; i++)
   {
-    LDKRendererFontPageCacheEntry* entry = &renderer->font_pages[i];
-    if (entry->font == font && entry->page_index == page_index)
+    LDKRendererFontPageCacheEntry *entry = &renderer->font_pages[i];
+    if (entry->font != font || entry->page_index != page_index)
     {
-      return (LDKUITextureHandle)entry->texture;
+      continue;
     }
+
+    if (entry->width != page.width || entry->height != page.height)
+    {
+      LDKRHITexture texture =
+          s_renderer_font_page_texture_create(renderer, &page);
+      if (texture == LDK_RHI_INVALID_RESOURCE)
+      {
+        return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+      }
+
+      ldk_rhi_texture_destroy(renderer->rhi, entry->texture);
+      entry->texture = texture;
+      entry->width = page.width;
+      entry->height = page.height;
+      ldk_ttf_clear_page_dirty(font, page_index);
+    }
+    else if (page.dirty)
+    {
+      if (!ldk_rhi_texture_update(renderer->rhi, entry->texture, 0, 0,
+              page.pixels, page.width * page.height))
+      {
+        return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+      }
+
+      ldk_ttf_clear_page_dirty(font, page_index);
+    }
+
+    return (LDKUITextureHandle)entry->texture;
   }
 
-  LDKFontPageInfo page = {0};
-  if (!ldk_ttf_get_page_info(font, page_index, &page))
-  {
-    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
-  }
-
-  if (page.pixels == NULL || page.width == 0 || page.height == 0)
-  {
-    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
-  }
-
-  LDKRHITextureDesc texture_desc = {0};
-  ldk_rhi_texture_desc_defaults(&texture_desc);
-  texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
-  texture_desc.format = LDK_RHI_FORMAT_R8_UNORM;
-  texture_desc.width = page.width;
-  texture_desc.height = page.height;
-  texture_desc.depth = 1;
-  texture_desc.mip_count = 1;
-  texture_desc.layer_count = 1;
-  texture_desc.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
-  texture_desc.initial_data = page.pixels;
-  texture_desc.initial_data_size = page.width * page.height;
-  texture_desc.swizzle_r = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_g = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_b = LDK_RHI_TEXTURE_SWIZZLE_ONE;
-  texture_desc.swizzle_a = LDK_RHI_TEXTURE_SWIZZLE_R;
-
-  LDKRHITexture texture = ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+  LDKRHITexture texture = s_renderer_font_page_texture_create(renderer, &page);
   if (texture == LDK_RHI_INVALID_RESOURCE)
   {
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
@@ -7363,7 +7855,7 @@ LDKUITextureHandle ldk_renderer_get_font_page_texture(
     }
   }
 
-  LDKRendererFontPageCacheEntry* entry =
+  LDKRendererFontPageCacheEntry *entry =
       &renderer->font_pages[renderer->font_page_count];
   entry->font = font;
   entry->page_index = page_index;
@@ -7472,6 +7964,12 @@ bool ldk_renderer_initialize(
     return false;
   }
 
+  if (!s_renderer_skybox_pass_initialize(&renderer->skybox_pass, config))
+  {
+    ldk_renderer_terminate(renderer);
+    return false;
+  }
+
   if (!s_renderer_blur_pass_initialize(&renderer->blur_pass, config))
   {
     ldk_renderer_terminate(renderer);
@@ -7552,12 +8050,14 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
   s_renderer_destroy_views(renderer);
   s_renderer_destroy_font_page_cache(renderer);
   s_renderer_destroy_material_resources(renderer);
+  s_renderer_destroy_skybox_resources(renderer);
   s_renderer_destroy_texture_resources(renderer);
   s_renderer_destroy_instance_set_resources(renderer);
   s_renderer_destroy_mesh_resources(renderer);
   s_renderer_post_process_pass_terminate(&renderer->post_process_pass);
   s_renderer_blur_pass_terminate(&renderer->blur_pass);
   s_renderer_ui_pass_terminate(&renderer->ui_pass);
+  s_renderer_skybox_pass_terminate(&renderer->skybox_pass);
   s_renderer_grid_pass_terminate(&renderer->grid_pass);
   s_renderer_mesh_pass_terminate(&renderer->mesh_pass);
   s_renderer_shadow_pass_terminate(&renderer->shadow_pass);
@@ -7689,6 +8189,13 @@ LDKUITextureHandle ldk_renderer_view_texture_get(
   }
 
   return (LDKUITextureHandle)texture;
+}
+
+LDKUIRect ldk_renderer_view_texture_uv_get(LDKRenderer const* renderer)
+{
+  (void)renderer;
+
+  return (LDKUIRect){0.0f, 1.0f, 1.0f, -1.0f};
 }
 
 LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
@@ -7856,8 +8363,31 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
   view->view = view_matrix;
   view->projection = projection;
   view->post_processing = (LDKRendererPostProcessing){0};
+  view->clear_color = 0;
+  view->clear_color_set = false;
   view->frustum_valid = s_renderer_view_frustum_update(view);
   view->submitted = true;
+  return true;
+}
+
+bool ldk_renderer_view_clear_color_set(LDKRenderer* renderer,
+    LDKRendererViewId view_id, rgba32 clear_color)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
+  {
+    return false;
+  }
+
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+  if (view == NULL || !view->submitted)
+  {
+    return false;
+  }
+
+  view->clear_color = clear_color;
+  view->clear_color_set = true;
   return true;
 }
 
@@ -8183,6 +8713,27 @@ bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
 
   return s_renderer_submit_mesh(renderer, view_id, mesh, material, 0,
       resource->index_count, world, LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS);
+}
+
+bool ldk_renderer_submit_skybox_to_view(LDKRenderer *renderer,
+    LDKRendererViewId view_id, LDKResourceSkybox skybox)
+{
+  if (!renderer || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL ||
+      !ldk_renderer_skybox_is_valid(renderer, skybox))
+  {
+    return false;
+  }
+
+  LDKRendererView *view = s_renderer_view_find(renderer, view_id);
+  if (!view || !view->submitted)
+  {
+    return false;
+  }
+
+  view->skybox = skybox;
+  return true;
 }
 
 bool ldk_renderer_submit_grid_to_view(LDKRenderer* renderer,

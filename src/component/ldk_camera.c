@@ -6,6 +6,7 @@
 #include <component/ldk_transform.h>
 #include <component/ldk_camera.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_renderer.h>
 #include <stdx/stdx_math.h>
 
 static LDKCamera s_camera_make_default(void)
@@ -19,6 +20,12 @@ static LDKCamera s_camera_make_default(void)
   camera.near_plane = 0.1f;
   camera.far_plane = 1000.0f;
   camera.enabled = true;
+  camera.background_mode = LDK_CAMERA_BACKGROUND_COLOR;
+  camera.background_color = 0xABABABFFu;
+  camera.skybox_asset = ldk_asset_skybox_null();
+  camera.skybox_revision = 0;
+  camera.renderer_skybox = LDK_RESOURCE_SKYBOX_INVALID;
+  camera.renderer = NULL;
   return camera;
 }
 
@@ -46,6 +53,18 @@ static bool s_camera_attach(LDKEntityRegistry* entity_registry, LDKComponentRegi
   {
     *camera = s_camera_make_default();
   }
+  else
+  {
+    if (camera->background_mode < LDK_CAMERA_BACKGROUND_COLOR ||
+        camera->background_mode > LDK_CAMERA_BACKGROUND_NONE)
+    {
+      camera->background_mode = LDK_CAMERA_BACKGROUND_COLOR;
+    }
+
+    camera->skybox_revision = 0;
+    camera->renderer_skybox = LDK_RESOURCE_SKYBOX_INVALID;
+    camera->renderer = NULL;
+  }
 
   ldk_entity_internal_flags_add(
       entity_registry,
@@ -66,6 +85,20 @@ static void s_camera_destroy(LDKEntityRegistry* entity_registry, LDKComponentReg
   if (!entity_registry)
   {
     return;
+  }
+
+  if (component)
+  {
+    LDKCamera* camera = (LDKCamera*)component;
+
+    if (camera->renderer)
+    {
+      ldk_renderer_skybox_destroy(camera->renderer, camera->renderer_skybox);
+    }
+
+    camera->renderer_skybox = LDK_RESOURCE_SKYBOX_INVALID;
+    camera->skybox_revision = 0;
+    camera->renderer = NULL;
   }
 
   ldk_entity_internal_flags_remove(

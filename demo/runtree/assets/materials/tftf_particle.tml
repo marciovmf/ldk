@@ -1,0 +1,8 @@
+material:
+  material_type: 2
+  material_color: 0xffffffff
+  material_texture: "assets/textures/particle/transparent/smoke_01.png"
+  material_alpha_mode: 2
+  material_specular: 0.236603901
+  material_shininess: 32
+  material_emission: 0

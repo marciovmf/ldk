@@ -667,6 +667,13 @@ bool ldk_rhi_is_valid_texture_desc(const LDKRHITextureDesc* desc)
     return false;
   }
 
+  if (desc->type == LDK_RHI_TEXTURE_TYPE_CUBE &&
+      (desc->width != desc->height || desc->depth != 1 ||
+          desc->layer_count != 6))
+  {
+    return false;
+  }
+
   if (!ldk_rhi_is_valid_texture_usage(desc->usage))
   {
     return false;

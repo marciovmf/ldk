@@ -441,6 +441,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
+  if (strcmp(type_name, "LDKAssetSkybox") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_ASSET_SKYBOX");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_SKYBOX");
+    return true;
+  }
+
   if (strcmp(type_name, "LDKResourceMesh") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_RESOURCE_MESH");

@@ -11,6 +11,7 @@
 #include <windowsx.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <shellapi.h>
 
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_filesystem.h>
@@ -1872,6 +1873,108 @@ LDKOSProcessResult ldk_os_process_run(const LDKOSProcessDesc *desc)
   CloseHandle(process_info.hThread);
   CloseHandle(process_info.hProcess);
   return result;
+}
+
+
+LDKOSProcessResult ldk_os_process_launch(const LDKOSProcessDesc *desc)
+{
+  LDKOSProcessResult result = {0};
+  PROCESS_INFORMATION process_info = {0};
+  STARTUPINFOW startup_info = {0};
+  char *command_line_utf8;
+  wchar_t *command_line;
+  wchar_t *executable;
+  wchar_t *working_directory;
+  const char *arguments;
+  size_t command_line_size;
+  DWORD creation_flags;
+
+  if (desc == NULL || desc->executable == NULL || desc->executable[0] == 0)
+  {
+    return result;
+  }
+
+  arguments = desc->arguments != NULL ? desc->arguments : "";
+  command_line_size = strlen(desc->executable) + strlen(arguments) + 5;
+  command_line_utf8 = malloc(command_line_size);
+  if (command_line_utf8 == NULL)
+  {
+    return result;
+  }
+
+  if (arguments[0] != 0)
+  {
+    snprintf(command_line_utf8, command_line_size, "\"%s\" %s",
+        desc->executable, arguments);
+  }
+  else
+  {
+    snprintf(
+        command_line_utf8, command_line_size, "\"%s\"", desc->executable);
+  }
+
+  executable = s_utf8_to_wide(desc->executable);
+  command_line = s_utf8_to_wide(command_line_utf8);
+  working_directory =
+      desc->working_directory != NULL && desc->working_directory[0] != 0
+          ? s_utf8_to_wide(desc->working_directory)
+          : NULL;
+  free(command_line_utf8);
+
+  if (executable == NULL || command_line == NULL ||
+      (desc->working_directory != NULL && desc->working_directory[0] != 0 &&
+          working_directory == NULL))
+  {
+    result.os_error = (u32)GetLastError();
+    free(executable);
+    free(command_line);
+    free(working_directory);
+    return result;
+  }
+
+  startup_info.cb = sizeof(startup_info);
+  creation_flags = desc->new_console ? CREATE_NEW_CONSOLE : 0;
+
+  if (!CreateProcessW(executable, command_line, NULL, NULL, FALSE,
+          creation_flags, NULL, working_directory, &startup_info,
+          &process_info))
+  {
+    result.os_error = (u32)GetLastError();
+    free(executable);
+    free(command_line);
+    free(working_directory);
+    return result;
+  }
+
+  free(executable);
+  free(command_line);
+  free(working_directory);
+  result.started = true;
+
+  CloseHandle(process_info.hThread);
+  CloseHandle(process_info.hProcess);
+  return result;
+}
+
+bool ldk_os_open_default(const char *path)
+{
+  wchar_t *wide_path;
+  HINSTANCE result;
+
+  if (path == NULL || path[0] == 0)
+  {
+    return false;
+  }
+
+  wide_path = s_utf8_to_wide(path);
+  if (wide_path == NULL)
+  {
+    return false;
+  }
+
+  result = ShellExecuteW(NULL, L"open", wide_path, NULL, NULL, SW_SHOWNORMAL);
+  free(wide_path);
+  return (INT_PTR)result > 32;
 }
 
 

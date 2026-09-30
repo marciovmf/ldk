@@ -16,6 +16,7 @@ extern "C" {
 #include <ldk_material.h>
 #include <ldk_mesh.h>
 #include <ldk_resource.h>
+#include <ldk_skybox.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
 #include <module/ldk_rhi.h>
@@ -59,7 +60,8 @@ extern "C" {
     LDK_SHADER_SHADOW_PASS_VEGETATION,
     LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
     LDK_SHADER_POST_PROCESS_PASS,
-    LDK_SHADER_BLUR_PASS
+    LDK_SHADER_BLUR_PASS,
+    LDK_SHADER_SKYBOX_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -199,6 +201,7 @@ extern "C" {
     u32 shadow_draw_call_count;
     u32 line_draw_call_count;
     u32 grid_draw_call_count;
+    u32 skybox_draw_call_count;
     u32 ui_draw_call_count;
     u32 present_draw_call_count;
   } LDKRendererFrameDomainStats;
@@ -227,6 +230,7 @@ extern "C" {
     u32 shadow_draw_call_count;
     u32 line_draw_call_count;
     u32 grid_draw_call_count;
+    u32 skybox_draw_call_count;
     u32 ui_draw_call_count;
     u32 present_draw_call_count;
 
@@ -375,6 +379,19 @@ extern "C" {
     bool is_initialized;
   } LDKRendererGridPass;
 
+  typedef struct LDKRendererSkyboxPass
+  {
+    LDKRHIContext *rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline ldr_pipeline;
+    LDKRHIPipeline hdr_pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer params_buffer;
+    bool is_initialized;
+  } LDKRendererSkyboxPass;
+
   typedef struct LDKRendererPostProcessing
   {
     bool enabled;
@@ -491,11 +508,14 @@ extern "C" {
     LDKRHITexture post_process_blur_input_textures[2];
     LDKRHIFormat post_process_blur_format;
     LDKRendererPostProcessing post_processing;
+    rgba32 clear_color;
+    bool clear_color_set;
     bool separate_overlay;
     Vec3 grid_center;
     float grid_extent;
     float grid_spacing;
     bool grid_submitted;
+    LDKResourceSkybox skybox;
     bool submitted;
     bool frustum_valid;
   } LDKRendererView;
@@ -529,6 +549,15 @@ extern "C" {
     u64 byte_count;
     LDKRendererTextureOptions const* options;
   } LDKRendererTextureDesc;
+
+  typedef struct LDKRendererSkyboxResource
+  {
+    LDKRHITexture texture;
+    LDKRHISampler sampler;
+    LDKRHIBindings bindings;
+    u32 size;
+    bool alive;
+  } LDKRendererSkyboxResource;
 
   typedef struct LDKRendererTextureResource
   {
@@ -596,6 +625,7 @@ extern "C" {
     LDKRendererMeshPass mesh_pass;
     LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
+    LDKRendererSkyboxPass skybox_pass;
     LDKRendererBlurPass blur_pass;
     LDKRendererPostProcessPass post_process_pass;
     LDKUIRenderData const* submitted_ui;
@@ -618,6 +648,11 @@ extern "C" {
     LDKRendererInstanceSetResource *instance_sets;
     u32 instance_set_count;
     u32 instance_set_capacity;
+
+    // Skybox cache
+    LDKRendererSkyboxResource *skyboxes;
+    u32 skybox_count;
+    u32 skybox_capacity;
 
     // Texture cache
     LDKRendererTextureResource* textures;
@@ -825,6 +860,19 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+
+  /**
+   * @brief Return the UV rectangle used to display renderer view textures.
+   *
+   * View textures are render targets and their storage origin may differ from
+   * ordinary image textures. Callers that display a view texture through the UI
+   * should use this rectangle instead of assuming a texture origin.
+   *
+   * @param renderer Renderer instance that owns the view texture.
+   * @return Normalized UV rectangle for sampling a renderer view texture.
+   */
+  LDK_API LDKUIRect ldk_renderer_view_texture_uv_get(
+      LDKRenderer const* renderer);
   /**
    * @brief Set post-processing configuration for a submitted view.
    *
@@ -1228,6 +1276,17 @@ extern "C" {
       Mat4 projection);
 
   /**
+   * @brief Override the clear color used by a submitted view this frame.
+   *
+   * This is transient view state and must be set again after submit_view on
+   * each frame. Alpha is preserved, allowing transparent camera backgrounds.
+   */
+  LDK_API bool ldk_renderer_view_clear_color_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      rgba32 clear_color);
+
+  /**
    * @brief Select the submitted view used as the game output.
    *
    * The selected view is returned by ldk_renderer_game_texture_get() and is
@@ -1395,6 +1454,23 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+
+  // ---------------------------------------------------------------------------
+  // Skybox Resource
+  // ---------------------------------------------------------------------------
+
+  LDK_API LDKResourceSkybox ldk_renderer_skybox_null(void);
+  LDK_API bool ldk_renderer_skybox_is_valid(
+      LDKRenderer *renderer, LDKResourceSkybox skybox);
+  LDK_API LDKResourceSkybox ldk_renderer_skybox_create(
+      LDKRenderer *renderer, struct LDKAssetManager *assets,
+      const LDKSkyboxDesc *desc);
+  LDK_API void ldk_renderer_skybox_destroy(
+      LDKRenderer *renderer, LDKResourceSkybox skybox);
+  LDK_API bool ldk_renderer_submit_skybox_to_view(
+      LDKRenderer *renderer, LDKRendererViewId view_id,
+      LDKResourceSkybox skybox);
 
   /**
    * @brief Submit a procedural ground grid to a single render view.

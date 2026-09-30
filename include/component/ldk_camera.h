@@ -7,6 +7,8 @@
 #define LDK_CAMERA_H
 
 #include <ldk_common.h>
+#include <ldk_resource.h>
+#include <ldk_skybox_asset.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <stdx/stdx_math.h>
@@ -33,6 +35,14 @@ extern "C" {
     LDK_CAMERA_ROLE_RENDER_TARGET
   } LDKCameraRole;
 
+  //@enum
+  typedef enum LDKCameraBackgroundMode
+  {
+    LDK_CAMERA_BACKGROUND_COLOR = 0,
+    LDK_CAMERA_BACKGROUND_SKYBOX,
+    LDK_CAMERA_BACKGROUND_NONE
+  } LDKCameraBackgroundMode;
+
   //@component
   typedef struct LDKCamera
   {
@@ -43,6 +53,16 @@ extern "C" {
     float near_plane;
     float far_plane;
     bool enabled;
+    LDKCameraBackgroundMode background_mode;
+    //@inspect widget=COLOR
+    u32 background_color;
+    LDKAssetSkybox skybox_asset;
+    //@inspect hidden runtime
+    u64 skybox_revision;
+    //@inspect hidden runtime
+    LDKResourceSkybox renderer_skybox;
+    //@inspect hidden runtime
+    struct LDKRenderer* renderer;
   } LDKCamera;
 
 #ifdef LDK_ENGINE

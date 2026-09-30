@@ -891,22 +891,35 @@ void ldki_editor_grouping_catalog_show(LDKEditor *instance, void *data)
     }
   }
 
-  ldk_ui_spacer(ui);
   ldk_ui_end_scrollview(ui);
 
   if (s_grouping_catalog.error[0])
   {
+    ldk_ui_set_next_weight(ui, 0.0f);
     ldk_ui_label(ui, s_grouping_catalog.error);
   }
 
+  ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_spacer(ui);
+
   ldk_ui_begin_disabled(ui, !editable);
-  ldk_ui_set_next_weight(ui, 0);
-  if (ldk_ui_button(ui, "Save Groupings"))
-  {
-    s_grouping_catalog_apply(editor);
-  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool saved = ldk_ui_button(ui, "Save") &&
+               s_grouping_catalog_apply(editor);
   ldk_ui_end_disabled(ui);
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool canceled = ldk_ui_button(ui, "Cancel");
+  ldk_ui_end_horizontal(ui);
+
+  if (canceled && !saved)
+  {
+    s_grouping_catalog_clear();
+    s_grouping_catalog_load(editor);
+  }
 
   free(component_types);
   free(component_labels);

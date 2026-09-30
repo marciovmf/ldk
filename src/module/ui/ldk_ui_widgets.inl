@@ -2,6 +2,8 @@
 // Base Widgets
 //------------------------------------------------------------
 
+static const float s_ui_resize_handle_hit_size = 8.0f;
+
 /**
  * Measures the rendered size of a null-terminated string.
  * @arg ctx UI context that owns the font used for measurement.
@@ -1548,6 +1550,104 @@ static void s_ui_widget_selectable_text(LDKUIContext *ctx, LDKUIId id,
       ctx->theme.colors[LDK_UI_COLOR_TEXT], box.clip);
 }
 
+static float s_ui_widget_resize_handle(LDKUIContext *ctx, LDKUIId id,
+    float value, float min_value, float max_value, LDKUIRect rect,
+    bool vertical)
+{
+  LDKUIWidgetBox box = {0};
+  LDKUIFrameState frame;
+  LDKUIRect hit_rect = rect;
+  LDKUIRect line_rect = rect;
+  float center;
+  float cursor;
+  u32 color;
+
+  if (ctx == NULL || id == 0)
+  {
+    return value;
+  }
+
+  if (max_value < min_value)
+  {
+    max_value = min_value;
+  }
+  value = s_ui_clampf(value, min_value, max_value);
+
+  if (vertical)
+  {
+    center = rect.x + rect.w * 0.5f;
+    hit_rect.x = center - s_ui_resize_handle_hit_size * 0.5f;
+    hit_rect.w = s_ui_resize_handle_hit_size;
+    line_rect.x = center - 0.5f;
+    line_rect.w = 1.0f;
+  }
+  else
+  {
+    center = rect.y + rect.h * 0.5f;
+    hit_rect.y = center - s_ui_resize_handle_hit_size * 0.5f;
+    hit_rect.h = s_ui_resize_handle_hit_size;
+    line_rect.y = center - 0.5f;
+    line_rect.h = 1.0f;
+  }
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, hit_rect, true))
+  {
+    return value;
+  }
+
+  ctx->last_rect = rect;
+  ctx->last_bounding_rect = rect;
+
+  frame = s_ui_frame_state(
+      ctx, box.id, box.rect, box.clip, false, false, box.disabled);
+
+  if (frame.hot || frame.active)
+  {
+    ctx->cursor_type = vertical ? LDK_CURSOR_SIZE_WE : LDK_CURSOR_SIZE_NS;
+  }
+
+  cursor = vertical ? frame.cursor.x : frame.cursor.y;
+  if (frame.hot && frame.pressed)
+  {
+    ctx->resize_handle_drag_start_cursor = cursor;
+    ctx->resize_handle_drag_start_value = value;
+  }
+
+  if (frame.active && frame.dragging)
+  {
+    value = s_ui_clampf(ctx->resize_handle_drag_start_value +
+                            cursor - ctx->resize_handle_drag_start_cursor,
+        min_value, max_value);
+  }
+
+  color = ctx->theme.colors[LDK_UI_COLOR_SEPARATOR];
+  if (frame.active)
+  {
+    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
+  }
+  else if (frame.hot)
+  {
+    color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
+  }
+
+  s_ui_render_quad(ctx, line_rect, color, box.clip, 0);
+  return value;
+}
+
+float ldk_ui_widget_resize_handle_horizontal(LDKUIContext *ctx, LDKUIId id,
+    float value, float min_value, float max_value, LDKUIRect rect)
+{
+  return s_ui_widget_resize_handle(
+      ctx, id, value, min_value, max_value, rect, false);
+}
+
+float ldk_ui_widget_resize_handle_vertical(LDKUIContext *ctx, LDKUIId id,
+    float value, float min_value, float max_value, LDKUIRect rect)
+{
+  return s_ui_widget_resize_handle(
+      ctx, id, value, min_value, max_value, rect, true);
+}
+
 //------------------------------------------------------------
 // Layout widget wrappers
 //------------------------------------------------------------
@@ -2319,6 +2419,53 @@ u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)
   }
 
   return ldk_ui_widget_input_label(ctx, id, buffer, buffer_size, rect);
+}
+
+static float s_ui_resize_handle(LDKUIContext *ctx, float value,
+    float min_value, float max_value, bool vertical)
+{
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+  LDKUISize min_size = {0};
+
+  if (vertical)
+  {
+    min_size.h = 1.0f;
+  }
+  else
+  {
+    min_size.w = 1.0f;
+  }
+
+  request = s_ui_layout_request_make(
+      LDK_UI_ITEM_RESIZE_HANDLE, min_size, 0.0f, true);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return value;
+  }
+
+  if (vertical)
+  {
+    return ldk_ui_widget_resize_handle_vertical(
+        ctx, id, value, min_value, max_value, rect);
+  }
+
+  return ldk_ui_widget_resize_handle_horizontal(
+      ctx, id, value, min_value, max_value, rect);
+}
+
+float ldk_ui_resize_handle_horizontal(
+    LDKUIContext *ctx, float value, float min_value, float max_value)
+{
+  return s_ui_resize_handle(ctx, value, min_value, max_value, false);
+}
+
+float ldk_ui_resize_handle_vertical(
+    LDKUIContext *ctx, float value, float min_value, float max_value)
+{
+  return s_ui_resize_handle(ctx, value, min_value, max_value, true);
 }
 
 void ldk_ui_horizontal_line(LDKUIContext *ctx)
