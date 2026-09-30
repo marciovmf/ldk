@@ -1,0 +1,8 @@
+material:
+  material_type: 2
+  material_color: 0xff2b2bff
+  material_texture: "assets/textures/particle/transparent/light_03.png"
+  material_alpha_mode: 2
+  material_specular: 0
+  material_shininess: 1
+  material_emission: 2.42897987
