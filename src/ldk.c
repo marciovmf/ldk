@@ -17,6 +17,7 @@
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
+#include <component/ldk_text3d.h>
 
 #include <module/ldk_system.h>
 #include <ldk_scene_systems.h>
@@ -1913,6 +1914,53 @@ void ldk_engine_frame(void)
                 submesh->index_count, mesh_world, submit_flags);
           }
         }
+      }
+    }
+
+    XArray *all_text = ldk_component_store_get(
+        component_registry, LDK_COMPONENT_TYPE_TEXT3D);
+    XArray *text_owners = ldk_component_owners_get(
+        component_registry, LDK_COMPONENT_TYPE_TEXT3D);
+    if (all_text && text_owners)
+    {
+      u32 text_count = x_array_count(all_text);
+      for (u32 i = 0; i < text_count; ++i)
+      {
+        LDKText3DComponent *text = x_array_get(all_text, i);
+        LDKEntity *entity = x_array_get(text_owners, i);
+        if (!text || !entity || !text->text.length ||
+            x_handle_is_null(text->font.h) ||
+            !isfinite(text->pixel_height) || text->pixel_height <= 0.0f)
+        {
+          continue;
+        }
+
+        LDKAssetFontData *font_data =
+            ldk_asset_manager_font_get(&e->asset_manager, text->font);
+        if (!font_data || !font_data->face)
+        {
+          continue;
+        }
+
+        LDKFontInstance *font = ldk_ttf_get_instance(
+            font_data->face, text->pixel_height, NULL);
+        Mat4 world = mat4_identity();
+        if (!font || !ldk_transform_get_world_matrix(*entity, &world))
+        {
+          continue;
+        }
+
+        u32 flags = LDK_RENDERER_TEXT_SUBMIT_FLAG_NONE;
+        if (text->billboard)
+        {
+          flags |= LDK_RENDERER_TEXT_SUBMIT_FLAG_BILLBOARD;
+        }
+        if (!text->depth_test)
+        {
+          flags |= LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST;
+        }
+        (void)ldk_renderer_submit_text(&e->renderer, LDK_RENDERER_VIEW_ALL,
+            font, text->text.buf, world, text->color, flags);
       }
     }
 

@@ -21,6 +21,7 @@
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_text3d.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
 

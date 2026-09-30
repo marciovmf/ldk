@@ -2,6 +2,7 @@
 #include <ldk_geom.h>
 #include <ldk_os.h>
 #include <ldk_ttf.h>
+#include <ldk_text.h>
 #include <module/ldk_ui.h>
 #include <stdx/stdx_math.h>
 #include <stdx/stdx_array.h>
@@ -69,290 +70,6 @@ static LDKUIId s_ui_id_hash_cstr(LDKUIId hash, char const *text)
   }
 
   return hash;
-}
-
-/**
- * Checks whether a codepoint is treated as intra-line word spacing.
- * @arg codepoint Unicode codepoint to classify.
- * @return true for space, tab, or carriage return. False otherwise.
- */
-static bool s_ui_text_codepoint_is_word_space(u32 codepoint)
-{
-  return codepoint == ' ' || codepoint == '\t' || codepoint == '\r';
-}
-
-/**
- * Calculates the horizontal advance for a codepoint, including kerning.
- * @arg font Font instance used to retrieve glyph and kerning information.
- * @arg previous_codepoint Codepoint that precedes the current one, or zero.
- * @arg codepoint Codepoint whose advance will be calculated.
- * @return Horizontal advance in pixels, or zero when no valid glyph exists.
- */
-static float s_ui_text_codepoint_advance_get(
-    LDKFontInstance *font, u32 previous_codepoint, u32 codepoint)
-{
-  LDKGlyph const *glyph = NULL;
-  float advance = 0.0f;
-
-  if (font == NULL)
-  {
-    return 0.0f;
-  }
-
-  glyph = ldk_ttf_get_glyph(font, codepoint);
-
-  if (glyph == NULL || !glyph->valid)
-  {
-    return 0.0f;
-  }
-
-  if (previous_codepoint != 0)
-  {
-    advance += ldk_ttf_get_kerning(font, previous_codepoint, codepoint);
-  }
-
-  advance += (float)glyph->advance_x;
-
-  return advance;
-}
-
-/**
- * Advances a UTF-8 byte cursor past spaces, tabs, and carriage returns.
- * @arg cursor Current byte position in a null-terminated string. May be NULL.
- * @return First byte that is not word spacing, or NULL when cursor is NULL.
- */
-static char const *s_ui_text_skip_word_spaces(char const *cursor)
-{
-  char const *it = cursor;
-
-  if (it == NULL)
-  {
-    return NULL;
-  }
-
-  while (*it == ' ' || *it == '\t' || *it == '\r')
-  {
-    it += 1;
-  }
-
-  return it;
-}
-
-/**
- * Finds the next line produced by wrapping text to a maximum width.
- * @arg font Font instance used to measure codepoint advances.
- * @arg start Byte position from which line parsing starts.
- * @arg text_end Exclusive end of the UTF-8 byte range.
- * @arg max_width Maximum line width. Non-positive values disable wrapping.
- * @arg out_line_start Receives the first byte included in the line.
- * @arg out_line_end Receives the byte immediately after the visible line text.
- * @arg out_next Receives the byte from which the following line must start.
- * @arg out_width Receives the measured width of the produced line.
- * @return true when a line was produced. False for invalid or empty input.
- */
-static bool s_ui_text_wrapped_next_line(LDKFontInstance *font,
-    char const *start, char const *text_end, float max_width,
-    char const **out_line_start, char const **out_line_end,
-    char const **out_next, float *out_width)
-{
-  char const *line_start = start;
-  char const *cursor = NULL;
-  char const *line_end = NULL;
-  char const *last_break_next = NULL;
-  char const *last_break_line_end = NULL;
-  float width = 0.0f;
-  float line_end_width = 0.0f;
-  float last_break_width = 0.0f;
-  u32 previous_codepoint = 0;
-  bool has_visible_codepoint = false;
-
-  if (out_line_start != NULL)
-  {
-    *out_line_start = start;
-  }
-
-  if (out_line_end != NULL)
-  {
-    *out_line_end = start;
-  }
-
-  if (out_next != NULL)
-  {
-    *out_next = start;
-  }
-
-  if (out_width != NULL)
-  {
-    *out_width = 0.0f;
-  }
-
-  if (font == NULL || start == NULL || text_end == NULL ||
-      start >= text_end || *start == '\0')
-  {
-    return false;
-  }
-
-  if (max_width <= 0.0f)
-  {
-    max_width = 3.402823466e+38F;
-  }
-
-  line_start = s_ui_text_skip_word_spaces(start);
-  cursor = line_start;
-  line_end = line_start;
-
-  if (*cursor == '\n')
-  {
-    if (out_line_start != NULL)
-    {
-      *out_line_start = cursor;
-    }
-
-    if (out_line_end != NULL)
-    {
-      *out_line_end = cursor;
-    }
-
-    if (out_next != NULL)
-    {
-      *out_next = cursor + 1;
-    }
-
-    return true;
-  }
-
-  while (cursor < text_end && *cursor != '\0')
-  {
-    char const *before = cursor;
-    u32 codepoint = 0;
-
-    if (!ldk_ttf_utf8_consume_codepoint_range(
-            &cursor, text_end, &codepoint))
-    {
-      break;
-    }
-
-    if (codepoint == '\n')
-    {
-      if (out_line_start != NULL)
-      {
-        *out_line_start = line_start;
-      }
-
-      if (out_line_end != NULL)
-      {
-        *out_line_end = line_end;
-      }
-
-      if (out_next != NULL)
-      {
-        *out_next = cursor;
-      }
-
-      if (out_width != NULL)
-      {
-        *out_width = line_end_width;
-      }
-
-      return true;
-    }
-
-    if (s_ui_text_codepoint_is_word_space(codepoint))
-    {
-      if (has_visible_codepoint)
-      {
-        last_break_next = s_ui_text_skip_word_spaces(cursor);
-        last_break_line_end = line_end;
-        last_break_width = line_end_width;
-      }
-
-      width +=
-          s_ui_text_codepoint_advance_get(font, previous_codepoint, codepoint);
-      previous_codepoint = codepoint;
-      continue;
-    }
-
-    float advance =
-        s_ui_text_codepoint_advance_get(font, previous_codepoint, codepoint);
-
-    if (has_visible_codepoint && width + advance > max_width)
-    {
-      if (last_break_next != NULL && last_break_next > line_start)
-      {
-        if (out_line_start != NULL)
-        {
-          *out_line_start = line_start;
-        }
-
-        if (out_line_end != NULL)
-        {
-          *out_line_end = last_break_line_end;
-        }
-
-        if (out_next != NULL)
-        {
-          *out_next = last_break_next;
-        }
-
-        if (out_width != NULL)
-        {
-          *out_width = last_break_width;
-        }
-
-        return true;
-      }
-
-      if (out_line_start != NULL)
-      {
-        *out_line_start = line_start;
-      }
-
-      if (out_line_end != NULL)
-      {
-        *out_line_end = line_end;
-      }
-
-      if (out_next != NULL)
-      {
-        *out_next = before;
-      }
-
-      if (out_width != NULL)
-      {
-        *out_width = line_end_width;
-      }
-
-      return true;
-    }
-
-    width += advance;
-    previous_codepoint = codepoint;
-    line_end = cursor;
-    line_end_width = width;
-    has_visible_codepoint = true;
-  }
-
-  if (out_line_start != NULL)
-  {
-    *out_line_start = line_start;
-  }
-
-  if (out_line_end != NULL)
-  {
-    *out_line_end = line_end;
-  }
-
-  if (out_next != NULL)
-  {
-    *out_next = cursor;
-  }
-
-  if (out_width != NULL)
-  {
-    *out_width = line_end_width;
-  }
-
-  return true;
 }
 
 /**
@@ -1083,109 +800,36 @@ static void s_ui_render_text_highlight(LDKUIContext *ctx, char const *text,
 static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
     float y, u32 color, LDKUIRect clip_rect)
 {
-  LDKFontInstance *font;
-  LDKFontMetrics metrics;
-  float pen_x;
-  float pen_y;
-  u32 prev_codepoint;
-  char const *cursor;
-  char const *text_end;
-
   if (ctx == NULL || text == NULL || clip_rect.w <= 0.0f ||
-      clip_rect.h <= 0.0f)
+      clip_rect.h <= 0.0f || ctx->font == NULL)
   {
     return;
   }
 
-  font = ctx->font;
-
-  if (font == NULL)
+  LDKTextLayoutIterator layout;
+  if (!ldk_text_layout_begin(&layout, ctx->font, text, x, y, true))
   {
     return;
   }
 
   color = LDK_RGBA32(color);
-  metrics = ldk_ttf_get_metrics(font);
-  pen_x = x;
-  pen_y = y + metrics.ascent;
-  prev_codepoint = 0;
-  cursor = text;
-  text_end = text + strlen(text);
+  LDKTextGlyphQuad quad;
 
-  while (cursor < text_end)
+  while (ldk_text_layout_next(&layout, &quad))
   {
-    u32 codepoint = 0;
-    LDKGlyph const *glyph;
-    LDKFontPageInfo page;
-    float gx0;
-    float gy0;
-    float gx1;
-    float gy1;
-    float u0;
-    float v0;
-    float u1;
-    float v1;
-    u32 base_index;
-    u32 index_offset;
-    LDKUITextureHandle texture = 0;
     XArray_ldk_ui_vertex *vertices = s_ui_target_vertices(ctx);
     XArray_ldk_ui_u32 *indices = s_ui_target_indices(ctx);
+    u32 index_offset = x_array_ldk_ui_u32_count(indices);
+    u32 base_index = x_array_ldk_ui_vertex_count(vertices);
 
-    if (!ldk_ttf_utf8_consume_codepoint_range(
-            &cursor, text_end, &codepoint))
-    {
-      break;
-    }
-
-    if (codepoint == '\n')
-    {
-      pen_x = x;
-      pen_y += metrics.line_height;
-      prev_codepoint = 0;
-      continue;
-    }
-
-    glyph = ldk_ttf_get_glyph(font, codepoint);
-
-    if (glyph == NULL || !glyph->valid)
-    {
-      prev_codepoint = 0;
-      continue;
-    }
-
-    if (prev_codepoint != 0)
-    {
-      pen_x += ldk_ttf_get_kerning(font, prev_codepoint, codepoint);
-    }
-
-    if (!ldk_ttf_get_page_info(font, glyph->page_index, &page))
-    {
-      pen_x += (float)glyph->advance_x;
-      prev_codepoint = codepoint;
-      continue;
-    }
-
-    gx0 = pen_x + (float)glyph->offset_x;
-    gy0 = pen_y + (float)glyph->offset_y;
-    gx1 = gx0 + (float)(glyph->atlas_x1 - glyph->atlas_x0);
-    gy1 = gy0 + (float)(glyph->atlas_y1 - glyph->atlas_y0);
-
-    u0 = (float)glyph->atlas_x0 / (float)page.width;
-    v0 = (float)glyph->atlas_y0 / (float)page.height;
-    u1 = (float)glyph->atlas_x1 / (float)page.width;
-    v1 = (float)glyph->atlas_y1 / (float)page.height;
-
-    index_offset = x_array_ldk_ui_u32_count(indices);
-    base_index = x_array_ldk_ui_vertex_count(vertices);
-
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx0, gy0, u0, v0, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx1, gy0, u1, v0, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx1, gy1, u1, v1, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx0, gy1, u0, v1, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x0, quad.y0, quad.u0, quad.v0, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x1, quad.y0, quad.u1, quad.v0, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x1, quad.y1, quad.u1, quad.v1, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x0, quad.y1, quad.u0, quad.v1, color});
 
     x_array_ldk_ui_u32_push(indices, base_index + 0);
     x_array_ldk_ui_u32_push(indices, base_index + 1);
@@ -1194,16 +838,14 @@ static void s_ui_render_text(LDKUIContext *ctx, char const *text, float x,
     x_array_ldk_ui_u32_push(indices, base_index + 3);
     x_array_ldk_ui_u32_push(indices, base_index + 0);
 
+    LDKUITextureHandle texture = 0;
     if (ctx->get_font_page_texture != NULL)
     {
       texture = ctx->get_font_page_texture(
-          ctx->font_texture_user, ctx->font, glyph->page_index);
+          ctx->font_texture_user, ctx->font, quad.page_index);
     }
 
     s_ui_render_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
-
-    pen_x += (float)glyph->advance_x;
-    prev_codepoint = codepoint;
   }
 }
 
@@ -1221,85 +863,37 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
     char const *text_end, float x, float y, u32 color, LDKUIRect clip_rect)
 {
   if (ctx == NULL || text_start == NULL || text_end == NULL ||
-      text_start >= text_end || clip_rect.w <= 0.0f || clip_rect.h <= 0.0f)
+      text_start >= text_end || clip_rect.w <= 0.0f || clip_rect.h <= 0.0f ||
+      ctx->font == NULL)
   {
     return;
   }
 
-  LDKFontInstance *font = ctx->font;
-
-  if (font == NULL)
+  LDKTextLayoutIterator layout;
+  if (!ldk_text_layout_begin_range(
+          &layout, ctx->font, text_start, text_end, x, y, false))
   {
     return;
   }
 
   color = LDK_RGBA32(color);
-  LDKFontMetrics metrics = ldk_ttf_get_metrics(font);
-  float pen_x = x;
-  float pen_y = y + metrics.ascent;
-  u32 prev_codepoint = 0;
-  char const *cursor = text_start;
+  LDKTextGlyphQuad quad;
 
-  while (cursor < text_end && *cursor != '\0')
+  while (ldk_text_layout_next(&layout, &quad))
   {
-    u32 codepoint = 0;
-
-    if (!ldk_ttf_utf8_consume_codepoint_range(
-            &cursor, text_end, &codepoint))
-    {
-      break;
-    }
-
-    if (codepoint == '\n')
-    {
-      break;
-    }
-
-    LDKGlyph const *glyph = ldk_ttf_get_glyph(font, codepoint);
-
-    if (glyph == NULL || !glyph->valid)
-    {
-      prev_codepoint = 0;
-      continue;
-    }
-
-    if (prev_codepoint != 0)
-    {
-      pen_x += ldk_ttf_get_kerning(font, prev_codepoint, codepoint);
-    }
-
-    LDKFontPageInfo page;
-
-    if (!ldk_ttf_get_page_info(font, glyph->page_index, &page))
-    {
-      pen_x += (float)glyph->advance_x;
-      prev_codepoint = codepoint;
-      continue;
-    }
-
-    float gx0 = pen_x + (float)glyph->offset_x;
-    float gy0 = pen_y + (float)glyph->offset_y;
-    float gx1 = gx0 + (float)(glyph->atlas_x1 - glyph->atlas_x0);
-    float gy1 = gy0 + (float)(glyph->atlas_y1 - glyph->atlas_y0);
-
-    float u0 = (float)glyph->atlas_x0 / (float)page.width;
-    float v0 = (float)glyph->atlas_y0 / (float)page.height;
-    float u1 = (float)glyph->atlas_x1 / (float)page.width;
-    float v1 = (float)glyph->atlas_y1 / (float)page.height;
-
     XArray_ldk_ui_vertex *vertices = s_ui_target_vertices(ctx);
     XArray_ldk_ui_u32 *indices = s_ui_target_indices(ctx);
     u32 index_offset = x_array_ldk_ui_u32_count(indices);
     u32 base_index = x_array_ldk_ui_vertex_count(vertices);
 
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx0, gy0, u0, v0, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx1, gy0, u1, v0, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx1, gy1, u1, v1, color});
-    x_array_ldk_ui_vertex_push(
-        vertices, (LDKUIVertex){gx0, gy1, u0, v1, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x0, quad.y0, quad.u0, quad.v0, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x1, quad.y0, quad.u1, quad.v0, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x1, quad.y1, quad.u1, quad.v1, color});
+    x_array_ldk_ui_vertex_push(vertices,
+        (LDKUIVertex){quad.x0, quad.y1, quad.u0, quad.v1, color});
 
     x_array_ldk_ui_u32_push(indices, base_index + 0);
     x_array_ldk_ui_u32_push(indices, base_index + 1);
@@ -1309,17 +903,13 @@ static void s_ui_render_text_range(LDKUIContext *ctx, char const *text_start,
     x_array_ldk_ui_u32_push(indices, base_index + 0);
 
     LDKUITextureHandle texture = 0;
-
     if (ctx->get_font_page_texture != NULL)
     {
       texture = ctx->get_font_page_texture(
-          ctx->font_texture_user, ctx->font, glyph->page_index);
+          ctx->font_texture_user, ctx->font, quad.page_index);
     }
 
     s_ui_render_add_draw_cmd(ctx, texture, clip_rect, index_offset, 6);
-
-    pen_x += (float)glyph->advance_x;
-    prev_codepoint = codepoint;
   }
 }
 
@@ -1359,7 +949,7 @@ static void s_ui_render_text_wrapped(LDKUIContext *ctx, char const *text,
       break;
     }
 
-    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
+    if (!ldk_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
             &line_start, &line_end, &next, NULL))
     {
       break;

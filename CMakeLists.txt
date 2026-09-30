@@ -473,6 +473,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
   ${INCLUDE_DIR}/ldk_ttf.h          src/ldk_ttf.c
+  ${INCLUDE_DIR}/ldk_text.h         src/ldk_text.c
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_package.h      src/ldk_package.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
@@ -500,6 +501,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
   ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_text3d.h       src/component/ldk_text3d.c
   ${INCLUDE_DIR}/component/ldk_instanced_mesh_source.h
   src/component/ldk_instanced_mesh_source.c
   ${INCLUDE_DIR}/component/ldk_particle_emitter.h

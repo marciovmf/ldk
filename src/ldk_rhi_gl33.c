@@ -179,6 +179,59 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "  out_color = tex * v_color;\n"
 "}\n";
 
+static char const *LDK_RHI_GL33_TEXT_PASS_VERTEX_SHADER =
+    "#version 330 core\n"
+    "layout(location = 0) in vec2 a_position;\n"
+    "layout(location = 1) in vec2 a_uv;\n"
+    "layout(location = 2) in vec4 a_color;\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_view;\n"
+    "  mat4 u_projection;\n"
+    "};\n"
+    "layout(std140) uniform LDK_UBO_1\n"
+    "{\n"
+    "  mat4 u_world;\n"
+    "  vec4 u_options;\n"
+    "};\n"
+    "out vec2 v_uv;\n"
+    "out vec4 v_color;\n"
+    "void main()\n"
+    "{\n"
+    "  mat4 world = u_world;\n"
+    "  if (u_options.x > 0.5)\n"
+    "  {\n"
+    "    vec3 camera_right = normalize(vec3(\n"
+    "        u_view[0][0], u_view[1][0], u_view[2][0]));\n"
+    "    vec3 camera_up = normalize(vec3(\n"
+    "        u_view[0][1], u_view[1][1], u_view[2][1]));\n"
+    "    vec3 camera_back = normalize(vec3(\n"
+    "        u_view[0][2], u_view[1][2], u_view[2][2]));\n"
+    "    vec3 axis_x = camera_right * world[0].x +\n"
+    "        camera_up * world[0].y;\n"
+    "    vec3 axis_y = camera_right * world[1].x +\n"
+    "        camera_up * world[1].y;\n"
+    "    float z_scale = length(world[2].xyz);\n"
+    "    world = mat4(vec4(axis_x, 0.0), vec4(axis_y, 0.0),\n"
+    "        vec4(camera_back * z_scale, 0.0), world[3]);\n"
+    "  }\n"
+    "  v_uv = a_uv;\n"
+    "  v_color = a_color;\n"
+    "  gl_Position = u_projection * u_view * world *\n"
+    "      vec4(a_position, 0.0, 1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "in vec4 v_color;\n"
+    "out vec4 out_color;\n"
+    "uniform sampler2D LDK_TEXTURE_2;\n"
+    "void main()\n"
+    "{\n"
+    "  out_color = texture(LDK_TEXTURE_2, v_uv) * v_color;\n"
+    "}\n";
+
 #define LDK_GL33_VEGETATION_GLSL                                            \
   "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n"       \
   "    vec2 uv, vec4 tangent, vec4 vegetation, float time)\n"            \
@@ -1261,6 +1314,17 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     {
       return LDK_RHI_GL33_SHADOW_PASS_FRAGMENT_SHADER;
     }
+  }
+
+  if (shader == LDK_SHADER_TEXT_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_TEXT_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_TEXT_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)

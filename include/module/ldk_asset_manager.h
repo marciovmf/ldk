@@ -122,6 +122,10 @@ extern "C" {
   LDK_API bool ldk_asset_manager_font_is_alive(LDKAssetManager* manager, LDKAssetFont asset);
   LDK_API LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void* data, u32 data_size);
   LDK_API LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path);
+  /* Reuse a loaded font by asset path, or load it once. The returned asset is
+   * manager-owned and must not be individually unloaded. */
+  LDK_API LDKAssetFont ldk_asset_manager_font_load_shared(
+      LDKAssetManager* manager, const char* path);
   LDK_API void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset);
   LDK_API LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset);
   LDK_API const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset);

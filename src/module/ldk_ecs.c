@@ -1,4 +1,5 @@
 #include "component/ldk_mesh_source.h"
+#include <component/ldk_text3d.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_post_processing.h>
@@ -29,6 +30,7 @@
 
 #ifndef LDK_DEFAULT_MESHSOURCE_COUNT
 #define LDK_DEFAULT_MESHSOURCE_COUNT 4
+#define LDK_DEFAULT_TEXT3D_COUNT 4
 #endif
 
 #ifndef LDK_DEFAULT_PARTICLE_EMITTER_COUNT
@@ -1167,6 +1169,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &meshsource_component_desc))
   {
     ldk_log_error("Failed to register component: MeshSource.");
+    error = true;
+  }
+
+  LDKComponentDesc text3d_component_desc =
+      ldk_text3d_component_desc(LDK_DEFAULT_TEXT3D_COUNT);
+  if (!ldk_component_register(&context->component, &text3d_component_desc))
+  {
+    ldk_log_error("Failed to register component: Text3D.");
     error = true;
   }
 

@@ -829,6 +829,47 @@ LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* p
   return result;
 }
 
+typedef struct LDKSharedFontLookup
+{
+  LDKAssetPath path;
+  u64 source_revision;
+  LDKAssetFont font;
+} LDKSharedFontLookup;
+
+static bool s_shared_font_find(
+    LDKAssetHandle asset, LDKAssetInfo *info, void *user)
+{
+  LDKSharedFontLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_FONT &&
+      info->source_revision == lookup->source_revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->font.h = asset.h;
+    return false;
+  }
+  return true;
+}
+
+LDKAssetFont ldk_asset_manager_font_load_shared(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedFontLookup lookup = {0};
+  lookup.font = ldk_asset_font_null();
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return lookup.font;
+  }
+
+  lookup.source_revision = manager->source->revision;
+  ldk_asset_foreach(manager, s_shared_font_find, &lookup);
+  if (x_handle_is_null(lookup.font.h))
+  {
+    lookup.font = ldk_asset_manager_font_load(manager, lookup.path.buf);
+  }
+  return lookup.font;
+}
+
 void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset)
 {
   if (!manager)

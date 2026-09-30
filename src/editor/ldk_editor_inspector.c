@@ -923,6 +923,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_ASSET_MESH:
     snprintf(out, out_size, "<asset mesh>");
     break;
+  case LDK_FIELD_ASSET_FONT:
+    snprintf(out, out_size, "<asset font>");
+    break;
   case LDK_FIELD_RESOURCE_MESH:
     snprintf(out, out_size, "<resource mesh>");
     break;
@@ -1508,6 +1511,92 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
   return true;
 }
 
+static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetFont *value, bool readonly)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  s_editor_inspector_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose font",
+        "Fonts\0*.ttf;*.otf\0\0", path.buf, sizeof(path.buf));
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Font",
+          "Choose a font inside the project's runtree folder.", &asset_path))
+  {
+    return false;
+  }
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+
+  LDKAssetFont asset =
+      ldk_asset_manager_font_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load font asset.");
+    return false;
+  }
+
+  *value = asset;
+  return true;
+}
+
 static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetMaterial *value, bool readonly, bool optional)
 {
@@ -1806,6 +1895,15 @@ static void s_editor_inspector_field_draw(
       *(LDKAssetMesh *)field_value = value;
     }
 
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  if (field->type == LDK_FIELD_ASSET_FONT)
+  {
+    LDKAssetFont *value = (LDKAssetFont *)field_value;
+    (void)s_editor_inspector_font_asset_field(
+        editor, display_name, value, readonly);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2122,6 +2220,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_MAT4:
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
+  case LDK_FIELD_ASSET_FONT:
   case LDK_FIELD_RESOURCE_MESH:
   case LDK_FIELD_ASSET_MATERIAL:
   case LDK_FIELD_ASSET_SKYBOX:
