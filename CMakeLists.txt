@@ -2,6 +2,60 @@ cmake_minimum_required(VERSION 4.3)
 
 project("ldk")
 
+# --- MSVC RUNTIME -----------------------------------------------------------
+# LDK DLL boundaries may pass CRT-owned objects between modules. Keep every
+# configuration on the same dynamic release CRT (/MD), including Debug.
+if (MSVC)
+  if (DEFINED CMAKE_MSVC_RUNTIME_LIBRARY AND
+      NOT "${CMAKE_MSVC_RUNTIME_LIBRARY}" STREQUAL "" AND
+      NOT "${CMAKE_MSVC_RUNTIME_LIBRARY}" STREQUAL "MultiThreadedDLL")
+    message(FATAL_ERROR
+      "LDK requires the dynamic release CRT (/MD) for every configuration. "
+      "CMAKE_MSVC_RUNTIME_LIBRARY is '${CMAKE_MSVC_RUNTIME_LIBRARY}'."
+    )
+  endif()
+
+  foreach(_ldk_flags_var
+      CMAKE_C_FLAGS
+      CMAKE_C_FLAGS_DEBUG
+      CMAKE_C_FLAGS_RELEASE
+      CMAKE_C_FLAGS_RELWITHDEBINFO
+      CMAKE_C_FLAGS_MINSIZEREL
+      CMAKE_CXX_FLAGS
+      CMAKE_CXX_FLAGS_DEBUG
+      CMAKE_CXX_FLAGS_RELEASE
+      CMAKE_CXX_FLAGS_RELWITHDEBINFO
+      CMAKE_CXX_FLAGS_MINSIZEREL)
+    if (DEFINED ${_ldk_flags_var})
+      string(REPLACE ";" " " _ldk_flags "${${_ldk_flags_var}}")
+      string(TOUPPER "${_ldk_flags}" _ldk_flags)
+      if (_ldk_flags MATCHES "(^|[ \t])[-/](MTD|MT|MDD)([ \t]|$)")
+        message(FATAL_ERROR
+          "LDK requires /MD, but ${_ldk_flags_var} contains an incompatible "
+          "MSVC runtime option: '${${_ldk_flags_var}}'."
+        )
+      endif()
+    endif()
+  endforeach()
+
+  foreach(_ldk_env_var CL _CL_)
+    if (DEFINED ENV{${_ldk_env_var}})
+      string(TOUPPER "$ENV{${_ldk_env_var}}" _ldk_flags)
+      if (_ldk_flags MATCHES "(^|[ \t])[-/](MTD|MT|MDD)([ \t]|$)")
+        message(FATAL_ERROR
+          "LDK requires /MD, but environment variable ${_ldk_env_var} "
+          "contains an incompatible MSVC runtime option: "
+          "'$ENV{${_ldk_env_var}}'."
+        )
+      endif()
+    endif()
+  endforeach()
+
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+      CACHE STRING "MSVC runtime library used by LDK targets" FORCE)
+endif()
+
 find_package(OpenGL REQUIRED)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -50,6 +104,33 @@ add_custom_target(print_options ALL
 
 # --- TARGET HELPERS ---------------------------------------------------------
 function(ldk_target_defaults TARGET_NAME)
+
+  if (MSVC)
+    get_target_property(
+      _ldk_target_runtime ${TARGET_NAME} MSVC_RUNTIME_LIBRARY)
+    if (NOT "${_ldk_target_runtime}" STREQUAL "MultiThreadedDLL")
+      message(FATAL_ERROR
+        "Target '${TARGET_NAME}' must use /MD. Its MSVC_RUNTIME_LIBRARY is "
+        "'${_ldk_target_runtime}'."
+      )
+    endif()
+
+    get_target_property(
+      _ldk_target_compile_options ${TARGET_NAME} COMPILE_OPTIONS)
+    if (_ldk_target_compile_options)
+      string(REPLACE ";" " "
+        _ldk_target_compile_options "${_ldk_target_compile_options}")
+      string(TOUPPER
+        "${_ldk_target_compile_options}" _ldk_target_compile_options)
+      if (_ldk_target_compile_options MATCHES
+          "(^|[ \t])[-/](MTD|MT|MDD)([ \t]|$)")
+        message(FATAL_ERROR
+          "Target '${TARGET_NAME}' must use /MD, but its compile options "
+          "contain an incompatible MSVC runtime option."
+        )
+      endif()
+    endif()
+  endif()
 
   add_dependencies(${TARGET_NAME} print_options)
 
