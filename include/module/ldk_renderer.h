@@ -673,11 +673,20 @@ extern "C" {
 
   typedef u64 LDKRendererRenderKey;
 
+  typedef struct LDKRendererMaterialSamplerResource
+  {
+    LDKRHISamplerDesc desc;
+    LDKRHISampler sampler;
+  } LDKRendererMaterialSamplerResource;
+
   typedef struct LDKRendererMaterialResource
   {
     LDKRendererMaterialDesc desc;
     LDKRendererMaterialSelection selection;
     LDKRendererRenderKey render_key;
+    LDKRHISampler texture_sampler;
+    Vec2 uv_scale;
+    Vec2 uv_offset;
     bool alive;
   } LDKRendererMaterialResource;
 
@@ -727,6 +736,9 @@ extern "C" {
     LDKRendererMaterialResource* materials;
     u32 material_count;
     u32 material_capacity;
+    LDKRendererMaterialSamplerResource* material_samplers;
+    u32 material_sampler_count;
+    u32 material_sampler_capacity;
     LDKResourceMaterial default_material;
 
     // Font atlas cache

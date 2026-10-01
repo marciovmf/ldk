@@ -319,6 +319,52 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       s_result_error(result, "invalid material alpha cutoff");
       return false;
     }
+    if (tml_node_find_entry(doc, fields, "material_texture_filter"))
+    {
+      u32 filter;
+      if (!s_node_get_u32(doc, fields, "material_texture_filter", &filter))
+      {
+        s_result_error(result, "invalid material texture filter");
+        return false;
+      }
+      desc.args.textured.filter = (LDKMaterialTextureFilter)filter;
+    }
+    if (tml_node_find_entry(doc, fields, "material_texture_wrap_u"))
+    {
+      u32 wrap;
+      if (!s_node_get_u32(doc, fields, "material_texture_wrap_u", &wrap))
+      {
+        s_result_error(result, "invalid material texture U wrap");
+        return false;
+      }
+      desc.args.textured.wrap_u = (LDKMaterialTextureWrap)wrap;
+    }
+    if (tml_node_find_entry(doc, fields, "material_texture_wrap_v"))
+    {
+      u32 wrap;
+      if (!s_node_get_u32(doc, fields, "material_texture_wrap_v", &wrap))
+      {
+        s_result_error(result, "invalid material texture V wrap");
+        return false;
+      }
+      desc.args.textured.wrap_v = (LDKMaterialTextureWrap)wrap;
+    }
+    if ((tml_node_find_entry(doc, fields, "material_uv_scale_u") &&
+            !s_node_get_float(doc, fields, "material_uv_scale_u",
+                &desc.args.textured.uv_scale.x)) ||
+        (tml_node_find_entry(doc, fields, "material_uv_scale_v") &&
+            !s_node_get_float(doc, fields, "material_uv_scale_v",
+                &desc.args.textured.uv_scale.y)) ||
+        (tml_node_find_entry(doc, fields, "material_uv_offset_u") &&
+            !s_node_get_float(doc, fields, "material_uv_offset_u",
+                &desc.args.textured.uv_offset.x)) ||
+        (tml_node_find_entry(doc, fields, "material_uv_offset_v") &&
+            !s_node_get_float(doc, fields, "material_uv_offset_v",
+                &desc.args.textured.uv_offset.y)))
+    {
+      s_result_error(result, "invalid material UV transform");
+      return false;
+    }
     if (tml_node_find_entry(doc, fields, "material_texture"))
     {
       TMLString image_path;
@@ -451,6 +497,49 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     x_strbuilder_append(out, "material_texture: ");
     s_append_escaped_string(out, asset_path.buf);
     x_strbuilder_append_char(out, '\n');
+
+    if (desc->args.textured.filter != LDK_MATERIAL_TEXTURE_FILTER_NEAREST)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_texture_filter: %u\n",
+          (u32)desc->args.textured.filter);
+    }
+    if (desc->args.textured.wrap_u != LDK_MATERIAL_TEXTURE_WRAP_CLAMP)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_texture_wrap_u: %u\n",
+          (u32)desc->args.textured.wrap_u);
+    }
+    if (desc->args.textured.wrap_v != LDK_MATERIAL_TEXTURE_WRAP_CLAMP)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_texture_wrap_v: %u\n",
+          (u32)desc->args.textured.wrap_v);
+    }
+    if (desc->args.textured.uv_scale.x != 1.0f)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_uv_scale_u: %.9g\n",
+          (double)desc->args.textured.uv_scale.x);
+    }
+    if (desc->args.textured.uv_scale.y != 1.0f)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_uv_scale_v: %.9g\n",
+          (double)desc->args.textured.uv_scale.y);
+    }
+    if (desc->args.textured.uv_offset.x != 0.0f)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_uv_offset_u: %.9g\n",
+          (double)desc->args.textured.uv_offset.x);
+    }
+    if (desc->args.textured.uv_offset.y != 0.0f)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_uv_offset_v: %.9g\n",
+          (double)desc->args.textured.uv_offset.y);
+    }
 
     if (desc->args.textured.alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE)
     {

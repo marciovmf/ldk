@@ -89,6 +89,9 @@ static int test_material_io_invalid(void)
       "material:\n  material_type: 4\n  material_shininess: -1\n",
       "material:\n  material_type: 4\n  material_emission: -1\n",
       "material:\n  material_type: 1\n  material_alpha_mode: 99\n",
+      "material:\n  material_type: 1\n  material_texture_filter: 99\n",
+      "material:\n  material_type: 1\n  material_texture_wrap_u: 99\n",
+      "material:\n  material_type: 1\n  material_texture_wrap_v: 99\n",
       "material:\n  material_type: 1\n  material_alpha_mode: 1\n"
       "  material_alpha_cutoff: -0.1\n",
       "material:\n  material_type: 1\n  material_alpha_mode: 1\n"
@@ -131,6 +134,13 @@ static int test_material_io_missing_texture(void)
   const char *text = "material:\n  material_type: 2\n"
                      "  material_color: 0xa1b2c3ff\n"
                      "  material_texture: \"missing.png\"\n"
+                     "  material_texture_filter: 1\n"
+                     "  material_texture_wrap_u: 0\n"
+                     "  material_texture_wrap_v: 2\n"
+                     "  material_uv_scale_u: 4\n"
+                     "  material_uv_scale_v: 2\n"
+                     "  material_uv_offset_u: 0.25\n"
+                     "  material_uv_offset_v: -0.5\n"
                      "  material_alpha_mode: 1\n"
                      "  material_alpha_cutoff: 0.35\n"
                      "  material_normal_map: \"missing_normal.png\"\n"
@@ -143,6 +153,13 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(first.surface.emission, 0.0f);
   ASSERT_EQ(first.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_CUTOUT);
   ASSERT_EQ(first.args.textured.alpha_cutoff, 0.35f);
+  ASSERT_EQ(first.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_LINEAR);
+  ASSERT_EQ(first.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_REPEAT);
+  ASSERT_EQ(first.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_MIRROR);
+  ASSERT_EQ(first.args.textured.uv_scale.x, 4.0f);
+  ASSERT_EQ(first.args.textured.uv_scale.y, 2.0f);
+  ASSERT_EQ(first.args.textured.uv_offset.x, 0.25f);
+  ASSERT_EQ(first.args.textured.uv_offset.y, -0.5f);
   const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
       &assets, first.args.textured.texture);
   ASSERT_TRUE(image && image->image && image->is_missing);
@@ -164,6 +181,13 @@ static int test_material_io_missing_texture(void)
                   "material:\n  material_type: 2\n"
                   "  material_color: 0xa1b2c3ff\n"
                   "  material_texture: \"missing.png\"\n"
+                  "  material_texture_filter: 1\n"
+                  "  material_texture_wrap_u: 0\n"
+                  "  material_texture_wrap_v: 2\n"
+                  "  material_uv_scale_u: 4\n"
+                  "  material_uv_scale_v: 2\n"
+                  "  material_uv_offset_u: 0.25\n"
+                  "  material_uv_offset_v: -0.5\n"
                   "  material_alpha_mode: 1\n"
                   "  material_alpha_cutoff: 0.349999994\n"
                   "  material_specular: 0\n"
@@ -176,6 +200,13 @@ static int test_material_io_missing_texture(void)
       &second, &result));
   ASSERT_EQ(s_diagnostics, 3u);
   ASSERT_EQ(second.args.textured.color, 0xffffffffu);
+  ASSERT_EQ(second.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_NEAREST);
+  ASSERT_EQ(second.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
+  ASSERT_EQ(second.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
+  ASSERT_EQ(second.args.textured.uv_scale.x, 1.0f);
+  ASSERT_EQ(second.args.textured.uv_scale.y, 1.0f);
+  ASSERT_EQ(second.args.textured.uv_offset.x, 0.0f);
+  ASSERT_EQ(second.args.textured.uv_offset.y, 0.0f);
   ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
   ASSERT_EQ(second.args.textured.alpha_cutoff, 0.5f);
 

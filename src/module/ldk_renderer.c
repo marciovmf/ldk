@@ -316,6 +316,7 @@ static void s_renderer_destroy_instance_set_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer);
 static void s_renderer_destroy_skybox_resources(LDKRenderer *renderer);
 static void s_renderer_destroy_material_resources(LDKRenderer* renderer);
+static void s_renderer_destroy_material_samplers(LDKRenderer* renderer);
 static LDKRendererMaterialResource* s_renderer_material_get_resource(
     LDKRenderer* renderer,
     LDKResourceMaterial material);
@@ -337,6 +338,11 @@ static void s_renderer_shadow_pass_remove_texture_bindings(
 static LDKRHISampler s_renderer_texture_sampler_from_rhi_texture(
     LDKRenderer* renderer,
     LDKRHITexture texture);
+static LDKRHISampler s_renderer_material_sampler_get_or_create(
+    LDKRenderer *renderer, const LDKRHISamplerDesc *desc);
+static LDKRHIFilter s_renderer_material_filter_to_rhi(
+    LDKMaterialTextureFilter filter);
+static LDKRHIWrap s_renderer_material_wrap_to_rhi(LDKMaterialTextureWrap wrap);
 
 typedef struct LDKRendererUIParams
 {
@@ -1622,6 +1628,8 @@ typedef struct LDKRendererMeshMaterialParams
   float alpha_cutoff;
   /* Curvature, wind strength, wind speed, reserved. */
   float vegetation[4];
+  /* UV scale.xy, offset.xy. */
+  float uv_transform[4];
 } LDKRendererMeshMaterialParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
@@ -1634,7 +1642,7 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, options) == 80,
     mesh_object_options_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
-LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 48,
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 64,
     mesh_material_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, specular) == 16,
     mesh_material_surface_std140_offset);
@@ -1647,6 +1655,9 @@ LDK_STATIC_ASSERT(
     mesh_material_alpha_cutoff_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, vegetation) == 32,
     mesh_material_vegetation_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererMeshMaterialParams, uv_transform) == 48,
+    mesh_material_uv_transform_std140_offset);
 
 typedef struct LDKRendererShadowCameraParams
 {
@@ -1665,15 +1676,19 @@ typedef struct LDKRendererShadowMaterialParams
   float alpha_cutoff;
   float padding[2];
   float vegetation[4];
+  float uv_transform[4];
 } LDKRendererShadowMaterialParams;
 
-LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 32,
+LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 48,
     shadow_material_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererShadowMaterialParams, alpha_cutoff) == 4,
     shadow_material_alpha_cutoff_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererShadowMaterialParams, vegetation) == 16,
     shadow_material_vegetation_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererShadowMaterialParams, uv_transform) == 32,
+    shadow_material_uv_transform_std140_offset);
 
 typedef struct LDKRendererLightParams
 {
@@ -2521,6 +2536,10 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   material_params.vegetation[0] = material->desc.vegetation_curvature;
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
+  material_params.uv_transform[0] = material->uv_scale.x;
+  material_params.uv_transform[1] = material->uv_scale.y;
+  material_params.uv_transform[2] = material->uv_offset.x;
+  material_params.uv_transform[3] = material->uv_offset.y;
 
   if (cutout)
   {
@@ -2531,8 +2550,12 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
       return;
     }
 
+    LDKRHISampler sampler =
+        material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+        ? material->texture_sampler
+        : texture->sampler;
     bindings = s_renderer_shadow_pass_get_cutout_bindings(
-        pass, texture->texture, texture->sampler);
+        pass, texture->texture, sampler);
     if (bindings == LDK_RHI_INVALID_RESOURCE)
     {
       return;
@@ -3914,7 +3937,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         return;
       }
       albedo_texture = texture->texture;
-      albedo_sampler = texture->sampler;
+      albedo_sampler = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+          ? material->texture_sampler
+          : texture->sampler;
     }
 
     if (lit)
@@ -3931,7 +3956,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         if (texture != NULL)
         {
           normal_texture = texture->texture;
-          normal_sampler = texture->sampler;
+          normal_sampler = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+              ? material->texture_sampler
+              : texture->sampler;
         }
       }
       if (material->desc.specular_map.id != LDK_RHI_INVALID_RESOURCE)
@@ -3941,7 +3968,10 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         if (texture != NULL)
         {
           specular_texture = texture->texture;
-          specular_sampler = texture->sampler;
+          specular_sampler =
+              material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+              ? material->texture_sampler
+              : texture->sampler;
         }
       }
     }
@@ -3962,6 +3992,10 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.vegetation[0] = material->desc.vegetation_curvature;
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
+  material_params.uv_transform[0] = material->uv_scale.x;
+  material_params.uv_transform[1] = material->uv_scale.y;
+  material_params.uv_transform[2] = material->uv_offset.x;
+  material_params.uv_transform[3] = material->uv_offset.y;
   if (lit)
   {
     material_params.specular = material->desc.specular;
@@ -8288,6 +8322,51 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     return false;
   }
 
+  if (material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      material_desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT)
+  {
+    LDKRendererMaterialResource *material_resource =
+        s_renderer_material_get_resource(renderer, material);
+    LDKRHISampler sampler = LDK_RHI_INVALID_RESOURCE;
+    bool custom_sampling =
+        material_desc->args.textured.filter !=
+            LDK_MATERIAL_TEXTURE_FILTER_NEAREST ||
+        material_desc->args.textured.wrap_u !=
+            LDK_MATERIAL_TEXTURE_WRAP_CLAMP ||
+        material_desc->args.textured.wrap_v !=
+            LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
+
+    if (custom_sampling)
+    {
+      LDKRHISamplerDesc sampler_desc = {0};
+      sampler_desc.min_filter = s_renderer_material_filter_to_rhi(
+          material_desc->args.textured.filter);
+      sampler_desc.mag_filter = sampler_desc.min_filter;
+      sampler_desc.mip_filter = sampler_desc.min_filter;
+      sampler_desc.wrap_u = s_renderer_material_wrap_to_rhi(
+          material_desc->args.textured.wrap_u);
+      sampler_desc.wrap_v = s_renderer_material_wrap_to_rhi(
+          material_desc->args.textured.wrap_v);
+      sampler_desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+      sampler =
+          s_renderer_material_sampler_get_or_create(renderer, &sampler_desc);
+    }
+
+    if (material_resource == NULL ||
+        (custom_sampling && sampler == LDK_RHI_INVALID_RESOURCE))
+    {
+      ldk_renderer_material_destroy(renderer, material);
+      ldk_renderer_image_release(renderer, desc.texture);
+      ldk_renderer_image_release(renderer, normal_map);
+      ldk_renderer_image_release(renderer, specular_map);
+      return false;
+    }
+
+    material_resource->texture_sampler = sampler;
+    material_resource->uv_scale = material_desc->args.textured.uv_scale;
+    material_resource->uv_offset = material_desc->args.textured.uv_offset;
+  }
+
   ldk_renderer_material_destroy(renderer, *renderer_material);
   ldk_renderer_image_release(renderer, *renderer_texture);
   ldk_renderer_image_release(renderer, *renderer_normal_map);
@@ -8356,6 +8435,98 @@ static bool s_renderer_grow_material_cache(LDKRenderer* renderer)
   renderer->materials = new_materials;
   renderer->material_capacity = new_capacity;
   return true;
+}
+
+static LDKRHIFilter s_renderer_material_filter_to_rhi(
+    LDKMaterialTextureFilter filter)
+{
+  return filter == LDK_MATERIAL_TEXTURE_FILTER_LINEAR
+      ? LDK_RHI_FILTER_LINEAR
+      : LDK_RHI_FILTER_NEAREST;
+}
+
+static LDKRHIWrap s_renderer_material_wrap_to_rhi(LDKMaterialTextureWrap wrap)
+{
+  switch (wrap)
+  {
+  case LDK_MATERIAL_TEXTURE_WRAP_REPEAT:
+    return LDK_RHI_WRAP_REPEAT;
+  case LDK_MATERIAL_TEXTURE_WRAP_MIRROR:
+    return LDK_RHI_WRAP_MIRROR;
+  case LDK_MATERIAL_TEXTURE_WRAP_CLAMP:
+  default:
+    return LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  }
+}
+
+static bool s_renderer_material_sampler_desc_equal(
+    const LDKRHISamplerDesc *a, const LDKRHISamplerDesc *b)
+{
+  return a->min_filter == b->min_filter &&
+         a->mag_filter == b->mag_filter &&
+         a->mip_filter == b->mip_filter && a->wrap_u == b->wrap_u &&
+         a->wrap_v == b->wrap_v && a->wrap_w == b->wrap_w;
+}
+
+static bool s_renderer_grow_material_sampler_cache(LDKRenderer *renderer)
+{
+  u32 new_capacity = renderer->material_sampler_capacity == 0
+      ? 8
+      : renderer->material_sampler_capacity * 2;
+  size_t new_size =
+      (size_t)new_capacity * sizeof(LDKRendererMaterialSamplerResource);
+  LDKRendererMaterialSamplerResource *new_samplers =
+      renderer->material_samplers == NULL
+      ? (LDKRendererMaterialSamplerResource *)LDK_RENDERER_ALLOC(new_size)
+      : (LDKRendererMaterialSamplerResource *)LDK_RENDERER_REALLOC(
+            renderer->material_samplers, new_size);
+
+  if (new_samplers == NULL)
+  {
+    return false;
+  }
+
+  renderer->material_samplers = new_samplers;
+  renderer->material_sampler_capacity = new_capacity;
+  return true;
+}
+
+static LDKRHISampler s_renderer_material_sampler_get_or_create(
+    LDKRenderer *renderer, const LDKRHISamplerDesc *desc)
+{
+  if (renderer == NULL || renderer->rhi == NULL || desc == NULL ||
+      !ldk_rhi_is_valid_sampler_desc(desc))
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  for (u32 i = 0; i < renderer->material_sampler_count; ++i)
+  {
+    LDKRendererMaterialSamplerResource *resource =
+        &renderer->material_samplers[i];
+    if (s_renderer_material_sampler_desc_equal(&resource->desc, desc))
+    {
+      return resource->sampler;
+    }
+  }
+
+  if (renderer->material_sampler_count == renderer->material_sampler_capacity &&
+      !s_renderer_grow_material_sampler_cache(renderer))
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  LDKRHISampler sampler = ldk_rhi_sampler_create(renderer->rhi, desc);
+  if (sampler == LDK_RHI_INVALID_RESOURCE)
+  {
+    return LDK_RHI_INVALID_RESOURCE;
+  }
+
+  LDKRendererMaterialSamplerResource *resource =
+      &renderer->material_samplers[renderer->material_sampler_count++];
+  resource->desc = *desc;
+  resource->sampler = sampler;
+  return sampler;
 }
 
 static bool s_renderer_material_type_is_textured(LDKMaterialType type)
@@ -8511,6 +8682,9 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.vegetation = desc->vegetation;
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);
+  resource->texture_sampler = LDK_RHI_INVALID_RESOURCE;
+  resource->uv_scale = (Vec2){1.0f, 1.0f};
+  resource->uv_offset = (Vec2){0.0f, 0.0f};
   resource->alive = true;
   renderer->material_count += 1;
 
@@ -8561,6 +8735,31 @@ static void s_renderer_destroy_material_resources(LDKRenderer* renderer)
   renderer->materials = NULL;
   renderer->material_count = 0;
   renderer->material_capacity = 0;
+}
+
+static void s_renderer_destroy_material_samplers(LDKRenderer *renderer)
+{
+  if (renderer == NULL)
+  {
+    return;
+  }
+
+  if (renderer->rhi != NULL)
+  {
+    for (u32 i = 0; i < renderer->material_sampler_count; ++i)
+    {
+      LDKRHISampler sampler = renderer->material_samplers[i].sampler;
+      if (sampler != LDK_RHI_INVALID_RESOURCE)
+      {
+        ldk_rhi_sampler_destroy(renderer->rhi, sampler);
+      }
+    }
+  }
+
+  LDK_RENDERER_FREE(renderer->material_samplers);
+  renderer->material_samplers = NULL;
+  renderer->material_sampler_count = 0;
+  renderer->material_sampler_capacity = 0;
 }
 
 static void s_renderer_destroy_texture_resources(LDKRenderer* renderer)
@@ -8955,6 +9154,7 @@ void ldk_renderer_terminate(LDKRenderer* renderer)
   s_renderer_grid_pass_terminate(&renderer->grid_pass);
   s_renderer_mesh_pass_terminate(&renderer->mesh_pass);
   s_renderer_shadow_pass_terminate(&renderer->shadow_pass);
+  s_renderer_destroy_material_samplers(renderer);
   memset(renderer, 0, sizeof(*renderer));
 }
 
