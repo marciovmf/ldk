@@ -20,6 +20,7 @@
 #include <component/ldk_text3d.h>
 
 #include <module/ldk_system.h>
+#include <module/ldk_audio.h>
 #include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_asset_source.h>
@@ -40,6 +41,7 @@
 struct LDKRoot
 {
   // Engine Modules
+  LDKAudio audio;
   LDKAssetManager asset_manager;
   LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
@@ -446,6 +448,8 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot *e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
+
+  ldk_audio_terminate(&e->audio);
 
   /* Scene Manager owns scene state backed by the ECS. */
   ldk_scene_manager_terminate(&e->scene_manager);
@@ -1066,6 +1070,9 @@ void *ldk_module_get(LDKModuleType module_type)
 
   switch (module_type)
   {
+  case LDK_MODULE_AUDIO:
+    return &g_engine.audio;
+
   case LDK_MODULE_ECS:
     return &g_engine.ecs;
 
@@ -1287,6 +1294,12 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
+  if (!ldk_audio_initialize(&e->audio, &e->asset_source))
+  {
+    ldk_log_error("Failed to initialize module: Audio.");
+    engine_init_failed = true;
+  }
+
   if (!ldk_asset_manager_initialize(
           &e->asset_manager, &e->asset_source, 16, 1))
   {
@@ -1417,6 +1430,8 @@ void ldk_engine_frame(void)
   {
     return;
   }
+
+  ldk_audio_update(&e->audio);
 
   if (!s_engine_render_resolution_apply(e))
   {

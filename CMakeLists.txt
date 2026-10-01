@@ -483,6 +483,8 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
   ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
   # Modules
+  ${INCLUDE_DIR}/module/ldk_audio.h           src/module/ldk_audio.c
+  src/depend/miniaudio/miniaudio.h
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
   ${INCLUDE_DIR}/module/ldk_component.h       src/module/ldk_component.c

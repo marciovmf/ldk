@@ -46,6 +46,7 @@ extern "C"
 
   typedef enum LDKModuleType
   {
+    LDK_MODULE_AUDIO,
     LDK_MODULE_ASSET_MANAGER,
     LDK_MODULE_ECS,
     LDK_MODULE_EVENT,
