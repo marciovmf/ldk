@@ -1302,7 +1302,7 @@ static bool s_editor_builtin_windows_add(
       NULL)
   {
     LDKEditorWindow window = {.id = LDK_EDITOR_WINDOW_PROJECT_EXPLORER,
-        .title = "Project Explorer",
+        .title = "Files",
         .function = s_editor_project_explorer_window,
         .data = NULL};
 
