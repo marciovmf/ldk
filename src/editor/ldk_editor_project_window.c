@@ -209,15 +209,12 @@ static u32 s_editor_project_icon_row(LDKEditorContext *editor,
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "..."))
   {
-    char selected[X_FS_PATH_MAX_LENGTH] = {0};
+    XFSPath selected_path = {0};
     if (ldk_os_dialog_show_open_file(editor->window, "Choose Game Icon",
-            "Icon\0*.ico\0All Files\0*.*\0\0", selected,
-            sizeof(selected)))
+            "Icon\0*.ico\0All Files\0*.*\0\0", &selected_path))
     {
-      XFSPath selected_path = {0};
       XFSPath relative_path = {0};
 
-      x_fs_path_set(&selected_path, selected);
       x_fs_path_normalize(&selected_path);
       if (x_fs_path_relative_to(&editor->project.run_root_path,
               &selected_path, &relative_path) != 0 &&

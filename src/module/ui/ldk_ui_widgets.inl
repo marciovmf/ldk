@@ -920,7 +920,7 @@ static u32 s_ui_text_wrapped_cursor_from_point(LDKUIContext *ctx,
     char const *line_end = NULL;
     char const *next = NULL;
 
-    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
+    if (!ldk_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
             &line_start, &line_end, &next, NULL))
     {
       break;
@@ -991,7 +991,7 @@ static u32 s_ui_text_wrapped_cursor_vertical_move(LDKUIContext *ctx,
     u32 line_end_offset;
     u32 next_offset;
 
-    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
+    if (!ldk_text_wrapped_next_line(ctx->font, cursor, text_end, rect.w,
             &line_start, &line_end, &next, NULL))
     {
       break;
@@ -1037,7 +1037,7 @@ static u32 s_ui_text_wrapped_cursor_vertical_move(LDKUIContext *ctx,
         char const *next_end = NULL;
         char const *after_next = NULL;
 
-        if (s_ui_text_wrapped_next_line(ctx->font, next, text_end, rect.w,
+        if (ldk_text_wrapped_next_line(ctx->font, next, text_end, rect.w,
                 &next_start, &next_end, &after_next, NULL))
         {
           return s_ui_text_cursor_from_x_range(
@@ -1143,7 +1143,7 @@ static void s_ui_render_text_highlight_wrapped(LDKUIContext *ctx,
     u32 line_start_offset;
     u32 line_end_offset;
 
-    if (!s_ui_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
+    if (!ldk_text_wrapped_next_line(ctx->font, cursor, text_end, max_width,
             &line_start, &line_end, &next, NULL))
     {
       break;

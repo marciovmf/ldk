@@ -19,6 +19,12 @@ typedef struct LDKEditorSettingsDraft
   char ui_scale[32];
   char font_size[32];
   char font_path[X_FS_PATH_MAX_LENGTH];
+  rgba32 debug_color;
+  rgba32 selection_color_1;
+  rgba32 selection_color_2;
+  float debug_line_width;
+  float selection_line_width;
+  float selection_pulse_seconds;
   LDKEditorFileAssociation
       file_associations[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY];
   u32 file_association_count;
@@ -72,6 +78,12 @@ static void s_editor_settings_draft_reset(
       editor->editor_font_size);
   snprintf(draft->font_path, sizeof(draft->font_path), "%s",
       editor->editor_font.buf);
+  draft->debug_color = editor->debug_color;
+  draft->selection_color_1 = editor->selection_color_1;
+  draft->selection_color_2 = editor->selection_color_2;
+  draft->debug_line_width = editor->debug_line_width;
+  draft->selection_line_width = editor->selection_line_width;
+  draft->selection_pulse_seconds = editor->selection_pulse_seconds;
   draft->file_association_count = editor->file_association_count;
   memcpy(draft->file_associations, editor->file_associations,
       sizeof(draft->file_associations));
@@ -160,7 +172,16 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
       !s_editor_settings_number_parse(draft->ui_scale, &ui_scale) ||
       ui_scale < 0.5f || ui_scale > 3.0f ||
       !s_editor_settings_integer_parse(draft->font_size, &font_size) ||
-      font_size < 6 || font_size > 96 || draft->font_path[0] == 0)
+      font_size < 6 || font_size > 96 || draft->font_path[0] == 0 ||
+      !isfinite(draft->debug_line_width) ||
+      draft->debug_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      draft->debug_line_width > LDK_EDITOR_LINE_WIDTH_MAX ||
+      !isfinite(draft->selection_line_width) ||
+      draft->selection_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      draft->selection_line_width > LDK_EDITOR_LINE_WIDTH_MAX ||
+      !isfinite(draft->selection_pulse_seconds) ||
+      draft->selection_pulse_seconds < LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN ||
+      draft->selection_pulse_seconds > LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX)
   {
     return false;
   }
@@ -211,7 +232,19 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
            draft->open_folders_single_click) &&
        x_ini_set_f32(&ini, ".editor", "ui_scale", ui_scale) &&
        x_ini_set_i32(&ini, ".editor", "font_size", font_size) &&
-       x_ini_set(&ini, ".editor", "font", draft->font_path);
+       x_ini_set(&ini, ".editor", "font", draft->font_path) &&
+       x_ini_set_u32_hex(
+           &ini, ".editor", "debug_color", draft->debug_color) &&
+       x_ini_set_u32_hex(
+           &ini, ".editor", "selection_color_1", draft->selection_color_1) &&
+       x_ini_set_u32_hex(
+           &ini, ".editor", "selection_color_2", draft->selection_color_2) &&
+       x_ini_set_f32(&ini, ".editor", "debug_line_width",
+           draft->debug_line_width) &&
+       x_ini_set_f32(&ini, ".editor", "selection_line_width",
+           draft->selection_line_width) &&
+       x_ini_set_f32(&ini, ".editor", "selection_pulse_seconds",
+           draft->selection_pulse_seconds);
 
   for (u32 i = 0; ok && i < draft->file_association_count; ++i)
   {
@@ -250,6 +283,12 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
       draft->open_folders_single_click;
   editor->editor_ui_scale = ui_scale;
   editor->editor_font_size = font_size;
+  editor->debug_color = draft->debug_color;
+  editor->selection_color_1 = draft->selection_color_1;
+  editor->selection_color_2 = draft->selection_color_2;
+  editor->debug_line_width = draft->debug_line_width;
+  editor->selection_line_width = draft->selection_line_width;
+  editor->selection_pulse_seconds = draft->selection_pulse_seconds;
   x_fs_path_set(&editor->editor_font, draft->font_path);
   if (x_fs_path_is_absolute_cstr(editor->editor_font.buf))
   {
@@ -369,12 +408,10 @@ static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "..."))
   {
-    char selected[X_FS_PATH_MAX_LENGTH] = {0};
-    if (ldk_os_dialog_show_open_file(editor->window, dialog_title, filter,
-            selected, sizeof(selected)))
+    XFSPath path = {0};
+    if (ldk_os_dialog_show_open_file(
+            editor->window, dialog_title, filter, &path))
     {
-      XFSPath path = {0};
-      x_fs_path_set(&path, selected);
       x_fs_path_normalize(&path);
       snprintf(buffer, buffer_size, "%s", path.buf);
       result |= LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED;
@@ -382,6 +419,43 @@ static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
   }
   ldk_ui_end_horizontal(ui);
   return result;
+}
+
+static bool s_editor_settings_color_row(
+    LDKEditorContext *editor, const char *label, rgba32 *color)
+{
+  if (editor == NULL || color == NULL)
+  {
+    return false;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  rgba32 previous = *color;
+  s_editor_settings_row_begin(editor, label);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  if (ldk_ui_color_view(ui, *color))
+  {
+    ldk_os_dialog_color_picker_show(editor->window, color);
+  }
+  ldk_ui_spacer(ui);
+  ldk_ui_end_horizontal(ui);
+  return *color != previous;
+}
+
+static bool s_editor_settings_slider_row(LDKEditorContext *editor,
+    const char *label, float *value, float minimum, float maximum)
+{
+  if (editor == NULL || value == NULL)
+  {
+    return false;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  float previous = *value;
+  s_editor_settings_row_begin(editor, label);
+  *value = ldk_ui_slider(ui, *value, minimum, maximum);
+  ldk_ui_end_horizontal(ui);
+  return *value != previous;
 }
 
 void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
@@ -540,6 +614,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   if (look_and_feel_expanded)
   {
     bool single_click;
+    bool color_changed;
     u32 result = 0;
 
     s_editor_settings_row_begin(editor, "Open folders with single click");
@@ -560,6 +635,35 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     result |= s_editor_settings_browse_row(editor, "Editor font",
         draft.font_path, (u32)sizeof(draft.font_path), "Choose Editor Font",
         "TrueType Font\0*.ttf\0All Files\0*.*\0\0");
+
+    color_changed = s_editor_settings_color_row(
+        editor, "Debug color", &draft.debug_color);
+    color_changed = s_editor_settings_color_row(
+                        editor, "Selection color 1",
+                        &draft.selection_color_1) ||
+                    color_changed;
+    color_changed = s_editor_settings_color_row(
+                        editor, "Selection color 2",
+                        &draft.selection_color_2) ||
+                    color_changed;
+    if (color_changed)
+    {
+      draft.dirty = true;
+    }
+
+    if (s_editor_settings_slider_row(editor, "Debug line width",
+            &draft.debug_line_width, LDK_EDITOR_LINE_WIDTH_MIN,
+            LDK_EDITOR_LINE_WIDTH_MAX) ||
+        s_editor_settings_slider_row(editor, "Selection line width",
+            &draft.selection_line_width, LDK_EDITOR_LINE_WIDTH_MIN,
+            LDK_EDITOR_LINE_WIDTH_MAX) ||
+        s_editor_settings_slider_row(editor, "Selection pulse seconds",
+            &draft.selection_pulse_seconds,
+            LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN,
+            LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX))
+    {
+      draft.dirty = true;
+    }
 
     if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {

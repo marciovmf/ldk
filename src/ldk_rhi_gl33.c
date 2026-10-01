@@ -2,6 +2,7 @@
 #include <module/ldk_renderer.h>
 #include "ldk_gl.h"
 
+#include <math.h>
 #include <stdio.h>
 
 #include <stdlib.h>
@@ -111,6 +112,9 @@ typedef struct LDKRHIGL33Backend
   LDKRHIBuffer current_index_buffer;
   uint32_t current_index_buffer_offset;
   LDKRHIIndexType current_index_type;
+  GLfloat line_width_min;
+  GLfloat line_width_max;
+  bool line_width_range_valid;
 } LDKRHIGL33Backend;
 
 static void ldk_rhi_gl33_reset_bound_state(LDKRHIGL33Backend* backend)
@@ -174,6 +178,59 @@ static char const* LDK_RHI_GL33_UI_PASS_FRAGMENT_SHADER =
 "  vec4 tex = texture(LDK_TEXTURE_1, v_uv);\n"
 "  out_color = tex * v_color;\n"
 "}\n";
+
+static char const *LDK_RHI_GL33_TEXT_PASS_VERTEX_SHADER =
+    "#version 330 core\n"
+    "layout(location = 0) in vec2 a_position;\n"
+    "layout(location = 1) in vec2 a_uv;\n"
+    "layout(location = 2) in vec4 a_color;\n"
+    "layout(std140) uniform LDK_UBO_0\n"
+    "{\n"
+    "  mat4 u_view;\n"
+    "  mat4 u_projection;\n"
+    "};\n"
+    "layout(std140) uniform LDK_UBO_1\n"
+    "{\n"
+    "  mat4 u_world;\n"
+    "  vec4 u_options;\n"
+    "};\n"
+    "out vec2 v_uv;\n"
+    "out vec4 v_color;\n"
+    "void main()\n"
+    "{\n"
+    "  mat4 world = u_world;\n"
+    "  if (u_options.x > 0.5)\n"
+    "  {\n"
+    "    vec3 camera_right = normalize(vec3(\n"
+    "        u_view[0][0], u_view[1][0], u_view[2][0]));\n"
+    "    vec3 camera_up = normalize(vec3(\n"
+    "        u_view[0][1], u_view[1][1], u_view[2][1]));\n"
+    "    vec3 camera_back = normalize(vec3(\n"
+    "        u_view[0][2], u_view[1][2], u_view[2][2]));\n"
+    "    vec3 axis_x = camera_right * world[0].x +\n"
+    "        camera_up * world[0].y;\n"
+    "    vec3 axis_y = camera_right * world[1].x +\n"
+    "        camera_up * world[1].y;\n"
+    "    float z_scale = length(world[2].xyz);\n"
+    "    world = mat4(vec4(axis_x, 0.0), vec4(axis_y, 0.0),\n"
+    "        vec4(camera_back * z_scale, 0.0), world[3]);\n"
+    "  }\n"
+    "  v_uv = a_uv;\n"
+    "  v_color = a_color;\n"
+    "  gl_Position = u_projection * u_view * world *\n"
+    "      vec4(a_position, 0.0, 1.0);\n"
+    "}\n";
+
+static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "in vec2 v_uv;\n"
+    "in vec4 v_color;\n"
+    "out vec4 out_color;\n"
+    "uniform sampler2D LDK_TEXTURE_2;\n"
+    "void main()\n"
+    "{\n"
+    "  out_color = texture(LDK_TEXTURE_2, v_uv) * v_color;\n"
+    "}\n";
 
 #define LDK_GL33_VEGETATION_GLSL                                            \
   "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n"       \
@@ -670,6 +727,20 @@ static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "{\n"
 "  out_color = v_color * u_material_color * v_instance_color;\n"
 "}\n";
+
+static char const *LDK_RHI_GL33_MESH_PASS_SOLID_UNLIT_FRAGMENT_SHADER =
+    "#version 330 core\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
+    "};\n"
+    "out vec4 out_color;\n"
+    "void main()\n"
+    "{\n"
+    "  out_color = u_material_color;\n"
+    "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
     "#version 330 core\n" LDK_GL33_SURFACE_GLSL LDK_GL33_LIGHTING_GLSL
@@ -1245,6 +1316,17 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
     }
   }
 
+  if (shader == LDK_SHADER_TEXT_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
+  {
+    return LDK_RHI_GL33_TEXT_PASS_VERTEX_SHADER;
+  }
+
+  if (shader == LDK_SHADER_TEXT_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER;
+  }
+
   if (shader == LDK_SHADER_UI_PASS && stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {
     return LDK_RHI_GL33_UI_PASS_VERTEX_SHADER;
@@ -1299,6 +1381,12 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_MESH_PASS_SOLID_UNLIT &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_MESH_PASS_SOLID_UNLIT_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_MESH_PASS_TEXTURED &&
@@ -1743,6 +1831,11 @@ static GLenum ldk_rhi_gl33_topology(LDKRHIPrimitiveTopology topology)
   return GL_TRIANGLES;
 }
 
+static GLenum ldk_rhi_gl33_polygon_mode(LDKRHIPolygonMode polygon_mode)
+{
+  return polygon_mode == LDK_RHI_POLYGON_MODE_LINE ? GL_LINE : GL_FILL;
+}
+
 static GLenum ldk_rhi_gl33_compare_op(LDKRHICompareOp op)
 {
   switch (op)
@@ -1868,16 +1961,18 @@ static void ldk_rhi_gl33_apply_pipeline_state(const LDKRHIGL33PipelineObject* pi
   }
 
   glFrontFace(pipeline->raster_state.front_face == LDK_RHI_FRONT_FACE_CW ? GL_CW : GL_CCW);
+  glPolygonMode(GL_FRONT_AND_BACK,
+      ldk_rhi_gl33_polygon_mode(pipeline->raster_state.polygon_mode));
 
+  glDisable(GL_POLYGON_OFFSET_FILL);
+  glDisable(GL_POLYGON_OFFSET_LINE);
   if (pipeline->raster_state.depth_bias_enabled)
   {
-    glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(pipeline->raster_state.polygon_mode == LDK_RHI_POLYGON_MODE_LINE
+            ? GL_POLYGON_OFFSET_LINE
+            : GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(pipeline->raster_state.depth_bias_slope_factor,
         pipeline->raster_state.depth_bias_constant_factor);
-  }
-  else
-  {
-    glDisable(GL_POLYGON_OFFSET_FILL);
   }
 
   if (pipeline->raster_state.scissor_enabled)
@@ -2899,6 +2994,38 @@ static void ldk_rhi_gl33_scissor_set(void* backend_user_data, const LDKRHIRect* 
   glScissor(scissor->x, y, scissor->width, scissor->height);
 }
 
+static void ldk_rhi_gl33_line_width_set(
+    void* backend_user_data, float line_width)
+{
+  LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
+
+  if (!backend->line_width_range_valid)
+  {
+    GLfloat range[2] = {1.0f, 1.0f};
+    glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, range);
+    if (!isfinite(range[0]) || !isfinite(range[1]) || range[0] <= 0.0f ||
+        range[1] < range[0])
+    {
+      range[0] = 1.0f;
+      range[1] = 1.0f;
+    }
+    backend->line_width_min = range[0];
+    backend->line_width_max = range[1];
+    backend->line_width_range_valid = true;
+  }
+
+  if (line_width < backend->line_width_min)
+  {
+    line_width = backend->line_width_min;
+  }
+  else if (line_width > backend->line_width_max)
+  {
+    line_width = backend->line_width_max;
+  }
+
+  glLineWidth(line_width);
+}
+
 static void ldk_rhi_gl33_draw(void* backend_user_data, const LDKRHIDrawDesc* desc)
 {
   LDKRHIGL33Backend* backend = (LDKRHIGL33Backend*)backend_user_data;
@@ -3063,6 +3190,7 @@ bool ldk_rhi_gl33_initialize(LDKRHIContext* context)
   functions.index_buffer_bind = ldk_rhi_gl33_index_buffer_bind;
   functions.viewport_set = ldk_rhi_gl33_viewport_set;
   functions.scissor_set = ldk_rhi_gl33_scissor_set;
+  functions.line_width_set = ldk_rhi_gl33_line_width_set;
   functions.draw = ldk_rhi_gl33_draw;
   functions.draw_indexed = ldk_rhi_gl33_draw_indexed;
   functions.draw_instanced = ldk_rhi_gl33_draw_instanced;

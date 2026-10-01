@@ -3,6 +3,7 @@
 #include <ldk_skybox_asset.h>
 #include "ldk_editor_internal.h"
 #include "ldk_ui_drag_n_drop.h"
+#include "module/ldk_entity.h"
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
@@ -923,6 +924,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_ASSET_MESH:
     snprintf(out, out_size, "<asset mesh>");
     break;
+  case LDK_FIELD_ASSET_FONT:
+    snprintf(out, out_size, "<asset font>");
+    break;
   case LDK_FIELD_RESOURCE_MESH:
     snprintf(out, out_size, "<resource mesh>");
     break;
@@ -931,6 +935,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     break;
   case LDK_FIELD_ASSET_SKYBOX:
     snprintf(out, out_size, "<asset skybox>");
+    break;
+  case LDK_FIELD_ASSET_AUDIO:
+    snprintf(out, out_size, "<asset audio>");
     break;
   default:
     snprintf(out, out_size, "<unsupported>");
@@ -1472,7 +1479,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose mesh",
-        "Meshes\0*.mesh\0\0", path.buf, sizeof(path.buf));
+        "Meshes\0*.mesh\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
@@ -1501,6 +1508,180 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
   if (x_handle_is_null(asset.h))
   {
     ldki_editor_log_error(editor, result.error);
+    return false;
+  }
+
+  *value = asset;
+  return true;
+}
+
+static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetFont *value, bool readonly)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  s_editor_inspector_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose font",
+        "Fonts\0*.ttf;*.otf\0\0", &path);
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Font",
+          "Choose a font inside the project's runtree folder.", &asset_path))
+  {
+    return false;
+  }
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+
+  LDKAssetFont asset =
+      ldk_asset_manager_font_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load font asset.");
+    return false;
+  }
+
+  *value = asset;
+  return true;
+}
+
+static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetAudio *value, bool readonly)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  s_editor_inspector_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose audio",
+        "Audio\0*.wav;*.mp3;*.flac\0\0", &path);
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Audio",
+          "Choose an audio file inside the project's runtree folder.",
+          &asset_path))
+  {
+    return false;
+  }
+
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+
+  LDKAssetAudio asset =
+      ldk_asset_manager_audio_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load audio asset.");
     return false;
   }
 
@@ -1563,7 +1744,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose material",
-        "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
+        "Materials\0*.tml\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -1675,7 +1856,7 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose skybox",
-        "Skyboxes\0*.skybox\0\0", path.buf, sizeof(path.buf));
+        "Skyboxes\0*.skybox\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -1806,6 +1987,24 @@ static void s_editor_inspector_field_draw(
       *(LDKAssetMesh *)field_value = value;
     }
 
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  if (field->type == LDK_FIELD_ASSET_FONT)
+  {
+    LDKAssetFont *value = (LDKAssetFont *)field_value;
+    (void)s_editor_inspector_font_asset_field(
+        editor, display_name, value, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  if (field->type == LDK_FIELD_ASSET_AUDIO)
+  {
+    LDKAssetAudio *value = (LDKAssetAudio *)field_value;
+    (void)s_editor_inspector_audio_asset_field(
+        editor, display_name, value, readonly);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2122,9 +2321,11 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_MAT4:
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
+  case LDK_FIELD_ASSET_FONT:
   case LDK_FIELD_RESOURCE_MESH:
   case LDK_FIELD_ASSET_MATERIAL:
   case LDK_FIELD_ASSET_SKYBOX:
+  case LDK_FIELD_ASSET_AUDIO:
   default:
     s_editor_inspector_field_value_format(
         value_text, sizeof(value_text), field, field_value);
@@ -2503,8 +2704,7 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
-        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path.buf,
-        sizeof(path.buf));
+        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -2839,8 +3039,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
       XFSPath path = {0};
 
       if (ldk_os_dialog_show_save_file(editor->window,
-              "Create material", "Materials\0*.tml\0\0",
-              path.buf, sizeof(path.buf)))
+              "Create material", "Materials\0*.tml\0\0", &path))
       {
         LDKAssetPath asset_path;
         if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -2916,8 +3115,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     XFSPath path = {0};
 
     if (ldk_os_dialog_show_save_file(editor->window,
-            "Create material", "Materials\0*.tml\0\0",
-            path.buf, sizeof(path.buf)))
+            "Create material", "Materials\0*.tml\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -3031,7 +3229,7 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   {
     XFSPath path = {0};
     if (ldk_os_dialog_show_save_file(editor->window, "Create material",
-            "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
+            "Materials\0*.tml\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,

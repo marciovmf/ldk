@@ -1,4 +1,5 @@
 #include <module/ldk_rhi.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -286,6 +287,12 @@ static bool ldk_rhi_is_valid_cull_mode(LDKRHICullMode cull_mode)
   return cull_mode >= LDK_RHI_CULL_MODE_NONE && cull_mode <= LDK_RHI_CULL_MODE_BACK;
 }
 
+static bool ldk_rhi_is_valid_polygon_mode(LDKRHIPolygonMode polygon_mode)
+{
+  return polygon_mode >= LDK_RHI_POLYGON_MODE_FILL &&
+         polygon_mode <= LDK_RHI_POLYGON_MODE_LINE;
+}
+
 static bool ldk_rhi_is_valid_front_face(LDKRHIFrontFace front_face)
 {
   return front_face >= LDK_RHI_FRONT_FACE_CCW && front_face <= LDK_RHI_FRONT_FACE_CW;
@@ -379,7 +386,9 @@ static bool ldk_rhi_is_valid_raster_state(const LDKRHIRasterState* state)
     return false;
   }
 
-  return ldk_rhi_is_valid_cull_mode(state->cull_mode) && ldk_rhi_is_valid_front_face(state->front_face);
+  return ldk_rhi_is_valid_cull_mode(state->cull_mode) &&
+         ldk_rhi_is_valid_polygon_mode(state->polygon_mode) &&
+         ldk_rhi_is_valid_front_face(state->front_face);
 }
 
 static bool ldk_rhi_has_backend(const LDKRHIContext* context)
@@ -489,6 +498,7 @@ void ldk_rhi_raster_state_defaults(LDKRHIRasterState* state)
 
   memset(state, 0, sizeof(*state));
   state->cull_mode = LDK_RHI_CULL_MODE_BACK;
+  state->polygon_mode = LDK_RHI_POLYGON_MODE_FILL;
   state->front_face = LDK_RHI_FRONT_FACE_CCW;
 }
 
@@ -1451,6 +1461,17 @@ void ldk_rhi_scissor_set(LDKRHIContext* context, const LDKRHIRect* scissor)
       scissor != NULL && context->functions.scissor_set != NULL)
   {
     context->functions.scissor_set(context->backend_user_data, scissor);
+  }
+}
+
+void ldk_rhi_line_width_set(LDKRHIContext* context, float line_width)
+{
+  if (ldk_rhi_has_backend(context) && context->frame_active &&
+      context->pass_active && isfinite(line_width) && line_width > 0.0f &&
+      context->functions.line_width_set != NULL)
+  {
+    context->functions.line_width_set(
+        context->backend_user_data, line_width);
   }
 }
 

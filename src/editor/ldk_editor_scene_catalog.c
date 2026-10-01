@@ -647,13 +647,12 @@ static void s_catalog_add_full_path(
 static void s_catalog_add_dialog(LDKEditorContext *editor)
 {
   XFSPath selected = {0};
-  if (!ldk_os_dialog_show_open_file(editor->window, "Add Scene", "*.scene",
-                                    selected.buf, sizeof(selected.buf)))
+  if (!ldk_os_dialog_show_open_file(
+          editor->window, "Add Scene", "*.scene", &selected))
   {
     return;
   }
 
-  selected.length = (u32)strlen(selected.buf);
   s_catalog_add_full_path(editor, &selected);
 }
 

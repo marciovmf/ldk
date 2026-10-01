@@ -78,6 +78,39 @@ static LDKEditorContext *s_editor_instance(void)
   return &editor;
 }
 
+static float s_editor_ui_scale_validated(float scale)
+{
+  return isfinite(scale) && scale >= 0.5f && scale <= 3.0f ? scale : 1.0f;
+}
+
+void ldki_editor_mouse_state_get(
+    const LDKEditorContext *editor, LDKMouseState *out_state)
+{
+  float scale;
+
+  if (out_state == NULL)
+  {
+    return;
+  }
+
+  ldk_os_mouse_state_get(out_state);
+  scale = editor != NULL
+              ? s_editor_ui_scale_validated(editor->ui_frame_scale)
+              : 1.0f;
+
+  if (scale == 1.0f)
+  {
+    return;
+  }
+
+  out_state->cursor.x = (i32)lroundf((float)out_state->cursor.x / scale);
+  out_state->cursor.y = (i32)lroundf((float)out_state->cursor.y / scale);
+  out_state->cursor_relative.x =
+      (i32)lroundf((float)out_state->cursor_relative.x / scale);
+  out_state->cursor_relative.y =
+      (i32)lroundf((float)out_state->cursor_relative.y / scale);
+}
+
 static LDKRendererViewId s_editor_view_id_from_entity(LDKEntity entity)
 {
   return ((u64)entity.version << 32u) | ((u64)entity.index + 1u);
@@ -207,15 +240,13 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
 
   while (true)
   {
-    char selected_path[X_SMALLSTR_MAX_LENGTH] = {0};
     bool selected = ldk_os_dialog_show_open_file(owner,
         "Locate CMake 4.3 or newer", "CMake executable\0cmake.exe\0\0",
-        selected_path, sizeof(selected_path));
+        &cmake_path);
 
     if (!selected)
       return (XFSPath){0};
 
-    x_fs_path_set(&cmake_path, selected_path);
     x_fs_path_normalize(&cmake_path);
 
     if (x_fs_path_is_file(&cmake_path) &&
@@ -1440,8 +1471,10 @@ static void s_editor_game_window(LDKEditor *opaque_editor, void *data)
 
   s_editor_game_statistics_overlay(editor, image_rect);
 
-  ldk_input_game_view_set(image_rect.x, image_rect.y, image_rect.w,
-      image_rect.h, editor->renderer->game_width,
+  ldk_input_game_view_set(image_rect.x * editor->ui_frame_scale,
+      image_rect.y * editor->ui_frame_scale,
+      image_rect.w * editor->ui_frame_scale,
+      image_rect.h * editor->ui_frame_scale, editor->renderer->game_width,
       editor->renderer->game_height);
 }
 
@@ -1516,11 +1549,13 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
 {
   LDKMouseState mouse_state;
   LDKKeyboardState kbd_state;
+  editor->ui_frame_scale =
+      s_editor_ui_scale_validated(editor->editor_ui_scale);
   LDKUIRect ui_viewport = (LDKUIRect){.x = 0.0f,
       .y = 0.0f,
-      .w = (float)window_width,
-      .h = (float)window_height};
-  ldk_os_mouse_state_get(&mouse_state);
+      .w = (float)window_width / editor->ui_frame_scale,
+      .h = (float)window_height / editor->ui_frame_scale};
+  ldki_editor_mouse_state_get(editor, &mouse_state);
   ldk_os_keyboard_state_get(&kbd_state);
   ldk_input_game_view_clear();
   ldki_editor_gizmo_begin_ui_frame(editor);
@@ -1793,6 +1828,7 @@ static bool s_editor_config_load_from_ini(
   const char *EDITOR = ".editor";
   const char *font_path;
   const char *last_project;
+  rgba32 legacy_selection_color;
 
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
   if (editor->editor_font_size < 6 || editor->editor_font_size > 96)
@@ -1807,6 +1843,51 @@ static bool s_editor_config_load_from_ini(
   {
     ldk_log_warning("Invalid .editor ui_scale. Falling back to 1.0.\n");
     editor->editor_ui_scale = 1.0f;
+  }
+
+  editor->debug_color = x_ini_get_u32(
+      ini, EDITOR, "debug_color", LDK_EDITOR_DEBUG_COLOR_DEFAULT);
+
+  legacy_selection_color = x_ini_get_u32(
+      ini, EDITOR, "selection_color", LDK_EDITOR_SELECTION_COLOR_1_DEFAULT);
+  editor->selection_color_1 = x_ini_get_u32(
+      ini, EDITOR, "selection_color_1", legacy_selection_color);
+  editor->selection_color_2 = x_ini_get_u32(
+      ini, EDITOR, "selection_color_2", LDK_EDITOR_SELECTION_COLOR_2_DEFAULT);
+
+  editor->debug_line_width = x_ini_get_f32(ini, EDITOR,
+      "debug_line_width", LDK_EDITOR_DEBUG_LINE_WIDTH_DEFAULT);
+  if (!isfinite(editor->debug_line_width) ||
+      editor->debug_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      editor->debug_line_width > LDK_EDITOR_LINE_WIDTH_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor debug_line_width. Falling back to 1.0.\n");
+    editor->debug_line_width = LDK_EDITOR_DEBUG_LINE_WIDTH_DEFAULT;
+  }
+
+  editor->selection_line_width = x_ini_get_f32(ini, EDITOR,
+      "selection_line_width", LDK_EDITOR_SELECTION_LINE_WIDTH_DEFAULT);
+  if (!isfinite(editor->selection_line_width) ||
+      editor->selection_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
+      editor->selection_line_width > LDK_EDITOR_LINE_WIDTH_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor selection_line_width. Falling back to 1.0.\n");
+    editor->selection_line_width = LDK_EDITOR_SELECTION_LINE_WIDTH_DEFAULT;
+  }
+
+  editor->selection_pulse_seconds = x_ini_get_f32(ini, EDITOR,
+      "selection_pulse_seconds", LDK_EDITOR_SELECTION_PULSE_SECONDS_DEFAULT);
+  if (!isfinite(editor->selection_pulse_seconds) ||
+      editor->selection_pulse_seconds <
+          LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN ||
+      editor->selection_pulse_seconds > LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX)
+  {
+    ldk_log_warning(
+        "Invalid .editor selection_pulse_seconds. Falling back to 3.0.\n");
+    editor->selection_pulse_seconds =
+        LDK_EDITOR_SELECTION_PULSE_SECONDS_DEFAULT;
   }
 
   editor->restore_last_project =
@@ -4169,12 +4250,11 @@ bool ldki_editor_show_open_project_dialog(
 
   if (!ldk_os_dialog_show_open_file(
           editor->window, "Open Project", "ldk Project\0*.ldk\0\0\0",
-          out.buf, X_SMALLSTR_MAX_LENGTH))
+          &out))
   {
     return false;
   }
 
-  x_fs_path_set(&out, out.buf);
   x_fs_path_normalize(&out);
 
   if (!ldki_editor_project_open_request(editor, out.buf))

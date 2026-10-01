@@ -196,7 +196,8 @@ static void s_instanced_mesh_source_destroy(LDKEntityRegistry *entities,
   source->instance_colors = NULL;
   source->instance_count = 0;
   source->instance_capacity = 0;
-  if (ldk_entity_component_has(entities, entity, LDK_COMPONENT_TYPE_MESH_SOURCE))
+  if (ldk_entity_component_has(entities, entity, LDK_COMPONENT_TYPE_MESH_SOURCE) ||
+      ldk_entity_component_has(entities, entity, LDK_COMPONENT_TYPE_TEXT3D))
   {
     ldk_entity_internal_flags_add(
         entities, entity, LDK_ENTITY_INTERNAL_HAS_RENDERABLE);

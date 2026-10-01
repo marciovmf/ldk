@@ -25,8 +25,9 @@
 #define LDK_EDITOR_GIZMO_ROTATION_RING_INNER_RADIUS 0.947384f
 #define LDK_EDITOR_GIZMO_ROTATION_RING_HALF_DEPTH 0.023540f
 #define LDK_EDITOR_GIZMO_ROTATION_RADIUS_SCALE 0.88f
-#define LDK_EDITOR_GIZMO_ROTATION_ORIGIN_LINE_SCALE 0.018f
+#define LDK_EDITOR_GIZMO_ROTATION_ORIGIN_LINE_SCALE 0.1f
 #define LDK_EDITOR_GIZMO_PI 3.14159265358979323846f
+#define LDK_EDITOR_SELECTION_LINE_WIDTH_BASE 3.0f
 
 typedef struct LDKEditorGizmoRay
 {
@@ -1259,6 +1260,7 @@ static const LDKEditorComponentIconRule s_component_icon_rules[] = {
     {LDK_COMPONENT_TYPE_SPOT_LIGHT, LDK_EDITOR_ICON_LIGHT_SPOT},
     {LDK_COMPONENT_TYPE_DIRECTIONAL_LIGHT, LDK_EDITOR_ICON_LIGHT_DIRECTIONAL},
     {LDK_COMPONENT_TYPE_PARTICLE_EMITTER, LDK_EDITOR_ICON_PARTICLE},
+    {LDK_COMPONENT_TYPE_AUDIO_SOURCE, LDK_EDITOR_ICON_AUDIO},
 };
 
 typedef struct LDKEditorComponentIconContext
@@ -1320,7 +1322,7 @@ static bool s_editor_component_icon_draw(LDKEntity entity, void *user)
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.uv = ldk_editor_icon_rects[rule->icon];
   icon.color = ldki_editor_entity_equal(editor->selected_entity, entity)
-      ? 0xFFD060FFu : 0xFFFFFFFFu;
+      ? editor->selection_color_1 : 0xFFFFFFFFu;
   /* UI composition over the scene image gives camera-facing icons with no
    * scene depth test, at a constant screen size. */
   ldk_ui_widget_icon_label(ui, 0, icon, "", rect);
@@ -1373,7 +1375,7 @@ bool ldki_editor_component_icons_show(
   if (hovered)
   {
     /* In overlapping hit regions the nearest icon is drawn last and selected. */
-    context.hit_icon.color = 0xFFD060FFu;
+    context.hit_icon.color = editor->selection_color_1;
     ldk_ui_widget_icon_label(ui, 0, context.hit_icon, "", context.hit_rect);
     editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
     if (out_hovered)
@@ -1613,7 +1615,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     return;
   }
 
-  ldk_os_mouse_state_get(&mouse);
+  ldki_editor_mouse_state_get(editor, &mouse);
   if (!s_editor_gizmo_rect_contains(&editor->gizmo.scene_view_rect,
           (float)mouse.cursor.x, (float)mouse.cursor.y))
   {
@@ -1950,7 +1952,7 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
     return;
   }
 
-  ldk_os_mouse_state_get(&mouse);
+  ldki_editor_mouse_state_get(editor, &mouse);
   released = ldk_os_mouse_button_up(&mouse, LDK_MOUSE_BUTTON_LEFT);
   if (!released &&
       !ldk_os_mouse_button_is_pressed(&mouse, LDK_MOUSE_BUTTON_LEFT))
@@ -2127,11 +2129,88 @@ static void s_editor_spot_volume_draw(const LDKDebugDraw *draw,
   }
 }
 
+static rgba32 s_editor_color_rgb_lerp(rgba32 a, rgba32 b, float t)
+{
+  u32 ar;
+  u32 ag;
+  u32 ab;
+  u32 br;
+  u32 bg;
+  u32 bb;
+  u32 r;
+  u32 g;
+  u32 blue;
+
+  t = float_clamp(t, 0.0f, 1.0f);
+  ar = (a >> 24) & 0xffu;
+  ag = (a >> 16) & 0xffu;
+  ab = (a >> 8) & 0xffu;
+  br = (b >> 24) & 0xffu;
+  bg = (b >> 16) & 0xffu;
+  bb = (b >> 8) & 0xffu;
+
+  r = (u32)((float)ar + ((float)br - (float)ar) * t + 0.5f);
+  g = (u32)((float)ag + ((float)bg - (float)ag) * t + 0.5f);
+  blue = (u32)((float)ab + ((float)bb - (float)ab) * t + 0.5f);
+  return (r << 24) | (g << 16) | (blue << 8) | (a & 0xffu);
+}
+
+static void s_editor_selected_mesh_draw(LDKEditorContext *editor,
+    const LDKEditorGizmoTarget *target, Mat4 world)
+{
+  if (!editor || !target || !editor->renderer)
+  {
+    return;
+  }
+
+  const LDKMeshSource *source = target->instances
+      ? &target->instances->source
+      : ldk_ecs_component_get(
+            target->entity, LDK_COMPONENT_TYPE_MESH_SOURCE);
+  if (!source ||
+      !ldk_renderer_mesh_is_valid(editor->renderer, source->renderer_mesh))
+  {
+    return;
+  }
+
+  rgba32 color = editor->selection_color_1;
+  if (editor->selection_pulse_seconds > 0.0f)
+  {
+    float phase = editor->renderer->animation_time_seconds *
+        (LDK_EDITOR_GIZMO_PI * 2.0f / editor->selection_pulse_seconds);
+    float pulse = 0.5f - 0.5f * cosf(phase);
+    color = s_editor_color_rgb_lerp(
+        editor->selection_color_1, editor->selection_color_2, pulse);
+  }
+
+  u32 flags = source->billboard
+      ? LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD
+      : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+  ldk_renderer_submit_wireframe_mesh_to_view(editor->renderer,
+      editor->scene_view, source->renderer_mesh, world, color,
+      LDK_EDITOR_SELECTION_LINE_WIDTH_BASE * editor->selection_line_width,
+      flags);
+}
+
+static rgba32 s_editor_color_rgb_scale(rgba32 color, float scale)
+{
+  u32 r;
+  u32 g;
+  u32 b;
+
+  scale = float_clamp(scale, 0.0f, 1.0f);
+  r = (u32)((float)((color >> 24) & 0xffu) * scale + 0.5f);
+  g = (u32)((float)((color >> 16) & 0xffu) * scale + 0.5f);
+  b = (u32)((float)((color >> 8) & 0xffu) * scale + 0.5f);
+  return (r << 24) | (g << 16) | (b << 8) | (color & 0xffu);
+}
+
 static void s_editor_selected_component_draw(LDKEditorContext *editor,
     LDKEntity selected, Mat4 world)
 {
   LDKDebugDraw draw = ldk_debug_draw_make(editor->renderer, editor->scene_view);
-  draw.color = 0xffd060ffu;
+  draw.thickness *= editor->debug_line_width;
+  draw.color = editor->debug_color;
   Vec3 origin = vec3_make(world.m[12], world.m[13], world.m[14]);
   const LDKPointLight *point =
       ldk_ecs_component_get(selected, LDK_COMPONENT_TYPE_POINT_LIGHT);
@@ -2173,7 +2252,9 @@ static void s_editor_selected_component_draw(LDKEditorContext *editor,
               spot->range, spot->outer_angle);
           if (spot->inner_angle != spot->outer_angle)
           {
-            draw.color = spot->enabled ? 0xb09050ffu : 0x606060ffu;
+            draw.color = spot->enabled
+                ? s_editor_color_rgb_scale(editor->debug_color, 0.7f)
+                : 0x606060ffu;
             s_editor_spot_volume_draw(&draw, origin, direction,
                 spot->range, spot->inner_angle);
           }
@@ -2207,7 +2288,7 @@ static void s_editor_selected_component_draw(LDKEditorContext *editor,
       Mat4 inverse = mat4_inverse_full(mat4_mul(projection, view), &invertible);
       if (invertible)
       {
-        draw.color = 0xffd060ffu;
+        draw.color = editor->debug_color;
         ldk_debug_draw_frustum(&draw, inverse);
       }
     }
@@ -2242,6 +2323,8 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
   {
     return;
   }
+
+  s_editor_selected_mesh_draw(editor, &target, target_world);
 
   if (target.instances == NULL)
   {

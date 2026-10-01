@@ -28,7 +28,8 @@ extern "C"
     LDK_ASSET_TYPE_IMAGE = 3,
     LDK_ASSET_TYPE_MESH = 4,
     LDK_ASSET_TYPE_MATERIAL = 5,
-    LDK_ASSET_TYPE_SKYBOX = 6
+    LDK_ASSET_TYPE_SKYBOX = 6,
+    LDK_ASSET_TYPE_AUDIO = 7
   } LDKAssetType;
 
   typedef struct LDKAssetHandle
@@ -65,6 +66,11 @@ extern "C"
   {
     LDKHandle h;
   } LDKAssetSkybox;
+
+  typedef struct LDKAssetAudio
+  {
+    LDKHandle h;
+  } LDKAssetAudio;
 
 #ifdef __cplusplus
 }

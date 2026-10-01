@@ -19,6 +19,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 1
       parent: -1
@@ -149,6 +150,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange_small"
     - entity: 6
       parent: -1
@@ -165,6 +167,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange_small"
     - entity: 7
       parent: -1
@@ -181,6 +184,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/materials/castle_checkers.tml"
     - entity: 8
       parent: -1
@@ -197,6 +201,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 9
       parent: -1
@@ -213,6 +218,7 @@ scene:
             source_asset: "builtin:mesh/sphere"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange_small"
     - entity: 10
       parent: -1
@@ -229,6 +235,7 @@ scene:
             source_asset: "builtin:mesh/capsule"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
@@ -249,6 +256,7 @@ scene:
             source_asset: "builtin:mesh/cone"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
@@ -269,6 +277,7 @@ scene:
             source_asset: "builtin:mesh/capsule"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
@@ -294,6 +303,7 @@ scene:
             source_asset: "builtin:mesh/cone"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
@@ -314,6 +324,7 @@ scene:
             source_asset: "builtin:mesh/cube"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/materials/container.tml"
     - entity: 15
       parent: -1
@@ -330,6 +341,7 @@ scene:
             source_asset: "assets/mesh/tree.mesh"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             materials:
               - slot: 0
                 material_type: 4
@@ -359,6 +371,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 17
       parent: -1
@@ -375,6 +388,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 18
       parent: -1
@@ -391,6 +405,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 19
       parent: -1
@@ -407,6 +422,7 @@ scene:
             source_asset: "builtin:mesh/quad"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_asset: "assets/checkers_orange"
     - entity: 20
       parent: -1
@@ -423,6 +439,7 @@ scene:
             source_asset: "assets/mesh/tree.mesh"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             materials:
               - slot: 0
                 material_type: 4
@@ -458,6 +475,7 @@ scene:
             source_asset: -1
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
@@ -508,11 +526,38 @@ scene:
             source_asset: "builtin:mesh/capsule"
             mesh_index: 0
             casts_shadows: true
+            billboard: false
             material_type: 4
             material_color: 0xffffffff
             material_specular: 0
             material_shininess: 32
             material_emission: 0
+    - entity: 23
+      parent: -1
+      flags: 0
+      name: "Text"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 2.15608525, 3.16419220
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967285 # LDKText3DComponent
+          fields:
+            text: "Hello, Sailor!"
+            font: "assets/InterDisplay-Regular.ttf"
+            pixel_height: 256.000000
+            color: 4294967295
+            billboard: true
+            depth_test: true
+        - type: 4294967284 # LDKAudioSource
+          fields:
+            audio: "audio/ambient-music.mp3"
+            priority: 1
+            range: 10.0000000
+            volume: 0.895678103
+            loop: true
+            play_on_start: true
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
       grouping: "0x8000000000000003"

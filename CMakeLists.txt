@@ -473,6 +473,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_geom.h         src/ldk_geom.c
   ${INCLUDE_DIR}/ldk_argparse.h     src/ldk_argparse.c
   ${INCLUDE_DIR}/ldk_ttf.h          src/ldk_ttf.c
+  ${INCLUDE_DIR}/ldk_text.h         src/ldk_text.c
   ${INCLUDE_DIR}/ldk_image.h        src/ldk_image.c
   ${INCLUDE_DIR}/ldk_package.h      src/ldk_package.c
   ${INCLUDE_DIR}/ldk_project.h      src/ldk_project.c
@@ -482,6 +483,8 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
   ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
   # Modules
+  ${INCLUDE_DIR}/module/ldk_audio.h           src/module/ldk_audio.c
+  src/depend/miniaudio/miniaudio.h
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
   ${INCLUDE_DIR}/module/ldk_component.h       src/module/ldk_component.c
@@ -500,12 +503,15 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
   ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_text3d.h       src/component/ldk_text3d.c
   ${INCLUDE_DIR}/component/ldk_instanced_mesh_source.h
   src/component/ldk_instanced_mesh_source.c
   ${INCLUDE_DIR}/component/ldk_particle_emitter.h
   src/component/ldk_particle_emitter.c
   ${INCLUDE_DIR}/component/ldk_post_processing.h
   src/component/ldk_post_processing.c
+  ${INCLUDE_DIR}/component/ldk_audio_source.h
+  src/component/ldk_audio_source.c
 
   # Systems
   ${INCLUDE_DIR}/system/ldk_grass.h
@@ -515,6 +521,29 @@ list(APPEND LDK_SOURCE
 )
 
 if (WIN32)
+  set(LDK_WINDOWS_DPI_MANIFEST
+    "${LDK_ROOT_DIR}/src/ldk_windows_dpi.manifest"
+  )
+
+  function(ldk_target_dpi_aware TARGET_NAME)
+    if (MSVC)
+      # Let CMake's vs_link_exe wrapper merge and embed the manifest once.
+      target_sources(${TARGET_NAME} PRIVATE
+        "${LDK_WINDOWS_DPI_MANIFEST}"
+      )
+    else()
+      # Resource-script fallback for other Windows toolchains.
+      configure_file(
+        "${LDK_ROOT_DIR}/src/ldk_windows_resources.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/ldk_windows_resources.rc"
+        @ONLY
+      )
+      target_sources(${TARGET_NAME} PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}/ldk_windows_resources.rc"
+      )
+    endif()
+  endfunction()
+
   list(APPEND LDK_SOURCE
     src/ldk_os_win32.c
   )
@@ -625,6 +654,7 @@ if (NOT OPTION_LDK_USE_PREBUILT)
   set(LDK_ENGINE_METADATA_INPUTS
     ${LDK_ENGINE_COMPONENT_HEADERS}
     ${LDK_ENGINE_SYSTEM_HEADERS}
+    ${INCLUDE_DIR}/module/ldk_audio.h
   )
 
   set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
@@ -701,6 +731,7 @@ if (OPTION_BUILD_EDITOR)
   set_target_properties(ldk_editor PROPERTIES PDB_NAME "ldk_editor")
   add_dependencies(ldk_editor comet) # make sure the tools are built
   ldk_target_defaults(ldk_editor)
+  ldk_target_dpi_aware(ldk_editor)
 
   target_include_directories(ldk_editor PRIVATE
     ${INCLUDE_DIR}
@@ -793,6 +824,7 @@ if (OPTION_BUILD_GAME_LAUNCHER)
 
   add_executable(ldk_launcher src/launcher/ldk_app_launcher.c)
   ldk_target_defaults(ldk_launcher)
+  ldk_target_dpi_aware(ldk_launcher)
 
   target_include_directories(ldk_launcher PRIVATE
     ${INCLUDE_DIR}

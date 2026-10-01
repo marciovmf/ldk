@@ -18,6 +18,16 @@
 #define LDK_EDITOR_COLOR_FOLDER 0xFFFFFFFF
 #define LDK_EDITOR_COLOR_ICON_ERROR 0xE71A2DFF
 #define LDK_EDITOR_COLOR_ICON_WARNING 0xF7B217FF
+#define LDK_EDITOR_DEBUG_COLOR_DEFAULT 0xFFD060FFu
+#define LDK_EDITOR_SELECTION_COLOR_1_DEFAULT 0xFF00FFFFu
+#define LDK_EDITOR_SELECTION_COLOR_2_DEFAULT 0xFFFFFFFFu
+#define LDK_EDITOR_DEBUG_LINE_WIDTH_DEFAULT 1.0f
+#define LDK_EDITOR_SELECTION_LINE_WIDTH_DEFAULT 1.0f
+#define LDK_EDITOR_LINE_WIDTH_MIN 0.1f
+#define LDK_EDITOR_LINE_WIDTH_MAX 10.0f
+#define LDK_EDITOR_SELECTION_PULSE_SECONDS_DEFAULT 3.0f
+#define LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN 0.0f
+#define LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX 10.0f
 
 #define LDK_EDITOR_STATUS_BAR_HEIGHT                                          \
   (LDK_UI_DEFAULT_PADDING + LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_SPACING)
@@ -272,6 +282,7 @@ typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
+  float ui_frame_scale;
   float inspector_label_width;
   float project_label_width;
   float settings_label_width;
@@ -338,6 +349,12 @@ typedef struct LDKEditorContext
   XSmallstr editor_theme;
   i32 editor_font_size;
   float editor_ui_scale;
+  rgba32 debug_color;
+  rgba32 selection_color_1;
+  rgba32 selection_color_2;
+  float debug_line_width;
+  float selection_line_width;
+  float selection_pulse_seconds;
   bool restore_last_project;
   XFSPath last_project_path;
   float editor_camera_fov;
@@ -352,6 +369,8 @@ typedef struct LDKEditorContext
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_status_show(LDKEditorContext *editor);
+void ldki_editor_mouse_state_get(
+    const LDKEditorContext *editor, LDKMouseState *out_state);
 void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_inspector_show(LDKEditorContext *editor);
 bool ldki_editor_project_settings_apply(

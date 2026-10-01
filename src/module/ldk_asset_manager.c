@@ -122,6 +122,16 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
       free(data);
     }
   }
+  else if (info->type == LDK_ASSET_TYPE_AUDIO)
+  {
+    LDKAssetAudioData* data = (LDKAssetAudioData*)info->data;
+
+    if (data)
+    {
+      free(data->encoded_data);
+      free(data);
+    }
+  }
 
   else if (info->type == LDK_ASSET_TYPE_MATERIAL ||
            info->type == LDK_ASSET_TYPE_SKYBOX)
@@ -180,14 +190,63 @@ void ldk_asset_manager_terminate(LDKAssetManager* manager)
   memset(manager, 0, sizeof(*manager));
 }
 
+static bool s_asset_is_referenced_audio(const LDKAssetInfo *info)
+{
+  const LDKAssetAudioData *audio;
+
+  if (!info || info->type != LDK_ASSET_TYPE_AUDIO)
+  {
+    return false;
+  }
+
+  audio = (const LDKAssetAudioData *)info->data;
+  return audio && audio->ref_count > 0;
+}
+
 void ldk_asset_manager_clear(LDKAssetManager* manager)
 {
+  XHPoolIter it;
+  XHandle handle;
+  LDKAssetInfo *info;
+  XHandle *to_release;
+  u32 release_count = 0;
+  u32 capacity;
+
   if (!manager)
   {
     return;
   }
 
-  x_hpool_clear(&manager->pool);
+  capacity = x_hpool_alive_count(&manager->pool);
+  if (capacity == 0)
+  {
+    return;
+  }
+
+  to_release = (XHandle *)malloc(sizeof(*to_release) * capacity);
+  if (!to_release)
+  {
+    return;
+  }
+
+  for (info = (LDKAssetInfo *)x_hpool_iter_begin(
+           &manager->pool, &it, &handle);
+       info;
+       info = (LDKAssetInfo *)x_hpool_iter_next(
+           &manager->pool, &it, &handle))
+  {
+    if (!s_asset_is_referenced_audio(info))
+    {
+      to_release[release_count++] = handle;
+    }
+  }
+
+  for (u32 i = 0; i < release_count; ++i)
+  {
+    x_hpool_free(&manager->pool, to_release[i]);
+  }
+
+  free(to_release);
 }
 
 LDKAssetHandle ldk_asset_handle_null(void)
@@ -829,6 +888,47 @@ LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* p
   return result;
 }
 
+typedef struct LDKSharedFontLookup
+{
+  LDKAssetPath path;
+  u64 source_revision;
+  LDKAssetFont font;
+} LDKSharedFontLookup;
+
+static bool s_shared_font_find(
+    LDKAssetHandle asset, LDKAssetInfo *info, void *user)
+{
+  LDKSharedFontLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_FONT &&
+      info->source_revision == lookup->source_revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->font.h = asset.h;
+    return false;
+  }
+  return true;
+}
+
+LDKAssetFont ldk_asset_manager_font_load_shared(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedFontLookup lookup = {0};
+  lookup.font = ldk_asset_font_null();
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return lookup.font;
+  }
+
+  lookup.source_revision = manager->source->revision;
+  ldk_asset_foreach(manager, s_shared_font_find, &lookup);
+  if (x_handle_is_null(lookup.font.h))
+  {
+    lookup.font = ldk_asset_manager_font_load(manager, lookup.path.buf);
+  }
+  return lookup.font;
+}
+
 void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset)
 {
   if (!manager)
@@ -860,6 +960,149 @@ LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetF
 const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset)
 {
   return ldk_asset_manager_font_get(manager, asset);
+}
+
+// ---------------------------------------------------------------------------
+// Audio asset
+// ---------------------------------------------------------------------------
+
+static LDKAssetAudio s_asset_audio_from_handle(XHandle h)
+{
+  LDKAssetAudio out = { h };
+  return out;
+}
+
+LDKAssetAudio ldk_asset_audio_null(void)
+{
+  return s_asset_audio_from_handle(x_handle_null());
+}
+
+bool ldk_asset_manager_audio_is_alive(
+    LDKAssetManager* manager, LDKAssetAudio asset)
+{
+  LDKAssetHandle generic = { asset.h };
+
+  if (!ldk_asset_handle_is_alive(manager, generic))
+  {
+    return false;
+  }
+
+  return ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_AUDIO;
+}
+
+typedef struct LDKSharedAudioLookup
+{
+  LDKAssetPath path;
+  u64 source_revision;
+  LDKAssetAudio audio;
+} LDKSharedAudioLookup;
+
+static bool s_shared_audio_find(
+    LDKAssetHandle asset, LDKAssetInfo* info, void* user)
+{
+  LDKSharedAudioLookup* lookup = user;
+
+  if (info->type == LDK_ASSET_TYPE_AUDIO &&
+      info->source_revision == lookup->source_revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->audio.h = asset.h;
+    return false;
+  }
+
+  return true;
+}
+
+LDKAssetAudio ldk_asset_manager_audio_load_shared(
+    LDKAssetManager* manager, const char* path)
+{
+  LDKSharedAudioLookup lookup = {0};
+  LDKAssetPath asset_path;
+  LDKAssetAudioData* data;
+  LDKAssetInfo* info;
+  void* encoded_data;
+  u64 encoded_size = 0;
+  XHandle handle;
+
+  lookup.audio = ldk_asset_audio_null();
+  if (!manager || !manager->source ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return lookup.audio;
+  }
+
+  lookup.source_revision = manager->source->revision;
+  ldk_asset_foreach(manager, s_shared_audio_find, &lookup);
+  if (!x_handle_is_null(lookup.audio.h))
+  {
+    return lookup.audio;
+  }
+
+  encoded_data = s_asset_source_read(
+      manager, lookup.path.buf, &asset_path, &encoded_size, false);
+  if (!encoded_data || encoded_size == 0)
+  {
+    free(encoded_data);
+    return lookup.audio;
+  }
+
+  data = (LDKAssetAudioData*)calloc(1, sizeof(*data));
+  if (!data)
+  {
+    free(encoded_data);
+    return lookup.audio;
+  }
+
+  handle = x_hpool_alloc(&manager->pool);
+  if (x_handle_is_null(handle))
+  {
+    free(encoded_data);
+    free(data);
+    return lookup.audio;
+  }
+
+  info = (LDKAssetInfo*)x_hpool_get(&manager->pool, handle);
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, handle);
+    free(encoded_data);
+    free(data);
+    return lookup.audio;
+  }
+
+  data->encoded_data = encoded_data;
+  data->encoded_size = encoded_size;
+  data->ref_count = 0;
+
+  info->type = LDK_ASSET_TYPE_AUDIO;
+  info->data = data;
+  info->asset_path = asset_path;
+  info->source_revision = manager->source->revision;
+#ifdef LDK_DEBUG
+  info->load_timestamp = (u64)time(NULL);
+#endif
+
+  return s_asset_audio_from_handle(handle);
+}
+
+LDKAssetAudioData* ldk_asset_manager_audio_get(
+    LDKAssetManager* manager, LDKAssetAudio asset)
+{
+  LDKAssetHandle generic = { asset.h };
+  LDKAssetInfo* info = ldk_asset_get_info(manager, generic);
+
+  if (!info || info->type != LDK_ASSET_TYPE_AUDIO)
+  {
+    return NULL;
+  }
+
+  return (LDKAssetAudioData*)info->data;
+}
+
+const LDKAssetAudioData* ldk_asset_manager_audio_get_const(
+    LDKAssetManager* manager, LDKAssetAudio asset)
+{
+  return ldk_asset_manager_audio_get(manager, asset);
 }
 
 // ---------------------------------------------------------------------------

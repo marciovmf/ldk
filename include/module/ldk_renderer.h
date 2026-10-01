@@ -42,6 +42,7 @@ extern "C" {
   {
     LDK_SHADER_INVALID = 0,
     LDK_SHADER_UI_PASS,
+    LDK_SHADER_TEXT_PASS,
     LDK_SHADER_MESH_PASS,
     LDK_SHADER_PRESENT_PASS,
     LDK_SHADER_MESH_PASS_INSTANCED,
@@ -61,7 +62,8 @@ extern "C" {
     LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
     LDK_SHADER_POST_PROCESS_PASS,
     LDK_SHADER_BLUR_PASS,
-    LDK_SHADER_SKYBOX_PASS
+    LDK_SHADER_SKYBOX_PASS,
+    LDK_SHADER_MESH_PASS_SOLID_UNLIT
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -163,6 +165,42 @@ extern "C" {
     bool depth_test;
   } LDKRendererLineSubmit;
 
+  typedef struct LDKRendererWireframeSubmit
+  {
+    LDKResourceMesh mesh;
+    Mat4 world;
+    LDKRendererViewId view_id;
+    u32 color;
+    float line_width;
+    u32 flags;
+  } LDKRendererWireframeSubmit;
+
+  typedef enum LDKRendererTextSubmitFlag
+  {
+    LDK_RENDERER_TEXT_SUBMIT_FLAG_NONE = 0,
+    LDK_RENDERER_TEXT_SUBMIT_FLAG_BILLBOARD = 1 << 0,
+    LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST = 1 << 1
+  } LDKRendererTextSubmitFlag;
+
+  typedef struct LDKRendererTextVertex
+  {
+    float x;
+    float y;
+    float u;
+    float v;
+    u32 color;
+  } LDKRendererTextVertex;
+
+  typedef struct LDKRendererTextSubmit
+  {
+    Mat4 world;
+    LDKRendererViewId view_id;
+    LDKRHITexture texture;
+    u32 index_offset;
+    u32 index_count;
+    u32 flags;
+  } LDKRendererTextSubmit;
+
   typedef struct LDKRendererConfig
   {
     LDKRHIContext* rhi;
@@ -256,6 +294,29 @@ extern "C" {
     LDKRHIBindings bindings;
   } LDKRendererMeshBindingsCacheEntry;
 
+  typedef struct LDKRendererTextPass
+  {
+    LDKRHIContext *rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline ldr_pipeline;
+    LDKRHIPipeline hdr_pipeline;
+    LDKRHIPipeline ldr_no_depth_pipeline;
+    LDKRHIPipeline hdr_no_depth_pipeline;
+    LDKRHIBuffer vertex_buffer;
+    LDKRHIBuffer index_buffer;
+    LDKRHIBuffer camera_buffer;
+    LDKRHIBuffer object_buffer;
+    LDKRHISampler sampler;
+    LDKRendererBindingsCacheEntry *bindings_cache;
+    u32 bindings_cache_count;
+    u32 bindings_cache_capacity;
+    u32 vertex_capacity;
+    u32 index_capacity;
+    bool is_initialized;
+  } LDKRendererTextPass;
+
   typedef struct LDKRendererUIPass
   {
     LDKRHIContext* rhi;
@@ -316,6 +377,7 @@ extern "C" {
     LDKRHIShaderModule instanced_vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
     LDKRHIShaderModule overlay_fragment_shader_module;
+    LDKRHIShaderModule solid_unlit_fragment_shader_module;
     LDKRHIShaderModule textured_fragment_shader_module;
     LDKRHIShaderModule textured_unlit_fragment_shader_module;
     LDKRHIShaderModule textured_cutout_fragment_shader_module;
@@ -327,6 +389,7 @@ extern "C" {
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
     LDKRHIPipeline overlay_pipeline;
+    LDKRHIPipeline wireframe_pipeline;
     LDKRHIPipeline textured_pipeline;
     LDKRHIPipeline textured_unlit_pipeline;
     LDKRHIPipeline textured_overlay_pipeline;
@@ -622,6 +685,7 @@ extern "C" {
   {
     LDKRHIContext* rhi;
     LDKRendererUIPass ui_pass;
+    LDKRendererTextPass text_pass;
     LDKRendererMeshPass mesh_pass;
     LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
@@ -682,6 +746,22 @@ extern "C" {
     u32 submitted_line_count;
     u32 submitted_line_capacity;
 
+    // Transient depth-tested wireframes, primarily used by editor tooling.
+    LDKRendererWireframeSubmit *submitted_wireframes;
+    u32 submitted_wireframe_count;
+    u32 submitted_wireframe_capacity;
+
+    // Transient world-space text geometry and draw submissions.
+    LDKRendererTextVertex *submitted_text_vertices;
+    u32 submitted_text_vertex_count;
+    u32 submitted_text_vertex_capacity;
+    u32 *submitted_text_indices;
+    u32 submitted_text_index_count;
+    u32 submitted_text_index_capacity;
+    LDKRendererTextSubmit *submitted_texts;
+    u32 submitted_text_count;
+    u32 submitted_text_capacity;
+
     // Submitted meshes
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
@@ -730,6 +810,22 @@ extern "C" {
   LDK_API bool ldk_renderer_draw_line(LDKRenderer *renderer,
       LDKRendererViewId view_id, Vec3 start, Vec3 end, float thickness,
       u32 color, bool depth_test);
+
+
+  /** Submit UTF-8 text as unlit world-space geometry.
+   * Glyph layout, kerning and atlas placement are shared with the UI text path.
+   * Local text height is normalized by the font instance pixel height, so an
+   * identity world transform produces approximately one world unit per font
+   * height. The local origin is the top-left of the first line and local +Y is
+   * up. BILLBOARD preserves translation, XY roll and scale while facing the
+   * current camera. Text is alpha blended and does not write depth. Depth
+   * testing is enabled by default and can be disabled per submission with
+   * LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST. Views need not exist yet. The
+   * transient queue is cleared after the frame is rendered.
+   */
+  LDK_API bool ldk_renderer_submit_text(LDKRenderer *renderer,
+      LDKRendererViewId view_id, LDKFontInstance *font, char const *text,
+      Mat4 world, u32 color, u32 flags);
 
   /** Submit transient world-space lighting. Views need not exist yet.
    * The first 16 matching lights illuminate each view, in submission order.
@@ -1513,6 +1609,20 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+  /**
+   * @brief Submit a depth-tested wireframe mesh to one render view.
+   *
+   * The mesh is drawn after scene meshes and before editor overlays. It uses
+   * the scene depth buffer without writing depth, so hidden geometry remains
+   * occluded by the rendered scene. Color uses 0xRRGGBBAA and supports alpha
+   * blending. line_width is requested in pixels and may be clamped by the RHI
+   * backend. flags accepts LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD only.
+   */
+  LDK_API bool ldk_renderer_submit_wireframe_mesh_to_view(
+      LDKRenderer *renderer, LDKRendererViewId view_id,
+      LDKResourceMesh mesh, Mat4 world, u32 color, float line_width,
+      u32 flags);
 
 
 #ifdef __cplusplus

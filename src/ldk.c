@@ -10,6 +10,7 @@
 #include <ldk_skybox_asset.h>
 
 #include <ldk_event.h>
+#include <component/ldk_audio_source.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
@@ -17,8 +18,10 @@
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
+#include <component/ldk_text3d.h>
 
 #include <module/ldk_system.h>
+#include <module/ldk_audio.h>
 #include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_asset_source.h>
@@ -39,6 +42,7 @@
 struct LDKRoot
 {
   // Engine Modules
+  LDKAudio audio;
   LDKAssetManager asset_manager;
   LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
@@ -445,6 +449,8 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot *e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
+
+  ldk_audio_terminate(&e->audio);
 
   /* Scene Manager owns scene state backed by the ECS. */
   ldk_scene_manager_terminate(&e->scene_manager);
@@ -1065,6 +1071,9 @@ void *ldk_module_get(LDKModuleType module_type)
 
   switch (module_type)
   {
+  case LDK_MODULE_AUDIO:
+    return &g_engine.audio;
+
   case LDK_MODULE_ECS:
     return &g_engine.ecs;
 
@@ -1293,6 +1302,12 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
+  if (!ldk_audio_initialize(&e->audio, &e->asset_manager))
+  {
+    ldk_log_error("Failed to initialize module: Audio.");
+    engine_init_failed = true;
+  }
+
   if (!ldk_scene_manager_initialize(&e->scene_manager))
   {
     ldk_log_error("Failed to initialize module: Scene Manager.");
@@ -1417,6 +1432,8 @@ void ldk_engine_frame(void)
     return;
   }
 
+  ldk_audio_update(&e->audio);
+
   if (!s_engine_render_resolution_apply(e))
   {
     ldk_log_error("Failed to apply render resolution %dx%d.\n",
@@ -1528,6 +1545,8 @@ void ldk_engine_frame(void)
 
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_UPDATE_AFTER, current_ticks, delta_time);
+
+  ldk_audio_source_update_all();
 
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_SUBMIT_BEFORE, current_ticks, delta_time);
@@ -1696,6 +1715,25 @@ void ldk_engine_frame(void)
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {
         has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
+
+        if (has_main_camera)
+        {
+          Mat4 listener_world;
+
+          if (ldk_transform_get_world_matrix(*entity, &listener_world))
+          {
+            Vec3 listener_position = vec3_make(listener_world.m[12],
+                listener_world.m[13], listener_world.m[14]);
+            Vec3 listener_direction = vec3_norm(vec3_make(
+                -listener_world.m[8], -listener_world.m[9],
+                -listener_world.m[10]));
+            Vec3 listener_up = vec3_norm(vec3_make(listener_world.m[4],
+                listener_world.m[5], listener_world.m[6]));
+
+            ldk_audio_listener_set(&e->audio, listener_position,
+                listener_direction, listener_up);
+          }
+        }
       }
     }
 
@@ -1913,6 +1951,53 @@ void ldk_engine_frame(void)
                 submesh->index_count, mesh_world, submit_flags);
           }
         }
+      }
+    }
+
+    XArray *all_text = ldk_component_store_get(
+        component_registry, LDK_COMPONENT_TYPE_TEXT3D);
+    XArray *text_owners = ldk_component_owners_get(
+        component_registry, LDK_COMPONENT_TYPE_TEXT3D);
+    if (all_text && text_owners)
+    {
+      u32 text_count = x_array_count(all_text);
+      for (u32 i = 0; i < text_count; ++i)
+      {
+        LDKText3DComponent *text = x_array_get(all_text, i);
+        LDKEntity *entity = x_array_get(text_owners, i);
+        if (!text || !entity || !text->text.length ||
+            x_handle_is_null(text->font.h) ||
+            !isfinite(text->pixel_height) || text->pixel_height <= 0.0f)
+        {
+          continue;
+        }
+
+        LDKAssetFontData *font_data =
+            ldk_asset_manager_font_get(&e->asset_manager, text->font);
+        if (!font_data || !font_data->face)
+        {
+          continue;
+        }
+
+        LDKFontInstance *font = ldk_ttf_get_instance(
+            font_data->face, text->pixel_height, NULL);
+        Mat4 world = mat4_identity();
+        if (!font || !ldk_transform_get_world_matrix(*entity, &world))
+        {
+          continue;
+        }
+
+        u32 flags = LDK_RENDERER_TEXT_SUBMIT_FLAG_NONE;
+        if (text->billboard)
+        {
+          flags |= LDK_RENDERER_TEXT_SUBMIT_FLAG_BILLBOARD;
+        }
+        if (!text->depth_test)
+        {
+          flags |= LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST;
+        }
+        (void)ldk_renderer_submit_text(&e->renderer, LDK_RENDERER_VIEW_ALL,
+            font, text->text.buf, world, text->color, flags);
       }
     }
 

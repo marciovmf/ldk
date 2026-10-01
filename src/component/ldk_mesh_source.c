@@ -291,7 +291,9 @@ static void s_mesh_source_destroy(LDKEntityRegistry* entity_registry,
   }
 
   if (!ldk_entity_component_has(entity_registry, entity,
-          LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE))
+          LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE) &&
+      !ldk_entity_component_has(entity_registry, entity,
+          LDK_COMPONENT_TYPE_TEXT3D))
   {
     ldk_entity_internal_flags_remove(
         entity_registry, entity, LDK_ENTITY_INTERNAL_HAS_RENDERABLE);

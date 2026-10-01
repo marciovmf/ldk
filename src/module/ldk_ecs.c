@@ -1,7 +1,9 @@
 #include "component/ldk_mesh_source.h"
+#include <component/ldk_text3d.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_post_processing.h>
+#include <component/ldk_audio_source.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -29,6 +31,7 @@
 
 #ifndef LDK_DEFAULT_MESHSOURCE_COUNT
 #define LDK_DEFAULT_MESHSOURCE_COUNT 4
+#define LDK_DEFAULT_TEXT3D_COUNT 4
 #endif
 
 #ifndef LDK_DEFAULT_PARTICLE_EMITTER_COUNT
@@ -37,6 +40,10 @@
 
 #ifndef LDK_DEFAULT_POST_PROCESSING_COUNT
 #define LDK_DEFAULT_POST_PROCESSING_COUNT 4
+#endif
+
+#ifndef LDK_DEFAULT_AUDIO_SOURCE_COUNT
+#define LDK_DEFAULT_AUDIO_SOURCE_COUNT 16
 #endif
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
@@ -1170,6 +1177,14 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc text3d_component_desc =
+      ldk_text3d_component_desc(LDK_DEFAULT_TEXT3D_COUNT);
+  if (!ldk_component_register(&context->component, &text3d_component_desc))
+  {
+    ldk_log_error("Failed to register component: Text3D.");
+    error = true;
+  }
+
   LDKComponentDesc instanced_desc =
       ldk_instanced_mesh_source_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
   if (!ldk_component_register(&context->component, &instanced_desc))
@@ -1183,6 +1198,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &particle_emitter_desc))
   {
     ldk_log_error("Failed to register component: ParticleEmitter.");
+    error = true;
+  }
+
+  LDKComponentDesc audio_source_desc =
+      ldk_audio_source_component_desc(LDK_DEFAULT_AUDIO_SOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &audio_source_desc))
+  {
+    ldk_log_error("Failed to register component: AudioSource.");
     error = true;
   }
 

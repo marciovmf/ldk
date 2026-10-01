@@ -484,6 +484,12 @@ extern "C"
     LDK_RHI_CULL_MODE_BACK
   } LDKRHICullMode;
 
+  typedef enum LDKRHIPolygonMode
+  {
+    LDK_RHI_POLYGON_MODE_FILL = 0,
+    LDK_RHI_POLYGON_MODE_LINE
+  } LDKRHIPolygonMode;
+
   typedef enum LDKRHIFrontFace
   {
     LDK_RHI_FRONT_FACE_CCW = 0,
@@ -670,6 +676,7 @@ extern "C"
   typedef struct LDKRHIRasterState
   {
     LDKRHICullMode cull_mode;
+    LDKRHIPolygonMode polygon_mode;
     LDKRHIFrontFace front_face;
     bool scissor_enabled;
     // Positive bias moves depth away from the light for LESS/LESS_EQUAL.
@@ -882,6 +889,7 @@ extern "C"
 
     void (*viewport_set)(void* backend_user_data, const LDKRHIViewport* viewport);
     void (*scissor_set)(void* backend_user_data, const LDKRHIRect* scissor);
+    void (*line_width_set)(void* backend_user_data, float line_width);
 
     void (*draw)(void* backend_user_data, const LDKRHIDrawDesc* desc);
     void (*draw_instanced)(void* backend_user_data, const LDKRHIDrawInstancedDesc* desc);
@@ -1312,6 +1320,15 @@ extern "C"
    * @param scissor Rectangle definition.
    */
   LDK_API void ldk_rhi_scissor_set(LDKRHIContext* context, const LDKRHIRect* scissor);
+
+  /**
+   * @brief Sets rasterized line width dynamically.
+   * @param context RHI context.
+   * @param line_width Requested line width in pixels. Backends may clamp it to
+   * their supported range.
+   */
+  LDK_API void ldk_rhi_line_width_set(
+      LDKRHIContext* context, float line_width);
 
   /**
    * @brief Issues a non-indexed draw call.
@@ -1749,6 +1766,16 @@ extern "C"
    * @param scissor Pointer to the scissor rectangle to apply.
    */
   LDK_API void ldk_rhi_scissor_set(LDKRHIContext* context, const LDKRHIRect* scissor);
+
+  /**
+   * @brief Sets rasterized line width dynamically.
+   *
+   * @param context RHI context.
+   * @param line_width Requested line width in pixels. Backends may clamp it to
+   * their supported range.
+   */
+  LDK_API void ldk_rhi_line_width_set(
+      LDKRHIContext* context, float line_width);
 
   /**
    * @brief Issues a non-indexed draw call.
