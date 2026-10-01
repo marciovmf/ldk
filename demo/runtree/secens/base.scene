@@ -337,7 +337,7 @@ scene:
           fields:
             local_position: 4.59683084, 4.19050884, 11.9261780
             local_scale: 1.51041675, 1.51041675, 1.51041675
-            local_rotation: 0.00000000, 0.143575892, 0.00000000, 0.989639342
+            local_rotation: 0.0661983490, -0.327735305, 0.542680979, 0.770522416
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"

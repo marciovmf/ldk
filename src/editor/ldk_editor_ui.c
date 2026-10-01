@@ -44,35 +44,35 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   LDKUIMark mark = ldk_ui_mark(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "File"))
+  if (ldk_ui_button_flat(ui, "FILE"))
   {
     ldk_ui_open_popup(ui, MENU_ID_FILE);
   }
   LDKUIRect file_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Project"))
+  if (ldk_ui_button_flat(ui, "PROJECT"))
   {
     ldk_ui_open_popup(ui, MENU_ID_PROJECT);
   }
   LDKUIRect edit_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Scene"))
+  if (ldk_ui_button_flat(ui, "SCENE"))
   {
     ldk_ui_open_popup(ui, MENU_ID_SCENE);
   }
   LDKUIRect scene_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Window"))
+  if (ldk_ui_button_flat(ui, "WINDOW"))
   {
     ldk_ui_open_popup(ui, MENU_ID_WINDOW);
   }
   LDKUIRect window_button_rect = ldk_ui_last_rect(ui);
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Theme"))
+  if (ldk_ui_button_flat(ui, "THEME"))
   {
     ldki_editor_theme_refresh(editor);
     ldk_ui_open_popup(ui, MENU_ID_THEME);
@@ -122,6 +122,15 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
       ldk_ui_close_current_popup(ui);
     }
 
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button_flat(ui, "Preferences"))
+    {
+      ldki_editor_window_show(LDK_EDITOR_WINDOW_SETTINGS);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_horizontal_line(ui);
+
     if (ldk_ui_button_flat(ui, "Exit"))
     {
       ldk_editor_quit(editor);
@@ -138,13 +147,6 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     LDKUIMark mark = ldk_ui_mark(ui);
 
     const bool can_not_build = !(can_edit_scene && !editor->project_build.active);
-
-    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
-    if (ldk_ui_button_flat(ui, "Project Settings..."))
-    {
-      ldki_editor_window_show(LDK_EDITOR_WINDOW_PROJECT);
-      ldk_ui_close_current_popup(ui);
-    }
 
     ldk_ui_set_next_disabled(ui, can_not_build);
     if (ldk_ui_button_flat(ui, "Scene Catalog..."))
@@ -171,6 +173,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     if (ldk_ui_button_flat(ui, "Build Launcher"))
     {
       ldki_editor_project_release_request(editor);
+      ldk_ui_close_current_popup(ui);
+    }
+
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    if (ldk_ui_button_flat(ui, "Project Settings"))
+    {
+      ldki_editor_window_show(LDK_EDITOR_WINDOW_PROJECT);
       ldk_ui_close_current_popup(ui);
     }
 
@@ -255,6 +264,12 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
       const LDKEditorWindow *window = ldki_editor_window_at(i);
 
       if (window == NULL)
+      {
+        continue;
+      }
+
+      if (window->id == LDK_EDITOR_WINDOW_SETTINGS ||
+          window->id == LDK_EDITOR_WINDOW_PROJECT)
       {
         continue;
       }
