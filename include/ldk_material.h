@@ -3,6 +3,7 @@
 
 #include <ldk_asset.h>
 #include <ldk_common.h>
+#include <stdx/stdx_math.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -25,9 +26,29 @@ extern "C"
     LDK_MATERIAL_ALPHA_MODE_BLEND = 2
   } LDKMaterialAlphaMode;
 
+  typedef enum LDKMaterialTextureFilter
+  {
+    LDK_MATERIAL_TEXTURE_FILTER_NEAREST = 0,
+    LDK_MATERIAL_TEXTURE_FILTER_LINEAR = 1
+  } LDKMaterialTextureFilter;
+
+  typedef enum LDKMaterialTextureWrap
+  {
+    LDK_MATERIAL_TEXTURE_WRAP_REPEAT = 0,
+    LDK_MATERIAL_TEXTURE_WRAP_CLAMP = 1,
+    LDK_MATERIAL_TEXTURE_WRAP_MIRROR = 2
+  } LDKMaterialTextureWrap;
+
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
+    /* Sampling belongs to this material use; the image asset remains shared. */
+    LDKMaterialTextureFilter filter;
+    LDKMaterialTextureWrap wrap_u;
+    LDKMaterialTextureWrap wrap_v;
+    /* Applied to mesh UVs before sampling. */
+    Vec2 uv_scale;
+    Vec2 uv_offset;
     rgba32 color;
     LDKMaterialAlphaMode alpha_mode;
     float alpha_cutoff;
@@ -72,7 +93,8 @@ extern "C"
    * @brief Initialize a material descriptor with deterministic defaults.
    *
    * Every supported material type defaults to opaque white. Textured materials
-   * also default to a null image asset, opaque alpha mode, and a 0.5 cutout
+   * also default to a null image asset, nearest filtering, clamp-to-edge
+   * wrapping, identity UV transform, opaque alpha mode, and a 0.5 cutout
    * threshold. Lit materials default to no specular contribution, shininess
    * 32, no emission, and no normal/specular maps. On failure, out_desc is
    * reset to an invalid zero descriptor.

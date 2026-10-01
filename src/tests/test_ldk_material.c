@@ -56,6 +56,13 @@ static int test_material_defaults(void)
     {
       ASSERT_EQ(desc.args.textured.texture.h.index, X_HPOOL_NULL_INDEX);
       ASSERT_EQ(desc.args.textured.texture.h.version, 0u);
+      ASSERT_EQ(desc.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_NEAREST);
+      ASSERT_EQ(desc.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
+      ASSERT_EQ(desc.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
+      ASSERT_EQ(desc.args.textured.uv_scale.x, 1.0f);
+      ASSERT_EQ(desc.args.textured.uv_scale.y, 1.0f);
+      ASSERT_EQ(desc.args.textured.uv_offset.x, 0.0f);
+      ASSERT_EQ(desc.args.textured.uv_offset.y, 0.0f);
       ASSERT_EQ(desc.args.textured.color, 0xffffffffu);
       ASSERT_EQ(desc.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
       ASSERT_EQ(desc.args.textured.alpha_cutoff, 0.5f);
@@ -146,6 +153,27 @@ static int test_material_equality(void)
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
 
   b = a;
+  b.args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.args.textured.wrap_v = LDK_MATERIAL_TEXTURE_WRAP_MIRROR;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.args.textured.uv_scale.x = 4.0f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
+  b.args.textured.uv_offset.y = -0.25f;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  b = a;
   b.args.textured.alpha_cutoff = 0.75f;
   ASSERT_TRUE(ldk_material_desc_equal(&a, &b));
   ASSERT_EQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
@@ -202,6 +230,21 @@ static int test_invalid_material_descriptors(void)
   ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
 
   ASSERT_TRUE(ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &valid));
+  invalid = valid;
+  invalid.args.textured.filter = (LDKMaterialTextureFilter)99;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.wrap_u = (LDKMaterialTextureWrap)99;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.wrap_v = (LDKMaterialTextureWrap)99;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.uv_scale.x = NAN;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.uv_offset.y = INFINITY;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
   invalid = valid;
   invalid.args.textured.alpha_mode = (LDKMaterialAlphaMode)99;
   ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
@@ -537,17 +580,28 @@ static int test_mesh_source_authored_material(void)
   return 0;
 }
 
-static LDKRHITexture s_test_image_upload(void* user, const LDKRHITextureDesc* desc)
+typedef struct TestImageBackend
 {
+  u32 texture_create_count;
+  u32 sampler_create_count;
+} TestImageBackend;
+
+static LDKRHITexture s_test_image_upload(
+    void* user, const LDKRHITextureDesc* desc)
+{
+  TestImageBackend* backend = (TestImageBackend*)user;
   (void)desc;
-  return ++*(u32*)user;
+  backend->texture_create_count += 1;
+  return backend->texture_create_count;
 }
 
-static LDKRHISampler s_test_image_sampler(void* user, const LDKRHISamplerDesc* desc)
+static LDKRHISampler s_test_image_sampler(
+    void* user, const LDKRHISamplerDesc* desc)
 {
-  (void)user;
+  TestImageBackend* backend = (TestImageBackend*)user;
   (void)desc;
-  return 100u;
+  backend->sampler_create_count += 1;
+  return 100u + backend->sampler_create_count;
 }
 
 static void s_test_image_destroy(void* user, LDKRHIResource resource)
@@ -573,12 +627,12 @@ static int test_shared_image_cache(void)
   info->type = LDK_ASSET_TYPE_IMAGE;
   info->data = &data;
 
-  u32 uploads = 0;
+  TestImageBackend backend = {0};
   LDKRHIContext rhi = {0};
   LDKRHIContextDesc rhi_desc = {0};
   LDKRHIFunctions functions = {0};
   rhi_desc.backend_type = LDK_RHI_BACKEND_OPENGL33;
-  rhi_desc.backend_user_data = &uploads;
+  rhi_desc.backend_user_data = &backend;
   functions.texture_create = s_test_image_upload;
   functions.create_sampler = s_test_image_sampler;
   functions.texture_destroy = s_test_image_destroy;
@@ -591,7 +645,7 @@ static int test_shared_image_cache(void)
   LDKResourceTexture b = ldk_renderer_image_acquire(&renderer, &assets, image);
   ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, a));
   ASSERT_EQ(a.id, b.id);
-  ASSERT_EQ(uploads, 1u);
+  ASSERT_EQ(backend.texture_create_count, 1u);
   ldk_renderer_texture_destroy(&renderer, a);
   ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, a));
   ldk_renderer_image_release(&renderer, a);
@@ -607,13 +661,117 @@ static int test_shared_image_cache(void)
   LDKResourceTexture c =
       ldk_renderer_image_acquire(&renderer, &assets, replacement);
   ASSERT_NEQ(c.id, b.id);
-  ASSERT_EQ(uploads, 2u);
+  ASSERT_EQ(backend.texture_create_count, 2u);
   ldk_renderer_image_release(&renderer, b);
   ASSERT_FALSE(ldk_renderer_texture_is_valid(&renderer, b));
   ldk_renderer_image_release(&renderer, c);
   ASSERT_FALSE(ldk_renderer_texture_is_valid(&renderer, c));
   ldk_renderer_image_release(&renderer, c);
   ldk_rhi_terminate(&rhi);
+  free(renderer.textures);
+  ldk_image_destroy(data.image);
+  x_hpool_term(&assets.pool);
+  return 0;
+}
+
+static int test_material_sampling_reuses_image_texture(void)
+{
+  LDKAssetManager assets = {0};
+  XHPoolConfig config = {0};
+  config.page_capacity = 4;
+  config.initial_pages = 1;
+  ASSERT_TRUE(x_hpool_init(&assets.pool, sizeof(LDKAssetInfo), config,
+      NULL, NULL, NULL));
+
+  u32 pixel = 0xffffffffu;
+  LDKAssetImageData data = {ldk_image_create(1, 1, &pixel)};
+  ASSERT_TRUE(data.image != NULL);
+  LDKAssetImage image = {x_hpool_alloc(&assets.pool)};
+  LDKAssetInfo* info = x_hpool_get(&assets.pool, image.h);
+  memset(info, 0, sizeof(*info));
+  info->type = LDK_ASSET_TYPE_IMAGE;
+  info->data = &data;
+
+  TestImageBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRHIContextDesc rhi_desc = {0};
+  LDKRHIFunctions functions = {0};
+  rhi_desc.backend_type = LDK_RHI_BACKEND_OPENGL33;
+  rhi_desc.backend_user_data = &backend;
+  functions.texture_create = s_test_image_upload;
+  functions.create_sampler = s_test_image_sampler;
+  functions.texture_destroy = s_test_image_destroy;
+  functions.destroy_sampler = s_test_image_destroy;
+  ASSERT_TRUE(ldk_rhi_initialize(&rhi, &rhi_desc, &functions));
+
+  LDKRenderer renderer = {0};
+  renderer.rhi = &rhi;
+  renderer.is_initialized = true;
+
+  LDKMaterialDesc default_desc;
+  LDKMaterialDesc repeated_desc;
+  ASSERT_TRUE(ldk_material_desc_defaults(
+      LDK_MATERIAL_TYPE_TEXTURED_UNLIT, &default_desc));
+  default_desc.args.textured.texture = image;
+  repeated_desc = default_desc;
+  repeated_desc.args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
+  repeated_desc.args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
+  repeated_desc.args.textured.wrap_v = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
+  repeated_desc.args.textured.uv_scale = (Vec2){4.0f, 2.0f};
+  repeated_desc.args.textured.uv_offset = (Vec2){0.25f, -0.5f};
+
+  LDKResourceMaterial material_a = ldk_renderer_material_null();
+  LDKResourceMaterial material_b = ldk_renderer_material_null();
+  LDKResourceMaterial material_c = ldk_renderer_material_null();
+  LDKResourceTexture texture_a = ldk_renderer_texture_null();
+  LDKResourceTexture texture_b = ldk_renderer_texture_null();
+  LDKResourceTexture texture_c = ldk_renderer_texture_null();
+  LDKResourceTexture normal_a = ldk_renderer_texture_null();
+  LDKResourceTexture normal_b = ldk_renderer_texture_null();
+  LDKResourceTexture normal_c = ldk_renderer_texture_null();
+  LDKResourceTexture specular_a = ldk_renderer_texture_null();
+  LDKResourceTexture specular_b = ldk_renderer_texture_null();
+  LDKResourceTexture specular_c = ldk_renderer_texture_null();
+
+  ASSERT_TRUE(ldk_renderer_material_resolve(&renderer, &assets, &default_desc,
+      &material_a, &texture_a, &normal_a, &specular_a));
+  ASSERT_TRUE(ldk_renderer_material_resolve(&renderer, &assets, &repeated_desc,
+      &material_b, &texture_b, &normal_b, &specular_b));
+  ASSERT_TRUE(ldk_renderer_material_resolve(&renderer, &assets, &repeated_desc,
+      &material_c, &texture_c, &normal_c, &specular_c));
+
+  ASSERT_EQ(texture_a.id, texture_b.id);
+  ASSERT_EQ(texture_b.id, texture_c.id);
+  ASSERT_EQ(backend.texture_create_count, 1u);
+  ASSERT_EQ(backend.sampler_create_count, 2u);
+
+  LDKRendererMaterialResource* resource_a =
+      &renderer.materials[material_a.id - 1u];
+  LDKRendererMaterialResource* resource_b =
+      &renderer.materials[material_b.id - 1u];
+  LDKRendererMaterialResource* resource_c =
+      &renderer.materials[material_c.id - 1u];
+  ASSERT_EQ(resource_a->texture_sampler, LDK_RHI_INVALID_RESOURCE);
+  ASSERT_NEQ(resource_b->texture_sampler, LDK_RHI_INVALID_RESOURCE);
+  ASSERT_EQ(resource_b->texture_sampler, resource_c->texture_sampler);
+  ASSERT_EQ(resource_b->uv_scale.x, 4.0f);
+  ASSERT_EQ(resource_b->uv_scale.y, 2.0f);
+  ASSERT_EQ(resource_b->uv_offset.x, 0.25f);
+  ASSERT_EQ(resource_b->uv_offset.y, -0.5f);
+
+  ldk_renderer_material_destroy(&renderer, material_a);
+  ldk_renderer_material_destroy(&renderer, material_b);
+  ldk_renderer_material_destroy(&renderer, material_c);
+  ldk_renderer_image_release(&renderer, texture_a);
+  ldk_renderer_image_release(&renderer, texture_b);
+  ldk_renderer_image_release(&renderer, texture_c);
+  for (u32 i = 0; i < renderer.material_sampler_count; ++i)
+  {
+    ldk_rhi_sampler_destroy(&rhi, renderer.material_samplers[i].sampler);
+  }
+  ldk_rhi_terminate(&rhi);
+  free(renderer.material_samplers);
+  free(renderer.materials);
   free(renderer.textures);
   ldk_image_destroy(data.image);
   x_hpool_term(&assets.pool);
@@ -1114,6 +1272,7 @@ int main(void)
       X_TEST(test_renderer_material_rejects_invalid_input),
       X_TEST(test_mesh_source_authored_material),
       X_TEST(test_shared_image_cache),
+      X_TEST(test_material_sampling_reuses_image_texture),
       X_TEST(test_renderer_instancing_batches_color_and_shadow),
       X_TEST(test_renderer_ordinary_batches_never_instance),
       X_TEST(test_renderer_instances_copy_transform_and_validate),
