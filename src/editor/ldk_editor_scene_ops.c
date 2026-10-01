@@ -332,7 +332,6 @@ bool ldki_editor_scene_new_at_path(
 bool ldki_editor_scene_new(LDKEditorContext *editor)
 {
   XFSPath path = {0};
-  char selected_path[X_FS_PATH_MAX_LENGTH] = {0};
 
   if (!editor || !editor->project.loaded ||
       editor->editor_state != LDK_EDITOR_STATE_STOPED)
@@ -340,13 +339,12 @@ bool ldki_editor_scene_new(LDKEditorContext *editor)
     return false;
   }
 
-  if (!ldk_os_dialog_show_save_file(editor->window, "New Scene", "*.scene",
-          selected_path, sizeof(selected_path)))
+  if (!ldk_os_dialog_show_save_file(
+          editor->window, "New Scene", "*.scene", &path))
   {
     return false;
   }
 
-  x_fs_path_set(&path, selected_path);
   return ldki_editor_scene_new_at_path(editor, &path);
 }
 

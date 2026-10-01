@@ -3,6 +3,7 @@
 #include <ldk_skybox_asset.h>
 #include "ldk_editor_internal.h"
 #include "ldk_ui_drag_n_drop.h"
+#include "module/ldk_entity.h"
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
@@ -1478,7 +1479,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose mesh",
-        "Meshes\0*.mesh\0\0", path.buf, sizeof(path.buf));
+        "Meshes\0*.mesh\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
@@ -1566,7 +1567,7 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose font",
-        "Fonts\0*.ttf;*.otf\0\0", path.buf, sizeof(path.buf));
+        "Fonts\0*.ttf;*.otf\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
@@ -1652,7 +1653,7 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose audio",
-        "Audio\0*.wav;*.mp3;*.flac\0\0", path.buf, sizeof(path.buf));
+        "Audio\0*.wav;*.mp3;*.flac\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
@@ -1743,7 +1744,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose material",
-        "Materials\0*.tml\0\0", path.buf, sizeof(path.buf));
+        "Materials\0*.tml\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -1855,7 +1856,7 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, "Choose skybox",
-        "Skyboxes\0*.skybox\0\0", path.buf, sizeof(path.buf));
+        "Skyboxes\0*.skybox\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -2703,8 +2704,7 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
-        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path.buf,
-        sizeof(path.buf));
+        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", &path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -3039,8 +3039,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
       XFSPath path = {0};
 
       if (ldk_os_dialog_show_save_file(editor->window,
-              "Create material", "Materials\0*.tml\0\0",
-              path.buf, sizeof(path.buf)))
+              "Create material", "Materials\0*.tml\0\0", &path))
       {
         LDKAssetPath asset_path;
         if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -3116,8 +3115,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     XFSPath path = {0};
 
     if (ldk_os_dialog_show_save_file(editor->window,
-            "Create material", "Materials\0*.tml\0\0",
-            path.buf, sizeof(path.buf)))
+            "Create material", "Materials\0*.tml\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -3231,7 +3229,7 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   {
     XFSPath path = {0};
     if (ldk_os_dialog_show_save_file(editor->window, "Create material",
-            "Materials\0*.tml\0\0", path.buf, sizeof(path.buf)))
+            "Materials\0*.tml\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,

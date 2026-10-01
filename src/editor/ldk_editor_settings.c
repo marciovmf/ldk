@@ -408,12 +408,10 @@ static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button(ui, "..."))
   {
-    char selected[X_FS_PATH_MAX_LENGTH] = {0};
-    if (ldk_os_dialog_show_open_file(editor->window, dialog_title, filter,
-            selected, sizeof(selected)))
+    XFSPath path = {0};
+    if (ldk_os_dialog_show_open_file(
+            editor->window, dialog_title, filter, &path))
     {
-      XFSPath path = {0};
-      x_fs_path_set(&path, selected);
       x_fs_path_normalize(&path);
       snprintf(buffer, buffer_size, "%s", path.buf);
       result |= LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED;

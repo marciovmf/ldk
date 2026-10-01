@@ -240,15 +240,13 @@ static XFSPath s_editor_cmake_path_get(LDKWindow owner)
 
   while (true)
   {
-    char selected_path[X_SMALLSTR_MAX_LENGTH] = {0};
     bool selected = ldk_os_dialog_show_open_file(owner,
         "Locate CMake 4.3 or newer", "CMake executable\0cmake.exe\0\0",
-        selected_path, sizeof(selected_path));
+        &cmake_path);
 
     if (!selected)
       return (XFSPath){0};
 
-    x_fs_path_set(&cmake_path, selected_path);
     x_fs_path_normalize(&cmake_path);
 
     if (x_fs_path_is_file(&cmake_path) &&
@@ -4252,12 +4250,11 @@ bool ldki_editor_show_open_project_dialog(
 
   if (!ldk_os_dialog_show_open_file(
           editor->window, "Open Project", "ldk Project\0*.ldk\0\0\0",
-          out.buf, X_SMALLSTR_MAX_LENGTH))
+          &out))
   {
     return false;
   }
 
-  x_fs_path_set(&out, out.buf);
   x_fs_path_normalize(&out);
 
   if (!ldki_editor_project_open_request(editor, out.buf))
