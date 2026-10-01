@@ -4167,8 +4167,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       icon.color = flat_color;
     }
     else if (component_type == LDK_COMPONENT_TYPE_AUDIO_SOURCE)
-
-     {
+    {
       icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_AUDIO];
       icon.color = flat_color;
     }
