@@ -46,7 +46,6 @@ extern "C"
 
   typedef enum LDKModuleType
   {
-    LDK_MODULE_AUDIO,
     LDK_MODULE_ASSET_MANAGER,
     LDK_MODULE_ECS,
     LDK_MODULE_EVENT,
@@ -54,6 +53,7 @@ extern "C"
     LDK_MODULE_RENDERER,
     LDK_MODULE_SCENE_MANAGER,
     LDK_MODULE_ASSET_SOURCE,
+    LDK_MODULE_AUDIO,
   } LDKModuleType;
 
   struct LDKGame;

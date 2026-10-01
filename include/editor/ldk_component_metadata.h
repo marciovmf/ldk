@@ -27,6 +27,7 @@ extern "C"
     LDK_FIELD_ASSET_MATERIAL,
     LDK_FIELD_ASSET_SKYBOX,
     LDK_FIELD_STRING,
+    LDK_FIELD_ASSET_AUDIO,
   } LDKFieldType;
 
   typedef enum LDKFieldWidget
@@ -52,6 +53,7 @@ extern "C"
     LDK_FIELD_WIDGET_ASSET_MATERIAL,
     LDK_FIELD_WIDGET_ASSET_SKYBOX,
     LDK_FIELD_WIDGET_STRING,
+    LDK_FIELD_WIDGET_ASSET_AUDIO,
   } LDKFieldWidget;
 
   typedef enum LDKFieldFlags

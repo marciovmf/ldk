@@ -16,20 +16,12 @@
 
 #define LDK_AUDIO_VOICE_PAGE_CAPACITY 64u
 
-typedef struct LDKAudioAsset
-{
-  LDKAssetPath path;
-  void *encoded_data;
-  size_t encoded_size;
-  u32 ref_count;
-  struct LDKAudioAsset *next;
-} LDKAudioAsset;
-
 typedef struct LDKAudioVoiceData
 {
   ma_decoder decoder;
   ma_sound sound;
-  LDKAudioAsset *asset;
+  LDKAssetAudio asset;
+  LDKAudioPriority priority;
   bool decoder_initialized;
   bool sound_initialized;
 } LDKAudioVoiceData;
@@ -37,8 +29,7 @@ typedef struct LDKAudioVoiceData
 typedef struct LDKAudioInternal
 {
   ma_engine engine;
-  LDKAssetSource *asset_source;
-  LDKAudioAsset *assets;
+  LDKAssetManager *assets;
   XHPool voices;
   XArray *finished_voices;
 } LDKAudioInternal;
@@ -59,11 +50,22 @@ static LDKAudioVoice s_audio_voice_from_x(XHandle handle)
   return voice;
 }
 
+static LDKAudioVoiceData *s_audio_voice_get(
+    LDKAudioInternal *internal, LDKAudioVoice voice)
+{
+  if (!internal)
+  {
+    return NULL;
+  }
+
+  return (LDKAudioVoiceData *)x_hpool_get(
+      &internal->voices, s_audio_voice_to_x(voice));
+}
+
 static void s_audio_voice_destroy(void *user, void *item)
 {
+  LDKAudioInternal *internal = (LDKAudioInternal *)user;
   LDKAudioVoiceData *voice = (LDKAudioVoiceData *)item;
-
-  (void)user;
 
   if (!voice)
   {
@@ -80,137 +82,34 @@ static void s_audio_voice_destroy(void *user, void *item)
     ma_decoder_uninit(&voice->decoder);
   }
 
-  if (voice->asset)
+  if (internal && internal->assets && !x_handle_is_null(voice->asset.h))
   {
-    if (voice->asset->ref_count > 0)
+    LDKAssetAudioData *asset_data =
+        ldk_asset_manager_audio_get(internal->assets, voice->asset);
+    if (asset_data && asset_data->ref_count > 0)
     {
-      voice->asset->ref_count--;
+      asset_data->ref_count--;
     }
-    voice->asset = NULL;
   }
 
   memset(voice, 0, sizeof(*voice));
+  voice->asset = ldk_asset_audio_null();
 }
 
-static LDKAudioAsset *s_audio_asset_find(
-    LDKAudioInternal *internal, const LDKAssetPath *path)
+static const char *s_audio_asset_path(
+    LDKAudioInternal *internal, LDKAssetAudio asset)
 {
-  LDKAudioAsset *asset;
+  LDKAssetHandle generic;
+  const LDKAssetInfo *info;
 
-  if (!internal || !path)
+  if (!internal || !internal->assets)
   {
-    return NULL;
+    return "";
   }
 
-  asset = internal->assets;
-  while (asset)
-  {
-    if (asset->path.length == path->length &&
-        memcmp(asset->path.buf, path->buf, path->length + 1u) == 0)
-    {
-      return asset;
-    }
-    asset = asset->next;
-  }
-
-  return NULL;
-}
-
-static LDKAudioAsset *s_audio_asset_load(
-    LDKAudioInternal *internal, const LDKAssetPath *path)
-{
-  LDKAssetSourceFile file;
-  LDKAudioAsset *asset;
-  u64 size;
-  void *data;
-
-  if (!internal || !internal->asset_source || !path ||
-      !ldk_asset_source_find(internal->asset_source, path->buf, &file))
-  {
-    return NULL;
-  }
-
-  size = ldk_asset_source_file_size(&file);
-  if (size == 0 || size > (u64)SIZE_MAX)
-  {
-    return NULL;
-  }
-
-  data = malloc((size_t)size);
-  if (!data)
-  {
-    return NULL;
-  }
-
-  if (!ldk_asset_source_file_read(&file, data, size))
-  {
-    free(data);
-    return NULL;
-  }
-
-  asset = (LDKAudioAsset *)calloc(1, sizeof(*asset));
-  if (!asset)
-  {
-    free(data);
-    return NULL;
-  }
-
-  asset->path = *path;
-  asset->encoded_data = data;
-  asset->encoded_size = (size_t)size;
-  asset->next = internal->assets;
-  internal->assets = asset;
-  return asset;
-}
-
-static LDKAudioAsset *s_audio_asset_get(
-    LDKAudioInternal *internal, const char *path)
-{
-  LDKAssetPath asset_path;
-  LDKAudioAsset *asset;
-
-  if (!internal || !path || !path[0] ||
-      !ldk_asset_path_set(&asset_path, path))
-  {
-    return NULL;
-  }
-
-  asset = s_audio_asset_find(internal, &asset_path);
-  if (asset)
-  {
-    return asset;
-  }
-
-  return s_audio_asset_load(internal, &asset_path);
-}
-
-static void s_audio_assets_destroy(LDKAudioInternal *internal)
-{
-  LDKAudioAsset *asset;
-
-  if (!internal)
-  {
-    return;
-  }
-
-  asset = internal->assets;
-  while (asset)
-  {
-    LDKAudioAsset *next = asset->next;
-
-    if (asset->ref_count != 0)
-    {
-      ldk_log_warning("Audio asset '%s' still has %u active reference(s) "
-                      "during shutdown.\n",
-          asset->path.buf, asset->ref_count);
-    }
-
-    free(asset->encoded_data);
-    free(asset);
-    asset = next;
-  }
-
-  internal->assets = NULL;
+  generic.h = asset.h;
+  info = ldk_asset_get_info_const(internal->assets, generic);
+  return info ? info->asset_path.buf : "";
 }
 
 static void s_audio_finished_voices_collect(LDKAudioInternal *internal)
@@ -256,13 +155,13 @@ static void s_audio_finished_voices_collect(LDKAudioInternal *internal)
   }
 }
 
-bool ldk_audio_initialize(LDKAudio *audio, LDKAssetSource *asset_source)
+bool ldk_audio_initialize(LDKAudio *audio, LDKAssetManager *assets)
 {
   LDKAudioInternal *internal;
   XHPoolConfig voice_pool_config;
   ma_result result;
 
-  if (!audio || !asset_source)
+  if (!audio || !assets)
   {
     return false;
   }
@@ -306,7 +205,7 @@ bool ldk_audio_initialize(LDKAudio *audio, LDKAssetSource *asset_source)
     return false;
   }
 
-  internal->asset_source = asset_source;
+  internal->assets = assets;
   audio->internal = internal;
   audio->is_initialized = true;
   return true;
@@ -336,12 +235,42 @@ void ldk_audio_terminate(LDKAudio *audio)
   {
     x_hpool_term(&internal->voices);
     x_array_destroy(internal->finished_voices);
-    s_audio_assets_destroy(internal);
     ma_engine_uninit(&internal->engine);
     free(internal);
   }
 
   memset(audio, 0, sizeof(*audio));
+}
+
+void ldk_audio_listener_set(
+    LDKAudio *audio, Vec3 position, Vec3 direction, Vec3 world_up)
+{
+  LDKAudioInternal *internal;
+
+  if (!audio || !audio->is_initialized || !audio->internal)
+  {
+    return;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  ma_engine_listener_set_position(
+      &internal->engine, 0, position.x, position.y, position.z);
+  ma_engine_listener_set_direction(
+      &internal->engine, 0, direction.x, direction.y, direction.z);
+  ma_engine_listener_set_world_up(
+      &internal->engine, 0, world_up.x, world_up.y, world_up.z);
+}
+
+LDKAudioPlayDesc ldk_audio_play_desc_default(void)
+{
+  LDKAudioPlayDesc desc;
+  memset(&desc, 0, sizeof(desc));
+  desc.priority = LDK_AUDIO_PRIORITY_NORMAL;
+  desc.volume = 1.0f;
+  desc.range = 10.0f;
+  desc.loop = false;
+  desc.spatialized = false;
+  return desc;
 }
 
 LDKAudioVoice ldk_audio_voice_null(void)
@@ -379,8 +308,7 @@ bool ldk_audio_voice_is_playing(LDKAudio *audio, LDKAudioVoice voice)
   }
 
   internal = (LDKAudioInternal *)audio->internal;
-  voice_data = (LDKAudioVoiceData *)x_hpool_get(
-      &internal->voices, s_audio_voice_to_x(voice));
+  voice_data = s_audio_voice_get(internal, voice);
   if (!voice_data || !voice_data->sound_initialized)
   {
     return false;
@@ -400,8 +328,7 @@ void ldk_audio_voice_stop(LDKAudio *audio, LDKAudioVoice voice)
   }
 
   internal = (LDKAudioInternal *)audio->internal;
-  voice_data = (LDKAudioVoiceData *)x_hpool_get(
-      &internal->voices, s_audio_voice_to_x(voice));
+  voice_data = s_audio_voice_get(internal, voice);
   if (!voice_data)
   {
     return;
@@ -415,18 +342,134 @@ void ldk_audio_voice_stop(LDKAudio *audio, LDKAudioVoice voice)
   x_hpool_free(&internal->voices, s_audio_voice_to_x(voice));
 }
 
-LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
+bool ldk_audio_voice_position_set(
+    LDKAudio *audio, LDKAudioVoice voice, Vec3 position)
 {
-  XHandle handle;
   LDKAudioInternal *internal;
-  LDKAudioAsset *asset;
+  LDKAudioVoiceData *voice_data;
+
+  if (!audio || !audio->is_initialized || !audio->internal)
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  voice_data = s_audio_voice_get(internal, voice);
+  if (!voice_data || !voice_data->sound_initialized)
+  {
+    return false;
+  }
+
+  ma_sound_set_position(
+      &voice_data->sound, position.x, position.y, position.z);
+  return true;
+}
+
+bool ldk_audio_voice_volume_set(
+    LDKAudio *audio, LDKAudioVoice voice, float volume)
+{
+  LDKAudioInternal *internal;
+  LDKAudioVoiceData *voice_data;
+
+  if (!audio || !audio->is_initialized || !audio->internal || volume < 0.0f)
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  voice_data = s_audio_voice_get(internal, voice);
+  if (!voice_data || !voice_data->sound_initialized)
+  {
+    return false;
+  }
+
+  ma_sound_set_volume(&voice_data->sound, volume);
+  return true;
+}
+
+bool ldk_audio_voice_range_set(
+    LDKAudio *audio, LDKAudioVoice voice, float range)
+{
+  LDKAudioInternal *internal;
+  LDKAudioVoiceData *voice_data;
+
+  if (!audio || !audio->is_initialized || !audio->internal || range <= 0.0f)
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  voice_data = s_audio_voice_get(internal, voice);
+  if (!voice_data || !voice_data->sound_initialized)
+  {
+    return false;
+  }
+
+  ma_sound_set_max_distance(&voice_data->sound, range);
+  return true;
+}
+
+bool ldk_audio_voice_loop_set(
+    LDKAudio *audio, LDKAudioVoice voice, bool loop)
+{
+  LDKAudioInternal *internal;
+  LDKAudioVoiceData *voice_data;
+
+  if (!audio || !audio->is_initialized || !audio->internal)
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  voice_data = s_audio_voice_get(internal, voice);
+  if (!voice_data || !voice_data->sound_initialized)
+  {
+    return false;
+  }
+
+  ma_sound_set_looping(&voice_data->sound, loop ? MA_TRUE : MA_FALSE);
+  return true;
+}
+
+bool ldk_audio_voice_priority_set(
+    LDKAudio *audio, LDKAudioVoice voice, LDKAudioPriority priority)
+{
+  LDKAudioInternal *internal;
+  LDKAudioVoiceData *voice_data;
+
+  if (!audio || !audio->is_initialized || !audio->internal ||
+      priority < LDK_AUDIO_PRIORITY_LOW ||
+      priority > LDK_AUDIO_PRIORITY_CRITICAL)
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  voice_data = s_audio_voice_get(internal, voice);
+  if (!voice_data)
+  {
+    return false;
+  }
+
+  voice_data->priority = priority;
+  return true;
+}
+
+LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio, LDKAssetAudio asset,
+    const LDKAudioPlayDesc *desc)
+{
+  LDKAudioPlayDesc play_desc;
+  LDKAudioInternal *internal;
+  LDKAssetAudioData *asset_data;
   LDKAudioVoiceData *voice;
+  XHandle handle;
   ma_result result;
+  const char *path;
 
   handle = x_handle_null();
 
-  if (!audio || !audio->is_initialized || !audio->internal || !path ||
-      !path[0])
+  if (!audio || !audio->is_initialized || !audio->internal ||
+      x_handle_is_null(asset.h))
   {
     return s_audio_voice_from_x(handle);
   }
@@ -434,13 +477,23 @@ LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
   internal = (LDKAudioInternal *)audio->internal;
   s_audio_finished_voices_collect(internal);
 
-  asset = s_audio_asset_get(internal, path);
-  if (!asset)
+  asset_data = ldk_asset_manager_audio_get(internal->assets, asset);
+  if (!asset_data || !asset_data->encoded_data ||
+      asset_data->encoded_size == 0 ||
+      asset_data->encoded_size > (u64)SIZE_MAX)
   {
-    ldk_log_error("Failed to read audio asset '%s'.\n", path);
     return s_audio_voice_from_x(handle);
   }
 
+  play_desc = desc ? *desc : ldk_audio_play_desc_default();
+  if (play_desc.volume < 0.0f || play_desc.range <= 0.0f ||
+      play_desc.priority < LDK_AUDIO_PRIORITY_LOW ||
+      play_desc.priority > LDK_AUDIO_PRIORITY_CRITICAL)
+  {
+    return s_audio_voice_from_x(handle);
+  }
+
+  path = s_audio_asset_path(internal, asset);
   handle = x_hpool_alloc(&internal->voices);
   if (x_handle_is_null(handle))
   {
@@ -455,8 +508,9 @@ LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
     return ldk_audio_voice_null();
   }
 
-  result = ma_decoder_init_memory(
-      asset->encoded_data, asset->encoded_size, NULL, &voice->decoder);
+  voice->asset = ldk_asset_audio_null();
+  result = ma_decoder_init_memory(asset_data->encoded_data,
+      (size_t)asset_data->encoded_size, NULL, &voice->decoder);
   if (result != MA_SUCCESS)
   {
     ldk_log_error("Failed to decode audio asset '%s': %s.\n", path,
@@ -477,6 +531,23 @@ LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
   }
   voice->sound_initialized = true;
 
+  ma_sound_set_volume(&voice->sound, play_desc.volume);
+  ma_sound_set_looping(
+      &voice->sound, play_desc.loop ? MA_TRUE : MA_FALSE);
+  ma_sound_set_spatialization_enabled(
+      &voice->sound, play_desc.spatialized ? MA_TRUE : MA_FALSE);
+  if (play_desc.spatialized)
+  {
+    ma_sound_set_position(&voice->sound, play_desc.position.x,
+        play_desc.position.y, play_desc.position.z);
+    ma_sound_set_attenuation_model(
+        &voice->sound, ma_attenuation_model_linear);
+    ma_sound_set_min_distance(&voice->sound, 0.0f);
+    ma_sound_set_max_distance(&voice->sound, play_desc.range);
+  }
+
+  voice->priority = play_desc.priority;
+
   result = ma_sound_start(&voice->sound);
   if (result != MA_SUCCESS)
   {
@@ -487,6 +558,34 @@ LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
   }
 
   voice->asset = asset;
-  asset->ref_count++;
+  asset_data->ref_count++;
   return s_audio_voice_from_x(handle);
+}
+
+LDKAudioVoice ldk_audio_sound_play(LDKAudio *audio, const char *path)
+{
+  return ldk_audio_sound_play_ex(audio, path, NULL);
+}
+
+LDKAudioVoice ldk_audio_sound_play_ex(
+    LDKAudio *audio, const char *path, const LDKAudioPlayDesc *desc)
+{
+  LDKAudioInternal *internal;
+  LDKAssetAudio asset;
+
+  if (!audio || !audio->is_initialized || !audio->internal || !path ||
+      !path[0])
+  {
+    return ldk_audio_voice_null();
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  asset = ldk_asset_manager_audio_load_shared(internal->assets, path);
+  if (x_handle_is_null(asset.h))
+  {
+    ldk_log_error("Failed to read audio asset '%s'.\n", path);
+    return ldk_audio_voice_null();
+  }
+
+  return ldk_audio_asset_play(audio, asset, desc);
 }

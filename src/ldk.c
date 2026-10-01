@@ -10,6 +10,7 @@
 #include <ldk_skybox_asset.h>
 
 #include <ldk_event.h>
+#include <component/ldk_audio_source.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
@@ -1294,16 +1295,16 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
-  if (!ldk_audio_initialize(&e->audio, &e->asset_source))
-  {
-    ldk_log_error("Failed to initialize module: Audio.");
-    engine_init_failed = true;
-  }
-
   if (!ldk_asset_manager_initialize(
           &e->asset_manager, &e->asset_source, 16, 1))
   {
     ldk_log_error("Failed to initialize module: Asset Manager.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_audio_initialize(&e->audio, &e->asset_manager))
+  {
+    ldk_log_error("Failed to initialize module: Audio.");
     engine_init_failed = true;
   }
 
@@ -1545,6 +1546,8 @@ void ldk_engine_frame(void)
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_UPDATE_AFTER, current_ticks, delta_time);
 
+  ldk_audio_source_update_all();
+
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_SUBMIT_BEFORE, current_ticks, delta_time);
   { // Submit scene
@@ -1712,6 +1715,25 @@ void ldk_engine_frame(void)
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {
         has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
+
+        if (has_main_camera)
+        {
+          Mat4 listener_world;
+
+          if (ldk_transform_get_world_matrix(*entity, &listener_world))
+          {
+            Vec3 listener_position = vec3_make(listener_world.m[12],
+                listener_world.m[13], listener_world.m[14]);
+            Vec3 listener_direction = vec3_norm(vec3_make(
+                -listener_world.m[8], -listener_world.m[9],
+                -listener_world.m[10]));
+            Vec3 listener_up = vec3_norm(vec3_make(listener_world.m[4],
+                listener_world.m[5], listener_world.m[6]));
+
+            ldk_audio_listener_set(&e->audio, listener_position,
+                listener_direction, listener_up);
+          }
+        }
       }
     }
 
