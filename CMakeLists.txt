@@ -483,6 +483,8 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_raycast.h      src/ldk_raycast.c
   ${INCLUDE_DIR}/ldk_debug_draw.h   src/ldk_debug_draw.c
   # Modules
+  ${INCLUDE_DIR}/module/ldk_audio.h           src/module/ldk_audio.c
+  src/depend/miniaudio/miniaudio.h
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
   ${INCLUDE_DIR}/module/ldk_component.h       src/module/ldk_component.c
@@ -508,6 +510,8 @@ list(APPEND LDK_SOURCE
   src/component/ldk_particle_emitter.c
   ${INCLUDE_DIR}/component/ldk_post_processing.h
   src/component/ldk_post_processing.c
+  ${INCLUDE_DIR}/component/ldk_audio_source.h
+  src/component/ldk_audio_source.c
 
   # Systems
   ${INCLUDE_DIR}/system/ldk_grass.h
@@ -650,6 +654,7 @@ if (NOT OPTION_LDK_USE_PREBUILT)
   set(LDK_ENGINE_METADATA_INPUTS
     ${LDK_ENGINE_COMPONENT_HEADERS}
     ${LDK_ENGINE_SYSTEM_HEADERS}
+    ${INCLUDE_DIR}/module/ldk_audio.h
   )
 
   set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")

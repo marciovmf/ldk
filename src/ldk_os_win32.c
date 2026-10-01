@@ -2707,14 +2707,14 @@ bool ldk_os_dialog_color_picker_show(LDKWindow owner, rgba32 *color)
 }
 
 bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
-    const char *filter, char *out_path, size_t out_path_size)
+    const char *filter, XFSPath *out_path)
 {
-  if (!out_path || out_path_size == 0)
+  if (!out_path)
   {
     return false;
   }
 
-  out_path[0] = '\0';
+  x_fs_path_init(out_path);
 
   OPENFILENAMEA ofn;
   memset(&ofn, 0, sizeof(ofn));
@@ -2723,12 +2723,19 @@ bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
   ofn.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
   ofn.lpstrTitle = title;
   ofn.lpstrFilter = filter;
-  ofn.lpstrFile = out_path;
-  ofn.nMaxFile = (DWORD)out_path_size;
+  ofn.lpstrFile = out_path->buf;
+  ofn.nMaxFile = (DWORD)sizeof(out_path->buf);
   ofn.Flags =
       OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
 
-  return GetOpenFileNameA(&ofn) != 0;
+  if (!GetOpenFileNameA(&ofn))
+  {
+    x_fs_path_init(out_path);
+    return false;
+  }
+
+  out_path->length = strlen(out_path->buf);
+  return true;
 }
 
 bool ldk_os_dialog_show_open_folder(LDKWindow owner, const char *title,
@@ -2772,14 +2779,14 @@ bool ldk_os_dialog_show_open_folder(LDKWindow owner, const char *title,
 }
 
 bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
-    const char *filter, char *out_path, size_t out_path_size)
+    const char *filter, XFSPath *out_path)
 {
-  if (!out_path || out_path_size == 0)
+  if (!out_path)
   {
     return false;
   }
 
-  out_path[0] = '\0';
+  x_fs_path_init(out_path);
 
   OPENFILENAMEA ofn;
   memset(&ofn, 0, sizeof(ofn));
@@ -2788,12 +2795,19 @@ bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
   ofn.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
   ofn.lpstrTitle = title;
   ofn.lpstrFilter = filter;
-  ofn.lpstrFile = out_path;
-  ofn.nMaxFile = (DWORD)out_path_size;
+  ofn.lpstrFile = out_path->buf;
+  ofn.nMaxFile = (DWORD)sizeof(out_path->buf);
   ofn.Flags =
       OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_EXPLORER;
 
-  return GetSaveFileNameA(&ofn) != 0;
+  if (!GetSaveFileNameA(&ofn))
+  {
+    x_fs_path_init(out_path);
+    return false;
+  }
+
+  out_path->length = strlen(out_path->buf);
+  return true;
 }
 
 bool ldk_os_dialog_show_yes_no(

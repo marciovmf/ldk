@@ -1013,16 +1013,14 @@ static bool s_package_catalog_import_add(LDKEditorContext *editor,
 
 static void s_package_catalog_import_dialog(LDKEditorContext *editor)
 {
-  char path_buffer[sizeof(((XFSPath *)0)->buf)] = {0};
   XFSPath path = {0};
 
-  if (!ldk_os_dialog_show_open_file(editor->window, "Import Package",
-          "*.box", path_buffer, sizeof(path_buffer)))
+  if (!ldk_os_dialog_show_open_file(
+          editor->window, "Import Package", "*.box", &path))
   {
     return;
   }
 
-  x_fs_path_set(&path, path_buffer);
   s_package_catalog_import_add(editor, &path, false);
 }
 

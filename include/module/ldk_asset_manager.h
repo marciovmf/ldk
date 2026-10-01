@@ -37,6 +37,7 @@ extern "C" {
 
   LDK_API bool ldk_asset_manager_initialize(LDKAssetManager* manager, LDKAssetSource* source, u32 page_capacity, u32 initial_pages);
   LDK_API void ldk_asset_manager_terminate(LDKAssetManager* manager);
+  /* Clears manager-owned assets except audio data retained by active voices. */
   LDK_API void ldk_asset_manager_clear(LDKAssetManager* manager);
 
   LDK_API LDKAssetHandle ldk_asset_handle_null(void);
@@ -130,6 +131,26 @@ extern "C" {
   LDK_API LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset);
   LDK_API const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset);
 
+  // ---------------------------------------------------------------------------
+  // Audio asset
+  // ---------------------------------------------------------------------------
+
+  typedef struct LDKAssetAudioData
+  {
+    void* encoded_data;
+    u64 encoded_size;
+    u32 ref_count;
+  } LDKAssetAudioData;
+
+  LDK_API LDKAssetAudio ldk_asset_audio_null(void);
+  LDK_API bool ldk_asset_manager_audio_is_alive(
+      LDKAssetManager* manager, LDKAssetAudio asset);
+  LDK_API LDKAssetAudio ldk_asset_manager_audio_load_shared(
+      LDKAssetManager* manager, const char* path);
+  LDK_API LDKAssetAudioData* ldk_asset_manager_audio_get(
+      LDKAssetManager* manager, LDKAssetAudio asset);
+  LDK_API const LDKAssetAudioData* ldk_asset_manager_audio_get_const(
+      LDKAssetManager* manager, LDKAssetAudio asset);
 
 
   // ---------------------------------------------------------------------------

@@ -1150,33 +1150,25 @@ static void s_editor_profiler_counters_draw(LDKUIContext *ui)
 
 static void s_editor_profiler_save_as(LDKEditorContext *editor)
 {
-  char selected[X_FS_PATH_MAX_LENGTH] = {0};
   XFSPath destination = {0};
   bool added_extension = false;
 
   if (editor->profiler_recording || !s_editor_profiler.loaded_path.length ||
       !ldk_os_dialog_show_save_file(editor->window, "Save Profiler Capture",
           "LDK Profiler Capture (*.ldkp)\0*.ldkp\0All Files (*.*)\0*.*\0\0",
-          selected, sizeof(selected)))
+          &destination))
   {
     return;
   }
 
-  if (!x_fs_path_extension_cstr(selected).length)
+  if (!x_fs_path_extension_as_slice(&destination).length)
   {
-    size_t length = strlen(selected);
-    if (length + sizeof(".ldkp") > sizeof(selected))
+    if (!x_smallstr_append_cstr(&destination, ".ldkp"))
     {
       s_editor_profiler_error("Capture destination path is too long.");
       return;
     }
-    memcpy(selected + length, ".ldkp", sizeof(".ldkp"));
     added_extension = true;
-  }
-  if (!x_fs_path_set(&destination, selected))
-  {
-    s_editor_profiler_error("Invalid capture destination path.");
-    return;
   }
   x_fs_path_normalize(&destination);
   if (x_fs_path_compare(&destination, &s_editor_profiler.loaded_path) == 0)
@@ -1232,12 +1224,12 @@ static void s_editor_profiler_capture_list(
   ldk_ui_set_next_weight(ui, 0.0f);
   if (ldk_ui_button_flat(ui, "Open Capture..."))
   {
-    char path[X_FS_PATH_MAX_LENGTH] = {0};
+    XFSPath path = {0};
     if (ldk_os_dialog_show_open_file(editor->window, "Open Profiler Capture",
             "LDK Profiler Capture (*.ldkp)\0*.ldkp\0All Files (*.*)\0*.*\0\0",
-            path, sizeof(path)))
+            &path))
     {
-      s_editor_profiler_capture_load(path);
+      s_editor_profiler_capture_load(path.buf);
       if (s_editor_profiler.frame_count)
       {
         s_editor_profiler_frame_select(

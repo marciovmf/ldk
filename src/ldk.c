@@ -10,6 +10,7 @@
 #include <ldk_skybox_asset.h>
 
 #include <ldk_event.h>
+#include <component/ldk_audio_source.h>
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
@@ -20,6 +21,7 @@
 #include <component/ldk_text3d.h>
 
 #include <module/ldk_system.h>
+#include <module/ldk_audio.h>
 #include <ldk_scene_systems.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_asset_source.h>
@@ -40,6 +42,7 @@
 struct LDKRoot
 {
   // Engine Modules
+  LDKAudio audio;
   LDKAssetManager asset_manager;
   LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
@@ -446,6 +449,8 @@ static void s_on_signal(i32 signal)
 static void s_terminate_all_modules(LDKRoot *e)
 {
   ldk_ecs_system_registry_stop(&e->ecs);
+
+  ldk_audio_terminate(&e->audio);
 
   /* Scene Manager owns scene state backed by the ECS. */
   ldk_scene_manager_terminate(&e->scene_manager);
@@ -1066,6 +1071,9 @@ void *ldk_module_get(LDKModuleType module_type)
 
   switch (module_type)
   {
+  case LDK_MODULE_AUDIO:
+    return &g_engine.audio;
+
   case LDK_MODULE_ECS:
     return &g_engine.ecs;
 
@@ -1294,6 +1302,12 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
     engine_init_failed = true;
   }
 
+  if (!ldk_audio_initialize(&e->audio, &e->asset_manager))
+  {
+    ldk_log_error("Failed to initialize module: Audio.");
+    engine_init_failed = true;
+  }
+
   if (!ldk_scene_manager_initialize(&e->scene_manager))
   {
     ldk_log_error("Failed to initialize module: Scene Manager.");
@@ -1418,6 +1432,8 @@ void ldk_engine_frame(void)
     return;
   }
 
+  ldk_audio_update(&e->audio);
+
   if (!s_engine_render_resolution_apply(e))
   {
     ldk_log_error("Failed to apply render resolution %dx%d.\n",
@@ -1529,6 +1545,8 @@ void ldk_engine_frame(void)
 
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_UPDATE_AFTER, current_ticks, delta_time);
+
+  ldk_audio_source_update_all();
 
   s_broadcast_frame_event(
       LDK_FRAME_EVENT_SUBMIT_BEFORE, current_ticks, delta_time);
@@ -1697,6 +1715,25 @@ void ldk_engine_frame(void)
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {
         has_main_camera = ldk_renderer_game_view_set(&e->renderer, view_id);
+
+        if (has_main_camera)
+        {
+          Mat4 listener_world;
+
+          if (ldk_transform_get_world_matrix(*entity, &listener_world))
+          {
+            Vec3 listener_position = vec3_make(listener_world.m[12],
+                listener_world.m[13], listener_world.m[14]);
+            Vec3 listener_direction = vec3_norm(vec3_make(
+                -listener_world.m[8], -listener_world.m[9],
+                -listener_world.m[10]));
+            Vec3 listener_up = vec3_norm(vec3_make(listener_world.m[4],
+                listener_world.m[5], listener_world.m[6]));
+
+            ldk_audio_listener_set(&e->audio, listener_position,
+                listener_direction, listener_up);
+          }
+        }
       }
     }
 

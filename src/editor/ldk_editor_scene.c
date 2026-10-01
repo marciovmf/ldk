@@ -523,6 +523,17 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
+  case LDK_FIELD_ASSET_AUDIO:
+  {
+    const LDKAssetAudio *value = (const LDKAssetAudio *)ptr;
+    if (!x_handle_is_null(value->h))
+    {
+      return false;
+    }
+    x_strbuilder_append_format(out, "%d", -1);
+  }
+  break;
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -835,6 +846,17 @@ static bool s_apply_field_value(const TMLDocument *doc, const TMLEntry *entry,
       return false;
     }
     *(LDKAssetFont *)ptr = ldk_asset_font_null();
+  }
+  break;
+
+  case LDK_FIELD_ASSET_AUDIO:
+  {
+    i32 asset_id = -1;
+    if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+    {
+      return false;
+    }
+    *(LDKAssetAudio *)ptr = ldk_asset_audio_null();
   }
   break;
 
