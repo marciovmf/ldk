@@ -90,6 +90,7 @@ static int test_material_io_invalid(void)
       "material:\n  material_type: 4\n  material_emission: -1\n",
       "material:\n  material_type: 1\n  material_alpha_mode: 99\n",
       "material:\n  material_type: 1\n  material_texture_filter: 99\n",
+      "material:\n  material_type: 1\n  material_texture_mip_filter: 99\n",
       "material:\n  material_type: 1\n  material_texture_wrap_u: 99\n",
       "material:\n  material_type: 1\n  material_texture_wrap_v: 99\n",
       "material:\n  material_type: 1\n  material_alpha_mode: 1\n"
@@ -135,6 +136,7 @@ static int test_material_io_missing_texture(void)
                      "  material_color: 0xa1b2c3ff\n"
                      "  material_texture: \"missing.png\"\n"
                      "  material_texture_filter: 1\n"
+                     "  material_texture_mip_filter: 2\n"
                      "  material_texture_wrap_u: 0\n"
                      "  material_texture_wrap_v: 2\n"
                      "  material_uv_scale_u: 4\n"
@@ -154,6 +156,8 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(first.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_CUTOUT);
   ASSERT_EQ(first.args.textured.alpha_cutoff, 0.35f);
   ASSERT_EQ(first.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_LINEAR);
+  ASSERT_EQ(first.args.textured.mip_filter,
+      LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR);
   ASSERT_EQ(first.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_REPEAT);
   ASSERT_EQ(first.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_MIRROR);
   ASSERT_EQ(first.args.textured.uv_scale.x, 4.0f);
@@ -182,6 +186,7 @@ static int test_material_io_missing_texture(void)
                   "  material_color: 0xa1b2c3ff\n"
                   "  material_texture: \"missing.png\"\n"
                   "  material_texture_filter: 1\n"
+                  "  material_texture_mip_filter: 2\n"
                   "  material_texture_wrap_u: 0\n"
                   "  material_texture_wrap_v: 2\n"
                   "  material_uv_scale_u: 4\n"
@@ -201,6 +206,8 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(s_diagnostics, 3u);
   ASSERT_EQ(second.args.textured.color, 0xffffffffu);
   ASSERT_EQ(second.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_NEAREST);
+  ASSERT_EQ(second.args.textured.mip_filter,
+      LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE);
   ASSERT_EQ(second.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
   ASSERT_EQ(second.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
   ASSERT_EQ(second.args.textured.uv_scale.x, 1.0f);

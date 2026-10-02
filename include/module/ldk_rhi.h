@@ -444,7 +444,9 @@ extern "C"
   typedef enum LDKRHIFilter
   {
     LDK_RHI_FILTER_NEAREST = 0,
-    LDK_RHI_FILTER_LINEAR
+    LDK_RHI_FILTER_LINEAR,
+    /* Valid only for LDKRHISamplerDesc::mip_filter. */
+    LDK_RHI_FILTER_NONE
   } LDKRHIFilter;
 
   typedef enum LDKRHIWrap

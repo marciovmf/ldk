@@ -209,6 +209,26 @@ static void test_rhi_bind_complete_indexed_state(LDKRHIContext* rhi)
   ldk_rhi_index_buffer_bind(rhi, 2, 0, LDK_RHI_INDEX_TYPE_UINT32);
 }
 
+int test_rhi_sampler_mip_filter_none_is_valid(void)
+{
+  LDKRHISamplerDesc desc;
+
+  ldk_rhi_sampler_desc_defaults(&desc);
+  ASSERT_TRUE(ldk_rhi_is_valid_sampler_desc(&desc));
+
+  desc.mip_filter = LDK_RHI_FILTER_NONE;
+  ASSERT_TRUE(ldk_rhi_is_valid_sampler_desc(&desc));
+
+  desc.min_filter = LDK_RHI_FILTER_NONE;
+  ASSERT_FALSE(ldk_rhi_is_valid_sampler_desc(&desc));
+
+  ldk_rhi_sampler_desc_defaults(&desc);
+  desc.mag_filter = LDK_RHI_FILTER_NONE;
+  ASSERT_FALSE(ldk_rhi_is_valid_sampler_desc(&desc));
+
+  return 0;
+}
+
 int test_rhi_pipeline_defaults_are_sane(void)
 {
   LDKRHIPipelineDesc desc;
@@ -626,6 +646,7 @@ int main(void)
 {
   STDXTestCase tests[] =
   {
+    X_TEST(test_rhi_sampler_mip_filter_none_is_valid),
     X_TEST(test_rhi_pipeline_defaults_are_sane),
     X_TEST(test_rhi_pass_begin_requires_active_frame),
     X_TEST(test_rhi_draw_indexed_requires_active_pass),

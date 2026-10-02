@@ -1793,6 +1793,11 @@ static GLenum ldk_rhi_gl33_min_filter(
     LDKRHIFilter min_filter,
     LDKRHIFilter mip_filter)
 {
+  if (mip_filter == LDK_RHI_FILTER_NONE)
+  {
+    return ldk_rhi_gl33_filter(min_filter);
+  }
+
   if (min_filter == LDK_RHI_FILTER_NEAREST)
   {
     return mip_filter == LDK_RHI_FILTER_NEAREST

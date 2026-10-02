@@ -267,6 +267,11 @@ static bool ldk_rhi_is_valid_filter(LDKRHIFilter filter)
   return filter >= LDK_RHI_FILTER_NEAREST && filter <= LDK_RHI_FILTER_LINEAR;
 }
 
+static bool ldk_rhi_is_valid_mip_filter(LDKRHIFilter filter)
+{
+  return ldk_rhi_is_valid_filter(filter) || filter == LDK_RHI_FILTER_NONE;
+}
+
 static bool ldk_rhi_is_valid_wrap(LDKRHIWrap wrap)
 {
   return wrap >= LDK_RHI_WRAP_REPEAT && wrap <= LDK_RHI_WRAP_MIRROR;
@@ -709,7 +714,7 @@ bool ldk_rhi_is_valid_sampler_desc(const LDKRHISamplerDesc* desc)
 
   if (!ldk_rhi_is_valid_filter(desc->min_filter) ||
       !ldk_rhi_is_valid_filter(desc->mag_filter) ||
-      !ldk_rhi_is_valid_filter(desc->mip_filter) ||
+      !ldk_rhi_is_valid_mip_filter(desc->mip_filter) ||
       !ldk_rhi_is_valid_wrap(desc->wrap_u) ||
       !ldk_rhi_is_valid_wrap(desc->wrap_v) ||
       !ldk_rhi_is_valid_wrap(desc->wrap_w))

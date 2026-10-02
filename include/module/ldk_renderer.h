@@ -1226,8 +1226,9 @@ extern "C" {
    */
   LDK_API LDKResourceMaterial ldk_renderer_material_null(void);
 
-  /* Acquire a shared GPU snapshot of a live image asset. Uses default texture
-   * options. Identity includes manager, asset index and generation. Release
+  /* Acquire a shared GPU snapshot of a live image asset. The shared texture
+   * includes a full mip chain; sampler state decides whether mip levels are
+   * used. Identity includes manager, asset index and generation. Release
    * once per acquisition; do not destroy the borrowed texture directly.
    * In-place image edits/hot reload are not tracked by this snapshot cache.
    */

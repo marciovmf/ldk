@@ -2982,6 +2982,25 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
       changed = true;
     }
 
+    static const char *const mip_filter_names[] = {"None", "Nearest", "Linear"};
+    u32 mip_filter = (u32)desc->args.textured.mip_filter;
+    if (mip_filter > (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR)
+    {
+      mip_filter = (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
+    }
+    s_editor_material_row_begin(editor, "Mip Filter");
+    ldk_ui_begin_disabled(ui, readonly);
+    u32 next_mip_filter =
+        ldk_ui_combo_box(ui, mip_filter_names, 3, mip_filter);
+    ldk_ui_end_disabled(ui);
+    ldk_ui_end_horizontal(ui);
+    if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
+    {
+      desc->args.textured.mip_filter =
+          (LDKMaterialTextureMipFilter)next_mip_filter;
+      changed = true;
+    }
+
     static const char *const wrap_names[] = {"Repeat", "Clamp", "Mirror"};
     u32 wrap_u = (u32)desc->args.textured.wrap_u;
     if (wrap_u > (u32)LDK_MATERIAL_TEXTURE_WRAP_MIRROR)

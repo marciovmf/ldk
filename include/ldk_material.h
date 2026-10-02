@@ -39,11 +39,19 @@ extern "C"
     LDK_MATERIAL_TEXTURE_WRAP_MIRROR = 2
   } LDKMaterialTextureWrap;
 
+  typedef enum LDKMaterialTextureMipFilter
+  {
+    LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE = 0,
+    LDK_MATERIAL_TEXTURE_MIP_FILTER_NEAREST = 1,
+    LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR = 2
+  } LDKMaterialTextureMipFilter;
+
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
     /* Sampling belongs to this material use; the image asset remains shared. */
     LDKMaterialTextureFilter filter;
+    LDKMaterialTextureMipFilter mip_filter;
     LDKMaterialTextureWrap wrap_u;
     LDKMaterialTextureWrap wrap_v;
     /* Applied to mesh UVs before sampling. */
@@ -93,10 +101,10 @@ extern "C"
    * @brief Initialize a material descriptor with deterministic defaults.
    *
    * Every supported material type defaults to opaque white. Textured materials
-   * also default to a null image asset, nearest filtering, clamp-to-edge
-   * wrapping, identity UV transform, opaque alpha mode, and a 0.5 cutout
-   * threshold. Lit materials default to no specular contribution, shininess
-   * 32, no emission, and no normal/specular maps. On failure, out_desc is
+   * also default to a null image asset, nearest filtering, no mip filtering,
+   * clamp-to-edge wrapping, identity UV transform, opaque alpha mode, and a
+   * 0.5 cutout threshold. Lit materials default to no specular contribution,
+   * shininess 32, no emission, and no normal/specular maps. On failure, out_desc is
    * reset to an invalid zero descriptor.
    *
    * @param type Material type whose defaults should be produced.

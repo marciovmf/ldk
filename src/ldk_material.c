@@ -59,6 +59,9 @@ static bool s_material_texture_sampling_is_valid(
   if (textured == NULL ||
       (textured->filter != LDK_MATERIAL_TEXTURE_FILTER_NEAREST &&
           textured->filter != LDK_MATERIAL_TEXTURE_FILTER_LINEAR) ||
+      (textured->mip_filter != LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE &&
+          textured->mip_filter != LDK_MATERIAL_TEXTURE_MIP_FILTER_NEAREST &&
+          textured->mip_filter != LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR) ||
       (textured->wrap_u != LDK_MATERIAL_TEXTURE_WRAP_REPEAT &&
           textured->wrap_u != LDK_MATERIAL_TEXTURE_WRAP_CLAMP &&
           textured->wrap_u != LDK_MATERIAL_TEXTURE_WRAP_MIRROR) ||
@@ -113,6 +116,7 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   {
     out_desc->args.textured.texture.h = x_handle_null();
     out_desc->args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
+    out_desc->args.textured.mip_filter = LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
     out_desc->args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
     out_desc->args.textured.wrap_v = LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
     out_desc->args.textured.uv_scale = (Vec2){1.0f, 1.0f};
@@ -178,6 +182,7 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     equal = s_material_asset_image_equal(
                 a->args.textured.texture, b->args.textured.texture) &&
             a->args.textured.filter == b->args.textured.filter &&
+            a->args.textured.mip_filter == b->args.textured.mip_filter &&
             a->args.textured.wrap_u == b->args.textured.wrap_u &&
             a->args.textured.wrap_v == b->args.textured.wrap_v &&
             a->args.textured.uv_scale.x == b->args.textured.uv_scale.x &&
@@ -226,6 +231,7 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
     hash = s_material_hash_u32(hash, desc->args.textured.texture.h.index);
     hash = s_material_hash_u32(hash, desc->args.textured.texture.h.version);
     hash = s_material_hash_u32(hash, (u32)desc->args.textured.filter);
+    hash = s_material_hash_u32(hash, (u32)desc->args.textured.mip_filter);
     hash = s_material_hash_u32(hash, (u32)desc->args.textured.wrap_u);
     hash = s_material_hash_u32(hash, (u32)desc->args.textured.wrap_v);
     hash = s_material_hash_float(hash, desc->args.textured.uv_scale.x);

@@ -342,6 +342,8 @@ static LDKRHISampler s_renderer_material_sampler_get_or_create(
     LDKRenderer *renderer, const LDKRHISamplerDesc *desc);
 static LDKRHIFilter s_renderer_material_filter_to_rhi(
     LDKMaterialTextureFilter filter);
+static LDKRHIFilter s_renderer_material_mip_filter_to_rhi(
+    LDKMaterialTextureMipFilter filter);
 static LDKRHIWrap s_renderer_material_wrap_to_rhi(LDKMaterialTextureWrap wrap);
 
 typedef struct LDKRendererUIParams
@@ -8172,8 +8174,12 @@ LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
       return result;
     }
   }
+  LDKRendererTextureOptions options = {0};
+  ldk_renderer_texture_options_defaults(&options);
+  options.generate_mipmaps = true;
+  options.mip_filter = LDK_RHI_FILTER_NONE;
   LDKResourceTexture result =
-      ldk_renderer_texture_create_from_image(renderer, data->image, NULL);
+      ldk_renderer_texture_create_from_image(renderer, data->image, &options);
   LDKRendererTextureResource* entry =
       s_renderer_texture_get_resource(renderer, result);
   if (entry)
@@ -8331,6 +8337,8 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     bool custom_sampling =
         material_desc->args.textured.filter !=
             LDK_MATERIAL_TEXTURE_FILTER_NEAREST ||
+        material_desc->args.textured.mip_filter !=
+            LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE ||
         material_desc->args.textured.wrap_u !=
             LDK_MATERIAL_TEXTURE_WRAP_CLAMP ||
         material_desc->args.textured.wrap_v !=
@@ -8342,7 +8350,8 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       sampler_desc.min_filter = s_renderer_material_filter_to_rhi(
           material_desc->args.textured.filter);
       sampler_desc.mag_filter = sampler_desc.min_filter;
-      sampler_desc.mip_filter = sampler_desc.min_filter;
+      sampler_desc.mip_filter = s_renderer_material_mip_filter_to_rhi(
+          material_desc->args.textured.mip_filter);
       sampler_desc.wrap_u = s_renderer_material_wrap_to_rhi(
           material_desc->args.textured.wrap_u);
       sampler_desc.wrap_v = s_renderer_material_wrap_to_rhi(
@@ -8443,6 +8452,21 @@ static LDKRHIFilter s_renderer_material_filter_to_rhi(
   return filter == LDK_MATERIAL_TEXTURE_FILTER_LINEAR
       ? LDK_RHI_FILTER_LINEAR
       : LDK_RHI_FILTER_NEAREST;
+}
+
+static LDKRHIFilter s_renderer_material_mip_filter_to_rhi(
+    LDKMaterialTextureMipFilter filter)
+{
+  switch (filter)
+  {
+  case LDK_MATERIAL_TEXTURE_MIP_FILTER_NEAREST:
+    return LDK_RHI_FILTER_NEAREST;
+  case LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR:
+    return LDK_RHI_FILTER_LINEAR;
+  case LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE:
+  default:
+    return LDK_RHI_FILTER_NONE;
+  }
 }
 
 static LDKRHIWrap s_renderer_material_wrap_to_rhi(LDKMaterialTextureWrap wrap)

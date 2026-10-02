@@ -329,6 +329,16 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       }
       desc.args.textured.filter = (LDKMaterialTextureFilter)filter;
     }
+    if (tml_node_find_entry(doc, fields, "material_texture_mip_filter"))
+    {
+      u32 filter;
+      if (!s_node_get_u32(doc, fields, "material_texture_mip_filter", &filter))
+      {
+        s_result_error(result, "invalid material texture mip filter");
+        return false;
+      }
+      desc.args.textured.mip_filter = (LDKMaterialTextureMipFilter)filter;
+    }
     if (tml_node_find_entry(doc, fields, "material_texture_wrap_u"))
     {
       u32 wrap;
@@ -503,6 +513,12 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
       s_append_indent(out, indent);
       x_strbuilder_append_format(out, "material_texture_filter: %u\n",
           (u32)desc->args.textured.filter);
+    }
+    if (desc->args.textured.mip_filter != LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE)
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out, "material_texture_mip_filter: %u\n",
+          (u32)desc->args.textured.mip_filter);
     }
     if (desc->args.textured.wrap_u != LDK_MATERIAL_TEXTURE_WRAP_CLAMP)
     {

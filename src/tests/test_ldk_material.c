@@ -57,6 +57,8 @@ static int test_material_defaults(void)
       ASSERT_EQ(desc.args.textured.texture.h.index, X_HPOOL_NULL_INDEX);
       ASSERT_EQ(desc.args.textured.texture.h.version, 0u);
       ASSERT_EQ(desc.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_NEAREST);
+      ASSERT_EQ(desc.args.textured.mip_filter,
+          LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE);
       ASSERT_EQ(desc.args.textured.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
       ASSERT_EQ(desc.args.textured.wrap_v, LDK_MATERIAL_TEXTURE_WRAP_CLAMP);
       ASSERT_EQ(desc.args.textured.uv_scale.x, 1.0f);
@@ -157,6 +159,10 @@ static int test_material_equality(void)
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
   b = a;
+  b.args.textured.mip_filter = LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  b = a;
   b.args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
@@ -232,6 +238,9 @@ static int test_invalid_material_descriptors(void)
   ASSERT_TRUE(ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &valid));
   invalid = valid;
   invalid.args.textured.filter = (LDKMaterialTextureFilter)99;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
+  invalid = valid;
+  invalid.args.textured.mip_filter = (LDKMaterialTextureMipFilter)99;
   ASSERT_FALSE(ldk_material_desc_is_valid(&invalid));
   invalid = valid;
   invalid.args.textured.wrap_u = (LDKMaterialTextureWrap)99;
@@ -584,13 +593,15 @@ typedef struct TestImageBackend
 {
   u32 texture_create_count;
   u32 sampler_create_count;
+  LDKRHITextureDesc last_texture_desc;
+  LDKRHISamplerDesc sampler_descs[8];
 } TestImageBackend;
 
 static LDKRHITexture s_test_image_upload(
     void* user, const LDKRHITextureDesc* desc)
 {
   TestImageBackend* backend = (TestImageBackend*)user;
-  (void)desc;
+  backend->last_texture_desc = *desc;
   backend->texture_create_count += 1;
   return backend->texture_create_count;
 }
@@ -599,7 +610,11 @@ static LDKRHISampler s_test_image_sampler(
     void* user, const LDKRHISamplerDesc* desc)
 {
   TestImageBackend* backend = (TestImageBackend*)user;
-  (void)desc;
+  if (backend->sampler_create_count <
+      sizeof(backend->sampler_descs) / sizeof(backend->sampler_descs[0]))
+  {
+    backend->sampler_descs[backend->sampler_create_count] = *desc;
+  }
   backend->sampler_create_count += 1;
   return 100u + backend->sampler_create_count;
 }
@@ -683,8 +698,12 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_TRUE(x_hpool_init(&assets.pool, sizeof(LDKAssetInfo), config,
       NULL, NULL, NULL));
 
-  u32 pixel = 0xffffffffu;
-  LDKAssetImageData data = {ldk_image_create(1, 1, &pixel)};
+  u32 pixels[16];
+  for (u32 i = 0; i < 16u; ++i)
+  {
+    pixels[i] = 0xffffffffu;
+  }
+  LDKAssetImageData data = {ldk_image_create(4, 4, pixels)};
   ASSERT_TRUE(data.image != NULL);
   LDKAssetImage image = {x_hpool_alloc(&assets.pool)};
   LDKAssetInfo* info = x_hpool_get(&assets.pool, image.h);
@@ -715,6 +734,8 @@ static int test_material_sampling_reuses_image_texture(void)
   default_desc.args.textured.texture = image;
   repeated_desc = default_desc;
   repeated_desc.args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
+  repeated_desc.args.textured.mip_filter =
+      LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR;
   repeated_desc.args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
   repeated_desc.args.textured.wrap_v = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
   repeated_desc.args.textured.uv_scale = (Vec2){4.0f, 2.0f};
@@ -743,7 +764,10 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_EQ(texture_a.id, texture_b.id);
   ASSERT_EQ(texture_b.id, texture_c.id);
   ASSERT_EQ(backend.texture_create_count, 1u);
+  ASSERT_EQ(backend.last_texture_desc.mip_count, 3u);
   ASSERT_EQ(backend.sampler_create_count, 2u);
+  ASSERT_EQ(backend.sampler_descs[0].mip_filter, LDK_RHI_FILTER_NONE);
+  ASSERT_EQ(backend.sampler_descs[1].mip_filter, LDK_RHI_FILTER_LINEAR);
 
   LDKRendererMaterialResource* resource_a =
       &renderer.materials[material_a.id - 1u];
