@@ -1662,7 +1662,7 @@ typedef struct LDKRendererMeshMaterialParams
   float shininess;
   float emission;
   float alpha_cutoff;
-  /* Curvature, wind strength, wind speed, reserved. */
+  /* Curvature, wind strength, wind speed, wind direction radians. */
   float vegetation[4];
   /* UV scale.xy, offset.xy. */
   float uv_transform[4];
@@ -2572,6 +2572,7 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   material_params.vegetation[0] = material->desc.vegetation_curvature;
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
+  material_params.vegetation[3] = material->desc.vegetation_wind_direction;
   material_params.uv_transform[0] = material->uv_scale.x;
   material_params.uv_transform[1] = material->uv_scale.y;
   material_params.uv_transform[2] = material->uv_offset.x;
@@ -4028,6 +4029,7 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.vegetation[0] = material->desc.vegetation_curvature;
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
+  material_params.vegetation[3] = material->desc.vegetation_wind_direction;
   material_params.uv_transform[0] = material->uv_scale.x;
   material_params.uv_transform[1] = material->uv_scale.y;
   material_params.uv_transform[2] = material->uv_offset.x;
@@ -8691,7 +8693,8 @@ static bool s_renderer_material_desc_is_valid(
            isfinite(desc->vegetation_wind_strength) &&
            desc->vegetation_wind_strength >= 0.0f &&
            isfinite(desc->vegetation_wind_speed) &&
-           desc->vegetation_wind_speed >= 0.0f;
+           desc->vegetation_wind_speed >= 0.0f &&
+           isfinite(desc->vegetation_wind_direction);
   }
 
   if ((desc->normal_map.id != LDK_RHI_INVALID_RESOURCE &&
@@ -8710,7 +8713,8 @@ static bool s_renderer_material_desc_is_valid(
          isfinite(desc->vegetation_wind_strength) &&
          desc->vegetation_wind_strength >= 0.0f &&
          isfinite(desc->vegetation_wind_speed) &&
-         desc->vegetation_wind_speed >= 0.0f;
+         desc->vegetation_wind_speed >= 0.0f &&
+         isfinite(desc->vegetation_wind_direction);
 }
 
 LDKResourceMaterial ldk_renderer_material_create(
@@ -8757,6 +8761,7 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.vegetation_curvature = desc->vegetation_curvature;
   resource->desc.vegetation_wind_strength = desc->vegetation_wind_strength;
   resource->desc.vegetation_wind_speed = desc->vegetation_wind_speed;
+  resource->desc.vegetation_wind_direction = desc->vegetation_wind_direction;
   resource->desc.vegetation = desc->vegetation;
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);

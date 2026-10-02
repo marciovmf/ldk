@@ -248,7 +248,7 @@ static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
   "      curve_direction = basis * vec3(0.0, 0.0, 1.0);\n"              \
   "    curve_direction /= max(length(curve_direction), 1e-6);\n"             \
   "    float blade_height = max(length(basis[1]), 1e-6);\n"               \
-  "    vec2 wind_direction = normalize(vec2(0.83, 0.56));\n"               \
+  "    vec2 wind_direction = vec2(cos(vegetation.w), sin(vegetation.w));\n"   \
   "    float phase = time * vegetation.z * 6.28318530718 +\n"             \
   "        dot(world[3].xz, wind_direction) * 0.75;\n"                      \
   "    float sway = 0.65 * sin(phase) +\n"                               \

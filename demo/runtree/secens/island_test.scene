@@ -276,6 +276,49 @@ scene:
             material_shininess: 32
             material_emission: 0
   systems:
+    - id: "0x0da6bbd10b0612d1"
+      grouping: "0x0000000000000000"
+      data:
+        min_tilt_degrees: 45.0000000
+        max_tilt_degrees: 62.5000000
+        tilt_direction_degrees: 320.000000
+        wind_direction_degrees: 34.0074921
+        wind_force: 1.00000000
+        wind_speed: 0.214152709
+        specular: 0.00000000
+        shininess: 32.0000000
+        emission: 0.00000000
+        casts_shadows: false
+        type_0_name: "dry_grass"
+        type_0_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_0_density: 6.00000000
+        type_0_min_height: 0.119999997
+        type_0_max_height: 0.219999999
+        type_0_blade_width: 0.0299999993
+        type_0_curvature: 0.00000000
+        type_0_wind_strength: 0.00000000
+        type_0_bottom_color: 1364014591
+        type_0_top_color: 2845532671
+        type_1_name: "grass"
+        type_1_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_1_density: 50.0000000
+        type_1_min_height: 0.600000024
+        type_1_max_height: 0.649999976
+        type_1_blade_width: 0.0799999982
+        type_1_curvature: 0.159999996
+        type_1_wind_strength: 0.160148978
+        type_1_bottom_color: 3908261119
+        type_1_top_color: 2309577983
+        type_2_name: "forest_grass"
+        type_2_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_2_density: 1.00000000
+        type_2_min_height: 0.100000001
+        type_2_max_height: 0.150000006
+        type_2_blade_width: 0.0700000003
+        type_2_curvature: 0.00000000
+        type_2_wind_strength: 0.00000000
+        type_2_bottom_color: 255
+        type_2_top_color: 1703431679
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
       data:
@@ -308,41 +351,9 @@ scene:
         dry_resource_chance: 0.00200000009
         shore_resource_chance: 0.00150000001
         shallow_water_resource_chance: 0.00100000005
-        dry_grass_density: 6.00000000
-        dry_grass_min_height: 0.119999997
-        dry_grass_max_height: 0.219999999
-        dry_grass_blade_width: 0.0299999993
-        grass_density: 50.0000000
-        grass_min_height: 0.600000024
-        grass_max_height: 0.649999976
-        grass_blade_width: 0.0799999982
-        forest_grass_density: 1.00000000
-        forest_grass_min_height: 0.100000001
-        forest_grass_max_height: 0.150000006
-        forest_grass_blade_width: 0.0700000003
-        dry_grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
-        dry_grass_blade_curvature: 0.00000000
-        grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
-        grass_blade_curvature: 0.159999996
-        forest_grass_blade_preset: "ISLAND_GRASS_BLADE_PRESET_THIN"
-        forest_grass_blade_curvature: 0.00000000
-        grass_min_tilt_degrees: 45.0000000
-        grass_max_tilt_degrees: 62.5000000
-        grass_tilt_direction_degrees: 320.000000
-        dry_grass_wind_strength: 0.00000000
-        grass_wind_strength: 0.160148978
-        forest_grass_wind_strength: 0.00000000
-        grass_wind_speed: 0.214152709
-        grass_specular: 0.00000000
-        grass_shininess: 32.0000000
-        grass_emission: 0.00000000
-        dry_grass_bottom_color: 1364014591
-        dry_grass_top_color: 2845532671
-        grass_bottom_color: 3908261119
-        grass_top_color: 2309577983
-        forest_grass_bottom_color: 255
-        forest_grass_top_color: 1703431679
-        grass_casts_shadows: false
+        dry_grass_type_name: "dry_grass"
+        grass_type_name: "grass"
+        forest_grass_type_name: "forest_grass"
         radius: 8
         cell_size: 1.00000000
         elevation: 0.100000001

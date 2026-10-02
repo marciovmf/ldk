@@ -659,6 +659,7 @@ extern "C" {
     float vegetation_curvature;
     float vegetation_wind_strength;
     float vegetation_wind_speed;
+    float vegetation_wind_direction;
     bool vegetation;
   } LDKRendererMaterialDesc;
 
