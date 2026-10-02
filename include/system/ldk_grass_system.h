@@ -88,6 +88,8 @@ typedef struct LDKGrassTypeDesc
   float curvature;
   /** Per-type maximum wind displacement before the system wind force. */
   float wind_strength;
+  /** Seconds until interaction deformation fully returns to rest. Zero uses the default. */
+  float interaction_recovery_time;
   rgba32 bottom_color;
   rgba32 top_color;
 } LDKGrassTypeDesc;
@@ -161,6 +163,8 @@ typedef struct LDKGrassSystem
   float type_0_curvature;
   //@inspect slider min=0 max=0.5
   float type_0_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_0_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_0_bottom_color;
   //@inspect widget=COLOR
@@ -182,6 +186,8 @@ typedef struct LDKGrassSystem
   float type_1_curvature;
   //@inspect slider min=0 max=0.5
   float type_1_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_1_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_1_bottom_color;
   //@inspect widget=COLOR
@@ -203,6 +209,8 @@ typedef struct LDKGrassSystem
   float type_2_curvature;
   //@inspect slider min=0 max=0.5
   float type_2_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_2_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_2_bottom_color;
   //@inspect widget=COLOR
@@ -224,6 +232,8 @@ typedef struct LDKGrassSystem
   float type_3_curvature;
   //@inspect slider min=0 max=0.5
   float type_3_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_3_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_3_bottom_color;
   //@inspect widget=COLOR
@@ -245,6 +255,8 @@ typedef struct LDKGrassSystem
   float type_4_curvature;
   //@inspect slider min=0 max=0.5
   float type_4_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_4_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_4_bottom_color;
   //@inspect widget=COLOR
@@ -266,6 +278,8 @@ typedef struct LDKGrassSystem
   float type_5_curvature;
   //@inspect slider min=0 max=0.5
   float type_5_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_5_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_5_bottom_color;
   //@inspect widget=COLOR
@@ -287,6 +301,8 @@ typedef struct LDKGrassSystem
   float type_6_curvature;
   //@inspect slider min=0 max=0.5
   float type_6_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_6_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_6_bottom_color;
   //@inspect widget=COLOR
@@ -308,6 +324,8 @@ typedef struct LDKGrassSystem
   float type_7_curvature;
   //@inspect slider min=0 max=0.5
   float type_7_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_7_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_7_bottom_color;
   //@inspect widget=COLOR
@@ -329,6 +347,8 @@ typedef struct LDKGrassSystem
   float type_8_curvature;
   //@inspect slider min=0 max=0.5
   float type_8_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_8_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_8_bottom_color;
   //@inspect widget=COLOR
@@ -350,6 +370,8 @@ typedef struct LDKGrassSystem
   float type_9_curvature;
   //@inspect slider min=0 max=0.5
   float type_9_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_9_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_9_bottom_color;
   //@inspect widget=COLOR
@@ -371,6 +393,8 @@ typedef struct LDKGrassSystem
   float type_10_curvature;
   //@inspect slider min=0 max=0.5
   float type_10_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_10_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_10_bottom_color;
   //@inspect widget=COLOR
@@ -392,6 +416,8 @@ typedef struct LDKGrassSystem
   float type_11_curvature;
   //@inspect slider min=0 max=0.5
   float type_11_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_11_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_11_bottom_color;
   //@inspect widget=COLOR
@@ -413,6 +439,8 @@ typedef struct LDKGrassSystem
   float type_12_curvature;
   //@inspect slider min=0 max=0.5
   float type_12_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_12_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_12_bottom_color;
   //@inspect widget=COLOR
@@ -434,6 +462,8 @@ typedef struct LDKGrassSystem
   float type_13_curvature;
   //@inspect slider min=0 max=0.5
   float type_13_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_13_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_13_bottom_color;
   //@inspect widget=COLOR
@@ -455,6 +485,8 @@ typedef struct LDKGrassSystem
   float type_14_curvature;
   //@inspect slider min=0 max=0.5
   float type_14_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_14_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_14_bottom_color;
   //@inspect widget=COLOR
@@ -476,6 +508,8 @@ typedef struct LDKGrassSystem
   float type_15_curvature;
   //@inspect slider min=0 max=0.5
   float type_15_wind_strength;
+  //@inspect slider min=0 max=16
+  float type_15_interaction_recovery_time;
   //@inspect widget=COLOR
   u32 type_15_bottom_color;
   //@inspect widget=COLOR
@@ -527,6 +561,14 @@ LDK_API bool ldk_grass_remove(LDKGrassPatch patch);
 
 /** Remove every live patch. Renderer-side style resources remain cached. */
 LDK_API void ldk_grass_clear(void);
+
+/**
+ * Queue one world-space grass interaction capsule for the active GrassSystem.
+ * Passing the same point for from and to produces a circular interaction.
+ * The queued interaction is consumed by the GrassSystem render update.
+ */
+LDK_API bool ldk_grass_interact(
+    Vec3 from, Vec3 to, float radius, float strength);
 
 #ifdef __cplusplus
 }

@@ -23,9 +23,12 @@ scene:
             near_plane: 0.100000001
             far_plane: 1000.00000
             enabled: true
+            background_mode: 0
+            background_color: 2880154623
+            skybox_asset: -1
         - type: 4294967286 # LDKPostProcessing
           fields:
-            enabled: true
+            enabled: false
             tonemapping_enabled: false
             exposure: 0.00000000
             blur_enabled: true
@@ -122,6 +125,11 @@ scene:
             speed: 4.00000000
             acceleration: 18.0000000
             inertia: 0.150000006
+        - type: 4294967283 # LDKGrassInteractComponent
+          fields:
+            enabled: true
+            radius: 0.500000000
+            strength: 1.00000000
     - entity: 4
       parent: -1
       flags: 0
@@ -277,7 +285,6 @@ scene:
             material_emission: 0
   systems:
     - id: "0x0da6bbd10b0612d1"
-      grouping: "0x0000000000000000"
       data:
         min_tilt_degrees: 45.0000000
         max_tilt_degrees: 62.5000000
@@ -297,6 +304,7 @@ scene:
         type_0_blade_width: 0.0299999993
         type_0_curvature: 0.00000000
         type_0_wind_strength: 0.00000000
+        type_0_interaction_recovery_time: 0.00000000
         type_0_bottom_color: 1364014591
         type_0_top_color: 2845532671
         type_1_name: "grass"
@@ -307,6 +315,7 @@ scene:
         type_1_blade_width: 0.0799999982
         type_1_curvature: 0.159999996
         type_1_wind_strength: 0.160148978
+        type_1_interaction_recovery_time: 7.28125000
         type_1_bottom_color: 3908261119
         type_1_top_color: 2309577983
         type_2_name: "forest_grass"
@@ -317,8 +326,152 @@ scene:
         type_2_blade_width: 0.0700000003
         type_2_curvature: 0.00000000
         type_2_wind_strength: 0.00000000
+        type_2_interaction_recovery_time: 0.00000000
         type_2_bottom_color: 255
         type_2_top_color: 1703431679
+        type_3_name: ""
+        type_3_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_3_density: 0.00000000
+        type_3_min_height: 0.00000000
+        type_3_max_height: 0.00000000
+        type_3_blade_width: 0.00000000
+        type_3_curvature: 0.00000000
+        type_3_wind_strength: 0.00000000
+        type_3_interaction_recovery_time: 0.00000000
+        type_3_bottom_color: 0
+        type_3_top_color: 0
+        type_4_name: ""
+        type_4_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_4_density: 0.00000000
+        type_4_min_height: 0.00000000
+        type_4_max_height: 0.00000000
+        type_4_blade_width: 0.00000000
+        type_4_curvature: 0.00000000
+        type_4_wind_strength: 0.00000000
+        type_4_interaction_recovery_time: 0.00000000
+        type_4_bottom_color: 0
+        type_4_top_color: 0
+        type_5_name: ""
+        type_5_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_5_density: 0.00000000
+        type_5_min_height: 0.00000000
+        type_5_max_height: 0.00000000
+        type_5_blade_width: 0.00000000
+        type_5_curvature: 0.00000000
+        type_5_wind_strength: 0.00000000
+        type_5_interaction_recovery_time: 0.00000000
+        type_5_bottom_color: 0
+        type_5_top_color: 0
+        type_6_name: ""
+        type_6_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_6_density: 0.00000000
+        type_6_min_height: 0.00000000
+        type_6_max_height: 0.00000000
+        type_6_blade_width: 0.00000000
+        type_6_curvature: 0.00000000
+        type_6_wind_strength: 0.00000000
+        type_6_interaction_recovery_time: 0.00000000
+        type_6_bottom_color: 0
+        type_6_top_color: 0
+        type_7_name: ""
+        type_7_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_7_density: 0.00000000
+        type_7_min_height: 0.00000000
+        type_7_max_height: 0.00000000
+        type_7_blade_width: 0.00000000
+        type_7_curvature: 0.00000000
+        type_7_wind_strength: 0.00000000
+        type_7_interaction_recovery_time: 0.00000000
+        type_7_bottom_color: 0
+        type_7_top_color: 0
+        type_8_name: ""
+        type_8_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_8_density: 0.00000000
+        type_8_min_height: 0.00000000
+        type_8_max_height: 0.00000000
+        type_8_blade_width: 0.00000000
+        type_8_curvature: 0.00000000
+        type_8_wind_strength: 0.00000000
+        type_8_interaction_recovery_time: 0.00000000
+        type_8_bottom_color: 0
+        type_8_top_color: 0
+        type_9_name: ""
+        type_9_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_9_density: 0.00000000
+        type_9_min_height: 0.00000000
+        type_9_max_height: 0.00000000
+        type_9_blade_width: 0.00000000
+        type_9_curvature: 0.00000000
+        type_9_wind_strength: 0.00000000
+        type_9_interaction_recovery_time: 0.00000000
+        type_9_bottom_color: 0
+        type_9_top_color: 0
+        type_10_name: ""
+        type_10_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_10_density: 0.00000000
+        type_10_min_height: 0.00000000
+        type_10_max_height: 0.00000000
+        type_10_blade_width: 0.00000000
+        type_10_curvature: 0.00000000
+        type_10_wind_strength: 0.00000000
+        type_10_interaction_recovery_time: 0.00000000
+        type_10_bottom_color: 0
+        type_10_top_color: 0
+        type_11_name: ""
+        type_11_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_11_density: 0.00000000
+        type_11_min_height: 0.00000000
+        type_11_max_height: 0.00000000
+        type_11_blade_width: 0.00000000
+        type_11_curvature: 0.00000000
+        type_11_wind_strength: 0.00000000
+        type_11_interaction_recovery_time: 0.00000000
+        type_11_bottom_color: 0
+        type_11_top_color: 0
+        type_12_name: ""
+        type_12_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_12_density: 0.00000000
+        type_12_min_height: 0.00000000
+        type_12_max_height: 0.00000000
+        type_12_blade_width: 0.00000000
+        type_12_curvature: 0.00000000
+        type_12_wind_strength: 0.00000000
+        type_12_interaction_recovery_time: 0.00000000
+        type_12_bottom_color: 0
+        type_12_top_color: 0
+        type_13_name: ""
+        type_13_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_13_density: 0.00000000
+        type_13_min_height: 0.00000000
+        type_13_max_height: 0.00000000
+        type_13_blade_width: 0.00000000
+        type_13_curvature: 0.00000000
+        type_13_wind_strength: 0.00000000
+        type_13_interaction_recovery_time: 0.00000000
+        type_13_bottom_color: 0
+        type_13_top_color: 0
+        type_14_name: ""
+        type_14_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_14_density: 0.00000000
+        type_14_min_height: 0.00000000
+        type_14_max_height: 0.00000000
+        type_14_blade_width: 0.00000000
+        type_14_curvature: 0.00000000
+        type_14_wind_strength: 0.00000000
+        type_14_interaction_recovery_time: 0.00000000
+        type_14_bottom_color: 0
+        type_14_top_color: 0
+        type_15_name: ""
+        type_15_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+        type_15_density: 0.00000000
+        type_15_min_height: 0.00000000
+        type_15_max_height: 0.00000000
+        type_15_blade_width: 0.00000000
+        type_15_curvature: 0.00000000
+        type_15_wind_strength: 0.00000000
+        type_15_interaction_recovery_time: 0.00000000
+        type_15_bottom_color: 0
+        type_15_top_color: 0
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
       data:

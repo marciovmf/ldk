@@ -4,6 +4,7 @@
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_post_processing.h>
 #include <component/ldk_audio_source.h>
+#include <component/ldk_grass_interact.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -44,6 +45,10 @@
 
 #ifndef LDK_DEFAULT_AUDIO_SOURCE_COUNT
 #define LDK_DEFAULT_AUDIO_SOURCE_COUNT 16
+#endif
+
+#ifndef LDK_DEFAULT_GRASS_INTERACT_COUNT
+#define LDK_DEFAULT_GRASS_INTERACT_COUNT 32
 #endif
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
@@ -1206,6 +1211,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &audio_source_desc))
   {
     ldk_log_error("Failed to register component: AudioSource.");
+    error = true;
+  }
+
+  LDKComponentDesc grass_interact_desc =
+      ldk_grass_interact_component_desc(LDK_DEFAULT_GRASS_INTERACT_COUNT);
+  if (!ldk_component_register(&context->component, &grass_interact_desc))
+  {
+    ldk_log_error("Failed to register component: GrassInteractComponent.");
     error = true;
   }
 

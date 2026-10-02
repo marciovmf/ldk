@@ -24,6 +24,7 @@
 #include <component/ldk_text3d.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
+#include <component/ldk_grass_interact.h>
 
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>

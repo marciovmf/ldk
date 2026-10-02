@@ -1666,6 +1666,8 @@ typedef struct LDKRendererMeshMaterialParams
   float vegetation[4];
   /* UV scale.xy, offset.xy. */
   float uv_transform[4];
+  /* Interaction origin.xz, inverse world size, recovery time seconds. */
+  float vegetation_interaction[4];
 } LDKRendererMeshMaterialParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
@@ -1678,7 +1680,7 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, options) == 80,
     mesh_object_options_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
-LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 64,
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) == 80,
     mesh_material_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, specular) == 16,
     mesh_material_surface_std140_offset);
@@ -1694,6 +1696,9 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, vegetation) == 32,
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererMeshMaterialParams, uv_transform) == 48,
     mesh_material_uv_transform_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererMeshMaterialParams, vegetation_interaction) == 64,
+    mesh_material_interaction_std140_offset);
 
 typedef struct LDKRendererShadowCameraParams
 {
@@ -1713,9 +1718,10 @@ typedef struct LDKRendererShadowMaterialParams
   float padding[2];
   float vegetation[4];
   float uv_transform[4];
+  float vegetation_interaction[4];
 } LDKRendererShadowMaterialParams;
 
-LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 48,
+LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 64,
     shadow_material_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererShadowMaterialParams, alpha_cutoff) == 4,
@@ -1725,6 +1731,9 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererShadowMaterialParams, vegetation) == 16,
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererShadowMaterialParams, uv_transform) == 32,
     shadow_material_uv_transform_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererShadowMaterialParams, vegetation_interaction) == 48,
+    shadow_material_interaction_std140_offset);
 
 typedef struct LDKRendererLightParams
 {
@@ -1777,6 +1786,118 @@ bool ldk_renderer_ambient_light_set(
 
   renderer->ambient_light.color = color;
   renderer->ambient_light.intensity = intensity;
+  return true;
+}
+
+void ldk_renderer_vegetation_interaction_clear(LDKRenderer *renderer)
+{
+  if (!renderer)
+  {
+    return;
+  }
+
+  if (renderer->rhi)
+  {
+    ldk_rhi_bindings_destroy(
+        renderer->rhi, renderer->mesh_pass.vegetation_bindings);
+    ldk_rhi_bindings_destroy(
+        renderer->rhi, renderer->shadow_pass.vegetation_bindings);
+  }
+
+  renderer->mesh_pass.vegetation_bindings = LDK_RHI_INVALID_RESOURCE;
+  renderer->shadow_pass.vegetation_bindings = LDK_RHI_INVALID_RESOURCE;
+  renderer->vegetation_interaction_texture = ldk_renderer_texture_null();
+  renderer->vegetation_interaction_origin = vec2_make(0.0f, 0.0f);
+  renderer->vegetation_interaction_inv_world_size = 0.0f;
+  renderer->vegetation_interaction_enabled = false;
+}
+
+bool ldk_renderer_vegetation_interaction_set(LDKRenderer *renderer,
+    LDKResourceTexture texture, Vec2 world_origin, float world_size)
+{
+  LDKRendererTextureResource *resource;
+  LDKRHIBindings mesh_bindings = LDK_RHI_INVALID_RESOURCE;
+  LDKRHIBindings shadow_bindings = LDK_RHI_INVALID_RESOURCE;
+
+  if (!renderer || !renderer->is_initialized || !renderer->rhi ||
+      !isfinite(world_origin.x) || !isfinite(world_origin.y) ||
+      !isfinite(world_size) || world_size <= 0.0f)
+  {
+    return false;
+  }
+
+  resource = s_renderer_texture_get_resource(renderer, texture);
+  if (!resource)
+  {
+    return false;
+  }
+
+  if (renderer->vegetation_interaction_texture.id != texture.id ||
+      renderer->mesh_pass.vegetation_bindings == LDK_RHI_INVALID_RESOURCE ||
+      renderer->shadow_pass.vegetation_bindings == LDK_RHI_INVALID_RESOURCE)
+  {
+    LDKRHIBindingsDesc desc = {0};
+    ldk_rhi_bindings_desc_defaults(&desc);
+    desc.layout = renderer->mesh_pass.bindings_layout;
+    desc.binding_count = 6;
+    desc.bindings[0].slot = 0;
+    desc.bindings[0].buffer = renderer->mesh_pass.camera_buffer;
+    desc.bindings[0].buffer_size = sizeof(LDKRendererMeshCameraParams);
+    desc.bindings[1].slot = 1;
+    desc.bindings[1].buffer = renderer->mesh_pass.object_buffer;
+    desc.bindings[1].buffer_size = sizeof(LDKRendererMeshObjectParams);
+    desc.bindings[2].slot = 2;
+    desc.bindings[2].buffer = renderer->mesh_pass.material_buffer;
+    desc.bindings[2].buffer_size = sizeof(LDKRendererMeshMaterialParams);
+    desc.bindings[3].slot = 4;
+    desc.bindings[3].buffer = renderer->mesh_pass.lighting_buffer;
+    desc.bindings[3].buffer_size = sizeof(LDKRendererLightingParams);
+    desc.bindings[4].slot = 5;
+    desc.bindings[4].texture = renderer->mesh_pass.shadow_texture;
+    desc.bindings[4].sampler = renderer->mesh_pass.shadow_sampler;
+    desc.bindings[5].slot = 8;
+    desc.bindings[5].texture = resource->texture;
+    desc.bindings[5].sampler = resource->sampler;
+    mesh_bindings = ldk_rhi_bindings_create(renderer->rhi, &desc);
+    if (mesh_bindings == LDK_RHI_INVALID_RESOURCE)
+    {
+      return false;
+    }
+
+    ldk_rhi_bindings_desc_defaults(&desc);
+    desc.layout = renderer->shadow_pass.bindings_layout;
+    desc.binding_count = 4;
+    desc.bindings[0].slot = 0;
+    desc.bindings[0].buffer = renderer->shadow_pass.camera_buffer;
+    desc.bindings[0].buffer_size = sizeof(LDKRendererShadowCameraParams);
+    desc.bindings[1].slot = 1;
+    desc.bindings[1].buffer = renderer->shadow_pass.object_buffer;
+    desc.bindings[1].buffer_size = sizeof(Mat4);
+    desc.bindings[2].slot = 2;
+    desc.bindings[2].buffer = renderer->shadow_pass.material_buffer;
+    desc.bindings[2].buffer_size = sizeof(LDKRendererShadowMaterialParams);
+    desc.bindings[3].slot = 4;
+    desc.bindings[3].texture = resource->texture;
+    desc.bindings[3].sampler = resource->sampler;
+    shadow_bindings = ldk_rhi_bindings_create(renderer->rhi, &desc);
+    if (shadow_bindings == LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_bindings_destroy(renderer->rhi, mesh_bindings);
+      return false;
+    }
+
+    ldk_rhi_bindings_destroy(
+        renderer->rhi, renderer->mesh_pass.vegetation_bindings);
+    ldk_rhi_bindings_destroy(
+        renderer->rhi, renderer->shadow_pass.vegetation_bindings);
+    renderer->mesh_pass.vegetation_bindings = mesh_bindings;
+    renderer->shadow_pass.vegetation_bindings = shadow_bindings;
+  }
+
+  renderer->vegetation_interaction_texture = texture;
+  renderer->vegetation_interaction_origin = world_origin;
+  renderer->vegetation_interaction_inv_world_size = 1.0f / world_size;
+  renderer->vegetation_interaction_enabled = true;
   return true;
 }
 
@@ -1910,6 +2031,7 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
           pass->rhi, pass->cutout_bindings_cache[i].bindings);
     }
 
+    ldk_rhi_bindings_destroy(pass->rhi, pass->vegetation_bindings);
     ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_pipeline);
@@ -2230,7 +2352,7 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
 
   LDKRHIBindingsLayoutDesc layout;
   ldk_rhi_bindings_layout_desc_defaults(&layout);
-  layout.entry_count = 4;
+  layout.entry_count = 5;
   layout.entries[0].slot = 0;
   layout.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   layout.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
@@ -2244,6 +2366,9 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
   layout.entries[3].slot = 3;
   layout.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   layout.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  layout.entries[4].slot = 4;
+  layout.entries[4].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  layout.entries[4].stages = LDK_RHI_SHADER_STAGE_VERTEX;
   pass->bindings_layout = ldk_rhi_bindings_layout_create(rhi, &layout);
   if (!pass->bindings_layout)
   {
@@ -2569,6 +2694,12 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   LDKRHIBindings bindings = pass->bindings;
   LDKRendererShadowMaterialParams material_params = {0};
 
+  if (vegetation && renderer->vegetation_interaction_enabled &&
+      pass->vegetation_bindings != LDK_RHI_INVALID_RESOURCE)
+  {
+    bindings = pass->vegetation_bindings;
+  }
+
   material_params.vegetation[0] = material->desc.vegetation_curvature;
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
@@ -2577,6 +2708,17 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   material_params.uv_transform[1] = material->uv_scale.y;
   material_params.uv_transform[2] = material->uv_offset.x;
   material_params.uv_transform[3] = material->uv_offset.y;
+  if (vegetation && renderer->vegetation_interaction_enabled)
+  {
+    material_params.vegetation_interaction[0] =
+        renderer->vegetation_interaction_origin.x;
+    material_params.vegetation_interaction[1] =
+        renderer->vegetation_interaction_origin.y;
+    material_params.vegetation_interaction[2] =
+        renderer->vegetation_interaction_inv_world_size;
+    material_params.vegetation_interaction[3] =
+        material->desc.vegetation_interaction_recovery_time;
+  }
 
   if (cutout)
   {
@@ -2906,7 +3048,7 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
-  desc.entry_count = 8;
+  desc.entry_count = 9;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages =
@@ -2933,6 +3075,9 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[7].slot = 7;
   desc.entries[7].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[7].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  desc.entries[8].slot = 8;
+  desc.entries[8].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  desc.entries[8].stages = LDK_RHI_SHADER_STAGE_VERTEX;
 
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &desc);
@@ -3713,6 +3858,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
           pass->rhi, pass->material_bindings_cache[i].bindings);
     }
 
+    ldk_rhi_bindings_destroy(pass->rhi, pass->vegetation_bindings);
     ldk_rhi_bindings_destroy(pass->rhi, pass->bindings);
     ldk_rhi_sampler_destroy(pass->rhi, pass->fallback_sampler);
     ldk_rhi_texture_destroy(pass->rhi, pass->white_specular_texture);
@@ -3954,9 +4100,16 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       (first->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) != 0;
   bool textured = s_renderer_mesh_pass_material_is_textured(material);
   bool lit = !overlay && s_renderer_mesh_pass_material_is_lit(material);
+  bool vegetation = material->selection ==
+      LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
 
   LDKRHIBindings bindings = pass->bindings;
-  if (textured || lit)
+  if (vegetation && renderer->vegetation_interaction_enabled &&
+      pass->vegetation_bindings != LDK_RHI_INVALID_RESOURCE)
+  {
+    bindings = pass->vegetation_bindings;
+  }
+  else if (textured || lit)
   {
     LDKRHITexture albedo_texture = LDK_RHI_INVALID_RESOURCE;
     LDKRHISampler albedo_sampler = LDK_RHI_INVALID_RESOURCE;
@@ -4034,6 +4187,17 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.uv_transform[1] = material->uv_scale.y;
   material_params.uv_transform[2] = material->uv_offset.x;
   material_params.uv_transform[3] = material->uv_offset.y;
+  if (vegetation && renderer->vegetation_interaction_enabled)
+  {
+    material_params.vegetation_interaction[0] =
+        renderer->vegetation_interaction_origin.x;
+    material_params.vegetation_interaction[1] =
+        renderer->vegetation_interaction_origin.y;
+    material_params.vegetation_interaction[2] =
+        renderer->vegetation_interaction_inv_world_size;
+    material_params.vegetation_interaction[3] =
+        material->desc.vegetation_interaction_recovery_time;
+  }
   if (lit)
   {
     material_params.specular = material->desc.specular;
@@ -8185,6 +8349,11 @@ void ldk_renderer_texture_destroy(
     return;
   }
 
+  if (renderer->vegetation_interaction_texture.id == texture.id)
+  {
+    ldk_renderer_vegetation_interaction_clear(renderer);
+  }
+
   s_renderer_mesh_pass_remove_texture_bindings(
       &renderer->mesh_pass, resource->texture);
   s_renderer_shadow_pass_remove_texture_bindings(
@@ -8694,7 +8863,9 @@ static bool s_renderer_material_desc_is_valid(
            desc->vegetation_wind_strength >= 0.0f &&
            isfinite(desc->vegetation_wind_speed) &&
            desc->vegetation_wind_speed >= 0.0f &&
-           isfinite(desc->vegetation_wind_direction);
+           isfinite(desc->vegetation_wind_direction) &&
+           isfinite(desc->vegetation_interaction_recovery_time) &&
+           desc->vegetation_interaction_recovery_time >= 0.0f;
   }
 
   if ((desc->normal_map.id != LDK_RHI_INVALID_RESOURCE &&
@@ -8714,7 +8885,9 @@ static bool s_renderer_material_desc_is_valid(
          desc->vegetation_wind_strength >= 0.0f &&
          isfinite(desc->vegetation_wind_speed) &&
          desc->vegetation_wind_speed >= 0.0f &&
-         isfinite(desc->vegetation_wind_direction);
+         isfinite(desc->vegetation_wind_direction) &&
+         isfinite(desc->vegetation_interaction_recovery_time) &&
+         desc->vegetation_interaction_recovery_time >= 0.0f;
 }
 
 LDKResourceMaterial ldk_renderer_material_create(
@@ -8762,6 +8935,8 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.vegetation_wind_strength = desc->vegetation_wind_strength;
   resource->desc.vegetation_wind_speed = desc->vegetation_wind_speed;
   resource->desc.vegetation_wind_direction = desc->vegetation_wind_direction;
+  resource->desc.vegetation_interaction_recovery_time =
+      desc->vegetation_interaction_recovery_time;
   resource->desc.vegetation = desc->vegetation;
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);

@@ -1,8 +1,12 @@
-#include <system/ldk_grass.h>
+#include <system/ldk_grass_system.h>
 
 #include <ldk.h>
 #include <ldk_mesh.h>
+#include <component/ldk_grass_interact.h>
+#include <component/ldk_transform.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_renderer.h>
+#include <module/ldk_scenegraph.h>
 
 #include <float.h>
 #include <math.h>
@@ -27,6 +31,14 @@
       LDK_GRASS_THORN_COUNT * LDK_GRASS_THORN_INDEX_COUNT)
 #define LDK_GRASS_THORN_MAX_LENGTH_SCALE 0.75f
 #define LDK_GRASS_THORNY_BEND_MAX_SCALE 1.25f
+#define LDK_GRASS_INTERACTION_RESOLUTION 128u
+#define LDK_GRASS_INTERACTION_WORLD_SIZE 32.0f
+#define LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME 2.5f
+#define LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME 16.0f
+#define LDK_GRASS_INTERACTION_EPSILON 0.001f
+#define LDK_GRASS_INTERACTION_TELEPORT_DISTANCE \
+  (LDK_GRASS_INTERACTION_WORLD_SIZE * 0.5f)
+
 
 typedef struct LDKGrassResolvedDesc
 {
@@ -47,6 +59,7 @@ typedef struct LDKGrassResolvedDesc
   float wind_strength;
   float wind_speed;
   float wind_direction;
+  float interaction_recovery_time;
   u32 seed;
   bool casts_shadows;
 } LDKGrassResolvedDesc;
@@ -77,6 +90,7 @@ typedef struct LDKGrassBatch
   float wind_strength;
   float wind_speed;
   float wind_direction;
+  float interaction_recovery_time;
   bool casts_shadows;
 
   Mat4 *instances;
@@ -92,6 +106,28 @@ typedef struct LDKGrassBatch
   bool dirty;
 } LDKGrassBatch;
 
+typedef struct LDKGrassInteraction
+{
+  Vec3 from;
+  Vec3 to;
+  float radius;
+  float strength;
+} LDKGrassInteraction;
+
+typedef struct LDKGrassInteractionFieldCell
+{
+  Vec2 bend;
+  float age;
+} LDKGrassInteractionFieldCell;
+
+typedef struct LDKGrassInteractorState
+{
+  LDKEntity entity;
+  Vec3 previous_position;
+  bool initialized;
+  bool seen;
+} LDKGrassInteractorState;
+
 typedef struct LDKGrassRuntime
 {
   LDKGrassSystem *owner;
@@ -102,6 +138,22 @@ typedef struct LDKGrassRuntime
   LDKGrassBatch *batches;
   u32 batch_count;
   u32 batch_capacity;
+
+  LDKGrassInteraction *interactions;
+  u32 interaction_count;
+  u32 interaction_capacity;
+  LDKGrassInteractorState *interactor_states;
+  u32 interactor_state_count;
+  u32 interactor_state_capacity;
+  LDKGrassInteractionFieldCell *interaction_field;
+  Vec2 *interaction_stamps;
+  LDKGrassInteractionFieldCell *interaction_scratch;
+  u8 *interaction_pixels;
+  LDKResourceTexture interaction_texture;
+  Vec2 interaction_origin;
+  bool interaction_origin_initialized;
+  bool interaction_field_active;
+
   u64 config_hash;
   bool initialized;
 } LDKGrassRuntime;
@@ -117,6 +169,721 @@ static bool s_allocation_size_is_valid(u32 count, size_t element_size)
 static bool s_vec3_is_finite(Vec3 value)
 {
   return isfinite(value.x) && isfinite(value.y) && isfinite(value.z);
+}
+
+static float s_clamp01(float value)
+{
+  if (value < 0.0f)
+  {
+    return 0.0f;
+  }
+  if (value > 1.0f)
+  {
+    return 1.0f;
+  }
+  return value;
+}
+
+static bool s_interactions_reserve(u32 needed)
+{
+  LDKGrassInteraction *new_interactions;
+  u32 new_capacity;
+
+  if (needed <= s_grass.interaction_capacity)
+  {
+    return true;
+  }
+
+  new_capacity = s_grass.interaction_capacity == 0u
+      ? 16u : s_grass.interaction_capacity;
+  while (new_capacity < needed)
+  {
+    if (new_capacity > UINT32_MAX / 2u)
+    {
+      new_capacity = needed;
+      break;
+    }
+    new_capacity *= 2u;
+  }
+
+  if (!s_allocation_size_is_valid(
+          new_capacity, sizeof(LDKGrassInteraction)))
+  {
+    return false;
+  }
+
+  new_interactions = realloc(s_grass.interactions,
+      (size_t)new_capacity * sizeof(LDKGrassInteraction));
+  if (!new_interactions)
+  {
+    return false;
+  }
+
+  s_grass.interactions = new_interactions;
+  s_grass.interaction_capacity = new_capacity;
+  return true;
+}
+
+static bool s_interaction_queue(Vec3 from, Vec3 to,
+    float radius, float strength)
+{
+  LDKGrassInteraction *interaction;
+
+  if (!s_grass.initialized || !s_vec3_is_finite(from) ||
+      !s_vec3_is_finite(to) || !isfinite(radius) || radius <= 0.0f ||
+      !isfinite(strength) || strength <= 0.0f ||
+      !s_interactions_reserve(s_grass.interaction_count + 1u))
+  {
+    return false;
+  }
+
+  interaction = &s_grass.interactions[s_grass.interaction_count++];
+  interaction->from = from;
+  interaction->to = to;
+  interaction->radius = radius;
+  interaction->strength = strength;
+  return true;
+}
+
+static bool s_interactor_states_reserve(u32 needed)
+{
+  LDKGrassInteractorState *new_states;
+  u32 new_capacity;
+
+  if (needed <= s_grass.interactor_state_capacity)
+  {
+    return true;
+  }
+
+  new_capacity = s_grass.interactor_state_capacity == 0u
+      ? 16u : s_grass.interactor_state_capacity;
+  while (new_capacity < needed)
+  {
+    if (new_capacity > UINT32_MAX / 2u)
+    {
+      new_capacity = needed;
+      break;
+    }
+    new_capacity *= 2u;
+  }
+
+  if (!s_allocation_size_is_valid(
+          new_capacity, sizeof(LDKGrassInteractorState)))
+  {
+    return false;
+  }
+
+  new_states = realloc(s_grass.interactor_states,
+      (size_t)new_capacity * sizeof(LDKGrassInteractorState));
+  if (!new_states)
+  {
+    return false;
+  }
+
+  s_grass.interactor_states = new_states;
+  s_grass.interactor_state_capacity = new_capacity;
+  return true;
+}
+
+static bool s_entity_equal(LDKEntity a, LDKEntity b)
+{
+  return a.index == b.index && a.version == b.version;
+}
+
+static LDKGrassInteractorState *s_interactor_state_get(LDKEntity entity)
+{
+  for (u32 i = 0u; i < s_grass.interactor_state_count; ++i)
+  {
+    LDKGrassInteractorState *state = &s_grass.interactor_states[i];
+    if (s_entity_equal(state->entity, entity))
+    {
+      return state;
+    }
+  }
+
+  if (!s_interactor_states_reserve(s_grass.interactor_state_count + 1u))
+  {
+    return NULL;
+  }
+
+  LDKGrassInteractorState *state =
+      &s_grass.interactor_states[s_grass.interactor_state_count++];
+  memset(state, 0, sizeof(*state));
+  state->entity = entity;
+  return state;
+}
+
+static void s_interactor_states_begin_frame(void)
+{
+  for (u32 i = 0u; i < s_grass.interactor_state_count; ++i)
+  {
+    s_grass.interactor_states[i].seen = false;
+  }
+}
+
+static void s_interactor_states_end_frame(void)
+{
+  u32 write_index = 0u;
+
+  for (u32 i = 0u; i < s_grass.interactor_state_count; ++i)
+  {
+    if (!s_grass.interactor_states[i].seen)
+    {
+      continue;
+    }
+    if (write_index != i)
+    {
+      s_grass.interactor_states[write_index] = s_grass.interactor_states[i];
+    }
+    write_index += 1u;
+  }
+  s_grass.interactor_state_count = write_index;
+}
+
+static void s_interaction_components_collect(void)
+{
+  LDKComponentRegistry *components = ldk_ecs_component_registry_get();
+  XArray *interactors;
+  XArray *owners;
+
+  s_interactor_states_begin_frame();
+  if (!components)
+  {
+    s_interactor_states_end_frame();
+    return;
+  }
+
+  interactors = ldk_component_store_get(
+      components, LDK_COMPONENT_TYPE_GRASS_INTERACT);
+  owners = ldk_component_owners_get(
+      components, LDK_COMPONENT_TYPE_GRASS_INTERACT);
+  if (!interactors || !owners)
+  {
+    s_interactor_states_end_frame();
+    return;
+  }
+
+  for (u32 i = 0u; i < x_array_count(interactors); ++i)
+  {
+    LDKGrassInteractComponent *interactor = x_array_get(interactors, i);
+    LDKEntity *entity = x_array_get(owners, i);
+    LDKGrassInteractorState *state;
+    Mat4 world;
+    Vec3 position;
+    Vec3 previous;
+    Vec2 movement;
+
+    if (!interactor || !entity)
+    {
+      continue;
+    }
+
+    state = s_interactor_state_get(*entity);
+    if (!state)
+    {
+      continue;
+    }
+    state->seen = true;
+
+    if (!interactor->enabled)
+    {
+      state->initialized = false;
+      continue;
+    }
+
+    if (!isfinite(interactor->radius) || interactor->radius <= 0.0f ||
+        !isfinite(interactor->strength) || interactor->strength <= 0.0f ||
+        !ldk_scenegraph_update_entity(*entity) ||
+        !ldk_transform_get_world_matrix(*entity, &world))
+    {
+      state->initialized = false;
+      continue;
+    }
+
+    position = vec3_make(world.m[12], world.m[13], world.m[14]);
+    if (!s_vec3_is_finite(position))
+    {
+      state->initialized = false;
+      continue;
+    }
+
+    previous = state->initialized ? state->previous_position : position;
+    movement = vec2_make(position.x - previous.x, position.z - previous.z);
+    if (vec2_len2(movement) >
+        LDK_GRASS_INTERACTION_TELEPORT_DISTANCE *
+            LDK_GRASS_INTERACTION_TELEPORT_DISTANCE)
+    {
+      previous = position;
+    }
+
+    (void)s_interaction_queue(
+        previous, position, interactor->radius, interactor->strength);
+
+    state->previous_position = position;
+    state->initialized = true;
+  }
+
+  s_interactor_states_end_frame();
+}
+
+static void s_interaction_field_cells_clear(
+    LDKGrassInteractionFieldCell *cells, u32 count)
+{
+  if (!cells)
+  {
+    return;
+  }
+
+  for (u32 i = 0u; i < count; ++i)
+  {
+    cells[i].bend = vec2_make(0.0f, 0.0f);
+    cells[i].age = LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME;
+  }
+}
+
+static bool s_interaction_field_allocate(void)
+{
+  const u32 cell_count = LDK_GRASS_INTERACTION_RESOLUTION *
+      LDK_GRASS_INTERACTION_RESOLUTION;
+  const u32 pixel_count = cell_count * 4u;
+
+  if (!s_allocation_size_is_valid(
+          cell_count, sizeof(LDKGrassInteractionFieldCell)) ||
+      !s_allocation_size_is_valid(cell_count, sizeof(Vec2)) ||
+      !s_allocation_size_is_valid(pixel_count, sizeof(u8)))
+  {
+    return false;
+  }
+
+  s_grass.interaction_field =
+      malloc((size_t)cell_count * sizeof(LDKGrassInteractionFieldCell));
+  s_grass.interaction_stamps = calloc(cell_count, sizeof(Vec2));
+  s_grass.interaction_scratch =
+      malloc((size_t)cell_count * sizeof(LDKGrassInteractionFieldCell));
+  s_grass.interaction_pixels = malloc(pixel_count);
+  if (!s_grass.interaction_field || !s_grass.interaction_stamps ||
+      !s_grass.interaction_scratch || !s_grass.interaction_pixels)
+  {
+    return false;
+  }
+
+  s_interaction_field_cells_clear(s_grass.interaction_field, cell_count);
+  s_interaction_field_cells_clear(s_grass.interaction_scratch, cell_count);
+  for (u32 i = 0u; i < cell_count; ++i)
+  {
+    s_grass.interaction_pixels[i * 4u] = 128u;
+    s_grass.interaction_pixels[i * 4u + 1u] = 128u;
+    s_grass.interaction_pixels[i * 4u + 2u] = 255u;
+    s_grass.interaction_pixels[i * 4u + 3u] = 255u;
+  }
+  return true;
+}
+
+static bool s_interaction_texture_create(void)
+{
+  LDKRendererTextureOptions options;
+  LDKRendererTextureDesc desc = {0};
+  const u64 byte_count = (u64)LDK_GRASS_INTERACTION_RESOLUTION *
+      (u64)LDK_GRASS_INTERACTION_RESOLUTION * 4u;
+
+  if (!s_grass.renderer || !s_grass.interaction_pixels)
+  {
+    return false;
+  }
+
+  ldk_renderer_texture_options_defaults(&options);
+  options.generate_mipmaps = false;
+  options.min_filter = LDK_RHI_FILTER_LINEAR;
+  options.mag_filter = LDK_RHI_FILTER_LINEAR;
+  options.mip_filter = LDK_RHI_FILTER_NONE;
+  options.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  options.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  options.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+
+  desc.width = LDK_GRASS_INTERACTION_RESOLUTION;
+  desc.height = LDK_GRASS_INTERACTION_RESOLUTION;
+  desc.channel_count = 4u;
+  desc.pixels = s_grass.interaction_pixels;
+  desc.byte_count = byte_count;
+  desc.options = &options;
+
+  s_grass.interaction_texture =
+      ldk_renderer_texture_create(s_grass.renderer, &desc);
+  if (!ldk_renderer_texture_is_valid(
+          s_grass.renderer, s_grass.interaction_texture))
+  {
+    s_grass.interaction_texture = ldk_renderer_texture_null();
+    return false;
+  }
+
+  s_grass.interaction_origin = vec2_make(0.0f, 0.0f);
+  return ldk_renderer_vegetation_interaction_set(s_grass.renderer,
+      s_grass.interaction_texture, s_grass.interaction_origin,
+      LDK_GRASS_INTERACTION_WORLD_SIZE);
+}
+
+static void s_interaction_field_release(void)
+{
+  if (s_grass.renderer)
+  {
+    ldk_renderer_vegetation_interaction_clear(s_grass.renderer);
+    if (ldk_renderer_texture_is_valid(
+            s_grass.renderer, s_grass.interaction_texture))
+    {
+      ldk_renderer_texture_destroy(
+          s_grass.renderer, s_grass.interaction_texture);
+    }
+  }
+
+  free(s_grass.interactions);
+  free(s_grass.interactor_states);
+  free(s_grass.interaction_field);
+  free(s_grass.interaction_stamps);
+  free(s_grass.interaction_scratch);
+  free(s_grass.interaction_pixels);
+  s_grass.interactions = NULL;
+  s_grass.interactor_states = NULL;
+  s_grass.interactor_state_count = 0u;
+  s_grass.interactor_state_capacity = 0u;
+  s_grass.interaction_field = NULL;
+  s_grass.interaction_stamps = NULL;
+  s_grass.interaction_scratch = NULL;
+  s_grass.interaction_pixels = NULL;
+  s_grass.interaction_count = 0u;
+  s_grass.interaction_capacity = 0u;
+  s_grass.interaction_texture = ldk_renderer_texture_null();
+  s_grass.interaction_origin_initialized = false;
+  s_grass.interaction_field_active = false;
+}
+
+static void s_interaction_field_shift(Vec2 desired_origin)
+{
+  const i32 resolution = (i32)LDK_GRASS_INTERACTION_RESOLUTION;
+  const float texel_size = LDK_GRASS_INTERACTION_WORLD_SIZE /
+      (float)LDK_GRASS_INTERACTION_RESOLUTION;
+  i32 offset_x;
+  i32 offset_z;
+
+  if (!s_grass.interaction_origin_initialized)
+  {
+    s_grass.interaction_origin = desired_origin;
+    s_grass.interaction_origin_initialized = true;
+    return;
+  }
+
+  offset_x = (i32)lroundf(
+      (desired_origin.x - s_grass.interaction_origin.x) / texel_size);
+  offset_z = (i32)lroundf(
+      (desired_origin.y - s_grass.interaction_origin.y) / texel_size);
+  if (offset_x == 0 && offset_z == 0)
+  {
+    return;
+  }
+
+  s_interaction_field_cells_clear(s_grass.interaction_scratch,
+      LDK_GRASS_INTERACTION_RESOLUTION *
+          LDK_GRASS_INTERACTION_RESOLUTION);
+
+  if (abs(offset_x) < resolution && abs(offset_z) < resolution)
+  {
+    for (i32 z = 0; z < resolution; ++z)
+    {
+      i32 old_z = z + offset_z;
+      if (old_z < 0 || old_z >= resolution)
+      {
+        continue;
+      }
+      for (i32 x = 0; x < resolution; ++x)
+      {
+        i32 old_x = x + offset_x;
+        if (old_x < 0 || old_x >= resolution)
+        {
+          continue;
+        }
+        s_grass.interaction_scratch[z * resolution + x] =
+            s_grass.interaction_field[old_z * resolution + old_x];
+      }
+    }
+  }
+
+  {
+    LDKGrassInteractionFieldCell *tmp = s_grass.interaction_field;
+    s_grass.interaction_field = s_grass.interaction_scratch;
+    s_grass.interaction_scratch = tmp;
+  }
+  s_grass.interaction_origin = desired_origin;
+}
+
+static void s_interaction_field_recenter(void)
+{
+  const float texel_size = LDK_GRASS_INTERACTION_WORLD_SIZE /
+      (float)LDK_GRASS_INTERACTION_RESOLUTION;
+  float min_x = FLT_MAX;
+  float min_z = FLT_MAX;
+  float max_x = -FLT_MAX;
+  float max_z = -FLT_MAX;
+
+  if (s_grass.interaction_count == 0u)
+  {
+    return;
+  }
+
+  for (u32 i = 0u; i < s_grass.interaction_count; ++i)
+  {
+    const LDKGrassInteraction *interaction = &s_grass.interactions[i];
+    min_x = fminf(min_x, fminf(interaction->from.x, interaction->to.x));
+    min_z = fminf(min_z, fminf(interaction->from.z, interaction->to.z));
+    max_x = fmaxf(max_x, fmaxf(interaction->from.x, interaction->to.x));
+    max_z = fmaxf(max_z, fmaxf(interaction->from.z, interaction->to.z));
+  }
+
+  {
+    Vec2 center = vec2_make((min_x + max_x) * 0.5f,
+        (min_z + max_z) * 0.5f);
+    Vec2 desired = vec2_make(
+        floorf((center.x - LDK_GRASS_INTERACTION_WORLD_SIZE * 0.5f) /
+                   texel_size) * texel_size,
+        floorf((center.y - LDK_GRASS_INTERACTION_WORLD_SIZE * 0.5f) /
+                   texel_size) * texel_size);
+    s_interaction_field_shift(desired);
+  }
+}
+
+static Vec2 s_interaction_stamp_direction(
+    const LDKGrassInteraction *interaction, Vec2 sample, Vec2 closest,
+    Vec2 current)
+{
+  Vec2 radial = vec2_sub(sample, current);
+
+  /*
+   * The current footprint is always radial around the interactor, regardless
+   * of whether it moved this frame. This keeps moving and stationary states
+   * visually identical around the entity. The rest of the capsule trail bends
+   * away from the closest point on the travelled segment.
+   */
+  if (vec2_len2(radial) <=
+      interaction->radius * interaction->radius &&
+      vec2_len2(radial) > STDXM_EPS * STDXM_EPS)
+  {
+    return vec2_norm(radial);
+  }
+
+  radial = vec2_sub(sample, closest);
+  if (vec2_len2(radial) <= STDXM_EPS * STDXM_EPS)
+  {
+    return vec2_make(0.0f, 0.0f);
+  }
+  return vec2_norm(radial);
+}
+
+static void s_interaction_stamp(const LDKGrassInteraction *interaction)
+{
+  const i32 resolution = (i32)LDK_GRASS_INTERACTION_RESOLUTION;
+  const float texel_size = LDK_GRASS_INTERACTION_WORLD_SIZE /
+      (float)LDK_GRASS_INTERACTION_RESOLUTION;
+  Vec2 a = vec2_make(interaction->from.x, interaction->from.z);
+  Vec2 b = vec2_make(interaction->to.x, interaction->to.z);
+  Vec2 movement = vec2_sub(b, a);
+  float movement_len2 = vec2_len2(movement);
+  float inv_segment_len2 = movement_len2 > STDXM_EPS * STDXM_EPS
+      ? 1.0f / movement_len2 : 0.0f;
+  float min_x = fminf(a.x, b.x) - interaction->radius;
+  float min_z = fminf(a.y, b.y) - interaction->radius;
+  float max_x = fmaxf(a.x, b.x) + interaction->radius;
+  float max_z = fmaxf(a.y, b.y) + interaction->radius;
+  i32 first_x = (i32)floorf(
+      (min_x - s_grass.interaction_origin.x) / texel_size);
+  i32 first_z = (i32)floorf(
+      (min_z - s_grass.interaction_origin.y) / texel_size);
+  i32 last_x = (i32)floorf(
+      (max_x - s_grass.interaction_origin.x) / texel_size);
+  i32 last_z = (i32)floorf(
+      (max_z - s_grass.interaction_origin.y) / texel_size);
+
+  if (last_x < 0 || last_z < 0 || first_x >= resolution ||
+      first_z >= resolution)
+  {
+    return;
+  }
+  if (first_x < 0)
+  {
+    first_x = 0;
+  }
+  if (first_z < 0)
+  {
+    first_z = 0;
+  }
+  if (last_x >= resolution)
+  {
+    last_x = resolution - 1;
+  }
+  if (last_z >= resolution)
+  {
+    last_z = resolution - 1;
+  }
+
+  for (i32 z = first_z; z <= last_z; ++z)
+  {
+    for (i32 x = first_x; x <= last_x; ++x)
+    {
+      Vec2 sample = vec2_make(
+          s_grass.interaction_origin.x + ((float)x + 0.5f) * texel_size,
+          s_grass.interaction_origin.y + ((float)z + 0.5f) * texel_size);
+      Vec2 closest = a;
+      float t = 0.0f;
+      Vec2 delta;
+      float distance;
+      float weight;
+      Vec2 direction;
+      Vec2 contribution;
+      Vec2 stamp;
+      float stamp_len2;
+      u32 index = (u32)z * LDK_GRASS_INTERACTION_RESOLUTION + (u32)x;
+
+      if (movement_len2 > STDXM_EPS * STDXM_EPS)
+      {
+        t = s_clamp01(vec2_dot(vec2_sub(sample, a), movement) *
+            inv_segment_len2);
+        closest = vec2_add(a, vec2_mul(movement, t));
+      }
+
+      delta = vec2_sub(sample, closest);
+      distance = vec2_len(delta);
+      if (distance > interaction->radius)
+      {
+        continue;
+      }
+
+      weight = 1.0f - distance / interaction->radius;
+      weight = weight * weight * (3.0f - 2.0f * weight);
+      direction = s_interaction_stamp_direction(
+          interaction, sample, closest, b);
+      contribution = vec2_mul(direction, interaction->strength * weight);
+      stamp = vec2_add(s_grass.interaction_stamps[index], contribution);
+      stamp_len2 = vec2_len2(stamp);
+      if (stamp_len2 > 1.0f)
+      {
+        stamp = vec2_mul(stamp, 1.0f / sqrtf(stamp_len2));
+      }
+      s_grass.interaction_stamps[index] = stamp;
+    }
+  }
+}
+
+static u8 s_interaction_encode(float value)
+{
+  float clamped = value < -1.0f ? -1.0f : (value > 1.0f ? 1.0f : value);
+  long encoded = lroundf(clamped * 127.0f + 128.0f);
+  if (encoded < 0)
+  {
+    encoded = 0;
+  }
+  if (encoded > 255)
+  {
+    encoded = 255;
+  }
+  return (u8)encoded;
+}
+
+static u8 s_interaction_age_encode(float age)
+{
+  float normalized = s_clamp01(
+      age / LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME);
+  long encoded = lroundf(normalized * 255.0f);
+
+  if (encoded < 0)
+  {
+    encoded = 0;
+  }
+  if (encoded > 255)
+  {
+    encoded = 255;
+  }
+  return (u8)encoded;
+}
+
+static bool s_interaction_field_update(float dt)
+{
+  const u32 cell_count = LDK_GRASS_INTERACTION_RESOLUTION *
+      LDK_GRASS_INTERACTION_RESOLUTION;
+  const u64 byte_count = (u64)cell_count * 4u;
+  bool field_active = false;
+
+  if (!s_grass.interaction_field || !s_grass.interaction_stamps ||
+      !s_grass.interaction_pixels || !s_grass.renderer)
+  {
+    return false;
+  }
+
+  if (s_grass.interaction_count == 0u &&
+      (!s_grass.interaction_field_active || dt == 0.0f))
+  {
+    return ldk_renderer_vegetation_interaction_set(s_grass.renderer,
+        s_grass.interaction_texture, s_grass.interaction_origin,
+        LDK_GRASS_INTERACTION_WORLD_SIZE);
+  }
+
+  s_interaction_field_recenter();
+  memset(s_grass.interaction_stamps, 0, (size_t)cell_count * sizeof(Vec2));
+  for (u32 i = 0u; i < s_grass.interaction_count; ++i)
+  {
+    s_interaction_stamp(&s_grass.interactions[i]);
+  }
+
+  for (u32 i = 0u; i < cell_count; ++i)
+  {
+    LDKGrassInteractionFieldCell *cell = &s_grass.interaction_field[i];
+    Vec2 stamp = s_grass.interaction_stamps[i];
+
+    if (vec2_len2(stamp) >
+        LDK_GRASS_INTERACTION_EPSILON * LDK_GRASS_INTERACTION_EPSILON)
+    {
+      cell->bend = stamp;
+      cell->age = 0.0f;
+    }
+    else if (vec2_len2(cell->bend) >
+        LDK_GRASS_INTERACTION_EPSILON * LDK_GRASS_INTERACTION_EPSILON)
+    {
+      cell->age += dt;
+      if (cell->age >= LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME)
+      {
+        cell->bend = vec2_make(0.0f, 0.0f);
+        cell->age = LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME;
+      }
+    }
+    else
+    {
+      cell->bend = vec2_make(0.0f, 0.0f);
+      cell->age = LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME;
+    }
+
+    if (vec2_len2(cell->bend) >
+        LDK_GRASS_INTERACTION_EPSILON * LDK_GRASS_INTERACTION_EPSILON)
+    {
+      field_active = true;
+    }
+
+    s_grass.interaction_pixels[i * 4u] = s_interaction_encode(cell->bend.x);
+    s_grass.interaction_pixels[i * 4u + 1u] =
+        s_interaction_encode(cell->bend.y);
+    s_grass.interaction_pixels[i * 4u + 2u] =
+        s_interaction_age_encode(cell->age);
+    s_grass.interaction_pixels[i * 4u + 3u] = 255u;
+  }
+
+  if (!ldk_renderer_texture_update(s_grass.renderer,
+          s_grass.interaction_texture, s_grass.interaction_pixels,
+          byte_count) ||
+      !ldk_renderer_vegetation_interaction_set(s_grass.renderer,
+          s_grass.interaction_texture, s_grass.interaction_origin,
+          LDK_GRASS_INTERACTION_WORLD_SIZE))
+  {
+    return false;
+  }
+
+  s_grass.interaction_field_active = field_active;
+  s_grass.interaction_count = 0u;
+  return true;
 }
 
 static float s_shininess_resolve(float shininess)
@@ -140,6 +907,8 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
     out_desc->blade_width = system->type_##index##_blade_width;              \
     out_desc->curvature = system->type_##index##_curvature;                  \
     out_desc->wind_strength = system->type_##index##_wind_strength;          \
+    out_desc->interaction_recovery_time =                                   \
+        system->type_##index##_interaction_recovery_time;                    \
     out_desc->bottom_color = system->type_##index##_bottom_color;            \
     out_desc->top_color = system->type_##index##_top_color;                  \
     return true
@@ -189,6 +958,8 @@ static bool s_type_slot_read(const LDKGrassSystem *system,
     system->type_##index##_blade_width = desc->blade_width;                  \
     system->type_##index##_curvature = desc->curvature;                      \
     system->type_##index##_wind_strength = desc->wind_strength;              \
+    system->type_##index##_interaction_recovery_time =                       \
+        desc->interaction_recovery_time;                                     \
     system->type_##index##_bottom_color = desc->bottom_color;                \
     system->type_##index##_top_color = desc->top_color;                      \
     return true
@@ -236,7 +1007,11 @@ static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
          isfinite(desc->max_height) && desc->max_height >= desc->min_height &&
          isfinite(desc->blade_width) && desc->blade_width > 0.0f &&
          isfinite(desc->curvature) && desc->curvature >= 0.0f &&
-         isfinite(desc->wind_strength) && desc->wind_strength >= 0.0f;
+         isfinite(desc->wind_strength) && desc->wind_strength >= 0.0f &&
+         isfinite(desc->interaction_recovery_time) &&
+         desc->interaction_recovery_time >= 0.0f &&
+         desc->interaction_recovery_time <=
+             LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME;
 }
 
 static bool s_system_config_is_valid(const LDKGrassSystem *system)
@@ -387,6 +1162,9 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   out_desc->wind_strength = type.wind_strength * system->wind_force;
   out_desc->wind_speed = system->wind_speed;
   out_desc->wind_direction = deg_to_rad(system->wind_direction_degrees);
+  out_desc->interaction_recovery_time = type.interaction_recovery_time > 0.0f
+      ? type.interaction_recovery_time
+      : LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->seed = patch->seed;
   out_desc->casts_shadows = system->casts_shadows;
   return isfinite(out_desc->density) && isfinite(out_desc->wind_strength);
@@ -488,6 +1266,10 @@ static bool s_desc_is_valid(
       !isfinite(desc->wind_strength) || desc->wind_strength < 0.0f ||
       !isfinite(desc->wind_speed) || desc->wind_speed < 0.0f ||
       !isfinite(desc->wind_direction) ||
+      !isfinite(desc->interaction_recovery_time) ||
+      desc->interaction_recovery_time <= 0.0f ||
+      desc->interaction_recovery_time >
+          LDK_GRASS_INTERACTION_MAX_RECOVERY_TIME ||
       !s_shape_is_valid(&desc->shape))
   {
     return false;
@@ -615,6 +1397,8 @@ static bool s_batch_compatible(
          batch->wind_strength == desc->wind_strength &&
          batch->wind_speed == desc->wind_speed &&
          batch->wind_direction == desc->wind_direction &&
+         batch->interaction_recovery_time ==
+             desc->interaction_recovery_time &&
          batch->casts_shadows == desc->casts_shadows;
 }
 
@@ -727,6 +1511,7 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch->wind_strength = desc->wind_strength;
   batch->wind_speed = desc->wind_speed;
   batch->wind_direction = desc->wind_direction;
+  batch->interaction_recovery_time = desc->interaction_recovery_time;
   batch->casts_shadows = desc->casts_shadows;
   batch->mesh = ldk_renderer_mesh_null();
   batch->material = ldk_renderer_material_null();
@@ -1011,7 +1796,7 @@ static void s_ribbon_mesh_write(const LDKGrassBatch *batch,
     left->uv = vec2_make(0.0f, height);
     left->color = color;
     left->tangent = vec4_make(
-        front_normal.x, front_normal.y, front_normal.z, 0.0f);
+        front_normal.x, front_normal.y, front_normal.z, 1.0f);
 
     right_vertex->position = vec3_add(
         vec3_make(0.0f, height, 0.0f), vec3_mul(right, half_width));
@@ -1019,7 +1804,7 @@ static void s_ribbon_mesh_write(const LDKGrassBatch *batch,
     right_vertex->uv = vec2_make(1.0f, height);
     right_vertex->color = color;
     right_vertex->tangent = vec4_make(
-        front_normal.x, front_normal.y, front_normal.z, 0.0f);
+        front_normal.x, front_normal.y, front_normal.z, 1.0f);
   }
 
   for (u32 level = 0u; level + 1u < LDK_GRASS_PROFILE_POINT_COUNT;
@@ -1069,7 +1854,7 @@ static void s_radial_mesh_write(const LDKGrassBatch *batch,
       vertex->normal = vec3_norm(vec3_make(x, -slope, z));
       vertex->uv = vec2_make((float)side / (float)sides, height);
       vertex->color = color;
-      vertex->tangent = vec4_make(0.0f, 0.0f, 1.0f, 0.0f);
+      vertex->tangent = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
     }
   }
 
@@ -1102,7 +1887,7 @@ static void s_radial_mesh_write(const LDKGrassBatch *batch,
     vertices[apex].normal = vec3_make(0.0f, 1.0f, 0.0f);
     vertices[apex].uv = vec2_make(0.5f, 1.0f);
     vertices[apex].color = LDK_RGBA32(batch->top_color);
-    vertices[apex].tangent = vec4_make(0.0f, 0.0f, 1.0f, 0.0f);
+    vertices[apex].tangent = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
 
     for (u32 side = 0u; side < sides; ++side)
     {
@@ -1123,6 +1908,7 @@ static void s_radial_mesh_write(const LDKGrassBatch *batch,
     {
       vertices[*vertex_count] = vertices[source_ring + side];
       vertices[*vertex_count].normal = vec3_make(0.0f, 1.0f, 0.0f);
+      vertices[*vertex_count].tangent.w = 0.0f;
       *vertex_count += 1u;
     }
 
@@ -1205,7 +1991,7 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
       vertex->normal = normal;
       vertex->uv = vec2_make((float)side / (float)sides, height);
       vertex->color = color;
-      vertex->tangent = vec4_make(0.0f, 0.0f, 1.0f, 0.0f);
+      vertex->tangent = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
     }
   }
 
@@ -1237,7 +2023,7 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
     vertices[apex].normal = vec3_make(0.0f, 1.0f, 0.0f);
     vertices[apex].uv = vec2_make(0.5f, 1.0f);
     vertices[apex].color = LDK_RGBA32(batch->top_color);
-    vertices[apex].tangent = vec4_make(0.0f, 0.0f, 1.0f, 0.0f);
+    vertices[apex].tangent = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
     for (u32 side = 0u; side < sides; ++side)
     {
       u32 next = (side + 1u) % sides;
@@ -1257,6 +2043,7 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
     {
       vertices[*vertex_count] = vertices[source_ring + side];
       vertices[*vertex_count].normal = vec3_make(0.0f, 1.0f, 0.0f);
+      vertices[*vertex_count].tangent.w = 0.0f;
       *vertex_count += 1u;
     }
     center = (*vertex_count)++;
@@ -1417,6 +2204,8 @@ static bool s_batch_material_create(LDKGrassBatch *batch)
   desc.vegetation_wind_strength = batch->wind_strength;
   desc.vegetation_wind_speed = batch->wind_speed;
   desc.vegetation_wind_direction = batch->wind_direction;
+  desc.vegetation_interaction_recovery_time =
+      batch->interaction_recovery_time;
   desc.vegetation = true;
   batch->material = ldk_renderer_material_create(s_grass.renderer, &desc);
   return ldk_renderer_material_is_valid(
@@ -1480,6 +2269,8 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
     s_hash_bytes(&hash, &desc.blade_width, sizeof(desc.blade_width));
     s_hash_bytes(&hash, &desc.curvature, sizeof(desc.curvature));
     s_hash_bytes(&hash, &desc.wind_strength, sizeof(desc.wind_strength));
+    s_hash_bytes(&hash, &desc.interaction_recovery_time,
+        sizeof(desc.interaction_recovery_time));
     s_hash_bytes(&hash, &desc.bottom_color, sizeof(desc.bottom_color));
     s_hash_bytes(&hash, &desc.top_color, sizeof(desc.top_color));
   }
@@ -1651,6 +2442,8 @@ void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc)
   out_desc->blade_width = 0.10f;
   out_desc->curvature = 0.08f;
   out_desc->wind_strength = 0.08f;
+  out_desc->interaction_recovery_time =
+      LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->bottom_color = 0x35502affu;
   out_desc->top_color = 0x89a95cffu;
 }
@@ -1730,6 +2523,12 @@ LDKGrassTypeId ldk_grass_type_register(const LDKGrassTypeDesc *desc)
   }
 
   return LDK_GRASS_TYPE_ID_INVALID;
+}
+
+bool ldk_grass_interact(
+    Vec3 from, Vec3 to, float radius, float strength)
+{
+  return s_interaction_queue(from, to, radius, strength);
 }
 
 void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc)
@@ -2049,6 +2848,15 @@ int ldk_grass_system_initialize(void *data)
   memset(&s_grass, 0, sizeof(s_grass));
   s_grass.owner = system;
   s_grass.renderer = renderer;
+  s_grass.interaction_texture = ldk_renderer_texture_null();
+
+  if (!s_interaction_field_allocate() || !s_interaction_texture_create())
+  {
+    s_interaction_field_release();
+    memset(&s_grass, 0, sizeof(s_grass));
+    return -1;
+  }
+
   s_grass.config_hash = s_system_config_hash(system);
   s_grass.initialized = true;
   return 0;
@@ -2061,9 +2869,9 @@ void ldk_grass_system_update(
   u64 config_hash;
 
   (void)group;
-  (void)dt;
 
-  if (!system || !s_grass.initialized || s_grass.owner != system)
+  if (!system || !s_grass.initialized || s_grass.owner != system ||
+      !isfinite(dt) || dt < 0.0f)
   {
     return;
   }
@@ -2075,6 +2883,12 @@ void ldk_grass_system_update(
     {
       return;
     }
+  }
+
+  s_interaction_components_collect();
+  if (!s_interaction_field_update(dt))
+  {
+    s_grass.interaction_count = 0u;
   }
 
   s_grass_submit();
@@ -2091,6 +2905,7 @@ void ldk_grass_system_terminate(void *data)
 
   ldk_grass_clear();
   s_batches_release_all();
+  s_interaction_field_release();
   free(s_grass.patches);
   free(s_grass.batches);
   memset(&s_grass, 0, sizeof(s_grass));

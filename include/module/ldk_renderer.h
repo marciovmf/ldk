@@ -363,6 +363,7 @@ extern "C" {
     LDKRHIBuffer instance_buffer;
     u32 instance_capacity;
     LDKRHIBindings bindings;
+    LDKRHIBindings vegetation_bindings;
     LDKRendererBindingsCacheEntry *cutout_bindings_cache;
     u32 cutout_bindings_cache_count;
     u32 cutout_bindings_cache_capacity;
@@ -423,6 +424,7 @@ extern "C" {
     LDKRHITexture white_specular_texture;
     LDKRHISampler fallback_sampler;
     LDKRHIBindings bindings;
+    LDKRHIBindings vegetation_bindings;
     LDKRendererMeshBindingsCacheEntry *material_bindings_cache;
     u32 material_bindings_cache_count;
     u32 material_bindings_cache_capacity;
@@ -660,6 +662,7 @@ extern "C" {
     float vegetation_wind_strength;
     float vegetation_wind_speed;
     float vegetation_wind_direction;
+    float vegetation_interaction_recovery_time;
     bool vegetation;
   } LDKRendererMaterialDesc;
 
@@ -753,6 +756,11 @@ extern "C" {
     u32 font_page_capacity;
 
     LDKRendererAmbientLight ambient_light;
+
+    LDKResourceTexture vegetation_interaction_texture;
+    Vec2 vegetation_interaction_origin;
+    float vegetation_interaction_inv_world_size;
+    bool vegetation_interaction_enabled;
     LDKRendererLightSubmit *submitted_lights;
     u32 submitted_light_count;
     u32 submitted_light_capacity;
@@ -816,6 +824,15 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_ambient_light_set(
       LDKRenderer *renderer, u32 color, float intensity);
+
+  /** Bind a world-space interaction field sampled by vegetation shaders. */
+  LDK_API bool ldk_renderer_vegetation_interaction_set(
+      LDKRenderer *renderer, LDKResourceTexture texture, Vec2 world_origin,
+      float world_size);
+
+  /** Disable the vegetation interaction field and release pass bindings. */
+  LDK_API void ldk_renderer_vegetation_interaction_clear(
+      LDKRenderer *renderer);
 
   /** Submit an unlit, capped triangular prism from start to end.
    * Thickness is the circumdiameter of its cross-section, in world units.

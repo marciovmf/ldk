@@ -233,13 +233,34 @@ static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
     "}\n";
 
 #define LDK_GL33_VEGETATION_GLSL                                            \
+  "uniform sampler2D LDK_VEGETATION_TEXTURE;\n"                            \
+  "vec2 ldk_vegetation_interaction(mat4 world, vec4 interaction)\n"      \
+  "{\n"                                                                    \
+  "  if (interaction.z <= 0.0 || interaction.w <= 0.0)\n"               \
+  "    return vec2(0.0);\n"                                               \
+  "  vec2 field_uv = (world[3].xz - interaction.xy) * interaction.z;\n" \
+  "  if (any(lessThan(field_uv, vec2(0.0))) ||\n"                        \
+  "      any(greaterThan(field_uv, vec2(1.0))))\n"                       \
+  "    return vec2(0.0);\n"                                               \
+  "  vec3 encoded = texture(LDK_VEGETATION_TEXTURE, field_uv).rgb;\n"   \
+  "  vec2 bend = (encoded.rg - vec2(128.0 / 255.0)) *\n"                 \
+  "      (255.0 / 127.0);\n"                                              \
+  "  float age = encoded.b * 16.0;\n"                                       \
+  "  float t = clamp(age / interaction.w, 0.0, 1.0);\n"                  \
+  "  float recovery = 1.0 - t * t * (3.0 - 2.0 * t);\n"                   \
+  "  return bend * recovery;\n"                                           \
+  "}\n"                                                                    \
   "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n"       \
-  "    vec2 uv, vec4 tangent, vec4 vegetation, float time)\n"            \
+  "    vec2 uv, vec4 tangent, vec4 vegetation, vec4 interaction,\n"       \
+  "    float time, out vec3 bend, out float height)\n"                    \
   "{\n"                                                                    \
   "  vec4 world_position = world * vec4(local_position, 1.0);\n"            \
-  "  float height = clamp(uv.y, 0.0, 1.0);\n"                           \
+  "  height = clamp(uv.y, 0.0, 1.0);\n"                                 \
   "  float weight = height * height;\n"                                    \
-  "  if (weight > 0.0 && (vegetation.x > 0.0 || vegetation.y > 0.0))\n" \
+  "  vec2 interaction_bend = ldk_vegetation_interaction(world, interaction);\n" \
+  "  bend = vec3(0.0);\n"                                                  \
+  "  if (weight > 0.0 && (vegetation.x > 0.0 || vegetation.y > 0.0 ||\n" \
+  "      dot(interaction_bend, interaction_bend) > 0.0))\n"               \
   "  {\n"                                                                  \
   "    mat3 basis = mat3(world);\n"                                       \
   "    vec3 curve_direction = basis * tangent.xyz;\n"                     \
@@ -248,17 +269,36 @@ static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
   "      curve_direction = basis * vec3(0.0, 0.0, 1.0);\n"              \
   "    curve_direction /= max(length(curve_direction), 1e-6);\n"             \
   "    float blade_height = max(length(basis[1]), 1e-6);\n"               \
-  "    vec2 wind_direction = vec2(cos(vegetation.w), sin(vegetation.w));\n"   \
+  "    vec2 wind_direction = vec2(cos(vegetation.w), sin(vegetation.w));\n" \
   "    float phase = time * vegetation.z * 6.28318530718 +\n"             \
   "        dot(world[3].xz, wind_direction) * 0.75;\n"                      \
   "    float sway = 0.65 * sin(phase) +\n"                               \
   "        0.35 * sin(phase * 1.73 + 1.2);\n"                              \
   "    vec3 wind = vec3(wind_direction.x, 0.0, wind_direction.y);\n"      \
-  "    vec3 bend = curve_direction * vegetation.x +\n"                   \
-  "        wind * (vegetation.y * sway);\n"                                  \
+  "    bend = curve_direction * vegetation.x +\n"                        \
+  "        wind * (vegetation.y * sway) +\n"                               \
+  "        vec3(interaction_bend.x, 0.0, interaction_bend.y);\n"           \
   "    world_position.xyz += bend * (blade_height * weight);\n"             \
   "  }\n"                                                                  \
   "  return world_position.xyz;\n"                                         \
+  "}\n"                                                                    \
+  "vec3 ldk_vegetation_normal(mat4 world, vec3 local_normal,\n"            \
+  "    vec3 bend, float height, float bend_normal_weight)\n"                  \
+  "{\n"                                                                    \
+  "  mat3 basis = mat3(world);\n"                                         \
+  "  float blade_height = max(length(basis[1]), 1e-6);\n"                 \
+  "  vec3 world_normal = basis[0] * local_normal.x +\n"                    \
+  "      basis[1] * (local_normal.y / (blade_height * blade_height)) +\n" \
+  "      basis[2] * local_normal.z;\n"                                    \
+  "  if (height > 0.0 && bend_normal_weight > 0.0 &&\n"                     \
+  "      dot(bend, bend) > 0.0)\n"                                       \
+  "  {\n"                                                                  \
+  "    vec3 horizontal = local_normal.x * basis[2] -\n"                    \
+  "        local_normal.z * basis[0];\n"                                  \
+  "    world_normal += 2.0 * height * bend_normal_weight *\n"                 \
+  "        cross(bend, horizontal);\n"                                        \
+  "  }\n"                                                                  \
+  "  return world_normal;\n"                                               \
   "}\n"
 
 static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
@@ -356,7 +396,9 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "}\n";
 
 static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
-    "#version 330 core\n" LDK_GL33_VEGETATION_GLSL
+    "#version 330 core\n"
+    "#define LDK_VEGETATION_TEXTURE LDK_TEXTURE_8\n"
+    LDK_GL33_VEGETATION_GLSL
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 1) in vec3 a_normal;\n"
     "layout(location = 2) in vec2 a_uv;\n"
@@ -375,6 +417,7 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
     "  vec4 u_surface;\n"
     "  vec4 u_vegetation;\n"
     "  vec4 u_uv_transform;\n"
+    "  vec4 u_vegetation_interaction;\n"
     "};\n"
     "layout(std140) uniform LDK_UBO_0\n"
     "{\n"
@@ -400,9 +443,13 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
     "#else\n"
     "  mat4 world = u_world;\n"
     "#endif\n"
+    "  vec3 vegetation_bend;\n"
+    "  float vegetation_height;\n"
     "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n"
-    "      a_tangent, u_vegetation, u_camera_position.w);\n"
-    "  v_normal = mat3(world) * a_normal;\n"
+    "      a_tangent, u_vegetation, u_vegetation_interaction,\n"
+    "      u_camera_position.w, vegetation_bend, vegetation_height);\n"
+    "  v_normal = ldk_vegetation_normal(world, a_normal, vegetation_bend,\n"
+    "      vegetation_height, abs(a_tangent.w));\n"
     "  v_world_position = position;\n"
     "  v_color = a_color;\n"
     "#ifdef LDK_INSTANCED\n"
@@ -450,7 +497,9 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER =
     "}\n";
 
 static char const *LDK_RHI_GL33_SHADOW_PASS_VEGETATION_VERTEX_SHADER =
-    "#version 330 core\n" LDK_GL33_VEGETATION_GLSL
+    "#version 330 core\n"
+    "#define LDK_VEGETATION_TEXTURE LDK_TEXTURE_4\n"
+    LDK_GL33_VEGETATION_GLSL
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 2) in vec2 a_uv;\n"
     "layout(location = 8) in vec4 a_tangent;\n"
@@ -473,6 +522,7 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_VEGETATION_VERTEX_SHADER =
     "  vec4 u_cutout;\n"
     "  vec4 u_vegetation;\n"
     "  vec4 u_uv_transform;\n"
+    "  vec4 u_vegetation_interaction;\n"
     "};\n"
     "void main()\n"
     "{\n"
@@ -481,8 +531,11 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_VEGETATION_VERTEX_SHADER =
     "#else\n"
     "  mat4 world = u_world;\n"
     "#endif\n"
+    "  vec3 vegetation_bend;\n"
+    "  float vegetation_height;\n"
     "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n"
-    "      a_tangent, u_vegetation, u_animation.x);\n"
+    "      a_tangent, u_vegetation, u_vegetation_interaction,\n"
+    "      u_animation.x, vegetation_bend, vegetation_height);\n"
     "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n"
     "}\n";
 
@@ -705,6 +758,7 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER =
     "  vec4 u_surface;\n"
     "  vec4 u_vegetation;\n"
     "  vec4 u_uv_transform;\n"
+    "  vec4 u_vegetation_interaction;\n"
     "};\n"
     "out vec4 out_color;\n"
     "void main()\n"

@@ -7,7 +7,7 @@
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
-#include <system/ldk_grass.h>
+#include <system/ldk_grass_system.h>
 #include <stdx/stdx_math.h>
 
 #include <math.h>
