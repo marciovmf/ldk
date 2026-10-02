@@ -330,14 +330,16 @@ static bool s_editor_scene_view_ray_get(
   Mat4 inverse_view_projection;
   Vec3 near_position;
   Vec3 far_position;
+  u32 view_width;
+  u32 view_height;
   float aspect;
   float ndc_x;
   float ndc_y;
   bool inverse_ok;
 
   if (editor == NULL || editor->renderer == NULL || out_ray == NULL ||
-      editor->renderer->game_width == 0 ||
-      editor->renderer->game_height == 0)
+      !ldk_renderer_view_extent_get(
+          editor->renderer, editor->scene_view, &view_width, &view_height))
   {
     return false;
   }
@@ -349,8 +351,7 @@ static bool s_editor_scene_view_ray_get(
     return false;
   }
 
-  aspect = (float)editor->renderer->game_width /
-           (float)editor->renderer->game_height;
+  aspect = (float)view_width / (float)view_height;
   if (!ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
       !ldk_camera_get_projection_matrix(
           editor->editor_camera, aspect, &projection))

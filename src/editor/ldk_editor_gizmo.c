@@ -620,7 +620,7 @@ static float s_editor_gizmo_world_length(
 
   camera = (LDKCamera *)ldk_ecs_component_get(
       editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
-  if (camera == NULL || editor->renderer->game_height == 0 ||
+  if (camera == NULL || editor->gizmo.scene_view_rect.h <= 0.0f ||
       !ldk_camera_get_world_matrix(editor->editor_camera, &camera_world))
   {
     return 1.0f;
@@ -630,7 +630,7 @@ static float s_editor_gizmo_world_length(
   {
     world_length = camera->orthographic_height *
                    LDK_EDITOR_GIZMO_PIXEL_LENGTH /
-                   (float)editor->renderer->game_height;
+                   editor->gizmo.scene_view_rect.h;
   }
   else
   {
@@ -639,7 +639,7 @@ static float s_editor_gizmo_world_length(
     float distance = vec3_len(vec3_sub(position, camera_position));
     float visible_height = 2.0f * distance * tanf(camera->fov_y * 0.5f);
     world_length = visible_height * LDK_EDITOR_GIZMO_PIXEL_LENGTH /
-                   (float)editor->renderer->game_height;
+                   editor->gizmo.scene_view_rect.h;
   }
 
   return float_max(world_length, LDK_EDITOR_GIZMO_MIN_WORLD_LENGTH);
@@ -686,6 +686,8 @@ static bool s_editor_gizmo_scene_ray_get(LDKEditorContext *editor,
   Vec3 near_position;
   Vec3 far_position;
   Vec3 direction;
+  u32 view_width;
+  u32 view_height;
   float direction_length;
   float aspect;
   float ndc_x;
@@ -693,8 +695,8 @@ static bool s_editor_gizmo_scene_ray_get(LDKEditorContext *editor,
   bool inverse_ok;
 
   if (editor == NULL || editor->renderer == NULL || out_ray == NULL ||
-      editor->renderer->game_width == 0 ||
-      editor->renderer->game_height == 0)
+      !ldk_renderer_view_extent_get(
+          editor->renderer, editor->scene_view, &view_width, &view_height))
   {
     return false;
   }
@@ -705,8 +707,7 @@ static bool s_editor_gizmo_scene_ray_get(LDKEditorContext *editor,
     return false;
   }
 
-  aspect = (float)editor->renderer->game_width /
-           (float)editor->renderer->game_height;
+  aspect = (float)view_width / (float)view_height;
   if (!ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
       !ldk_camera_get_projection_matrix(
           editor->editor_camera, aspect, &projection))
@@ -1590,6 +1591,8 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   LDKUIPoint cursor;
   LDKUIPoint origin_screen;
   LDKEditorGizmoMode mode;
+  u32 view_width;
+  u32 view_height;
   float length;
   float best_distance;
   float aspect;
@@ -1609,8 +1612,8 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
       editor->camera_controller.pan_block_pick ||
       !editor->gizmo.scene_view_visible || editor->renderer == NULL ||
-      editor->renderer->game_width == 0 ||
-      editor->renderer->game_height == 0)
+      !ldk_renderer_view_extent_get(
+          editor->renderer, editor->scene_view, &view_width, &view_height))
   {
     return;
   }
@@ -1638,8 +1641,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   }
 
   length = s_editor_gizmo_world_length(editor, origin);
-  aspect = (float)editor->renderer->game_width /
-           (float)editor->renderer->game_height;
+  aspect = (float)view_width / (float)view_height;
 
   camera = (LDKCamera *)ldk_ecs_component_get(
       editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);

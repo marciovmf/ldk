@@ -560,6 +560,11 @@ extern "C" {
     Mat4 view;
     Mat4 projection;
     Vec4 frustum_planes[6];
+    u32 width;
+    u32 height;
+    u32 requested_width;
+    u32 requested_height;
+    bool extent_override;
     LDKRendererTarget target;
     LDKRendererTarget overlay_target;
     LDKRHITexture post_process_texture;
@@ -870,10 +875,11 @@ extern "C" {
       LDKRendererConfig const* config);
 
   /**
-   * @brief Change the game render-target resolution.
+   * @brief Change the default game render-target resolution.
    *
-   * The current game render target is released when its dimensions change.
-   * A target with the new dimensions is created when the next scene is
+   * Views using the default game extent release their current render targets
+   * when the dimensions change. Views with an explicit per-view extent are not
+   * affected. New targets are created when those views are next submitted or
    * rendered.
    *
    * @param renderer Renderer instance.
@@ -968,6 +974,44 @@ extern "C" {
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
       LDKRendererViewId view_id);
+
+  /**
+   * @brief Set the render-target extent requested for a view.
+   *
+   * The request is applied the next time the view is submitted. Until then the
+   * current render target remains unchanged, allowing editor resize operations
+   * to defer GPU resource churn until interaction has finished.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id Identifier of an existing renderer view.
+   * @param width Requested render-target width in pixels.
+   * @param height Requested render-target height in pixels.
+   * @return true when the request was accepted, false otherwise.
+   */
+  LDK_API bool ldk_renderer_view_extent_set(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      u32 width,
+      u32 height);
+
+  /**
+   * @brief Get the effective extent that will be used by a renderer view.
+   *
+   * Views without an explicit extent use the game resolution. For an explicit
+   * view, this returns its requested extent, including a request that will be
+   * applied by the next ldk_renderer_submit_view() call.
+   *
+   * @param renderer Renderer instance.
+   * @param view_id View identifier. The view does not need to exist yet.
+   * @param out_width Receives the effective width in pixels.
+   * @param out_height Receives the effective height in pixels.
+   * @return true when a valid effective extent was returned.
+   */
+  LDK_API bool ldk_renderer_view_extent_get(
+      LDKRenderer const* renderer,
+      LDKRendererViewId view_id,
+      u32* out_width,
+      u32* out_height);
 
   /**
    * @brief Return the UV rectangle used to display renderer view textures.

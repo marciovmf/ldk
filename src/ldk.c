@@ -1574,8 +1574,6 @@ void ldk_engine_frame(void)
         ldk_component_owners_get(component_registry, LDK_COMPONENT_TYPE_CAMERA);
 
     u32 camera_count = x_array_count(all_camera);
-    float aspect =
-        (float)e->renderer.game_width / (float)e->renderer.game_height;
 
     for (u32 i = 0; i < camera_count; i++)
     {
@@ -1588,15 +1586,23 @@ void ldk_engine_frame(void)
         continue;
       }
 
+      LDKRendererViewId view_id =
+          s_renderer_view_id_from_entity(*entity);
+      u32 view_width;
+      u32 view_height;
+      if (!ldk_renderer_view_extent_get(
+              &e->renderer, view_id, &view_width, &view_height))
+      {
+        continue;
+      }
+
+      float aspect = (float)view_width / (float)view_height;
       if (!ldk_camera_get_view_matrix(*entity, &camera_view) ||
           !ldk_camera_get_projection_matrix(
               *entity, aspect, &camera_projection))
       {
         continue;
       }
-
-      LDKRendererViewId view_id =
-          s_renderer_view_id_from_entity(*entity);
 
       if (!ldk_renderer_submit_view(
               &e->renderer, view_id, camera_view, camera_projection))
@@ -1630,9 +1636,9 @@ void ldk_engine_frame(void)
       const LDKPostProcessing *post_processing =
           (const LDKPostProcessing *)ldk_ecs_component_get_const(
               *entity, LDK_COMPONENT_TYPE_POST_PROCESSING);
+      LDKRendererPostProcessing renderer_post_processing = {0};
       if (post_processing != NULL)
       {
-        LDKRendererPostProcessing renderer_post_processing = {0};
         renderer_post_processing.enabled = post_processing->enabled;
         renderer_post_processing.tonemapping_enabled =
             post_processing->tonemapping_enabled;
@@ -1708,9 +1714,9 @@ void ldk_engine_frame(void)
             post_processing->drunk_chromatic_aberration;
         renderer_post_processing.drunk_movement =
             post_processing->drunk_movement;
-        (void)ldk_renderer_view_post_processing_set(
-            &e->renderer, view_id, &renderer_post_processing);
       }
+      (void)ldk_renderer_view_post_processing_set(
+          &e->renderer, view_id, &renderer_post_processing);
 
       if (!has_main_camera && camera->role == LDK_CAMERA_ROLE_MAIN)
       {

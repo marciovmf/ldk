@@ -1216,15 +1216,41 @@ static void s_editor_project_explorer_window(
 static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
 {
   LDKEditorContext *editor = (LDKEditorContext *)opaque_editor;
-  LDKUITextureHandle texture =
-      ldk_renderer_view_texture_get(editor->renderer, editor->scene_view);
+  LDKUIContext *ui = &editor->ui;
+  LDKUIRect content_rect;
   LDKUIRect image_rect;
+  LDKUITextureHandle texture;
   (void)data;
+
   ldki_editor_scene_view_toolbar_show(editor);
-  if (ldki_editor_view_texture_show(
-          editor, texture, 0x53434E42u, 0x53434E45u, &image_rect))
+  if (ui->current_layout == NULL)
   {
+    return;
+  }
+
+  content_rect = ui->current_layout->content_rect;
+  float content_bottom = content_rect.y + content_rect.h;
+  content_rect.y = ui->current_layout->cursor.y;
+  content_rect.h = content_bottom - content_rect.y;
+  if (content_rect.w <= 0.0f || content_rect.h <= 0.0f)
+  {
+    return;
+  }
+
+  rgba32 panel_bg = ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = 0x000000FFu;
+  ldk_ui_widget_panel(ui, 0x53434E42u, content_rect);
+  ui->theme.colors[LDK_UI_COLOR_PANEL_BG] = panel_bg;
+
+  image_rect = content_rect;
+  texture =
+      ldk_renderer_view_texture_get(editor->renderer, editor->scene_view);
+  if (texture != (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_ui_widget_image(ui, 0x53434E45u, texture,
+        ldk_renderer_view_texture_uv_get(editor->renderer), image_rect);
     ldki_editor_gizmo_scene_view_set(editor, image_rect);
+
     /* Rendered after the scene but composed after component icons. */
     LDKUITextureHandle overlay = ldk_renderer_view_overlay_texture_request(
         editor->renderer, editor->scene_view);
@@ -1239,7 +1265,6 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
 
     /* One MouseUP decision for scene selection. An icon hit takes priority
      * over mesh picking, so a second picker cannot overwrite its selection. */
-    LDKUIContext *ui = &editor->ui;
     if (ui->mouse && ui->current_window && ui->active_id == 0 &&
         ui->hot_id == 0 &&
         ui->hovered_window_id == ui->current_window->id &&
@@ -1271,6 +1296,37 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
         }
       }
     }
+  }
+
+  /*
+   * Keep the current render target while the user is dragging any resize
+   * handle. The image above simply stretches during the interaction. Once the
+   * mouse is released, request the final panel extent; the renderer applies it
+   * on the next view submission before the UI consumes the new texture handle.
+   */
+  bool resize_interaction =
+      ui->mouse &&
+      ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  if (!resize_interaction &&
+      editor->scene_view != LDK_RENDERER_VIEW_INVALID)
+  {
+    float scale = editor->ui_frame_scale > 0.0f
+        ? editor->ui_frame_scale
+        : 1.0f;
+    u32 width = (u32)lroundf(content_rect.w * scale);
+    u32 height = (u32)lroundf(content_rect.h * scale);
+    if (width == 0)
+    {
+      width = 1;
+    }
+    if (height == 0)
+    {
+      height = 1;
+    }
+
+    (void)ldk_renderer_view_extent_set(
+        editor->renderer, editor->scene_view, width, height);
   }
 }
 

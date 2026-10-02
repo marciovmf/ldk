@@ -541,6 +541,40 @@ static bool s_renderer_target_ensure(LDKRenderer* renderer,
       renderer, target, width, height, color_format);
 }
 
+static bool s_renderer_view_extent_apply(
+    LDKRenderer* renderer, LDKRendererView* view, u32 width, u32 height)
+{
+  if (renderer == NULL || view == NULL || width == 0 || height == 0)
+  {
+    return false;
+  }
+
+  if (view->width == width && view->height == height)
+  {
+    return true;
+  }
+
+  view->width = width;
+  view->height = height;
+  s_renderer_post_process_view_destroy(renderer, view);
+  s_renderer_target_destroy(renderer, &view->overlay_target);
+
+  if (view->target.color_texture == LDK_RHI_INVALID_RESOURCE ||
+      view->target.depth_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return true;
+  }
+
+  LDKRHIFormat color_format = view->target.color_format;
+  if (color_format == LDK_RHI_FORMAT_INVALID)
+  {
+    color_format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  }
+
+  return s_renderer_target_ensure(renderer, &view->target,
+      (i32)width, (i32)height, color_format);
+}
+
 static LDKRendererView* s_renderer_view_find(
     LDKRenderer* renderer, LDKRendererViewId view_id)
 {
@@ -5316,8 +5350,7 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
     LDKRendererView* view, LDKRendererFrameDesc const* frame_desc)
 {
   if (renderer == NULL || view == NULL || !view->submitted ||
-      frame_desc == NULL || renderer->game_width == 0 ||
-      renderer->game_height == 0)
+      frame_desc == NULL || view->width == 0 || view->height == 0)
   {
     return false;
   }
@@ -5334,8 +5367,7 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   }
 
   if (!s_renderer_target_ensure(renderer, &view->target,
-      (i32)renderer->game_width, (i32)renderer->game_height,
-      scene_color_format))
+      (i32)view->width, (i32)view->height, scene_color_format))
   {
     return false;
   }
@@ -5363,8 +5395,8 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   pass_desc.has_viewport = true;
   pass_desc.viewport.x = 0.0f;
   pass_desc.viewport.y = 0.0f;
-  pass_desc.viewport.width = (float)renderer->game_width;
-  pass_desc.viewport.height = (float)renderer->game_height;
+  pass_desc.viewport.width = (float)view->width;
+  pass_desc.viewport.height = (float)view->height;
   pass_desc.viewport.min_depth = 0.0f;
   pass_desc.viewport.max_depth = 1.0f;
 
@@ -6620,7 +6652,7 @@ static bool s_renderer_post_process_texture_ensure(
     LDKRenderer* renderer, LDKRendererView* view)
 {
   if (renderer == NULL || renderer->rhi == NULL || view == NULL ||
-      renderer->game_width == 0 || renderer->game_height == 0)
+      view->width == 0 || view->height == 0)
   {
     return false;
   }
@@ -6634,8 +6666,8 @@ static bool s_renderer_post_process_texture_ensure(
   ldk_rhi_texture_desc_defaults(&desc);
   desc.type = LDK_RHI_TEXTURE_TYPE_2D;
   desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
-  desc.width = renderer->game_width;
-  desc.height = renderer->game_height;
+  desc.width = view->width;
+  desc.height = view->height;
   desc.depth = 1;
   desc.mip_count = 1;
   desc.layer_count = 1;
@@ -6650,7 +6682,7 @@ static bool s_renderer_post_process_blur_textures_ensure(
     LDKRenderer* renderer, LDKRendererView* view, LDKRHIFormat format)
 {
   if (renderer == NULL || renderer->rhi == NULL || view == NULL ||
-      renderer->game_width == 0 || renderer->game_height == 0 ||
+      view->width == 0 || view->height == 0 ||
       (format != LDK_RHI_FORMAT_RGBA8_UNORM &&
           format != LDK_RHI_FORMAT_RGBA16_FLOAT))
   {
@@ -6670,8 +6702,8 @@ static bool s_renderer_post_process_blur_textures_ensure(
   ldk_rhi_texture_desc_defaults(&desc);
   desc.type = LDK_RHI_TEXTURE_TYPE_2D;
   desc.format = format;
-  desc.width = renderer->game_width;
-  desc.height = renderer->game_height;
+  desc.width = view->width;
+  desc.height = view->height;
   desc.depth = 1;
   desc.mip_count = 1;
   desc.layer_count = 1;
@@ -7210,10 +7242,10 @@ static bool s_renderer_blur_draw(LDKRenderer* renderer,
   {
     LDKRendererBlurParams params = {0};
     params.direction[0] = i == 0
-        ? sample_scale / (float)renderer->game_width
+        ? sample_scale / (float)view->width
         : 0.0f;
     params.direction[1] = i == 1
-        ? sample_scale / (float)renderer->game_height
+        ? sample_scale / (float)view->height
         : 0.0f;
     if (!ldk_rhi_buffer_update(renderer->rhi,
             renderer->blur_pass.params_buffer, 0, sizeof(params), &params))
@@ -7231,8 +7263,8 @@ static bool s_renderer_blur_draw(LDKRenderer* renderer,
     pass_desc.has_viewport = true;
     pass_desc.viewport.x = 0.0f;
     pass_desc.viewport.y = 0.0f;
-    pass_desc.viewport.width = (float)renderer->game_width;
-    pass_desc.viewport.height = (float)renderer->game_height;
+    pass_desc.viewport.width = (float)view->width;
+    pass_desc.viewport.height = (float)view->height;
     pass_desc.viewport.min_depth = 0.0f;
     pass_desc.viewport.max_depth = 1.0f;
 
@@ -7290,8 +7322,8 @@ static bool s_renderer_post_process_draw(
   pass_desc.has_viewport = true;
   pass_desc.viewport.x = 0.0f;
   pass_desc.viewport.y = 0.0f;
-  pass_desc.viewport.width = (float)renderer->game_width;
-  pass_desc.viewport.height = (float)renderer->game_height;
+  pass_desc.viewport.width = (float)view->width;
+  pass_desc.viewport.height = (float)view->height;
   pass_desc.viewport.min_depth = 0.0f;
   pass_desc.viewport.max_depth = 1.0f;
 
@@ -7322,7 +7354,7 @@ static bool s_renderer_post_process_draw(
   params.blur_options[1] =
       view->post_processing.blur_inverted ? 1.0f : 0.0f;
   params.blur_options[2] =
-      (float)renderer->game_width / (float)renderer->game_height;
+      (float)view->width / (float)view->height;
   params.vignette[0] =
       s_renderer_saturate(view->post_processing.vignette_intensity);
   params.vignette[1] =
@@ -7427,12 +7459,34 @@ bool ldk_renderer_view_post_processing_set(
   }
 
   LDKRendererView* view = s_renderer_view_find(renderer, view_id);
-  if (view == NULL || !view->submitted)
+  if (view == NULL || !view->submitted ||
+      view->width == 0 || view->height == 0)
   {
     return false;
   }
 
   view->post_processing = *post_processing;
+
+  LDKRHIFormat scene_color_format = s_renderer_view_requires_hdr(view)
+      ? LDK_RHI_FORMAT_RGBA16_FLOAT
+      : LDK_RHI_FORMAT_RGBA8_UNORM;
+
+  if (view->target.color_texture != LDK_RHI_INVALID_RESOURCE &&
+      (view->target.width != (i32)view->width ||
+          view->target.height != (i32)view->height ||
+          view->target.color_format != scene_color_format))
+  {
+    s_renderer_post_process_bindings_destroy(renderer, view);
+    s_renderer_post_process_blur_bindings_destroy(renderer, view);
+  }
+
+  if (!s_renderer_target_ensure(renderer, &view->target,
+          (i32)view->width, (i32)view->height, scene_color_format))
+  {
+    view->post_processing.enabled = false;
+    return false;
+  }
+
   if (!s_renderer_post_processing_active(&view->post_processing))
   {
     return true;
@@ -9143,9 +9197,17 @@ bool ldk_renderer_game_resolution_set(
 
   for (u32 i = 0; i < renderer->view_count; i++)
   {
-    s_renderer_post_process_view_destroy(renderer, &renderer->views[i]);
-    s_renderer_target_destroy(renderer, &renderer->views[i].target);
-    s_renderer_target_destroy(renderer, &renderer->views[i].overlay_target);
+    LDKRendererView* view = &renderer->views[i];
+    if (view->extent_override)
+    {
+      continue;
+    }
+
+    s_renderer_post_process_view_destroy(renderer, view);
+    s_renderer_target_destroy(renderer, &view->target);
+    s_renderer_target_destroy(renderer, &view->overlay_target);
+    view->width = width;
+    view->height = height;
   }
 
   renderer->game_width = width;
@@ -9324,9 +9386,9 @@ LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
     LDKRenderer* renderer, LDKRendererViewId view_id)
 {
   LDKRendererView* view = s_renderer_view_find(renderer, view_id);
-  if (!view || !view->submitted ||
+  if (!view || !view->submitted || view->width == 0 || view->height == 0 ||
       !s_renderer_target_ensure(renderer, &view->overlay_target,
-          (i32)renderer->game_width, (i32)renderer->game_height,
+          (i32)view->width, (i32)view->height,
           LDK_RHI_FORMAT_RGBA8_UNORM))
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
   view->separate_overlay = true;
@@ -9457,6 +9519,56 @@ bool ldk_renderer_view_bounds_visible(const LDKRenderer *renderer,
   return true;
 }
 
+bool ldk_renderer_view_extent_set(LDKRenderer* renderer,
+    LDKRendererViewId view_id, u32 width, u32 height)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL || width == 0 || height == 0)
+  {
+    return false;
+  }
+
+  LDKRendererView* view = s_renderer_view_find(renderer, view_id);
+  if (view == NULL)
+  {
+    return false;
+  }
+
+  view->requested_width = width;
+  view->requested_height = height;
+  view->extent_override = true;
+  return true;
+}
+
+bool ldk_renderer_view_extent_get(LDKRenderer const* renderer,
+    LDKRendererViewId view_id, u32* out_width, u32* out_height)
+{
+  if (renderer == NULL || !renderer->is_initialized ||
+      view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL ||
+      out_width == NULL || out_height == NULL ||
+      renderer->game_width == 0 || renderer->game_height == 0)
+  {
+    return false;
+  }
+
+  LDKRendererView const* view = s_renderer_view_find_const(renderer, view_id);
+  if (view != NULL && view->extent_override &&
+      view->requested_width > 0 && view->requested_height > 0)
+  {
+    *out_width = view->requested_width;
+    *out_height = view->requested_height;
+  }
+  else
+  {
+    *out_width = renderer->game_width;
+    *out_height = renderer->game_height;
+  }
+
+  return true;
+}
+
 bool ldk_renderer_submit_view(LDKRenderer* renderer,
     LDKRendererViewId view_id, Mat4 view_matrix, Mat4 projection)
 {
@@ -9480,6 +9592,20 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
     view = &renderer->views[renderer->view_count++];
     memset(view, 0, sizeof(*view));
     view->id = view_id;
+  }
+
+  u32 width = renderer->game_width;
+  u32 height = renderer->game_height;
+  if (view->extent_override &&
+      view->requested_width > 0 && view->requested_height > 0)
+  {
+    width = view->requested_width;
+    height = view->requested_height;
+  }
+
+  if (!s_renderer_view_extent_apply(renderer, view, width, height))
+  {
+    return false;
   }
 
   view->view = view_matrix;
