@@ -108,6 +108,8 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   out_desc->surface.specular = 0.0f;
   out_desc->surface.shininess = 32.0f;
   out_desc->surface.emission = 0.0f;
+  out_desc->alpha_mode = LDK_MATERIAL_ALPHA_MODE_OPAQUE;
+  out_desc->alpha_cutoff = 0.5f;
   out_desc->surface.normal_map.h = x_handle_null();
   out_desc->surface.specular_map.h = x_handle_null();
 
@@ -122,8 +124,6 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
     out_desc->args.textured.uv_scale = (Vec2){1.0f, 1.0f};
     out_desc->args.textured.uv_offset = (Vec2){0.0f, 0.0f};
     out_desc->args.textured.color = 0xffffffffu;
-    out_desc->args.textured.alpha_mode = LDK_MATERIAL_ALPHA_MODE_OPAQUE;
-    out_desc->args.textured.alpha_cutoff = 0.5f;
   }
   else
   {
@@ -140,21 +140,20 @@ bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
     return false;
   }
 
-  if (s_material_type_is_textured(desc->type))
+  if (!s_material_alpha_mode_is_valid(desc->alpha_mode) ||
+      (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
+          !s_material_type_is_textured(desc->type)) ||
+      (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
+          (!isfinite(desc->alpha_cutoff) || desc->alpha_cutoff < 0.0f ||
+              desc->alpha_cutoff > 1.0f)))
   {
-    if (!s_material_texture_sampling_is_valid(&desc->args.textured) ||
-        !s_material_alpha_mode_is_valid(desc->args.textured.alpha_mode))
-    {
-      return false;
-    }
+    return false;
+  }
 
-    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
-        (!isfinite(desc->args.textured.alpha_cutoff) ||
-            desc->args.textured.alpha_cutoff < 0.0f ||
-            desc->args.textured.alpha_cutoff > 1.0f))
-    {
-      return false;
-    }
+  if (s_material_type_is_textured(desc->type) &&
+      !s_material_texture_sampling_is_valid(&desc->args.textured))
+  {
+    return false;
   }
 
   if (!s_material_type_is_lit(desc->type))
@@ -175,7 +174,14 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     return false;
   }
 
-  bool equal;
+  bool equal = a->alpha_mode == b->alpha_mode &&
+      (a->alpha_mode != LDK_MATERIAL_ALPHA_MODE_CUTOUT ||
+          a->alpha_cutoff == b->alpha_cutoff);
+  if (!equal)
+  {
+    return false;
+  }
+
   if (a->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       a->type == LDK_MATERIAL_TYPE_TEXTURED)
   {
@@ -189,11 +195,7 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
             a->args.textured.uv_scale.y == b->args.textured.uv_scale.y &&
             a->args.textured.uv_offset.x == b->args.textured.uv_offset.x &&
             a->args.textured.uv_offset.y == b->args.textured.uv_offset.y &&
-            a->args.textured.color == b->args.textured.color &&
-            a->args.textured.alpha_mode == b->args.textured.alpha_mode &&
-            (a->args.textured.alpha_mode != LDK_MATERIAL_ALPHA_MODE_CUTOUT ||
-                a->args.textured.alpha_cutoff ==
-                    b->args.textured.alpha_cutoff);
+            a->args.textured.color == b->args.textured.color;
   }
   else
   {
@@ -224,6 +226,11 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
 
   u64 hash = LDK_MATERIAL_HASH_OFFSET;
   hash = s_material_hash_u32(hash, (u32)desc->type);
+  hash = s_material_hash_u32(hash, (u32)desc->alpha_mode);
+  if (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+  {
+    hash = s_material_hash_float(hash, desc->alpha_cutoff);
+  }
 
   if (desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       desc->type == LDK_MATERIAL_TYPE_TEXTURED)
@@ -239,11 +246,6 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
     hash = s_material_hash_float(hash, desc->args.textured.uv_offset.x);
     hash = s_material_hash_float(hash, desc->args.textured.uv_offset.y);
     hash = s_material_hash_u32(hash, desc->args.textured.color);
-    hash = s_material_hash_u32(hash, (u32)desc->args.textured.alpha_mode);
-    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
-    {
-      hash = s_material_hash_float(hash, desc->args.textured.alpha_cutoff);
-    }
   }
   else
   {

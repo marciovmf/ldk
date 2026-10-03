@@ -84,15 +84,15 @@ scene:
             exposure: -0.950783730
             blur_enabled: true
             blur_strength: 0.500000000
-            blur_focus_size: 0.250000000
-            blur_focus_feather: 0.150000006
+            blur_focus_size: 0.354131520
+            blur_focus_feather: 0.516020238
             blur_inverted: false
             blur_focus_offset_x: 0.00000000
             blur_focus_offset_y: 0.00000000
             color_enabled: false
-            brightness: 0.00000000
-            contrast: 1.00000000
-            saturation: 1.00000000
+            brightness: -0.0354131460
+            contrast: 0.998313665
+            saturation: 0.930860043
             vignette_enabled: false
             vignette_intensity: 0.500000000
             vignette_radius: 0.500000000

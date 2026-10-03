@@ -2879,39 +2879,53 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
   ldk_ui_end_horizontal(ui);
 
-  if (textured)
   {
-    static const char *const alpha_mode_names[] = {
+    static const char *const textured_alpha_mode_names[] = {
         "Opaque", "Cutout", "Blend"};
-    u32 alpha_mode = (u32)desc->args.textured.alpha_mode;
-    if (alpha_mode > (u32)LDK_MATERIAL_ALPHA_MODE_BLEND)
+    static const char *const vertex_alpha_mode_names[] = {
+        "Opaque", "Blend"};
+    static const LDKMaterialAlphaMode vertex_alpha_modes[] = {
+        LDK_MATERIAL_ALPHA_MODE_OPAQUE, LDK_MATERIAL_ALPHA_MODE_BLEND};
+
+    u32 selected_alpha_mode = 0;
+    const char *const *alpha_mode_names = textured
+        ? textured_alpha_mode_names : vertex_alpha_mode_names;
+    u32 alpha_mode_count = textured ? 3u : 2u;
+    if (textured)
     {
-      alpha_mode = (u32)LDK_MATERIAL_ALPHA_MODE_OPAQUE;
+      selected_alpha_mode = desc->alpha_mode <= LDK_MATERIAL_ALPHA_MODE_BLEND
+          ? (u32)desc->alpha_mode : 0u;
+    }
+    else if (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_BLEND)
+    {
+      selected_alpha_mode = 1u;
     }
 
     s_editor_material_row_begin(editor, "Alpha Mode");
     ldk_ui_begin_disabled(ui, readonly);
-    u32 next_alpha_mode =
-        ldk_ui_combo_box(ui, alpha_mode_names, 3, alpha_mode);
+    u32 next_alpha_mode = ldk_ui_combo_box(
+        ui, alpha_mode_names, alpha_mode_count, selected_alpha_mode);
     ldk_ui_end_disabled(ui);
     ldk_ui_end_horizontal(ui);
-    if (!readonly && next_alpha_mode < 3u && next_alpha_mode != alpha_mode)
+    if (!readonly && next_alpha_mode < alpha_mode_count &&
+        next_alpha_mode != selected_alpha_mode)
     {
-      desc->args.textured.alpha_mode =
-          (LDKMaterialAlphaMode)next_alpha_mode;
+      desc->alpha_mode = textured
+          ? (LDKMaterialAlphaMode)next_alpha_mode
+          : vertex_alpha_modes[next_alpha_mode];
       changed = true;
     }
 
-    if (desc->args.textured.alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
+    if (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
     {
       s_editor_material_row_begin(editor, "Alpha Cutoff");
       ldk_ui_begin_disabled(ui, readonly);
       float alpha_cutoff =
-          ldk_ui_slider(ui, desc->args.textured.alpha_cutoff, 0.0f, 1.0f);
+          ldk_ui_slider(ui, desc->alpha_cutoff, 0.0f, 1.0f);
       ldk_ui_end_disabled(ui);
-      if (!readonly && alpha_cutoff != desc->args.textured.alpha_cutoff)
+      if (!readonly && alpha_cutoff != desc->alpha_cutoff)
       {
-        desc->args.textured.alpha_cutoff = alpha_cutoff;
+        desc->alpha_cutoff = alpha_cutoff;
         changed = true;
       }
       ldk_ui_end_horizontal(ui);

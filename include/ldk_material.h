@@ -58,8 +58,6 @@ extern "C"
     Vec2 uv_scale;
     Vec2 uv_offset;
     rgba32 color;
-    LDKMaterialAlphaMode alpha_mode;
-    float alpha_cutoff;
   } LDKMaterialTexturedArgs;
 
   typedef struct LDKMaterialVertexColorArgs
@@ -88,6 +86,11 @@ extern "C"
     LDKMaterialType type;
     LDKMaterialArgs args;
     LDKMaterialSurfaceArgs surface;
+    /* Alpha mode is a render property shared by all material types.
+     * CUTOUT currently requires a textured material; BLEND is supported by
+     * both textured and vertex-color materials. */
+    LDKMaterialAlphaMode alpha_mode;
+    float alpha_cutoff;
   } LDKMaterialDesc;
 
   /**
@@ -100,10 +103,10 @@ extern "C"
   /**
    * @brief Initialize a material descriptor with deterministic defaults.
    *
-   * Every supported material type defaults to opaque white. Textured materials
-   * also default to a null image asset, nearest filtering, no mip filtering,
-   * clamp-to-edge wrapping, identity UV transform, opaque alpha mode, and a
-   * 0.5 cutout threshold. Lit materials default to no specular contribution,
+   * Every supported material type defaults to opaque white, opaque alpha mode,
+   * and a 0.5 cutout threshold. Textured materials also default to a null image
+   * asset, nearest filtering, no mip filtering, clamp-to-edge wrapping, and
+   * identity UV transform. Lit materials default to no specular contribution,
    * shininess 32, no emission, and no normal/specular maps. On failure, out_desc is
    * reset to an invalid zero descriptor.
    *

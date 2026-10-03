@@ -153,8 +153,8 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(first.surface.specular, 0.0f);
   ASSERT_EQ(first.surface.shininess, 32.0f);
   ASSERT_EQ(first.surface.emission, 0.0f);
-  ASSERT_EQ(first.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_CUTOUT);
-  ASSERT_EQ(first.args.textured.alpha_cutoff, 0.35f);
+  ASSERT_EQ(first.alpha_mode, LDK_MATERIAL_ALPHA_MODE_CUTOUT);
+  ASSERT_EQ(first.alpha_cutoff, 0.35f);
   ASSERT_EQ(first.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_LINEAR);
   ASSERT_EQ(first.args.textured.mip_filter,
       LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR);
@@ -214,20 +214,33 @@ static int test_material_io_missing_texture(void)
   ASSERT_EQ(second.args.textured.uv_scale.y, 1.0f);
   ASSERT_EQ(second.args.textured.uv_offset.x, 0.0f);
   ASSERT_EQ(second.args.textured.uv_offset.y, 0.0f);
-  ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
-  ASSERT_EQ(second.args.textured.alpha_cutoff, 0.5f);
+  ASSERT_EQ(second.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
+  ASSERT_EQ(second.alpha_cutoff, 0.5f);
 
   ASSERT_TRUE(s_read("material:\n  material_type: 1\n"
                      "  material_texture: \"missing.png\"\n"
                      "  material_alpha_mode: 2\n",
       &context, &second, &result));
-  ASSERT_EQ(second.args.textured.alpha_mode, LDK_MATERIAL_ALPHA_MODE_BLEND);
+  ASSERT_EQ(second.alpha_mode, LDK_MATERIAL_ALPHA_MODE_BLEND);
   out = x_strbuilder_create();
   ASSERT_TRUE(out != NULL);
   x_strbuilder_append(out, "material:\n");
   ASSERT_TRUE(ldk_material_desc_write(&context, &second, out, 1, &result));
   ASSERT_TRUE(strstr(out->data, "  material_alpha_mode: 2\n") != NULL);
   ASSERT_TRUE(strstr(out->data, "material_alpha_cutoff") == NULL);
+  x_strbuilder_destroy(out);
+
+  ASSERT_TRUE(s_read("material:\n  material_type: 4\n"
+                     "  material_color: 0x4080c080\n"
+                     "  material_alpha_mode: 2\n",
+      &context, &second, &result));
+  ASSERT_EQ(second.args.vertex_color.color, 0x4080c080u);
+  ASSERT_EQ(second.alpha_mode, LDK_MATERIAL_ALPHA_MODE_BLEND);
+  out = x_strbuilder_create();
+  ASSERT_TRUE(out != NULL);
+  x_strbuilder_append(out, "material:\n");
+  ASSERT_TRUE(ldk_material_desc_write(&context, &second, out, 1, &result));
+  ASSERT_TRUE(strstr(out->data, "  material_alpha_mode: 2\n") != NULL);
   x_strbuilder_destroy(out);
 
   ldk_asset_manager_terminate(&assets);

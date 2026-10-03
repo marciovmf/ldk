@@ -191,9 +191,8 @@
 * Do not add overlays to the opaque state sorter merely because they happen
 * to use the same mesh/material resources.
 *
-* Transparent rendering, if introduced later, will similarly require an
-* explicit ordering policy rather than automatically reusing the opaque
-* state sort.
+* Translucent rendering uses a separate per-view back-to-front queue rather
+* than reusing the opaque state sort.
 *
 *
 * 10. Instancing is an optimization, never a correctness requirement.
@@ -1463,7 +1462,11 @@ static bool s_renderer_material_is_blended(
   return material &&
       (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND ||
           material->selection ==
-              LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND);
+              LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND ||
+          material->selection ==
+              LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_BLEND ||
+          material->selection ==
+              LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND);
 }
 
 static u64* s_renderer_mesh_sort_radix(
@@ -2972,6 +2975,10 @@ static void s_renderer_mesh_pass_disable_instancing(
     LDKRendererMeshPass* pass)
 {
   ldk_rhi_pipeline_destroy(
+      pass->rhi, pass->vertex_color_unlit_blend_instanced_pipeline);
+  ldk_rhi_pipeline_destroy(
+      pass->rhi, pass->vertex_color_blend_instanced_pipeline);
+  ldk_rhi_pipeline_destroy(
       pass->rhi, pass->textured_unlit_blend_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_blend_instanced_pipeline);
   ldk_rhi_pipeline_destroy(
@@ -2987,6 +2994,8 @@ static void s_renderer_mesh_pass_disable_instancing(
   ldk_rhi_shader_module_destroy(
       pass->rhi, pass->vegetation_instanced_vertex_shader_module);
 
+  pass->vertex_color_unlit_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
+  pass->vertex_color_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->textured_unlit_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->textured_blend_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->textured_unlit_cutout_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
@@ -3176,6 +3185,22 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
       LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
   desc.blend_state.alpha_op = LDK_RHI_BLEND_OP_ADD;
 
+  desc.fragment_shader_module = pass->fragment_shader_module;
+  pass->vertex_color_blend_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_blend_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  desc.fragment_shader_module = pass->overlay_fragment_shader_module;
+  pass->vertex_color_unlit_blend_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_unlit_blend_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
   desc.fragment_shader_module = pass->textured_fragment_shader_module;
   pass->textured_blend_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->textured_blend_pipeline == LDK_RHI_INVALID_RESOURCE)
@@ -3285,6 +3310,25 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
       LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
   desc.blend_state.alpha_op = LDK_RHI_BLEND_OP_ADD;
   desc.depth_state.write_enabled = false;
+
+  desc.fragment_shader_module = pass->fragment_shader_module;
+  pass->vertex_color_blend_instanced_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_blend_instanced_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_mesh_pass_disable_instancing(pass);
+    return true;
+  }
+
+  desc.fragment_shader_module = pass->overlay_fragment_shader_module;
+  pass->vertex_color_unlit_blend_instanced_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vertex_color_unlit_blend_instanced_pipeline ==
+      LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_mesh_pass_disable_instancing(pass);
+    return true;
+  }
 
   desc.fragment_shader_module = pass->textured_fragment_shader_module;
   pass->textured_blend_instanced_pipeline =
@@ -3734,6 +3778,10 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
         pass->rhi, pass->textured_unlit_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_instanced_pipeline);
     ldk_rhi_pipeline_destroy(
+        pass->rhi, pass->vertex_color_unlit_blend_instanced_pipeline);
+    ldk_rhi_pipeline_destroy(
+        pass->rhi, pass->vertex_color_blend_instanced_pipeline);
+    ldk_rhi_pipeline_destroy(
         pass->rhi, pass->vertex_color_unlit_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
@@ -3748,6 +3796,9 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->wireframe_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->overlay_pipeline);
+    ldk_rhi_pipeline_destroy(
+        pass->rhi, pass->vertex_color_unlit_blend_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_blend_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_pipeline);
@@ -3832,7 +3883,10 @@ static LDKRHIPipeline s_renderer_mesh_pass_pipeline(
       return pass->textured_overlay_pipeline;
     }
     if (selection == LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR ||
-        selection == LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT)
+        selection == LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT ||
+        selection == LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_BLEND ||
+        selection ==
+            LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND)
     {
       return pass->overlay_pipeline;
     }
@@ -3847,6 +3901,12 @@ static LDKRHIPipeline s_renderer_mesh_pass_pipeline(
     case LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT:
       return instanced ? pass->vertex_color_unlit_instanced_pipeline
                        : pass->vertex_color_unlit_pipeline;
+    case LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_BLEND:
+      return instanced ? pass->vertex_color_blend_instanced_pipeline
+                       : pass->vertex_color_blend_pipeline;
+    case LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND:
+      return instanced ? pass->vertex_color_unlit_blend_instanced_pipeline
+                       : pass->vertex_color_unlit_blend_pipeline;
     case LDK_RENDERER_MATERIAL_SELECTION_TEXTURED:
       return instanced ? pass->textured_instanced_pipeline
                        : pass->textured_pipeline;
@@ -8312,8 +8372,8 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   desc.texture = ldk_renderer_texture_null();
   desc.normal_map = ldk_renderer_texture_null();
   desc.specular_map = ldk_renderer_texture_null();
-  desc.alpha_mode = LDK_MATERIAL_ALPHA_MODE_OPAQUE;
-  desc.alpha_cutoff = 0.5f;
+  desc.alpha_mode = material_desc->alpha_mode;
+  desc.alpha_cutoff = material_desc->alpha_cutoff;
   lit = material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
       material_desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
 
@@ -8330,8 +8390,6 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       return false;
     }
     desc.color = material_desc->args.textured.color;
-    desc.alpha_mode = material_desc->args.textured.alpha_mode;
-    desc.alpha_cutoff = material_desc->args.textured.alpha_cutoff;
     desc.texture = ldk_renderer_image_acquire(
         renderer, assets, material_desc->args.textured.texture);
     if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
@@ -8641,10 +8699,16 @@ static LDKRendererMaterialSelection s_renderer_material_selection(
           ? LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND
           : LDK_RENDERER_MATERIAL_SELECTION_TEXTURED;
     case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
-      return LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
+      return desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_BLEND
+          ? LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND
+          : LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
     case LDK_MATERIAL_TYPE_VERTEX_COLOR:
-      return desc->vegetation
-          ? LDK_RENDERER_MATERIAL_SELECTION_VEGETATION
+      if (desc->vegetation)
+      {
+        return LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
+      }
+      return desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_BLEND
+          ? LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_BLEND
           : LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR;
     case LDK_MATERIAL_TYPE_INVALID:
     default:
@@ -8665,23 +8729,28 @@ static bool s_renderer_material_desc_is_valid(
   {
     return false;
   }
-  if (desc->vegetation && desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR)
+  if (desc->vegetation &&
+      (desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR ||
+          desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE))
   {
     return false;
   }
 
-  if (s_renderer_material_type_is_textured(desc->type))
+  bool textured = s_renderer_material_type_is_textured(desc->type);
+  if ((desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE &&
+          desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
+          desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_BLEND) ||
+      (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT && !textured) ||
+      (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
+          (!isfinite(desc->alpha_cutoff) || desc->alpha_cutoff < 0.0f ||
+              desc->alpha_cutoff > 1.0f)))
   {
-    if (!ldk_renderer_texture_is_valid(renderer, desc->texture) ||
-        (desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE &&
-            desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
-            desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_BLEND) ||
-        (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT &&
-            (!isfinite(desc->alpha_cutoff) || desc->alpha_cutoff < 0.0f ||
-                desc->alpha_cutoff > 1.0f)))
-    {
-      return false;
-    }
+    return false;
+  }
+
+  if (textured && !ldk_renderer_texture_is_valid(renderer, desc->texture))
+  {
+    return false;
   }
 
   if (!s_renderer_material_type_is_lit(desc->type))
@@ -8739,13 +8808,8 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.texture = s_renderer_material_type_is_textured(desc->type)
       ? desc->texture
       : ldk_renderer_texture_null();
-  resource->desc.alpha_mode = s_renderer_material_type_is_textured(desc->type)
-      ? desc->alpha_mode
-      : LDK_MATERIAL_ALPHA_MODE_OPAQUE;
-  resource->desc.alpha_cutoff =
-      s_renderer_material_type_is_textured(desc->type)
-      ? desc->alpha_cutoff
-      : 0.5f;
+  resource->desc.alpha_mode = desc->alpha_mode;
+  resource->desc.alpha_cutoff = desc->alpha_cutoff;
   resource->desc.normal_map =
       lit ? desc->normal_map : ldk_renderer_texture_null();
   resource->desc.specular_map =

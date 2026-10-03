@@ -388,6 +388,8 @@ extern "C" {
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
+    LDKRHIPipeline vertex_color_blend_pipeline;
+    LDKRHIPipeline vertex_color_unlit_blend_pipeline;
     LDKRHIPipeline overlay_pipeline;
     LDKRHIPipeline wireframe_pipeline;
     LDKRHIPipeline textured_pipeline;
@@ -400,6 +402,8 @@ extern "C" {
     LDKRHIPipeline textured_unlit_blend_pipeline;
     LDKRHIPipeline vertex_color_instanced_pipeline;
     LDKRHIPipeline vertex_color_unlit_instanced_pipeline;
+    LDKRHIPipeline vertex_color_blend_instanced_pipeline;
+    LDKRHIPipeline vertex_color_unlit_blend_instanced_pipeline;
     LDKRHIPipeline textured_instanced_pipeline;
     LDKRHIPipeline textured_unlit_instanced_pipeline;
     LDKRHIPipeline textured_cutout_instanced_pipeline;
@@ -669,6 +673,8 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED,
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT,
     LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR,
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND,
+    LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_BLEND,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
