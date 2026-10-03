@@ -846,6 +846,9 @@ extern "C"
       LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
+  LDK_API void ldk_ui_widget_gradient(LDKUIContext *ctx, LDKUIId id,
+      rgba32 top_left, rgba32 top_right, rgba32 bottom_right,
+      rgba32 bottom_left, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_color_view(
     LDKUIContext *ctx, LDKUIId id, rgba32 color, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button(

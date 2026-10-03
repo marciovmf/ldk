@@ -81,6 +81,53 @@ void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
   s_ui_render_quad_uv(ctx, box.rect, uv, 0xffffffffu, box.clip, texture);
 }
 
+void ldk_ui_widget_gradient(LDKUIContext *ctx, LDKUIId id,
+    rgba32 top_left, rgba32 top_right, rgba32 bottom_right,
+    rgba32 bottom_left, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  XArray_ldk_ui_vertex *vertices;
+  XArray_ldk_ui_u32 *indices;
+  u32 index_offset;
+  u32 base_index;
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
+  {
+    return;
+  }
+
+  vertices = s_ui_target_vertices(ctx);
+  indices = s_ui_target_indices(ctx);
+  index_offset = x_array_ldk_ui_u32_count(indices);
+  base_index = x_array_ldk_ui_vertex_count(vertices);
+
+  top_left = LDK_RGBA32(top_left);
+  top_right = LDK_RGBA32(top_right);
+  bottom_right = LDK_RGBA32(bottom_right);
+  bottom_left = LDK_RGBA32(bottom_left);
+
+  x_array_ldk_ui_vertex_push(vertices,
+      (LDKUIVertex){box.rect.x, box.rect.y, 0.0f, 0.0f, top_left});
+  x_array_ldk_ui_vertex_push(vertices,
+      (LDKUIVertex){box.rect.x + box.rect.w, box.rect.y, 1.0f, 0.0f,
+          top_right});
+  x_array_ldk_ui_vertex_push(vertices,
+      (LDKUIVertex){box.rect.x + box.rect.w, box.rect.y + box.rect.h, 1.0f,
+          1.0f, bottom_right});
+  x_array_ldk_ui_vertex_push(vertices,
+      (LDKUIVertex){box.rect.x, box.rect.y + box.rect.h, 0.0f, 1.0f,
+          bottom_left});
+
+  x_array_ldk_ui_u32_push(indices, base_index + 0u);
+  x_array_ldk_ui_u32_push(indices, base_index + 1u);
+  x_array_ldk_ui_u32_push(indices, base_index + 2u);
+  x_array_ldk_ui_u32_push(indices, base_index + 2u);
+  x_array_ldk_ui_u32_push(indices, base_index + 3u);
+  x_array_ldk_ui_u32_push(indices, base_index + 0u);
+
+  s_ui_render_add_draw_cmd(ctx, 0, box.clip, index_offset, 6u);
+}
+
 void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
     char const *text, LDKUIRect rect)
 {

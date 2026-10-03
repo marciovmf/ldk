@@ -1,4 +1,5 @@
 #include "ldk_editor_settings.h"
+#include "ldk_editor_color_picker.h"
 #include "ldk_editor_internal.h"
 #include "ldk_os.h"
 #include <module/ldk_ui.h>
@@ -429,16 +430,10 @@ static bool s_editor_settings_color_row(
     return false;
   }
 
-  LDKUIContext *ui = &editor->ui;
   rgba32 previous = *color;
   s_editor_settings_row_begin(editor, label);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_color_view(ui, *color))
-  {
-    ldk_os_dialog_color_picker_show(editor->window, color);
-  }
-  ldk_ui_spacer(ui);
-  ldk_ui_end_horizontal(ui);
+  (void)ldki_editor_color_field(editor, color, false);
+  ldk_ui_end_horizontal(&editor->ui);
   return *color != previous;
 }
 

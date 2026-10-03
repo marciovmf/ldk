@@ -191,8 +191,9 @@
 * Do not add overlays to the opaque state sorter merely because they happen
 * to use the same mesh/material resources.
 *
-* Translucent rendering uses a separate per-view back-to-front queue rather
-* than reusing the opaque state sort.
+* Transparent rendering, if introduced later, will similarly require an
+* explicit ordering policy rather than automatically reusing the opaque
+* state sort.
 *
 *
 * 10. Instancing is an optimization, never a correctness requirement.
@@ -8809,7 +8810,10 @@ LDKResourceMaterial ldk_renderer_material_create(
       ? desc->texture
       : ldk_renderer_texture_null();
   resource->desc.alpha_mode = desc->alpha_mode;
-  resource->desc.alpha_cutoff = desc->alpha_cutoff;
+  resource->desc.alpha_cutoff =
+      desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT
+      ? desc->alpha_cutoff
+      : 0.5f;
   resource->desc.normal_map =
       lit ? desc->normal_map : ldk_renderer_texture_null();
   resource->desc.specular_map =

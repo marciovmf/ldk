@@ -1,6 +1,7 @@
 #include <ldk_material_asset.h>
 #include <ldk_mesh_asset.h>
 #include <ldk_skybox_asset.h>
+#include "ldk_editor_color_picker.h"
 #include "ldk_editor_internal.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_entity.h"
@@ -2128,17 +2129,7 @@ static void s_editor_inspector_field_draw(
     if (field->widget == LDK_FIELD_WIDGET_COLOR)
     {
       rgba32 *field_color = (rgba32 *)field_value;
-      rgba32 color = *field_color;
-      ldk_ui_begin_disabled(ui, readonly);
-      if (ldk_ui_color_view(ui, color) && !readonly)
-      {
-        color |= 0x000000ffu;
-        if (ldk_os_dialog_color_picker_show(editor->window, &color))
-        {
-          *field_color = color;
-        }
-      }
-      ldk_ui_end_disabled(ui);
+      (void)ldki_editor_color_field(editor, field_color, readonly);
       break;
     }
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
@@ -2855,12 +2846,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
                            : &desc->args.vertex_color.color;
 
   s_editor_material_row_begin(editor, "Tint");
-  rgba32 previous_color = *color;
-  if (ldk_ui_color_view(ui, *color) && !readonly)
-  {
-    ldk_os_dialog_color_picker_show(editor->window, color);
-  }
-  if (!readonly && *color != previous_color)
+  if (ldki_editor_color_field(editor, color, readonly))
   {
     changed = true;
   }
