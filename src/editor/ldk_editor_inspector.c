@@ -20,6 +20,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool s_editor_material_image_editor(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, LDKAssetImage *image,
+    bool readonly, bool optional, const LDKMaterialIOContext *context);
+
 enum
 {
   LDK_EDITOR_INSPECTOR_INPUT_CAPACITY = 64,
@@ -927,6 +931,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     break;
   case LDK_FIELD_ASSET_FONT:
     snprintf(out, out_size, "<asset font>");
+    break;
+  case LDK_FIELD_ASSET_IMAGE:
+    snprintf(out, out_size, "<asset image>");
     break;
   case LDK_FIELD_RESOURCE_MESH:
     snprintf(out, out_size, "<resource mesh>");
@@ -2001,6 +2008,19 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
+  if (field->type == LDK_FIELD_ASSET_IMAGE)
+  {
+    LDKAssetImage *value = (LDKAssetImage *)field_value;
+    LDKMaterialIOContext context = {0};
+    context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    context.diagnostic = s_editor_material_diagnostic;
+    context.user = editor;
+    (void)s_editor_material_image_editor(editor, display_name,
+        "Choose image", value, readonly, true, &context);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   if (field->type == LDK_FIELD_ASSET_AUDIO)
   {
     LDKAssetAudio *value = (LDKAssetAudio *)field_value;
@@ -2313,6 +2333,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
   case LDK_FIELD_ASSET_FONT:
+  case LDK_FIELD_ASSET_IMAGE:
   case LDK_FIELD_RESOURCE_MESH:
   case LDK_FIELD_ASSET_MATERIAL:
   case LDK_FIELD_ASSET_SKYBOX:

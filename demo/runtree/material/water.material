@@ -1,0 +1,13 @@
+material:
+  material_type: 2
+  material_color: 0xffffff7d
+  material_texture: "assets/textures/dev_L_water2.jpg"
+  material_texture_mip_filter: 1
+  material_texture_wrap_u: 0
+  material_texture_wrap_v: 0
+  material_uv_scale_u: 3
+  material_uv_scale_v: 3
+  material_alpha_mode: 2
+  material_specular: 0.466830462
+  material_shininess: 37.52174
+  material_emission: 0.204603583

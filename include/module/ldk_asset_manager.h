@@ -87,6 +87,12 @@ extern "C" {
       u32 width,
       u32 height,
       const void* pixels);
+  LDK_API LDKAssetImage ldk_asset_manager_image_create_format(
+      LDKAssetManager* manager,
+      u32 width,
+      u32 height,
+      LDKImageFormat format,
+      const void* pixels);
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
       const char* path);

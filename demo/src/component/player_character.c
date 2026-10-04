@@ -12,6 +12,7 @@ static PlayerCharacterComponent s_player_character_default(void)
   player.speed = 4.0f;
   player.acceleration = 18.0f;
   player.inertia = 0.15f;
+  player.terrain_height_offset = 0.5f;
   player.velocity = vec3_make(0.0f, 0.0f, 0.0f);
   return player;
 }

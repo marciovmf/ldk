@@ -63,7 +63,8 @@ extern "C" {
     LDK_SHADER_POST_PROCESS_PASS,
     LDK_SHADER_BLUR_PASS,
     LDK_SHADER_SKYBOX_PASS,
-    LDK_SHADER_MESH_PASS_SOLID_UNLIT
+    LDK_SHADER_MESH_PASS_SOLID_UNLIT,
+    LDK_SHADER_TERRAIN_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -363,6 +364,7 @@ extern "C" {
     LDKRHIBuffer instance_buffer;
     u32 instance_capacity;
     LDKRHIBindings bindings;
+    LDKRHIBindings vegetation_bindings;
     LDKRendererBindingsCacheEntry *cutout_bindings_cache;
     u32 cutout_bindings_cache_count;
     u32 cutout_bindings_cache_capacity;
@@ -385,6 +387,8 @@ extern "C" {
     LDKRHIShaderModule vegetation_vertex_shader_module;
     LDKRHIShaderModule vegetation_instanced_vertex_shader_module;
     LDKRHIShaderModule vegetation_fragment_shader_module;
+    LDKRHIShaderModule terrain_vertex_shader_module;
+    LDKRHIShaderModule terrain_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline vertex_color_pipeline;
     LDKRHIPipeline vertex_color_unlit_pipeline;
@@ -412,6 +416,7 @@ extern "C" {
     LDKRHIPipeline textured_unlit_blend_instanced_pipeline;
     LDKRHIPipeline vegetation_pipeline;
     LDKRHIPipeline vegetation_instanced_pipeline;
+    LDKRHIPipeline terrain_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -427,6 +432,7 @@ extern "C" {
     LDKRHITexture white_specular_texture;
     LDKRHISampler fallback_sampler;
     LDKRHIBindings bindings;
+    LDKRHIBindings vegetation_bindings;
     LDKRendererMeshBindingsCacheEntry *material_bindings_cache;
     u32 material_bindings_cache_count;
     u32 material_bindings_cache_capacity;
@@ -616,6 +622,9 @@ extern "C" {
     u32 width;
     u32 height;
     u32 channel_count;
+    /* Optional explicit storage format. INVALID derives an 8-bit format from
+     * channel_count and SRGB options for backwards compatibility. */
+    LDKRHIFormat format;
     u32 flags;
     void const* pixels;
     u64 byte_count;
@@ -646,6 +655,18 @@ extern "C" {
     u32 image_references;
   } LDKRendererTextureResource;
 
+#define LDK_RENDERER_TERRAIN_SURFACE_COUNT 8u
+
+  typedef struct LDKRendererTerrainSurfaceDesc
+  {
+    float min_height;
+    float blend_width;
+    rgba32 color;
+    Vec4 atlas_rect;
+    Vec2 uv_scale;
+    float texture_weight;
+  } LDKRendererTerrainSurfaceDesc;
+
   typedef struct LDKRendererMaterialDesc
   {
     LDKMaterialType type;
@@ -663,7 +684,14 @@ extern "C" {
     float vegetation_curvature;
     float vegetation_wind_strength;
     float vegetation_wind_speed;
+    float vegetation_wind_direction;
+    float vegetation_interaction_recovery_time;
     bool vegetation;
+    /* Optional height-driven terrain appearance. Heights are world-space. */
+    bool terrain;
+    u32 terrain_surface_count;
+    LDKRendererTerrainSurfaceDesc
+        terrain_surfaces[LDK_RENDERER_TERRAIN_SURFACE_COUNT];
   } LDKRendererMaterialDesc;
 
   typedef enum LDKRendererMaterialSelection
@@ -679,7 +707,8 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND,
-    LDK_RENDERER_MATERIAL_SELECTION_VEGETATION
+    LDK_RENDERER_MATERIAL_SELECTION_VEGETATION,
+    LDK_RENDERER_MATERIAL_SELECTION_TERRAIN
   } LDKRendererMaterialSelection;
 
   typedef u64 LDKRendererRenderKey;
@@ -758,6 +787,11 @@ extern "C" {
     u32 font_page_capacity;
 
     LDKRendererAmbientLight ambient_light;
+
+    LDKResourceTexture vegetation_interaction_texture;
+    Vec2 vegetation_interaction_origin;
+    float vegetation_interaction_inv_world_size;
+    bool vegetation_interaction_enabled;
     LDKRendererLightSubmit *submitted_lights;
     u32 submitted_light_count;
     u32 submitted_light_capacity;
@@ -821,6 +855,15 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_ambient_light_set(
       LDKRenderer *renderer, u32 color, float intensity);
+
+  /** Bind a world-space interaction field sampled by vegetation shaders. */
+  LDK_API bool ldk_renderer_vegetation_interaction_set(
+      LDKRenderer *renderer, LDKResourceTexture texture, Vec2 world_origin,
+      float world_size);
+
+  /** Disable the vegetation interaction field and release pass bindings. */
+  LDK_API void ldk_renderer_vegetation_interaction_clear(
+      LDKRenderer *renderer);
 
   /** Submit an unlit, capped triangular prism from start to end.
    * Thickness is the circumdiameter of its cross-section, in world units.
@@ -1315,6 +1358,15 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
+      LDKResourceMaterial *renderer_material,
+      LDKResourceTexture *renderer_texture,
+      LDKResourceTexture *renderer_normal_map,
+      LDKResourceTexture *renderer_specular_map);
+
+  /** Resolve a normal authored material using TerrainSystem surface rules. */
+  LDK_API bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
+      struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
+      const LDKRendererTerrainSurfaceDesc *surfaces, u32 surface_count,
       LDKResourceMaterial *renderer_material,
       LDKResourceTexture *renderer_texture,
       LDKResourceTexture *renderer_normal_map,

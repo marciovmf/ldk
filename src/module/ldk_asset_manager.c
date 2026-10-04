@@ -513,7 +513,8 @@ bool ldk_asset_manager_image_is_alive(LDKAssetManager* manager, LDKAssetImage as
   return ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_IMAGE;
 }
 
-LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width, u32 height, const void* pixels)
+LDKAssetImage ldk_asset_manager_image_create_format(LDKAssetManager* manager,
+    u32 width, u32 height, LDKImageFormat format, const void* pixels)
 {
   LDKAssetImage result = ldk_asset_image_null();
 
@@ -522,15 +523,13 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
     return result;
   }
 
-  LDKImage* image = ldk_image_create(width, height, pixels);
-
+  LDKImage* image = ldk_image_create_format(width, height, format, pixels);
   if (!image)
   {
     return result;
   }
 
   LDKAssetImageData* image_data = malloc(sizeof(LDKAssetImageData));
-
   if (!image_data)
   {
     ldk_image_destroy(image);
@@ -541,7 +540,6 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
   image_data->is_missing = false;
 
   XHandle h = x_hpool_alloc(&manager->pool);
-
   if (x_handle_is_null(h))
   {
     ldk_image_destroy(image);
@@ -550,7 +548,6 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
   }
 
   LDKAssetInfo* info = x_hpool_get(&manager->pool, h);
-
   if (!info)
   {
     x_hpool_free(&manager->pool, h);
@@ -569,6 +566,13 @@ LDKAssetImage ldk_asset_manager_image_create(LDKAssetManager* manager, u32 width
 #endif
 
   return s_ldk_asset_image_from_handle(h);
+}
+
+LDKAssetImage ldk_asset_manager_image_create(
+    LDKAssetManager* manager, u32 width, u32 height, const void* pixels)
+{
+  return ldk_asset_manager_image_create_format(manager, width, height,
+      LDK_IMAGE_FORMAT_RGBA8_UNORM, pixels);
 }
 
 LDKAssetImage ldk_asset_manager_image_load(LDKAssetManager* manager, const char* path)

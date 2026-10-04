@@ -14,6 +14,7 @@
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <component/ldk_grass_interact.h>
 
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
@@ -215,6 +216,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKAudioSource") == 0)
     {
       return LDK_COMPONENT_TYPE_AUDIO_SOURCE;
+    }
+
+    if (strcmp(meta->name, "LDKGrassInteractComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_GRASS_INTERACT;
     }
   }
 
@@ -1080,6 +1086,41 @@ static bool s_apply_field_value(const TMLDocument *doc,
     return false;
   }
 
+  case LDK_FIELD_ASSET_IMAGE:
+  {
+    if (entry->type == TML_VALUE_I64)
+    {
+      i32 asset_id;
+      if (!s_entry_get_i32(entry, &asset_id) || asset_id != -1)
+        return false;
+      *(LDKAssetImage *)ptr = ldk_asset_image_null();
+      break;
+    }
+
+    if (entry->type == TML_VALUE_STRING)
+    {
+      TMLString reference;
+      char reference_path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+      LDKAssetManager *asset_manager;
+      LDKAssetImage asset;
+      if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+          reference.size >= sizeof(reference_path) ||
+          memchr(reference.data, 0, reference.size))
+        return false;
+      memcpy(reference_path, reference.data, reference.size);
+      asset_manager = (LDKAssetManager *)ldk_module_get(
+          LDK_MODULE_ASSET_MANAGER);
+      if (!asset_manager)
+        return false;
+      asset = ldk_asset_manager_image_load_shared(asset_manager, reference_path);
+      if (x_handle_is_null(asset.h))
+        return false;
+      *(LDKAssetImage *)ptr = asset;
+      break;
+    }
+    return false;
+  }
+
   case LDK_FIELD_ASSET_MATERIAL:
   {
     if (entry->type == TML_VALUE_I64)
@@ -1825,6 +1866,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(LDKAssetFont);
       alignment = _Alignof(LDKAssetFont);
       break;
+    case LDK_FIELD_ASSET_IMAGE:
+      field_size = sizeof(LDKAssetImage);
+      alignment = _Alignof(LDKAssetImage);
+      break;
     case LDK_FIELD_ASSET_MATERIAL:
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
@@ -2516,6 +2561,34 @@ static bool s_write_field_value(XStrBuilder *out,
     {
       return false;
     }
+    s_append_escaped_string(out, asset_path.buf);
+  }
+  break;
+
+  case LDK_FIELD_ASSET_IMAGE:
+  {
+    const LDKAssetImage *value = (const LDKAssetImage *)ptr;
+    LDKAssetManager *asset_manager;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    LDKAssetPath asset_path;
+
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+    asset_manager = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    if (!asset_manager)
+      return false;
+    generic.h = value->h;
+    info = ldk_asset_get_info_const(asset_manager, generic);
+    if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
+        !asset_manager->source ||
+        info->source_revision != asset_manager->source->revision ||
+        !ldk_asset_path_set(&asset_path, info->asset_path.buf))
+      return false;
     s_append_escaped_string(out, asset_path.buf);
   }
   break;

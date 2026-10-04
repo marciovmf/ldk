@@ -68,6 +68,10 @@ static bool s_scene_system_data_initialize_handles(
       field_size = sizeof(LDKAssetFont);
       alignment = _Alignof(LDKAssetFont);
       break;
+    case LDK_FIELD_ASSET_IMAGE:
+      field_size = sizeof(LDKAssetImage);
+      alignment = _Alignof(LDKAssetImage);
+      break;
     case LDK_FIELD_ASSET_MATERIAL:
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
@@ -96,6 +100,9 @@ static bool s_scene_system_data_initialize_handles(
       break;
     case LDK_FIELD_ASSET_FONT:
       *(LDKAssetFont *)(base + field->offset) = ldk_asset_font_null();
+      break;
+    case LDK_FIELD_ASSET_IMAGE:
+      *(LDKAssetImage *)(base + field->offset) = ldk_asset_image_null();
       break;
     case LDK_FIELD_ASSET_MATERIAL:
       *(LDKAssetMaterial *)(base + field->offset) =

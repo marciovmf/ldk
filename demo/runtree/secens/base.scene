@@ -62,9 +62,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -0.0467082039, 1.03643441, 5.43287563
+            local_position: 0.266472101, 2.13821220, -3.07301950
             local_scale: 1.00000000, 0.999999881, 0.999999940
-            local_rotation: -0.0102395648, -0.00480061071, -4.91593091e-05, 0.999936044
+            local_rotation: -0.0284063611, 0.980226994, 0.174564376, -0.0887442231
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
@@ -307,28 +307,8 @@ scene:
             speed: 4.00000000
             acceleration: 18.0000000
             inertia: 0.150000006
+            terrain_height_offset: 0.500000000
     - entity: 13
-      parent: 12
-      flags: 0
-      name: "Cone"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.0122777224, 1.02872086, -0.218408108
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.247675017, 0.00000000, 0.00000000, 0.968843222
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-    - entity: 14
       parent: -1
       flags: 0
       name: "Cube"
@@ -345,7 +325,7 @@ scene:
             casts_shadows: true
             billboard: false
             material_asset: "assets/materials/container.tml"
-    - entity: 15
+    - entity: 14
       parent: -1
       flags: 0
       name: "Rock"
@@ -375,7 +355,7 @@ scene:
                 material_shininess: 32
                 material_emission: 0
             instances:
-    - entity: 16
+    - entity: 15
       parent: -1
       flags: 0
       name: "Capsule"
@@ -396,7 +376,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 17
+    - entity: 16
       parent: -1
       flags: 0
       name: "Text"
@@ -422,7 +402,7 @@ scene:
             volume: 0.895678103
             loop: true
             play_on_start: true
-    - entity: 18
+    - entity: 17
       parent: 12
       flags: 0
       name: "Smoke"
@@ -473,7 +453,7 @@ scene:
             interpolation_curve: 0
             simulation_space: 1
             sort_mode: 1
-    - entity: 19
+    - entity: 18
       parent: -1
       flags: 4
       name: "Quad"
@@ -495,3 +475,65 @@ scene:
       grouping: "0x8000000000000003"
     - id: "0x758d97a0f482b923"
       grouping: "0x8000000000000002"
+    - id: "0x1e2c227aa2362f6a"
+      data:
+        heightmap: "assets/textures/hmap.png"
+        height_channel: "LDK_TERRAIN_CHANNEL_R"
+        cell_size: 0.00000000
+        height_scale: 100.000000
+        height_offset: 0.00000000
+        center_on_origin: true
+        origin_x: 0.00000000
+        origin_z: 0.00000000
+        chunk_size: 0
+        material: -1
+        surface_count: 0
+        surface_0_name: ""
+        surface_0_min_height: 0.00000000
+        surface_0_blend_width: 0.00000000
+        surface_0_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_0_uv_scale: 0.00000000, 0.00000000
+        surface_0_texture_weight: 0.00000000
+        surface_1_name: ""
+        surface_1_min_height: 0.00000000
+        surface_1_blend_width: 0.00000000
+        surface_1_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_1_uv_scale: 0.00000000, 0.00000000
+        surface_1_texture_weight: 0.00000000
+        surface_2_name: ""
+        surface_2_min_height: 0.00000000
+        surface_2_blend_width: 0.00000000
+        surface_2_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_2_uv_scale: 0.00000000, 0.00000000
+        surface_2_texture_weight: 0.00000000
+        surface_3_name: ""
+        surface_3_min_height: 0.00000000
+        surface_3_blend_width: 0.00000000
+        surface_3_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_3_uv_scale: 0.00000000, 0.00000000
+        surface_3_texture_weight: 0.00000000
+        surface_4_name: ""
+        surface_4_min_height: 0.00000000
+        surface_4_blend_width: 0.00000000
+        surface_4_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_4_uv_scale: 0.00000000, 0.00000000
+        surface_4_texture_weight: 0.00000000
+        surface_5_name: ""
+        surface_5_min_height: 0.00000000
+        surface_5_blend_width: 0.00000000
+        surface_5_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_5_uv_scale: 0.00000000, 0.00000000
+        surface_5_texture_weight: 0.00000000
+        surface_6_name: ""
+        surface_6_min_height: 0.00000000
+        surface_6_blend_width: 0.00000000
+        surface_6_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_6_uv_scale: 0.00000000, 0.00000000
+        surface_6_texture_weight: 0.00000000
+        surface_7_name: ""
+        surface_7_min_height: 0.00000000
+        surface_7_blend_width: 0.00000000
+        surface_7_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
+        surface_7_uv_scale: 0.00000000, 0.00000000
+        surface_7_texture_weight: 0.00000000
+        casts_shadows: false

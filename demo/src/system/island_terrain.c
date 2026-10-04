@@ -7,7 +7,8 @@
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
-#include <system/ldk_grass.h>
+#include <system/ldk_grass_system.h>
+#include <system/ldk_terrain_system.h>
 #include <stdx/stdx_math.h>
 
 #include <math.h>
@@ -18,8 +19,8 @@
 
 #define ISLAND_MAP_FILE_NAME "map.bin"
 #define ISLAND_MAP_FILE_MAGIC 0x4C444B4Du
-#define ISLAND_MAP_FILE_VERSION 1u
-#define ISLAND_MAP_GENERATOR_VERSION 1u
+#define ISLAND_MAP_FILE_VERSION 2u
+#define ISLAND_MAP_GENERATOR_VERSION 3u
 
 #define ISLAND_TERRAIN_COLOR_DEEP_WATER 0x426F7DFFu
 #define ISLAND_TERRAIN_COLOR_SHALLOW_WATER 0x6696A0FFu
@@ -30,6 +31,24 @@
 
 #define ISLAND_DECORATION_RULE_COUNT 7u
 #define ISLAND_RESOURCE_RULE_COUNT 6u
+
+#define ISLAND_MAP_CHANNEL_HEIGHT 0u
+#define ISLAND_MAP_CHANNEL_DECORATION 1u
+#define ISLAND_MAP_CHANNEL_RESOURCE 2u
+#define ISLAND_MAP_CHANNEL_RESERVED 3u
+#define ISLAND_MAP_CHANNEL_COUNT 4u
+
+#define ISLAND_MAP_PROP_TYPE_SHIFT 8u
+#define ISLAND_MAP_PROP_DENSITY_MASK 0xffu
+
+/* Height bands are TFTF map semantics. TerrainSystem only sees normalized data. */
+#define ISLAND_HEIGHT_DEEP_WATER_MIN 0.00f
+#define ISLAND_HEIGHT_SHALLOW_WATER_MIN 0.04f
+#define ISLAND_HEIGHT_SHORE_MIN 0.08f
+#define ISLAND_HEIGHT_DRY_MIN 0.11f
+#define ISLAND_HEIGHT_GRASS_MIN 0.14f
+#define ISLAND_HEIGHT_FOREST_MIN 0.17f
+#define ISLAND_HEIGHT_MOUNTAIN_MIN 0.21f
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
@@ -85,6 +104,8 @@ typedef struct IslandMapCell
 typedef struct IslandMap
 {
   IslandMapCell *cells;
+  /* Interleaved RGBA16 UNORM map data, one texel per 1x1 metre cell. */
+  u16 *data;
   u32 width;
   u32 height;
   u32 revision;
@@ -155,7 +176,15 @@ typedef struct IslandTerrainRuntime
   LDKResourceTexture renderer_texture;
   LDKResourceTexture renderer_normal_map;
   LDKResourceTexture renderer_specular_map;
-  u64 grass_config_hash;
+  LDKAssetImage terrain_image;
+  LDKGrassTypeId dry_grass_type_id;
+  LDKGrassTypeId grass_type_id;
+  LDKGrassTypeId forest_grass_type_id;
+
+  /* IslandTerrain can initialize before TerrainSystem has consumed the
+   * procedural heightmap. Grass patches must not fall back to the old flat
+   * tile elevation in that case; retry once terrain heights are queryable. */
+  bool grass_height_sync_pending;
 } IslandTerrainRuntime;
 
 static IslandMap s_map;
@@ -256,96 +285,17 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
     return;
   }
 
-  if (system->dry_grass_max_height == 0.0f)
+  if (x_smallstr_length(&system->dry_grass_type_name) == 0u)
   {
-    system->dry_grass_density = 6.0f;
-    system->dry_grass_min_height = 0.12f;
-    system->dry_grass_max_height = 0.22f;
+    x_smallstr_from_cstr(&system->dry_grass_type_name, "dry_grass");
   }
-  if (system->grass_max_height == 0.0f)
+  if (x_smallstr_length(&system->grass_type_name) == 0u)
   {
-    system->grass_density = 14.0f;
-    system->grass_min_height = 0.16f;
-    system->grass_max_height = 0.30f;
+    x_smallstr_from_cstr(&system->grass_type_name, "grass");
   }
-  if (system->forest_grass_max_height == 0.0f)
+  if (x_smallstr_length(&system->forest_grass_type_name) == 0u)
   {
-    system->forest_grass_density = 22.0f;
-    system->forest_grass_min_height = 0.20f;
-    system->forest_grass_max_height = 0.38f;
-  }
-  if (system->grass_shininess == 0.0f)
-  {
-    system->grass_shininess = 32.0f;
-  }
-  if (system->grass_blade_curvature == 0.0f &&
-      system->grass_wind_strength == 0.0f &&
-      system->grass_wind_speed == 0.0f)
-  {
-    system->grass_blade_curvature = 0.08f;
-    system->grass_wind_strength = 0.08f;
-    system->grass_wind_speed = 1.4f;
-  }
-  if (system->dry_grass_blade_preset == ISLAND_GRASS_BLADE_PRESET_THIN &&
-      system->forest_grass_blade_preset ==
-          ISLAND_GRASS_BLADE_PRESET_THIN &&
-      system->dry_grass_blade_curvature == 0.0f &&
-      system->forest_grass_blade_curvature == 0.0f &&
-      system->dry_grass_wind_strength == 0.0f &&
-      system->forest_grass_wind_strength == 0.0f)
-  {
-    system->dry_grass_blade_preset = system->grass_blade_preset;
-    system->dry_grass_blade_curvature =
-        system->grass_blade_curvature;
-    system->dry_grass_wind_strength = system->grass_wind_strength;
-    system->forest_grass_blade_preset = system->grass_blade_preset;
-    system->forest_grass_blade_curvature =
-        system->grass_blade_curvature;
-    system->forest_grass_wind_strength = system->grass_wind_strength;
-  }
-  if (system->grass_blade_width == 0.0f)
-  {
-    bool colors_unset = system->dry_grass_bottom_color == 0u &&
-        system->dry_grass_top_color == 0u &&
-        system->grass_bottom_color == 0u &&
-        system->grass_top_color == 0u &&
-        system->forest_grass_bottom_color == 0u &&
-        system->forest_grass_top_color == 0u;
-
-    system->dry_grass_blade_preset = ISLAND_GRASS_BLADE_PRESET_THIN;
-    system->grass_blade_preset = ISLAND_GRASS_BLADE_PRESET_THIN;
-    system->forest_grass_blade_preset = ISLAND_GRASS_BLADE_PRESET_THIN;
-    system->grass_blade_width = 0.03f;
-    system->dry_grass_blade_curvature = 0.08f;
-    system->grass_blade_curvature = 0.08f;
-    system->forest_grass_blade_curvature = 0.08f;
-    system->grass_min_tilt_degrees = 2.0f;
-    system->grass_max_tilt_degrees = 12.0f;
-    system->grass_tilt_direction_degrees = 0.0f;
-    system->grass_specular = 0.0f;
-    system->grass_shininess = 32.0f;
-    system->grass_emission = 0.0f;
-    system->dry_grass_wind_strength = 0.08f;
-    system->grass_wind_strength = 0.08f;
-    system->forest_grass_wind_strength = 0.08f;
-    system->grass_wind_speed = 1.4f;
-    if (colors_unset)
-    {
-      system->dry_grass_bottom_color = 0x514D35FFu;
-      system->dry_grass_top_color = 0xA99B61FFu;
-      system->grass_bottom_color = 0x35502AFFu;
-      system->grass_top_color = 0x89A95CFFu;
-      system->forest_grass_bottom_color = 0x263D25FFu;
-      system->forest_grass_top_color = 0x65884DFFu;
-    }
-  }
-  if (system->dry_grass_blade_width == 0.0f)
-  {
-    system->dry_grass_blade_width = system->grass_blade_width;
-  }
-  if (system->forest_grass_blade_width == 0.0f)
-  {
-    system->forest_grass_blade_width = system->grass_blade_width;
+    x_smallstr_from_cstr(&system->forest_grass_type_name, "forest_grass");
   }
 
   if (system->map_size != 0u)
@@ -362,11 +312,19 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
   system->land_scale = 0.0097f;
   system->island_radius = 0.8f;
   system->terrain_scale = 0.010f;
+  system->terrain_height_strength = 0.85f;
+  system->surface_noise_scale = 0.050f;
+  system->surface_noise_octaves = 3u;
+  system->surface_noise_strength = 0.30f;
   system->moisture_scale = 0.018f;
   system->land_octaves = 5u;
   system->terrain_octaves = 4u;
   system->moisture_octaves = 3u;
   system->land_noise_strength = 0.75f;
+  system->height_smoothing_strength = 0.90f;
+  system->height_smoothing_radius = 8u;
+  system->height_smoothing_edge_threshold = 0.008f;
+  system->height_smoothing_passes = 2u;
   system->deep_water_max = 0.00f;
   system->shallow_water_max = 0.06f;
   system->shore_max = 0.11f;
@@ -395,65 +353,6 @@ static bool s_island_chance_is_valid(float chance)
   return isfinite(chance) && chance >= 0.0f && chance <= 1.0f;
 }
 
-static bool s_island_grass_range_is_valid(
-    float density, float min_height, float max_height)
-{
-  return isfinite(density) && density >= 0.0f &&
-         isfinite(min_height) && min_height > 0.0f &&
-         isfinite(max_height) && max_height >= min_height;
-}
-
-static bool s_island_grass_blade_preset_is_valid(
-    IslandGrassBladePreset preset)
-{
-  return preset >= ISLAND_GRASS_BLADE_PRESET_THIN &&
-         preset <= ISLAND_GRASS_BLADE_PRESET_THORNY;
-}
-
-static bool s_island_grass_shape_is_valid(const IslandTerrain *system)
-{
-  return system &&
-         s_island_grass_blade_preset_is_valid(
-             system->dry_grass_blade_preset) &&
-         s_island_grass_blade_preset_is_valid(
-             system->grass_blade_preset) &&
-         s_island_grass_blade_preset_is_valid(
-             system->forest_grass_blade_preset) &&
-         isfinite(system->dry_grass_blade_width) &&
-         system->dry_grass_blade_width > 0.0f &&
-         isfinite(system->grass_blade_width) &&
-         system->grass_blade_width > 0.0f &&
-         isfinite(system->forest_grass_blade_width) &&
-         system->forest_grass_blade_width > 0.0f &&
-         isfinite(system->dry_grass_blade_curvature) &&
-         system->dry_grass_blade_curvature >= 0.0f &&
-         isfinite(system->grass_blade_curvature) &&
-         system->grass_blade_curvature >= 0.0f &&
-         isfinite(system->forest_grass_blade_curvature) &&
-         system->forest_grass_blade_curvature >= 0.0f &&
-         isfinite(system->grass_min_tilt_degrees) &&
-         system->grass_min_tilt_degrees >= 0.0f &&
-         isfinite(system->grass_max_tilt_degrees) &&
-         system->grass_max_tilt_degrees >=
-             system->grass_min_tilt_degrees &&
-         system->grass_max_tilt_degrees < 90.0f &&
-         isfinite(system->grass_tilt_direction_degrees) &&
-         isfinite(system->grass_specular) &&
-         system->grass_specular >= 0.0f &&
-         isfinite(system->grass_shininess) &&
-         system->grass_shininess >= 0.0f &&
-         isfinite(system->grass_emission) &&
-         system->grass_emission >= 0.0f &&
-         isfinite(system->dry_grass_wind_strength) &&
-         system->dry_grass_wind_strength >= 0.0f &&
-         isfinite(system->grass_wind_strength) &&
-         system->grass_wind_strength >= 0.0f &&
-         isfinite(system->forest_grass_wind_strength) &&
-         system->forest_grass_wind_strength >= 0.0f &&
-         isfinite(system->grass_wind_speed) &&
-         system->grass_wind_speed >= 0.0f;
-}
-
 static bool s_island_terrain_generation_valid(const IslandTerrain *system)
 {
   u64 cell_count;
@@ -474,12 +373,30 @@ static bool s_island_terrain_generation_valid(const IslandTerrain *system)
   if (!isfinite(system->land_scale) || system->land_scale <= 0.0f ||
       !isfinite(system->island_radius) || system->island_radius <= 0.0f ||
       !isfinite(system->terrain_scale) || system->terrain_scale <= 0.0f ||
+      !isfinite(system->terrain_height_strength) ||
+      system->terrain_height_strength < 0.0f ||
+      system->terrain_height_strength > 1.0f ||
+      !isfinite(system->surface_noise_scale) ||
+      system->surface_noise_scale <= 0.0f ||
+      system->surface_noise_octaves == 0u ||
+      system->surface_noise_octaves > 8u ||
+      !isfinite(system->surface_noise_strength) ||
+      system->surface_noise_strength < 0.0f ||
+      system->surface_noise_strength > 0.5f ||
       !isfinite(system->moisture_scale) || system->moisture_scale <= 0.0f ||
       system->land_octaves == 0u || system->land_octaves > 32u ||
       system->terrain_octaves == 0u || system->terrain_octaves > 32u ||
       system->moisture_octaves == 0u || system->moisture_octaves > 32u ||
       !isfinite(system->land_noise_strength) ||
-      system->land_noise_strength < 0.0f)
+      system->land_noise_strength < 0.0f ||
+      !isfinite(system->height_smoothing_strength) ||
+      system->height_smoothing_strength < 0.0f ||
+      system->height_smoothing_strength > 1.0f ||
+      system->height_smoothing_radius > 24u ||
+      !isfinite(system->height_smoothing_edge_threshold) ||
+      system->height_smoothing_edge_threshold < 0.0f ||
+      system->height_smoothing_edge_threshold > 0.1f ||
+      system->height_smoothing_passes > 8u)
   {
     return false;
   }
@@ -517,16 +434,7 @@ static bool s_island_terrain_generation_valid(const IslandTerrain *system)
          s_island_chance_is_valid(system->grass_resource_chance) &&
          s_island_chance_is_valid(system->dry_resource_chance) &&
          s_island_chance_is_valid(system->shore_resource_chance) &&
-         s_island_chance_is_valid(system->shallow_water_resource_chance) &&
-         s_island_grass_range_is_valid(system->dry_grass_density,
-             system->dry_grass_min_height,
-             system->dry_grass_max_height) &&
-         s_island_grass_range_is_valid(system->grass_density,
-             system->grass_min_height, system->grass_max_height) &&
-         s_island_grass_range_is_valid(system->forest_grass_density,
-             system->forest_grass_min_height,
-             system->forest_grass_max_height) &&
-         s_island_grass_shape_is_valid(system);
+         s_island_chance_is_valid(system->shallow_water_resource_chance);
 }
 
 static void s_island_hash_bytes(u64 *hash, const void *data, size_t size)
@@ -552,11 +460,19 @@ static u64 s_island_terrain_generation_hash(const IslandTerrain *system)
   ISLAND_HASH_FIELD(land_scale);
   ISLAND_HASH_FIELD(island_radius);
   ISLAND_HASH_FIELD(terrain_scale);
+  ISLAND_HASH_FIELD(terrain_height_strength);
+  ISLAND_HASH_FIELD(surface_noise_scale);
+  ISLAND_HASH_FIELD(surface_noise_octaves);
+  ISLAND_HASH_FIELD(surface_noise_strength);
   ISLAND_HASH_FIELD(moisture_scale);
   ISLAND_HASH_FIELD(land_octaves);
   ISLAND_HASH_FIELD(terrain_octaves);
   ISLAND_HASH_FIELD(moisture_octaves);
   ISLAND_HASH_FIELD(land_noise_strength);
+  ISLAND_HASH_FIELD(height_smoothing_strength);
+  ISLAND_HASH_FIELD(height_smoothing_radius);
+  ISLAND_HASH_FIELD(height_smoothing_edge_threshold);
+  ISLAND_HASH_FIELD(height_smoothing_passes);
   ISLAND_HASH_FIELD(deep_water_max);
   ISLAND_HASH_FIELD(shallow_water_max);
   ISLAND_HASH_FIELD(shore_max);
@@ -578,54 +494,6 @@ static u64 s_island_terrain_generation_hash(const IslandTerrain *system)
   ISLAND_HASH_FIELD(shallow_water_resource_chance);
 
 #undef ISLAND_HASH_FIELD
-
-  return hash;
-}
-
-static u64 s_island_terrain_grass_config_hash(const IslandTerrain *system)
-{
-  u64 hash = UINT64_C(14695981039346656037);
-
-#define ISLAND_GRASS_HASH_FIELD(field)                                         \
-  s_island_hash_bytes(&hash, &system->field, sizeof(system->field))
-
-  ISLAND_GRASS_HASH_FIELD(dry_grass_density);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_min_height);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_max_height);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_blade_width);
-  ISLAND_GRASS_HASH_FIELD(grass_density);
-  ISLAND_GRASS_HASH_FIELD(grass_min_height);
-  ISLAND_GRASS_HASH_FIELD(grass_max_height);
-  ISLAND_GRASS_HASH_FIELD(grass_blade_width);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_density);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_min_height);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_max_height);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_blade_width);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_blade_preset);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_blade_curvature);
-  ISLAND_GRASS_HASH_FIELD(grass_blade_preset);
-  ISLAND_GRASS_HASH_FIELD(grass_blade_curvature);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_blade_preset);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_blade_curvature);
-  ISLAND_GRASS_HASH_FIELD(grass_min_tilt_degrees);
-  ISLAND_GRASS_HASH_FIELD(grass_max_tilt_degrees);
-  ISLAND_GRASS_HASH_FIELD(grass_tilt_direction_degrees);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_wind_strength);
-  ISLAND_GRASS_HASH_FIELD(grass_wind_strength);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_wind_strength);
-  ISLAND_GRASS_HASH_FIELD(grass_wind_speed);
-  ISLAND_GRASS_HASH_FIELD(grass_specular);
-  ISLAND_GRASS_HASH_FIELD(grass_shininess);
-  ISLAND_GRASS_HASH_FIELD(grass_emission);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_bottom_color);
-  ISLAND_GRASS_HASH_FIELD(dry_grass_top_color);
-  ISLAND_GRASS_HASH_FIELD(grass_bottom_color);
-  ISLAND_GRASS_HASH_FIELD(grass_top_color);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_bottom_color);
-  ISLAND_GRASS_HASH_FIELD(forest_grass_top_color);
-  ISLAND_GRASS_HASH_FIELD(grass_casts_shadows);
-
-#undef ISLAND_GRASS_HASH_FIELD
 
   return hash;
 }
@@ -672,7 +540,28 @@ static IslandBiome s_island_biome_select(
   return ISLAND_BIOME_FOREST;
 }
 
-static u8 s_island_map_prop_select(u32 x, u32 y, float dist,
+static u16 s_island_map_prop_pack(u8 type, float density)
+{
+  if (density < 0.0f)
+  {
+    density = 0.0f;
+  }
+  else if (density > 1.0f)
+  {
+    density = 1.0f;
+  }
+
+  u32 density_u8 = (u32)(density * 255.0f + 0.5f);
+  return (u16)(((u16)type << ISLAND_MAP_PROP_TYPE_SHIFT) |
+      (u16)(density_u8 & ISLAND_MAP_PROP_DENSITY_MASK));
+}
+
+static u8 s_island_map_prop_type(u16 packed)
+{
+  return (u8)(packed >> ISLAND_MAP_PROP_TYPE_SHIFT);
+}
+
+static u16 s_island_map_prop_select(u32 x, u32 y, float dist,
     IslandTerrainClass terrain_class, IslandBiome biome, u32 world_seed,
     const IslandMapPropRule *rules, u32 rule_count, bool use_center_bias)
 {
@@ -681,6 +570,7 @@ static u8 s_island_map_prop_select(u32 x, u32 y, float dist,
     const IslandMapPropRule *rule = &rules[rule_index];
     float random;
     float value;
+    float density;
 
     if (rule->terrain_class != terrain_class)
     {
@@ -697,20 +587,134 @@ static u8 s_island_map_prop_select(u32 x, u32 y, float dist,
 
     if (value < rule->chance)
     {
-      return rule->value;
+      density = rule->chance;
+      if (use_center_bias && dist > 1e-6f)
+      {
+        density = rule->chance / dist;
+      }
+      return s_island_map_prop_pack(rule->value, density);
     }
   }
 
   return 0u;
 }
 
+static u16 s_island_map_height_encode(const IslandTerrain *system,
+    IslandTerrainClass terrain_class, IslandBiome biome, float land_noise,
+    float terrain, float surface_noise, const float *biome_terrain_min,
+    const float *biome_terrain_max)
+{
+  float height;
+
+  (void)system;
+
+  switch (terrain_class)
+  {
+  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
+    height = ISLAND_HEIGHT_DEEP_WATER_MIN + land_noise * 0.03f;
+    break;
+
+  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
+    height = ISLAND_HEIGHT_SHALLOW_WATER_MIN + land_noise * 0.02f;
+    break;
+
+  case ISLAND_TERRAIN_CLASS_SHORE:
+    height = ISLAND_HEIGHT_SHORE_MIN + land_noise * 0.02f;
+    break;
+
+  case ISLAND_TERRAIN_CLASS_LAND:
+  default:
+  {
+    float terrain_min = biome_terrain_min[(u32)biome];
+    float terrain_max = biome_terrain_max[(u32)biome];
+    float terrain_range = terrain_max - terrain_min;
+    float relief = terrain_range > 1e-6f
+        ? (terrain - terrain_min) / terrain_range
+        : 0.5f;
+    float base_height;
+    float top_height;
+
+    if (relief < 0.0f)
+    {
+      relief = 0.0f;
+    }
+    else if (relief > 1.0f)
+    {
+      relief = 1.0f;
+    }
+
+    /*
+     * The large terrain fBm can be locally very smooth. Add a small,
+     * independent higher-frequency component so even broad biome interiors
+     * retain some surface relief. The value is expressed as a fraction of
+     * the biome's own height band, so it cannot change biome classification.
+     */
+    relief +=
+        (surface_noise * 2.0f - 1.0f) * system->surface_noise_strength;
+    if (relief < 0.0f)
+    {
+      relief = 0.0f;
+    }
+    else if (relief > 1.0f)
+    {
+      relief = 1.0f;
+    }
+
+    /*
+     * Use the complete height band reserved for this biome. Keep a very small
+     * margin below the next band's threshold so the TerrainSystem still
+     * classifies the generated height unambiguously.
+     */
+    switch (biome)
+    {
+    case ISLAND_BIOME_DRY:
+      base_height = ISLAND_HEIGHT_DRY_MIN;
+      top_height = ISLAND_HEIGHT_GRASS_MIN - 0.0005f;
+      break;
+
+    case ISLAND_BIOME_GRASS:
+      base_height = ISLAND_HEIGHT_GRASS_MIN;
+      top_height = ISLAND_HEIGHT_FOREST_MIN - 0.0005f;
+      break;
+
+    case ISLAND_BIOME_FOREST:
+      base_height = ISLAND_HEIGHT_FOREST_MIN;
+      top_height = ISLAND_HEIGHT_MOUNTAIN_MIN - 0.0005f;
+      break;
+
+    case ISLAND_BIOME_MOUNTAIN:
+    default:
+      base_height = ISLAND_HEIGHT_MOUNTAIN_MIN;
+      top_height = 0.30f;
+      break;
+    }
+
+    height = s_lerp_f32(base_height, top_height, relief);
+    break;
+  }
+  }
+
+  if (height < 0.0f)
+  {
+    height = 0.0f;
+  }
+  else if (height > 1.0f)
+  {
+    height = 1.0f;
+  }
+
+  return (u16)(height * 65535.0f + 0.5f);
+}
+
 static void s_island_map_release(void)
 {
   free(s_map.cells);
+  free(s_map.data);
   memset(&s_map, 0, sizeof(s_map));
 }
 
-static void s_island_map_take(IslandMapCell *cells, u32 width, u32 height)
+static void s_island_map_take(
+    IslandMapCell *cells, u16 *map_data, u32 width, u32 height)
 {
   u32 revision = s_map.revision + 1u;
 
@@ -720,7 +724,9 @@ static void s_island_map_take(IslandMapCell *cells, u32 width, u32 height)
   }
 
   free(s_map.cells);
+  free(s_map.data);
   s_map.cells = cells;
+  s_map.data = map_data;
   s_map.width = width;
   s_map.height = height;
   s_map.revision = revision;
@@ -739,12 +745,116 @@ static bool s_island_map_cell_valid(const IslandMapCell *cell)
   return true;
 }
 
+static bool s_island_map_data_valid(const u16 *data, u64 cell_count)
+{
+  if (!data)
+  {
+    return false;
+  }
+
+  for (u64 i = 0u; i < cell_count; ++i)
+  {
+    const u16 *texel = &data[i * ISLAND_MAP_CHANNEL_COUNT];
+    if (s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_DECORATION]) >
+            ISLAND_DECORATION_RULE_COUNT ||
+        s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_RESOURCE]) >
+            ISLAND_RESOURCE_RULE_COUNT)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+#ifdef LDK_SHAREDLIB
+static bool s_island_map_height_debug_write_ppm(const char *path)
+{
+  FILE *file;
+  u64 cell_count;
+  u16 min_height = UINT16_MAX;
+  u16 max_height = 0u;
+  float range;
+
+  if (!path || !s_map.data || s_map.width == 0u || s_map.height == 0u)
+  {
+    return false;
+  }
+
+  cell_count = (u64)s_map.width * (u64)s_map.height;
+  for (u64 i = 0u; i < cell_count; ++i)
+  {
+    u16 height =
+        s_map.data[i * ISLAND_MAP_CHANNEL_COUNT + ISLAND_MAP_CHANNEL_HEIGHT];
+    if (height < min_height)
+    {
+      min_height = height;
+    }
+    if (height > max_height)
+    {
+      max_height = height;
+    }
+  }
+
+  file = fopen(path, "wb");
+  if (!file)
+  {
+    ldk_log_warning("Could not write island heightmap debug image: %s\n",
+        path);
+    return false;
+  }
+
+  /*
+   * P6 RGB instead of PGM because PPM tends to be easier to inspect with
+   * generic image tools. Stretch the generated min/max range to 0..255 so
+   * subtle relief is visible in the debug image. The exact source min/max is
+   * logged below, so the visualization does not hide the real amplitude.
+   */
+  if (fprintf(file, "P6\n%u %u\n255\n", s_map.width, s_map.height) < 0)
+  {
+    fclose(file);
+    return false;
+  }
+
+  range = max_height > min_height
+      ? (float)(max_height - min_height)
+      : 1.0f;
+
+  for (u64 i = 0u; i < cell_count; ++i)
+  {
+    u16 height =
+        s_map.data[i * ISLAND_MAP_CHANNEL_COUNT + ISLAND_MAP_CHANNEL_HEIGHT];
+    float normalized = ((float)height - (float)min_height) / range;
+    u8 value = (u8)(normalized * 255.0f + 0.5f);
+    u8 rgb[3] = {value, value, value};
+
+    if (fwrite(rgb, sizeof(rgb), 1u, file) != 1u)
+    {
+      fclose(file);
+      return false;
+    }
+  }
+
+  fclose(file);
+
+  ldk_log_info(
+      "Island heightmap debug PPM written to %s "
+      "(source min=%.6f, max=%.6f, range=%.6f).\n",
+      path,
+      (float)min_height / 65535.0f,
+      (float)max_height / 65535.0f,
+      (float)(max_height - min_height) / 65535.0f);
+  return true;
+}
+#endif
+
 static bool s_island_map_load(IslandTerrain *system)
 {
   IslandMapFileHeader header;
   IslandMapCell *cells = NULL;
+  u16 *map_data = NULL;
   FILE *file;
   u64 cell_count;
+  u64 value_count;
   u64 expected_hash;
   bool ok = false;
 
@@ -776,20 +886,25 @@ static bool s_island_map_load(IslandTerrain *system)
   }
 
   cell_count = (u64)header.width * (u64)header.height;
+  value_count = cell_count * ISLAND_MAP_CHANNEL_COUNT;
   if (cell_count == 0u || cell_count > UINT32_MAX ||
-      cell_count > (u64)(SIZE_MAX / sizeof(*cells)))
+      cell_count > (u64)(SIZE_MAX / sizeof(*cells)) ||
+      value_count > (u64)(SIZE_MAX / sizeof(*map_data)))
   {
     goto done;
   }
 
   cells = (IslandMapCell *)malloc((size_t)cell_count * sizeof(*cells));
-  if (!cells)
+  map_data = (u16 *)malloc((size_t)value_count * sizeof(*map_data));
+  if (!cells || !map_data)
   {
     goto done;
   }
 
   if (fread(cells, sizeof(*cells), (size_t)cell_count, file) !=
-      (size_t)cell_count)
+          (size_t)cell_count ||
+      fread(map_data, sizeof(*map_data), (size_t)value_count, file) !=
+          (size_t)value_count)
   {
     goto done;
   }
@@ -801,13 +916,19 @@ static bool s_island_map_load(IslandTerrain *system)
       goto done;
     }
   }
+  if (!s_island_map_data_valid(map_data, cell_count))
+  {
+    goto done;
+  }
 
-  s_island_map_take(cells, header.width, header.height);
+  s_island_map_take(cells, map_data, header.width, header.height);
   cells = NULL;
+  map_data = NULL;
   ok = true;
 
 done:
   free(cells);
+  free(map_data);
   fclose(file);
   return ok;
 }
@@ -817,15 +938,19 @@ static bool s_island_map_save(const IslandTerrain *system)
   IslandMapFileHeader header;
   FILE *file;
   u64 cell_count;
+  u64 value_count;
   bool ok = false;
 
-  if (!system || !s_map.cells || s_map.width == 0u || s_map.height == 0u)
+  if (!system || !s_map.cells || !s_map.data || s_map.width == 0u ||
+      s_map.height == 0u)
   {
     return false;
   }
 
   cell_count = (u64)s_map.width * (u64)s_map.height;
-  if (cell_count == 0u || cell_count > SIZE_MAX)
+  value_count = cell_count * ISLAND_MAP_CHANNEL_COUNT;
+  if (cell_count == 0u || cell_count > SIZE_MAX ||
+      value_count > SIZE_MAX / sizeof(*s_map.data))
   {
     return false;
   }
@@ -851,7 +976,9 @@ static bool s_island_map_save(const IslandTerrain *system)
   }
 
   if (fwrite(s_map.cells, sizeof(*s_map.cells), (size_t)cell_count, file) !=
-      (size_t)cell_count)
+          (size_t)cell_count ||
+      fwrite(s_map.data, sizeof(*s_map.data), (size_t)value_count, file) !=
+          (size_t)value_count)
   {
     goto done;
   }
@@ -863,12 +990,254 @@ done:
   return ok;
 }
 
+static bool s_island_map_height_smooth_land(const IslandTerrain *system,
+    const IslandMapCell *cells, u16 *map_data)
+{
+  u16 *source = NULL;
+  u16 *target = NULL;
+  u64 cell_count;
+  float strength;
+  i32 radius;
+  float edge_threshold_u16;
+
+  if (!system || !cells || !map_data)
+  {
+    return false;
+  }
+
+  if (system->height_smoothing_passes == 0u ||
+      system->height_smoothing_strength <= 0.0f ||
+      system->height_smoothing_radius == 0u)
+  {
+    return true;
+  }
+
+  cell_count = (u64)system->map_size * (u64)system->map_size;
+  if (cell_count == 0u ||
+      cell_count > (u64)(SIZE_MAX / sizeof(*source)))
+  {
+    return false;
+  }
+
+  source = (u16 *)malloc((size_t)cell_count * sizeof(*source));
+  target = (u16 *)malloc((size_t)cell_count * sizeof(*target));
+  if (!source || !target)
+  {
+    free(source);
+    free(target);
+    return false;
+  }
+
+  for (u64 i = 0u; i < cell_count; ++i)
+  {
+    source[i] =
+        map_data[i * ISLAND_MAP_CHANNEL_COUNT + ISLAND_MAP_CHANNEL_HEIGHT];
+  }
+
+  strength = system->height_smoothing_strength;
+  radius = (i32)system->height_smoothing_radius;
+  edge_threshold_u16 =
+      system->height_smoothing_edge_threshold * 65535.0f;
+
+  for (u32 pass = 0u; pass < system->height_smoothing_passes; ++pass)
+  {
+    for (u32 y = 0u; y < system->map_size; ++y)
+    {
+      for (u32 x = 0u; x < system->map_size; ++x)
+      {
+        u64 index = (u64)y * (u64)system->map_size + (u64)x;
+        bool near_hard_edge = false;
+        double weighted_sum = 0.0;
+        double weight_sum = 0.0;
+
+        /*
+         * Detect actual height discontinuities instead of only biome changes.
+         * This also catches coast/shore steps such as the red regions in the
+         * debug heightmap. Normal surface noise stays untouched because its
+         * local delta is below the configured threshold.
+         */
+        for (i32 oy = -radius;
+             oy <= radius && !near_hard_edge;
+             ++oy)
+        {
+          for (i32 ox = -radius; ox <= radius; ++ox)
+          {
+            i32 sx;
+            i32 sy;
+            u64 sample_index;
+            i32 neighbors[4][2];
+
+            if (ox * ox + oy * oy > radius * radius)
+            {
+              continue;
+            }
+
+            sx = (i32)x + ox;
+            sy = (i32)y + oy;
+            if (sx < 0 || sy < 0 ||
+                sx >= (i32)system->map_size ||
+                sy >= (i32)system->map_size)
+            {
+              continue;
+            }
+
+            sample_index =
+                (u64)sy * (u64)system->map_size + (u64)sx;
+
+            neighbors[0][0] = sx - 1; neighbors[0][1] = sy;
+            neighbors[1][0] = sx + 1; neighbors[1][1] = sy;
+            neighbors[2][0] = sx;     neighbors[2][1] = sy - 1;
+            neighbors[3][0] = sx;     neighbors[3][1] = sy + 1;
+
+            for (u32 n = 0u; n < 4u; ++n)
+            {
+              i32 nx = neighbors[n][0];
+              i32 ny = neighbors[n][1];
+              u64 neighbor_index;
+              float delta;
+
+              if (nx < 0 || ny < 0 ||
+                  nx >= (i32)system->map_size ||
+                  ny >= (i32)system->map_size)
+              {
+                continue;
+              }
+
+              neighbor_index =
+                  (u64)ny * (u64)system->map_size + (u64)nx;
+              delta = fabsf(
+                  (float)source[sample_index] -
+                  (float)source[neighbor_index]);
+
+              if (delta >= edge_threshold_u16)
+              {
+                near_hard_edge = true;
+                break;
+              }
+            }
+
+            if (near_hard_edge)
+            {
+              break;
+            }
+          }
+        }
+
+        if (!near_hard_edge)
+        {
+          target[index] = source[index];
+          continue;
+        }
+
+        /*
+         * Average across the whole transition radius. Unlike the previous
+         * biome-only smoothing this works at land/shore/shallow borders too,
+         * turning a discontinuity into a multi-cell slope.
+         */
+        for (i32 oy = -radius; oy <= radius; ++oy)
+        {
+          i32 sy = (i32)y + oy;
+
+          if (sy < 0 || sy >= (i32)system->map_size)
+          {
+            continue;
+          }
+
+          for (i32 ox = -radius; ox <= radius; ++ox)
+          {
+            i32 sx = (i32)x + ox;
+            i32 distance2 = ox * ox + oy * oy;
+            float distance;
+            float weight;
+            u64 sample_index;
+
+            if (sx < 0 || sx >= (i32)system->map_size ||
+                distance2 > radius * radius)
+            {
+              continue;
+            }
+
+            sample_index =
+                (u64)sy * (u64)system->map_size + (u64)sx;
+
+            /*
+             * Do not let deep ocean dominate the shoreline slope. The deep
+             * water floor can stay independent because it is hidden by the
+             * water plane; shallow/shore/land are allowed to blend.
+             */
+            if ((IslandTerrainClass)cells[index].terrain_class !=
+                    ISLAND_TERRAIN_CLASS_DEEP_WATER &&
+                (IslandTerrainClass)cells[sample_index].terrain_class ==
+                    ISLAND_TERRAIN_CLASS_DEEP_WATER)
+            {
+              continue;
+            }
+
+            distance = sqrtf((float)distance2);
+            weight = (float)(radius + 1) - distance;
+            if (weight <= 0.0f)
+            {
+              continue;
+            }
+
+            weighted_sum += (double)source[sample_index] * (double)weight;
+            weight_sum += (double)weight;
+          }
+        }
+
+        if (weight_sum <= 0.0)
+        {
+          target[index] = source[index];
+        }
+        else
+        {
+          float current = (float)source[index];
+          float blurred = (float)(weighted_sum / weight_sum);
+          float smoothed = s_lerp_f32(current, blurred, strength);
+
+          if (smoothed < 0.0f)
+          {
+            smoothed = 0.0f;
+          }
+          else if (smoothed > 65535.0f)
+          {
+            smoothed = 65535.0f;
+          }
+
+          target[index] = (u16)(smoothed + 0.5f);
+        }
+      }
+    }
+
+    {
+      u16 *swap = source;
+      source = target;
+      target = swap;
+    }
+  }
+
+  for (u64 i = 0u; i < cell_count; ++i)
+  {
+    map_data[i * ISLAND_MAP_CHANNEL_COUNT + ISLAND_MAP_CHANNEL_HEIGHT] =
+        source[i];
+  }
+
+  free(source);
+  free(target);
+  return true;
+}
+
 static bool s_island_map_generate(const IslandTerrain *system)
 {
   IslandMapCell *cells;
+  u16 *map_data;
   IslandMapPropRule decorations[ISLAND_DECORATION_RULE_COUNT];
   IslandMapPropRule resources[ISLAND_RESOURCE_RULE_COUNT];
   u64 cell_count;
+  u64 value_count;
+  float *terrain_values;
+  float biome_terrain_min[ISLAND_BIOME_COUNT];
+  float biome_terrain_max[ISLAND_BIOME_COUNT];
 
   if (!system)
   {
@@ -876,8 +1245,10 @@ static bool s_island_map_generate(const IslandTerrain *system)
   }
 
   cell_count = (u64)system->map_size * (u64)system->map_size;
+  value_count = cell_count * ISLAND_MAP_CHANNEL_COUNT;
   if (cell_count == 0u || cell_count > UINT32_MAX ||
-      cell_count > (u64)(SIZE_MAX / sizeof(*cells)))
+      cell_count > (u64)(SIZE_MAX / sizeof(*cells)) ||
+      value_count > (u64)(SIZE_MAX / sizeof(*map_data)))
   {
     return false;
   }
@@ -922,11 +1293,28 @@ static bool s_island_map_generate(const IslandTerrain *system)
       system->shallow_water_resource_chance, 6u};
 
   cells = (IslandMapCell *)malloc((size_t)cell_count * sizeof(*cells));
-  if (!cells)
+  map_data = (u16 *)calloc((size_t)value_count, sizeof(*map_data));
+  terrain_values = (float *)calloc((size_t)cell_count, sizeof(*terrain_values));
+  if (!cells || !map_data || !terrain_values)
   {
+    free(cells);
+    free(map_data);
+    free(terrain_values);
     return false;
   }
 
+  for (u32 i = 0u; i < (u32)ISLAND_BIOME_COUNT; ++i)
+  {
+    biome_terrain_min[i] = INFINITY;
+    biome_terrain_max[i] = -INFINITY;
+  }
+
+  /*
+   * First pass: generate/classify the island and record the actual terrain fBm
+   * range present in each biome. The old encoder assumed that fBm naturally
+   * covered 0..1, but in practice it occupies a much narrower middle range,
+   * which is why the heightmap looked almost flat.
+   */
   for (u32 y = 0u; y < system->map_size; ++y)
   {
     for (u32 x = 0u; x < system->map_size; ++x)
@@ -940,15 +1328,17 @@ static bool s_island_map_generate(const IslandTerrain *system)
       float island_mask = 1.0f - dist;
       float land = island_mask +
                    (land_noise - 0.5f) * system->land_noise_strength;
+      float terrain = 0.0f;
       IslandTerrainClass terrain_class =
           s_island_terrain_class_select(system, land);
       IslandBiome biome = ISLAND_BIOME_GRASS;
-      IslandMapCell *cell =
-          &cells[(u64)y * (u64)system->map_size + (u64)x];
+      u64 cell_index = (u64)y * (u64)system->map_size + (u64)x;
+      IslandMapCell *cell = &cells[cell_index];
+      u16 *texel = &map_data[cell_index * ISLAND_MAP_CHANNEL_COUNT];
 
       if (terrain_class == ISLAND_TERRAIN_CLASS_LAND)
       {
-        float terrain = s_fbm_compose_2d(
+        terrain = s_fbm_compose_2d(
             (float)x * system->terrain_scale,
             (float)y * system->terrain_scale, system->seed,
             system->terrain_octaves);
@@ -958,20 +1348,107 @@ static bool s_island_map_generate(const IslandTerrain *system)
             system->moisture_octaves);
 
         biome = s_island_biome_select(system, terrain, moisture);
+
+        terrain_values[cell_index] = terrain;
+        if (terrain < biome_terrain_min[(u32)biome])
+        {
+          biome_terrain_min[(u32)biome] = terrain;
+        }
+        if (terrain > biome_terrain_max[(u32)biome])
+        {
+          biome_terrain_max[(u32)biome] = terrain;
+        }
       }
+
+      u16 decoration = s_island_map_prop_select(x, y, dist,
+          terrain_class, biome, system->seed, decorations,
+          (u32)ARRAY_COUNT(decorations), false);
+      u16 resource = s_island_map_prop_select(x, y, dist,
+          terrain_class, biome, system->seed, resources,
+          (u32)ARRAY_COUNT(resources), true);
 
       cell->terrain_class = (u8)terrain_class;
       cell->biome = (u8)biome;
-      cell->decoration_rule = s_island_map_prop_select(x, y, dist,
-          terrain_class, biome, system->seed, decorations,
-          (u32)ARRAY_COUNT(decorations), false);
-      cell->resource_rule = s_island_map_prop_select(x, y, dist,
-          terrain_class, biome, system->seed, resources,
-          (u32)ARRAY_COUNT(resources), true);
+      cell->decoration_rule = s_island_map_prop_type(decoration);
+      cell->resource_rule = s_island_map_prop_type(resource);
+
+      texel[ISLAND_MAP_CHANNEL_HEIGHT] = 0u;
+      texel[ISLAND_MAP_CHANNEL_DECORATION] = decoration;
+      texel[ISLAND_MAP_CHANNEL_RESOURCE] = resource;
+      texel[ISLAND_MAP_CHANNEL_RESERVED] = 0u;
     }
   }
 
-  s_island_map_take(cells, system->map_size, system->map_size);
+  /*
+   * Second pass: now that we know the range actually generated for every
+   * biome, stretch that range across the biome's full height interval.
+   */
+  for (u32 y = 0u; y < system->map_size; ++y)
+  {
+    for (u32 x = 0u; x < system->map_size; ++x)
+    {
+      u64 cell_index = (u64)y * (u64)system->map_size + (u64)x;
+      IslandMapCell *cell = &cells[cell_index];
+      IslandTerrainClass terrain_class =
+          (IslandTerrainClass)cell->terrain_class;
+      IslandBiome biome = (IslandBiome)cell->biome;
+      float land_noise = s_fbm_compose_2d(
+          (float)x * system->land_scale,
+          (float)y * system->land_scale,
+          system->seed, system->land_octaves);
+      float terrain = terrain_values[cell_index];
+      float surface_noise = s_fbm_compose_2d(
+          (float)x * system->surface_noise_scale,
+          (float)y * system->surface_noise_scale,
+          system->seed ^ 0xA511E9B3u,
+          system->surface_noise_octaves);
+      u16 *texel = &map_data[cell_index * ISLAND_MAP_CHANNEL_COUNT];
+
+      texel[ISLAND_MAP_CHANNEL_HEIGHT] = s_island_map_height_encode(
+          system, terrain_class, biome, land_noise, terrain, surface_noise,
+          biome_terrain_min, biome_terrain_max);
+    }
+  }
+
+#ifdef LDK_SHAREDLIB
+  ldk_log_info(
+      "Island terrain fBm ranges: dry=[%.4f, %.4f] grass=[%.4f, %.4f] "
+      "forest=[%.4f, %.4f] mountain=[%.4f, %.4f].\n",
+      biome_terrain_min[ISLAND_BIOME_DRY],
+      biome_terrain_max[ISLAND_BIOME_DRY],
+      biome_terrain_min[ISLAND_BIOME_GRASS],
+      biome_terrain_max[ISLAND_BIOME_GRASS],
+      biome_terrain_min[ISLAND_BIOME_FOREST],
+      biome_terrain_max[ISLAND_BIOME_FOREST],
+      biome_terrain_min[ISLAND_BIOME_MOUNTAIN],
+      biome_terrain_max[ISLAND_BIOME_MOUNTAIN]);
+#endif
+
+  free(terrain_values);
+  terrain_values = NULL;
+
+  if (!s_island_map_height_smooth_land(system, cells, map_data))
+  {
+    free(cells);
+    free(map_data);
+    free(terrain_values);
+    return false;
+  }
+
+  s_island_map_take(cells, map_data, system->map_size, system->map_size);
+  return true;
+}
+
+
+bool island_terrain_map_data_get(IslandMapDataView *out_view)
+{
+  if (!out_view || !s_map.data || s_map.width == 0u || s_map.height == 0u)
+  {
+    return false;
+  }
+  out_view->texels = s_map.data;
+  out_view->width = s_map.width;
+  out_view->height = s_map.height;
   return true;
 }
 
@@ -1222,18 +1699,68 @@ static u32 s_island_terrain_layers_at(i32 x, i32 y)
   return layers;
 }
 
+static LDKGrassTypeId s_island_terrain_grass_type_id(
+    IslandBiome biome)
+{
+  switch (biome)
+  {
+  case ISLAND_BIOME_DRY:
+    return s_runtime.dry_grass_type_id;
+  case ISLAND_BIOME_FOREST:
+    return s_runtime.forest_grass_type_id;
+  case ISLAND_BIOME_GRASS:
+  default:
+    return s_runtime.grass_type_id;
+  }
+}
+
+static bool s_island_terrain_grass_types_resolve(
+    const IslandTerrain *system, bool *out_changed)
+{
+  LDKGrassTypeId dry_id;
+  LDKGrassTypeId grass_id;
+  LDKGrassTypeId forest_id;
+  bool changed;
+
+  if (!system)
+  {
+    return false;
+  }
+
+  dry_id = ldk_grass_get_id_by_name(
+      x_smallstr_cstr(&system->dry_grass_type_name));
+  grass_id = ldk_grass_get_id_by_name(
+      x_smallstr_cstr(&system->grass_type_name));
+  forest_id = ldk_grass_get_id_by_name(
+      x_smallstr_cstr(&system->forest_grass_type_name));
+
+  changed = dry_id != s_runtime.dry_grass_type_id ||
+      grass_id != s_runtime.grass_type_id ||
+      forest_id != s_runtime.forest_grass_type_id;
+  s_runtime.dry_grass_type_id = dry_id;
+  s_runtime.grass_type_id = grass_id;
+  s_runtime.forest_grass_type_id = forest_id;
+
+  if (out_changed)
+  {
+    *out_changed = changed;
+  }
+  return true;
+}
+
 static bool s_island_terrain_tile_grass_desc(IslandTerrain *system,
-    i32 tile_x, i32 tile_y, LDKGrassPatchDesc *out_desc)
+    i32 tile_x, i32 tile_y, LDKGrassTypeId *out_type_id,
+    LDKGrassPatchDesc *out_desc)
 {
   const IslandMapCell *cell;
+  LDKGrassTypeDesc type;
+  LDKGrassTypeId type_id;
   IslandTerrainSurface surface;
   float origin_x;
   float origin_z;
   float layer_elevation;
-  float blade_width;
-  IslandGrassBladePreset blade_preset;
 
-  if (!system || !out_desc || !s_map.cells ||
+  if (!system || !out_type_id || !out_desc || !s_map.cells ||
       !s_runtime.grass_density_scales || tile_x < 0 || tile_y < 0 ||
       tile_x >= (i32)s_map.width || tile_y >= (i32)s_map.height)
   {
@@ -1248,110 +1775,17 @@ static bool s_island_terrain_tile_grass_desc(IslandTerrain *system,
     return false;
   }
 
-  ldk_grass_patch_desc_defaults(out_desc);
-  out_desc->shape.side_count = 4u;
-  out_desc->min_tilt = deg_to_rad(system->grass_min_tilt_degrees);
-  out_desc->max_tilt = deg_to_rad(system->grass_max_tilt_degrees);
-  out_desc->tilt_direction =
-      deg_to_rad(system->grass_tilt_direction_degrees);
-  out_desc->specular = system->grass_specular;
-  out_desc->shininess = system->grass_shininess;
-  out_desc->emission = system->grass_emission;
-  out_desc->wind_speed = system->grass_wind_speed;
-  switch ((IslandBiome)cell->biome)
+  type_id = s_island_terrain_grass_type_id((IslandBiome)cell->biome);
+  if (!ldk_grass_type_get(type_id, &type) || type.density == 0.0f)
   {
-  case ISLAND_BIOME_DRY:
-    out_desc->density = system->dry_grass_density;
-    out_desc->min_height = system->dry_grass_min_height;
-    out_desc->max_height = system->dry_grass_max_height;
-    blade_width = system->dry_grass_blade_width;
-    blade_preset = system->dry_grass_blade_preset;
-    out_desc->curvature = system->dry_grass_blade_curvature;
-    out_desc->wind_strength = system->dry_grass_wind_strength;
-    out_desc->bottom_color = system->dry_grass_bottom_color;
-    out_desc->top_color = system->dry_grass_top_color;
-    break;
-  case ISLAND_BIOME_FOREST:
-    out_desc->density = system->forest_grass_density;
-    out_desc->min_height = system->forest_grass_min_height;
-    out_desc->max_height = system->forest_grass_max_height;
-    blade_width = system->forest_grass_blade_width;
-    blade_preset = system->forest_grass_blade_preset;
-    out_desc->curvature = system->forest_grass_blade_curvature;
-    out_desc->wind_strength = system->forest_grass_wind_strength;
-    out_desc->bottom_color = system->forest_grass_bottom_color;
-    out_desc->top_color = system->forest_grass_top_color;
-    break;
-  case ISLAND_BIOME_GRASS:
-  default:
-    out_desc->density = system->grass_density;
-    out_desc->min_height = system->grass_min_height;
-    out_desc->max_height = system->grass_max_height;
-    blade_width = system->grass_blade_width;
-    blade_preset = system->grass_blade_preset;
-    out_desc->curvature = system->grass_blade_curvature;
-    out_desc->wind_strength = system->grass_wind_strength;
-    out_desc->bottom_color = system->grass_bottom_color;
-    out_desc->top_color = system->grass_top_color;
-    break;
-  }
-
-  switch (blade_preset)
-  {
-  case ISLAND_GRASS_BLADE_PRESET_THIN:
-    out_desc->shape.topology = LDK_GRASS_BLADE_TOPOLOGY_RIBBON;
-    break;
-  case ISLAND_GRASS_BLADE_PRESET_CROSSED:
-    out_desc->shape.topology = LDK_GRASS_BLADE_TOPOLOGY_CROSSED_RIBBONS;
-    break;
-  case ISLAND_GRASS_BLADE_PRESET_TUFT:
-    out_desc->shape.topology = LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS;
-    break;
-  case ISLAND_GRASS_BLADE_PRESET_FLAT_TOP:
-    out_desc->shape.topology = LDK_GRASS_BLADE_TOPOLOGY_RIBBON;
-    break;
-  case ISLAND_GRASS_BLADE_PRESET_THORNY:
-    out_desc->shape.topology = LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM;
-    break;
-  default:
     return false;
   }
 
-  out_desc->density *=
+  ldk_grass_patch_desc_defaults(out_desc);
+  out_desc->density_scale =
       s_runtime.grass_density_scales[(u32)tile_y * s_map.width +
           (u32)tile_x];
-
-  out_desc->shape.profile[0] =
-      (LDKGrassProfilePoint){0.0f, blade_width};
-  if (blade_preset == ISLAND_GRASS_BLADE_PRESET_FLAT_TOP)
-  {
-    out_desc->shape.profile[1] =
-        (LDKGrassProfilePoint){0.55f, blade_width * 0.95f};
-    out_desc->shape.profile[2] =
-        (LDKGrassProfilePoint){0.85f, blade_width * 0.88f};
-    out_desc->shape.profile[3] =
-        (LDKGrassProfilePoint){1.0f, blade_width * 0.82f};
-  }
-  else if (blade_preset == ISLAND_GRASS_BLADE_PRESET_THORNY)
-  {
-    out_desc->shape.profile[1] =
-        (LDKGrassProfilePoint){0.42f, blade_width * 0.92f};
-    out_desc->shape.profile[2] =
-        (LDKGrassProfilePoint){0.76f, blade_width * 0.62f};
-    out_desc->shape.profile[3] =
-        (LDKGrassProfilePoint){1.0f, 0.0f};
-  }
-  else
-  {
-    out_desc->shape.profile[1] =
-        (LDKGrassProfilePoint){0.55f, blade_width * 0.85f};
-    out_desc->shape.profile[2] =
-        (LDKGrassProfilePoint){0.85f, blade_width * 0.50f};
-    out_desc->shape.profile[3] =
-        (LDKGrassProfilePoint){1.0f, 0.0f};
-  }
-
-  if (out_desc->density == 0.0f)
+  if (out_desc->density_scale == 0.0f)
   {
     return false;
   }
@@ -1363,17 +1797,48 @@ static bool s_island_terrain_tile_grass_desc(IslandTerrain *system,
       (float)surface * system->cell_size *
           ISLAND_TERRAIN_LAYER_ELEVATION_STEP;
 
-  out_desc->plane.origin = vec3_make(
-      origin_x + (float)tile_x * system->cell_size,
-      layer_elevation,
-      origin_z + (float)(tile_y + 1) * system->cell_size);
-  out_desc->plane.axis_u =
-      vec3_make(system->cell_size, 0.0f, 0.0f);
-  out_desc->plane.axis_v =
-      vec3_make(0.0f, 0.0f, -system->cell_size);
+  float x0 = origin_x + (float)tile_x * system->cell_size;
+  float x1 = x0 + system->cell_size;
+  float z0 = origin_z + (float)tile_y * system->cell_size;
+  float z1 = z0 + system->cell_size;
+  float h00;
+  float h10;
+  float h01;
+
+  if (ldk_terrain_system_is_active())
+  {
+    if (!ldk_terrain_height_at_world(x0, z1, &h00) ||
+        !ldk_terrain_height_at_world(x1, z1, &h10) ||
+        !ldk_terrain_height_at_world(x0, z0, &h01))
+    {
+      /*
+       * TerrainSystem may already be initialized while its procedural image
+       * has not yet been consumed by the first render update. Do not place
+       * grass at the obsolete flat IslandTerrain elevation: that puts it
+       * underneath the heightmap terrain. Leave the patch absent and retry.
+       */
+      s_runtime.grass_height_sync_pending = true;
+      return false;
+    }
+
+    out_desc->plane.origin = vec3_make(x0, h00, z1);
+    out_desc->plane.axis_u =
+        vec3_make(system->cell_size, h10 - h00, 0.0f);
+    out_desc->plane.axis_v =
+        vec3_make(0.0f, h01 - h00, -system->cell_size);
+  }
+  else
+  {
+    /* Legacy IslandTerrain renderer fallback. */
+    out_desc->plane.origin = vec3_make(x0, layer_elevation, z1);
+    out_desc->plane.axis_u =
+        vec3_make(system->cell_size, 0.0f, 0.0f);
+    out_desc->plane.axis_v =
+        vec3_make(0.0f, 0.0f, -system->cell_size);
+  }
   out_desc->seed = s_hash_2d_i32(
       tile_x, tile_y, system->seed ^ 0x7a11c9e3u);
-  out_desc->casts_shadows = system->grass_casts_shadows;
+  *out_type_id = type_id;
   return true;
 }
 
@@ -1412,19 +1877,24 @@ static bool s_island_terrain_world_to_cell(
 bool island_terrain_grass_state_at(Vec3 world_position,
     float *out_density, float *out_min_height)
 {
-  LDKGrassPatchDesc desc;
+  LDKGrassPatchDesc patch;
+  LDKGrassTypeDesc type;
+  LDKGrassTypeId type_id;
   i32 x;
   i32 y;
 
   if (!out_density || !out_min_height ||
+      !s_island_terrain_grass_types_resolve(s_runtime.owner, NULL) ||
       !s_island_terrain_world_to_cell(world_position, &x, &y) ||
-      !s_island_terrain_tile_grass_desc(s_runtime.owner, x, y, &desc))
+      !s_island_terrain_tile_grass_desc(
+          s_runtime.owner, x, y, &type_id, &patch) ||
+      !ldk_grass_type_get(type_id, &type))
   {
     return false;
   }
 
-  *out_density = desc.density;
-  *out_min_height = desc.min_height;
+  *out_density = type.density * patch.density_scale;
+  *out_min_height = type.min_height;
   return true;
 }
 
@@ -1486,6 +1956,7 @@ static bool s_island_terrain_tile_grass_update(
     IslandTerrain *system, IslandTerrainTile *tile)
 {
   LDKGrassPatchDesc desc;
+  LDKGrassTypeId type_id;
 
   if (!system || !tile)
   {
@@ -1493,7 +1964,7 @@ static bool s_island_terrain_tile_grass_update(
   }
 
   if (!s_island_terrain_tile_grass_desc(
-          system, tile->x, tile->y, &desc))
+          system, tile->x, tile->y, &type_id, &desc))
   {
     s_island_terrain_tile_grass_remove(tile);
     return true;
@@ -1501,10 +1972,10 @@ static bool s_island_terrain_tile_grass_update(
 
   if (ldk_grass_patch_is_valid(tile->grass))
   {
-    return ldk_grass_update(tile->grass, &desc);
+    return ldk_grass_update(tile->grass, type_id, &desc);
   }
 
-  tile->grass = ldk_grass_add(&desc);
+  tile->grass = ldk_grass_add(type_id, &desc);
   return ldk_grass_patch_is_valid(tile->grass);
 }
 
@@ -1861,13 +2332,13 @@ static bool s_island_terrain_tiles_sync(
   bool reset;
   bool membership_changed = false;
   bool elevation_changed;
-  bool grass_config_changed;
-  u64 grass_config_hash;
+  bool grass_types_changed = false;
 
   new_bounds = s_island_terrain_bounds(center_x, center_y, system->radius);
 
   if (!s_island_terrain_bounds_cell_count(&new_bounds, &new_tile_count) ||
-      !s_island_terrain_tiles_reserve(new_tile_count))
+      !s_island_terrain_tiles_reserve(new_tile_count) ||
+      !s_island_terrain_grass_types_resolve(system, &grass_types_changed))
   {
     return false;
   }
@@ -1879,9 +2350,6 @@ static bool s_island_terrain_tiles_sync(
           system->map_revision != s_map.revision;
 
   elevation_changed = system->cached_elevation != system->elevation;
-  grass_config_hash = s_island_terrain_grass_config_hash(system);
-  grass_config_changed =
-      grass_config_hash != s_runtime.grass_config_hash || elevation_changed;
 
   if (reset)
   {
@@ -1920,10 +2388,25 @@ static bool s_island_terrain_tiles_sync(
     membership_changed = true;
   }
 
-  if (grass_config_changed && !reset &&
+  if ((grass_types_changed || elevation_changed) && !reset &&
       !s_island_terrain_grass_update_all(system))
   {
     return false;
+  }
+
+  /*
+   * IslandSystem publishes the procedural image during initialize, but the
+   * TerrainSystem only makes it queryable after its first update. Retry the
+   * grass patches until they can be fitted to the actual heightmap surface.
+   */
+  if (s_runtime.grass_height_sync_pending &&
+      ldk_terrain_system_is_active())
+  {
+    s_runtime.grass_height_sync_pending = false;
+    if (!s_island_terrain_grass_update_all(system))
+    {
+      return false;
+    }
   }
 
   if (membership_changed || elevation_changed)
@@ -1931,7 +2414,6 @@ static bool s_island_terrain_tiles_sync(
     system->mesh_dirty = true;
   }
 
-  s_runtime.grass_config_hash = grass_config_hash;
   s_island_terrain_cache_update(system, center_x, center_y);
   return true;
 }
@@ -2181,11 +2663,15 @@ int island_terrain_system_initialize(void *data)
 
   memset(&s_runtime, 0, sizeof(s_runtime));
   s_runtime.owner = system;
+  s_runtime.dry_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
+  s_runtime.grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
+  s_runtime.forest_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
   s_runtime.material_asset = ldk_asset_material_null();
   s_runtime.renderer_material = ldk_renderer_material_null();
   s_runtime.renderer_texture = ldk_renderer_texture_null();
   s_runtime.renderer_normal_map = ldk_renderer_texture_null();
   s_runtime.renderer_specular_map = ldk_renderer_texture_null();
+  s_runtime.terrain_image = ldk_asset_image_null();
 
   s_island_map_release();
   system->map_loaded_from_cache = s_island_map_load(system);
@@ -2209,9 +2695,45 @@ int island_terrain_system_initialize(void *data)
     }
   }
 
+#ifdef LDK_LDK_EDITOR
+  (void)s_island_map_height_debug_write_ppm("island_heightmap.ppm");
+#endif
+
+  {
+    LDKAssetManager *assets =
+        (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets)
+    {
+      ldk_log_error("AssetManager unavailable while creating island heightmap.\n");
+      s_island_map_release();
+      memset(&s_runtime, 0, sizeof(s_runtime));
+      return -1;
+    }
+    s_runtime.terrain_image = ldk_asset_manager_image_create_format(
+        assets, s_map.width, s_map.height, LDK_IMAGE_FORMAT_RGBA16_UNORM,
+        s_map.data);
+    if (x_handle_is_null(s_runtime.terrain_image.h) ||
+        !ldk_terrain_heightmap_set(s_runtime.terrain_image))
+    {
+      ldk_log_error("Failed to publish island image to TerrainSystem.\n");
+      if (!x_handle_is_null(s_runtime.terrain_image.h))
+        ldk_asset_manager_image_unload(assets, s_runtime.terrain_image);
+      s_island_map_release();
+      memset(&s_runtime, 0, sizeof(s_runtime));
+      return -1;
+    }
+  }
+
   cell_count = (u64)s_map.width * (u64)s_map.height;
   if (cell_count == 0u || cell_count > SIZE_MAX / sizeof(float))
   {
+    ldk_terrain_heightmap_set(ldk_asset_image_null());
+    {
+      LDKAssetManager *assets =
+          (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      if (assets && !x_handle_is_null(s_runtime.terrain_image.h))
+        ldk_asset_manager_image_unload(assets, s_runtime.terrain_image);
+    }
     s_island_map_release();
     memset(&s_runtime, 0, sizeof(s_runtime));
     return -1;
@@ -2220,6 +2742,13 @@ int island_terrain_system_initialize(void *data)
       (float *)malloc((size_t)cell_count * sizeof(float));
   if (!s_runtime.grass_density_scales)
   {
+    ldk_terrain_heightmap_set(ldk_asset_image_null());
+    {
+      LDKAssetManager *assets =
+          (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      if (assets && !x_handle_is_null(s_runtime.terrain_image.h))
+        ldk_asset_manager_image_unload(assets, s_runtime.terrain_image);
+    }
     s_island_map_release();
     memset(&s_runtime, 0, sizeof(s_runtime));
     return -1;
@@ -2296,6 +2825,13 @@ void island_terrain_system_update(
   bool tiles_synced =
       s_island_terrain_tiles_sync(system, center_x, center_y);
 
+  /* TerrainSystem owns the ground when present. IslandTerrain still streams
+   * gameplay cells and grass, but its old atlas mesh becomes a fallback only. */
+  if (ldk_terrain_system_is_active())
+  {
+    return;
+  }
+
   if (tiles_synced && system->mesh_dirty)
   {
     (void)s_island_terrain_mesh_rebuild(system, renderer);
@@ -2349,6 +2885,13 @@ void island_terrain_system_terminate(void *data)
   free(s_runtime.grass_density_scales);
   free(s_runtime.vertices);
   free(s_runtime.indices);
+  ldk_terrain_heightmap_set(ldk_asset_image_null());
+  {
+    LDKAssetManager *assets =
+        (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (assets && !x_handle_is_null(s_runtime.terrain_image.h))
+      ldk_asset_manager_image_unload(assets, s_runtime.terrain_image);
+  }
   memset(&s_runtime, 0, sizeof(s_runtime));
   s_island_map_release();
 

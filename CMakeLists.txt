@@ -512,10 +512,14 @@ list(APPEND LDK_SOURCE
   src/component/ldk_post_processing.c
   ${INCLUDE_DIR}/component/ldk_audio_source.h
   src/component/ldk_audio_source.c
+  ${INCLUDE_DIR}/component/ldk_grass_interact.h
+  src/component/ldk_grass_interact.c
 
   # Systems
-  ${INCLUDE_DIR}/system/ldk_grass.h
-  src/system/ldk_grass.c
+  ${INCLUDE_DIR}/system/ldk_grass_system.h
+  src/system/ldk_grass_system.c
+  ${INCLUDE_DIR}/system/ldk_terrain_system.h
+  src/system/ldk_terrain_system.c
   ${INCLUDE_DIR}/system/ldk_particle_system.h
   src/system/ldk_particle_system.c
 )

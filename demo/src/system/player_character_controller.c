@@ -8,6 +8,7 @@
 #include <ldk.h>
 #include <module/ldk_ecs.h>
 #include <stdx/stdx_math.h>
+#include <system/ldk_terrain_system.h>
 
 #include <math.h>
 
@@ -139,6 +140,20 @@ static void s_player_character_update(LDKEntity entity,
   }
 
   position = vec3_add(position, vec3_mul(player->velocity, dt));
+
+  if (ldk_terrain_system_is_active())
+  {
+    float terrain_height;
+    if (ldk_terrain_height_at_world(
+            position.x, position.z, &terrain_height))
+    {
+      float offset = isfinite(player->terrain_height_offset)
+          ? player->terrain_height_offset
+          : 0.0f;
+      position.y = terrain_height + offset;
+    }
+  }
+
   (void)ldk_transform_set_local_position(entity, position);
 }
 

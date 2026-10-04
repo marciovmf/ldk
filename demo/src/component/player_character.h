@@ -15,6 +15,12 @@ typedef struct PlayerCharacterComponent
   //@inspect min=0
   float inertia;
 
+  /*
+   * Vertical offset from the TerrainSystem surface. This is normally the
+   * distance from the entity pivot to the character's feet.
+   */
+  float terrain_height_offset;
+
   //@inspect runtime
   Vec3 velocity;
 } PlayerCharacterComponent;
