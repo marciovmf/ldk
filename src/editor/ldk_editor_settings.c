@@ -19,6 +19,9 @@ typedef struct LDKEditorSettingsDraft
   bool open_folders_single_click;
   char ui_scale[32];
   char font_size[32];
+  char camera_fov[32];
+  char camera_near_clip[32];
+  char camera_far_clip[32];
   char font_path[X_FS_PATH_MAX_LENGTH];
   rgba32 debug_color;
   rgba32 selection_color_1;
@@ -79,6 +82,12 @@ static void s_editor_settings_draft_reset(
       editor->editor_font_size);
   snprintf(draft->font_path, sizeof(draft->font_path), "%s",
       editor->editor_font.buf);
+  snprintf(draft->camera_fov, sizeof(draft->camera_fov), "%.9g",
+      editor->editor_camera_fov);
+  snprintf(draft->camera_near_clip, sizeof(draft->camera_near_clip), "%.9g",
+      editor->editor_camera_near_clip);
+  snprintf(draft->camera_far_clip, sizeof(draft->camera_far_clip), "%.9g",
+      editor->editor_camera_far_clip);
   draft->debug_color = editor->debug_color;
   draft->selection_color_1 = editor->selection_color_1;
   draft->selection_color_2 = editor->selection_color_2;
@@ -160,6 +169,9 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
   const char *association_prefix = ".file_association.";
   size_t association_prefix_length = strlen(association_prefix);
   float ui_scale;
+  float camera_fov;
+  float camera_near_clip;
+  float camera_far_clip;
   i32 font_size;
   XFSPath old_font_path;
   LDKAssetFont old_font;
@@ -174,6 +186,14 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
       ui_scale < 0.5f || ui_scale > 3.0f ||
       !s_editor_settings_integer_parse(draft->font_size, &font_size) ||
       font_size < 6 || font_size > 96 || draft->font_path[0] == 0 ||
+      !s_editor_settings_number_parse(draft->camera_fov, &camera_fov) ||
+      camera_fov <= 1.0f || camera_fov >= 179.0f ||
+      !s_editor_settings_number_parse(
+          draft->camera_near_clip, &camera_near_clip) ||
+      camera_near_clip <= 0.0f ||
+      !s_editor_settings_number_parse(
+          draft->camera_far_clip, &camera_far_clip) ||
+      camera_far_clip <= camera_near_clip ||
       !isfinite(draft->debug_line_width) ||
       draft->debug_line_width < LDK_EDITOR_LINE_WIDTH_MIN ||
       draft->debug_line_width > LDK_EDITOR_LINE_WIDTH_MAX ||
@@ -234,6 +254,11 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
        x_ini_set_f32(&ini, ".editor", "ui_scale", ui_scale) &&
        x_ini_set_i32(&ini, ".editor", "font_size", font_size) &&
        x_ini_set(&ini, ".editor", "font", draft->font_path) &&
+       x_ini_set_f32(&ini, ".editor", "camera_fov", camera_fov) &&
+       x_ini_set_f32(
+           &ini, ".editor", "camera_near_clip", camera_near_clip) &&
+       x_ini_set_f32(
+           &ini, ".editor", "camera_far_clip", camera_far_clip) &&
        x_ini_set_u32_hex(
            &ini, ".editor", "debug_color", draft->debug_color) &&
        x_ini_set_u32_hex(
@@ -284,6 +309,9 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
       draft->open_folders_single_click;
   editor->editor_ui_scale = ui_scale;
   editor->editor_font_size = font_size;
+  editor->editor_camera_fov = camera_fov;
+  editor->editor_camera_near_clip = camera_near_clip;
+  editor->editor_camera_far_clip = camera_far_clip;
   editor->debug_color = draft->debug_color;
   editor->selection_color_1 = draft->selection_color_1;
   editor->selection_color_2 = draft->selection_color_2;
@@ -305,6 +333,12 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
       editor->editor_ui_scale);
   snprintf(draft->font_size, sizeof(draft->font_size), "%d",
       editor->editor_font_size);
+  snprintf(draft->camera_fov, sizeof(draft->camera_fov), "%.9g",
+      editor->editor_camera_fov);
+  snprintf(draft->camera_near_clip, sizeof(draft->camera_near_clip), "%.9g",
+      editor->editor_camera_near_clip);
+  snprintf(draft->camera_far_clip, sizeof(draft->camera_far_clip), "%.9g",
+      editor->editor_camera_far_clip);
   draft->dirty = false;
   return true;
 }
@@ -459,6 +493,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   static LDKEditorSettingsDraft draft = {0};
   static bool external_programs_expanded = true;
   static bool look_and_feel_expanded = true;
+  static bool camera_expanded = true;
   static bool general_expanded = true;
   static bool program_expanded[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY] = {0};
   static bool expansion_initialized = false;
@@ -506,6 +541,26 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     }
     ldk_ui_spacer(ui);
     ldk_ui_end_horizontal(ui);
+  }
+
+  ldk_ui_spacer(ui);
+  camera_expanded =
+      ldk_ui_tree_node(ui, "Camera", camera_expanded, 0, 0);
+  if (camera_expanded)
+  {
+    u32 result = 0;
+
+    result |= s_editor_settings_input_row(editor, "Field of view",
+        draft.camera_fov, (u32)sizeof(draft.camera_fov));
+    result |= s_editor_settings_input_row(editor, "Near clip",
+        draft.camera_near_clip, (u32)sizeof(draft.camera_near_clip));
+    result |= s_editor_settings_input_row(editor, "Far clip",
+        draft.camera_far_clip, (u32)sizeof(draft.camera_far_clip));
+
+    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      draft.dirty = true;
+    }
   }
 
   ldk_ui_spacer(ui);
@@ -681,8 +736,8 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     if (!s_editor_settings_save(editor, &draft))
     {
       ldki_editor_log_error(editor,
-          "Failed to save editor settings. Check UI scale, font size, and font "
-          "path.");
+          "Failed to save editor settings. Check UI scale, font settings, and "
+          "camera values.");
     }
     else
     {
