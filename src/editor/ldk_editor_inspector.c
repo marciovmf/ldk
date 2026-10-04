@@ -3,6 +3,7 @@
 #include <ldk_skybox_asset.h>
 #include "ldk_editor_color_picker.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_scene_ops.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_entity.h"
 #include "module/ldk_ui.h"
@@ -19,6 +20,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define LDK_INSPECTOR_LIKE_BUTTON_ID 0x4150504Cu
 
 static bool s_editor_material_image_editor(LDKEditorContext *editor,
     const char *label, const char *dialog_title, LDKAssetImage *image,
@@ -3687,6 +3690,30 @@ static bool s_editor_inspector_system_draw(
   ldk_ui_label(ui, name);
   ldk_ui_end_horizontal(ui);
 
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    const LDKUIId apply_id = LDK_INSPECTOR_LIKE_BUTTON_ID;
+    LDKUIRect apply_rect = ldk_ui_last_rect(ui);
+    LDKUIIcon apply_icon = icon;
+    bool can_apply = ldki_editor_scene_play_apply_available(editor);
+
+    apply_rect.x += apply_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+    apply_rect.w = 24.0f;
+    apply_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+    apply_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEART];
+    apply_icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+
+    ldk_ui_begin_disabled(ui, !can_apply);
+    if (ldk_ui_widget_icon_button(
+            ui, apply_id, apply_icon, "", apply_rect) &&
+        !ldki_editor_scene_play_apply_system(editor, system_id))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to apply system changes to scene.");
+    }
+    ldk_ui_end_disabled(ui);
+  }
+
   s_editor_inspector_system_grouping_draw(editor, systems, system_id);
   ldk_ui_horizontal_line(ui);
 
@@ -4353,14 +4380,50 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
     ldk_ui_horizontal_line(ui);
 
-    // Delete button positioned over the area bar
+    // Header buttons positioned over the area bar.
     u32 id = component_type + component_i;
-    ldk_ui_push_id_u32(ui, id);         // delete button id
-    LDKUIRect r = ldk_ui_last_rect(ui); // area rect
-    r.x += r.w - 24.0f - LDK_UI_DEFAULT_PADDING;
-    r.y -= LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_SPACING;
-    r.w = 24.0f;
-    r.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+    ldk_ui_push_id_u32(ui, id); // header button id scope
+    LDKUIRect delete_rect = ldk_ui_last_rect(ui); // area rect
+    delete_rect.x += delete_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+    delete_rect.y -= LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_SPACING;
+    delete_rect.w = 24.0f;
+    delete_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+    if (expanded && meta && component)
+    {
+      // Expanded area content is padded. Keep header controls on the bar.
+      delete_rect.x += LDK_UI_DEFAULT_PADDING;
+      delete_rect.y -= LDK_UI_DEFAULT_PADDING;
+    }
+
+    if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+    {
+      const LDKUIId apply_id = LDK_INSPECTOR_LIKE_BUTTON_ID + id;
+      LDKUIRect apply_rect = delete_rect;
+      LDKUIIcon apply_icon = icon;
+      bool can_apply =
+          ldki_editor_scene_play_component_can_apply(editor, entity);
+
+      if (has_delete_button)
+      {
+        apply_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+      }
+      apply_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEART];
+      apply_icon.color = flat_color;
+
+      ldk_ui_begin_disabled(ui, !can_apply);
+
+      if (ldk_ui_widget_icon_button(
+              ui, apply_id, apply_icon, "", apply_rect) &&
+          !ldki_editor_scene_play_apply_component(
+              editor, entity, component_type))
+      {
+        ldki_editor_log_error(
+            editor, "Failed to apply component changes to scene.");
+      }
+      ldk_ui_pop_id(ui);
+      ldk_ui_pop_id(ui);
+      ldk_ui_end_disabled(ui);
+    }
 
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
     icon.color = flat_color;
@@ -4375,10 +4438,6 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     }
     else if (expanded)
     {
-      // expanded area rect is padded. We must account for that
-      r.x += LDK_UI_DEFAULT_PADDING;
-      r.y -= LDK_UI_DEFAULT_PADDING;
-
       /*
        * Inspector visibility follows Comet metadata. It intentionally does
        * not use scene serialization rules: runtime/non-serialized fields may
@@ -4415,7 +4474,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       }
     }
 
-    if (has_delete_button && ldk_ui_widget_icon_button(ui, id, icon, "", r))
+    if (has_delete_button &&
+        ldk_ui_widget_icon_button(ui, id, icon, "", delete_rect))
     {
       if (ldk_os_dialog_show_yes_no(editor->window, "Delete Component ?",
               "Are you sure you want to delete this component instance ?"))

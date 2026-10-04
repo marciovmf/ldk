@@ -3117,7 +3117,9 @@ static bool s_write_systems(LDKSceneSaveContext *context,
       if (!s_write_field_value(
               context->out, &context->map, field, systems->data[i], true))
       {
-        s_result_error(context->result, "failed to serialize system field");
+        s_result_error_format(context->result,
+            "failed to serialize system field: %s.%s",
+            meta->name ? meta->name : "<unnamed system>", field->name);
         return false;
       }
       x_strbuilder_append_char(context->out, '\n');

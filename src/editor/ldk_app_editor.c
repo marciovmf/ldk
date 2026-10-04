@@ -2124,6 +2124,8 @@ static void s_editor_scene_missing_systems_report(
 static void s_editor_play_scene_restore(LDKEditorContext *editor)
 {
   XFSPath path = {0};
+  bool apply_pending = ldki_editor_scene_play_apply_available(editor);
+
   if (editor->current_scene_path.length)
   {
     x_fs_path(&path, editor->project.run_root_path.buf,
@@ -2131,9 +2133,20 @@ static void s_editor_play_scene_restore(LDKEditorContext *editor)
     x_fs_path_normalize(&path);
     if (ldki_editor_scene_load(editor, &path))
     {
+      if (apply_pending && !ldki_editor_scene_play_apply_restore(editor))
+      {
+        ldki_editor_log_error(
+            editor, "Failed to apply Play changes to scene.");
+      }
+      else if (!apply_pending)
+      {
+        ldki_editor_scene_play_apply_discard(editor);
+      }
       return;
     }
   }
+
+  ldki_editor_scene_play_apply_discard(editor);
   ldki_editor_scene_clear(editor);
 }
 
@@ -2182,10 +2195,17 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
       ldki_editor_log_error(editor, "Open a scene before Play Current Scene.");
       return false;
     }
+    if (!ldki_editor_scene_play_apply_begin(editor))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to capture the authoring scene before Play.");
+      return false;
+    }
     /* Use the scene already open in the editor, including unsaved edits.
      * It remains independent of the project catalog. */
     if (!ldk_scene_manager_current_reset(manager))
     {
+      s_editor_play_scene_restore(editor);
       return false;
     }
     s_editor_scene_missing_systems_report(
@@ -2201,6 +2221,7 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
   else
   {
     LDKSceneResult result;
+    ldki_editor_scene_play_apply_discard(editor);
     if (!ldk_scene_manager_load(manager, 0, &result))
     {
       ldki_editor_log_error(editor, result.error);
@@ -2260,7 +2281,6 @@ static bool s_editor_state_set_play(LDKEditorContext *editor)
 
 static void s_editor_state_set_stop(LDKEditorContext *editor)
 {
-  XFSPath scene_path = {0};
   bool restore_scene;
 
   if (!editor)
@@ -2276,13 +2296,6 @@ static void s_editor_state_set_stop(LDKEditorContext *editor)
 
   restore_scene = editor->project.loaded &&
                   editor->current_scene_path.length != 0;
-  if (restore_scene)
-  {
-    x_fs_path(&scene_path, editor->project.run_root_path.buf,
-        x_fs_path_cstr(&editor->current_scene_path));
-    x_fs_path_normalize(&scene_path);
-  }
-
   if (!ldk_game_instance_stop())
   {
     ldki_editor_log_error(editor, "Failed to stop the game session.");
@@ -2293,15 +2306,11 @@ static void s_editor_state_set_stop(LDKEditorContext *editor)
 
   if (restore_scene)
   {
-    if (!ldki_editor_scene_load(editor, &scene_path))
-    {
-      /* STOP must still leave a clean ECS if the source file disappeared or
-       * became invalid while the game was running. */
-      ldki_editor_scene_clear(editor);
-    }
+    s_editor_play_scene_restore(editor);
   }
   else
   {
+    ldki_editor_scene_play_apply_discard(editor);
     ldki_editor_scene_clear(editor);
   }
 }
@@ -4045,6 +4054,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldki_editor_profiler_terminate();
   s_project_game_module_watch_close();
   ldki_editor_scene_catalog_close(editor);
+  ldki_editor_scene_play_apply_discard(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   ldk_scene_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
