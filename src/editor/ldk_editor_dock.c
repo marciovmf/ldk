@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <ctype.h>
 
 #ifndef LDK_EDITOR_DOCK_WORKSPACE_TOP
 #define LDK_EDITOR_DOCK_WORKSPACE_TOP                                          \
@@ -1496,6 +1497,7 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
   LDKUIId dock_window_id = ui->last_id;
 
   LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY] = {0};
+  char tab_titles[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY][64];
   u32 active_index = 0;
 
   for (u32 i = 0; i < leaf->window_count; ++i)
@@ -1503,8 +1505,17 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
     const LDKEditorDockWindow *window =
         s_editor_dock_window_get_const(dock, leaf->windows[i]);
 
+    snprintf(tab_titles[i], sizeof(tab_titles[i]), "%s",
+        window != NULL ? window->window.title : "<missing window>");
+    for (char *letter = tab_titles[i]; *letter != '\0'; ++letter)
+    {
+      if ((unsigned char)*letter < 128u)
+      {
+        *letter = (char)toupper((unsigned char)*letter);
+      }
+    }
     tab_items[i] = (LDKUITabBarItem){.id = (LDKUIId)(i + 1),
-        .label = window != NULL ? window->window.title : "<missing window>"};
+        .label = tab_titles[i]};
 
     if (leaf->windows[i] == leaf->active_window)
     {
@@ -1534,6 +1545,8 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
       close_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
   close_button_rect.w = 24.0f;
   close_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  close_button_rect.y +=
+      (LDK_UI_TAB_BAR_TAB_HEIGHT - close_button_rect.h) * 0.5f;
 
   const LDKUIId close_button_id =
       (LDKUIId)(0x444F4300u + (u32)leaf_index);

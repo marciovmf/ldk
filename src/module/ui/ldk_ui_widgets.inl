@@ -348,13 +348,7 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
 
   s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
 
-  if (active)
-  {
-    LDKUIRect accent_rect = box.rect;
-    accent_rect.h = s_ui_minf(2.0f, box.rect.h);
-    s_ui_render_quad(ctx, accent_rect, border, box.clip, 0);
-  }
-  else if (ctx->theme.control_border_size > 0.0f)
+  if (!active && ctx->theme.control_border_size > 0.0f)
   {
     LDKUIRect edge_rect = box.rect;
     edge_rect.h = s_ui_minf(ctx->theme.control_border_size, box.rect.h);
@@ -363,10 +357,10 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   }
 
   LDKUIRect content_rect;
-  content_rect.x = box.rect.x + LDK_UI_DEFAULT_SPACING * 2.0f;
+  content_rect.x = box.rect.x + LDK_UI_TAB_BAR_TAB_PADDING;
   content_rect.y = box.rect.y;
   content_rect.w =
-      s_ui_maxf(0.0f, box.rect.w - LDK_UI_DEFAULT_SPACING * 4.0f);
+      s_ui_maxf(0.0f, box.rect.w - LDK_UI_TAB_BAR_TAB_PADDING * 2.0f);
   content_rect.h = box.rect.h;
 
   s_ui_render_icon_label_nowrap(
@@ -2295,7 +2289,7 @@ bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text)
 static float s_ui_tab_bar_item_width(
     LDKUIContext *ctx, LDKUITabBarItem const *item)
 {
-  float width = LDK_UI_DEFAULT_SPACING * 4.0f;
+  float width = LDK_UI_TAB_BAR_TAB_PADDING * 2.0f;
 
   if (ctx == NULL || item == NULL)
   {

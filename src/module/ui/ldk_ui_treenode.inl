@@ -64,8 +64,8 @@ static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon ico
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
   if (area_header)
   {
-    min_size.w += LDK_UI_DEFAULT_SPACING * 2.0f;
-    min_size.h += LDK_UI_DEFAULT_SPACING;
+    min_size.w += LDK_UI_AREA_PADDING * 2.0f;
+    min_size.h = LDK_UI_AREA_HEADER_HEIGHT;
   }
 
   if (chevron_icon_valid && chevron_icon.size.h > min_size.h)
@@ -129,7 +129,7 @@ static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon ico
     text_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
   }
 
-  float header_padding = area_header ? LDK_UI_DEFAULT_SPACING : 0.0f;
+  float header_padding = area_header ? LDK_UI_AREA_PADDING + 3.0f : 0.0f;
   float chevron_x = box.rect.x + indent_width + header_padding;
   float label_x = chevron_x + chevron_width + LDK_UI_DEFAULT_SPACING;
 
@@ -179,6 +179,11 @@ static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon ico
 
   if (area_header)
   {
+    LDKUIRect accent = box.rect;
+    accent.w = s_ui_minf(3.0f, box.rect.w);
+    s_ui_render_quad(ctx, accent,
+        ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER], box.clip, 0);
+
     LDKUIRect separator = box.rect;
     separator.h = s_ui_minf(1.0f, box.rect.h);
     separator.y = box.rect.y + box.rect.h - separator.h;

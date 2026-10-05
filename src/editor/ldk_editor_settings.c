@@ -525,6 +525,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   ui = &editor->ui;
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  ldk_ui_set_padding(ui, ui->theme.panel_padding);
 
   general_expanded =
       ldk_ui_tree_node(ui, "General", general_expanded, 0, 0);
@@ -752,4 +753,3 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   }
   ldk_ui_end_horizontal(ui);
 }
-

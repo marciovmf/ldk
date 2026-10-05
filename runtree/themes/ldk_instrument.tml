@@ -47,8 +47,8 @@ ldk_editor_theme:
     tab_text_hovered: 0xF0ECE2FF
     tab_border: 0x252D32FF
     tab_border_hovered: 0x64747EFF
-    tab_active_bg: 0x30383EFF
-    tab_active_text: 0xF5E6CBFF
+    tab_active_bg: 0xD6B36AFF
+    tab_active_text: 0x181E22FF
     tab_active_border: 0xD6B36AFF
     input_border: 0x3A444BFF
     input_bg: 0x181E22FF
@@ -66,6 +66,7 @@ ldk_editor_theme:
     text_cursor_blink_interval: 0.65
     text_cursor_width: 1.5
     text_cursor_padding_y: 4.0
+    panel_padding: 8.0
 
     COLOR_TEXT: "${text}"
     COLOR_TEXT_DISABLED: "${text_disabled}"

@@ -84,6 +84,7 @@ static int test_overrides_and_references(void)
       "    COLOR_INPUT_BG_ACTIVE_HOVERED: 0x31323334\n"
       "    control_border_size: 0.45\n"
       "    input_border_size: 1.25\n"
+      "    panel_padding: 12.5\n"
       "    slider_track_height: 1\n"
       "    text_cursor_blink: false\n";
 
@@ -98,9 +99,30 @@ static int test_overrides_and_references(void)
   expected.colors[LDK_UI_COLOR_INPUT_BG_ACTIVE_HOVERED] = 0x31323334u;
   expected.control_border_size = 0.45f;
   expected.input_border_size = 1.25f;
+  expected.panel_padding = 12.5f;
   expected.slider_track_height = 1.0f;
   expected.text_cursor_blink = false;
   TEST_CHECK(memcmp(&result.theme, &expected, sizeof(expected)) == 0);
+  return 0;
+}
+
+static int test_panel_padding(void)
+{
+  LDKUIThemeFile result;
+  char error[256];
+  TEST_CHECK(ldk_ui_theme_tml_parse("ldk_editor_theme:\n", &result,
+      error, sizeof(error)));
+  TEST_CHECK(result.theme.panel_padding == 4.0f);
+  TEST_CHECK(ldk_ui_theme_tml_parse(
+      "ldk_editor_theme:\n    panel_padding: 0\n", &result,
+      error, sizeof(error)));
+  TEST_CHECK(result.theme.panel_padding == 0.0f);
+  TEST_CHECK(s_test_rejected(
+      "ldk_editor_theme:\n    panel_padding: -1\n", "Metric") == 0);
+  TEST_CHECK(s_test_rejected(
+      "ldk_editor_theme:\n    panel_padding: 1e100\n", "float") == 0);
+  TEST_CHECK(s_test_rejected(
+      "ldk_editor_theme:\n    panel_padding: true\n", "number") == 0);
   return 0;
 }
 
@@ -227,7 +249,8 @@ static int test_file_loading(void)
   char const *source =
       "ldk_editor_theme:\n"
       "    theme_name: \"File Theme\"\n"
-      "    COLOR_TEXT: 0x01020304\n";
+      "    COLOR_TEXT: 0x01020304\n"
+      "    panel_padding: 8.0\n";
   LDKUIThemeFile result;
   LDKUIThemeFile original;
   char error[256];
@@ -239,6 +262,7 @@ static int test_file_loading(void)
   TEST_CHECK(ldk_ui_theme_tml_load(path, &result, error, sizeof(error)));
   TEST_CHECK(strcmp(result.name, "File Theme") == 0);
   TEST_CHECK(result.theme.colors[LDK_UI_COLOR_TEXT] == 0x01020304u);
+  TEST_CHECK(result.theme.panel_padding == 8.0f);
 
   file = fopen(path, "wb");
   TEST_CHECK(file != NULL);
@@ -271,6 +295,7 @@ int main(void)
   int failures = 0;
   failures += test_inheritance();
   failures += test_overrides_and_references();
+  failures += test_panel_padding();
   failures += test_aliases_do_not_implicitly_override();
   failures += test_invalid_documents();
   failures += test_invalid_references();

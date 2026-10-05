@@ -844,15 +844,8 @@ static void s_ui_window_push_content_layout(
   s_ui_layout_push_with_id(ctx, LDK_UI_LAYOUT_VERTICAL, window->content_rect,
       window->content_rect, UINT32_MAX, layout_id);
 
-  if ((window->flags & LDK_UI_WINDOW_NO_PADDING) != 0 && ctx->current_layout != NULL)
-  {
-    ctx->current_layout->padding = 0.0f;
-    ctx->current_layout->content_rect = window->content_rect;
-    ctx->current_layout->cursor.x = window->content_rect.x;
-    ctx->current_layout->cursor.y = window->content_rect.y;
-    ctx->current_layout->content_used_right = window->content_rect.x;
-    ctx->current_layout->content_used_bottom = window->content_rect.y;
-  }
+  ldk_ui_set_padding(ctx, (window->flags & LDK_UI_WINDOW_NO_PADDING) != 0
+      ? 0.0f : ctx->theme.panel_padding);
 }
 
 static LDKUIRect s_ui_begin_window_internal(

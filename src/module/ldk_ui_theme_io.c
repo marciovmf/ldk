@@ -112,6 +112,7 @@ static LDKUIThemeMetricEntry const s_ui_theme_tml_metrics[] = {
     S_UI_THEME_FLOAT(text_cursor_blink_interval, true),
     S_UI_THEME_FLOAT(text_cursor_width, false),
     S_UI_THEME_FLOAT(text_cursor_padding_y, false),
+    S_UI_THEME_FLOAT(panel_padding, false),
 };
 
 #undef S_UI_THEME_FLOAT
