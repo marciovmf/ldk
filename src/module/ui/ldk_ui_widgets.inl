@@ -425,11 +425,29 @@ bool ldk_ui_widget_toggle(
   return value;
 }
 
-float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
-    float min_value, float max_value, LDKUIRect rect)
+static float s_ui_widget_slider_value(LDKUIContext *ctx,
+    LDKUIWidgetBox const *box, LDKUIFrameState const *frame, float value,
+    float min_value, float max_value)
 {
-  LDKUIWidgetBox box = {0};
-  LDKUIFrameState frame;
+  float base_height = s_ui_maxf(box->rect.h, 1.0f);
+  float thumb_width_factor =
+      s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
+  float thumb_width = s_ui_minf(base_height * thumb_width_factor, box->rect.w);
+
+  if (frame->active)
+  {
+    value = s_ui_slider_value_from_cursor(
+        box->rect, thumb_width, frame->cursor.x, min_value, max_value);
+  }
+
+  return s_ui_clampf(
+      value, s_ui_minf(min_value, max_value), s_ui_maxf(min_value, max_value));
+}
+
+static void s_ui_widget_slider_render(LDKUIContext *ctx,
+    LDKUIWidgetBox const *box, LDKUIFrameState const *frame, float value,
+    float min_value, float max_value)
+{
   float base_height;
   float track_height_factor;
   float thumb_width_factor;
@@ -444,60 +462,186 @@ float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
   u32 thumb_color;
   u32 border_color;
 
-  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
-  {
-    return value;
-  }
-
-  frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
-
-  base_height = s_ui_maxf(box.rect.h, 1.0f);
+  base_height = s_ui_maxf(box->rect.h, 1.0f);
   track_height_factor = s_ui_clampf(ctx->theme.slider_track_height, 0.0f, 1.0f);
   thumb_width_factor = s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
 
   track_height = s_ui_maxf(1.0f, base_height * track_height_factor);
-  thumb_width = s_ui_minf(base_height * thumb_width_factor, box.rect.w);
-
-  if (frame.active)
-  {
-    value = s_ui_slider_value_from_cursor(
-        box.rect, thumb_width, frame.cursor.x, min_value, max_value);
-  }
-
-  if (max_value >= min_value)
-  {
-    value = s_ui_clampf(value, min_value, max_value);
-  }
-  else
-  {
-    value = s_ui_clampf(value, max_value, min_value);
-  }
+  thumb_width = s_ui_minf(base_height * thumb_width_factor, box->rect.w);
 
   t = s_ui_slider_normalize(value, min_value, max_value);
 
-  track_rect = box.rect;
+  track_rect = box->rect;
   track_rect.h = track_height;
-  track_rect.y = box.rect.y + (box.rect.h - track_height) * 0.5f;
+  track_rect.y = box->rect.y + (box->rect.h - track_height) * 0.5f;
 
   fill_rect = track_rect;
   fill_rect.w =
       thumb_width * 0.5f + s_ui_maxf(0.0f, track_rect.w - thumb_width) * t;
 
-  thumb_rect.x = box.rect.x + s_ui_maxf(0.0f, box.rect.w - thumb_width) * t;
-  thumb_rect.y = box.rect.y;
+  thumb_rect.x = box->rect.x + s_ui_maxf(0.0f, box->rect.w - thumb_width) * t;
+  thumb_rect.y = box->rect.y;
   thumb_rect.w = thumb_width;
-  thumb_rect.h = box.rect.h;
+  thumb_rect.h = box->rect.h;
 
-  track_color = s_ui_render_slider_track_color(ctx, frame.visual_state);
+  track_color = s_ui_render_slider_track_color(ctx, frame->visual_state);
   fill_color = ctx->theme.colors[LDK_UI_COLOR_SLIDER_FILL];
-  thumb_color = s_ui_render_slider_thumb_color(ctx, frame.visual_state);
-  border_color = s_ui_render_control_border_color(ctx, frame.visual_state);
+  thumb_color = s_ui_render_slider_thumb_color(ctx, frame->visual_state);
+  border_color = s_ui_render_control_border_color(ctx, frame->visual_state);
 
-  s_ui_render_quad(ctx, track_rect, track_color, box.clip, 0);
-  s_ui_render_quad(ctx, fill_rect, fill_color, box.clip, 0);
-  s_ui_render_quad(ctx, thumb_rect, thumb_color, box.clip, 0);
+  s_ui_render_quad(ctx, track_rect, track_color, box->clip, 0);
+  s_ui_render_quad(ctx, fill_rect, fill_color, box->clip, 0);
+  s_ui_render_quad(ctx, thumb_rect, thumb_color, box->clip, 0);
   s_ui_render_border(
-      ctx, box.rect, ctx->theme.control_border_size, border_color, box.clip);
+      ctx, box->rect, ctx->theme.control_border_size, border_color, box->clip);
+}
+
+float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
+    float min_value, float max_value, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  LDKUIFrameState frame;
+
+  if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return value;
+  }
+
+  frame = s_ui_frame_state(
+      ctx, box.id, box.rect, box.clip, true, false, box.disabled);
+  value =
+      s_ui_widget_slider_value(ctx, &box, &frame, value, min_value, max_value);
+  s_ui_widget_slider_render(ctx, &box, &frame, value, min_value, max_value);
+
+  return value;
+}
+
+static bool s_ui_slider_input_parse(char const *text, float *value)
+{
+  char *end;
+  float parsed;
+
+  errno = 0;
+  parsed = strtof(text, &end);
+  if (end == text || errno == ERANGE || !isfinite(parsed))
+  {
+    return false;
+  }
+
+  while (isspace((unsigned char)*end))
+  {
+    end += 1;
+  }
+
+  if (*end != 0)
+  {
+    return false;
+  }
+
+  *value = parsed;
+  return true;
+}
+
+float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id, float value,
+    float min_value, float max_value, LDKUIRect rect)
+{
+  LDKUIWidgetBox box = {0};
+  LDKUIWidgetBox slider_box = {0};
+  LDKUIFrameState slider_frame;
+  LDKUIRect slider_rect = rect;
+  LDKUIRect input_rect = rect;
+  LDKUIId input_id;
+  char buffer[sizeof(ctx->slider_input.buffer)] = {0};
+  float initial_value;
+  float spacing;
+  float value_tolerance;
+  const u32 edit_flags = LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED;
+  const u32 finish_flags =
+      LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED;
+  u32 result;
+  bool editing;
+  bool focus_requested;
+
+  if (id == 0 || rect.w <= 0.0f || rect.h <= 0.0f ||
+      !s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
+  {
+    return value;
+  }
+
+  input_id = s_ui_id_hash_u32(id, LDK_UI_ITEM_INPUT_BOX);
+  if (input_id == 0)
+  {
+    input_id = 1;
+  }
+
+  input_rect.w = s_ui_minf(72.0f, rect.w * 0.5f);
+  input_rect.x = rect.x + rect.w - input_rect.w;
+  spacing = s_ui_minf(LDK_UI_DEFAULT_SPACING, rect.w * 0.05f);
+  slider_rect.w = rect.w - input_rect.w - spacing;
+
+  focus_requested = ctx->next_focus;
+  ctx->next_focus = false;
+  ldk_ui_begin_disabled(ctx, box.disabled);
+  s_ui_widget_box_from_explicit_rect(ctx, &slider_box, id, slider_rect, true);
+  slider_frame = s_ui_frame_state(ctx, slider_box.id, slider_box.rect,
+      slider_box.clip, true, false, slider_box.disabled);
+  value = s_ui_widget_slider_value(
+      ctx, &slider_box, &slider_frame, value, min_value, max_value);
+
+  value_tolerance = 2.0f * FLT_EPSILON *
+                    s_ui_maxf(fabsf(value), fabsf(ctx->slider_input.value));
+  editing = ctx->slider_input.id == input_id && ctx->focused_id == input_id &&
+            fabsf(ctx->slider_input.value - value) <= value_tolerance;
+  initial_value = editing ? ctx->slider_input.initial_value : value;
+  if (editing)
+  {
+    memcpy(buffer, ctx->slider_input.buffer, sizeof(buffer));
+  }
+  else
+  {
+    snprintf(buffer, sizeof(buffer), "%.9g", (double)value);
+  }
+
+  ctx->next_focus = focus_requested;
+  result = ldk_ui_widget_input_box(
+      ctx, input_id, buffer, (u32)sizeof(buffer), input_rect);
+  if (ctx->focused_id == input_id)
+  {
+    float parsed;
+
+    if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+    {
+      value = initial_value;
+    }
+    else if ((result & edit_flags) != 0 &&
+             s_ui_slider_input_parse(buffer, &parsed))
+    {
+      value = s_ui_clampf(parsed, s_ui_minf(min_value, max_value),
+          s_ui_maxf(min_value, max_value));
+    }
+
+    if ((result & finish_flags) != 0)
+    {
+      snprintf(buffer, sizeof(buffer), "%.9g", (double)value);
+      initial_value = value;
+    }
+
+    ctx->slider_input.id = input_id;
+    memcpy(ctx->slider_input.buffer, buffer, sizeof(buffer));
+    ctx->slider_input.initial_value = initial_value;
+    ctx->slider_input.value = value;
+  }
+  else if (ctx->slider_input.id == input_id)
+  {
+    ctx->slider_input.id = 0;
+  }
+
+  s_ui_widget_slider_render(
+      ctx, &slider_box, &slider_frame, value, min_value, max_value);
+  ldk_ui_end_disabled(ctx);
+  ctx->last_id = id;
+  ctx->last_rect = rect;
+  ctx->last_bounding_rect = rect;
 
   return value;
 }
@@ -2424,6 +2568,27 @@ float ldk_ui_slider(
   }
 
   return ldk_ui_widget_slider(ctx, id, value, min_value, max_value, rect);
+}
+
+float ldk_ui_slider_input(
+    LDKUIContext *ctx, float value, float min_value, float max_value)
+{
+  LDKUILayoutRequest request;
+  LDKUIRect rect;
+  LDKUIId id;
+  LDKUISize min_size;
+
+  min_size.w = 120.0f;
+  min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  request =
+      s_ui_layout_request_make(LDK_UI_ITEM_SLIDER_INPUT, min_size, 1.0f, true);
+
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return value;
+  }
+
+  return ldk_ui_widget_slider_input(ctx, id, value, min_value, max_value, rect);
 }
 
 u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)

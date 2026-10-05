@@ -2833,9 +2833,9 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   ldk_ui_spacer(ui);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_set_next_width(ui, ldk_ui_px(100.0f));
+  ldk_ui_set_next_width(ui, ldk_ui_px(160.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
-  state->icon_size = ldk_ui_slider(
+  state->icon_size = ldk_ui_slider_input(
       ui, state->icon_size, PROJECT_EXPLORER_MIN_ICON_SIZE, 72.0f);
   ldk_ui_end_horizontal(ui);
 

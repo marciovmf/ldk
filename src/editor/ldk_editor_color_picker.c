@@ -469,7 +469,7 @@ static void s_draw_hue(LDKUIContext *ui, LDKUIRect rect, LDKUIId id)
 }
 
 static bool s_slider_row(LDKUIContext *ui, const char *label, float *value,
-    float minimum, float maximum, const char *value_text, bool readonly)
+    float minimum, float maximum, bool readonly)
 {
   float previous = *value;
 
@@ -478,10 +478,8 @@ static bool s_slider_row(LDKUIContext *ui, const char *label, float *value,
   ldk_ui_label(ui, label);
   ldk_ui_set_next_width(ui, ldk_ui_fill());
   ldk_ui_begin_disabled(ui, readonly);
-  *value = ldk_ui_slider(ui, *value, minimum, maximum);
+  *value = ldk_ui_slider_input(ui, *value, minimum, maximum);
   ldk_ui_end_disabled(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(52.0f));
-  ldk_ui_label(ui, value_text);
   ldk_ui_end_horizontal(ui);
 
   return !readonly && fabsf(previous - *value) > 0.0001f;
@@ -531,33 +529,22 @@ static bool s_popup(LDKEditorContext *editor, rgba32 *color, bool readonly)
 
   if (s_color_picker.mode == 0u)
   {
-    float hue = s_color_picker.hue;
-    float saturation = s_color_picker.saturation;
-    float value = s_color_picker.value;
-    char hue_text[32];
-    char saturation_text[16];
-    char value_text[16];
+    float hue = s_color_picker.hue * 360.0f;
+    float saturation = s_color_picker.saturation * 100.0f;
+    float value = s_color_picker.value * 100.0f;
     bool hue_changed;
     bool hsv_changed;
 
-    snprintf(hue_text, sizeof(hue_text), "%.0f deg", hue * 360.0f);
-    snprintf(saturation_text, sizeof(saturation_text), "%.0f%%",
-        saturation * 100.0f);
-    snprintf(value_text, sizeof(value_text), "%.0f%%", value * 100.0f);
-
-    hue_changed = s_slider_row(
-        ui, "H", &hue, 0.0f, 1.0f, hue_text, readonly);
+    hue_changed = s_slider_row(ui, "H", &hue, 0.0f, 360.0f, readonly);
     hsv_changed = hue_changed;
-    hsv_changed |= s_slider_row(
-        ui, "S", &saturation, 0.0f, 1.0f, saturation_text, readonly);
-    hsv_changed |=
-        s_slider_row(ui, "V", &value, 0.0f, 1.0f, value_text, readonly);
+    hsv_changed |= s_slider_row(ui, "S", &saturation, 0.0f, 100.0f, readonly);
+    hsv_changed |= s_slider_row(ui, "V", &value, 0.0f, 100.0f, readonly);
 
     if (hsv_changed)
     {
-      s_color_picker.hue = s_clamp01(hue);
-      s_color_picker.saturation = s_clamp01(saturation);
-      s_color_picker.value = s_clamp01(value);
+      s_color_picker.hue = s_clamp01(hue / 360.0f);
+      s_color_picker.saturation = s_clamp01(saturation / 100.0f);
+      s_color_picker.value = s_clamp01(value / 100.0f);
       s_color_from_state(color);
       changed = true;
     }
@@ -570,25 +557,16 @@ static bool s_popup(LDKEditorContext *editor, rgba32 *color, bool readonly)
     float rf;
     float gf;
     float bf;
-    char r_text[16];
-    char g_text[16];
-    char b_text[16];
     bool rgb_changed = false;
 
     s_unpack(*color, &r, &g, &b, NULL);
     rf = (float)r;
     gf = (float)g;
     bf = (float)b;
-    snprintf(r_text, sizeof(r_text), "%u", (u32)r);
-    snprintf(g_text, sizeof(g_text), "%u", (u32)g);
-    snprintf(b_text, sizeof(b_text), "%u", (u32)b);
 
-    rgb_changed |=
-        s_slider_row(ui, "R", &rf, 0.0f, 255.0f, r_text, readonly);
-    rgb_changed |=
-        s_slider_row(ui, "G", &gf, 0.0f, 255.0f, g_text, readonly);
-    rgb_changed |=
-        s_slider_row(ui, "B", &bf, 0.0f, 255.0f, b_text, readonly);
+    rgb_changed |= s_slider_row(ui, "R", &rf, 0.0f, 255.0f, readonly);
+    rgb_changed |= s_slider_row(ui, "G", &gf, 0.0f, 255.0f, readonly);
+    rgb_changed |= s_slider_row(ui, "B", &bf, 0.0f, 255.0f, readonly);
 
     if (rgb_changed)
     {
@@ -605,13 +583,10 @@ static bool s_popup(LDKEditorContext *editor, rgba32 *color, bool readonly)
     u8 b;
     u8 a;
     float alpha;
-    char alpha_text[16];
 
     s_unpack(*color, &r, &g, &b, &a);
     alpha = (float)a;
-    snprintf(alpha_text, sizeof(alpha_text), "%u", (u32)a);
-    if (s_slider_row(
-            ui, "A", &alpha, 0.0f, 255.0f, alpha_text, readonly))
+    if (s_slider_row(ui, "A", &alpha, 0.0f, 255.0f, readonly))
     {
       *color = s_pack(r, g, b, (u8)(alpha + 0.5f));
       changed = true;

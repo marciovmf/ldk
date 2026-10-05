@@ -9,6 +9,11 @@
 #include <stdx/stdx_string.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <float.h>
 
 #define LDK_UI_DEFAULT_CONTROL_HEIGHT 22.0f
 #define LDK_UI_DEFAULT_SPACING 4.0f

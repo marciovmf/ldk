@@ -2188,7 +2188,8 @@ static void s_editor_inspector_field_draw(
         field->min_value < field->max_value)
     {
       ldk_ui_begin_disabled(ui, readonly);
-      value = ldk_ui_slider(ui, value, field->min_value, field->max_value);
+      value =
+          ldk_ui_slider_input(ui, value, field->min_value, field->max_value);
       ldk_ui_end_disabled(ui);
 
       if (!readonly)
@@ -2880,7 +2881,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   u32 previous_alpha = (u32)(*color & 255u);
   ldk_ui_begin_disabled(ui, readonly);
   u32 alpha =
-      (u32)(ldk_ui_slider(ui, (float)previous_alpha, 0, 255) + 0.5f);
+      (u32)(ldk_ui_slider_input(ui, (float)previous_alpha, 0, 255) + 0.5f);
   ldk_ui_end_disabled(ui);
   if (!readonly && alpha != previous_alpha)
   {
@@ -2931,7 +2932,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
       s_editor_material_row_begin(editor, "Alpha Cutoff");
       ldk_ui_begin_disabled(ui, readonly);
       float alpha_cutoff =
-          ldk_ui_slider(ui, desc->alpha_cutoff, 0.0f, 1.0f);
+          ldk_ui_slider_input(ui, desc->alpha_cutoff, 0.0f, 1.0f);
       ldk_ui_end_disabled(ui);
       if (!readonly && alpha_cutoff != desc->alpha_cutoff)
       {
@@ -2946,7 +2947,8 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   {
     s_editor_material_row_begin(editor, "Specular");
     ldk_ui_begin_disabled(ui, readonly);
-    float specular = ldk_ui_slider(ui, desc->surface.specular, 0.0f, 1.0f);
+    float specular =
+        ldk_ui_slider_input(ui, desc->surface.specular, 0.0f, 1.0f);
     ldk_ui_end_disabled(ui);
     if (!readonly && specular != desc->surface.specular)
     {
@@ -2959,7 +2961,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     float shininess =
         desc->surface.shininess == 0.0f ? 32.0f : desc->surface.shininess;
     ldk_ui_begin_disabled(ui, readonly);
-    float next_shininess = ldk_ui_slider(ui, shininess, 1.0f, 256.0f);
+    float next_shininess = ldk_ui_slider_input(ui, shininess, 1.0f, 256.0f);
     ldk_ui_end_disabled(ui);
     if (!readonly && next_shininess != shininess)
     {
@@ -2970,7 +2972,8 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
 
     s_editor_material_row_begin(editor, "Emission");
     ldk_ui_begin_disabled(ui, readonly);
-    float emission = ldk_ui_slider(ui, desc->surface.emission, 0.0f, 4.0f);
+    float emission =
+        ldk_ui_slider_input(ui, desc->surface.emission, 0.0f, 4.0f);
     ldk_ui_end_disabled(ui);
     if (!readonly && emission != desc->surface.emission)
     {

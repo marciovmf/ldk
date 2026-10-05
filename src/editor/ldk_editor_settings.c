@@ -482,7 +482,7 @@ static bool s_editor_settings_slider_row(LDKEditorContext *editor,
   LDKUIContext *ui = &editor->ui;
   float previous = *value;
   s_editor_settings_row_begin(editor, label);
-  *value = ldk_ui_slider(ui, *value, minimum, maximum);
+  *value = ldk_ui_slider_input(ui, *value, minimum, maximum);
   ldk_ui_end_horizontal(ui);
   return *value != previous;
 }
