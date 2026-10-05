@@ -5,7 +5,7 @@ scene:
     ambient_intensity: 0.200000003
   entities:
     - entity: 0
-      parent: 3
+      parent: 2
       flags: 0
       name: "MainCamera"
       components:
@@ -87,25 +87,6 @@ scene:
     - entity: 2
       parent: -1
       flags: 0
-      name: "Water"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.75000000, 0.00000000
-            local_scale: 600.000000, 600.000000, 600.000000
-            local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/quad"
-            mesh_index: 0
-            casts_shadows: false
-            billboard: false
-            material_type: 3
-            material_color: 0x4f9fc080
-            material_alpha_mode: 2
-    - entity: 3
-      parent: -1
-      flags: 0
       name: "Capsule"
       components:
         - type: 4294967294 # LDKTransform
@@ -133,7 +114,7 @@ scene:
             enabled: true
             radius: 0.500000000
             strength: 1.00000000
-    - entity: 4
+    - entity: 3
       parent: -1
       flags: 0
       name: "Cube"
@@ -154,7 +135,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 5
+    - entity: 4
       parent: -1
       flags: 0
       name: "BulbPlantEnemy"
@@ -181,7 +162,7 @@ scene:
             activation_range: 12.0000000
             cooldown: 1.50000000
             burst_offset: 0.00000000, 0.500000000, 0.00000000
-    - entity: 6
+    - entity: 5
       parent: -1
       flags: 0
       name: "Cube"
@@ -202,7 +183,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 7
+    - entity: 6
       parent: -1
       flags: 0
       name: "Cube"
@@ -223,7 +204,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 8
+    - entity: 7
       parent: -1
       flags: 0
       name: "Cube"
@@ -244,7 +225,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 9
+    - entity: 8
       parent: -1
       flags: 0
       name: "Cube"
@@ -265,7 +246,7 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-    - entity: 10
+    - entity: 9
       parent: -1
       flags: 0
       name: "Cube"
@@ -478,21 +459,21 @@ scene:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
       data:
-        seed: 10012
+        seed: 777
         map_size: 600
         land_scale: 0.00970000029
         island_radius: 0.800000012
         terrain_scale: 0.00999999978
-        terrain_height_strength: 0.850000000
-        surface_noise_scale: 0.0500000000
+        terrain_height_strength: 0.850000024
+        surface_noise_scale: 0.0500000007
         surface_noise_octaves: 3
-        surface_noise_strength: 0.300000000
+        surface_noise_strength: 0.300000012
         moisture_scale: 0.0179999992
         land_octaves: 5
         terrain_octaves: 4
         moisture_octaves: 3
         land_noise_strength: 0.750000000
-        height_smoothing_strength: 0.900000000
+        height_smoothing_strength: 0.899999976
         height_smoothing_radius: 8
         height_smoothing_edge_threshold: 0.00800000038
         height_smoothing_passes: 2
@@ -605,7 +586,7 @@ scene:
         heightmap: -1
         height_channel: "LDK_TERRAIN_CHANNEL_R"
         cell_size: 1.00000000
-        height_scale: 10.0000000
+        height_scale: 55.0000000
         height_offset: 0.00000000
         center_on_origin: true
         origin_x: 0.00000000
@@ -614,45 +595,89 @@ scene:
         material: "assets/tftf_island.material"
         surface_count: 6
         surface_0_name: "Shallow Water"
-        surface_0_min_height: 0.04000000
+        surface_0_min_height: 0.0399999991
         surface_0_blend_width: 0.00000000
-        surface_0_color: 4294967295
-        surface_0_atlas_rect: 0.000000000, 0.000000000, 0.166666667, 1.000000000
+        surface_0_atlas_rect: 0.00000000, 0.00000000, 0.166666672, 1.00000000
         surface_0_uv_scale: 1.00000000, 1.00000000
         surface_0_texture_weight: 1.00000000
         surface_1_name: "Sand"
-        surface_1_min_height: 0.08000000
-        surface_1_blend_width: 0.00500000
-        surface_1_color: 4294967295
-        surface_1_atlas_rect: 0.166666667, 0.000000000, 0.333333333, 1.000000000
+        surface_1_min_height: 0.0799999982
+        surface_1_blend_width: 0.00499999989
+        surface_1_atlas_rect: 0.166666672, 0.00000000, 0.333333343, 1.00000000
         surface_1_uv_scale: 1.00000000, 1.00000000
         surface_1_texture_weight: 1.00000000
         surface_2_name: "Dry"
-        surface_2_min_height: 0.11000000
-        surface_2_blend_width: 0.00500000
-        surface_2_color: 4294967295
-        surface_2_atlas_rect: 0.333333333, 0.000000000, 0.500000000, 1.000000000
+        surface_2_min_height: 0.109999999
+        surface_2_blend_width: 0.00499999989
+        surface_2_atlas_rect: 0.333333343, 0.00000000, 0.500000000, 1.00000000
         surface_2_uv_scale: 1.00000000, 1.00000000
         surface_2_texture_weight: 1.00000000
         surface_3_name: "Grass"
-        surface_3_min_height: 0.14000000
-        surface_3_blend_width: 0.00500000
-        surface_3_color: 4294967295
-        surface_3_atlas_rect: 0.500000000, 0.000000000, 0.666666667, 1.000000000
+        surface_3_min_height: 0.140000001
+        surface_3_blend_width: 0.00499999989
+        surface_3_atlas_rect: 0.500000000, 0.00000000, 0.666666687, 1.00000000
         surface_3_uv_scale: 1.00000000, 1.00000000
         surface_3_texture_weight: 1.00000000
         surface_4_name: "Forest"
-        surface_4_min_height: 0.17000000
-        surface_4_blend_width: 0.00500000
-        surface_4_color: 4294967295
-        surface_4_atlas_rect: 0.666666667, 0.000000000, 0.833333333, 1.000000000
+        surface_4_min_height: 0.170000002
+        surface_4_blend_width: 0.00499999989
+        surface_4_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
         surface_4_uv_scale: 1.00000000, 1.00000000
         surface_4_texture_weight: 1.00000000
         surface_5_name: "Mountain"
-        surface_5_min_height: 0.21000000
-        surface_5_blend_width: 0.01000000
-        surface_5_color: 4294967295
-        surface_5_atlas_rect: 0.833333333, 0.000000000, 1.000000000, 1.000000000
+        surface_5_min_height: 0.209999993
+        surface_5_blend_width: 0.00999999978
+        surface_5_atlas_rect: 0.833333313, 0.00000000, 1.00000000, 1.00000000
         surface_5_uv_scale: 1.00000000, 1.00000000
         surface_5_texture_weight: 1.00000000
+        surface_6_name: ""
+        surface_6_min_height: 0.00000000
+        surface_6_blend_width: 0.00000000
+        surface_6_atlas_rect: 0.00000000, 0.00000000, 1.00000000, 1.00000000
+        surface_6_uv_scale: 1.00000000, 1.00000000
+        surface_6_texture_weight: 0.00000000
+        surface_7_name: ""
+        surface_7_min_height: 0.00000000
+        surface_7_blend_width: 0.00000000
+        surface_7_atlas_rect: 0.00000000, 0.00000000, 1.00000000, 1.00000000
+        surface_7_uv_scale: 1.00000000, 1.00000000
+        surface_7_texture_weight: 0.00000000
         casts_shadows: false
+    - id: "0x00e9968219b6aae4"
+      data:
+        water_level: 2.00000000
+        center_x: 0.00000000
+        center_z: 0.00000000
+        width: 600.000000
+        depth: 600.000000
+        cell_size: 1.00000000
+        chunk_size: 32
+        shallow_color: 1941812032
+        deep_color: 609512959
+        depth_color_distance: 0.800000012
+        edge_fade_distance: 0.0399999991
+        wave_0_height: 0.0599999987
+        wave_0_length: 16.0000000
+        wave_0_speed: 1.20000005
+        wave_0_direction_degrees: 25.0000000
+        wave_1_height: 0.0350000001
+        wave_1_length: 9.00000000
+        wave_1_speed: 0.850000024
+        wave_1_direction_degrees: 55.0000000
+        wave_2_height: 0.0149999997
+        wave_2_length: 6.00000000
+        wave_2_speed: 0.600000024
+        wave_2_direction_degrees: 110.000000
+        detail_scale: 0.800000012
+        detail_strength: 0.0450000018
+        detail_speed: 0.250000000
+        specular: 0.349999994
+        shininess: 64.0000000
+        foam_color: 3891520230
+        foam_width: 0.219999999
+        foam_strength: 0.800000012
+        foam_scale: 0.649999976
+        shore_range: 2.00000000
+        shore_wave_length: 1.39999998
+        shore_wave_speed: 0.349999994
+        shore_foam_strength: 0.600000024

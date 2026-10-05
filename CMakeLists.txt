@@ -520,6 +520,8 @@ list(APPEND LDK_SOURCE
   src/system/ldk_grass_system.c
   ${INCLUDE_DIR}/system/ldk_terrain_system.h
   src/system/ldk_terrain_system.c
+  ${INCLUDE_DIR}/system/ldk_water_system.h
+  src/system/ldk_water_system.c
   ${INCLUDE_DIR}/system/ldk_particle_system.h
   src/system/ldk_particle_system.c
 )
@@ -875,6 +877,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
   ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
+  ldk_test_build(TARGET test_water SOURCES src/tests/test_ldk_water.c)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)
   ldk_test_build(TARGET test_package SOURCES src/tests/test_ldk_package.c)

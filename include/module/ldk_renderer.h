@@ -64,7 +64,8 @@ extern "C" {
     LDK_SHADER_BLUR_PASS,
     LDK_SHADER_SKYBOX_PASS,
     LDK_SHADER_MESH_PASS_SOLID_UNLIT,
-    LDK_SHADER_TERRAIN_PASS
+    LDK_SHADER_TERRAIN_PASS,
+    LDK_SHADER_WATER_PASS
   } LDKShader;
 
   typedef struct LDKRendererMeshDesc
@@ -101,6 +102,60 @@ extern "C" {
 
 #define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
 #define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
+
+#define LDK_RENDERER_WATER_WAVE_COUNT 3u
+
+  typedef struct LDKRendererWaterWave
+  {
+    float height; // Amplitude in world units.
+    float length; // Wavelength in world units.
+    float speed; // Travel speed in world units per second.
+    float direction_degrees; // Zero travels along +X, 90 along +Z.
+  } LDKRendererWaterWave;
+
+  typedef struct LDKRendererWaterDesc
+  {
+    float water_level;
+    rgba32 shallow_color;
+    rgba32 deep_color;
+    float depth_color_distance;
+    float edge_fade_distance;
+    LDKRendererWaterWave waves[LDK_RENDERER_WATER_WAVE_COUNT];
+    float detail_scale;
+    float detail_strength;
+    float detail_speed;
+    float specular;
+    float shininess;
+    rgba32 foam_color;
+    float foam_width;
+    float foam_strength;
+    float foam_scale;
+    float shore_range;
+    float shore_wave_length;
+    float shore_wave_speed;
+    float shore_foam_strength;
+    float time_seconds;
+  } LDKRendererWaterDesc;
+
+  typedef struct LDKRendererWaterSubmit
+  {
+    LDKResourceMesh mesh;
+    LDKRendererViewId view_id;
+    LDKRendererWaterDesc desc;
+  } LDKRendererWaterSubmit;
+
+  typedef struct LDKRendererWaterPass
+  {
+    LDKRHIContext *rhi;
+    LDKRHIShaderModule vertex_shader_module;
+    LDKRHIShaderModule fragment_shader_module;
+    LDKRHIBindingsLayout bindings_layout;
+    LDKRHIPipeline ldr_pipeline;
+    LDKRHIPipeline hdr_pipeline;
+    LDKRHIBuffer params_buffer;
+    LDKRHISampler depth_sampler;
+    bool is_initialized;
+  } LDKRendererWaterPass;
 
 #define LDK_RENDERER_MAX_LIGHTS_PER_VIEW 16
 
@@ -736,6 +791,7 @@ extern "C" {
     LDKRendererUIPass ui_pass;
     LDKRendererTextPass text_pass;
     LDKRendererMeshPass mesh_pass;
+    LDKRendererWaterPass water_pass;
     LDKRendererShadowPass shadow_pass;
     LDKRendererGridPass grid_pass;
     LDKRendererSkyboxPass skybox_pass;
@@ -823,6 +879,9 @@ extern "C" {
     LDKRendererMeshSubmit* submitted_meshes;
     u32 submitted_mesh_count;
     u32 submitted_mesh_capacity;
+    LDKRendererWaterSubmit *submitted_water;
+    u32 submitted_water_count;
+    u32 submitted_water_capacity;
     Mat4 *submitted_instance_worlds;
     LDKRHIColor *submitted_instance_colors;
     u32 submitted_instance_count;
@@ -848,6 +907,20 @@ extern "C" {
 
     bool is_initialized;
   } LDKRenderer;
+
+  LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc);
+  LDK_API bool ldk_renderer_water_desc_is_valid(
+      const LDKRendererWaterDesc *desc);
+  /**
+   * Submit a horizontal world-space grid. XZ positions come from the mesh;
+   * the shader supplies Y using water_level and the three waves. Scene depth
+   * is sampled after opaque rendering. The mesh remains caller-owned and
+   * must live until render_frame() completes. Overlapping water surfaces are
+   * composited in submission order; this path does not sort stacked water.
+   */
+  LDK_API bool ldk_renderer_submit_water(LDKRenderer *renderer,
+      LDKRendererViewId view_id, LDKResourceMesh mesh,
+      const LDKRendererWaterDesc *desc);
 
   /** Set constant ambient light applied to lit materials.
    * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
