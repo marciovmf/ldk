@@ -305,6 +305,7 @@ extern "C"
     LDK_UI_ITEM_COMBO_BOX = 16,
     LDK_UI_ITEM_TAB_BAR = 17,
     LDK_UI_ITEM_RESIZE_HANDLE = 18,
+    LDK_UI_ITEM_SLIDER_INPUT = 19,
   } LDKUIItemType;
 
   typedef enum LDKUISizeMode
@@ -508,6 +509,14 @@ extern "C"
     LDK_UI_INPUT_BOX_CANCELED = 1 << 2,
   } LDKUIInputBoxResult;
 
+  typedef struct LDKUISliderInputState
+  {
+    LDKUIId id;
+    char buffer[64];
+    float initial_value;
+    float value;
+  } LDKUISliderInputState;
+
   typedef enum LDKUIHitLayer
   {
     LDK_UI_HIT_LAYER_NORMAL = 0,
@@ -671,6 +680,8 @@ extern "C"
     LDKUIId dragging_window_id;
     LDKUIId resizing_window_id;
 
+    LDKUISliderInputState slider_input;
+
     u32 text_cursor;
     u32 text_select_start;
     u32 text_select_end;
@@ -818,6 +829,8 @@ extern "C"
       u32 item_count, u32 selected_index);
   LDK_API float ldk_ui_slider(
       LDKUIContext *ctx, float value, float min_value, float max_value);
+  LDK_API float ldk_ui_slider_input(
+      LDKUIContext *ctx, float value, float min_value, float max_value);
   LDK_API u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title,
       LDKUIIcon icon, bool expanded, u32 depth, u32 flags);
   LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
@@ -861,6 +874,8 @@ extern "C"
       LDKUIContext *ctx, LDKUIId id, bool value, LDKUIRect rect);
   LDK_API float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
       float min_value, float max_value, LDKUIRect rect);
+  LDK_API float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id,
+      float value, float min_value, float max_value, LDKUIRect rect);
   LDK_API float ldk_ui_widget_scrollbar_vertical(LDKUIContext *ctx, LDKUIId id,
       float scroll, float visible_size, float content_size, LDKUIRect rect);
   LDK_API float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx,

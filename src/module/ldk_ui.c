@@ -27,6 +27,8 @@
 #define s_ui_rect_intersect ldk_rectf_intersect
 
 static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text);
+static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
+    bool expanded, u32 depth, u32 flags, bool area_header);
 static void s_ui_windows_destroy_all(LDKUIContext *ctx);
 static void s_ui_windows_clear_frame_buffers(LDKUIContext *ctx);
 static void s_ui_window_destroy_buffers(LDKUIWindow *window);
@@ -713,7 +715,7 @@ static void s_ui_render_icon(LDKUIContext *ctx, LDKUIIcon icon, LDKUIRect rect,
     return;
   }
 
-  s_ui_render_quad_uv(ctx, rect, icon.uv, icon.color, clip_rect,
+  s_ui_render_quad_uv(ctx, rect, icon.uv, color, clip_rect,
       (LDKUITextureHandle)icon.texture);
 }
 
@@ -1012,7 +1014,7 @@ static void s_ui_render_icon_label(LDKUIContext *ctx, LDKUIIcon icon,
     icon_rect.w = icon.size.w;
     icon_rect.h = icon.size.h;
 
-    s_ui_render_icon(ctx, icon, icon_rect, color, clip);
+    s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip);
 
     text_x = icon_rect.x + icon_rect.w + LDK_UI_DEFAULT_SPACING;
   }
@@ -1054,7 +1056,7 @@ static void s_ui_render_icon_label_nowrap(LDKUIContext *ctx, LDKUIIcon icon,
     icon_rect.w = icon.size.w;
     icon_rect.h = icon.size.h;
 
-    s_ui_render_icon(ctx, icon, icon_rect, color, clip);
+    s_ui_render_icon(ctx, icon, icon_rect, icon.color, clip);
 
     cursor_x += icon.size.w;
 
@@ -1082,13 +1084,17 @@ static void s_ui_render_icon_label_nowrap(LDKUIContext *ctx, LDKUIIcon icon,
 static u32 s_ui_render_control_bg_color(
     LDKUIContext *ctx, LDKUIControlVisualState state)
 {
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE_HOVERED];
+  }
+
   if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
   {
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
   }
 
-  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
-      state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE)
   {
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
   }
@@ -1110,8 +1116,12 @@ static u32 s_ui_render_control_text_color(
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_DISABLED];
   }
 
-  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
-      state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE_HOVERED];
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE)
   {
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
   }
@@ -1138,8 +1148,12 @@ static u32 s_ui_render_control_border_color(
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED];
   }
 
-  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
-      state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE_HOVERED];
+  }
+
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE)
   {
     return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
   }

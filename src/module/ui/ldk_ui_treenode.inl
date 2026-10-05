@@ -13,8 +13,8 @@
 #define LDK_UI_TREE_NODE_CHEVRON_WIDTH 10.0f
 #endif
 
-u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
-    bool expanded, u32 depth, u32 flags)
+static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
+    bool expanded, u32 depth, u32 flags, bool area_header)
 {
   if (ctx == NULL)
   {
@@ -62,6 +62,11 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   min_size.w = indent_width + chevron_width + LDK_UI_DEFAULT_SPACING +
                label_width + LDK_UI_DEFAULT_SPACING;
   min_size.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  if (area_header)
+  {
+    min_size.w += LDK_UI_DEFAULT_SPACING * 2.0f;
+    min_size.h += LDK_UI_DEFAULT_SPACING;
+  }
 
   if (chevron_icon_valid && chevron_icon.size.h > min_size.h)
   {
@@ -94,13 +99,19 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   LDKUIFrameState frame =
       s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
+  if (area_header)
+  {
+    s_ui_render_quad(ctx, box.rect,
+        ctx->theme.colors[LDK_UI_COLOR_TITLE_BAR], box.clip, 0);
+  }
+
   if ((flags & LDK_UI_TREE_NODE_SELECTED))
   {
     s_ui_render_quad(
         ctx, box.rect, ctx->theme.colors[LDK_UI_COLOR_FOCUS], box.clip, 0);
   }
 
-  if (frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+  else if (frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
       frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
       frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
   {
@@ -109,8 +120,17 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   }
 
   u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
+  if (area_header && frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_IDLE)
+  {
+    text_color = ctx->theme.colors[LDK_UI_COLOR_TITLE];
+  }
+  if ((flags & LDK_UI_TREE_NODE_SELECTED) && !box.disabled)
+  {
+    text_color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
+  }
 
-  float chevron_x = box.rect.x + indent_width;
+  float header_padding = area_header ? LDK_UI_DEFAULT_SPACING : 0.0f;
+  float chevron_x = box.rect.x + indent_width + header_padding;
   float label_x = chevron_x + chevron_width + LDK_UI_DEFAULT_SPACING;
 
   LDKUIRect chevron_hit_rect = {0};
@@ -130,7 +150,7 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
       icon_rect.w = chevron_icon.size.w;
       icon_rect.h = chevron_icon.size.h;
 
-      s_ui_render_icon(ctx, chevron_icon, icon_rect, chevron_icon.color, box.clip);
+      s_ui_render_icon(ctx, chevron_icon, icon_rect, text_color, box.clip);
     }
     else
     {
@@ -149,11 +169,22 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   LDKUIRect label_rect = {0};
   label_rect.x = label_x;
   label_rect.y = box.rect.y;
-  label_rect.w = s_ui_maxf(0.0f, box.rect.x + box.rect.w - label_x);
+  label_rect.w =
+      s_ui_maxf(0.0f, box.rect.x + box.rect.w - label_x - header_padding);
   label_rect.h = box.rect.h;
 
-  s_ui_render_icon_label(
-      ctx, icon, safe_title, label_rect, text_color, box.clip);
+  LDKUIRect label_clip = s_ui_rect_intersect(&box.clip, &label_rect);
+  s_ui_render_icon_label_nowrap(
+      ctx, icon, safe_title, label_rect, text_color, label_clip);
+
+  if (area_header)
+  {
+    LDKUIRect separator = box.rect;
+    separator.h = s_ui_minf(1.0f, box.rect.h);
+    separator.y = box.rect.y + box.rect.h - separator.h;
+    s_ui_render_quad(ctx, separator,
+        ctx->theme.colors[LDK_UI_COLOR_SEPARATOR], box.clip, 0);
+  }
 
   if (frame.clicked)
   {
@@ -167,6 +198,12 @@ u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
   }
 
   return result;
+}
+
+u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
+    bool expanded, u32 depth, u32 flags)
+{
+  return s_ui_tree_node_ex(ctx, title, icon, expanded, depth, flags, false);
 }
 
 bool ldk_ui_tree_node(

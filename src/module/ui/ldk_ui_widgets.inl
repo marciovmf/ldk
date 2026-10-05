@@ -348,10 +348,18 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
 
   s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
 
-  if (!active)
+  if (active)
   {
-    s_ui_render_border(
-        ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+    LDKUIRect accent_rect = box.rect;
+    accent_rect.h = s_ui_minf(2.0f, box.rect.h);
+    s_ui_render_quad(ctx, accent_rect, border, box.clip, 0);
+  }
+  else if (ctx->theme.control_border_size > 0.0f)
+  {
+    LDKUIRect edge_rect = box.rect;
+    edge_rect.h = s_ui_minf(ctx->theme.control_border_size, box.rect.h);
+    edge_rect.y = box.rect.y + box.rect.h - edge_rect.h;
+    s_ui_render_quad(ctx, edge_rect, border, box.clip, 0);
   }
 
   LDKUIRect content_rect;
@@ -409,7 +417,7 @@ bool ldk_ui_widget_toggle(
     check_rect.x = box.rect.x + (box.rect.w - check_rect.w) * 0.5f;
     check_rect.y = box.rect.y + (box.rect.h - check_rect.h) * 0.5f;
 
-    s_ui_render_icon(ctx, toggle_icon, check_rect, toggle_icon.color, box.clip);
+    s_ui_render_icon(ctx, toggle_icon, check_rect, text_color, box.clip);
   }
   else if (value)
   {
@@ -493,7 +501,7 @@ static void s_ui_widget_slider_render(LDKUIContext *ctx,
   s_ui_render_quad(ctx, fill_rect, fill_color, box->clip, 0);
   s_ui_render_quad(ctx, thumb_rect, thumb_color, box->clip, 0);
   s_ui_render_border(
-      ctx, box->rect, ctx->theme.control_border_size, border_color, box->clip);
+      ctx, thumb_rect, ctx->theme.control_border_size, border_color, box->clip);
 }
 
 float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
@@ -741,8 +749,16 @@ static float s_ui_widget_scrollbar(LDKUIContext *ctx, LDKUIId id, float scroll,
 
   s_ui_render_quad(ctx, track_rect,
       ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_TRACK], box.clip, 0);
-  s_ui_render_quad(ctx, thumb_rect,
-      ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB], box.clip, 0);
+  u32 thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB];
+  if (frame.active)
+  {
+    thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_ACTIVE];
+  }
+  else if (frame.hot)
+  {
+    thumb_color = ctx->theme.colors[LDK_UI_COLOR_SCROLLBAR_THUMB_HOVERED];
+  }
+  s_ui_render_quad(ctx, thumb_rect, thumb_color, box.clip, 0);
 
   return scroll;
 }
@@ -792,6 +808,25 @@ static u32 s_ui_render_input_bg_color(
   }
 
   return ctx->theme.colors[LDK_UI_COLOR_INPUT_BG];
+}
+
+static u32 s_ui_render_input_border_color(LDKUIContext *ctx,
+    LDKUIControlVisualState state, bool focused)
+{
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_DISABLED];
+  }
+  if (focused)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
+  }
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+      state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
+  }
+  return ctx->theme.colors[LDK_UI_COLOR_INPUT_BORDER];
 }
 
 typedef enum LDKUIInputVisualMode
@@ -1603,7 +1638,8 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   text_size = s_ui_widget_text_size(ctx, buffer);
 
   bg = s_ui_render_input_bg_color(ctx, frame.visual_state);
-  border = ctx->theme.colors[LDK_UI_COLOR_INPUT_BORDER];
+  border = s_ui_render_input_border_color(
+      ctx, frame.visual_state, frame.focused);
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
   border_size = ctx->theme.input_border_size > 0.0f
                     ? ctx->theme.input_border_size
@@ -2469,49 +2505,6 @@ LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
   s_ui_render_quad(ctx, separator,
       ctx->theme.colors[LDK_UI_COLOR_TAB_BAR_SEPARATOR], bar_clip, 0);
 
-  if (active_rect_visible)
-  {
-    LDKUIRect active_gap;
-    active_gap.x = active_rect.x;
-    active_gap.y = line_y;
-    active_gap.w = active_rect.w;
-    active_gap.h = LDK_UI_TAB_BAR_LINE_THICKNESS;
-
-    s_ui_render_quad(ctx, active_gap,
-        ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BG], bar_clip, 0);
-
-    float border_size = ctx->theme.control_border_size;
-
-    if (border_size > 0.0f)
-    {
-      u32 active_border = ctx->theme.colors[LDK_UI_COLOR_TAB_ACTIVE_BORDER];
-
-      LDKUIRect top_border;
-      top_border.x = active_rect.x;
-      top_border.y = active_rect.y;
-      top_border.w = active_rect.w;
-      top_border.h = border_size;
-
-      s_ui_render_quad(ctx, top_border, active_border, bar_clip, 0);
-
-      LDKUIRect left_border;
-      left_border.x = active_rect.x;
-      left_border.y = active_rect.y;
-      left_border.w = border_size;
-      left_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
-
-      s_ui_render_quad(ctx, left_border, active_border, bar_clip, 0);
-
-      LDKUIRect right_border;
-      right_border.x = active_rect.x + active_rect.w - border_size;
-      right_border.y = active_rect.y;
-      right_border.w = border_size;
-      right_border.h = active_rect.h + LDK_UI_TAB_BAR_LINE_THICKNESS;
-
-      s_ui_render_quad(ctx, right_border, active_border, bar_clip, 0);
-    }
-  }
-
   if (ldk_ui_begin_popup(ctx, popup_id))
   {
     for (u32 i = 0; i < item_count; ++i)
@@ -2698,7 +2691,8 @@ void ldk_ui_horizontal_line(LDKUIContext *ctx)
     return;
   }
 
-  ldk_ui_widget_panel(ctx, id, rect);
+  s_ui_render_quad(ctx, rect, ctx->theme.colors[LDK_UI_COLOR_SEPARATOR],
+      s_ui_current_clip_rect(ctx), 0);
 }
 
 void ldk_ui_spacer(LDKUIContext *ctx)
