@@ -477,6 +477,11 @@ bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 // integer. It must be non-zero and unique among the windows registered by the
 // editor and its tools. Do not use an address as an ID.
 
+typedef enum LDKEditorEventTag
+{
+  LDK_EDITOR_EVENT_WINDOW_CLOSED = 1
+} LDKEditorEventTag;
+
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
@@ -522,6 +527,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
 #define LDK_EDITOR_WINDOW_SETTINGS ((LDKEditorWindowId)0x4C444B0Du)
 #define LDK_EDITOR_WINDOW_PROJECT ((LDKEditorWindowId)0x4C444B0Eu)
+#define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
