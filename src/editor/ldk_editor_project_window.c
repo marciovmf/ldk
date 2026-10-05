@@ -277,7 +277,7 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
 
-  project_expanded = ldk_ui_tree_node(ui, "Project", project_expanded, 0, 0);
+  project_expanded = ldk_ui_begin_area(ui, "Project", project_expanded);
   if (project_expanded)
   {
     s_editor_project_read_only_row(
@@ -289,10 +289,12 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
     s_editor_project_read_only_row(
         editor, "RunTree", editor->project.run_root_path.buf);
   }
+  ldk_ui_end_area(ui);
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
   identity_expanded =
-      ldk_ui_tree_node(ui, "Identity", identity_expanded, 0, 0);
+      ldk_ui_begin_area(ui, "Identity", identity_expanded);
   if (identity_expanded)
   {
     u32 result = 0;
@@ -307,10 +309,12 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
       draft.dirty = true;
     }
   }
+  ldk_ui_end_area(ui);
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
-  runtime_expanded = ldk_ui_tree_node(
-      ui, "Runtime defaults", runtime_expanded, 0, 0);
+  runtime_expanded = ldk_ui_begin_area(
+      ui, "Runtime defaults", runtime_expanded);
   if (runtime_expanded)
   {
     u32 result = 0;
@@ -325,9 +329,11 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
       draft.dirty = true;
     }
   }
+  ldk_ui_end_area(ui);
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
-  build_expanded = ldk_ui_tree_node(ui, "Build", build_expanded, 0, 0);
+  build_expanded = ldk_ui_begin_area(ui, "Build", build_expanded);
   if (build_expanded)
   {
     u32 new_build_type;
@@ -388,6 +394,7 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
     ldk_ui_spacer(ui);
     ldk_ui_end_horizontal(ui);
   }
+  ldk_ui_end_area(ui);
 
   ldk_ui_end_scrollview(ui);
 

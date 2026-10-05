@@ -17,7 +17,7 @@
 #include <string.h>
 
 #define LDK_EDITOR_CONFIG_FILE "editor.ini"
-#define LDK_EDITOR_THEME_METRIC_COUNT 9u
+#define LDK_EDITOR_THEME_METRIC_COUNT 10u
 
 #define S_EDITOR_THEME_COLOR(name) {#name, LDK_UI_COLOR_##name}
 
@@ -109,6 +109,7 @@ static const LDKEditorThemeMetricEntry s_editor_theme_metrics[] = {
     S_EDITOR_THEME_METRIC(text_cursor_blink_interval, true),
     S_EDITOR_THEME_METRIC(text_cursor_width, false),
     S_EDITOR_THEME_METRIC(text_cursor_padding_y, false),
+    S_EDITOR_THEME_METRIC(panel_padding, false),
 };
 
 #undef S_EDITOR_THEME_METRIC

@@ -487,6 +487,18 @@ static bool s_editor_settings_slider_row(LDKEditorContext *editor,
   return *value != previous;
 }
 
+static bool s_editor_settings_area_button(
+    LDKUIContext *ui, LDKUIId id, const char *label)
+{
+  LDKUIRect rect = ldk_ui_area_header_rect(ui);
+  float width = ldk_ttf_measure_text_cstr(ui->font, label).w + 16.0f;
+  rect.x += rect.w - width - LDK_UI_DEFAULT_PADDING;
+  rect.y += (rect.h - LDK_UI_DEFAULT_CONTROL_HEIGHT) * 0.5f;
+  rect.w = width;
+  rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  return ldk_ui_widget_button_flat(ui, id, label, rect);
+}
+
 void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
 {
   static LDKUIPoint scroll = {0};
@@ -525,10 +537,9 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   ui = &editor->ui;
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-  ldk_ui_set_padding(ui, ui->theme.panel_padding);
 
   general_expanded =
-      ldk_ui_tree_node(ui, "General", general_expanded, 0, 0);
+      ldk_ui_begin_area(ui, "General", general_expanded);
   if (general_expanded)
   {
     bool restore_last_project;
@@ -543,10 +554,12 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     ldk_ui_spacer(ui);
     ldk_ui_end_horizontal(ui);
   }
+  ldk_ui_end_area(ui);
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
   camera_expanded =
-      ldk_ui_tree_node(ui, "Camera", camera_expanded, 0, 0);
+      ldk_ui_begin_area(ui, "Camera", camera_expanded);
   if (camera_expanded)
   {
     u32 result = 0;
@@ -563,16 +576,16 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       draft.dirty = true;
     }
   }
+  ldk_ui_end_area(ui);
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_weight(ui, 1.0f);
-  external_programs_expanded = ldk_ui_tree_node(
-      ui, "External programs", external_programs_expanded, 0, 0);
+  bool external_programs_open = ldk_ui_begin_area(
+      ui, "External programs", external_programs_expanded);
+  external_programs_expanded = external_programs_open;
   ldk_ui_set_next_disabled(ui,
       draft.file_association_count >= LDK_EDITOR_FILE_ASSOCIATION_CAPACITY);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button(ui, "Add"))
+  if (s_editor_settings_area_button(ui, 0x53455441u, "Add"))
   {
     u32 index = draft.file_association_count++;
     LDKEditorFileAssociation *association = &draft.file_associations[index];
@@ -584,9 +597,8 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     external_programs_expanded = true;
     draft.dirty = true;
   }
-  ldk_ui_end_horizontal(ui);
 
-  if (external_programs_expanded)
+  if (external_programs_open)
   {
     ldk_ui_label(ui,
         "Use %file% in Arguments. Extensions may be separated by spaces, "
@@ -600,17 +612,13 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
           association->name[0] != 0 ? association->name : "New program";
 
       ldk_ui_push_id_u32(ui, i + 1u);
-      ldk_ui_begin_horizontal(ui);
-      ldk_ui_set_next_weight(ui, 1.0f);
       program_expanded[i] =
-          ldk_ui_tree_node(ui, title, program_expanded[i], 1, 0);
-      ldk_ui_set_next_weight(ui, 0.0f);
-      if (ldk_ui_button(ui, "Remove"))
+          ldk_ui_begin_area(ui, title, program_expanded[i]);
+      if (s_editor_settings_area_button(ui, 0x53455452u + i, "Remove"))
       {
         delete_requested = true;
         delete_index = i;
       }
-      ldk_ui_end_horizontal(ui);
 
       if (program_expanded[i])
       {
@@ -631,6 +639,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
         result |= s_editor_settings_input_row(editor, "Associations",
             association->extensions, (u32)sizeof(association->extensions));
       }
+      ldk_ui_end_area(ui);
       ldk_ui_pop_id(ui);
 
       if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -642,8 +651,14 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       {
         break;
       }
+      if (i + 1u < draft.file_association_count)
+      {
+        ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
+        ldk_ui_spacer(ui);
+      }
     }
   }
+  ldk_ui_end_area(ui);
 
   if (delete_requested && delete_index < draft.file_association_count)
   {
@@ -659,9 +674,10 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     draft.dirty = true;
   }
 
+  ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
   ldk_ui_spacer(ui);
   look_and_feel_expanded =
-      ldk_ui_tree_node(ui, "Look and feel", look_and_feel_expanded, 0, 0);
+      ldk_ui_begin_area(ui, "Look and feel", look_and_feel_expanded);
   if (look_and_feel_expanded)
   {
     bool single_click;
@@ -721,6 +737,7 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
       draft.dirty = true;
     }
   }
+  ldk_ui_end_area(ui);
 
   ldk_ui_end_scrollview(ui);
 

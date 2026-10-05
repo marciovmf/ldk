@@ -29,8 +29,18 @@
 #define LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN 0.0f
 #define LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX 10.0f
 
-#define LDK_EDITOR_STATUS_BAR_HEIGHT                                          \
-  (LDK_UI_DEFAULT_PADDING + LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_SPACING)
+static inline float ldki_editor_bar_control_height(const LDKUIContext *ui)
+{
+  float height = ldk_ttf_get_line_height(ui->font);
+  return height > LDK_UI_DEFAULT_CONTROL_HEIGHT
+             ? height : LDK_UI_DEFAULT_CONTROL_HEIGHT;
+}
+
+#define LDK_EDITOR_TOOL_BAR_HEIGHT(ui)                                        \
+  (ldki_editor_bar_control_height(ui) + 2.0f * (ui)->theme.panel_padding)
+#define LDK_EDITOR_MENU_BAR_HEIGHT(ui)                                        \
+  (LDK_EDITOR_TOOL_BAR_HEIGHT(ui) + LDK_UI_DEFAULT_SPACING + 1.0f)
+#define LDK_EDITOR_STATUS_BAR_HEIGHT(ui) LDK_EDITOR_MENU_BAR_HEIGHT(ui)
 
 #ifndef LDK_EDITOR_TAG_COUNT
 #define LDK_EDITOR_TAG_COUNT 16
