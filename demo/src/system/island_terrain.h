@@ -76,6 +76,29 @@ typedef struct IslandTerrain
   u32 height_smoothing_passes;
   //@end_group
 
+  //@begin_group "Height Bands"
+  /** Normalized heights, multiplied by TerrainSystem.height_scale. */
+  //@inspect slider min=0 max=1
+  float deep_water_height;
+  //@inspect slider min=0 max=1
+  float shallow_water_height;
+  //@inspect slider min=0 max=1
+  float dry_height;
+  //@inspect slider min=0 max=1
+  float grass_height;
+  //@inspect slider min=0 max=1
+  float forest_height;
+  //@inspect slider min=0 max=1
+  float thorn_height;
+  //@inspect slider min=0 max=1
+  float mountain_height;
+  //@inspect slider min=0 max=1
+  float max_height;
+  /** Fraction of the coastal shallow band used by the deep-to-shallow slope. */
+  //@inspect slider min=0.01 max=1
+  float shallow_slope_fraction;
+  //@end_group
+
   //@begin_group "Biome Thresholds"
   float deep_water_max;
   float shallow_water_max;
@@ -83,6 +106,27 @@ typedef struct IslandTerrain
   float mountain_min;
   float dry_moisture_max;
   float grass_moisture_max;
+  /** Independent noise selects patches of thorn vegetation below mountains. */
+  float thorn_noise_scale;
+  //@inspect slider min=0 max=1
+  float thorn_noise_min;
+  /** Additional thorn noise weight in cells otherwise assigned to tall grass. */
+  //@inspect slider min=0 max=1
+  float thorn_grass_bias;
+  //@end_group
+
+  //@begin_group "Inland Shallow Water"
+  /** Candidate spacing in heightmap cells. Zero disables inland pools. */
+  //@inspect min=0
+  float shallow_patch_spacing;
+  //@inspect slider min=0 max=1
+  float shallow_patch_chance;
+  //@inspect min=1
+  float shallow_patch_min_radius;
+  //@inspect min=1
+  float shallow_patch_max_radius;
+  //@inspect min=1
+  float shallow_patch_bank_width;
   //@end_group
 
   //@begin_group "Decorations"
@@ -108,6 +152,8 @@ typedef struct IslandTerrain
   XSmallstr dry_grass_type_name;
   XSmallstr grass_type_name;
   XSmallstr forest_grass_type_name;
+  XSmallstr thorn_grass_type_name;
+  XSmallstr shallow_grass_type_name;
   //@end_group
 
   //@begin_group "Island Rendering"
