@@ -290,11 +290,9 @@ static void s_scrollview_apply_content_rect(LDKUILayout* layout,
   */
   layout->rect = view_rect;
   layout->bounding_rect = view_rect;
-  layout->content_rect = content_rect;
-  layout->cursor.x = layout->content_rect.x;
-  layout->cursor.y = layout->content_rect.y;
-  layout->content_used_right = layout->content_rect.x;
-  layout->content_used_bottom = layout->content_rect.y;
+  layout->unpadded_content_rect = content_rect;
+  // Scroll views start flush; callers may inset the translated content.
+  s_ui_layout_apply_padding(layout, 0.0f);
 
   layout->disable_main_axis_expand = true;
 }
@@ -524,6 +522,9 @@ void ldk_ui_end_scrollview(LDKUIContext* ctx)
   LDKUIRect measured_rect = ldk_ui_measure_from(ctx, entry.mark);
   LDKUISize content_size = s_scrollview_content_size_from_measured_rect(
     measured_rect);
+  // Include both margins so the final child can scroll clear of the edge.
+  content_size.w += layout->padding * 2.0f;
+  content_size.h += layout->padding * 2.0f;
   LDKUIRect content_view_rect = s_scrollview_content_view_rect_from_view(
     entry.view_rect, content_size.w, content_size.h, entry.flags);
 
@@ -565,3 +566,4 @@ void ldk_ui_end_scrollview(LDKUIContext* ctx)
   ctx->last_bounding_rect = entry.view_rect;
   ctx->last_id = entry.id;
 }
+

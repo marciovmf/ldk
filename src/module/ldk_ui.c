@@ -2478,6 +2478,7 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->text_cursor_blink_interval = 1.0f;
   theme->text_cursor_width = 2.0f;
   theme->text_cursor_padding_y = 4.0f;
+  theme->panel_padding = LDK_UI_DEFAULT_PADDING;
 
   return true;
 }
@@ -2637,3 +2638,4 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
 #include "ui/ldk_ui_scrollview.inl"
 #include "ui/ldk_ui_treenode.inl"
 #include "ui/ldk_ui_popup.inl"
+

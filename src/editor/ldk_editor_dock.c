@@ -3,16 +3,14 @@
 #include "ldk_editor_settings.h"
 #include "ldk_editor_project_window.h"
 #include "module/ldk_ui.h"
+#include <ldk.h>
+#include <module/ldk_eventqueue.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-
-#ifndef LDK_EDITOR_DOCK_WORKSPACE_TOP
-#define LDK_EDITOR_DOCK_WORKSPACE_TOP                                          \
-  (LDK_UI_DEFAULT_CONTROL_HEIGHT * 2.0f + LDK_UI_DEFAULT_PADDING * 4.0f)
-#endif
+#include <ctype.h>
 
 #ifndef LDK_EDITOR_DOCK_NODE_CAPACITY
 #define LDK_EDITOR_DOCK_NODE_CAPACITY 32
@@ -441,7 +439,8 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
     return (LDKUIRect){0};
   }
 
-  float height = ui->viewport.h - LDK_EDITOR_DOCK_WORKSPACE_TOP;
+  float top = LDK_EDITOR_MENU_BAR_HEIGHT(ui) + LDK_EDITOR_TOOL_BAR_HEIGHT(ui);
+  float height = ui->viewport.h - top - LDK_EDITOR_STATUS_BAR_HEIGHT(ui);
   if (height < 0.0f)
   {
     height = 0.0f;
@@ -450,9 +449,9 @@ static LDKUIRect s_editor_dock_workspace_rect(const LDKUIContext *ui)
   return (LDKUIRect)
   {
     ui->viewport.x,
-    ui->viewport.y + LDK_EDITOR_DOCK_WORKSPACE_TOP,
+    ui->viewport.y + top,
     ui->viewport.w,
-    height - LDK_EDITOR_STATUS_BAR_HEIGHT}; // give space for the status bar at the bottom
+    height};
 }
 
 static void s_editor_dock_resize_reset(LDKEditorDockResize *resize)
@@ -776,15 +775,57 @@ static bool s_editor_dock_window_detach(
   return true;
 }
 
+static void s_editor_dock_window_closed_event_push(
+    LDKEditorWindowId window_id)
+{
+  LDKEventQueue *events;
+  LDKEvent event;
+
+  if (!s_editor_dock.initialized ||
+      window_id == LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    return;
+  }
+
+  events = ldk_module_get(LDK_MODULE_EVENT);
+  if (events == NULL)
+  {
+    return;
+  }
+
+  event = (LDKEvent){.type = LDK_EVENT_TYPE_CUSTOM,
+      .custom_event = {.type = LDK_EVENT_TYPE_CUSTOM,
+          .sender = (u32)window_id,
+          .tag = (u32)LDK_EDITOR_EVENT_WINDOW_CLOSED,
+          .data = NULL}};
+
+  ldk_event_push(events, &event);
+}
+
 bool ldki_editor_window_hide(LDKEditorWindowId window_id)
 {
   LDKEditorDockWindow *window =
       s_editor_dock_window_get(&s_editor_dock, window_id);
+  bool was_open;
+
   if (!window || !s_editor_dock_window_detach(&s_editor_dock, window_id))
+  {
     return false;
+  }
+
+  was_open = window->open;
   window->open = false;
+
   if (s_editor_dock.drag.window == window_id)
+  {
     s_editor_dock_drag_reset(&s_editor_dock.drag);
+  }
+
+  if (was_open)
+  {
+    s_editor_dock_window_closed_event_push(window_id);
+  }
+
   return true;
 }
 
@@ -793,6 +834,7 @@ bool ldki_editor_window_remove(LDKEditorWindowId window_id)
   LDKEditorDockState *dock = &s_editor_dock;
   LDKEditorDockWindow *window;
   u32 index;
+  bool was_open;
 
   if (!dock->initialized || window_id == LDK_EDITOR_WINDOW_ID_INVALID)
   {
@@ -805,6 +847,7 @@ bool ldki_editor_window_remove(LDKEditorWindowId window_id)
     return true;
   }
 
+  was_open = window->open;
   index = (u32)(window - dock->windows);
   if (!s_editor_dock_window_detach(dock, window_id))
   {
@@ -825,6 +868,12 @@ bool ldki_editor_window_remove(LDKEditorWindowId window_id)
   memset(&dock->windows[dock->window_count], 0,
       sizeof(dock->windows[dock->window_count]));
   s_editor_dock_window_locations_refresh(dock);
+
+  if (was_open)
+  {
+    s_editor_dock_window_closed_event_push(window_id);
+  }
+
   return true;
 }
 
@@ -1496,6 +1545,7 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
   LDKUIId dock_window_id = ui->last_id;
 
   LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY] = {0};
+  char tab_titles[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY][64];
   u32 active_index = 0;
 
   for (u32 i = 0; i < leaf->window_count; ++i)
@@ -1503,8 +1553,17 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
     const LDKEditorDockWindow *window =
         s_editor_dock_window_get_const(dock, leaf->windows[i]);
 
+    snprintf(tab_titles[i], sizeof(tab_titles[i]), "%s",
+        window != NULL ? window->window.title : "<missing window>");
+    for (char *letter = tab_titles[i]; *letter != '\0'; ++letter)
+    {
+      if ((unsigned char)*letter < 128u)
+      {
+        *letter = (char)toupper((unsigned char)*letter);
+      }
+    }
     tab_items[i] = (LDKUITabBarItem){.id = (LDKUIId)(i + 1),
-        .label = window != NULL ? window->window.title : "<missing window>"};
+        .label = tab_titles[i]};
 
     if (leaf->windows[i] == leaf->active_window)
     {
@@ -1534,6 +1593,8 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
       close_button_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
   close_button_rect.w = 24.0f;
   close_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  close_button_rect.y +=
+      (LDK_UI_TAB_BAR_TAB_HEIGHT - close_button_rect.h) * 0.5f;
 
   const LDKUIId close_button_id =
       (LDKUIId)(0x444F4300u + (u32)leaf_index);
@@ -1560,13 +1621,15 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
 {
   LDKUIContext *ui = &editor->ui;
   u32 flags = LDK_UI_WINDOW_TOOL;
+  bool was_open = window->open;
 
   if (!ldk_ui_begin_window_open(ui, window->window.title,
           &window->floating_rect, &window->open, flags))
   {
-    if (!window->open)
+    if (was_open && !window->open)
     {
       s_editor_dock_window_detach(dock, window->window.id);
+      s_editor_dock_window_closed_event_push(window->window.id);
     }
     return;
   }
@@ -3118,6 +3181,9 @@ static i32 s_editor_dock_layout_apply_node(LDKEditorDockState *dock,
 static bool s_editor_dock_layout_apply(
     LDKEditorDockState *dock, const LDKEditorDockLayout *layout)
 {
+  LDKEditorWindowId closed_windows[LDK_EDITOR_WINDOW_CAPACITY];
+  u32 closed_window_count = 0;
+
   if (dock == NULL || layout == NULL)
   {
     return false;
@@ -3160,6 +3226,18 @@ static bool s_editor_dock_layout_apply(
   }
 
   s_editor_dock_window_locations_refresh(&candidate);
+
+  for (u32 i = 0; i < candidate.window_count; ++i)
+  {
+    const LDKEditorDockWindow *previous =
+        s_editor_dock_window_get(dock, candidate.windows[i].window.id);
+
+    if (previous != NULL && previous->open && !candidate.windows[i].open)
+    {
+      closed_windows[closed_window_count++] = candidate.windows[i].window.id;
+    }
+  }
+
   *dock = candidate;
   if (dock->editor)
   {
@@ -3174,6 +3252,12 @@ static bool s_editor_dock_layout_apply(
     ldki_editor_file_explorer_tree_width_set(
         layout->properties.project_explorer_tree_width);
   }
+
+  for (u32 i = 0; i < closed_window_count; ++i)
+  {
+    s_editor_dock_window_closed_event_push(closed_windows[i]);
+  }
+
   return true;
 }
 
@@ -3827,3 +3911,4 @@ void ldk_editor_dock_terminate(LDKEditorContext *editor)
   s_editor_dock_layouts =
       (LDKEditorDockLayouts){.current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 }
+

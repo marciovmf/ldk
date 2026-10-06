@@ -52,6 +52,9 @@
 #define LDK_DEFAULT_UI_INITIAL_STACK_CAPACITY 16
 #endif
 
+static void s_editor_statistics_only(LDKEditorContext *editor, i32 window_width,
+    i32 window_height, float delta_time);
+
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
     i32 window_height, float delta_time);
 static bool s_editor_state_set_play(LDKEditorContext *editor);
@@ -282,6 +285,18 @@ const char *ldki_editor_cmake_native_arch_get(void)
 static bool _on_event_keyboard(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
+  if (editor->exclusive_mode &&
+      editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+  {
+    if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN &&
+        event->keyboard_event.ctrl_is_down &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_P)
+    {
+      ldk_editor_state_set_stop(editor);
+      return true;
+    }
+    return false;
+  }
   if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
   {
     bool entity_window_focused =
@@ -312,7 +327,14 @@ static bool _on_event_keyboard(const LDKEvent *event, void *state)
       // CTRL+P
       if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
       {
-        s_editor_state_set_play(editor);
+        if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+        {
+          ldk_editor_state_set_stop(editor);
+        }
+        else
+        {
+          s_editor_state_set_play(editor);
+        }
         return true;
       }
 
@@ -358,6 +380,18 @@ static bool _on_event_keyboard(const LDKEvent *event, void *state)
 static bool on_event_keyboard(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
+  if (editor->exclusive_mode &&
+      editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+  {
+    if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN &&
+        event->keyboard_event.ctrl_is_down &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_P)
+    {
+      ldk_editor_state_set_stop(editor);
+      return true;
+    }
+    return false;
+  }
   if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
   {
     bool entity_window_focused =
@@ -399,7 +433,14 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       // CTRL+P
       if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
       {
-        s_editor_state_set_play(editor);
+        if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+        {
+          ldk_editor_state_set_stop(editor);
+        }
+        else
+        {
+          s_editor_state_set_play(editor);
+        }
         return true;
       }
 
@@ -463,6 +504,11 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
 static bool on_event_text(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
+  if (editor->exclusive_mode &&
+      editor->editor_state == LDK_EDITOR_STATE_PLAYING)
+  {
+    return false;
+  }
   if (event->text_event.type == LDK_TEXT_EVENT_CHARACTER_INPUT)
   {
     if (editor->text_input_state.codepoint_count <
@@ -607,6 +653,55 @@ static void s_editor_profiler_frame_event(
   }
 }
 
+static void s_editor_game_only_update(LDKEditorContext *editor)
+{
+  bool active = editor->exclusive_mode &&
+      editor->editor_state == LDK_EDITOR_STATE_PLAYING;
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKCamera *camera = ecs &&
+      ldk_entity_is_alive(&ecs->entity, editor->editor_camera)
+      ? (LDKCamera *)ldk_ecs_component_get(
+            editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA)
+      : NULL;
+
+  if (active && !editor->game_only_active)
+  {
+    editor->game_only_previous_present_game = editor->renderer->present_game;
+    editor->game_only_previous_camera_enabled = camera && camera->enabled;
+    editor->game_only_previous_width = editor->renderer->game_width;
+    editor->game_only_previous_height = editor->renderer->game_height;
+    editor->text_input_state.codepoint_count = 0;
+  }
+  else if (!active && editor->game_only_active)
+  {
+    editor->renderer->present_game = editor->game_only_previous_present_game;
+    (void)ldk_engine_render_resolution_set(
+        (i32)editor->game_only_previous_width,
+        (i32)editor->game_only_previous_height);
+    if (camera)
+    {
+      camera->enabled = editor->game_only_previous_camera_enabled;
+    }
+    ldk_input_game_view_clear();
+  }
+  editor->game_only_active = active;
+  if (active)
+  {
+    LDKSize size = ldk_os_window_client_area_size_get(editor->window);
+    editor->renderer->present_game = true;
+    if (camera)
+    {
+      camera->enabled = false;
+    }
+    if (size.w > 0 && size.h > 0)
+    {
+      (void)ldk_engine_render_resolution_set(size.w, size.h);
+      ldk_input_game_view_set(0.0f, 0.0f, (float)size.w, (float)size.h,
+          editor->renderer->game_width, editor->renderer->game_height);
+    }
+  }
+}
+
 static bool on_event_frame(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
@@ -628,6 +723,11 @@ static bool on_event_frame(const LDKEvent *event, void *state)
       editor->editor_state = LDK_EDITOR_STATE_PAUSED;
     }
 
+    s_editor_game_only_update(editor);
+    if (editor->game_only_active)
+    {
+      return false;
+    }
     s_editor_camera_ensure(editor);
     ldki_editor_camera_update(editor, event->frame_event.delta_time);
     ldki_editor_gizmo_update(editor);
@@ -636,6 +736,10 @@ static bool on_event_frame(const LDKEvent *event, void *state)
 
   if (event->frame_event.type == LDK_FRAME_EVENT_RENDER_AFTER)
   {
+    if (editor->game_only_active)
+    {
+      return false;
+    }
     s_editor_project_action_process(editor);
     s_project_game_module_watch_update(editor);
 
@@ -675,6 +779,16 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   // TODO: Replace this by widow event listener
   LDKSize size = ldk_os_window_client_area_size_get(editor->window);
 
+  s_editor_game_only_update(editor);
+  if (editor->game_only_active)
+  {
+    if (editor->show_statistics)
+    {
+      s_editor_statistics_only(
+          editor, size.w, size.h, event->frame_event.delta_time);
+    }
+    return true;
+  }
   s_editor_update(editor, size.w, size.h, event->frame_event.delta_time);
   ldki_editor_grid_submit(editor);
   ldki_editor_gizmo_submit(editor);
@@ -687,6 +801,11 @@ static bool on_event_window(const LDKEvent *event, void *state)
 
   if (event->window_event.type == LDK_WINDOW_EVENT_CLOSE)
   {
+    if (editor->game_only_active)
+    {
+      s_editor_state_set_stop(editor);
+      s_editor_game_only_update(editor);
+    }
     ldki_editor_confirm_quit(editor);
     return true; // Do not propagate this message further
   }
@@ -1502,9 +1621,9 @@ static void s_editor_profiler_window(LDKEditor *opaque_editor, void *data)
   ldk_editor_profiler_show(opaque_editor);
 }
 
-static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
+static void s_editor_statistics_time_update(
+    LDKEditorContext *editor, float delta_time)
 {
-  ldki_editor_profiler_update();
   if (delta_time > 0.0f)
   {
     float frame_time_ms = delta_time * 1000.0f;
@@ -1524,6 +1643,32 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
           (frame_time_ms - editor->statistics_frame_time_ms) * alpha;
     }
   }
+}
+
+static void s_editor_statistics_only(LDKEditorContext *editor, i32 window_width,
+    i32 window_height, float delta_time)
+{
+  editor->ui_frame_scale =
+      s_editor_ui_scale_validated(editor->editor_ui_scale);
+  LDKUIRect viewport = {0.0f, 0.0f,
+      (float)window_width / editor->ui_frame_scale,
+      (float)window_height / editor->ui_frame_scale};
+  LDKMouseState mouse_state = {0};
+  LDKKeyboardState keyboard_state = {0};
+  LDKUITextInputState text_state = {0};
+  s_editor_statistics_time_update(editor, delta_time);
+  ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &keyboard_state,
+      &text_state, viewport);
+  s_editor_game_statistics_overlay(editor, viewport);
+  ldk_ui_end_frame(&editor->ui);
+  ldk_renderer_submit_ui(editor->renderer,
+      ldk_ui_get_render_data(&editor->ui));
+}
+
+static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
+{
+  ldki_editor_profiler_update();
+  s_editor_statistics_time_update(editor, delta_time);
 
   ldki_editor_toolbar_show((LDKEditor *)editor);
   ldk_editor_dock_update(editor);

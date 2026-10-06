@@ -2,8 +2,8 @@
 project_name=demo
 project_cmake_root=workspace
 project_run_root=runtree
-project_cmake_generator=Visual Studio 18 2026
-project_build_config=RelWithDebInfo
+project_cmake_generator=Visual Studio 17 2022
+project_build_config=Release
 project_cmake_arch=
 
 [graphics]
@@ -27,7 +27,7 @@ icon_path=assets/ldk.ico
 
 [.editor]
 play_current_scene=true
-build_on_play=false
+build_on_play=true
 
 [.flags]
 tag_0=Hero

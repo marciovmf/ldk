@@ -683,7 +683,7 @@ void ldk_terrain_system_update(
   for(u32 i=0;i<system->chunk_count;++i)
   {
     LDKTerrainChunk *chunk=&s_runtime.chunks[i];
-    if(!ldk_renderer_view_bounds_visible(renderer,LDK_RENDERER_VIEW_ALL,
+    if(!ldk_renderer_view_bounds_visible(renderer,renderer->game_view,
         chunk->bounds_min,chunk->bounds_max))
       continue;
     if(ldk_renderer_submit_mesh_with_flags(renderer,chunk->mesh,

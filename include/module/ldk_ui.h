@@ -100,11 +100,23 @@ extern "C"
 #endif
 
 #ifndef LDK_UI_TAB_BAR_TAB_HEIGHT
-#define LDK_UI_TAB_BAR_TAB_HEIGHT 24.0f
+#define LDK_UI_TAB_BAR_TAB_HEIGHT 34.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_HEIGHT
-#define LDK_UI_TAB_BAR_HEIGHT 24.0f
+#define LDK_UI_TAB_BAR_HEIGHT 34.0f
+#endif
+
+#ifndef LDK_UI_TAB_BAR_TAB_PADDING
+#define LDK_UI_TAB_BAR_TAB_PADDING 14.0f
+#endif
+
+#ifndef LDK_UI_AREA_HEADER_HEIGHT
+#define LDK_UI_AREA_HEADER_HEIGHT 34.0f
+#endif
+
+#ifndef LDK_UI_AREA_PADDING
+#define LDK_UI_AREA_PADDING 8.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH
@@ -235,6 +247,8 @@ extern "C"
     float text_cursor_blink_interval;
     float text_cursor_width;
     float text_cursor_padding_y;
+    /** Uniform content inset for windows and panels, in pixels. */
+    float panel_padding;
   } LDKUITheme;
 
   typedef struct LDKUIVertex
@@ -432,6 +446,7 @@ extern "C"
     LDKUIRect rect;
     LDKUIRect content_rect;
     LDKUIRect bounding_rect;
+    LDKUIRect unpadded_content_rect;
     LDKUIPoint cursor;
     float spacing;
     float padding;
@@ -546,6 +561,10 @@ extern "C"
   {
     bool expanded;
     bool opened_layout;
+    LDKUIRect header_rect;
+    XArray_ldk_ui_vertex *background_vertices;
+    u32 background_vertex_index;
+    bool has_background;
   } LDKUIAreaStackEntry;
 
   struct LDKUIPopupStackEntry
@@ -778,6 +797,15 @@ extern "C"
   LDK_API void ldk_ui_end_vertical(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_horizontal(LDKUIContext *ctx);
 
+  /**
+   * Set the current container's uniform content inset in pixels.
+   * Call after successfully opening a window, an expanded area, or a
+   * vertical/horizontal/scrollview layout, before adding children.
+   * Nested containers keep their own padding. Zero removes
+   * the inset; negative or nonfinite values are treated as zero.
+   */
+  LDK_API void ldk_ui_set_padding(LDKUIContext *ctx, float padding);
+
   //----------------------------------------------------------
   // Scroll views
   //----------------------------------------------------------
@@ -793,6 +821,8 @@ extern "C"
       LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
   LDK_API bool ldk_ui_begin_area(
       LDKUIContext *ctx, char const *title, bool expanded);
+  /** Rectangle of the current area's header, for header action buttons. */
+  LDK_API LDKUIRect ldk_ui_area_header_rect(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_area(LDKUIContext *ctx);
 
   //----------------------------------------------------------
@@ -928,3 +958,4 @@ extern "C"
 #endif
 
 #endif
+

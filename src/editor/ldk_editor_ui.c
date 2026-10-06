@@ -23,7 +23,8 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
 
   ldki_editor_scene_state_sync(editor);
 
-  static LDKUIRect s_toolbar_rect = {0, 0, 0, 0};
+  LDKUIRect s_toolbar_rect = {ui->viewport.x, ui->viewport.y, ui->viewport.w,
+      LDK_EDITOR_MENU_BAR_HEIGHT(ui)};
   static LDKUIRect s_file_popup_rect = {0, 0, 1024, 1024};
   static LDKUIRect s_edit_popup_rect = {0, 0, 1024, 1024};
   static LDKUIRect s_theme_popup_rect = {0, 0, 1024, 1024};
@@ -34,11 +35,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   const LDKUIId MENU_ID_SCENE = 13;
   const LDKUIId MENU_ID_WINDOW = 14;
 
-  s_toolbar_rect.w = ui->viewport.w;
-  s_toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING; // * 2.0f;
-
-  s_toolbar_rect = ldk_ui_begin_window(ui, "TOOLBAR", s_toolbar_rect, 0);
+  ldk_ui_begin_window_fixed(ui, "TOOLBAR", s_toolbar_rect, 0);
 
   ldk_ui_begin_horizontal(ui);
   LDKUIMark mark = ldk_ui_mark(ui);
@@ -91,7 +88,7 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     editor->editor_state == LDK_EDITOR_STATE_STOPED;
   
 
-  ldk_ui_begin_popup(ui, MENU_ID_FILE);
+  if (ldk_ui_begin_popup(ui, MENU_ID_FILE))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -136,13 +133,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
       ldk_editor_quit(editor);
     }
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
 
   popup_pos.x = edit_button_rect.x;
   popup_pos.y = edit_button_rect.y + edit_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_PROJECT);
+  if (ldk_ui_begin_popup(ui, MENU_ID_PROJECT))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -184,13 +181,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     }
 
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
 
   popup_pos.x = scene_button_rect.x;
   popup_pos.y = scene_button_rect.y + scene_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_SCENE);
+  if (ldk_ui_begin_popup(ui, MENU_ID_SCENE))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
     bool can_add = editor->project.loaded &&
@@ -241,13 +238,13 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     }
 
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
 
   popup_pos.x = window_button_rect.x;
   popup_pos.y = window_button_rect.y + window_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_WINDOW);
+  if (ldk_ui_begin_popup(ui, MENU_ID_WINDOW))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
@@ -282,19 +279,19 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
     }
 
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
 
   popup_pos.x = theme_button_rect.x;
   popup_pos.y = theme_button_rect.y + theme_button_rect.h;
 
-  ldk_ui_begin_popup(ui, MENU_ID_THEME);
+  if (ldk_ui_begin_popup(ui, MENU_ID_THEME))
   {
     LDKUIMark mark = ldk_ui_mark(ui);
     ldki_editor_theme_menu_show(editor);
     LDKUIRect content_rect = ldk_ui_measure_from(ui, mark);
+    ldk_ui_end_popup(ui);
   }
-  ldk_ui_end_popup(ui);
 
   ldk_ui_end_window(ui);
 }
@@ -485,8 +482,9 @@ static void s_editor_status_bar(LDKEditorContext *editor)
     }
   }
 
-  const u32 status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT;
-  LDKUIRect rect = {0, ui->viewport.h - status_bar_height, ui->viewport.w,
+  const float status_bar_height = LDK_EDITOR_STATUS_BAR_HEIGHT(ui);
+  LDKUIRect rect = {ui->viewport.x,
+      ui->viewport.y + ui->viewport.h - status_bar_height, ui->viewport.w,
       status_bar_height};
 
   ldk_ui_begin_window(ui, "", rect, 0);
@@ -1063,14 +1061,17 @@ static bool s_editor_project_build_on_play_write(
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
-  static LDKUIRect toolbar_rect = {0, LDK_UI_DEFAULT_CONTROL_HEIGHT, 0, 0};
-  toolbar_rect.w = ui->viewport.w;
-  toolbar_rect.h =
-      LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_PADDING * 4.0f;
-
-  toolbar_rect =
-      ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
+  LDKUIRect toolbar_rect = {ui->viewport.x,
+      ui->viewport.y + LDK_EDITOR_MENU_BAR_HEIGHT(ui), ui->viewport.w,
+      LDK_EDITOR_TOOL_BAR_HEIGHT(ui)};
+  ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
+  ldk_ui_set_next_disabled(ui,
+      editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  editor->exclusive_mode = ldk_ui_toggle(ui, editor->exclusive_mode);
+  ldk_ui_set_next_width(ui, ldk_ui_px(144.0f));
+  ldk_ui_label(ui, "EXCLUSIVE MODE");
   ldk_ui_spacer(ui);
 
   {

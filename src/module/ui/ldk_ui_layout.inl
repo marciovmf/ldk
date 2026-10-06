@@ -381,6 +381,30 @@ void ldk_ui_set_next_weight(LDKUIContext *ctx, float weight)
   ctx->has_next_weight = true;
 }
 
+static void s_ui_layout_apply_padding(LDKUILayout *layout, float padding)
+{
+  LDKUIRect rect = layout->unpadded_content_rect;
+  layout->padding = isfinite(padding) && padding > 0.0f ? padding : 0.0f;
+  layout->content_rect.x = rect.x + layout->padding;
+  layout->content_rect.y = rect.y + layout->padding;
+  layout->content_rect.w = s_ui_maxf(0.0f, rect.w - layout->padding * 2.0f);
+  layout->content_rect.h = s_ui_maxf(0.0f, rect.h - layout->padding * 2.0f);
+  layout->cursor = (LDKUIPoint){layout->content_rect.x, layout->content_rect.y};
+  layout->content_used_right = layout->content_rect.x;
+  layout->content_used_bottom = layout->content_rect.y;
+}
+
+void ldk_ui_set_padding(LDKUIContext *ctx, float padding)
+{
+  if (ctx == NULL || ctx->current_layout == NULL ||
+      ctx->current_layout->item_count != 0)
+  {
+    return;
+  }
+
+  s_ui_layout_apply_padding(ctx->current_layout, padding);
+}
+
 LDKUIRect ldk_ui_last_rect(LDKUIContext *ctx)
 {
   if (ctx == NULL)
@@ -781,6 +805,24 @@ static LDKUIRect s_ui_layout_next_rect_from_request(
     rect.x += layout->content_rect.x;
     rect.y += layout->content_rect.y;
 
+    // Keep cached flexible sizes, but place items in the current sequence.
+    if (layout->direction == LDK_UI_LAYOUT_VERTICAL)
+    {
+      rect.x = layout->content_rect.x;
+      rect.y = layout->cursor.y;
+      rect.w = layout->content_rect.w;
+    }
+    else
+    {
+      rect.x = layout->cursor.x;
+      rect.y = layout->content_rect.y;
+      rect.h = layout->content_rect.h;
+    }
+    if (request.has_width)
+      rect.w = s_ui_layout_request_width(layout, &request);
+    if (request.has_height)
+      rect.h = s_ui_layout_request_height(layout, &request);
+
     s_ui_layout_accept_rect(ctx, layout, rect);
     s_ui_layout_item_record(ctx, layout, item_index, request, rect);
     return rect;
@@ -1021,18 +1063,11 @@ static LDKUILayout *s_ui_layout_push_with_id(LDKUIContext *ctx,
   layout->direction = direction;
   layout->rect = rect;
   layout->bounding_rect = bounding_rect;
-  layout->padding =
-      direction == LDK_UI_LAYOUT_VERTICAL ? LDK_UI_DEFAULT_PADDING : 0.0f;
+  layout->unpadded_content_rect = rect;
   layout->spacing = LDK_UI_DEFAULT_SPACING;
   layout->parent = parent;
-  layout->content_rect.x = rect.x + layout->padding;
-  layout->content_rect.y = rect.y + layout->padding;
-  layout->content_rect.w = s_ui_maxf(0.0f, rect.w - layout->padding * 2.0f);
-  layout->content_rect.h = s_ui_maxf(0.0f, rect.h - layout->padding * 2.0f);
-  layout->cursor.x = layout->content_rect.x;
-  layout->cursor.y = layout->content_rect.y;
-  layout->content_used_right = layout->content_rect.x;
-  layout->content_used_bottom = layout->content_rect.y;
+  s_ui_layout_apply_padding(layout,
+      direction == LDK_UI_LAYOUT_VERTICAL ? LDK_UI_DEFAULT_PADDING : 0.0f);
   layout->measure_entry_index = measure_entry_index;
   layout->has_measure_entry = measure_entry_index != UINT32_MAX;
 
@@ -1239,3 +1274,4 @@ void ldk_ui_end_horizontal(LDKUIContext *ctx)
 {
   ldk_ui_end(ctx);
 }
+

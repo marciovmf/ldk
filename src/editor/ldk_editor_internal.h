@@ -29,8 +29,18 @@
 #define LDK_EDITOR_SELECTION_PULSE_SECONDS_MIN 0.0f
 #define LDK_EDITOR_SELECTION_PULSE_SECONDS_MAX 10.0f
 
-#define LDK_EDITOR_STATUS_BAR_HEIGHT                                          \
-  (LDK_UI_DEFAULT_PADDING + LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_SPACING)
+static inline float ldki_editor_bar_control_height(const LDKUIContext *ui)
+{
+  float height = ldk_ttf_get_line_height(ui->font);
+  return height > LDK_UI_DEFAULT_CONTROL_HEIGHT
+             ? height : LDK_UI_DEFAULT_CONTROL_HEIGHT;
+}
+
+#define LDK_EDITOR_TOOL_BAR_HEIGHT(ui)                                        \
+  (ldki_editor_bar_control_height(ui) + 2.0f * (ui)->theme.panel_padding)
+#define LDK_EDITOR_MENU_BAR_HEIGHT(ui)                                        \
+  (LDK_EDITOR_TOOL_BAR_HEIGHT(ui) + LDK_UI_DEFAULT_SPACING + 1.0f)
+#define LDK_EDITOR_STATUS_BAR_HEIGHT(ui) LDK_EDITOR_MENU_BAR_HEIGHT(ui)
 
 #ifndef LDK_EDITOR_TAG_COUNT
 #define LDK_EDITOR_TAG_COUNT 16
@@ -307,6 +317,12 @@ typedef struct LDKEditorContext
   XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
+  bool exclusive_mode;
+  bool game_only_active;
+  bool game_only_previous_present_game;
+  bool game_only_previous_camera_enabled;
+  u32 game_only_previous_width;
+  u32 game_only_previous_height;
   XFSPath engine_runtree;
   XFSPath engine_root;
   XFSPath editor_config_path;
@@ -477,6 +493,11 @@ bool ldk_editor_scene_internal_path_is_scene(const XFSPath *path);
 // integer. It must be non-zero and unique among the windows registered by the
 // editor and its tools. Do not use an address as an ID.
 
+typedef enum LDKEditorEventTag
+{
+  LDK_EDITOR_EVENT_WINDOW_CLOSED = 1
+} LDKEditorEventTag;
+
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
@@ -522,6 +543,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_PROFILER ((LDKEditorWindowId)0x4C444B0Cu)
 #define LDK_EDITOR_WINDOW_SETTINGS ((LDKEditorWindowId)0x4C444B0Du)
 #define LDK_EDITOR_WINDOW_PROJECT ((LDKEditorWindowId)0x4C444B0Eu)
+#define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(

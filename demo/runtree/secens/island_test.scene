@@ -322,8 +322,8 @@ scene:
         type_3_curvature: 0.200000003
         type_3_wind_strength: 0.0350000001
         type_3_interaction_recovery_time: 4.00000000
-        type_3_bottom_color: 1130115839
-        type_3_top_color: 2207467263
+        type_3_bottom_color: 16775423
+        type_3_top_color: 3458483455
         type_4_name: "shallow_grass"
         type_4_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_4_density: 0.0799999982
@@ -614,45 +614,44 @@ scene:
         material: "assets/tftf_island.material"
         surface_count: 7
         surface_0_name: "Shallow Water"
-        surface_0_min_height: 0.000000000
+        surface_0_min_height: 0.00000000
         surface_0_blend_width: 0.00000000
         surface_0_atlas_rect: 0.00000000, 0.00000000, 0.166666672, 1.00000000
         surface_0_uv_scale: 1.00000000, 1.00000000
         surface_0_texture_weight: 1.00000000
         surface_1_name: "Sand"
-        surface_1_min_height: 0.140000000
-        surface_1_blend_width: 0.00499999989
+        surface_1_min_height: 0.137612492
+        surface_1_blend_width: 0.0618190430
         surface_1_atlas_rect: 0.166666672, 0.00000000, 0.333333343, 1.00000000
         surface_1_uv_scale: 1.00000000, 1.00000000
         surface_1_texture_weight: 1.00000000
         surface_2_name: "Dry"
-        surface_2_min_height: 0.170000000
-        surface_2_blend_width: 0.00499999989
+        surface_2_min_height: 0.203931779
+        surface_2_blend_width: 0.0405021310
         surface_2_atlas_rect: 0.333333343, 0.00000000, 0.500000000, 1.00000000
         surface_2_uv_scale: 1.00000000, 1.00000000
         surface_2_texture_weight: 1.00000000
         surface_3_name: "Grass"
-        surface_3_min_height: 0.200000000
-        surface_3_blend_width: 0.00499999989
+        surface_3_min_height: 0.208668873
+        surface_3_blend_width: 0.0476077683
         surface_3_atlas_rect: 0.500000000, 0.00000000, 0.666666687, 1.00000000
         surface_3_uv_scale: 1.00000000, 1.00000000
         surface_3_texture_weight: 1.00000000
         surface_4_name: "Forest"
-        surface_4_min_height: 0.230000000
-        surface_4_blend_width: 0.00499999989
+        surface_4_min_height: 0.241828501
+        surface_4_blend_width: 0.0523448586
         surface_4_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
         surface_4_uv_scale: 1.00000000, 1.00000000
         surface_4_texture_weight: 1.00000000
         surface_5_name: "Thorns"
-        surface_5_min_height: 0.250000000
-        surface_5_blend_width: 0.00499999989
-        surface_5_color: 1702841855
+        surface_5_min_height: 0.263145417
+        surface_5_blend_width: 0.0452392213
         surface_5_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
         surface_5_uv_scale: 1.00000000, 1.00000000
         surface_5_texture_weight: 1.00000000
         surface_6_name: "Mountain"
-        surface_6_min_height: 0.270000000
-        surface_6_blend_width: 0.00999999978
+        surface_6_min_height: 0.282093793
+        surface_6_blend_width: 0.00971103646
         surface_6_atlas_rect: 0.833333313, 0.00000000, 1.00000000, 1.00000000
         surface_6_uv_scale: 1.00000000, 1.00000000
         surface_6_texture_weight: 1.00000000
@@ -671,7 +670,7 @@ scene:
         width: 600.000000
         depth: 600.000000
         cell_size: 1.00000000
-        chunk_size: 32
+        chunk_size: 16
         shallow_color: 1978720364
         deep_color: 327580927
         depth_color_distance: 0.100000001
