@@ -371,3 +371,4 @@ void ldk_ui_end_popup(LDKUIContext *ctx)
 
   x_array_ldk_ui_popup_stack_entry_delete_at(ctx->popup_stack, count - 1);
 }
+

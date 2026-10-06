@@ -3911,3 +3911,4 @@ void ldk_editor_dock_terminate(LDKEditorContext *editor)
   s_editor_dock_layouts =
       (LDKEditorDockLayouts){.current_layout = LDK_EDITOR_DOCK_INVALID_LAYOUT};
 }
+

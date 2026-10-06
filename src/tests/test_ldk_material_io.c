@@ -135,6 +135,7 @@ static int test_material_io_missing_texture(void)
   const char *text = "material:\n  material_type: 2\n"
                      "  material_color: 0xa1b2c3ff\n"
                      "  material_texture: \"missing.png\"\n"
+                     "  material_texture_3: \"missing_extra.png\"\n"
                      "  material_texture_filter: 1\n"
                      "  material_texture_mip_filter: 2\n"
                      "  material_texture_wrap_u: 0\n"
@@ -148,7 +149,7 @@ static int test_material_io_missing_texture(void)
                      "  material_normal_map: \"missing_normal.png\"\n"
                      "  material_specular_map: \"missing_specular.png\"\n";
   ASSERT_TRUE(s_read(text, &context, &first, &result));
-  ASSERT_EQ(s_diagnostics, 1u);
+  ASSERT_EQ(s_diagnostics, 2u);
   ASSERT_EQ(s_neutral_diagnostics, 2u);
   ASSERT_EQ(first.surface.specular, 0.0f);
   ASSERT_EQ(first.surface.shininess, 32.0f);
@@ -167,6 +168,9 @@ static int test_material_io_missing_texture(void)
   const LDKAssetImageData *image = ldk_asset_manager_image_get_const(
       &assets, first.args.textured.texture);
   ASSERT_TRUE(image && image->image && image->is_missing);
+  const LDKAssetImageData *extra = ldk_asset_manager_image_get_const(
+      &assets, first.additional_textures[0]);
+  ASSERT_TRUE(extra && extra->image && extra->is_missing);
   const LDKAssetImageData *normal =
       ldk_asset_manager_image_get_const(&assets, first.surface.normal_map);
   const LDKAssetImageData *specular =
@@ -174,7 +178,7 @@ static int test_material_io_missing_texture(void)
   ASSERT_TRUE(normal && normal->is_missing);
   ASSERT_TRUE(specular && specular->is_missing);
   ASSERT_TRUE(s_read(text, &context, &second, &result));
-  ASSERT_EQ(s_diagnostics, 2u);
+  ASSERT_EQ(s_diagnostics, 4u);
   ASSERT_EQ(s_neutral_diagnostics, 4u);
   ASSERT_TRUE(ldk_material_desc_equal(&first, &second));
   XStrBuilder *out = x_strbuilder_create();
@@ -185,6 +189,7 @@ static int test_material_io_missing_texture(void)
                   "material:\n  material_type: 2\n"
                   "  material_color: 0xa1b2c3ff\n"
                   "  material_texture: \"missing.png\"\n"
+                  "  material_texture_3: \"missing_extra.png\"\n"
                   "  material_texture_filter: 1\n"
                   "  material_texture_mip_filter: 2\n"
                   "  material_texture_wrap_u: 0\n"
@@ -203,7 +208,7 @@ static int test_material_io_missing_texture(void)
   x_strbuilder_destroy(out);
   ASSERT_TRUE(s_read("material:\n  material_type: 1\n", &context,
       &second, &result));
-  ASSERT_EQ(s_diagnostics, 3u);
+  ASSERT_EQ(s_diagnostics, 5u);
   ASSERT_EQ(second.args.textured.color, 0xffffffffu);
   ASSERT_EQ(second.args.textured.filter, LDK_MATERIAL_TEXTURE_FILTER_NEAREST);
   ASSERT_EQ(second.args.textured.mip_filter,

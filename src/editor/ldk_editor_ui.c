@@ -1066,6 +1066,12 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       LDK_EDITOR_TOOL_BAR_HEIGHT(ui)};
   ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
+  ldk_ui_set_next_disabled(ui,
+      editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  editor->exclusive_mode = ldk_ui_toggle(ui, editor->exclusive_mode);
+  ldk_ui_set_next_width(ui, ldk_ui_px(144.0f));
+  ldk_ui_label(ui, "EXCLUSIVE MODE");
   ldk_ui_spacer(ui);
 
   {

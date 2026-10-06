@@ -317,6 +317,12 @@ typedef struct LDKEditorContext
   XArray *hierarchy_expanded_entities;
   bool initialized;
   LDKEditorState editor_state;
+  bool exclusive_mode;
+  bool game_only_active;
+  bool game_only_previous_present_game;
+  bool game_only_previous_camera_enabled;
+  u32 game_only_previous_width;
+  u32 game_only_previous_height;
   XFSPath engine_runtree;
   XFSPath engine_root;
   XFSPath editor_config_path;

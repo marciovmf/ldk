@@ -1129,3 +1129,4 @@ void ldk_ui_end_window(LDKUIContext *ctx)
     ctx->last_id = entry.window->id;
   }
 }
+

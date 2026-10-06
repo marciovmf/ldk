@@ -2638,3 +2638,4 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
 #include "ui/ldk_ui_scrollview.inl"
 #include "ui/ldk_ui_treenode.inl"
 #include "ui/ldk_ui_popup.inl"
+

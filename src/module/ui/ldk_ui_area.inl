@@ -135,3 +135,4 @@ void ldk_ui_end_area(LDKUIContext *ctx)
     ldk_ui_end_vertical(ctx);
   }
 }
+

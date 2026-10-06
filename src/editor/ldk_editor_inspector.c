@@ -3156,6 +3156,19 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     {
       changed = true;
     }
+
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      char label[32];
+      char prompt[48];
+      snprintf(label, sizeof(label), "Texture %u", slot);
+      snprintf(prompt, sizeof(prompt), "Choose texture for slot %u", slot);
+      if (s_editor_material_image_editor(editor, label, prompt,
+              &desc->additional_textures[slot - 3u], readonly, false, context))
+      {
+        changed = true;
+      }
+    }
   }
 
   if (lit)

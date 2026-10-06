@@ -2706,3 +2706,4 @@ void ldk_ui_spacer(LDKUIContext *ctx)
   (void)rect;
   (void)id;
 }
+

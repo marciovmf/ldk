@@ -566,3 +566,4 @@ void ldk_ui_end_scrollview(LDKUIContext* ctx)
   ctx->last_bounding_rect = entry.view_rect;
   ctx->last_id = entry.id;
 }
+
