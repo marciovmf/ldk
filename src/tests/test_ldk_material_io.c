@@ -253,9 +253,60 @@ static int test_material_io_missing_texture(void)
   return 0;
 }
 
+static int test_material_io_texture_slots(void)
+{
+  LDKAssetSource source = {0};
+  LDKAssetManager assets = {0};
+#ifdef _WIN32
+  ASSERT_TRUE(ldk_asset_source_initialize(&source, "C:/ldk-material-io-test/runtree"));
+#else
+  ASSERT_TRUE(ldk_asset_source_initialize(&source, "/ldk-material-io-test/runtree"));
+#endif
+  ASSERT_TRUE(ldk_asset_manager_initialize(&assets, &source, 16, 1));
+  LDKMaterialIOContext context = {0};
+  context.assets = &assets;
+  LDKMaterialIOResult result;
+  LDKMaterialDesc desc, loaded;
+  ASSERT_TRUE(s_read("material:\n  material_type: 1\n"
+      "  material_texture_slots: 138\n"
+      "  material_texture_wrap_u: 0\n"
+      "  material_uv_scale_u: 4\n"
+      "  material_normal_map: \"missing_normal.png\"\n"
+      "  material_texture_1_filter: 1\n"
+      "  material_texture_1_uv_scale_x: 8\n"
+      "  material_texture_3_wrap_v: 2\n"
+      "  material_texture_7_uv_offset_y: -0.5\n", &context, &desc, &result));
+  ASSERT_EQ(desc.texture_slot_mask, 138u);
+  ASSERT_TRUE(x_handle_is_null(ldk_material_texture_slot_get(&desc, 7).h));
+  ASSERT_FALSE(x_handle_is_null(ldk_material_texture_slot_get(&desc, 1).h));
+  ASSERT_EQ(ldk_material_texture_settings_get(&desc, 0).uv_scale.x, 4.0f);
+  ASSERT_EQ(ldk_material_texture_settings_get(&desc, 1).uv_scale.x, 8.0f);
+  ASSERT_EQ(ldk_material_texture_settings_get(&desc, 1).wrap_u,
+      LDK_MATERIAL_TEXTURE_WRAP_REPEAT);
+  ASSERT_EQ(ldk_material_texture_settings_get(&desc, 3).wrap_v,
+      LDK_MATERIAL_TEXTURE_WRAP_MIRROR);
+  ASSERT_EQ(ldk_material_texture_settings_get(&desc, 7).uv_offset.y, -0.5f);
+  XStrBuilder *out = x_strbuilder_create();
+  ASSERT_TRUE(out != NULL);
+  x_strbuilder_append(out, "material:\n");
+  ASSERT_TRUE(ldk_material_desc_write(&context, &desc, out, 1, &result));
+  ASSERT_TRUE(s_read(out->data, &context, &loaded, &result));
+  ASSERT_TRUE(ldk_material_desc_equal(&desc, &loaded));
+  ASSERT_EQ(ldk_material_desc_hash(&desc), ldk_material_desc_hash(&loaded));
+  x_strbuilder_destroy(out);
+  ASSERT_FALSE(s_read("material:\n  material_type: 1\n"
+      "  material_texture_slots: 256\n", &context, &loaded, &result));
+  ASSERT_FALSE(s_read("material:\n  material_type: 1\n"
+      "  material_texture_1_filter: 99\n", &context, &loaded, &result));
+  ldk_asset_manager_terminate(&assets);
+  ldk_asset_source_terminate(&source);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
+      X_TEST(test_material_io_texture_slots),
       X_TEST(test_material_io_round_trip),
       X_TEST(test_material_io_invalid),
       X_TEST(test_material_io_missing_texture),

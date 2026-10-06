@@ -543,6 +543,9 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       s_result_error(result, "invalid material surface value");
       return false;
     }
+  }
+  if (textured || lit)
+  {
     if (!s_material_surface_map_read(context, doc, fields,
             "material_normal_map", "normal map", &desc.surface.normal_map,
             result) ||
@@ -556,6 +559,111 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
 
   if (lit && desc.surface.shininess == 0.0f)
     desc.surface.shininess = 32.0f;
+
+  if (tml_node_find_entry(doc, fields, "material_texture_slots") &&
+      !s_node_get_u32(doc, fields, "material_texture_slots",
+          &desc.texture_slot_mask))
+  {
+    s_result_error(result, "invalid material texture slots");
+    return false;
+  }
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    char name[64];
+    LDKMaterialTextureSettings settings =
+        ldk_material_texture_settings_get(&desc, slot);
+    bool independent = false;
+    snprintf(name, sizeof(name), "material_texture_%u_filter", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      u32 value;
+      if (!s_node_get_u32(doc, fields, name, &value))
+      {
+        s_result_error(result, "invalid texture slot sampling");
+        return false;
+      }
+      settings.filter = (LDKMaterialTextureFilter)value;
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_mip_filter", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      u32 value;
+      if (!s_node_get_u32(doc, fields, name, &value))
+      {
+        s_result_error(result, "invalid texture slot sampling");
+        return false;
+      }
+      settings.mip_filter = (LDKMaterialTextureMipFilter)value;
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_wrap_u", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      u32 value;
+      if (!s_node_get_u32(doc, fields, name, &value))
+      {
+        s_result_error(result, "invalid texture slot sampling");
+        return false;
+      }
+      settings.wrap_u = (LDKMaterialTextureWrap)value;
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_wrap_v", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      u32 value;
+      if (!s_node_get_u32(doc, fields, name, &value))
+      {
+        s_result_error(result, "invalid texture slot sampling");
+        return false;
+      }
+      settings.wrap_v = (LDKMaterialTextureWrap)value;
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_uv_scale_x", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      if (!s_node_get_float(doc, fields, name, &settings.uv_scale.x))
+      {
+        s_result_error(result, "invalid texture slot UV transform");
+        return false;
+      }
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_uv_scale_y", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      if (!s_node_get_float(doc, fields, name, &settings.uv_scale.y))
+      {
+        s_result_error(result, "invalid texture slot UV transform");
+        return false;
+      }
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_uv_offset_x", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      if (!s_node_get_float(doc, fields, name, &settings.uv_offset.x))
+      {
+        s_result_error(result, "invalid texture slot UV transform");
+        return false;
+      }
+      independent = true;
+    }
+    snprintf(name, sizeof(name), "material_texture_%u_uv_offset_y", slot);
+    if (tml_node_find_entry(doc, fields, name))
+    {
+      if (!s_node_get_float(doc, fields, name, &settings.uv_offset.y))
+      {
+        s_result_error(result, "invalid texture slot UV transform");
+        return false;
+      }
+      independent = true;
+    }
+    settings.independent = independent;
+    desc.texture_settings[slot] = settings;
+  }
 
   if (!ldk_material_desc_is_valid(&desc))
   {
@@ -582,6 +690,42 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
   {
     s_result_error(result, "cannot save an invalid material");
     return false;
+  }
+  if (desc->texture_slot_mask)
+  {
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_slots: %u\n",
+        desc->texture_slot_mask);
+  }
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    const LDKMaterialTextureSettings *settings = &desc->texture_settings[slot];
+    if (!settings->independent)
+      continue;
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_filter: %u\n",
+        slot, (u32)settings->filter);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_mip_filter: %u\n",
+        slot, (u32)settings->mip_filter);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_wrap_u: %u\n",
+        slot, (u32)settings->wrap_u);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_wrap_v: %u\n",
+        slot, (u32)settings->wrap_v);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_uv_scale_x: %.9g\n",
+        slot, (double)settings->uv_scale.x);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_uv_scale_y: %.9g\n",
+        slot, (double)settings->uv_scale.y);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_uv_offset_x: %.9g\n",
+        slot, (double)settings->uv_offset.x);
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_uv_offset_y: %.9g\n",
+        slot, (double)settings->uv_offset.y);
   }
   bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
       desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
@@ -708,6 +852,9 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     s_append_indent(out, indent);
     x_strbuilder_append_format(out, "material_emission: %.9g\n",
         (double)desc->surface.emission);
+  }
+  if (textured || lit)
+  {
     if (!s_material_surface_map_write(context, desc->surface.normal_map,
             "material_normal_map", out, indent, result) ||
         !s_material_surface_map_write(context, desc->surface.specular_map,

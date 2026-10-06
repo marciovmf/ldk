@@ -1,4 +1,5 @@
 material:
+  material_texture_slots: 7
   material_type: 2
   material_color: 0xffffffff
   material_texture: "assets/textures/container2.png"

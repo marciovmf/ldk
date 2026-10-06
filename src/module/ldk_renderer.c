@@ -1670,7 +1670,7 @@ typedef struct LDKRendererMeshMaterialParams
   /* Curvature, wind strength, wind speed, wind direction radians. */
   float vegetation[4];
   /* UV scale.xy, offset.xy. */
-  float uv_transform[4];
+  float uv_transform[LDK_MATERIAL_TEXTURE_SLOT_COUNT][4];
   /* Interaction origin.xz, inverse world size, recovery time seconds. */
   float vegetation_interaction[4];
   /* Terrain surface count in x. */
@@ -1695,7 +1695,8 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, options) == 80,
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshCameraParams, camera_position) == 128,
     mesh_camera_position_std140_offset);
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshMaterialParams) ==
-        96 + LDK_RENDERER_TERRAIN_SURFACE_COUNT * 64,
+        96 + (LDK_MATERIAL_TEXTURE_SLOT_COUNT - 1u) * 16 +
+            LDK_RENDERER_TERRAIN_SURFACE_COUNT * 64,
     mesh_material_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshMaterialParams, specular) == 16,
     mesh_material_surface_std140_offset);
@@ -1712,7 +1713,8 @@ LDK_STATIC_ASSERT(
     offsetof(LDKRendererMeshMaterialParams, uv_transform) == 48,
     mesh_material_uv_transform_std140_offset);
 LDK_STATIC_ASSERT(
-    offsetof(LDKRendererMeshMaterialParams, vegetation_interaction) == 64,
+    offsetof(LDKRendererMeshMaterialParams, vegetation_interaction) ==
+        64 + (LDK_MATERIAL_TEXTURE_SLOT_COUNT - 1u) * 16,
     mesh_material_interaction_std140_offset);
 
 typedef struct LDKRendererShadowCameraParams
@@ -4252,8 +4254,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       {
         textures[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] = texture->texture;
         samplers[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] =
-            material->texture_sampler != LDK_RHI_INVALID_RESOURCE
-            ? material->texture_sampler
+            material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] !=
+            LDK_RHI_INVALID_RESOURCE
+            ? material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO]
             : texture->sampler;
       }
 
@@ -4272,8 +4275,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         }
         u32 slot = i + 3u;
         textures[slot] = texture->texture;
-        samplers[slot] = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
-            ? material->texture_sampler
+        samplers[slot] =
+            material->texture_samplers[slot] != LDK_RHI_INVALID_RESOURCE
+            ? material->texture_samplers[slot]
             : texture->sampler;
       }
     }
@@ -4288,8 +4292,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         {
           textures[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] = texture->texture;
           samplers[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] =
-              material->texture_sampler != LDK_RHI_INVALID_RESOURCE
-              ? material->texture_sampler
+              material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] !=
+              LDK_RHI_INVALID_RESOURCE
+              ? material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_NORMAL]
               : texture->sampler;
         }
       }
@@ -4301,8 +4306,9 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         {
           textures[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR] = texture->texture;
           samplers[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR] =
-              material->texture_sampler != LDK_RHI_INVALID_RESOURCE
-              ? material->texture_sampler
+              material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR] !=
+              LDK_RHI_INVALID_RESOURCE
+              ? material->texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR]
               : texture->sampler;
         }
       }
@@ -4324,10 +4330,13 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
   material_params.vegetation[3] = material->desc.vegetation_wind_direction;
-  material_params.uv_transform[0] = material->uv_scale.x;
-  material_params.uv_transform[1] = material->uv_scale.y;
-  material_params.uv_transform[2] = material->uv_offset.x;
-  material_params.uv_transform[3] = material->uv_offset.y;
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    material_params.uv_transform[slot][0] = material->texture_uv_scales[slot].x;
+    material_params.uv_transform[slot][1] = material->texture_uv_scales[slot].y;
+    material_params.uv_transform[slot][2] = material->texture_uv_offsets[slot].x;
+    material_params.uv_transform[slot][3] = material->texture_uv_offsets[slot].y;
+  }
   if (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TERRAIN)
   {
     material_params.terrain_info[0] =
@@ -9286,55 +9295,55 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   }
 
   if (material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
-      material_desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT)
+      material_desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
+      material_desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR)
   {
     LDKRendererMaterialResource *material_resource =
         s_renderer_material_get_resource(renderer, material);
     if (material_resource != NULL)
     {
-      material_resource->owns_additional_textures = true;
+      material_resource->owns_additional_textures =
+          material_desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR;
     }
-    LDKRHISampler sampler = LDK_RHI_INVALID_RESOURCE;
-    bool custom_sampling =
-        material_desc->args.textured.filter !=
-            LDK_MATERIAL_TEXTURE_FILTER_NEAREST ||
-        material_desc->args.textured.mip_filter !=
-            LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE ||
-        material_desc->args.textured.wrap_u !=
-            LDK_MATERIAL_TEXTURE_WRAP_CLAMP ||
-        material_desc->args.textured.wrap_v !=
-            LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
-
-    if (custom_sampling)
+    for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
     {
-      LDKRHISamplerDesc sampler_desc = {0};
-      sampler_desc.min_filter = s_renderer_material_filter_to_rhi(
-          material_desc->args.textured.filter);
+      LDKMaterialTextureSettings settings =
+          ldk_material_texture_settings_get(material_desc, slot);
+      LDKRHISamplerDesc sampler_desc;
+      ldk_rhi_sampler_desc_defaults(&sampler_desc);
+      sampler_desc.min_filter =
+          s_renderer_material_filter_to_rhi(settings.filter);
       sampler_desc.mag_filter = sampler_desc.min_filter;
-      sampler_desc.mip_filter = s_renderer_material_mip_filter_to_rhi(
-          material_desc->args.textured.mip_filter);
-      sampler_desc.wrap_u = s_renderer_material_wrap_to_rhi(
-          material_desc->args.textured.wrap_u);
-      sampler_desc.wrap_v = s_renderer_material_wrap_to_rhi(
-          material_desc->args.textured.wrap_v);
+      sampler_desc.mip_filter =
+          s_renderer_material_mip_filter_to_rhi(settings.mip_filter);
+      sampler_desc.wrap_u = s_renderer_material_wrap_to_rhi(settings.wrap_u);
+      sampler_desc.wrap_v = s_renderer_material_wrap_to_rhi(settings.wrap_v);
       sampler_desc.wrap_w = LDK_RHI_WRAP_CLAMP_TO_EDGE;
-      sampler =
-          s_renderer_material_sampler_get_or_create(renderer, &sampler_desc);
+      bool custom_sampling =
+          settings.filter != LDK_MATERIAL_TEXTURE_FILTER_NEAREST ||
+          settings.mip_filter != LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE ||
+          settings.wrap_u != LDK_MATERIAL_TEXTURE_WRAP_CLAMP ||
+          settings.wrap_v != LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
+      LDKRHISampler sampler = custom_sampling
+          ? s_renderer_material_sampler_get_or_create(renderer, &sampler_desc)
+          : LDK_RHI_INVALID_RESOURCE;
+      if (material_resource == NULL ||
+          (custom_sampling && sampler == LDK_RHI_INVALID_RESOURCE))
+      {
+        ldk_renderer_material_destroy(renderer, material);
+        ldk_renderer_image_release(renderer, desc.texture);
+        ldk_renderer_image_release(renderer, normal_map);
+        ldk_renderer_image_release(renderer, specular_map);
+        return false;
+      }
+      material_resource->texture_samplers[slot] = sampler;
+      material_resource->texture_uv_scales[slot] = settings.uv_scale;
+      material_resource->texture_uv_offsets[slot] = settings.uv_offset;
     }
-
-    if (material_resource == NULL ||
-        (custom_sampling && sampler == LDK_RHI_INVALID_RESOURCE))
-    {
-      ldk_renderer_material_destroy(renderer, material);
-      ldk_renderer_image_release(renderer, desc.texture);
-      ldk_renderer_image_release(renderer, normal_map);
-      ldk_renderer_image_release(renderer, specular_map);
-      return false;
-    }
-
-    material_resource->texture_sampler = sampler;
-    material_resource->uv_scale = material_desc->args.textured.uv_scale;
-    material_resource->uv_offset = material_desc->args.textured.uv_offset;
+    /* The shadow pass samples only albedo. */
+    material_resource->texture_sampler = material_resource->texture_samplers[0];
+    material_resource->uv_scale = material_resource->texture_uv_scales[0];
+    material_resource->uv_offset = material_resource->texture_uv_offsets[0];
   }
 
   ldk_renderer_material_destroy(renderer, *renderer_material);
@@ -9783,6 +9792,12 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);
   resource->texture_sampler = LDK_RHI_INVALID_RESOURCE;
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    resource->texture_samplers[slot] = LDK_RHI_INVALID_RESOURCE;
+    resource->texture_uv_scales[slot] = (Vec2){1.0f, 1.0f};
+    resource->texture_uv_offsets[slot] = (Vec2){0.0f, 0.0f};
+  }
   resource->owns_additional_textures = false;
   resource->uv_scale = (Vec2){1.0f, 1.0f};
   resource->uv_offset = (Vec2){0.0f, 0.0f};

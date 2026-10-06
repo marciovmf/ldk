@@ -2752,9 +2752,10 @@ static bool s_editor_material_asset_equal(
   return a.h.index == b.h.index && a.h.version == b.h.version;
 }
 
-static bool s_editor_material_image_editor(LDKEditorContext *editor,
+static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
     const char *label, const char *dialog_title, LDKAssetImage *image,
-    bool readonly, bool optional, const LDKMaterialIOContext *context)
+    bool readonly, bool optional, bool *expanded, bool *removed,
+    const LDKMaterialIOContext *context)
 {
   LDKUIContext *ui;
   LDKAssetManager *assets;
@@ -2782,7 +2783,14 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
           : "");
 
   ldk_ui_push_id_cstr(ui, label);
-  s_editor_material_row_begin(editor, label);
+  if (expanded)
+  {
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
+    *expanded = ldk_ui_tree_node(ui, label, *expanded, 0, 0);
+  }
+  else
+    s_editor_material_row_begin(editor, label);
   ldk_ui_begin_disabled(ui, true);
   ldk_ui_input_box(ui, display_path, sizeof(display_path));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
@@ -2816,7 +2824,8 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
   if (optional)
   {
     ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(image->h));
+    ldk_ui_begin_disabled(ui,
+        readonly || (!removed && x_handle_is_null(image->h)));
     clear = ldk_ui_button(ui, "X");
     ldk_ui_end_disabled(ui);
   }
@@ -2826,6 +2835,8 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
 
   if (clear)
   {
+    if (removed)
+      *removed = true;
     image->h = x_handle_null();
     return true;
   }
@@ -2859,6 +2870,14 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
 
   *image = selected;
   return true;
+}
+
+static bool s_editor_material_image_editor(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, LDKAssetImage *image,
+    bool readonly, bool optional, const LDKMaterialIOContext *context)
+{
+  return s_editor_material_image_editor_ex(editor, label, dialog_title,
+      image, readonly, optional, NULL, NULL, context);
 }
 
 static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
@@ -2910,6 +2929,196 @@ static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
   }
 
   ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+  return changed;
+}
+
+static bool s_editor_material_texture_settings_editor(
+    LDKEditorContext *editor, LDKMaterialTextureSettings *settings, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  bool changed = false;
+  static const char *const filter_names[] = {"Nearest", "Linear"};
+  u32 filter = (u32)settings->filter;
+  if (filter > (u32)LDK_MATERIAL_TEXTURE_FILTER_LINEAR)
+  {
+    filter = (u32)LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
+  }
+  s_editor_material_row_begin(editor, "Filter");
+  ldk_ui_begin_disabled(ui, readonly);
+  u32 next_filter = ldk_ui_combo_box(ui, filter_names, 2, filter);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (!readonly && next_filter < 2u && next_filter != filter)
+  {
+    settings->filter = (LDKMaterialTextureFilter)next_filter;
+    changed = true;
+  }
+
+  static const char *const mip_filter_names[] = {"None", "Nearest", "Linear"};
+  u32 mip_filter = (u32)settings->mip_filter;
+  if (mip_filter > (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR)
+  {
+    mip_filter = (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
+  }
+  s_editor_material_row_begin(editor, "Mip Filter");
+  ldk_ui_begin_disabled(ui, readonly);
+  u32 next_mip_filter =
+      ldk_ui_combo_box(ui, mip_filter_names, 3, mip_filter);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
+  {
+    settings->mip_filter =
+        (LDKMaterialTextureMipFilter)next_mip_filter;
+    changed = true;
+  }
+
+  static const char *const wrap_names[] = {"Repeat", "Clamp", "Mirror"};
+  u32 wrap_u = (u32)settings->wrap_u;
+  if (wrap_u > (u32)LDK_MATERIAL_TEXTURE_WRAP_MIRROR)
+  {
+    wrap_u = (u32)LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
+  }
+  u32 wrap_v = (u32)settings->wrap_v;
+  s_editor_material_row_begin(editor, "Wrap");
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "U");
+  ldk_ui_begin_disabled(ui, readonly);
+  u32 next_wrap_u = ldk_ui_combo_box(ui, wrap_names, 3, wrap_u);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+  ldk_ui_label(ui, "V");
+  ldk_ui_begin_disabled(ui, readonly);
+  u32 next_wrap_v = ldk_ui_combo_box(ui, wrap_names, 3, wrap_v);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (!readonly && next_wrap_u < 3u && next_wrap_u != wrap_u)
+  {
+    settings->wrap_u = (LDKMaterialTextureWrap)next_wrap_u;
+    changed = true;
+  }
+  if (!readonly && next_wrap_v < 3u && next_wrap_v != wrap_v)
+  {
+    settings->wrap_v = (LDKMaterialTextureWrap)next_wrap_v;
+    changed = true;
+  }
+
+  if (s_editor_material_vec2_editor(
+          editor, "UV Scale", &settings->uv_scale, readonly))
+  {
+    changed = true;
+  }
+  if (s_editor_material_vec2_editor(
+          editor, "UV Offset", &settings->uv_offset, readonly))
+  {
+    changed = true;
+  }
+
+  return changed;
+}
+
+static bool s_editor_material_textures_editor(LDKEditorContext *editor,
+    LDKMaterialDesc *desc, bool readonly, const LDKMaterialIOContext *context)
+{
+  static const char *const labels[LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {
+      "Albedo", "Normal", "Specular", "Texture 3", "Texture 4",
+      "Texture 5", "Texture 6", "Texture 7"};
+  static bool expanded[LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {0};
+  const LDKUIId popup_id = 0x54455841u;
+  LDKUIContext *ui = &editor->ui;
+  bool changed = false;
+  bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+  bool lit = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      desc->type == LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  u32 active = desc->texture_slot_mask;
+  u32 available = 0;
+
+  ldk_ui_push_id_cstr(ui, "material_textures");
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
+        !x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h))
+      active |= 1u << slot;
+    if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
+        !(active & (1u << slot)))
+      available |= 1u << slot;
+  }
+  s_editor_material_row_begin(editor, "Textures");
+  ldk_ui_begin_disabled(ui, readonly || !available);
+  bool open = ldk_ui_button(ui, "Add");
+  LDKUIRect button = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (open)
+    ldk_ui_open_popup_at(ui, popup_id,
+        (LDKUIPoint){button.x, button.y + button.h});
+  if (ldk_ui_begin_popup(ui, popup_id))
+  {
+    for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      if (!(available & (1u << slot)))
+        continue;
+      ldk_ui_push_id_u32(ui, slot);
+      ldk_ui_set_next_width(ui, ldk_ui_px(button.w));
+      ldk_ui_begin_disabled(ui, readonly);
+      bool add = ldk_ui_button_flat(ui, labels[slot]);
+      ldk_ui_end_disabled(ui);
+      ldk_ui_pop_id(ui);
+      if (add)
+      {
+        desc->texture_slot_mask = active | (1u << slot);
+        active = desc->texture_slot_mask;
+        desc->texture_settings[slot] =
+            ldk_material_texture_settings_get(desc, slot);
+        desc->texture_settings[slot].independent = true;
+        expanded[slot] = true;
+        changed = true;
+        ldk_ui_close_current_popup(ui);
+        break;
+      }
+    }
+    ldk_ui_end_popup(ui);
+  }
+
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    if (!(active & (1u << slot)) ||
+        !(textured || ((slot == 1u || slot == 2u) && lit)))
+      continue;
+    bool removed = false;
+    char prompt[64];
+    snprintf(prompt, sizeof(prompt), "Choose %s texture", labels[slot]);
+    LDKAssetImage image = ldk_material_texture_slot_get(desc, slot);
+    ldk_ui_push_id_u32(ui, slot);
+    if (s_editor_material_image_editor_ex(editor, labels[slot], prompt,
+            &image, readonly, true, &expanded[slot], &removed, context))
+    {
+      ldk_material_texture_slot_set(desc, slot, image);
+      changed = true;
+    }
+    if (removed)
+    {
+      active &= ~(1u << slot);
+      desc->texture_slot_mask = active;
+      memset(&desc->texture_settings[slot], 0,
+          sizeof(desc->texture_settings[slot]));
+      expanded[slot] = false;
+    }
+    else if (expanded[slot])
+    {
+      LDKMaterialTextureSettings settings =
+          ldk_material_texture_settings_get(desc, slot);
+      if (s_editor_material_texture_settings_editor(editor, &settings, readonly))
+      {
+        settings.independent = true;
+        desc->texture_settings[slot] = settings;
+        changed = true;
+      }
+    }
+    ldk_ui_pop_id(ui);
+  }
   ldk_ui_pop_id(ui);
   return changed;
 }
@@ -3072,123 +3281,9 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     ldk_ui_end_horizontal(ui);
   }
 
-  if (textured)
+  if (textured || lit)
   {
-    if (s_editor_material_image_editor(editor, "Texture",
-            "Choose material image", &desc->args.textured.texture, readonly,
-            false, context))
-    {
-      changed = true;
-    }
-
-    static const char *const filter_names[] = {"Nearest", "Linear"};
-    u32 filter = (u32)desc->args.textured.filter;
-    if (filter > (u32)LDK_MATERIAL_TEXTURE_FILTER_LINEAR)
-    {
-      filter = (u32)LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
-    }
-    s_editor_material_row_begin(editor, "Filter");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_filter = ldk_ui_combo_box(ui, filter_names, 2, filter);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
-    if (!readonly && next_filter < 2u && next_filter != filter)
-    {
-      desc->args.textured.filter = (LDKMaterialTextureFilter)next_filter;
-      changed = true;
-    }
-
-    static const char *const mip_filter_names[] = {"None", "Nearest", "Linear"};
-    u32 mip_filter = (u32)desc->args.textured.mip_filter;
-    if (mip_filter > (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR)
-    {
-      mip_filter = (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
-    }
-    s_editor_material_row_begin(editor, "Mip Filter");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_mip_filter =
-        ldk_ui_combo_box(ui, mip_filter_names, 3, mip_filter);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
-    if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
-    {
-      desc->args.textured.mip_filter =
-          (LDKMaterialTextureMipFilter)next_mip_filter;
-      changed = true;
-    }
-
-    static const char *const wrap_names[] = {"Repeat", "Clamp", "Mirror"};
-    u32 wrap_u = (u32)desc->args.textured.wrap_u;
-    if (wrap_u > (u32)LDK_MATERIAL_TEXTURE_WRAP_MIRROR)
-    {
-      wrap_u = (u32)LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
-    }
-    s_editor_material_row_begin(editor, "Wrap U");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_wrap_u = ldk_ui_combo_box(ui, wrap_names, 3, wrap_u);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
-    if (!readonly && next_wrap_u < 3u && next_wrap_u != wrap_u)
-    {
-      desc->args.textured.wrap_u = (LDKMaterialTextureWrap)next_wrap_u;
-      changed = true;
-    }
-
-    u32 wrap_v = (u32)desc->args.textured.wrap_v;
-    if (wrap_v > (u32)LDK_MATERIAL_TEXTURE_WRAP_MIRROR)
-    {
-      wrap_v = (u32)LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
-    }
-    s_editor_material_row_begin(editor, "Wrap V");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_wrap_v = ldk_ui_combo_box(ui, wrap_names, 3, wrap_v);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
-    if (!readonly && next_wrap_v < 3u && next_wrap_v != wrap_v)
-    {
-      desc->args.textured.wrap_v = (LDKMaterialTextureWrap)next_wrap_v;
-      changed = true;
-    }
-
-    if (s_editor_material_vec2_editor(
-            editor, "UV Scale", &desc->args.textured.uv_scale, readonly))
-    {
-      changed = true;
-    }
-    if (s_editor_material_vec2_editor(
-            editor, "UV Offset", &desc->args.textured.uv_offset, readonly))
-    {
-      changed = true;
-    }
-
-    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
-    {
-      char label[32];
-      char prompt[48];
-      snprintf(label, sizeof(label), "Texture %u", slot);
-      snprintf(prompt, sizeof(prompt), "Choose texture for slot %u", slot);
-      if (s_editor_material_image_editor(editor, label, prompt,
-              &desc->additional_textures[slot - 3u], readonly, false, context))
-      {
-        changed = true;
-      }
-    }
-  }
-
-  if (lit)
-  {
-    if (s_editor_material_image_editor(editor, "Normal Map",
-            "Choose normal map", &desc->surface.normal_map, readonly, true,
-            context))
-    {
-      changed = true;
-    }
-    if (s_editor_material_image_editor(editor, "Specular Map",
-            "Choose specular map", &desc->surface.specular_map, readonly, true,
-            context))
-    {
-      changed = true;
-    }
+    changed |= s_editor_material_textures_editor(editor, desc, readonly, context);
   }
 
   return changed;

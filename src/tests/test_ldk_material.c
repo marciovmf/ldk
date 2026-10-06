@@ -97,6 +97,9 @@ static int test_material_equality(void)
 
   memset(&a, 0xaa, sizeof(a));
   memset(&b, 0xbb, sizeof(b));
+  a.texture_slot_mask = b.texture_slot_mask = 0;
+  memset(a.texture_settings, 0, sizeof(a.texture_settings));
+  memset(b.texture_settings, 0, sizeof(b.texture_settings));
   a.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
   b.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
   a.args.vertex_color.color = 0x10203040u;
@@ -840,6 +843,22 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_EQ(resource_b->uv_offset.x, 0.25f);
   ASSERT_EQ(resource_b->uv_offset.y, -0.5f);
 
+  repeated_desc.texture_settings[3] =
+      ldk_material_texture_settings_get(&repeated_desc, 3);
+  repeated_desc.texture_settings[3].independent = true;
+  repeated_desc.texture_settings[3].wrap_u = LDK_MATERIAL_TEXTURE_WRAP_MIRROR;
+  repeated_desc.texture_settings[3].uv_scale.x = 8.0f;
+  ASSERT_TRUE(ldk_renderer_material_resolve(&renderer, &assets, &repeated_desc,
+      &material_c, &texture_c, &normal_c, &specular_c));
+  resource_c = &renderer.materials[material_c.id - 1u];
+  ASSERT_EQ(resource_c->texture_samplers[0], resource_b->texture_samplers[0]);
+  ASSERT_NEQ(resource_c->texture_samplers[3], resource_c->texture_samplers[0]);
+  ASSERT_EQ(resource_c->texture_uv_scales[0].x, 4.0f);
+  ASSERT_EQ(resource_c->texture_uv_scales[3].x, 8.0f);
+  ASSERT_EQ(resource_c->render_key, resource_b->render_key);
+  ASSERT_EQ(backend.texture_create_count, 1u);
+  ASSERT_EQ(backend.sampler_create_count, 3u);
+
   ldk_renderer_material_destroy(&renderer, material_a);
   ldk_renderer_material_destroy(&renderer, material_b);
   ldk_renderer_material_destroy(&renderer, material_c);
@@ -1445,9 +1464,38 @@ static int test_instanced_mesh_source_owns_transforms(void)
   return 0;
 }
 
+static int test_independent_texture_settings(void)
+{
+  LDKMaterialDesc a, b;
+  ASSERT_TRUE(ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &a));
+  a.args.textured.wrap_u = LDK_MATERIAL_TEXTURE_WRAP_REPEAT;
+  a.args.textured.uv_scale = (Vec2){4.0f, 2.0f};
+  b = a;
+  LDKMaterialTextureSettings normal = ldk_material_texture_settings_get(&a, 1);
+  ASSERT_EQ(normal.wrap_u, LDK_MATERIAL_TEXTURE_WRAP_REPEAT);
+  ASSERT_EQ(normal.uv_scale.x, 4.0f);
+  normal.independent = true;
+  normal.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
+  normal.uv_scale.x = 8.0f;
+  b.texture_settings[1] = normal;
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  ASSERT_EQ(ldk_material_texture_settings_get(&b, 0).uv_scale.x, 4.0f);
+  ASSERT_EQ(ldk_material_texture_settings_get(&b, 1).uv_scale.x, 8.0f);
+  b.texture_settings[1].uv_scale.x = NAN;
+  ASSERT_FALSE(ldk_material_desc_is_valid(&b));
+  b = a;
+  b.texture_slot_mask = 1u << 7;
+  ASSERT_TRUE(ldk_material_desc_is_valid(&b));
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
+      X_TEST(test_independent_texture_settings),
       X_TEST(test_material_types),
       X_TEST(test_material_defaults),
       X_TEST(test_material_equality),

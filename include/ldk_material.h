@@ -61,10 +61,22 @@ extern "C"
     LDK_MATERIAL_TEXTURE_SLOT_7 = 7
   } LDKMaterialTextureSlot;
 
+  typedef struct LDKMaterialTextureSettings
+  {
+    LDKMaterialTextureFilter filter;
+    LDKMaterialTextureMipFilter mip_filter;
+    LDKMaterialTextureWrap wrap_u;
+    LDKMaterialTextureWrap wrap_v;
+    Vec2 uv_scale;
+    Vec2 uv_offset;
+    /* Otherwise inherit the legacy material-wide settings. */
+    bool independent;
+  } LDKMaterialTextureSettings;
+
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
-    /* Sampling applies to every Texture2D slot in this material use; the
+    /* Legacy defaults for slots without independent settings; the
      * image assets remain shared. */
     LDKMaterialTextureFilter filter;
     LDKMaterialTextureMipFilter mip_filter;
@@ -105,6 +117,9 @@ extern "C"
     /* Extra shader-defined Texture2D slots. Slots 0..2 are represented by
      * the existing albedo/normal/specular fields for compatibility. */
     LDKAssetImage additional_textures[LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT];
+    /* Includes added slots that do not yet have an image. */
+    u32 texture_slot_mask;
+    LDKMaterialTextureSettings texture_settings[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     /* Alpha mode is a render property shared by all material types.
      * CUTOUT currently requires a textured material; BLEND is supported by
      * both textured and vertex-color materials. */
@@ -158,6 +173,10 @@ extern "C"
   /** Assign an image to a material texture slot. */
   LDK_API bool ldk_material_texture_slot_set(
       LDKMaterialDesc *desc, u32 slot, LDKAssetImage image);
+
+  /** Return independent settings, or the legacy material defaults. */
+  LDK_API LDKMaterialTextureSettings ldk_material_texture_settings_get(
+      LDKMaterialDesc const *desc, u32 slot);
 
   /**
    * @brief Compare the active values of two material descriptors exactly.

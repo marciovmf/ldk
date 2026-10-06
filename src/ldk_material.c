@@ -137,6 +137,28 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   return true;
 }
 
+LDKMaterialTextureSettings ldk_material_texture_settings_get(
+    LDKMaterialDesc const *desc, u32 slot)
+{
+  LDKMaterialTextureSettings settings = {0};
+  settings.wrap_u = settings.wrap_v = LDK_MATERIAL_TEXTURE_WRAP_CLAMP;
+  settings.uv_scale = (Vec2){1.0f, 1.0f};
+  if (!desc || slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT)
+    return settings;
+  if (desc->texture_settings[slot].independent)
+    return desc->texture_settings[slot];
+  if (s_material_type_is_textured(desc->type))
+  {
+    settings.filter = desc->args.textured.filter;
+    settings.mip_filter = desc->args.textured.mip_filter;
+    settings.wrap_u = desc->args.textured.wrap_u;
+    settings.wrap_v = desc->args.textured.wrap_v;
+    settings.uv_scale = desc->args.textured.uv_scale;
+    settings.uv_offset = desc->args.textured.uv_offset;
+  }
+  return settings;
+}
+
 bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
 {
   if (desc == NULL || !ldk_material_type_is_valid(desc->type))
@@ -158,6 +180,24 @@ bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
       !s_material_texture_sampling_is_valid(&desc->args.textured))
   {
     return false;
+  }
+
+  if (desc->texture_slot_mask & ~((1u << LDK_MATERIAL_TEXTURE_SLOT_COUNT) - 1u))
+    return false;
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    if (!desc->texture_settings[slot].independent)
+      continue;
+    LDKMaterialTextureSettings settings = desc->texture_settings[slot];
+    LDKMaterialTexturedArgs args = {0};
+    args.filter = settings.filter;
+    args.mip_filter = settings.mip_filter;
+    args.wrap_u = settings.wrap_u;
+    args.wrap_v = settings.wrap_v;
+    args.uv_scale = settings.uv_scale;
+    args.uv_offset = settings.uv_offset;
+    if (!s_material_texture_sampling_is_valid(&args))
+      return false;
   }
 
   if (!s_material_type_is_lit(desc->type))
@@ -229,6 +269,19 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     return false;
   }
 
+  if (a->texture_slot_mask != b->texture_slot_mask)
+    return false;
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    LDKMaterialTextureSettings x = ldk_material_texture_settings_get(a, slot);
+    LDKMaterialTextureSettings y = ldk_material_texture_settings_get(b, slot);
+    if (x.filter != y.filter || x.mip_filter != y.mip_filter ||
+        x.wrap_u != y.wrap_u || x.wrap_v != y.wrap_v ||
+        x.uv_scale.x != y.uv_scale.x || x.uv_scale.y != y.uv_scale.y ||
+        x.uv_offset.x != y.uv_offset.x || x.uv_offset.y != y.uv_offset.y)
+      return false;
+  }
+
   bool equal = a->alpha_mode == b->alpha_mode &&
       (a->alpha_mode != LDK_MATERIAL_ALPHA_MODE_CUTOUT ||
           a->alpha_cutoff == b->alpha_cutoff);
@@ -270,6 +323,14 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     }
   }
 
+  if (equal && a->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT)
+  {
+    equal = s_material_asset_image_equal(
+                a->surface.normal_map, b->surface.normal_map) &&
+        s_material_asset_image_equal(
+            a->surface.specular_map, b->surface.specular_map);
+  }
+
   if (!equal || !s_material_type_is_lit(a->type))
   {
     return equal;
@@ -294,6 +355,21 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
 
   u64 hash = LDK_MATERIAL_HASH_OFFSET;
   hash = s_material_hash_u32(hash, (u32)desc->type);
+  hash = s_material_hash_u32(hash, desc->texture_slot_mask);
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    LDKMaterialTextureSettings settings =
+        ldk_material_texture_settings_get(desc, slot);
+    hash = s_material_hash_u32(hash, (u32)settings.filter);
+    hash = s_material_hash_u32(hash, (u32)settings.mip_filter);
+    hash = s_material_hash_u32(hash, (u32)settings.wrap_u);
+    hash = s_material_hash_u32(hash, (u32)settings.wrap_v);
+    hash = s_material_hash_float(hash, settings.uv_scale.x);
+    hash = s_material_hash_float(hash, settings.uv_scale.y);
+    hash = s_material_hash_float(hash, settings.uv_offset.x);
+    hash = s_material_hash_float(hash, settings.uv_offset.y);
+  }
+
   hash = s_material_hash_u32(hash, (u32)desc->alpha_mode);
   if (desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_CUTOUT)
   {
@@ -325,6 +401,14 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
   else
   {
     hash = s_material_hash_u32(hash, desc->args.vertex_color.color);
+  }
+
+  if (desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT)
+  {
+    hash = s_material_hash_u32(hash, desc->surface.normal_map.h.index);
+    hash = s_material_hash_u32(hash, desc->surface.normal_map.h.version);
+    hash = s_material_hash_u32(hash, desc->surface.specular_map.h.index);
+    hash = s_material_hash_u32(hash, desc->surface.specular_map.h.version);
   }
 
   if (s_material_type_is_lit(desc->type))

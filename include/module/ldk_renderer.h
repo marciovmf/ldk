@@ -803,6 +803,9 @@ extern "C" {
     LDKRendererMaterialSelection selection;
     LDKRendererRenderKey render_key;
     LDKRHISampler texture_sampler;
+    LDKRHISampler texture_samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    Vec2 texture_uv_scales[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    Vec2 texture_uv_offsets[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     bool owns_additional_textures;
     Vec2 uv_scale;
     Vec2 uv_offset;
