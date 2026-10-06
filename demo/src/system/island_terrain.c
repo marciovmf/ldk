@@ -1852,7 +1852,7 @@ static bool s_island_terrain_world_to_cell(
   i32 y;
 
   if (!system || !out_x || !out_y || !s_map.cells ||
-      !s_runtime.grass_density_scales || !isfinite(world_position.x) ||
+      !isfinite(world_position.x) ||
       !isfinite(world_position.z) || !isfinite(system->cell_size) ||
       system->cell_size <= 0.0f)
   {
@@ -1871,6 +1871,57 @@ static bool s_island_terrain_world_to_cell(
 
   *out_x = x;
   *out_y = y;
+  return true;
+}
+
+bool tftf_island_terrain_tile_kind_at(
+    Vec3 world_position, TFTFIslandTileKind *out_kind)
+{
+  i32 cell_x;
+  i32 cell_y;
+  const IslandMapCell *cell;
+
+  if (!out_kind ||
+      !s_island_terrain_world_to_cell(world_position, &cell_x, &cell_y))
+  {
+    return false;
+  }
+
+  cell = &s_map.cells[(u32)cell_y * s_map.width + (u32)cell_x];
+  switch ((IslandTerrainClass)cell->terrain_class)
+  {
+  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
+    *out_kind = TFTF_ISLAND_TILE_DEEP_WATER;
+    return true;
+  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
+    *out_kind = TFTF_ISLAND_TILE_SHALLOW_WATER;
+    return true;
+  case ISLAND_TERRAIN_CLASS_SHORE:
+    *out_kind = TFTF_ISLAND_TILE_SHORE;
+    return true;
+  case ISLAND_TERRAIN_CLASS_LAND:
+    break;
+  default:
+    return false;
+  }
+
+  switch ((IslandBiome)cell->biome)
+  {
+  case ISLAND_BIOME_DRY:
+    *out_kind = TFTF_ISLAND_TILE_DRY;
+    break;
+  case ISLAND_BIOME_GRASS:
+    *out_kind = TFTF_ISLAND_TILE_GRASS;
+    break;
+  case ISLAND_BIOME_FOREST:
+    *out_kind = TFTF_ISLAND_TILE_FOREST;
+    break;
+  case ISLAND_BIOME_MOUNTAIN:
+    *out_kind = TFTF_ISLAND_TILE_MOUNTAIN;
+    break;
+  default:
+    return false;
+  }
   return true;
 }
 

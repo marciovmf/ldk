@@ -18,6 +18,21 @@ bool island_terrain_grass_state_at(Vec3 world_position,
 bool island_terrain_grass_density_multiply_at(
     Vec3 world_position, float multiplier);
 
+/** Game-specific, non-rendering interpretation of the generated island tile. */
+typedef enum TFTFIslandTileKind
+{
+  TFTF_ISLAND_TILE_DEEP_WATER = 0,
+  TFTF_ISLAND_TILE_SHALLOW_WATER,
+  TFTF_ISLAND_TILE_SHORE,
+  TFTF_ISLAND_TILE_DRY,
+  TFTF_ISLAND_TILE_GRASS,
+  TFTF_ISLAND_TILE_FOREST,
+  TFTF_ISLAND_TILE_MOUNTAIN
+} TFTFIslandTileKind;
+
+bool tftf_island_terrain_tile_kind_at(
+    Vec3 world_position, TFTFIslandTileKind *out_kind);
+
 /**
  * Read-only view of the generated RGBA16 island map.
  * Channels: R=height, G=decoration, B=resource, A=reserved.
