@@ -136,7 +136,7 @@ extern "C" {
     float specular;
     float shininess;
     rgba32 foam_color;
-    float foam_width;
+    float foam_width; // Horizontal surface distance in world units.
     float foam_strength;
     float foam_scale;
     float shore_range;

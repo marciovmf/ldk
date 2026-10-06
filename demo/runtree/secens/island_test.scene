@@ -586,7 +586,7 @@ scene:
         heightmap: -1
         height_channel: "LDK_TERRAIN_CHANNEL_R"
         cell_size: 1.00000000
-        height_scale: 20.0000000
+        height_scale: 10.0000000
         height_offset: 0.00000000
         center_on_origin: true
         origin_x: 0.00000000
@@ -654,7 +654,7 @@ scene:
         chunk_size: 32
         shallow_color: 1978720364
         deep_color: 327580927
-        depth_color_distance: 0.400000006
+        depth_color_distance: 0.100000001
         edge_fade_distance: 0.300000012
         wave_0_height: 0.0599999987
         wave_0_length: 16.0000000
@@ -680,12 +680,12 @@ scene:
         distortion_strength: 0.900065482
         foam_texture: "assets/textures/water/voronoise_3.png"
         foam_color: 3891520191
-        foam_width: 0.100000001
-        foam_strength: 0.676605523
+        foam_width: 0.300000012
+        foam_strength: 0.385282397
         foam_scale: 0.850000024
         foam_speed: 0.0199999996
-        foam_cutoff: 1.00000000
-        surface_foam_strength: 0.0156967845
+        foam_cutoff: 0.797750235
+        surface_foam_strength: 0.333723933
         shore_range: 1.00000000
         shore_wave_length: 0.500000000
         shore_wave_speed: 0.0299999993

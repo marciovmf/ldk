@@ -5729,7 +5729,7 @@ LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc)
   desc->specular = 0.35f;
   desc->shininess = 64.0f;
   desc->foam_color = 0xe7f3e2e6u;
-  desc->foam_width = 0.22f;
+  desc->foam_width = 0.6f;
   desc->foam_strength = 0.8f;
   desc->foam_scale = 0.65f;
   desc->shore_range = 2.0f;

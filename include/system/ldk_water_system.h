@@ -101,7 +101,7 @@ extern "C"
     //@inspect widget=COLOR
     u32 foam_color;
     //@inspect min=0
-    float foam_width;
+    float foam_width; // Horizontal surface distance in world units.
     //@inspect slider min=0 max=1
     float foam_strength;
     //@inspect min=0.01
