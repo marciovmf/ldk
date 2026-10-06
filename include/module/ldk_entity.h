@@ -42,9 +42,9 @@ typedef enum LDKEntityInternalFlags
 } LDKEntityInternalFlags;
 
 /**
- * IDs of engine owned components.
- * User components IDs can go from 1 to (UINT32_MAX - N)
- * where N is the number of components in this enum.
+ * Serialized IDs of engine-owned components. These values are persistent:
+ * once assigned, a retired ID must not be reused for another component.
+ * User component IDs must stay below the engine-reserved high-ID range.
  */
 typedef enum LDKComponentInstanceFlags
 {
@@ -66,6 +66,8 @@ typedef enum LDKBuiltinComponentType
   LDK_COMPONENT_TYPE_TEXT3D = UINT32_MAX - 10,
   LDK_COMPONENT_TYPE_AUDIO_SOURCE = UINT32_MAX - 11,
   LDK_COMPONENT_TYPE_GRASS_INTERACT = UINT32_MAX - 12,
+  /* UINT32_MAX - 13 was the retired CharacterController. Do not reuse it. */
+  LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER = UINT32_MAX - 14,
 } LDKBuiltinComponentType;
 
 /**

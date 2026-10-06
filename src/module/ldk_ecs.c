@@ -5,6 +5,7 @@
 #include <component/ldk_post_processing.h>
 #include <component/ldk_audio_source.h>
 #include <component/ldk_grass_interact.h>
+#include <component/ldk_terrain_follower.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -49,6 +50,10 @@
 
 #ifndef LDK_DEFAULT_GRASS_INTERACT_COUNT
 #define LDK_DEFAULT_GRASS_INTERACT_COUNT 32
+#endif
+
+#ifndef LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT
+#define LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT 32
 #endif
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
@@ -1219,6 +1224,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &grass_interact_desc))
   {
     ldk_log_error("Failed to register component: GrassInteractComponent.");
+    error = true;
+  }
+
+  LDKComponentDesc terrain_follower_desc =
+      ldk_terrain_follower_component_desc(LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT);
+  if (!ldk_component_register(&context->component, &terrain_follower_desc))
+  {
+    ldk_log_error("Failed to register component: TerrainFollower.\n");
     error = true;
   }
 

@@ -527,7 +527,7 @@ LDK_API void ldk_water_system_update(
     bounds_min.y = system->water_level - amplitude;
     bounds_max.y = system->water_level + amplitude;
     if (ldk_renderer_view_bounds_visible(
-            renderer, renderer->game_view, bounds_min, bounds_max) &&
+            renderer, LDK_RENDERER_VIEW_ALL, bounds_min, bounds_max) &&
         ldk_renderer_submit_water(
             renderer, LDK_RENDERER_VIEW_ALL, chunk->mesh, &desc))
     {

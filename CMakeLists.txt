@@ -327,6 +327,22 @@ function(ldk_game_build)
 
   list(REMOVE_DUPLICATES GAME_METADATA_INPUTS)
 
+  # Track the complete metadata input set, including .c/.cpp function-system
+  # sources. When an input is removed, the remaining files can all be older
+  # than the generated metadata header, so ordinary file dependencies alone
+  # do not force Comet to run again. This generated input manifest changes
+  # whenever the configured input set changes and makes removals invalidate
+  # the generated metadata as well.
+  set(GAME_METADATA_INPUTS_STAMP
+    "${GAME_METADATA_DIR}/generated_component_metadata_inputs.txt")
+  set(GAME_METADATA_INPUTS_TEXT "")
+  foreach(metadata_input IN LISTS GAME_METADATA_INPUTS)
+    file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
+    string(APPEND GAME_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
+  endforeach()
+  file(GENERATE OUTPUT "${GAME_METADATA_INPUTS_STAMP}"
+    CONTENT "${GAME_METADATA_INPUTS_TEXT}")
+
   # Include every header passed to Comet, including headers explicitly listed
   # in LDK_GAME_SOURCES. Never include .c/.cpp implementation files here.
   set(GAME_METADATA_INCLUDES_HEADER
@@ -354,6 +370,7 @@ function(ldk_game_build)
     DEPENDS
       comet
       ${GAME_METADATA_INPUTS}
+      "${GAME_METADATA_INPUTS_STAMP}"
     COMMAND_EXPAND_LISTS
     VERBATIM
     COMMENT "Running component and system metadata extraction tool..."
@@ -514,8 +531,12 @@ list(APPEND LDK_SOURCE
   src/component/ldk_audio_source.c
   ${INCLUDE_DIR}/component/ldk_grass_interact.h
   src/component/ldk_grass_interact.c
+  ${INCLUDE_DIR}/component/ldk_terrain_follower.h
+  src/component/ldk_terrain_follower.c
 
   # Systems
+  ${INCLUDE_DIR}/system/ldk_terrain_follower_system.h
+  src/system/ldk_terrain_follower_system.c
   ${INCLUDE_DIR}/system/ldk_grass_system.h
   src/system/ldk_grass_system.c
   ${INCLUDE_DIR}/system/ldk_terrain_system.h
@@ -663,6 +684,16 @@ if (NOT OPTION_LDK_USE_PREBUILT)
     ${INCLUDE_DIR}/module/ldk_audio.h
   )
 
+  set(LDK_ENGINE_METADATA_INPUTS_STAMP
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_inputs.txt")
+  set(LDK_ENGINE_METADATA_INPUTS_TEXT "")
+  foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
+    file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
+    string(APPEND LDK_ENGINE_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
+  endforeach()
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+    CONTENT "${LDK_ENGINE_METADATA_INPUTS_TEXT}")
+
   set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
   foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
     file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
@@ -681,6 +712,7 @@ if (NOT OPTION_LDK_USE_PREBUILT)
     DEPENDS
       comet
       ${LDK_ENGINE_METADATA_INPUTS}
+      "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
     COMMAND_EXPAND_LISTS
     VERBATIM
     COMMENT "Running engine component and system metadata extraction tool..."

@@ -1,6 +1,6 @@
 #include "tftf_bulb_plant_ai_system.h"
 
-#include "../component/player_character.h"
+#include "../component/tftf_player_character.h"
 #include "../component/tftf_bulb_plant_ai.h"
 #include "tftf_bullet_system.h"
 
@@ -28,7 +28,7 @@ static bool s_tftf_find_player(LDKEntity entity, void *user)
   }
 
   if (ldk_ecs_component_get_const(
-          entity, ldk_component_type(PlayerCharacterComponent)))
+          entity, ldk_component_type(TFTFPlayerCharacterComponent)))
   {
     search->entity = entity;
     search->found = true;
