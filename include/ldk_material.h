@@ -46,10 +46,26 @@ extern "C"
     LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR = 2
   } LDKMaterialTextureMipFilter;
 
+#define LDK_MATERIAL_TEXTURE_SLOT_COUNT 8u
+#define LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT 5u
+
+  typedef enum LDKMaterialTextureSlot
+  {
+    LDK_MATERIAL_TEXTURE_SLOT_ALBEDO = 0,
+    LDK_MATERIAL_TEXTURE_SLOT_NORMAL = 1,
+    LDK_MATERIAL_TEXTURE_SLOT_SPECULAR = 2,
+    LDK_MATERIAL_TEXTURE_SLOT_3 = 3,
+    LDK_MATERIAL_TEXTURE_SLOT_4 = 4,
+    LDK_MATERIAL_TEXTURE_SLOT_5 = 5,
+    LDK_MATERIAL_TEXTURE_SLOT_6 = 6,
+    LDK_MATERIAL_TEXTURE_SLOT_7 = 7
+  } LDKMaterialTextureSlot;
+
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
-    /* Sampling belongs to this material use; the image asset remains shared. */
+    /* Sampling applies to every Texture2D slot in this material use; the
+     * image assets remain shared. */
     LDKMaterialTextureFilter filter;
     LDKMaterialTextureMipFilter mip_filter;
     LDKMaterialTextureWrap wrap_u;
@@ -86,6 +102,9 @@ extern "C"
     LDKMaterialType type;
     LDKMaterialArgs args;
     LDKMaterialSurfaceArgs surface;
+    /* Extra shader-defined Texture2D slots. Slots 0..2 are represented by
+     * the existing albedo/normal/specular fields for compatibility. */
+    LDKAssetImage additional_textures[LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT];
     /* Alpha mode is a render property shared by all material types.
      * CUTOUT currently requires a textured material; BLEND is supported by
      * both textured and vertex-color materials. */
@@ -106,8 +125,9 @@ extern "C"
    * Every supported material type defaults to opaque white, opaque alpha mode,
    * and a 0.5 cutout threshold. Textured materials also default to a null image
    * asset, nearest filtering, no mip filtering, clamp-to-edge wrapping, and
-   * identity UV transform. Lit materials default to no specular contribution,
-   * shininess 32, no emission, and no normal/specular maps. On failure, out_desc is
+   * identity UV transform. Additional texture slots default to null. Lit
+   * materials default to no specular contribution, shininess 32, no emission,
+   * and no normal/specular maps. On failure, out_desc is
    * reset to an invalid zero descriptor.
    *
    * @param type Material type whose defaults should be produced.
@@ -130,6 +150,14 @@ extern "C"
    * @return true when the descriptor is structurally valid.
    */
   LDK_API bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc);
+
+  /** Return the image assigned to a material texture slot. */
+  LDK_API LDKAssetImage ldk_material_texture_slot_get(
+      LDKMaterialDesc const *desc, u32 slot);
+
+  /** Assign an image to a material texture slot. */
+  LDK_API bool ldk_material_texture_slot_set(
+      LDKMaterialDesc *desc, u32 slot, LDKAssetImage image);
 
   /**
    * @brief Compare the active values of two material descriptors exactly.

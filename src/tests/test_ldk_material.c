@@ -50,6 +50,12 @@ static int test_material_defaults(void)
     ASSERT_EQ(desc.surface.normal_map.h.version, 0u);
     ASSERT_EQ(desc.surface.specular_map.h.index, X_HPOOL_NULL_INDEX);
     ASSERT_EQ(desc.surface.specular_map.h.version, 0u);
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      LDKAssetImage image = ldk_material_texture_slot_get(&desc, slot);
+      ASSERT_EQ(image.h.index, X_HPOOL_NULL_INDEX);
+      ASSERT_EQ(image.h.version, 0u);
+    }
     ASSERT_EQ(desc.alpha_mode, LDK_MATERIAL_ALPHA_MODE_OPAQUE);
     ASSERT_EQ(desc.alpha_cutoff, 0.5f);
 
@@ -161,6 +167,19 @@ static int test_material_equality(void)
   b.args.textured.texture.h.version++;
   ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
   ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+
+  b = a;
+  LDKAssetImage extra = {0};
+  extra.h.index = 13u;
+  extra.h.version = 2u;
+  ASSERT_TRUE(ldk_material_texture_slot_set(
+      &b, LDK_MATERIAL_TEXTURE_SLOT_3, extra));
+  ASSERT_EQ(ldk_material_texture_slot_get(
+      &b, LDK_MATERIAL_TEXTURE_SLOT_3).h.index, 13u);
+  ASSERT_FALSE(ldk_material_desc_equal(&a, &b));
+  ASSERT_NEQ(ldk_material_desc_hash(&a), ldk_material_desc_hash(&b));
+  ASSERT_FALSE(ldk_material_texture_slot_set(
+      &b, LDK_MATERIAL_TEXTURE_SLOT_COUNT, extra));
 
   b = a;
   b.args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
@@ -768,6 +787,7 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_TRUE(ldk_material_desc_defaults(
       LDK_MATERIAL_TYPE_TEXTURED_UNLIT, &default_desc));
   default_desc.args.textured.texture = image;
+  default_desc.additional_textures[0] = image;
   repeated_desc = default_desc;
   repeated_desc.args.textured.filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
   repeated_desc.args.textured.mip_filter =
@@ -800,6 +820,7 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_EQ(texture_a.id, texture_b.id);
   ASSERT_EQ(texture_b.id, texture_c.id);
   ASSERT_EQ(backend.texture_create_count, 1u);
+  ASSERT_EQ(renderer.textures[texture_a.id - 1u].image_references, 6u);
   ASSERT_EQ(backend.last_texture_desc.mip_count, 3u);
   ASSERT_EQ(backend.sampler_create_count, 2u);
   ASSERT_EQ(backend.sampler_descs[0].mip_filter, LDK_RHI_FILTER_NONE);
@@ -822,6 +843,7 @@ static int test_material_sampling_reuses_image_texture(void)
   ldk_renderer_material_destroy(&renderer, material_a);
   ldk_renderer_material_destroy(&renderer, material_b);
   ldk_renderer_material_destroy(&renderer, material_c);
+  ASSERT_EQ(renderer.textures[texture_a.id - 1u].image_references, 3u);
   ldk_renderer_image_release(&renderer, texture_a);
   ldk_renderer_image_release(&renderer, texture_b);
   ldk_renderer_image_release(&renderer, texture_c);
@@ -846,6 +868,10 @@ typedef struct TestRendererInstancingBackend
   u32 instance_count;
   bool fail_instance_upload;
   bool fail_instance_allocation;
+  u32 water_bindings_count;
+  LDKRHIBindingsDesc water_bindings[3];
+  u32 water_params_count;
+  float water_texture_flags[4][LDK_RENDERER_WATER_TEXTURE_COUNT];
 } TestRendererInstancingBackend;
 
 static LDKRHIBuffer s_test_renderer_instancing_buffer_create(
@@ -868,7 +894,23 @@ static bool s_test_renderer_instancing_buffer_update(void *user,
   (void)buffer;
   (void)offset;
   (void)data;
+  if (buffer == 603u && backend->water_params_count < 4u && size == 432u)
+  {
+    memcpy(backend->water_texture_flags[backend->water_params_count++],
+        (const u8 *)data + 368u, sizeof(backend->water_texture_flags[0]));
+  }
   return !backend->fail_instance_upload || size != 2 * sizeof(Mat4);
+}
+
+static LDKRHIBindings s_test_water_bindings_create(
+    void *user, const LDKRHIBindingsDesc *desc)
+{
+  TestRendererInstancingBackend *backend = user;
+  if (desc->layout == 604u && backend->water_bindings_count < 3u)
+  {
+    backend->water_bindings[backend->water_bindings_count++] = *desc;
+  }
+  return ++backend->next_resource;
 }
 
 static void s_test_renderer_instancing_pass_begin(
@@ -1092,6 +1134,91 @@ static int test_renderer_instancing_batches_color_and_shadow(void)
   ASSERT_EQ(stats.game.instanced_batch_count, 1u);
   ASSERT_EQ(stats.game.instanced_instance_count, 2u);
 
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_water_texture_bindings_and_optional_maps(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  backend.next_resource = 1000u;
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, false, false));
+  rhi.functions.bindings_create = s_test_water_bindings_create;
+  renderer.water_pass.rhi = &rhi;
+  renderer.water_pass.is_initialized = true;
+  renderer.water_pass.params_buffer = 603u;
+  renderer.water_pass.bindings_layout = 604u;
+  renderer.water_pass.depth_sampler = 605u;
+  renderer.water_pass.texture_sampler = 606u;
+  renderer.water_pass.fallback_texture = 607u;
+  renderer.water_pass.ldr_pipeline = 608u;
+  renderer.water_pass.hdr_pipeline = 609u;
+  renderer.texture_count = renderer.texture_capacity = 4u;
+  renderer.textures = calloc(4u, sizeof(*renderer.textures));
+  ASSERT_TRUE(renderer.textures != NULL);
+  LDKRendererWaterDesc desc;
+  ldk_renderer_water_desc_defaults(&desc);
+  LDKResourceMesh mesh = {1u};
+  desc.textures[LDK_RENDERER_WATER_TEXTURE_NOISE].id = 99u;
+  ASSERT_FALSE(
+      ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
+  ASSERT_EQ(renderer.submitted_water_count, 0u);
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    renderer.textures[i].alive = true;
+    renderer.textures[i].texture = 801u + i;
+    desc.textures[i].id = 1u + i;
+  }
+  ASSERT_TRUE(
+      ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
+  ASSERT_TRUE(
+      ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
+  desc.textures[LDK_RENDERER_WATER_TEXTURE_FOAM] = ldk_renderer_texture_null();
+  ASSERT_TRUE(
+      ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
+  memset(desc.textures, 0, sizeof(desc.textures));
+  ASSERT_TRUE(
+      ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
+
+  LDKRendererFrameDesc frame = {0};
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  ldk_renderer_render_frame(&renderer, &frame);
+  /* Equal texture sets share bindings across chunks. Each changed set must
+   * bind every slot again, including neutral maps for cleared textures. */
+  ASSERT_EQ(backend.water_bindings_count, 3u);
+  ASSERT_EQ(backend.water_params_count, 4u);
+  const u32 slots[4] = {6u, 9u, 10u, 11u};
+  for (u32 b = 0u; b < 3u; ++b)
+  {
+    const LDKRHIBindingsDesc *bindings = &backend.water_bindings[b];
+    ASSERT_EQ(bindings->binding_count, 6u);
+    ASSERT_EQ(bindings->bindings[1].texture, 502u);
+    ASSERT_EQ(bindings->bindings[1].sampler, 605u);
+    for (u32 t = 0u; t < 4u; ++t)
+    {
+      ASSERT_EQ(bindings->bindings[2u + t].slot, slots[t]);
+      ASSERT_EQ(bindings->bindings[2u + t].sampler, 606u);
+      bool present = b == 0u || (b == 1u && t != 1u);
+      ASSERT_EQ(bindings->bindings[2u + t].texture, present ? 801u + t : 607u);
+    }
+  }
+  for (u32 draw = 0u; draw < 4u; ++draw)
+  {
+    for (u32 t = 0u; t < 4u; ++t)
+    {
+      bool present = draw < 2u || (draw == 2u && t != 1u);
+      ASSERT_EQ(backend.water_texture_flags[draw][t], present ? 1.0f : 0.0f);
+    }
+  }
+  for (u32 t = 0u; t < 4u; ++t)
+  {
+    LDKResourceTexture texture = {1u + t};
+    ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, texture));
+  }
   s_test_renderer_instancing_cleanup(&renderer, &rhi);
   return 0;
 }
@@ -1334,6 +1461,7 @@ int main(void)
       X_TEST(test_shared_image_cache),
       X_TEST(test_material_sampling_reuses_image_texture),
       X_TEST(test_renderer_instancing_batches_color_and_shadow),
+      X_TEST(test_renderer_water_texture_bindings_and_optional_maps),
       X_TEST(test_renderer_ordinary_batches_never_instance),
       X_TEST(test_renderer_instances_copy_transform_and_validate),
       X_TEST(test_renderer_instances_copy_colors),

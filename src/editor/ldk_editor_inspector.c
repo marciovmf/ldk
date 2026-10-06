@@ -157,7 +157,11 @@ static LDKUIPoint s_editor_inspector_scroll_begin(
 {
   scroll = ldk_ui_begin_scrollview(
       ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
+  /* The themed area API also supplies panel padding. Older UI versions keep
+   * the padding configured by their scrollview implementation. */
   ldk_ui_set_padding(ui, ui->theme.panel_padding);
+#endif
   return scroll;
 }
 
@@ -3156,6 +3160,19 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     {
       changed = true;
     }
+
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      char label[32];
+      char prompt[48];
+      snprintf(label, sizeof(label), "Texture %u", slot);
+      snprintf(prompt, sizeof(prompt), "Choose texture for slot %u", slot);
+      if (s_editor_material_image_editor(editor, label, prompt,
+              &desc->additional_textures[slot - 3u], readonly, false, context))
+      {
+        changed = true;
+      }
+    }
   }
 
   if (lit)
@@ -4465,12 +4482,29 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     expanded = ldk_ui_begin_area_ex(ui, component_title, icon, expanded);
     s_editor_inspector_component_expanded_set(component_type, expanded);
 
+#ifndef LDK_UI_AREA_HEADER_HEIGHT
+    ldk_ui_horizontal_line(ui);
+#endif
+
     // Header buttons positioned over the area bar.
     u32 id = component_type + component_i;
     ldk_ui_push_id_u32(ui, id); // header button id scope
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
     LDKUIRect delete_rect = ldk_ui_area_header_rect(ui);
+#else
+    LDKUIRect delete_rect = ldk_ui_last_rect(ui);
+#endif
     delete_rect.x += delete_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
     delete_rect.y += (delete_rect.h - LDK_UI_DEFAULT_CONTROL_HEIGHT) * 0.5f;
+#else
+    delete_rect.y -= LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_SPACING;
+    if (expanded && meta && component)
+    {
+      delete_rect.x += LDK_UI_DEFAULT_PADDING;
+      delete_rect.y -= LDK_UI_DEFAULT_PADDING;
+    }
+#endif
     delete_rect.w = 24.0f;
     delete_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
     if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
