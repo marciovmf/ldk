@@ -69,6 +69,10 @@ extern "C"
   LDK_API bool ldk_asset_source_package_close(
       LDKAssetSource *source, LDKAssetSourcePackage *package);
 
+  /* Physical path of an open package owned by this source. */
+  LDK_API const XFSPath *ldk_asset_source_package_path_get(
+      const LDKAssetSource *source, const LDKPackage *package);
+
   /* Resolves path using the fixed policy:
    *   1. first matching open package
    *   2. runtree/path on the local filesystem

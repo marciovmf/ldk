@@ -142,6 +142,17 @@ bool ldk_asset_source_package_close(
   return false;
 }
 
+const XFSPath *ldk_asset_source_package_path_get(
+    const LDKAssetSource *source, const LDKPackage *package)
+{
+  if (!source || !package) return NULL;
+  for (LDKAssetSourcePackage *node = source->packages; node; node = node->next)
+  {
+    if (node->package == package) return &node->path;
+  }
+  return NULL;
+}
+
 bool ldk_asset_source_find(const LDKAssetSource *source, const char *path,
     LDKAssetSourceFile *out_file)
 {

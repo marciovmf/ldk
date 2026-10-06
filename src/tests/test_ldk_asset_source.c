@@ -155,12 +155,20 @@ static int test_asset_source_walks_open_packages(void)
 
   ASSERT_TRUE(ldk_asset_source_find(&source, "first/item.dat", &file));
   ASSERT_EQ(file.origin, LDK_ASSET_SOURCE_ORIGIN_PACKAGE);
+  const XFSPath *first_box_path = ldk_asset_source_package_path_get(
+      &source, file.location.package.package);
+  ASSERT_TRUE(first_box_path != NULL);
+  ASSERT_EQ(x_fs_path_compare(first_box_path, &first_box), 0);
   ASSERT_TRUE(ldk_asset_source_file_read(&file, buffer, sizeof(buffer)));
   ASSERT_TRUE(memcmp(buffer, first_data, sizeof(first_data) - 1) == 0);
 
   memset(buffer, 0, sizeof(buffer));
   ASSERT_TRUE(ldk_asset_source_find(&source, "second/item.dat", &file));
   ASSERT_EQ(file.origin, LDK_ASSET_SOURCE_ORIGIN_PACKAGE);
+  const XFSPath *second_box_path = ldk_asset_source_package_path_get(
+      &source, file.location.package.package);
+  ASSERT_TRUE(second_box_path != NULL);
+  ASSERT_EQ(x_fs_path_compare(second_box_path, &second_box), 0);
   ASSERT_TRUE(ldk_asset_source_file_read(&file, buffer, sizeof(buffer)));
   ASSERT_TRUE(memcmp(buffer, second_data, sizeof(second_data) - 1) == 0);
 
@@ -178,6 +186,8 @@ static int test_asset_source_missing_and_invalid_paths(void)
   ASSERT_TRUE(s_test_root_create("ldk-asset-source-invalid", &root));
   ASSERT_TRUE(ldk_asset_source_initialize(&source, x_fs_path_cstr(&root)));
 
+  ASSERT_TRUE(ldk_asset_source_package_path_get(NULL, NULL) == NULL);
+  ASSERT_TRUE(ldk_asset_source_package_path_get(&source, NULL) == NULL);
   ASSERT_FALSE(ldk_asset_source_find(&source, "missing.bin", &file));
   ASSERT_FALSE(ldk_asset_source_find(&source, "../outside.bin", &file));
   ASSERT_FALSE(ldk_asset_source_find(&source, "/absolute.bin", &file));

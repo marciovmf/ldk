@@ -349,6 +349,19 @@ bool ldki_editor_window_is_open(LDKEditorWindowId window_id)
   return window != NULL && window->open;
 }
 
+bool ldki_editor_window_activate(LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window =
+      s_editor_dock_window_get(&s_editor_dock, window_id);
+  if (!window) return false;
+  window->open = true;
+  if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    s_editor_dock.nodes[window->leaf].data.leaf.active_window = window_id;
+  }
+  return true;
+}
+
 bool ldki_editor_window_show(LDKEditorWindowId window_id)
 {
   LDKEditorDockWindow *window =

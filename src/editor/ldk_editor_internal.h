@@ -516,6 +516,7 @@ typedef struct LDKEditorWindow
 u32 ldki_editor_window_count(void);
 const LDKEditorWindow *ldki_editor_window_at(u32 index);
 bool ldki_editor_window_show(LDKEditorWindowId window_id);
+bool ldki_editor_window_activate(LDKEditorWindowId window_id);
 bool ldki_editor_profiler_path_get(
     const LDKEditorContext *editor, XFSPath *path);
 void ldki_editor_profiler_update(void);
@@ -550,6 +551,8 @@ bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path);
 void ldki_editor_file_explorer_package_mounts_clear(void);
 void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor);
+bool ldki_editor_file_explorer_reveal_asset(
+    LDKEditorContext *editor, const char *asset_path);
 float ldki_editor_file_explorer_zoom_get(void);
 void ldki_editor_file_explorer_zoom_set(float zoom);
 float ldki_editor_file_explorer_tree_width_get(void);

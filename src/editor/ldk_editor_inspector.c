@@ -1516,6 +1516,25 @@ static bool s_editor_inspector_asset_path_validate(
   return true;
 }
 
+static void s_editor_inspector_asset_reveal_on_click(
+    LDKEditorContext *editor, const LDKAssetInfo *info, LDKUIRect rect)
+{
+  LDKUIContext *ui = &editor->ui;
+  if (!info || !info->asset_path.length || !ui->mouse || ui->active_id ||
+      !ui->current_window ||
+      ui->hovered_window_id != ui->current_window->id ||
+      !ldk_os_mouse_button_down((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    return;
+  }
+  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  if (ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y) &&
+      ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+  {
+    ldki_editor_file_explorer_reveal_asset(editor, info->asset_path.buf);
+  }
+}
+
 static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetMesh *value, bool readonly)
 {
@@ -1547,6 +1566,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display, sizeof(display));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
@@ -1635,6 +1655,7 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display, sizeof(display));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
@@ -1721,6 +1742,7 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display, sizeof(display));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
@@ -1812,6 +1834,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display, sizeof(display));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
@@ -1924,6 +1947,7 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display, sizeof(display));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
@@ -2795,6 +2819,7 @@ static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
   ldk_ui_input_box(ui, display_path, sizeof(display_path));
   LDKUIRect target = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
 
   if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&

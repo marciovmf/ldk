@@ -135,6 +135,7 @@ typedef struct ProjectExplorerState
   XFSPath root;
   XFSPath selected_directory;
   XFSPath selected_file;
+  bool reveal_scroll_pending;
   LDKPackage *last_click_package;
   u64 last_click_ticks;
   XArray *expanded_paths;
@@ -1272,6 +1273,76 @@ bool ldki_editor_file_explorer_package_mount(
       sizeof(state->selected_package_directory));
   memset(&state->selected_file, 0, sizeof(state->selected_file));
   return true;
+}
+
+bool ldki_editor_file_explorer_reveal_asset(
+    LDKEditorContext *editor, const char *asset_path)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+  LDKAssetSource *source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  LDKAssetSourceFile file;
+  XFSPath path = {0};
+  XFSPath directory = {0};
+  LDKPackage *package = NULL;
+
+  if (!editor || !editor->project.loaded ||
+      !s_project_explorer_initialize(state) ||
+      !s_project_explorer_root_set(state, editor->project.run_root_path.buf) ||
+      !ldk_asset_source_find(source, asset_path, &file))
+  {
+    return false;
+  }
+
+  if (file.origin == LDK_ASSET_SOURCE_ORIGIN_PACKAGE)
+  {
+    const XFSPath *package_path = ldk_asset_source_package_path_get(
+        source, file.location.package.package);
+    if (!package_path ||
+        !ldki_editor_file_explorer_package_mount(editor, package_path))
+    {
+      return false;
+    }
+    ProjectExplorerPackageMount *mount =
+        x_array_get(state->package_mounts, (u32)state->selected_package);
+    package = mount->package;
+    if (!x_fs_path_set(&path,
+            ldk_package_entry_get_path(file.location.package.entry))) return false;
+    x_fs_path_dirname(&path, &directory);
+    x_smallstr_from_cstr(&state->selected_package_directory, directory.buf);
+    XFSPath ancestor = directory;
+    for (;;)
+    {
+      s_project_explorer_package_expanded_path_set(state, package, &ancestor, true);
+      if (ancestor.length == 0) break;
+      XFSPath parent = {0};
+      x_fs_path_dirname(&ancestor, &parent);
+      ancestor = parent;
+    }
+  }
+  else
+  {
+    path = file.location.filesystem_path;
+    x_fs_path_dirname(&path, &directory);
+    s_project_explorer_directory_select(state, &directory, true);
+    XFSPath ancestor = directory;
+    while (x_fs_path_compare(&ancestor, &state->root) != 0)
+    {
+      if (s_project_explorer_expanded_path_index(state, &ancestor) < 0)
+        x_array_add(state->expanded_paths, &ancestor);
+      XFSPath parent = {0};
+      if (!x_fs_path_dirname(&ancestor, &parent) ||
+          x_fs_path_compare(&ancestor, &parent) == 0) break;
+      ancestor = parent;
+    }
+    state->root_expanded = true;
+  }
+
+  state->selected_file = path;
+  state->last_click_package = package;
+  state->last_click_ticks = 0;
+  state->file_scroll = (LDKUIPoint){0};
+  state->reveal_scroll_pending = true;
+  return ldki_editor_window_activate(LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
 }
 
 static bool s_project_explorer_rect_visible(LDKUIRect rect, LDKUIRect clip)
@@ -2533,6 +2604,45 @@ static void s_project_explorer_tile_label_draw(LDKUIContext *ui,
   }
 }
 
+static bool s_project_explorer_entry_selected(
+    ProjectExplorerState *state, const ProjectExplorerEntry *entry)
+{
+  return state->selected_file.length != 0 &&
+         state->last_click_package == entry->package &&
+         x_fs_path_compare(&state->selected_file, &entry->path) == 0;
+}
+
+static bool s_project_explorer_file_button(LDKUIContext *ui,
+    ProjectExplorerState *state, const ProjectExplorerEntry *entry,
+    const char *text)
+{
+  if (!s_project_explorer_entry_selected(state, entry))
+    return ldk_ui_button_flat(ui, text);
+
+  rgba32 background = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG];
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] =
+      ui->theme.colors[LDK_UI_COLOR_FOCUS];
+  bool clicked = ldk_ui_button(ui, text);
+  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = background;
+  return clicked;
+}
+
+static void s_project_explorer_reveal_scroll(ProjectExplorerState *state,
+    LDKUIContext *ui, const ProjectExplorerEntry *entry, LDKUIRect rect)
+{
+  if (!state->reveal_scroll_pending ||
+      !s_project_explorer_entry_selected(state, entry)) return;
+
+  LDKUIRect view = ui->clip_rect;
+  if (view.h <= 0.0f) return;
+  if (rect.y < view.y || rect.h > view.h)
+    state->file_scroll.y = fmaxf(0.0f, state->file_scroll.y + rect.y - view.y);
+  else if (rect.y + rect.h > view.y + view.h)
+    state->file_scroll.y += rect.y + rect.h - view.y - view.h;
+  else
+    state->reveal_scroll_pending = false;
+}
+
 static ProjectExplorerTileResult s_project_explorer_tile(
     LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui,
     const ProjectExplorerEntry *entry, LDKUIIcon icon, float tile_width,
@@ -2548,10 +2658,11 @@ static ProjectExplorerTileResult s_project_explorer_tile(
   ldk_ui_push_id_cstr(ui, x_fs_path_cstr(&entry->path));
 
   ldk_ui_set_next_size(ui, ldk_ui_px(tile_width), ldk_ui_px(tile_height));
-  result.clicked = ldk_ui_button_flat(ui, "");
+  result.clicked = s_project_explorer_file_button(ui, state, entry, "");
   LDKUIRect tile_rect = ldk_ui_last_rect(ui);
   LDKUIRect tile_bounding_rect = ldk_ui_last_bounding_rect(ui);
   LDKUIId tile_id = ui->last_id;
+  s_project_explorer_reveal_scroll(state, ui, entry, tile_bounding_rect);
   result.pressed = ui->mouse != NULL && ui->active_id == tile_id &&
                    ldk_os_mouse_button_down(
                        (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
@@ -2672,12 +2783,15 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       }
       else
       {
-        label_clicked = ldk_ui_button_flat(ui, entry->name.buf);
+        label_clicked = s_project_explorer_file_button(
+            ui, state, entry, entry->name.buf);
         s_project_explorer_path_drag_source(
             ui, entry, entry_icon);
       }
 
       ldk_ui_end_horizontal(ui);
+      s_project_explorer_reveal_scroll(
+          state, ui, entry, ldk_ui_measure_from(ui, entry_mark));
 
       bool right_clicked = s_project_explorer_rect_button_down(
           ui, ldk_ui_measure_from(ui, entry_mark), LDK_MOUSE_BUTTON_RIGHT);
