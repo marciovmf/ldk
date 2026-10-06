@@ -112,6 +112,10 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   out_desc->alpha_cutoff = 0.5f;
   out_desc->surface.normal_map.h = x_handle_null();
   out_desc->surface.specular_map.h = x_handle_null();
+  for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+  {
+    out_desc->additional_textures[i].h = x_handle_null();
+  }
 
   if (type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       type == LDK_MATERIAL_TYPE_TEXTURED)
@@ -166,6 +170,57 @@ bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
          isfinite(desc->surface.emission) && desc->surface.emission >= 0.0f;
 }
 
+LDKAssetImage ldk_material_texture_slot_get(
+    LDKMaterialDesc const *desc, u32 slot)
+{
+  LDKAssetImage null_image = {0};
+  null_image.h = x_handle_null();
+
+  if (desc == NULL || slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT)
+  {
+    return null_image;
+  }
+
+  switch (slot)
+  {
+  case LDK_MATERIAL_TEXTURE_SLOT_ALBEDO:
+    return desc->args.textured.texture;
+  case LDK_MATERIAL_TEXTURE_SLOT_NORMAL:
+    return desc->surface.normal_map;
+  case LDK_MATERIAL_TEXTURE_SLOT_SPECULAR:
+    return desc->surface.specular_map;
+  default:
+    return desc->additional_textures[slot - 3u];
+  }
+}
+
+bool ldk_material_texture_slot_set(
+    LDKMaterialDesc *desc, u32 slot, LDKAssetImage image)
+{
+  if (desc == NULL || slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT)
+  {
+    return false;
+  }
+
+  switch (slot)
+  {
+  case LDK_MATERIAL_TEXTURE_SLOT_ALBEDO:
+    desc->args.textured.texture = image;
+    break;
+  case LDK_MATERIAL_TEXTURE_SLOT_NORMAL:
+    desc->surface.normal_map = image;
+    break;
+  case LDK_MATERIAL_TEXTURE_SLOT_SPECULAR:
+    desc->surface.specular_map = image;
+    break;
+  default:
+    desc->additional_textures[slot - 3u] = image;
+    break;
+  }
+
+  return true;
+}
+
 bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
 {
   if (!ldk_material_desc_is_valid(a) || !ldk_material_desc_is_valid(b) ||
@@ -200,6 +255,19 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
   else
   {
     equal = a->args.vertex_color.color == b->args.vertex_color.color;
+  }
+
+  if (equal && s_material_type_is_textured(a->type))
+  {
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      if (!s_material_asset_image_equal(
+              a->additional_textures[i], b->additional_textures[i]))
+      {
+        equal = false;
+        break;
+      }
+    }
   }
 
   if (!equal || !s_material_type_is_lit(a->type))
@@ -246,6 +314,13 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
     hash = s_material_hash_float(hash, desc->args.textured.uv_offset.x);
     hash = s_material_hash_float(hash, desc->args.textured.uv_offset.y);
     hash = s_material_hash_u32(hash, desc->args.textured.color);
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      hash = s_material_hash_u32(
+          hash, desc->additional_textures[i].h.index);
+      hash = s_material_hash_u32(
+          hash, desc->additional_textures[i].h.version);
+    }
   }
   else
   {

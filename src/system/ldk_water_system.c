@@ -1,6 +1,7 @@
 #include <system/ldk_water_system.h>
 
 #include <ldk.h>
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
 #include <stdx/stdx_math.h>
 
@@ -23,6 +24,8 @@ typedef struct LDKWaterRuntime
   u32 chunk_count;
   u64 geometry_hash;
   double time_seconds;
+  LDKAssetImage image_assets[LDK_RENDERER_WATER_TEXTURE_COUNT];
+  LDKResourceTexture textures[LDK_RENDERER_WATER_TEXTURE_COUNT];
 } LDKWaterRuntime;
 
 static LDKWaterRuntime s_runtime;
@@ -57,6 +60,17 @@ static LDKRendererWaterDesc s_water_desc(const LDKWaterSystem *system)
   desc.shore_wave_length = system->shore_wave_length;
   desc.shore_wave_speed = system->shore_wave_speed;
   desc.shore_foam_strength = system->shore_foam_strength;
+  memcpy(desc.textures, s_runtime.textures, sizeof(desc.textures));
+  desc.noise_scale = system->noise_scale;
+  desc.noise_speed = system->noise_speed;
+  desc.distortion_strength = system->distortion_strength;
+  desc.foam_speed = system->foam_speed;
+  desc.foam_cutoff = system->foam_cutoff;
+  desc.surface_foam_strength = system->surface_foam_strength;
+  desc.caustics_scale = system->caustics_scale;
+  desc.caustics_strength = system->caustics_strength;
+  desc.caustics_speed = system->caustics_speed;
+  desc.caustics_depth = system->caustics_depth;
   desc.time_seconds = (float)s_runtime.time_seconds;
   return desc;
 }
@@ -104,6 +118,58 @@ LDK_API void ldk_water_system_defaults(LDKWaterSystem *system)
   system->shore_wave_length = desc.shore_wave_length;
   system->shore_wave_speed = desc.shore_wave_speed;
   system->shore_foam_strength = desc.shore_foam_strength;
+  system->normal_texture = ldk_asset_image_null();
+  system->foam_texture = ldk_asset_image_null();
+  system->noise_texture = ldk_asset_image_null();
+  system->caustics_texture = ldk_asset_image_null();
+  system->noise_scale = desc.noise_scale;
+  system->noise_speed = desc.noise_speed;
+  system->distortion_strength = desc.distortion_strength;
+  system->foam_speed = desc.foam_speed;
+  system->foam_cutoff = desc.foam_cutoff;
+  system->surface_foam_strength = desc.surface_foam_strength;
+  system->caustics_scale = desc.caustics_scale;
+  system->caustics_strength = desc.caustics_strength;
+  system->caustics_speed = desc.caustics_speed;
+  system->caustics_depth = desc.caustics_depth;
+}
+
+static void s_textures_update(
+    const LDKWaterSystem *system, LDKRenderer *renderer)
+{
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  const LDKAssetImage images[LDK_RENDERER_WATER_TEXTURE_COUNT] = {
+      system->normal_texture, system->foam_texture, system->noise_texture,
+      system->caustics_texture};
+  const char *labels[LDK_RENDERER_WATER_TEXTURE_COUNT] = {
+      "normal", "foam", "noise", "caustics"};
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    bool changed = images[i].h.index != s_runtime.image_assets[i].h.index ||
+                   images[i].h.version != s_runtime.image_assets[i].h.version;
+    bool authored = images[i].h.index != X_HPOOL_NULL_INDEX;
+    if (!changed && (!authored || ldk_renderer_texture_is_valid(
+                                      renderer, s_runtime.textures[i])))
+    {
+      continue;
+    }
+    const LDKAssetImageData *image =
+        authored && assets
+            ? ldk_asset_manager_image_get_const(assets, images[i])
+            : NULL;
+    LDKResourceTexture next =
+        image && !image->is_missing
+            ? ldk_renderer_image_acquire(renderer, assets, images[i])
+            : ldk_renderer_texture_null();
+    if (changed && authored && assets &&
+        !ldk_renderer_texture_is_valid(renderer, next))
+    {
+      ldk_log_error("WaterSystem: unavailable %s texture.\n", labels[i]);
+    }
+    ldk_renderer_image_release(renderer, s_runtime.textures[i]);
+    s_runtime.image_assets[i] = images[i];
+    s_runtime.textures[i] = next;
+  }
 }
 
 static bool s_config_valid(const LDKWaterSystem *system)
@@ -318,10 +384,23 @@ LDK_API int ldk_water_system_initialize(void *data)
   }
 
   LDKWaterSystem empty = {0};
+  bool zero_initialized = memcmp(system, &empty, sizeof(*system)) == 0;
+  /* Assigning an image must not suppress scalar defaults on a new system. */
+  empty.normal_texture = system->normal_texture;
+  empty.foam_texture = system->foam_texture;
+  empty.noise_texture = system->noise_texture;
+  empty.caustics_texture = system->caustics_texture;
   LDKWaterSystem defaults;
   ldk_water_system_defaults(&defaults);
-  if (memcmp(system, &empty, sizeof(*system)) == 0)
+  if (zero_initialized || memcmp(system, &empty, sizeof(*system)) == 0)
   {
+    if (!zero_initialized)
+    {
+      defaults.normal_texture = system->normal_texture;
+      defaults.foam_texture = system->foam_texture;
+      defaults.noise_texture = system->noise_texture;
+      defaults.caustics_texture = system->caustics_texture;
+    }
     *system = defaults;
   }
   if (system->width == 0.0f)
@@ -352,6 +431,18 @@ LDK_API int ldk_water_system_initialize(void *data)
   {
     system->foam_scale = defaults.foam_scale;
   }
+  if (system->noise_scale == 0.0f)
+  {
+    system->noise_scale = defaults.noise_scale;
+  }
+  if (system->caustics_scale == 0.0f)
+  {
+    system->caustics_scale = defaults.caustics_scale;
+  }
+  if (system->caustics_depth == 0.0f)
+  {
+    system->caustics_depth = defaults.caustics_depth;
+  }
   if (system->shininess == 0.0f)
   {
     system->shininess = defaults.shininess;
@@ -380,6 +471,10 @@ LDK_API int ldk_water_system_initialize(void *data)
 
   memset(&s_runtime, 0, sizeof(s_runtime));
   s_runtime.owner = system;
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    s_runtime.image_assets[i] = ldk_asset_image_null();
+  }
   system->chunk_count = 0u;
   system->visible_chunk_count = 0u;
   system->mesh_update_count = 0u;
@@ -411,6 +506,7 @@ LDK_API void ldk_water_system_update(
   {
     return;
   }
+  s_textures_update(system, renderer);
   if (!system->has_geometry ||
       s_runtime.geometry_hash != s_geometry_hash(system))
   {
@@ -449,6 +545,10 @@ LDK_API void ldk_water_system_terminate(void *data)
   }
   LDKRenderer *renderer = ldk_module_get(LDK_MODULE_RENDERER);
   s_chunks_destroy(renderer, s_runtime.chunks, s_runtime.chunk_count);
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    ldk_renderer_image_release(renderer, s_runtime.textures[i]);
+  }
   memset(&s_runtime, 0, sizeof(s_runtime));
   system->chunk_count = 0u;
   system->visible_chunk_count = 0u;

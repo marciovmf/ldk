@@ -176,6 +176,106 @@ static bool s_material_image_path(const LDKMaterialIOContext *context,
       ldk_asset_path_set(asset_path, path);
 }
 
+static bool s_material_extra_texture_read(
+    const LDKMaterialIOContext *context, const TMLDocument *doc,
+    const TMLNode *fields, u32 slot, LDKAssetImage *out_image,
+    LDKMaterialIOResult *result)
+{
+  char field_name[32];
+  const TMLEntry *entry;
+  TMLString image_path;
+  char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+  LDKAssetPath asset_path;
+
+  snprintf(field_name, sizeof(field_name), "material_texture_%u", slot);
+  entry = tml_node_find_entry(doc, fields, field_name);
+  if (!entry)
+  {
+    return true;
+  }
+  if (!context->assets)
+  {
+    s_result_error(result, "material texture read requires an asset manager");
+    return false;
+  }
+  if (!tml_node_get_string(doc, fields, field_name, &image_path) ||
+      image_path.size >= sizeof(path) ||
+      memchr(image_path.data, 0, image_path.size))
+  {
+    s_result_error(result, "invalid material texture path");
+    return false;
+  }
+
+  memcpy(path, image_path.data, image_path.size);
+  if (!path[0])
+  {
+    out_image->h = x_handle_null();
+    return true;
+  }
+  if (!s_material_image_path(context, path, &asset_path))
+  {
+    s_result_error(result, "invalid material texture asset path");
+    return false;
+  }
+
+  *out_image =
+      ldk_asset_manager_image_load_shared(context->assets, asset_path.buf);
+  if (x_handle_is_null(out_image->h))
+  {
+    *out_image = ldk_asset_manager_image_missing(
+        context->assets, asset_path.buf);
+    if (x_handle_is_null(out_image->h))
+    {
+      s_result_error(result, "failed to allocate missing texture");
+      return false;
+    }
+  }
+
+  const LDKAssetImageData *image =
+      ldk_asset_manager_image_get_const(context->assets, *out_image);
+  if (image && image->is_missing)
+  {
+    s_report_missing_image(context, asset_path.buf);
+  }
+  return true;
+}
+
+static bool s_material_extra_texture_write(
+    const LDKMaterialIOContext *context, LDKAssetImage image, u32 slot,
+    XStrBuilder *out, u32 indent, LDKMaterialIOResult *result)
+{
+  char field_name[32];
+  LDKAssetPath asset_path;
+
+  if (x_handle_is_null(image.h))
+  {
+    return true;
+  }
+  if (!context->assets)
+  {
+    s_result_error(result, "material texture write requires an asset manager");
+    return false;
+  }
+
+  LDKAssetHandle handle = {image.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(context->assets, handle);
+  if (!info || info->type != LDK_ASSET_TYPE_IMAGE ||
+      !context->assets->source ||
+      info->source_revision != context->assets->source->revision ||
+      !s_material_image_path(context, info->asset_path.buf, &asset_path))
+  {
+    s_result_error(result, "material texture needs a valid asset path to save");
+    return false;
+  }
+
+  snprintf(field_name, sizeof(field_name), "material_texture_%u", slot);
+  s_append_indent(out, indent);
+  x_strbuilder_append_format(out, "%s: ", field_name);
+  s_append_escaped_string(out, asset_path.buf);
+  x_strbuilder_append_char(out, '\n');
+  return true;
+}
+
 static bool s_material_surface_map_read(const LDKMaterialIOContext *context,
     const TMLDocument *doc, const TMLNode *fields, const char *field_name,
     const char *label, LDKAssetImage *out_image, LDKMaterialIOResult *result)
@@ -415,6 +515,15 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
     }
     if (x_handle_is_null(desc.args.textured.texture.h))
       s_report_missing_image(context, NULL);
+
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      if (!s_material_extra_texture_read(context, doc, fields, slot,
+              &desc.additional_textures[slot - 3u], result))
+      {
+        return false;
+      }
+    }
   }
   else
     desc.args.vertex_color.color = color;
@@ -513,6 +622,15 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     x_strbuilder_append(out, "material_texture: ");
     s_append_escaped_string(out, asset_path.buf);
     x_strbuilder_append_char(out, '\n');
+
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      if (!s_material_extra_texture_write(context,
+              desc->additional_textures[slot - 3u], slot, out, indent, result))
+      {
+        return false;
+      }
+    }
 
     if (desc->args.textured.filter != LDK_MATERIAL_TEXTURE_FILTER_NEAREST)
     {

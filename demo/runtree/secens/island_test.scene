@@ -2,7 +2,7 @@ scene:
   version: 1
   properties:
     ambient_color: 4294967295
-    ambient_intensity: 0.200000003
+    ambient_intensity: 0.00999999978
   entities:
     - entity: 0
       parent: 2
@@ -91,7 +91,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.481540263, 0.00000000
+            local_position: -10.4723206, 3.36211061, 5.78090858
             local_scale: 0.488891602, 0.488891602, 0.488891602
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -121,8 +121,8 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, -1.29293108, -0.891713142
-            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_position: 258.527100, 1.01974034, -2.46427345
+            local_scale: 1.00000000, 1.87015104, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
@@ -270,15 +270,15 @@ scene:
   systems:
     - id: "0x0da6bbd10b0612d1"
       data:
-        min_tilt_degrees: 45.0000000
-        max_tilt_degrees: 62.5000000
-        tilt_direction_degrees: 320.000000
+        min_tilt_degrees: 27.4078560
+        max_tilt_degrees: 36.9034920
+        tilt_direction_degrees: 270.261902
         wind_direction_degrees: 34.0074921
         wind_force: 1.00000000
         wind_speed: 0.214152709
         specular: 0.00000000
-        shininess: 32.0000000
-        emission: 0.00000000
+        shininess: 1.00000000
+        emission: 0.143549964
         casts_shadows: false
         type_0_name: "dry_grass"
         type_0_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
@@ -294,14 +294,14 @@ scene:
         type_1_name: "grass"
         type_1_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_1_density: 50.0000000
-        type_1_min_height: 0.600000024
-        type_1_max_height: 0.649999976
-        type_1_blade_width: 0.0799999982
-        type_1_curvature: 0.159999996
-        type_1_wind_strength: 0.160148978
-        type_1_interaction_recovery_time: 7.28125000
-        type_1_bottom_color: 3908261119
-        type_1_top_color: 2309577983
+        type_1_min_height: 0.699999988
+        type_1_max_height: 0.750000000
+        type_1_blade_width: 0.119999997
+        type_1_curvature: 0.260943711
+        type_1_wind_strength: 0.0920977890
+        type_1_interaction_recovery_time: 7.94997168
+        type_1_bottom_color: 3201866751
+        type_1_top_color: 3201866751
         type_2_name: "forest_grass"
         type_2_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_2_density: 1.00000000
@@ -459,7 +459,7 @@ scene:
     - id: "0xf8ae7c8bf28b5e6d"
       grouping: "0x8000000000000001"
       data:
-        seed: 777
+        seed: 10012
         map_size: 600
         land_scale: 0.00970000029
         island_radius: 0.800000012
@@ -586,7 +586,7 @@ scene:
         heightmap: -1
         height_channel: "LDK_TERRAIN_CHANNEL_R"
         cell_size: 1.00000000
-        height_scale: 55.0000000
+        height_scale: 20.0000000
         height_offset: 0.00000000
         center_on_origin: true
         origin_x: 0.00000000
@@ -645,39 +645,53 @@ scene:
         casts_shadows: false
     - id: "0x00e9968219b6aae4"
       data:
-        water_level: 2.00000000
+        water_level: 0.750000000
         center_x: 0.00000000
         center_z: 0.00000000
         width: 600.000000
         depth: 600.000000
         cell_size: 1.00000000
         chunk_size: 32
-        shallow_color: 1941812032
-        deep_color: 609512959
-        depth_color_distance: 0.800000012
-        edge_fade_distance: 0.0399999991
+        shallow_color: 1978720364
+        deep_color: 327580927
+        depth_color_distance: 0.400000006
+        edge_fade_distance: 0.300000012
         wave_0_height: 0.0599999987
         wave_0_length: 16.0000000
         wave_0_speed: 1.20000005
-        wave_0_direction_degrees: 25.0000000
-        wave_1_height: 0.0350000001
-        wave_1_length: 9.00000000
-        wave_1_speed: 0.850000024
-        wave_1_direction_degrees: 55.0000000
+        wave_0_direction_degrees: 1.00000000
+        wave_1_height: 0.0399999991
+        wave_1_length: 100.000000
+        wave_1_speed: 10.0000000
+        wave_1_direction_degrees: 20.0000000
         wave_2_height: 0.0149999997
-        wave_2_length: 6.00000000
-        wave_2_speed: 0.600000024
+        wave_2_length: 10.0000000
+        wave_2_speed: 1.00000000
         wave_2_direction_degrees: 110.000000
-        detail_scale: 0.800000012
-        detail_strength: 0.0450000018
-        detail_speed: 0.250000000
-        specular: 0.349999994
-        shininess: 64.0000000
-        foam_color: 3891520230
-        foam_width: 0.219999999
-        foam_strength: 0.800000012
-        foam_scale: 0.649999976
-        shore_range: 2.00000000
-        shore_wave_length: 1.39999998
-        shore_wave_speed: 0.349999994
-        shore_foam_strength: 0.600000024
+        normal_texture: "assets/textures/water/water_normal.png"
+        detail_scale: 7.00000000
+        detail_strength: 0.200000003
+        detail_speed: 0.100000001
+        specular: 0.200000003
+        shininess: 50.0000000
+        noise_texture: "assets/textures/water/clouds_2.png"
+        noise_scale: 2.00000000
+        noise_speed: 0.100000001
+        distortion_strength: 0.900065482
+        foam_texture: "assets/textures/water/voronoise_3.png"
+        foam_color: 3891520191
+        foam_width: 0.100000001
+        foam_strength: 0.676605523
+        foam_scale: 0.850000024
+        foam_speed: 0.0199999996
+        foam_cutoff: 1.00000000
+        surface_foam_strength: 0.0156967845
+        shore_range: 1.00000000
+        shore_wave_length: 0.500000000
+        shore_wave_speed: 0.0299999993
+        shore_foam_strength: 0.158882082
+        caustics_texture: "assets/textures/water/surface_foam.png"
+        caustics_scale: 40.0000000
+        caustics_strength: 0.400000006
+        caustics_speed: 0.200000003
+        caustics_depth: 1.00000000

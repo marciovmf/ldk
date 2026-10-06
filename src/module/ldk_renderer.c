@@ -3070,12 +3070,15 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
   return true;
 }
 
+static const u32 s_renderer_material_texture_binding_slots[
+    LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {3u, 6u, 7u, 9u, 10u, 11u, 12u, 13u};
+
 static bool s_renderer_mesh_pass_create_bindings_layout(
     LDKRendererMeshPass* pass)
 {
   LDKRHIBindingsLayoutDesc desc = {0};
   ldk_rhi_bindings_layout_desc_defaults(&desc);
-  desc.entry_count = 9;
+  desc.entry_count = 14;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   desc.entries[0].stages =
@@ -3105,6 +3108,14 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
   desc.entries[8].slot = 8;
   desc.entries[8].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[8].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+  {
+    u32 entry = 9u + i;
+    desc.entries[entry].slot =
+        s_renderer_material_texture_binding_slots[i + 3u];
+    desc.entries[entry].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+    desc.entries[entry].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  }
 
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &desc);
@@ -3705,10 +3716,9 @@ static bool s_renderer_mesh_pass_create_fallback_resources(
 }
 
 static LDKRHIBindings s_renderer_mesh_pass_create_material_bindings(
-    LDKRendererMeshPass *pass, LDKRHITexture albedo_texture,
-    LDKRHISampler albedo_sampler, LDKRHITexture normal_texture,
-    LDKRHISampler normal_sampler, LDKRHITexture specular_texture,
-    LDKRHISampler specular_sampler)
+    LDKRendererMeshPass *pass,
+    const LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT],
+    const LDKRHISampler samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT])
 {
   LDKRHIBindingsDesc desc = {0};
   u32 binding = 0;
@@ -3729,14 +3739,6 @@ static LDKRHIBindings s_renderer_mesh_pass_create_material_bindings(
   desc.bindings[binding].buffer_size = sizeof(LDKRendererMeshMaterialParams);
   binding++;
 
-  if (albedo_texture != LDK_RHI_INVALID_RESOURCE)
-  {
-    desc.bindings[binding].slot = 3;
-    desc.bindings[binding].texture = albedo_texture;
-    desc.bindings[binding].sampler = albedo_sampler;
-    binding++;
-  }
-
   desc.bindings[binding].slot = 4;
   desc.bindings[binding].buffer = pass->lighting_buffer;
   desc.bindings[binding].buffer_size = sizeof(LDKRendererLightingParams);
@@ -3745,18 +3747,17 @@ static LDKRHIBindings s_renderer_mesh_pass_create_material_bindings(
   desc.bindings[binding].texture = pass->shadow_texture;
   desc.bindings[binding].sampler = pass->shadow_sampler;
   binding++;
-  if (normal_texture != LDK_RHI_INVALID_RESOURCE)
+
+  for (u32 i = 0; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
   {
-    desc.bindings[binding].slot = 6;
-    desc.bindings[binding].texture = normal_texture;
-    desc.bindings[binding].sampler = normal_sampler;
-    binding++;
-  }
-  if (specular_texture != LDK_RHI_INVALID_RESOURCE)
-  {
-    desc.bindings[binding].slot = 7;
-    desc.bindings[binding].texture = specular_texture;
-    desc.bindings[binding].sampler = specular_sampler;
+    if (textures[i] == LDK_RHI_INVALID_RESOURCE ||
+        samplers[i] == LDK_RHI_INVALID_RESOURCE)
+    {
+      continue;
+    }
+    desc.bindings[binding].slot = s_renderer_material_texture_binding_slots[i];
+    desc.bindings[binding].texture = textures[i];
+    desc.bindings[binding].sampler = samplers[i];
     binding++;
   }
   desc.binding_count = binding;
@@ -3788,22 +3789,31 @@ static bool s_renderer_mesh_pass_grow_material_bindings_cache(
   return true;
 }
 
+static bool s_renderer_mesh_material_bindings_equal(
+    const LDKRendererMeshBindingsCacheEntry *entry,
+    const LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT],
+    const LDKRHISampler samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT])
+{
+  for (u32 i = 0; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+  {
+    if (entry->textures[i] != textures[i] || entry->samplers[i] != samplers[i])
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 static LDKRHIBindings s_renderer_mesh_pass_get_material_bindings(
-    LDKRendererMeshPass *pass, LDKRHITexture albedo_texture,
-    LDKRHISampler albedo_sampler, LDKRHITexture normal_texture,
-    LDKRHISampler normal_sampler, LDKRHITexture specular_texture,
-    LDKRHISampler specular_sampler)
+    LDKRendererMeshPass *pass,
+    const LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT],
+    const LDKRHISampler samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT])
 {
   for (u32 i = 0; i < pass->material_bindings_cache_count; i++)
   {
     LDKRendererMeshBindingsCacheEntry *entry =
         &pass->material_bindings_cache[i];
-    if (entry->albedo_texture == albedo_texture &&
-        entry->albedo_sampler == albedo_sampler &&
-        entry->normal_texture == normal_texture &&
-        entry->normal_sampler == normal_sampler &&
-        entry->specular_texture == specular_texture &&
-        entry->specular_sampler == specular_sampler)
+    if (s_renderer_mesh_material_bindings_equal(entry, textures, samplers))
     {
       return entry->bindings;
     }
@@ -3816,9 +3826,8 @@ static LDKRHIBindings s_renderer_mesh_pass_get_material_bindings(
     return LDK_RHI_INVALID_RESOURCE;
   }
 
-  LDKRHIBindings bindings = s_renderer_mesh_pass_create_material_bindings(pass,
-      albedo_texture, albedo_sampler, normal_texture, normal_sampler,
-      specular_texture, specular_sampler);
+  LDKRHIBindings bindings =
+      s_renderer_mesh_pass_create_material_bindings(pass, textures, samplers);
   if (bindings == LDK_RHI_INVALID_RESOURCE)
   {
     return LDK_RHI_INVALID_RESOURCE;
@@ -3826,12 +3835,8 @@ static LDKRHIBindings s_renderer_mesh_pass_get_material_bindings(
 
   LDKRendererMeshBindingsCacheEntry *entry =
       &pass->material_bindings_cache[pass->material_bindings_cache_count++];
-  entry->albedo_texture = albedo_texture;
-  entry->albedo_sampler = albedo_sampler;
-  entry->normal_texture = normal_texture;
-  entry->normal_sampler = normal_sampler;
-  entry->specular_texture = specular_texture;
-  entry->specular_sampler = specular_sampler;
+  memcpy(entry->textures, textures, sizeof(entry->textures));
+  memcpy(entry->samplers, samplers, sizeof(entry->samplers));
   entry->bindings = bindings;
   return bindings;
 }
@@ -3849,8 +3854,16 @@ static void s_renderer_mesh_pass_remove_texture_bindings(
   {
     LDKRendererMeshBindingsCacheEntry *entry =
         &pass->material_bindings_cache[index];
-    if (entry->albedo_texture != texture && entry->normal_texture != texture &&
-        entry->specular_texture != texture)
+    bool found = false;
+    for (u32 i = 0; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+    {
+      if (entry->textures[i] == texture)
+      {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
     {
       index++;
       continue;
@@ -4214,12 +4227,15 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   }
   else if (textured || lit)
   {
-    LDKRHITexture albedo_texture = LDK_RHI_INVALID_RESOURCE;
-    LDKRHISampler albedo_sampler = LDK_RHI_INVALID_RESOURCE;
-    LDKRHITexture normal_texture = LDK_RHI_INVALID_RESOURCE;
-    LDKRHISampler normal_sampler = LDK_RHI_INVALID_RESOURCE;
-    LDKRHITexture specular_texture = LDK_RHI_INVALID_RESOURCE;
-    LDKRHISampler specular_sampler = LDK_RHI_INVALID_RESOURCE;
+    LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    LDKRHISampler samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+
+    for (u32 i = 0; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+    {
+      textures[i] = pass->white_specular_texture;
+      samplers[i] = pass->fallback_sampler;
+    }
+    textures[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] = pass->flat_normal_texture;
 
     if (textured)
     {
@@ -4231,13 +4247,32 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
         {
           return;
         }
-        albedo_texture = pass->white_specular_texture;
-        albedo_sampler = pass->fallback_sampler;
       }
       else
       {
-        albedo_texture = texture->texture;
-        albedo_sampler = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+        textures[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] = texture->texture;
+        samplers[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] =
+            material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+            ? material->texture_sampler
+            : texture->sampler;
+      }
+
+      for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+      {
+        if (material->desc.additional_textures[i].id ==
+            LDK_RHI_INVALID_RESOURCE)
+        {
+          continue;
+        }
+        texture = s_renderer_texture_get_resource(
+            renderer, material->desc.additional_textures[i]);
+        if (texture == NULL)
+        {
+          return;
+        }
+        u32 slot = i + 3u;
+        textures[slot] = texture->texture;
+        samplers[slot] = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
             ? material->texture_sampler
             : texture->sampler;
       }
@@ -4245,19 +4280,15 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
 
     if (lit)
     {
-      normal_texture = pass->flat_normal_texture;
-      normal_sampler = pass->fallback_sampler;
-      specular_texture = pass->white_specular_texture;
-      specular_sampler = pass->fallback_sampler;
-
       if (material->desc.normal_map.id != LDK_RHI_INVALID_RESOURCE)
       {
         LDKRendererTextureResource* texture = s_renderer_texture_get_resource(
             renderer, material->desc.normal_map);
         if (texture != NULL)
         {
-          normal_texture = texture->texture;
-          normal_sampler = material->texture_sampler != LDK_RHI_INVALID_RESOURCE
+          textures[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] = texture->texture;
+          samplers[LDK_MATERIAL_TEXTURE_SLOT_NORMAL] =
+              material->texture_sampler != LDK_RHI_INVALID_RESOURCE
               ? material->texture_sampler
               : texture->sampler;
         }
@@ -4268,8 +4299,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
             renderer, material->desc.specular_map);
         if (texture != NULL)
         {
-          specular_texture = texture->texture;
-          specular_sampler =
+          textures[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR] = texture->texture;
+          samplers[LDK_MATERIAL_TEXTURE_SLOT_SPECULAR] =
               material->texture_sampler != LDK_RHI_INVALID_RESOURCE
               ? material->texture_sampler
               : texture->sampler;
@@ -4277,9 +4308,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       }
     }
 
-    bindings = s_renderer_mesh_pass_get_material_bindings(pass,
-        albedo_texture, albedo_sampler, normal_texture, normal_sampler,
-        specular_texture, specular_sampler);
+    bindings =
+        s_renderer_mesh_pass_get_material_bindings(pass, textures, samplers);
     if (bindings == LDK_RHI_INVALID_RESOURCE)
     {
       return;
@@ -5660,14 +5690,24 @@ typedef struct LDKRendererWaterParams
   float sun_direction[4];
   float sun_color[4];
   float ambient[4];
+  float texture_flags[LDK_RENDERER_WATER_TEXTURE_COUNT];
+  float noise[4];
+  float foam_detail[4];
+  float caustics[4];
 } LDKRendererWaterParams;
 
 LDK_STATIC_ASSERT(
-    sizeof(LDKRendererWaterParams) == 368, water_params_std140_size);
+    sizeof(LDKRendererWaterParams) == 432, water_params_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererWaterParams, waves) == 208, water_waves_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, ambient) == 352,
     water_ambient_std140_offset);
+LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, texture_flags) == 368,
+    water_textures_std140_offset);
+
+/* Match the normal-map and shader-defined material binding slots. */
+static const u32 s_water_texture_slots[LDK_RENDERER_WATER_TEXTURE_COUNT] = {
+    6u, 9u, 10u, 11u};
 
 LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc)
 {
@@ -5696,6 +5736,15 @@ LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc)
   desc->shore_wave_length = 1.4f;
   desc->shore_wave_speed = 0.35f;
   desc->shore_foam_strength = 0.6f;
+  desc->noise_scale = 8.0f;
+  desc->noise_speed = 0.12f;
+  desc->distortion_strength = 0.08f;
+  desc->foam_speed = 0.12f;
+  desc->foam_cutoff = 0.45f;
+  desc->caustics_scale = 4.0f;
+  desc->caustics_strength = 0.3f;
+  desc->caustics_speed = 0.2f;
+  desc->caustics_depth = 2.0f;
 }
 
 LDK_API bool ldk_renderer_water_desc_is_valid(const LDKRendererWaterDesc *desc)
@@ -5717,6 +5766,17 @@ LDK_API bool ldk_renderer_water_desc_is_valid(const LDKRendererWaterDesc *desc)
       !isfinite(desc->shore_wave_speed) ||
       !isfinite(desc->shore_foam_strength) ||
       desc->shore_foam_strength < 0.0f || desc->shore_foam_strength > 1.0f ||
+      !isfinite(desc->noise_scale) || desc->noise_scale < 0.01f ||
+      !isfinite(desc->noise_speed) || !isfinite(desc->distortion_strength) ||
+      desc->distortion_strength < 0.0f || desc->distortion_strength > 1.0f ||
+      !isfinite(desc->foam_speed) || !isfinite(desc->foam_cutoff) ||
+      desc->foam_cutoff < 0.0f || desc->foam_cutoff > 1.0f ||
+      !isfinite(desc->surface_foam_strength) ||
+      desc->surface_foam_strength < 0.0f ||
+      desc->surface_foam_strength > 1.0f || !isfinite(desc->caustics_scale) ||
+      desc->caustics_scale < 0.01f || !isfinite(desc->caustics_strength) ||
+      desc->caustics_strength < 0.0f || !isfinite(desc->caustics_speed) ||
+      !isfinite(desc->caustics_depth) || desc->caustics_depth < 0.01f ||
       !isfinite(desc->time_seconds) || desc->time_seconds < 0.0f)
   {
     return false;
@@ -5749,6 +5809,14 @@ LDK_API bool ldk_renderer_submit_water(LDKRenderer *renderer,
       !ldk_renderer_mesh_is_valid(renderer, mesh))
   {
     return false;
+  }
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    if (desc->textures[i].id != LDK_RHI_INVALID_RESOURCE &&
+        !ldk_renderer_texture_is_valid(renderer, desc->textures[i]))
+    {
+      return false;
+    }
   }
   if (renderer->submitted_water_count == renderer->submitted_water_capacity)
   {
@@ -5783,6 +5851,8 @@ static void s_renderer_water_pass_terminate(LDKRendererWaterPass *pass)
   if (pass->rhi)
   {
     ldk_rhi_sampler_destroy(pass->rhi, pass->depth_sampler);
+    ldk_rhi_sampler_destroy(pass->rhi, pass->texture_sampler);
+    ldk_rhi_texture_destroy(pass->rhi, pass->fallback_texture);
     ldk_rhi_buffer_destroy(pass->rhi, pass->params_buffer);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->ldr_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->hdr_pipeline);
@@ -5805,7 +5875,7 @@ static bool s_renderer_water_pass_initialize(
 
   LDKRHIBindingsLayoutDesc layout = {0};
   ldk_rhi_bindings_layout_desc_defaults(&layout);
-  layout.entry_count = 2u;
+  layout.entry_count = 2u + LDK_RENDERER_WATER_TEXTURE_COUNT;
   layout.entries[0].slot = 0u;
   layout.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   layout.entries[0].stages =
@@ -5813,6 +5883,12 @@ static bool s_renderer_water_pass_initialize(
   layout.entries[1].slot = 1u;
   layout.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   layout.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  {
+    layout.entries[2u + i].slot = s_water_texture_slots[i];
+    layout.entries[2u + i].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+    layout.entries[2u + i].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  }
   pass->bindings_layout = ldk_rhi_bindings_layout_create(rhi, &layout);
 
   LDKRHIBufferDesc buffer = {0};
@@ -5831,9 +5907,27 @@ static bool s_renderer_water_pass_initialize(
   sampler.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
   sampler.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
   pass->depth_sampler = ldk_rhi_sampler_create(rhi, &sampler);
+  sampler.min_filter = LDK_RHI_FILTER_LINEAR;
+  sampler.mag_filter = LDK_RHI_FILTER_LINEAR;
+  sampler.mip_filter = LDK_RHI_FILTER_LINEAR;
+  sampler.wrap_u = LDK_RHI_WRAP_REPEAT;
+  sampler.wrap_v = LDK_RHI_WRAP_REPEAT;
+  pass->texture_sampler = ldk_rhi_sampler_create(rhi, &sampler);
+
+  const u8 neutral[4] = {128u, 128u, 255u, 255u};
+  LDKRHITextureDesc texture = {0};
+  ldk_rhi_texture_desc_defaults(&texture);
+  texture.width = 1u;
+  texture.height = 1u;
+  texture.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  texture.usage = LDK_RHI_TEXTURE_USAGE_SAMPLED;
+  texture.initial_data = neutral;
+  texture.initial_data_size = sizeof(neutral);
+  pass->fallback_texture = ldk_rhi_texture_create(rhi, &texture);
 
   if (!pass->vertex_shader_module || !pass->fragment_shader_module ||
-      !pass->bindings_layout || !pass->params_buffer || !pass->depth_sampler)
+      !pass->bindings_layout || !pass->params_buffer || !pass->depth_sampler ||
+      !pass->texture_sampler || !pass->fallback_texture)
   {
     s_renderer_water_pass_terminate(pass);
     return false;
@@ -5849,7 +5943,7 @@ static bool s_renderer_water_pass_initialize(
   pipeline.depth_state.write_enabled = false;
   pipeline.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
   pipeline.blend_state.enabled = true;
-  pipeline.blend_state.src_color_factor = LDK_RHI_BLEND_FACTOR_SRC_ALPHA;
+  pipeline.blend_state.src_color_factor = LDK_RHI_BLEND_FACTOR_ONE;
   pipeline.blend_state.dst_color_factor =
       LDK_RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
   pipeline.blend_state.src_alpha_factor = LDK_RHI_BLEND_FACTOR_ONE;
@@ -5910,6 +6004,16 @@ static void s_renderer_water_params(LDKRendererWaterParams *params,
   params->shore[1] = desc->shore_wave_length;
   params->shore[2] = desc->shore_wave_speed;
   params->shore[3] = desc->shore_foam_strength;
+  params->noise[0] = desc->noise_scale;
+  params->noise[1] = desc->noise_speed;
+  params->noise[2] = desc->distortion_strength;
+  params->noise[3] = desc->foam_speed;
+  params->foam_detail[0] = desc->foam_cutoff;
+  params->foam_detail[1] = desc->surface_foam_strength;
+  params->caustics[0] = desc->caustics_scale;
+  params->caustics[1] = desc->caustics_strength;
+  params->caustics[2] = desc->caustics_speed;
+  params->caustics[3] = desc->caustics_depth;
   memcpy(params->ambient, lighting->params.ambient, sizeof(params->ambient));
   for (i32 i = 0; i < lighting->params.count[0]; ++i)
   {
@@ -5967,19 +6071,20 @@ static bool s_renderer_water_pass_draw(LDKRenderer *renderer,
   LDKRHIBindingsDesc bindings_desc = {0};
   ldk_rhi_bindings_desc_defaults(&bindings_desc);
   bindings_desc.layout = pass->bindings_layout;
-  bindings_desc.binding_count = 2u;
+  bindings_desc.binding_count = 2u + LDK_RENDERER_WATER_TEXTURE_COUNT;
   bindings_desc.bindings[0].slot = 0u;
   bindings_desc.bindings[0].buffer = pass->params_buffer;
   bindings_desc.bindings[0].buffer_size = sizeof(params);
   bindings_desc.bindings[1].slot = 1u;
   bindings_desc.bindings[1].texture = view->target.depth_texture;
   bindings_desc.bindings[1].sampler = pass->depth_sampler;
-  LDKRHIBindings bindings =
-      ldk_rhi_bindings_create(renderer->rhi, &bindings_desc);
-  if (!bindings)
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
   {
-    return false;
+    bindings_desc.bindings[2u + i].slot = s_water_texture_slots[i];
+    bindings_desc.bindings[2u + i].sampler = pass->texture_sampler;
   }
+  LDKRHIBindings bindings = LDK_RHI_INVALID_RESOURCE;
+  LDKRHITexture bound_textures[LDK_RENDERER_WATER_TEXTURE_COUNT] = {0};
 
   /* Sample opaque depth without attaching it to this pass. The shader does
    * its own opaque occlusion test; later translucent draws reuse this depth. */
@@ -5998,7 +6103,6 @@ static bool s_renderer_water_pass_draw(LDKRenderer *renderer,
       renderer->rhi, view->target.color_format == LDK_RHI_FORMAT_RGBA16_FLOAT
                          ? pass->hdr_pipeline
                          : pass->ldr_pipeline);
-  ldk_rhi_bindings_bind(renderer->rhi, bindings);
 
   LDKRendererFrameDomainStats *stats =
       s_renderer_frame_stats_for_view(renderer, view);
@@ -6017,6 +6121,34 @@ static bool s_renderer_water_pass_draw(LDKRenderer *renderer,
       continue;
     }
     s_renderer_water_params(&params, view, &submit->desc, lighting);
+    bool textures_changed = bindings == LDK_RHI_INVALID_RESOURCE;
+    for (u32 t = 0u; t < LDK_RENDERER_WATER_TEXTURE_COUNT; ++t)
+    {
+      LDKRendererTextureResource *texture =
+          s_renderer_texture_get_resource(renderer, submit->desc.textures[t]);
+      LDKRHITexture handle =
+          texture ? texture->texture : pass->fallback_texture;
+      params.texture_flags[t] = texture ? 1.0f : 0.0f;
+      bindings_desc.bindings[2u + t].texture = handle;
+      textures_changed = textures_changed || bound_textures[t] != handle;
+    }
+    if (textures_changed)
+    {
+      LDKRHIBindings next =
+          ldk_rhi_bindings_create(renderer->rhi, &bindings_desc);
+      if (!next)
+      {
+        success = false;
+        break;
+      }
+      ldk_rhi_bindings_destroy(renderer->rhi, bindings);
+      bindings = next;
+      for (u32 t = 0u; t < LDK_RENDERER_WATER_TEXTURE_COUNT; ++t)
+      {
+        bound_textures[t] = bindings_desc.bindings[2u + t].texture;
+      }
+      ldk_rhi_bindings_bind(renderer->rhi, bindings);
+    }
     if (!ldk_rhi_buffer_update(
             renderer->rhi, pass->params_buffer, 0u, sizeof(params), &params))
     {
@@ -9042,6 +9174,10 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   desc.texture = ldk_renderer_texture_null();
   desc.normal_map = ldk_renderer_texture_null();
   desc.specular_map = ldk_renderer_texture_null();
+  for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+  {
+    desc.additional_textures[i] = ldk_renderer_texture_null();
+  }
   desc.alpha_mode = material_desc->alpha_mode;
   desc.alpha_cutoff = material_desc->alpha_cutoff;
   lit = material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
@@ -9078,6 +9214,41 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     return false;
   }
 
+  if (material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
+      material_desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT)
+  {
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      LDKAssetImage image = material_desc->additional_textures[i];
+      if (x_handle_is_null(image.h))
+      {
+        continue;
+      }
+      desc.additional_textures[i] =
+          ldk_renderer_image_acquire(renderer, assets, image);
+      if (!ldk_renderer_texture_is_valid(
+              renderer, desc.additional_textures[i]))
+      {
+        ldk_log_error(
+            "Material texture slot %u unavailable; using missing texture.\n",
+            i + 3u);
+        LDKAssetImage fallback = ldk_asset_manager_image_missing(assets, NULL);
+        desc.additional_textures[i] =
+            ldk_renderer_image_acquire(renderer, assets, fallback);
+        if (!ldk_renderer_texture_is_valid(
+                renderer, desc.additional_textures[i]))
+        {
+          for (u32 j = 0; j < i; ++j)
+          {
+            ldk_renderer_image_release(renderer, desc.additional_textures[j]);
+          }
+          ldk_renderer_image_release(renderer, desc.texture);
+          return false;
+        }
+      }
+    }
+  }
+
   if (lit)
   {
     if (!assets &&
@@ -9107,6 +9278,10 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     ldk_renderer_image_release(renderer, desc.texture);
     ldk_renderer_image_release(renderer, normal_map);
     ldk_renderer_image_release(renderer, specular_map);
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      ldk_renderer_image_release(renderer, desc.additional_textures[i]);
+    }
     return false;
   }
 
@@ -9115,6 +9290,10 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   {
     LDKRendererMaterialResource *material_resource =
         s_renderer_material_get_resource(renderer, material);
+    if (material_resource != NULL)
+    {
+      material_resource->owns_additional_textures = true;
+    }
     LDKRHISampler sampler = LDK_RHI_INVALID_RESOURCE;
     bool custom_sampling =
         material_desc->args.textured.filter !=
@@ -9493,6 +9672,18 @@ static bool s_renderer_material_desc_is_valid(
   {
     return false;
   }
+  if (textured)
+  {
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      if (desc->additional_textures[i].id != LDK_RHI_INVALID_RESOURCE &&
+          !ldk_renderer_texture_is_valid(
+              renderer, desc->additional_textures[i]))
+      {
+        return false;
+      }
+    }
+  }
 
   if (!s_renderer_material_type_is_lit(desc->type))
   {
@@ -9564,6 +9755,13 @@ LDKResourceMaterial ldk_renderer_material_create(
       lit ? desc->normal_map : ldk_renderer_texture_null();
   resource->desc.specular_map =
       lit ? desc->specular_map : ldk_renderer_texture_null();
+  for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+  {
+    resource->desc.additional_textures[i] =
+        s_renderer_material_type_is_textured(desc->type)
+        ? desc->additional_textures[i]
+        : ldk_renderer_texture_null();
+  }
   resource->desc.specular = lit ? desc->specular : 0.0f;
   resource->desc.shininess =
       lit && desc->shininess != 0.0f ? desc->shininess : 32.0f;
@@ -9585,6 +9783,7 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->selection = s_renderer_material_selection(&resource->desc);
   resource->render_key = s_renderer_material_render_key(resource->selection);
   resource->texture_sampler = LDK_RHI_INVALID_RESOURCE;
+  resource->owns_additional_textures = false;
   resource->uv_scale = (Vec2){1.0f, 1.0f};
   resource->uv_offset = (Vec2){0.0f, 0.0f};
   resource->alive = true;
@@ -9605,6 +9804,14 @@ void ldk_renderer_material_destroy(
     return;
   }
 
+  if (resource->owns_additional_textures)
+  {
+    for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
+    {
+      ldk_renderer_image_release(
+          renderer, resource->desc.additional_textures[i]);
+    }
+  }
   memset(resource, 0, sizeof(*resource));
 }
 

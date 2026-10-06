@@ -5,6 +5,7 @@
 #ifndef LDK_WATER_SYSTEM_H
 #define LDK_WATER_SYSTEM_H
 
+#include <ldk_asset.h>
 #include <ldk_color.h>
 #include <ldk_common.h>
 #include <module/ldk_system.h>
@@ -74,6 +75,7 @@ extern "C"
     //@end_group
 
     //@begin_group "Surface Detail and Lighting"
+    LDKAssetImage normal_texture;
     //@inspect min=0.01
     float detail_scale;
     //@inspect min=0
@@ -85,7 +87,17 @@ extern "C"
     float shininess;
     //@end_group
 
+    //@begin_group "Noise and Distortion"
+    LDKAssetImage noise_texture;
+    //@inspect min=0.01
+    float noise_scale;
+    float noise_speed;
+    //@inspect slider min=0 max=1
+    float distortion_strength;
+    //@end_group
+
     //@begin_group "Contact Foam"
+    LDKAssetImage foam_texture;
     //@inspect widget=COLOR
     u32 foam_color;
     //@inspect min=0
@@ -94,6 +106,11 @@ extern "C"
     float foam_strength;
     //@inspect min=0.01
     float foam_scale;
+    float foam_speed;
+    //@inspect slider min=0 max=1
+    float foam_cutoff;
+    //@inspect slider min=0 max=1
+    float surface_foam_strength;
     //@end_group
 
     //@begin_group "Shore Waves"
@@ -104,6 +121,17 @@ extern "C"
     float shore_wave_speed;
     //@inspect slider min=0 max=1
     float shore_foam_strength;
+    //@end_group
+
+    //@begin_group "Caustics"
+    LDKAssetImage caustics_texture;
+    //@inspect min=0.01
+    float caustics_scale;
+    //@inspect min=0
+    float caustics_strength;
+    float caustics_speed;
+    //@inspect min=0.01
+    float caustics_depth;
     //@end_group
 
     //@begin_group "Runtime"

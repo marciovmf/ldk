@@ -21,6 +21,9 @@ static int test_water_defaults_and_zero_effects(void)
   desc.foam_strength = 0.0f;
   desc.shore_range = 0.0f;
   desc.edge_fade_distance = 0.0f;
+  desc.caustics_strength = 0.0f;
+  desc.distortion_strength = 0.0f;
+  desc.surface_foam_strength = 0.0f;
   ASSERT_TRUE(ldk_renderer_water_desc_is_valid(&desc));
   return 0;
 }
@@ -44,6 +47,58 @@ static int test_water_rejects_invalid_input(void)
   ldk_renderer_water_desc_defaults(&desc);
   desc.detail_scale = INFINITY;
   ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  ldk_renderer_water_desc_defaults(&desc);
+  desc.noise_scale = 0.0f;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  ldk_renderer_water_desc_defaults(&desc);
+  desc.caustics_depth = 0.0f;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  ldk_renderer_water_desc_defaults(&desc);
+  desc.distortion_strength = NAN;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  ldk_renderer_water_desc_defaults(&desc);
+  desc.foam_cutoff = -0.01f;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  return 0;
+}
+
+static int test_water_legacy_scene_without_texture_settings(void)
+{
+  LDKWaterSystem system;
+  ldk_water_system_defaults(&system);
+  system.noise_scale = 0.0f;
+  system.caustics_scale = 0.0f;
+  system.caustics_depth = 0.0f;
+  ASSERT_EQ(system.normal_texture.h.index, X_HPOOL_NULL_INDEX);
+  ASSERT_EQ(system.foam_texture.h.index, X_HPOOL_NULL_INDEX);
+  ASSERT_EQ(system.noise_texture.h.index, X_HPOOL_NULL_INDEX);
+  ASSERT_EQ(system.caustics_texture.h.index, X_HPOOL_NULL_INDEX);
+  ASSERT_EQ(ldk_water_system_initialize(&system), 0);
+  ASSERT_TRUE(system.noise_scale > 0.0f);
+  ASSERT_TRUE(system.caustics_scale > 0.0f);
+  ASSERT_TRUE(system.caustics_depth > 0.0f);
+  float height;
+  ASSERT_TRUE(ldk_water_height_at_world(0.0f, 0.0f, &height));
+  ldk_water_system_terminate(&system);
+  return 0;
+}
+
+static int test_water_empty_system_with_assigned_image(void)
+{
+  LDKWaterSystem system = {0};
+  system.normal_texture.h.index = X_HPOOL_NULL_INDEX;
+  system.foam_texture.h.index = X_HPOOL_NULL_INDEX;
+  system.caustics_texture.h.index = X_HPOOL_NULL_INDEX;
+  system.noise_texture.h.index = 5u;
+  ASSERT_EQ(ldk_water_system_initialize(&system), 0);
+  LDKWaterSystem defaults;
+  ldk_water_system_defaults(&defaults);
+  ASSERT_EQ(system.width, defaults.width);
+  ASSERT_EQ(system.shallow_color, defaults.shallow_color);
+  ASSERT_EQ(system.noise_scale, defaults.noise_scale);
+  ASSERT_EQ(system.noise_texture.h.index, 5u);
+  ASSERT_EQ(system.noise_texture.h.version, 0u);
+  ldk_water_system_terminate(&system);
   return 0;
 }
 
@@ -142,6 +197,7 @@ static int test_water_metadata_registration(void)
   ASSERT_TRUE(found);
 
   u32 colors = 0u;
+  u32 images = 0u;
   bool cell_size = false;
   for (u32 i = 0u; i < ldk_engine_system_metadata_count(); ++i)
   {
@@ -162,10 +218,16 @@ static int test_water_metadata_registration(void)
       {
         ++colors;
       }
+      if (field->type == LDK_FIELD_ASSET_IMAGE &&
+          field->widget == LDK_FIELD_WIDGET_ASSET_IMAGE)
+      {
+        ++images;
+      }
     }
   }
   ASSERT_TRUE(cell_size);
   ASSERT_EQ(colors, 3u);
+  ASSERT_EQ(images, 4u);
   return 0;
 }
 
@@ -173,6 +235,8 @@ int main(void)
 {
   STDXTestCase tests[] = {X_TEST(test_water_defaults_and_zero_effects),
       X_TEST(test_water_rejects_invalid_input),
+      X_TEST(test_water_legacy_scene_without_texture_settings),
+      X_TEST(test_water_empty_system_with_assigned_image),
       X_TEST(test_water_surface_height_and_rectangle),
       X_TEST(test_water_direction_and_center),
       X_TEST(test_water_ownership_and_quad_size),

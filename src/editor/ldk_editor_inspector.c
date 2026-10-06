@@ -150,6 +150,51 @@ static char
 static const float s_editor_inspector_label_width_min = 60.0f;
 static const float s_editor_inspector_control_width_min = 80.0f;
 static const float s_editor_inspector_splitter_hit_width = 8.0f;
+static const float s_editor_inspector_row_height = 26.0f;
+
+static LDKUIPoint s_editor_inspector_scroll_begin(
+    LDKUIContext *ui, LDKUIPoint scroll)
+{
+  scroll = ldk_ui_begin_scrollview(
+      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
+  /* The themed area API also supplies panel padding. Older UI versions keep
+   * the padding configured by their scrollview implementation. */
+  ldk_ui_set_padding(ui, ui->theme.panel_padding);
+#endif
+  return scroll;
+}
+
+static void s_editor_inspector_component_title(
+    const char *name, char *buffer, size_t capacity)
+{
+  const char *source = name != NULL ? name : "Unknown component";
+  size_t used = 0u;
+
+  if (buffer == NULL || capacity == 0u)
+  {
+    return;
+  }
+
+  if (strncmp(source, "LDK", 3u) == 0 && isupper((unsigned char)source[3]))
+  {
+    source += 3;
+  }
+  for (size_t i = 0u; source[i] != '\0' && used + 1u < capacity; ++i)
+  {
+    unsigned char letter = (unsigned char)source[i];
+    if (i > 0u && isupper(letter) &&
+        (islower((unsigned char)source[i - 1u]) ||
+            (isupper((unsigned char)source[i - 1u]) &&
+                islower((unsigned char)source[i + 1u]))) &&
+        used + 2u < capacity)
+    {
+      buffer[used++] = ' ';
+    }
+    buffer[used++] = letter < 128u ? (char)toupper(letter) : (char)letter;
+  }
+  buffer[used] = '\0';
+}
 
 static void s_editor_inspector_input_state_clear(void);
 static void s_editor_material_diagnostic(const char *message, void *user);
@@ -260,7 +305,7 @@ static void s_editor_inspector_row_begin(
     label_width = 1.0f;
   }
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_set_next_height(ui, ldk_ui_px(s_editor_inspector_row_height));
   ldk_ui_begin_horizontal(ui);
   if (indent_width > 0.0f)
   {
@@ -505,6 +550,28 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
     snprintf(s_editor_inspector_input_buffer,
         sizeof(s_editor_inspector_input_buffer), "%s", buffer);
     input_buffer = s_editor_inspector_input_buffer;
+    if (field->type == LDK_FIELD_FLOAT || field->type == LDK_FIELD_VEC2 ||
+        field->type == LDK_FIELD_VEC3 || field->type == LDK_FIELD_VEC4 ||
+        field->type == LDK_FIELD_QUAT)
+    {
+      float value = strtof(buffer, NULL);
+      float magnitude = fabsf(value);
+      if (magnitude >= 1000000.0f || (magnitude > 0.0f && magnitude < 0.001f))
+      {
+        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY,
+            "%.3g", (double)value);
+      }
+      else
+      {
+        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY,
+            "%.3f", (double)value);
+        char *end = input_buffer + strlen(input_buffer);
+        while (end > input_buffer && end[-1] == '0')
+          *--end = '\0';
+        if (end > input_buffer && end[-1] == '.')
+          *--end = '\0';
+      }
+    }
   }
 
   result = s_editor_inspector_input_box(
@@ -523,6 +590,19 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
   {
     if (!state_matches)
     {
+      // Formatting only affects idle display. Start edits with full precision.
+      if ((result & LDK_UI_INPUT_BOX_CHANGED) == 0)
+      {
+        u32 display_length = (u32)strlen(input_buffer);
+        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY, "%s", buffer);
+        u32 edit_length = (u32)strlen(input_buffer);
+        if (ui->text_cursor == display_length)
+          ui->text_cursor = edit_length;
+        if (ui->text_select_start == display_length)
+          ui->text_select_start = edit_length;
+        if (ui->text_select_end == display_length)
+          ui->text_select_end = edit_length;
+      }
       s_editor_inspector_input_state.entity = entity;
       s_editor_inspector_input_state.component_type = component_type;
       s_editor_inspector_input_state.field_offset = field->offset;
@@ -1956,6 +2036,15 @@ static void s_editor_inspector_field_draw(
 
   ui = &editor->ui;
   display_name = s_editor_inspector_field_display_name(field);
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
+  {
+    if (field->offset == offsetof(LDKTransform, local_position))
+      display_name = "Position";
+    else if (field->offset == offsetof(LDKTransform, local_scale))
+      display_name = "Scale";
+    else if (field->offset == offsetof(LDKTransform, local_rotation))
+      display_name = "Rotation";
+  }
 
   field_value = (u8 *)component + field->offset;
   readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
@@ -3070,6 +3159,19 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
             editor, "UV Offset", &desc->args.textured.uv_offset, readonly))
     {
       changed = true;
+    }
+
+    for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      char label[32];
+      char prompt[48];
+      snprintf(label, sizeof(label), "Texture %u", slot);
+      snprintf(prompt, sizeof(prompt), "Choose texture for slot %u", slot);
+      if (s_editor_material_image_editor(editor, label, prompt,
+              &desc->additional_textures[slot - 3u], readonly, false, context))
+      {
+        changed = true;
+      }
     }
   }
 
@@ -4223,8 +4325,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     }
     else
     {
-      scroll = ldk_ui_begin_scrollview(
-          ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      scroll = s_editor_inspector_scroll_begin(ui, scroll);
       s_editor_inspector_scene_properties_draw(editor);
       ldk_ui_end_scrollview(ui);
       s_editor_inspector_column_update(editor);
@@ -4238,8 +4339,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     if (s_editor_inspector_system_index(
             systems, editor->selected_system_id, NULL))
     {
-      scroll = ldk_ui_begin_scrollview(
-          ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      scroll = s_editor_inspector_scroll_begin(ui, scroll);
       (void)s_editor_inspector_system_draw(
           editor, game, editor->selected_system_id);
       ldk_ui_end_scrollview(ui);
@@ -4271,8 +4371,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     return;
   }
 
-  scroll = ldk_ui_begin_scrollview(
-      ui, scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  scroll = s_editor_inspector_scroll_begin(ui, scroll);
 
   const char *name = ldk_ecs_entity_name_get(entity);
   snprintf(entity_name, sizeof(entity_name), "%s", name ? name : "");
@@ -4290,7 +4389,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_push_id_cstr(ui, "entity_name");
   ldk_ui_push_id_u32(ui, entity.index);
   ldk_ui_push_id_u32(ui, entity.version);
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_set_next_height(ui, ldk_ui_px(30.0f));
   ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
   ldk_ui_icon_label(ui, icon, "");
@@ -4307,7 +4406,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
   s_editor_inspector_flags_draw(editor, ecs, entity);
 
-  ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_height(ui, ldk_ui_px(4.0f));
+  ldk_ui_spacer(ui);
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
   s_editor_inspector_area_state_sync(entity);
@@ -4371,33 +4471,42 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     const char *component_name =
         meta ? meta->name
              : ldk_component_name_get(&ecs->component, component_type);
+    char component_title[128];
+    s_editor_inspector_component_title(
+        component_name, component_title, sizeof(component_title));
     void *component = ldk_ecs_component_get(entity, component_type);
 
     ldk_ui_push_id_u32(ui, component_type);
     bool expanded = s_editor_inspector_component_expanded(component_type);
 
-    expanded = ldk_ui_begin_area_ex(ui,
-        component_name ? component_name : "<unknown component>", icon,
-        expanded);
+    expanded = ldk_ui_begin_area_ex(ui, component_title, icon, expanded);
     s_editor_inspector_component_expanded_set(component_type, expanded);
 
+#ifndef LDK_UI_AREA_HEADER_HEIGHT
     ldk_ui_horizontal_line(ui);
+#endif
 
     // Header buttons positioned over the area bar.
     u32 id = component_type + component_i;
     ldk_ui_push_id_u32(ui, id); // header button id scope
-    LDKUIRect delete_rect = ldk_ui_last_rect(ui); // area rect
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
+    LDKUIRect delete_rect = ldk_ui_area_header_rect(ui);
+#else
+    LDKUIRect delete_rect = ldk_ui_last_rect(ui);
+#endif
     delete_rect.x += delete_rect.w - 24.0f - LDK_UI_DEFAULT_PADDING;
+#ifdef LDK_UI_AREA_HEADER_HEIGHT
+    delete_rect.y += (delete_rect.h - LDK_UI_DEFAULT_CONTROL_HEIGHT) * 0.5f;
+#else
     delete_rect.y -= LDK_UI_DEFAULT_CONTROL_HEIGHT + LDK_UI_DEFAULT_SPACING;
-    delete_rect.w = 24.0f;
-    delete_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
     if (expanded && meta && component)
     {
-      // Expanded area content is padded. Keep header controls on the bar.
       delete_rect.x += LDK_UI_DEFAULT_PADDING;
       delete_rect.y -= LDK_UI_DEFAULT_PADDING;
     }
-
+#endif
+    delete_rect.w = 24.0f;
+    delete_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
     if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
     {
       const LDKUIId apply_id = LDK_INSPECTOR_LIKE_BUTTON_ID + id;
@@ -4423,8 +4532,6 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         ldki_editor_log_error(
             editor, "Failed to apply component changes to scene.");
       }
-      ldk_ui_pop_id(ui);
-      ldk_ui_pop_id(ui);
       ldk_ui_end_disabled(ui);
     }
 
@@ -4492,6 +4599,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     }
 
     ldk_ui_end_area(ui);
+    // The spacer already contributes two layout gaps: 8 px in total.
+    ldk_ui_set_next_height(ui, ldk_ui_px(0.0f));
     ldk_ui_spacer(ui);
     ldk_ui_pop_id(ui);
     ldk_ui_pop_id(ui);

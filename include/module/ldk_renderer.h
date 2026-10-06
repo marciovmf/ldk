@@ -105,6 +105,15 @@ extern "C" {
 
 #define LDK_RENDERER_WATER_WAVE_COUNT 3u
 
+  typedef enum LDKRendererWaterTexture
+  {
+    LDK_RENDERER_WATER_TEXTURE_NORMAL = 0,
+    LDK_RENDERER_WATER_TEXTURE_FOAM,
+    LDK_RENDERER_WATER_TEXTURE_NOISE,
+    LDK_RENDERER_WATER_TEXTURE_CAUSTICS,
+    LDK_RENDERER_WATER_TEXTURE_COUNT
+  } LDKRendererWaterTexture;
+
   typedef struct LDKRendererWaterWave
   {
     float height; // Amplitude in world units.
@@ -134,6 +143,19 @@ extern "C" {
     float shore_wave_length;
     float shore_wave_speed;
     float shore_foam_strength;
+    /* Optional acquired image resources. Scales are world units per repeat;
+     * speeds are world units per second. Masks use their red channel. */
+    LDKResourceTexture textures[LDK_RENDERER_WATER_TEXTURE_COUNT];
+    float noise_scale;
+    float noise_speed;
+    float distortion_strength;
+    float foam_speed;
+    float foam_cutoff;
+    float surface_foam_strength;
+    float caustics_scale;
+    float caustics_strength;
+    float caustics_speed;
+    float caustics_depth;
     float time_seconds;
   } LDKRendererWaterDesc;
 
@@ -154,6 +176,8 @@ extern "C" {
     LDKRHIPipeline hdr_pipeline;
     LDKRHIBuffer params_buffer;
     LDKRHISampler depth_sampler;
+    LDKRHISampler texture_sampler;
+    LDKRHITexture fallback_texture;
     bool is_initialized;
   } LDKRendererWaterPass;
 
@@ -341,12 +365,8 @@ extern "C" {
 
   typedef struct LDKRendererMeshBindingsCacheEntry
   {
-    LDKRHITexture albedo_texture;
-    LDKRHISampler albedo_sampler;
-    LDKRHITexture normal_texture;
-    LDKRHISampler normal_sampler;
-    LDKRHITexture specular_texture;
-    LDKRHISampler specular_sampler;
+    LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    LDKRHISampler samplers[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     LDKRHIBindings bindings;
   } LDKRendererMeshBindingsCacheEntry;
 
@@ -729,6 +749,9 @@ extern "C" {
     /* Optional borrowed resources for lit materials. */
     LDKResourceTexture normal_map;
     LDKResourceTexture specular_map;
+    /* Shader-defined Texture2D slots 3..7. */
+    LDKResourceTexture
+        additional_textures[LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT];
     rgba32 color;
     LDKMaterialAlphaMode alpha_mode;
     float alpha_cutoff;
@@ -780,6 +803,7 @@ extern "C" {
     LDKRendererMaterialSelection selection;
     LDKRendererRenderKey render_key;
     LDKRHISampler texture_sampler;
+    bool owns_additional_textures;
     Vec2 uv_scale;
     Vec2 uv_offset;
     bool alive;
@@ -914,9 +938,10 @@ extern "C" {
   /**
    * Submit a horizontal world-space grid. XZ positions come from the mesh;
    * the shader supplies Y using water_level and the three waves. Scene depth
-   * is sampled after opaque rendering. The mesh remains caller-owned and
-   * must live until render_frame() completes. Overlapping water surfaces are
-   * composited in submission order; this path does not sort stacked water.
+   * is sampled after opaque rendering. Meshes and optional textures remain
+   * caller-owned and must live until render_frame() completes. Overlapping
+   * water surfaces are composited in submission order; this path does not
+   * sort stacked water.
    */
   LDK_API bool ldk_renderer_submit_water(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1409,15 +1434,18 @@ extern "C" {
    *
    * Textured materials acquire a shared renderer texture from the supplied
    * asset manager. If the authored image is unavailable, the renderer uses
-   * the shared missing-image fallback. Lit normal/specular maps are acquired
-   * when available; missing maps resolve to renderer-owned neutral fallbacks.
+   * the shared missing-image fallback. Shader-defined slots 3..7 are acquired
+   * the same way and are owned by the resolved material. Lit normal/specular
+   * maps are acquired when available; missing maps resolve to renderer-owned
+   * neutral fallbacks.
    * Existing output resources are replaced only after the new material has
    * been created successfully.
    *
    * The caller owns the returned material resource and one acquisition of each
    * non-null returned image texture. A later successful resolve replaces those
-   * resources. The caller must destroy/release remaining resources when its
-   * owner terminates.
+   * resources. Additional slots 3..7 are released by material destruction.
+   * The caller must destroy/release the remaining resources when its owner
+   * terminates.
    *
    * @param renderer Renderer that owns the runtime resources.
    * @param assets Asset manager used to resolve authored image assets. Required
@@ -1461,9 +1489,11 @@ extern "C" {
    * Textured materials require a live renderer texture. The referenced texture
    * must remain alive until the material is destroyed. Textured materials may
    * use opaque or cutout alpha mode; cutout thresholds must be finite and in
-   * [0, 1]. Lit normal/specular maps are optional borrowed texture resources and
-   * must also remain alive while the material exists; null map handles use
-   * renderer-owned neutral fallbacks. Vertex-color materials ignore texture and
+   * [0, 1]. Lit normal/specular maps and shader-defined slots 3..7 are optional
+   * borrowed texture resources and must remain alive while the material exists;
+   * null map handles use renderer-owned neutral fallbacks. Vertex-color
+   * materials
+   * ignore texture and
    * alpha fields. Unlit materials ignore map handles. Lit surface values must be
    * finite and non-negative. A zero shininess uses the default value (32).
    *
