@@ -68,6 +68,14 @@ scene:
             drunk_ghosting: 0.500000000
             drunk_chromatic_aberration: 0.349999994
             drunk_movement: 0.500000000
+        - type: 4294967284 # LDKAudioSource
+          fields:
+            audio: "audio/ambient-music.mp3"
+            priority: 1
+            range: 10.0000000
+            volume: 1.00000000
+            loop: true
+            play_on_start: true
     - entity: 1
       parent: -1
       flags: 0
@@ -108,9 +116,9 @@ scene:
             speed: 4.00000000
             acceleration: 18.0000000
             inertia: 0.150000006
-            high_grass_height: 0.600000000
+            high_grass_height: 0.600000024
             high_grass_density_min: 90.0000000
-            high_grass_speed_scale: 0.800000000
+            high_grass_speed_scale: 0.800000012
             grass_cut_density_scale: 0.750000000
             deep_water_speed_scale: 1.00000000
             shallow_water_speed_scale: 1.00000000
@@ -627,31 +635,31 @@ scene:
         material: "assets/tftf_island.material"
         surface_count: 7
         surface_0_name: "Shallow Water"
-        surface_0_min_height: 0.000000000
+        surface_0_min_height: 0.00000000
         surface_0_blend_width: 0.00000000
         surface_0_atlas_rect: 0.00000000, 0.00000000, 0.166666672, 1.00000000
         surface_0_uv_scale: 1.00000000, 1.00000000
         surface_0_texture_weight: 1.00000000
         surface_1_name: "Sand"
-        surface_1_min_height: 0.140000000
+        surface_1_min_height: 0.140000001
         surface_1_blend_width: 0.00499999989
         surface_1_atlas_rect: 0.166666672, 0.00000000, 0.333333343, 1.00000000
         surface_1_uv_scale: 1.00000000, 1.00000000
         surface_1_texture_weight: 1.00000000
         surface_2_name: "Dry"
-        surface_2_min_height: 0.170000000
+        surface_2_min_height: 0.170000002
         surface_2_blend_width: 0.00499999989
         surface_2_atlas_rect: 0.333333343, 0.00000000, 0.500000000, 1.00000000
         surface_2_uv_scale: 1.00000000, 1.00000000
         surface_2_texture_weight: 1.00000000
         surface_3_name: "Grass"
-        surface_3_min_height: 0.200000000
+        surface_3_min_height: 0.200000003
         surface_3_blend_width: 0.00499999989
         surface_3_atlas_rect: 0.500000000, 0.00000000, 0.666666687, 1.00000000
         surface_3_uv_scale: 1.00000000, 1.00000000
         surface_3_texture_weight: 1.00000000
         surface_4_name: "Forest"
-        surface_4_min_height: 0.230000000
+        surface_4_min_height: 0.230000004
         surface_4_blend_width: 0.00499999989
         surface_4_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
         surface_4_uv_scale: 1.00000000, 1.00000000
@@ -659,12 +667,11 @@ scene:
         surface_5_name: "Thorns"
         surface_5_min_height: 0.250000000
         surface_5_blend_width: 0.00499999989
-        surface_5_color: 1702841855
         surface_5_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
         surface_5_uv_scale: 1.00000000, 1.00000000
         surface_5_texture_weight: 1.00000000
         surface_6_name: "Mountain"
-        surface_6_min_height: 0.270000000
+        surface_6_min_height: 0.270000011
         surface_6_blend_width: 0.00999999978
         surface_6_atlas_rect: 0.833333313, 0.00000000, 1.00000000, 1.00000000
         surface_6_uv_scale: 1.00000000, 1.00000000

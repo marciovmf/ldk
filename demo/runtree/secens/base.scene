@@ -64,7 +64,7 @@ scene:
           fields:
             local_position: 0.266472101, 2.13821220, -3.07301950
             local_scale: 1.00000000, 0.999999881, 0.999999940
-            local_rotation: -0.0284063611, 0.980226994, 0.174564376, -0.0887442231
+            local_rotation: 0.0432645380, -0.982914627, -0.178732097, 0.00786717609
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
@@ -288,7 +288,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 1.18987536, 6.19256592
+            local_position: 0.00000000, 1.18987536, 0.00000000
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.999064922, 0.00000000, -0.0432350971
         - type: 4294967292 # LDKMeshSource
@@ -302,12 +302,22 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-        - type: 3523477466 # PlayerCharacterComponent
+        - type: 2637462986 # TFTFPlayerCharacterComponent
           fields:
             speed: 4.00000000
             acceleration: 18.0000000
             inertia: 0.150000006
-            terrain_height_offset: 0.500000000
+            high_grass_height: 0.600000024
+            high_grass_density_min: 90.0000000
+            high_grass_speed_scale: 0.800000012
+            grass_cut_density_scale: 0.750000000
+            deep_water_speed_scale: 1.00000000
+            shallow_water_speed_scale: 1.00000000
+            shore_speed_scale: 1.00000000
+            dry_speed_scale: 1.00000000
+            grass_speed_scale: 1.00000000
+            forest_speed_scale: 1.00000000
+            mountain_speed_scale: 1.00000000
     - entity: 13
       parent: -1
       flags: 0
@@ -473,8 +483,6 @@ scene:
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
       grouping: "0x8000000000000003"
-    - id: "0x758d97a0f482b923"
-      grouping: "0x8000000000000002"
     - id: "0x1e2c227aa2362f6a"
       data:
         heightmap: "assets/textures/hmap.png"
@@ -537,3 +545,5 @@ scene:
         surface_7_uv_scale: 0.00000000, 0.00000000
         surface_7_texture_weight: 0.00000000
         casts_shadows: false
+    - id: "0x05047ea6f003fb8f"
+      grouping: "0x8000000000000002"
