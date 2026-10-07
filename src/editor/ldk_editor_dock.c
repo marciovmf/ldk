@@ -4,6 +4,7 @@
 #include "ldk_editor_project_window.h"
 #include "module/ldk_ui.h"
 #include <ldk.h>
+#include <ldk_profiler.h>
 #include <module/ldk_eventqueue.h>
 #include <float.h>
 #include <math.h>
@@ -1523,6 +1524,87 @@ static bool s_editor_builtin_windows_add(
 // Window drawing
 //----------------------------------------------------------
 
+static void s_editor_dock_window_profile_begin(LDKEditorWindowId window_id)
+{
+  static LDKProfilerSource files_source = {0};
+  static LDKProfilerSource scene_source = {0};
+  static LDKProfilerSource inspector_source = {0};
+  static LDKProfilerSource console_source = {0};
+  static LDKProfilerSource game_source = {0};
+  static LDKProfilerSource hierarchy_source = {0};
+  static LDKProfilerSource profiler_source = {0};
+  static LDKProfilerSource scene_catalog_source = {0};
+  static LDKProfilerSource tag_catalog_source = {0};
+  static LDKProfilerSource grouping_catalog_source = {0};
+  static LDKProfilerSource package_catalog_source = {0};
+  static LDKProfilerSource settings_source = {0};
+  static LDKProfilerSource project_source = {0};
+  static LDKProfilerSource other_source = {0};
+  LDKProfilerSource *source = &other_source;
+  const char *name = "Editor Window";
+
+  switch (window_id)
+  {
+  case LDK_EDITOR_WINDOW_PROJECT_EXPLORER:
+    source = &files_source;
+    name = "Editor Window: Files";
+    break;
+  case LDK_EDITOR_WINDOW_SCENE:
+    source = &scene_source;
+    name = "Editor Window: Scene";
+    break;
+  case LDK_EDITOR_WINDOW_INSPECTOR:
+    source = &inspector_source;
+    name = "Editor Window: Inspector";
+    break;
+  case LDK_EDITOR_WINDOW_CONSOLE:
+    source = &console_source;
+    name = "Editor Window: Console";
+    break;
+  case LDK_EDITOR_WINDOW_GAME:
+    source = &game_source;
+    name = "Editor Window: Game";
+    break;
+  case LDK_EDITOR_WINDOW_HIERARCHY:
+    source = &hierarchy_source;
+    name = "Editor Window: Hierarchy";
+    break;
+  case LDK_EDITOR_WINDOW_PROFILER:
+    source = &profiler_source;
+    name = "Editor Window: Profiler";
+    break;
+  case LDK_EDITOR_WINDOW_SCENE_CATALOG:
+    source = &scene_catalog_source;
+    name = "Editor Window: Scene Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_TAG_CATALOG:
+    source = &tag_catalog_source;
+    name = "Editor Window: Tag Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_GROUPING_CATALOG:
+    source = &grouping_catalog_source;
+    name = "Editor Window: Grouping Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_PACKAGE_CATALOG:
+    source = &package_catalog_source;
+    name = "Editor Window: Packages";
+    break;
+  case LDK_EDITOR_WINDOW_SETTINGS:
+    source = &settings_source;
+    name = "Editor Window: Settings";
+    break;
+  case LDK_EDITOR_WINDOW_PROJECT:
+    source = &project_source;
+    name = "Editor Window: Project";
+    break;
+  default:
+    break;
+  }
+
+  ldk_profiler_zone_begin_source(source, LDK_PROFILER_ZONE_USER, name,
+      __FILE__, __func__, __LINE__);
+}
+
 static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
     LDKEditorContext *editor, LDKEditorWindowId window_id)
 {
@@ -1530,7 +1612,9 @@ static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
 
   if (window != NULL && window->window.function != NULL)
   {
+    s_editor_dock_window_profile_begin(window_id);
     window->window.function((LDKEditor *)editor, window->window.data);
+    LDK_PROFILE_END();
   }
 }
 

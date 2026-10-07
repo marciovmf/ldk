@@ -1,4 +1,5 @@
 #include "ldk.h"
+#include <ldk_profiler.h>
 #include "ldk_editor_internal.h"
 #include <component/ldk_transform.h>
 #include <module/ldk_scenegraph.h>
@@ -303,6 +304,8 @@ static void s_editor_hierarchy_entity_draw(LDKEditorContext *editor,
   {
     return;
   }
+
+  LDK_PROFILE_COUNTER_ADD("Hierarchy Entity Rows Drawn", 1);
 
   LDKUIContext *ui = &editor->ui;
   const LDKEntityInfo *info = ldk_entity_info_get(&ecs->entity, entity);
