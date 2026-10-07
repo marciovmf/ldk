@@ -7,6 +7,8 @@
 #include <string.h>
 #include <time.h>
 
+#define LDK_AUDIO_MEMORY_CACHE_MAX_SIZE (256u * 1024u)
+
 static void *s_asset_source_read(LDKAssetManager *manager, const char *path,
     LDKAssetPath *out_path, u64 *out_size, bool text)
 {
@@ -1021,11 +1023,10 @@ LDKAssetAudio ldk_asset_manager_audio_load_shared(
     LDKAssetManager* manager, const char* path)
 {
   LDKSharedAudioLookup lookup = {0};
-  LDKAssetPath asset_path;
   LDKAssetAudioData* data;
   LDKAssetInfo* info;
-  void* encoded_data;
-  u64 encoded_size = 0;
+  LDKAssetSourceFile source_file;
+  void* encoded_data = NULL;
   XHandle handle;
 
   lookup.audio = ldk_asset_audio_null();
@@ -1042,12 +1043,21 @@ LDKAssetAudio ldk_asset_manager_audio_load_shared(
     return lookup.audio;
   }
 
-  encoded_data = s_asset_source_read(
-      manager, lookup.path.buf, &asset_path, &encoded_size, false);
-  if (!encoded_data || encoded_size == 0)
+  if (!ldk_asset_source_find(manager->source, lookup.path.buf, &source_file) ||
+      source_file.size == 0)
   {
-    free(encoded_data);
     return lookup.audio;
+  }
+
+  if (source_file.size <= LDK_AUDIO_MEMORY_CACHE_MAX_SIZE)
+  {
+    encoded_data = malloc((size_t)source_file.size);
+    if (!encoded_data || !ldk_asset_source_file_read(
+                             &source_file, encoded_data, source_file.size))
+    {
+      free(encoded_data);
+      return lookup.audio;
+    }
   }
 
   data = (LDKAssetAudioData*)calloc(1, sizeof(*data));
@@ -1074,13 +1084,14 @@ LDKAssetAudio ldk_asset_manager_audio_load_shared(
     return lookup.audio;
   }
 
+  data->source_file = source_file;
   data->encoded_data = encoded_data;
-  data->encoded_size = encoded_size;
+  data->encoded_size = encoded_data ? source_file.size : 0;
   data->ref_count = 0;
 
   info->type = LDK_ASSET_TYPE_AUDIO;
   info->data = data;
-  info->asset_path = asset_path;
+  info->asset_path = lookup.path;
   info->source_revision = manager->source->revision;
 #ifdef LDK_DEBUG
   info->load_timestamp = (u64)time(NULL);

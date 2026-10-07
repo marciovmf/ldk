@@ -10,6 +10,7 @@
 #include <ldk_scene.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_asset_source.h>
+#include <module/ldk_jobs.h>
 #include <stdx/stdx_io.h>
 
 #include <ctype.h>
@@ -26,6 +27,7 @@ enum
   PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
   PROJECT_EXPLORER_THUMBNAIL_SIZE = 128,
   PROJECT_EXPLORER_THUMBNAIL_CAPACITY = 128,
+  PROJECT_EXPLORER_THUMBNAIL_MAX_JOBS = 4,
   PROJECT_EXPLORER_CONTEXT_POPUP_ID = 0x50454301u,
   PROJECT_EXPLORER_TREE_RENAME_INPUT_ID = 0x54524901u,
   PROJECT_EXPLORER_TILE_RENAME_INPUT_ID = 0x54494901u,
@@ -105,6 +107,15 @@ typedef enum ProjectExplorerThumbnailStatus
   PROJECT_EXPLORER_THUMBNAIL_FAILED,
 } ProjectExplorerThumbnailStatus;
 
+typedef struct ProjectExplorerThumbnailJob
+{
+  XFSPath path;
+  LDKPackage *package;
+  u8 *pixels;
+  u32 width;
+  u32 height;
+} ProjectExplorerThumbnailJob;
+
 typedef struct ProjectExplorerThumbnail
 {
   XFSPath path;
@@ -112,6 +123,8 @@ typedef struct ProjectExplorerThumbnail
   time_t last_modified;
   LDKPackage *package;
   LDKResourceTexture texture;
+  LDKAsyncResult job;
+  ProjectExplorerThumbnailJob *job_data;
   u32 width;
   u32 height;
   u64 last_used;
@@ -267,6 +280,17 @@ static LDKEditorIcon s_project_explorer_file_icon_get(const XFSPath *path)
 static void s_project_explorer_thumbnail_release(
     ProjectExplorerThumbnailCache *cache, ProjectExplorerThumbnail *thumbnail)
 {
+  if (ldk_async_result_is_valid(thumbnail->job))
+  {
+    ldk_async_result_release(&thumbnail->job);
+  }
+
+  if (thumbnail->job_data)
+  {
+    free(thumbnail->job_data->pixels);
+    free(thumbnail->job_data);
+  }
+
   if (cache->renderer && thumbnail->status == PROJECT_EXPLORER_THUMBNAIL_READY)
   {
     ldk_renderer_texture_destroy(cache->renderer, thumbnail->texture);
@@ -365,17 +389,22 @@ static void s_project_explorer_thumbnail_resize(const LDKImageInfo *source,
   }
 }
 
-static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
-    const XFSPath *path, LDKPackage *package,
-    ProjectExplorerThumbnail *thumbnail)
+static bool s_project_explorer_thumbnail_job_execute(void *user_data)
 {
+  ProjectExplorerThumbnailJob *job =
+      (ProjectExplorerThumbnailJob *)user_data;
   LDKImage *image = NULL;
   void *package_data = NULL;
 
-  if (package)
+  if (!job)
+  {
+    return false;
+  }
+
+  if (job->package)
   {
     const LDKPackageEntry *package_entry =
-        ldk_package_entry_find(package, x_fs_path_cstr(path));
+        ldk_package_entry_find(job->package, x_fs_path_cstr(&job->path));
     if (!package_entry)
     {
       return false;
@@ -395,7 +424,7 @@ static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
     }
 
     if (!ldk_package_entry_read(
-            package, package_entry, package_data, package_data_size))
+            job->package, package_entry, package_data, package_data_size))
     {
       free(package_data);
       return false;
@@ -406,8 +435,9 @@ static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
   }
   else
   {
-    image = ldk_image_load(x_fs_path_cstr(path));
+    image = ldk_image_load(x_fs_path_cstr(&job->path));
   }
+
   LDKImageInfo info = {0};
   if (!image)
   {
@@ -446,45 +476,63 @@ static bool s_project_explorer_thumbnail_create(LDKRenderer *renderer,
     height = 1;
   }
 
-  u8 *resized = NULL;
-  const u8 *pixels = info.pixels;
-  if (width != info.width || height != info.height)
+  size_t pixel_size = (size_t)width * height * 4u;
+  job->pixels = (u8 *)malloc(pixel_size);
+  if (!job->pixels)
   {
-    resized = (u8 *)malloc((size_t)width * height * 4u);
-    if (!resized)
-    {
-      ldk_image_destroy(image);
-      return false;
-    }
-    s_project_explorer_thumbnail_resize(&info, resized, width, height);
-    pixels = resized;
+    ldk_image_destroy(image);
+    return false;
   }
 
+  if (width != info.width || height != info.height)
+  {
+    s_project_explorer_thumbnail_resize(&info, job->pixels, width, height);
+  }
+  else
+  {
+    memcpy(job->pixels, info.pixels, pixel_size);
+  }
+
+  job->width = width;
+  job->height = height;
+  ldk_image_destroy(image);
+  return true;
+}
+
+static bool s_project_explorer_thumbnail_upload(
+    ProjectExplorerThumbnailCache *cache, ProjectExplorerThumbnail *thumbnail)
+{
+  ProjectExplorerThumbnailJob *job = thumbnail->job_data;
   LDKRendererTextureOptions options;
+  LDKRendererTextureDesc desc = {0};
+  LDKResourceTexture texture;
+
+  if (!cache->renderer || !job || !job->pixels ||
+      job->width == 0 || job->height == 0)
+  {
+    return false;
+  }
+
   ldk_renderer_texture_options_defaults(&options);
   options.min_filter = LDK_RHI_FILTER_LINEAR;
   options.mag_filter = LDK_RHI_FILTER_LINEAR;
 
-  LDKRendererTextureDesc desc = {0};
-  desc.width = width;
-  desc.height = height;
+  desc.width = job->width;
+  desc.height = job->height;
   desc.channel_count = 4;
-  desc.pixels = pixels;
-  desc.byte_count = (u64)width * height * 4u;
+  desc.pixels = job->pixels;
+  desc.byte_count = (u64)job->width * job->height * 4u;
   desc.options = &options;
 
-  LDKResourceTexture texture = ldk_renderer_texture_create(renderer, &desc);
-  free(resized);
-  ldk_image_destroy(image);
-
-  if (!ldk_renderer_texture_is_valid(renderer, texture))
+  texture = ldk_renderer_texture_create(cache->renderer, &desc);
+  if (!ldk_renderer_texture_is_valid(cache->renderer, texture))
   {
     return false;
   }
 
   thumbnail->texture = texture;
-  thumbnail->width = width;
-  thumbnail->height = height;
+  thumbnail->width = job->width;
+  thumbnail->height = job->height;
   return true;
 }
 
@@ -494,6 +542,20 @@ static void s_project_explorer_thumbnail_frame_begin(
   if (cache->renderer != renderer)
   {
     // The old renderer owns its resources. Never dereference it after a switch.
+    for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+    {
+      ProjectExplorerThumbnail *thumbnail = &cache->entries[i];
+      if (ldk_async_result_is_valid(thumbnail->job))
+      {
+        ldk_async_result_release(&thumbnail->job);
+      }
+      if (thumbnail->job_data)
+      {
+        free(thumbnail->job_data->pixels);
+        free(thumbnail->job_data);
+      }
+    }
+
     memset(cache, 0, sizeof(*cache));
     cache->renderer = renderer;
   }
@@ -545,6 +607,8 @@ static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
       break;
     }
     if (it->last_seen_frame != cache->frame &&
+        (!ldk_async_result_is_valid(it->job) ||
+            ldk_async_result_is_done(it->job)) &&
         (!available || it->last_used < available->last_used))
     {
       available = it;
@@ -570,25 +634,88 @@ static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
 static void s_project_explorer_thumbnail_process(
     ProjectExplorerThumbnailCache *cache)
 {
-  ProjectExplorerThumbnail *pending = NULL;
+  u32 active_jobs = 0;
+
   for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
   {
-    ProjectExplorerThumbnail *it = &cache->entries[i];
-    if (it->status == PROJECT_EXPLORER_THUMBNAIL_PENDING &&
-        it->last_seen_frame == cache->frame &&
-        (!pending || it->last_used < pending->last_used))
+    ProjectExplorerThumbnail *thumbnail = &cache->entries[i];
+    if (!ldk_async_result_is_valid(thumbnail->job))
     {
-      pending = it;
+      continue;
     }
+
+    if (!ldk_async_result_is_done(thumbnail->job))
+    {
+      active_jobs++;
+      continue;
+    }
+
+    bool succeeded = ldk_async_result_wait(thumbnail->job);
+    ldk_async_result_release(&thumbnail->job);
+    if (succeeded)
+    {
+      succeeded = s_project_explorer_thumbnail_upload(cache, thumbnail);
+    }
+
+    if (thumbnail->job_data)
+    {
+      free(thumbnail->job_data->pixels);
+      free(thumbnail->job_data);
+      thumbnail->job_data = NULL;
+    }
+
+    thumbnail->status = succeeded ? PROJECT_EXPLORER_THUMBNAIL_READY
+                                  : PROJECT_EXPLORER_THUMBNAIL_FAILED;
   }
 
-  // At most one image decode and texture upload per explorer update.
-  if (pending)
+  while (active_jobs < PROJECT_EXPLORER_THUMBNAIL_MAX_JOBS)
   {
-    pending->status = s_project_explorer_thumbnail_create(
-        cache->renderer, &pending->path, pending->package, pending)
-        ? PROJECT_EXPLORER_THUMBNAIL_READY
-        : PROJECT_EXPLORER_THUMBNAIL_FAILED;
+    ProjectExplorerThumbnail *pending = NULL;
+    for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
+    {
+      ProjectExplorerThumbnail *it = &cache->entries[i];
+      if (it->status == PROJECT_EXPLORER_THUMBNAIL_PENDING &&
+          !ldk_async_result_is_valid(it->job) &&
+          it->last_seen_frame == cache->frame &&
+          (!pending || it->last_used < pending->last_used))
+      {
+        pending = it;
+      }
+    }
+
+    if (!pending)
+    {
+      break;
+    }
+
+    LDKJobs *jobs = (LDKJobs *)ldk_module_get(LDK_MODULE_JOBS);
+    if (!jobs)
+    {
+      pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      break;
+    }
+
+    pending->job_data =
+        (ProjectExplorerThumbnailJob *)calloc(1, sizeof(*pending->job_data));
+    if (!pending->job_data)
+    {
+      pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      continue;
+    }
+
+    pending->job_data->path = pending->path;
+    pending->job_data->package = pending->package;
+    pending->job = ldk_jobs_submit(
+        jobs, s_project_explorer_thumbnail_job_execute, pending->job_data);
+    if (!ldk_async_result_is_valid(pending->job))
+    {
+      free(pending->job_data);
+      pending->job_data = NULL;
+      pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      continue;
+    }
+
+    active_jobs++;
   }
 }
 
