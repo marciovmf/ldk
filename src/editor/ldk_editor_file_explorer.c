@@ -1,4 +1,5 @@
 #include "ldk_editor_internal.h"
+#include <ldk_profiler.h>
 #include "ldk_editor_scene_ops.h"
 #include "ldk_editor_package_catalog.h"
 #include "ldk_ui_drag_n_drop.h"
@@ -36,6 +37,8 @@ enum
 #define PROJECT_EXPLORER_DOUBLE_CLICK_SECONDS 0.35
 #define PROJECT_EXPLORER_TREE_WIDTH_MIN 100.0f
 #define PROJECT_EXPLORER_FILES_WIDTH_MIN 120.0f
+#define PROJECT_EXPLORER_CACHE_REFRESH_SECONDS 0.5
+#define PROJECT_EXPLORER_WATCH_EVENT_CAPACITY 32
 
 typedef struct ProjectExplorerNode
 {
@@ -72,6 +75,14 @@ typedef struct ProjectExplorerPackageMount
   LDKPackage *package;
   LDKAssetSourcePackage *asset_source_package;
 } ProjectExplorerPackageMount;
+
+typedef struct ProjectExplorerDirectorySnapshot
+{
+  XFSPath path;
+  LDKPackage *package;
+  XArray *dirs;
+  XArray *files;
+} ProjectExplorerDirectorySnapshot;
 
 typedef struct ProjectExplorerTileResult
 {
@@ -154,9 +165,12 @@ typedef struct ProjectExplorerState
   XArray *expanded_paths;
   XArray *package_expanded_paths;
   XArray *stack;
-  XArray *dirs;
-  XArray *files;
+  XArray *directory_snapshots;
   XArray *package_mounts;
+  XFSWatch *watch;
+  u64 cache_dirty_ticks;
+  u64 asset_source_revision;
+  bool cache_dirty;
   i32 selected_package;
   XSmallstr selected_package_directory;
   ProjectExplorerThumbnailCache thumbnails;
@@ -758,6 +772,16 @@ static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
 static void s_project_explorer_path_drag_source(
     LDKUIContext *ui, const ProjectExplorerEntry *entry, LDKUIIcon icon);
+static void s_project_explorer_directory_cache_clear(
+    ProjectExplorerState *state);
+static void s_project_explorer_directory_cache_dirty(
+    ProjectExplorerState *state);
+static void s_project_explorer_watch_reset(ProjectExplorerState *state);
+static void s_project_explorer_directory_cache_update(
+    ProjectExplorerState *state);
+static ProjectExplorerDirectorySnapshot *
+s_project_explorer_directory_snapshot_get(
+    ProjectExplorerState *state, const XFSPath *path, LDKPackage *package);
 
 static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
     const XFSPath *path, ProjectExplorerSurface surface)
@@ -778,7 +802,8 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
   if (state->package_expanded_paths == NULL)
   {
     state->package_expanded_paths = x_array_create(
-        sizeof(ProjectExplorerPackageExpandedPath), PROJECT_EXPLORER_INITIAL_CAPACITY);
+        sizeof(ProjectExplorerPackageExpandedPath),
+        PROJECT_EXPLORER_INITIAL_CAPACITY);
   }
 
   if (state->stack == NULL)
@@ -787,16 +812,11 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
         sizeof(ProjectExplorerNode), PROJECT_EXPLORER_INITIAL_CAPACITY);
   }
 
-  if (state->dirs == NULL)
+  if (state->directory_snapshots == NULL)
   {
-    state->dirs = x_array_create(
-        sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
-  }
-
-  if (state->files == NULL)
-  {
-    state->files = x_array_create(
-        sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+    state->directory_snapshots = x_array_create(
+        sizeof(ProjectExplorerDirectorySnapshot),
+        PROJECT_EXPLORER_INITIAL_CAPACITY);
   }
 
   if (state->package_mounts == NULL)
@@ -807,8 +827,7 @@ static bool s_project_explorer_initialize(ProjectExplorerState *state)
 
   return state->expanded_paths != NULL &&
          state->package_expanded_paths != NULL && state->stack != NULL &&
-         state->dirs != NULL && state->files != NULL &&
-         state->package_mounts != NULL;
+         state->directory_snapshots != NULL && state->package_mounts != NULL;
 }
 
 static bool s_project_open_default(
@@ -1075,7 +1094,19 @@ static void s_project_explorer_package_expanded_path_set(
 static void s_project_explorer_package_mounts_clear(
     ProjectExplorerState *state)
 {
-  if (!state || !state->package_mounts)
+  if (!state)
+  {
+    return;
+  }
+
+  s_project_explorer_directory_cache_clear(state);
+  if (state->watch)
+  {
+    x_fs_watch_close(state->watch);
+    state->watch = NULL;
+  }
+
+  if (!state->package_mounts)
   {
     return;
   }
@@ -1101,6 +1132,7 @@ static void s_project_explorer_package_mounts_clear(
   state->selected_package = -1;
   memset(&state->selected_package_directory, 0,
       sizeof(state->selected_package_directory));
+  state->asset_source_revision = asset_source ? asset_source->revision : 0;
 }
 
 static bool s_project_explorer_root_set(
@@ -1141,6 +1173,16 @@ static bool s_project_explorer_root_set(
     state->selected_package = -1;
     memset(&state->selected_package_directory, 0,
         sizeof(state->selected_package_directory));
+    state->cache_dirty = false;
+    state->cache_dirty_ticks = 0;
+
+    LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+    state->asset_source_revision = asset_source ? asset_source->revision : 0;
+  }
+
+  if (!state->watch)
+  {
+    state->watch = x_fs_watch_open(state->root.buf);
   }
 
   return true;
@@ -1151,7 +1193,8 @@ static void s_project_explorer_directory_select(
 {
   state->selected_directory = *path;
   state->selected_package = -1;
-  memset(&state->selected_package_directory, 0, sizeof(state->selected_package_directory));
+  memset(&state->selected_package_directory, 0,
+      sizeof(state->selected_package_directory));
   memset(&state->selected_file, 0, sizeof(state->selected_file));
   state->last_click_ticks = 0;
   state->last_click_package = NULL;
@@ -1173,55 +1216,125 @@ static void s_project_explorer_directory_select(
   }
 }
 
-static void s_project_explorer_entry_insert_sorted(
-    XArray *entries, const ProjectExplorerEntry *entry)
+static int s_project_explorer_entry_compare(const void *a, const void *b)
 {
-  u32 insert_index = x_array_count(entries);
-
-  for (u32 i = 0; i < x_array_count(entries); i++)
-  {
-    ProjectExplorerEntry *it = x_array_get(entries, i);
-    if (strcmp(it->name.buf, entry->name.buf) > 0)
-    {
-      insert_index = i;
-      break;
-    }
-  }
-
-  x_array_insert(entries, (XArray *)entry, insert_index);
+  const ProjectExplorerEntry *entry_a = (const ProjectExplorerEntry *)a;
+  const ProjectExplorerEntry *entry_b = (const ProjectExplorerEntry *)b;
+  return strcmp(entry_a->name.buf, entry_b->name.buf);
 }
 
-static void s_project_explorer_directory_read(
-    const XFSPath *path, XArray *dirs, XArray *files)
+static void s_project_explorer_entries_sort(XArray *entries)
 {
-  if (dirs != NULL)
+  u32 count = entries ? x_array_count(entries) : 0;
+  if (count > 1)
   {
-    x_array_clear(dirs);
+    qsort(x_array_data(entries), count, sizeof(ProjectExplorerEntry),
+        s_project_explorer_entry_compare);
+  }
+}
+
+static void s_project_explorer_directory_snapshot_destroy(
+    ProjectExplorerDirectorySnapshot *snapshot)
+{
+  if (!snapshot)
+  {
+    return;
   }
 
-  if (files != NULL)
+  if (snapshot->dirs)
   {
-    x_array_clear(files);
+    x_array_destroy(snapshot->dirs);
+  }
+  if (snapshot->files)
+  {
+    x_array_destroy(snapshot->files);
+  }
+  memset(snapshot, 0, sizeof(*snapshot));
+}
+
+static void s_project_explorer_directory_cache_clear(
+    ProjectExplorerState *state)
+{
+  if (!state || !state->directory_snapshots)
+  {
+    return;
   }
 
+  for (u32 i = 0; i < x_array_count(state->directory_snapshots); ++i)
+  {
+    ProjectExplorerDirectorySnapshot *snapshot =
+        x_array_get(state->directory_snapshots, i);
+    s_project_explorer_directory_snapshot_destroy(snapshot);
+  }
+  x_array_clear(state->directory_snapshots);
+}
+
+static void s_project_explorer_directory_cache_dirty(
+    ProjectExplorerState *state)
+{
+  if (!state || state->cache_dirty)
+  {
+    return;
+  }
+
+  state->cache_dirty = true;
+  state->cache_dirty_ticks = ldk_os_time_ticks_get();
+}
+
+static void s_project_explorer_watch_reset(ProjectExplorerState *state)
+{
+  if (!state)
+  {
+    return;
+  }
+
+  if (state->watch)
+  {
+    x_fs_watch_close(state->watch);
+    state->watch = NULL;
+  }
+
+  if (state->root.length != 0)
+  {
+    state->watch = x_fs_watch_open(state->root.buf);
+  }
+}
+
+static bool s_project_explorer_filesystem_snapshot_build(
+    ProjectExplorerDirectorySnapshot *snapshot)
+{
   XFSDireEntry fs_entry = {0};
-  XFSDireHandle *dir = x_fs_find_first_file(x_fs_path_cstr(path), &fs_entry);
+  XFSDireHandle *dir;
+
+  if (!snapshot || !snapshot->dirs || !snapshot->files)
+  {
+    return false;
+  }
+
+  dir = x_fs_find_first_file(snapshot->path.buf, &fs_entry);
+  LDK_PROFILE_COUNTER_ADD("File Explorer Directory Enumerations", 1);
 
   while (dir != NULL)
   {
+    LDK_PROFILE_COUNTER_ADD("File Explorer Filesystem Entries Enumerated", 1);
     bool special_entry =
         strcmp(fs_entry.name, ".") == 0 || strcmp(fs_entry.name, "..") == 0;
-    XArray *target = fs_entry.is_directory ? dirs : files;
 
-    if (!special_entry && target != NULL)
+    if (!special_entry)
     {
       ProjectExplorerEntry entry = {0};
-      entry.path = *path;
+      XArray *target = fs_entry.is_directory ? snapshot->dirs : snapshot->files;
+      entry.path = snapshot->path;
       x_fs_path_join(&entry.path, fs_entry.name);
       x_smallstr_from_cstr(&entry.name, fs_entry.name);
       entry.size = fs_entry.size;
       entry.last_modified = fs_entry.last_modified;
-      s_project_explorer_entry_insert_sorted(target, &entry);
+      entry.is_directory = fs_entry.is_directory != 0;
+      if (x_array_add(target, &entry) != XARRAY_OK)
+      {
+        x_fs_find_close(dir);
+        return false;
+      }
     }
 
     if (!x_fs_find_next_file(dir, &fs_entry))
@@ -1234,36 +1347,56 @@ static void s_project_explorer_directory_read(
   {
     x_fs_find_close(dir);
   }
+
+  s_project_explorer_entries_sort(snapshot->dirs);
+  s_project_explorer_entries_sort(snapshot->files);
+  return true;
 }
 
-static bool s_project_explorer_package_directory_read(
-    ProjectExplorerState *state, u32 package_index, const char *directory,
-    XArray *dirs, XArray *files)
+static bool s_project_explorer_package_snapshot_build(
+    ProjectExplorerDirectorySnapshot *snapshot)
 {
-  if (!state || !state->package_mounts ||
-      package_index >= x_array_count(state->package_mounts))
+  XArray *raw_dirs;
+  size_t directory_length;
+
+  if (!snapshot || !snapshot->package || !snapshot->dirs || !snapshot->files)
   {
     return false;
   }
 
-  if (dirs) x_array_clear(dirs);
-  if (files) x_array_clear(files);
+  raw_dirs = x_array_create(
+      sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  if (!raw_dirs)
+  {
+    return false;
+  }
 
-  ProjectExplorerPackageMount *mount =
-      x_array_get(state->package_mounts, package_index);
-  size_t directory_length = directory ? strlen(directory) : 0;
+  directory_length = strlen(snapshot->path.buf);
+  LDK_PROFILE_COUNTER_ADD("File Explorer Package Directory Enumerations", 1);
 
-  for (u32 i = 0; i < ldk_package_entry_count(mount->package); ++i)
+  for (u32 i = 0; i < ldk_package_entry_count(snapshot->package); ++i)
   {
     const LDKPackageEntry *package_entry =
-        ldk_package_entry_at(mount->package, i);
+        ldk_package_entry_at(snapshot->package, i);
     const char *entry_path = ldk_package_entry_get_path(package_entry);
-    if (!entry_path) continue;
+    const char *relative;
+    const char *slash;
+    ProjectExplorerEntry entry = {0};
+    size_t name_length;
+    char name[X_SMALLSTR_MAX_LENGTH + 1];
+    char logical[LDK_ASSET_PATH_MAX_LENGTH + 1];
+    int written;
 
-    const char *relative = entry_path;
+    LDK_PROFILE_COUNTER_ADD("File Explorer Package Entries Scanned", 1);
+    if (!entry_path)
+    {
+      continue;
+    }
+
+    relative = entry_path;
     if (directory_length)
     {
-      if (strncmp(entry_path, directory, directory_length) != 0 ||
+      if (strncmp(entry_path, snapshot->path.buf, directory_length) != 0 ||
           entry_path[directory_length] != '/')
       {
         continue;
@@ -1271,51 +1404,171 @@ static bool s_project_explorer_package_directory_read(
       relative = entry_path + directory_length + 1;
     }
 
-    if (!relative[0]) continue;
-    const char *slash = strchr(relative, '/');
-    ProjectExplorerEntry entry = {0};
-    size_t name_length = slash ? (size_t)(slash - relative) : strlen(relative);
-    if (name_length == 0 || name_length > X_SMALLSTR_MAX_LENGTH) continue;
+    if (!relative[0])
+    {
+      continue;
+    }
 
-    char name[X_SMALLSTR_MAX_LENGTH + 1];
+    slash = strchr(relative, '/');
+    name_length = slash ? (size_t)(slash - relative) : strlen(relative);
+    if (name_length == 0 || name_length > X_SMALLSTR_MAX_LENGTH)
+    {
+      continue;
+    }
+
     memcpy(name, relative, name_length);
     name[name_length] = 0;
     x_smallstr_from_cstr(&entry.name, name);
-    entry.package = mount->package;
+    entry.package = snapshot->package;
     entry.package_backed = true;
     entry.is_directory = slash != NULL;
 
-    char logical[LDK_ASSET_PATH_MAX_LENGTH + 1];
-    int written = directory_length
-        ? snprintf(logical, sizeof(logical), "%s/%s", directory, name)
+    written = directory_length
+        ? snprintf(logical, sizeof(logical), "%s/%s", snapshot->path.buf, name)
         : snprintf(logical, sizeof(logical), "%s", name);
-    if (written <= 0 || (size_t)written >= sizeof(logical)) continue;
-    x_fs_path_set(&entry.path, logical);
+    if (written <= 0 || (size_t)written >= sizeof(logical) ||
+        !x_fs_path_set(&entry.path, logical))
+    {
+      continue;
+    }
 
     if (entry.is_directory)
     {
-      bool exists = false;
-      if (dirs)
+      if (x_array_add(raw_dirs, &entry) != XARRAY_OK)
       {
-        for (u32 d = 0; d < x_array_count(dirs); ++d)
-        {
-          ProjectExplorerEntry *existing = x_array_get(dirs, d);
-          if (strcmp(existing->name.buf, entry.name.buf) == 0)
-          {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists) s_project_explorer_entry_insert_sorted(dirs, &entry);
+        x_array_destroy(raw_dirs);
+        return false;
       }
     }
-    else if (files && ldk_asset_path_set(&entry.asset_path, entry_path))
+    else if (ldk_asset_path_set(&entry.asset_path, entry_path))
     {
       entry.size = (size_t)ldk_package_entry_get_size(package_entry);
-      s_project_explorer_entry_insert_sorted(files, &entry);
+      if (x_array_add(snapshot->files, &entry) != XARRAY_OK)
+      {
+        x_array_destroy(raw_dirs);
+        return false;
+      }
     }
   }
+
+  s_project_explorer_entries_sort(raw_dirs);
+  s_project_explorer_entries_sort(snapshot->files);
+
+  const char *previous_name = NULL;
+  for (u32 i = 0; i < x_array_count(raw_dirs); ++i)
+  {
+    ProjectExplorerEntry *entry = x_array_get(raw_dirs, i);
+    if (!previous_name || strcmp(previous_name, entry->name.buf) != 0)
+    {
+      if (x_array_add(snapshot->dirs, entry) != XARRAY_OK)
+      {
+        x_array_destroy(raw_dirs);
+        return false;
+      }
+      previous_name = entry->name.buf;
+    }
+  }
+
+  x_array_destroy(raw_dirs);
   return true;
+}
+
+static ProjectExplorerDirectorySnapshot *
+s_project_explorer_directory_snapshot_get(
+    ProjectExplorerState *state, const XFSPath *path, LDKPackage *package)
+{
+  ProjectExplorerDirectorySnapshot snapshot = {0};
+  bool built;
+
+  if (!state || !state->directory_snapshots || !path)
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < x_array_count(state->directory_snapshots); ++i)
+  {
+    ProjectExplorerDirectorySnapshot *it =
+        x_array_get(state->directory_snapshots, i);
+    if (it->package == package && x_fs_path_compare(&it->path, path) == 0)
+    {
+      return it;
+    }
+  }
+
+  snapshot.path = *path;
+  snapshot.package = package;
+  snapshot.dirs = x_array_create(
+      sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  snapshot.files = x_array_create(
+      sizeof(ProjectExplorerEntry), PROJECT_EXPLORER_INITIAL_CAPACITY);
+  if (!snapshot.dirs || !snapshot.files)
+  {
+    s_project_explorer_directory_snapshot_destroy(&snapshot);
+    return NULL;
+  }
+
+  built = package ? s_project_explorer_package_snapshot_build(&snapshot)
+                  : s_project_explorer_filesystem_snapshot_build(&snapshot);
+  if (!built || x_array_add(state->directory_snapshots, &snapshot) != XARRAY_OK)
+  {
+    s_project_explorer_directory_snapshot_destroy(&snapshot);
+    return NULL;
+  }
+
+  return x_array_get(state->directory_snapshots,
+      x_array_count(state->directory_snapshots) - 1u);
+}
+
+static void s_project_explorer_directory_cache_update(
+    ProjectExplorerState *state)
+{
+  XFSWatchEvent events[PROJECT_EXPLORER_WATCH_EVENT_CAPACITY];
+  LDKAssetSource *asset_source;
+  u64 now;
+
+  if (!state)
+  {
+    return;
+  }
+
+  if (state->watch)
+  {
+    int32_t event_count = x_fs_watch_poll(
+        state->watch, events, PROJECT_EXPLORER_WATCH_EVENT_CAPACITY);
+    if (event_count < 0)
+    {
+      s_project_explorer_watch_reset(state);
+      s_project_explorer_directory_cache_dirty(state);
+    }
+    else if (event_count > 0)
+    {
+      s_project_explorer_directory_cache_dirty(state);
+    }
+  }
+
+  asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  if (asset_source && asset_source->revision != state->asset_source_revision)
+  {
+    state->asset_source_revision = asset_source->revision;
+    s_project_explorer_directory_cache_dirty(state);
+  }
+
+  if (!state->cache_dirty)
+  {
+    return;
+  }
+
+  now = ldk_os_time_ticks_get();
+  if (ldk_os_time_ticks_interval_get_seconds(state->cache_dirty_ticks, now) <
+      PROJECT_EXPLORER_CACHE_REFRESH_SECONDS)
+  {
+    return;
+  }
+
+  s_project_explorer_directory_cache_clear(state);
+  state->cache_dirty = false;
+  state->cache_dirty_ticks = 0;
+  LDK_PROFILE_COUNTER_ADD("File Explorer Cache Refreshes", 1);
 }
 
 
@@ -1694,11 +1947,16 @@ static void s_project_explorer_tree_draw(LDKEditorContext *editor,
       continue;
     }
 
-    s_project_explorer_directory_read(&node.path, state->dirs, NULL);
-
-    for (u32 i = x_array_count(state->dirs); i > 0; i--)
+    ProjectExplorerDirectorySnapshot *snapshot =
+        s_project_explorer_directory_snapshot_get(state, &node.path, NULL);
+    if (!snapshot)
     {
-      ProjectExplorerEntry *entry = x_array_get(state->dirs, i - 1);
+      continue;
+    }
+
+    for (u32 i = x_array_count(snapshot->dirs); i > 0; i--)
+    {
+      ProjectExplorerEntry *entry = x_array_get(snapshot->dirs, i - 1);
       ProjectExplorerNode child = {0};
       child.path = entry->path;
       child.name = entry->name;
@@ -1735,11 +1993,17 @@ static void s_project_explorer_tree_draw(LDKEditorContext *editor,
         continue;
       }
 
-      s_project_explorer_package_directory_read(
-          state, i, node.path.buf, state->dirs, NULL);
-      for (u32 d = x_array_count(state->dirs); d > 0; --d)
+      ProjectExplorerDirectorySnapshot *snapshot =
+          s_project_explorer_directory_snapshot_get(
+              state, &node.path, mount->package);
+      if (!snapshot)
       {
-        ProjectExplorerEntry *entry = x_array_get(state->dirs, d - 1);
+        continue;
+      }
+
+      for (u32 d = x_array_count(snapshot->dirs); d > 0; --d)
+      {
+        ProjectExplorerEntry *entry = x_array_get(snapshot->dirs, d - 1);
         ProjectExplorerNode child = {0};
         child.path = entry->path;
         child.name = entry->name;
@@ -1756,18 +2020,19 @@ static void s_project_explorer_tree_draw(LDKEditorContext *editor,
 }
 
 static ProjectExplorerEntry *s_project_explorer_entry_get(
-    ProjectExplorerState *state, u32 index, bool *is_directory)
+    XArray *dirs, XArray *files, u32 index, bool *is_directory)
 {
-  u32 directory_count = x_array_count(state->dirs);
+  u32 directory_count = x_array_count(dirs);
   *is_directory = index < directory_count;
 
   if (*is_directory)
   {
-    return x_array_get(state->dirs, index);
+    return x_array_get(dirs, index);
   }
 
-  return x_array_get(state->files, index - directory_count);
+  return x_array_get(files, index - directory_count);
 }
+
 
 static void s_project_explorer_on_file_double_click(
     LDKEditorContext *editor, const ProjectExplorerEntry *entry)
@@ -2111,6 +2376,7 @@ static bool s_project_explorer_rename_commit(
     state->selected_file = renamed;
   }
 
+  s_project_explorer_directory_cache_dirty(state);
   s_project_explorer_rename_end(state);
   return true;
 }
@@ -2278,6 +2544,7 @@ static bool s_project_explorer_create_directory(
   }
 
   s_project_explorer_directory_select(state, &parent, true);
+  s_project_explorer_directory_cache_dirty(state);
   state->context_target.path = created;
   state->context_target.is_directory = true;
   state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
@@ -2305,6 +2572,7 @@ static bool s_project_explorer_create_scene(
   }
 
   s_project_explorer_directory_select(state, &parent, true);
+  s_project_explorer_directory_cache_dirty(state);
   state->selected_file = created;
   state->context_target.path = created;
   state->context_target.is_directory = false;
@@ -2359,6 +2627,7 @@ static bool s_project_explorer_create_material(
   }
 
   s_project_explorer_directory_select(state, &parent, true);
+  s_project_explorer_directory_cache_dirty(state);
   state->selected_file = created;
   state->context_target.path = created;
   state->context_target.is_directory = false;
@@ -2454,9 +2723,13 @@ static void s_project_explorer_context_menu_draw(
       {
         ldki_editor_log_error(editor, "Failed to duplicate path.");
       }
-      else if (!is_directory)
+      else
       {
-        state->selected_file = duplicate;
+        s_project_explorer_directory_cache_dirty(state);
+        if (!is_directory)
+        {
+          state->selected_file = duplicate;
+        }
       }
       ldk_ui_close_current_popup(ui);
     }
@@ -2486,6 +2759,7 @@ static void s_project_explorer_context_menu_draw(
         }
         else if (is_directory)
         {
+          s_project_explorer_directory_cache_dirty(state);
           XFSPath parent = {0};
           if (x_fs_path_dirname(&state->context_target.path, &parent) > 0)
           {
@@ -2493,10 +2767,14 @@ static void s_project_explorer_context_menu_draw(
           }
           x_array_clear(state->expanded_paths);
         }
-        else if (x_fs_path_compare(
-                     &state->selected_file, &state->context_target.path) == 0)
+        else
         {
-          memset(&state->selected_file, 0, sizeof(state->selected_file));
+          s_project_explorer_directory_cache_dirty(state);
+          if (x_fs_path_compare(
+                  &state->selected_file, &state->context_target.path) == 0)
+          {
+            memset(&state->selected_file, 0, sizeof(state->selected_file));
+          }
         }
       }
       ldk_ui_close_current_popup(ui);
@@ -2871,10 +3149,10 @@ static void s_project_explorer_path_drag_source(
 }
 
 static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
-    ProjectExplorerState *state, LDKUIContext *ui, LDKUIIcon folder_icon,
-    LDKUIIcon file_icon)
+    ProjectExplorerState *state, LDKUIContext *ui, XArray *dirs, XArray *files,
+    LDKUIIcon folder_icon, LDKUIIcon file_icon)
 {
-  u32 total_count = x_array_count(state->dirs) + x_array_count(state->files);
+  u32 total_count = x_array_count(dirs) + x_array_count(files);
   bool compact_mode = state->icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
   bool right_click_handled = false;
 
@@ -2884,7 +3162,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     {
       bool is_directory = false;
       ProjectExplorerEntry *entry =
-          s_project_explorer_entry_get(state, entry_i, &is_directory);
+          s_project_explorer_entry_get(dirs, files, entry_i, &is_directory);
       LDKUIIcon entry_icon = is_directory ? folder_icon : file_icon;
       LDKUIMark entry_mark = ldk_ui_mark(ui);
 
@@ -2962,7 +3240,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     {
       bool is_directory = false;
       ProjectExplorerEntry *entry =
-          s_project_explorer_entry_get(state, tile_index, &is_directory);
+          s_project_explorer_entry_get(dirs, files, tile_index, &is_directory);
       LDKUIIcon entry_icon = is_directory ? folder_icon : file_icon;
 
       if (!is_directory)
@@ -3091,19 +3369,25 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
       ui, state->file_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
   LDKUIRect file_view_rect = ui->clip_rect;
 
-  if (state->selected_package >= 0)
+  ProjectExplorerDirectorySnapshot *snapshot = NULL;
+  if (state->selected_package >= 0 &&
+      (u32)state->selected_package < x_array_count(state->package_mounts))
   {
-    s_project_explorer_package_directory_read(state,
-        (u32)state->selected_package, state->selected_package_directory.buf,
-        state->dirs, state->files);
+    ProjectExplorerPackageMount *mount =
+        x_array_get(state->package_mounts, (u32)state->selected_package);
+    snapshot = s_project_explorer_directory_snapshot_get(
+        state, &state->selected_package_directory, mount->package);
   }
   else
   {
-    s_project_explorer_directory_read(
-        &state->selected_directory, state->dirs, state->files);
+    snapshot = s_project_explorer_directory_snapshot_get(
+        state, &state->selected_directory, NULL);
   }
-  bool right_click_handled = s_project_explorer_entries_draw(
-      editor, state, ui, folder_icon, file_icon);
+
+  bool right_click_handled = snapshot
+      ? s_project_explorer_entries_draw(editor, state, ui, snapshot->dirs,
+            snapshot->files, folder_icon, file_icon)
+      : false;
 
   if (state->selected_package < 0 && !right_click_handled &&
       s_project_explorer_rect_button_down(
@@ -3159,6 +3443,7 @@ static void s_editor_project_explorer(
     return;
   }
 
+  s_project_explorer_directory_cache_update(state);
   s_project_explorer_rename_before_draw(editor, state, ui);
 
   LDKUIIcon file_icon = {0};
