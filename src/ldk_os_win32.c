@@ -118,6 +118,7 @@ typedef struct
   u32 version_minor;
   i32 pixel_format_attribs[16];
   i32 context_attribs[16];
+  bool vsync;
 } LDKWin32OpenGLAPI;
 
 typedef enum
@@ -373,6 +374,17 @@ inline static bool s_graphics_api_is_opengl(Win32GraphicsAPI api)
       api == WIN32_GRAPHICS_API_OPENGL || api == WIN32_GRAPHICS_API_OPENGLES);
 }
 
+static bool s_opengl_vsync_apply(void)
+{
+  if (!s_graphics_api_is_opengl(s_graphicsAPIInfo.api) ||
+      !s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
+  {
+    return false;
+  }
+
+  return s_graphicsAPIInfo.gl.wglSwapIntervalEXT(s_graphicsAPIInfo.gl.vsync);
+}
+
 static LDKEvent *s_win32_event_new(void)
 {
   if (s_oswin32.events_count >= LDK_WIN32_MAX_EVENTS)
@@ -470,6 +482,7 @@ inline static bool s_opengl_init(Win32GraphicsAPI api, i32 glVersionMajor,
       (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
   s_graphicsAPIInfo.gl.wglGetSwapIntervalEXT =
       (PFNWGLGETSWAPINTERVALEXTPROC)wglGetProcAddress("wglGetSwapIntervalEXT");
+  s_graphicsAPIInfo.gl.vsync = true;
 
   memcpy(s_graphicsAPIInfo.gl.pixel_format_attribs, pixel_format_attrib_list,
       sizeof(pixel_format_attrib_list));
@@ -852,6 +865,8 @@ LDKWindow ldk_os_window_create_with_flags(
       ldk_log_error("Unable to set OpenGL context current", 0);
       return NULL;
     }
+
+    s_opengl_vsync_apply();
   }
 
   if (s_oswin32.default_cursor == 0)
@@ -875,40 +890,46 @@ bool ldk_os_window_should_close(LDKWindow window)
   return ((LDKWin32Window *)window)->close_flag;
 }
 
-bool ldk_os_events_poll(LDKEvent *event)
+void ldk_os_events_pump(void)
 {
   MSG msg;
 
-  if (s_oswin32.events_count == 0)
+  // Do not invalidate events that have not been consumed yet.
+  if (s_oswin32.events_poll_index < s_oswin32.events_count)
   {
-    // clean up changed bit for keyboard keys
-    for (int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
-    {
-      s_oswin32.keyboard_state.key[keyCode] &=
-          ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
-    }
+    return;
+  }
 
-    // clean up changed bit for mouse buttons
-    for (int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
-    {
-      s_oswin32.mouse_state.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
-    }
+  s_oswin32.events_count = 0;
+  s_oswin32.events_poll_index = 0;
 
-    // reset wheel delta
-    s_oswin32.mouse_state.wheel_delta = 0;
-    s_oswin32.mouse_state.cursor_relative.x = 0;
-    s_oswin32.mouse_state.cursor_relative.y = 0;
+  // clean up changed bit for keyboard keys
+  for (int keyCode = 0; keyCode < LDK_KEYBOARD_MAX_KEYS; keyCode++)
+  {
+    s_oswin32.keyboard_state.key[keyCode] &=
+        ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
+  }
 
-    // Modifier key-up messages can be lost while focus changes (for example
-    // when launching the application with Ctrl+F5). Reconcile the persistent
-    // state with the physical keyboard before processing this frame's events.
-    s_win32_keyboard_modifiers_sync();
+  // clean up changed bit for mouse buttons
+  for (int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
+  {
+    s_oswin32.mouse_state.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+  }
 
-    while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-    {
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
+  // reset wheel delta
+  s_oswin32.mouse_state.wheel_delta = 0;
+  s_oswin32.mouse_state.cursor_relative.x = 0;
+  s_oswin32.mouse_state.cursor_relative.y = 0;
+
+  // Modifier key-up messages can be lost while focus changes (for example
+  // when launching the application with Ctrl+F5). Reconcile the persistent
+  // state with the physical keyboard before processing this frame's events.
+  s_win32_keyboard_modifiers_sync();
+
+  while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+  {
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
   }
 
   // clean up changed bit for joystick buttons
@@ -922,21 +943,35 @@ bool ldk_os_events_poll(LDKEvent *event)
   }
 
   s_xinput_poll_events();
+}
 
-  // WindowProc might have enqueued some events...
+bool ldk_os_event_next(LDKEvent *event)
+{
+  X_ASSERT(event != NULL);
+
   if (s_oswin32.events_poll_index < s_oswin32.events_count)
   {
     memcpy(event, &s_oswin32.events[s_oswin32.events_poll_index++],
         sizeof(LDKEvent));
     return true;
   }
-  else
+
+  s_oswin32.events_count = 0;
+  s_oswin32.events_poll_index = 0;
+  event->type = LDK_EVENT_TYPE_NONE;
+  return false;
+}
+
+bool ldk_os_events_poll(LDKEvent *event)
+{
+  // Backwards-compatible convenience API. A complete while(poll()) loop pumps
+  // the OS once and then only drains the queued events.
+  if (s_oswin32.events_count == 0 && s_oswin32.events_poll_index == 0)
   {
-    s_oswin32.events_count = 0;
-    s_oswin32.events_poll_index = 0;
-    event->type = LDK_EVENT_TYPE_NONE;
-    return false;
+    ldk_os_events_pump();
   }
+
+  return ldk_os_event_next(event);
 }
 
 void ldk_os_window_buffers_swap(LDKWindow window)
@@ -1691,18 +1726,22 @@ void ldk_os_graphics_context_make_current(LDKWindow window, LDKGCtx context)
 {
   HDC dc = ((LDKWin32Window *)window)->dc;
   X_ASSERT(context == &s_graphicsAPIInfo);
-  if (s_graphics_api_is_opengl(s_graphicsAPIInfo.api))
-    wglMakeCurrent(dc, s_graphicsAPIInfo.gl.rc);
+  if (s_graphics_api_is_opengl(s_graphicsAPIInfo.api) &&
+      wglMakeCurrent(dc, s_graphicsAPIInfo.gl.rc))
+  {
+    s_opengl_vsync_apply();
+  }
 }
 
 bool ldk_os_graphics_vsync_set(bool vsync)
 {
-  if (s_graphics_api_is_opengl(s_graphicsAPIInfo.api))
+  if (!s_graphics_api_is_opengl(s_graphicsAPIInfo.api))
   {
-    if (s_graphicsAPIInfo.gl.wglSwapIntervalEXT)
-      return s_graphicsAPIInfo.gl.wglSwapIntervalEXT(vsync);
+    return false;
   }
-  return false;
+
+  s_graphicsAPIInfo.gl.vsync = vsync;
+  return s_opengl_vsync_apply();
 }
 
 i32 ldk_os_graphics_vsync_get(void)
