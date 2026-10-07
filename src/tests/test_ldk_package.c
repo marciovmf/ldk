@@ -4,6 +4,7 @@
 #endif
 
 #include <ldk_package.h>
+#include <module/ldk_jobs.h>
 #include <stdx/stdx_filesystem.h>
 
 #define X_IMPL_TEST
@@ -12,6 +13,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+
+typedef struct PackageAsyncReadContext
+{
+  LDKPackage *package;
+  const LDKPackageEntry *entry;
+  u64 offset;
+  void *data;
+  u64 size;
+  u64 read_size;
+} PackageAsyncReadContext;
+
+static bool s_package_async_read(void *user_data)
+{
+  PackageAsyncReadContext *context =
+      (PackageAsyncReadContext *)user_data;
+  return ldk_package_entry_read_at(context->package, context->entry,
+      context->offset, context->data, context->size, &context->read_size);
+}
 
 static bool s_write_file(const XFSPath *path, const void *data, size_t size)
 {
@@ -155,6 +175,19 @@ static int test_package_round_trip(void)
   ASSERT_TRUE(ldk_package_entry_read(
       package, binary_entry, read_binary, sizeof(read_binary)));
   ASSERT_TRUE(memcmp(read_binary, binary, sizeof(binary)) == 0);
+
+  memset(read_binary, 0, sizeof(read_binary));
+  u64 partial_size = 0;
+  ASSERT_TRUE(ldk_package_entry_read_at(
+      package, binary_entry, 2, read_binary, 3, &partial_size));
+  ASSERT_EQ(partial_size, 3u);
+  ASSERT_TRUE(memcmp(read_binary, binary + 2, 3) == 0);
+  ASSERT_TRUE(ldk_package_entry_read_at(package, binary_entry,
+      sizeof(binary) - 2, read_binary, sizeof(read_binary), &partial_size));
+  ASSERT_EQ(partial_size, 2u);
+  ASSERT_FALSE(ldk_package_entry_read_at(package, binary_entry,
+      sizeof(binary) + 1, read_binary, 1, &partial_size));
+
   ASSERT_TRUE(ldk_package_entry_read(package, empty_entry, NULL, 0));
 
   for (u32 i = 0; i < ldk_package_entry_count(package); ++i)
@@ -185,6 +218,60 @@ static int test_package_round_trip(void)
   ASSERT_EQ(read_size, sizeof(text) - 1);
   ASSERT_TRUE(memcmp(read_text, text, sizeof(text) - 1) == 0);
 
+  ldk_package_close(package);
+  ASSERT_TRUE(x_fs_directory_delete_recursive(x_fs_path_cstr(&root)));
+  return 0;
+}
+
+static int test_package_concurrent_reads(void)
+{
+  static const u8 data[] = {
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  XFSPath root;
+  XFSPath source_path;
+  XFSPath box_path;
+  u8 first[4] = {0};
+  u8 second[4] = {0};
+  LDKJobs jobs;
+
+  ASSERT_TRUE(s_test_root_create("ldk-package-concurrent", &root));
+  ASSERT_TRUE(x_fs_path(&source_path, x_fs_path_cstr(&root), "source.bin"));
+  ASSERT_TRUE(x_fs_path(&box_path, x_fs_path_cstr(&root), "content.box"));
+  ASSERT_TRUE(s_write_file(&source_path, data, sizeof(data)));
+
+  LDKPackageWriter *writer =
+      ldk_package_writer_create(x_fs_path_cstr(&box_path));
+  ASSERT_TRUE(writer != NULL);
+  ASSERT_TRUE(ldk_package_writer_add_file(writer, x_fs_path_cstr(&source_path),
+      "data.bin", LDK_PACKAGE_COMPRESSION_NONE));
+  ASSERT_TRUE(ldk_package_writer_finalize(writer));
+  ldk_package_writer_destroy(writer);
+
+  LDKPackage *package = ldk_package_open(x_fs_path_cstr(&box_path));
+  ASSERT_TRUE(package != NULL);
+  const LDKPackageEntry *entry = ldk_package_entry_find(package, "data.bin");
+  ASSERT_TRUE(entry != NULL);
+  ASSERT_TRUE(ldk_jobs_initialize(&jobs, 2));
+
+  PackageAsyncReadContext first_context = {
+      package, entry, 2, first, sizeof(first), 0};
+  PackageAsyncReadContext second_context = {
+      package, entry, 10, second, sizeof(second), 0};
+  LDKAsyncResult first_result =
+      ldk_jobs_submit(&jobs, s_package_async_read, &first_context);
+  LDKAsyncResult second_result =
+      ldk_jobs_submit(&jobs, s_package_async_read, &second_context);
+
+  ASSERT_TRUE(ldk_async_result_wait(first_result));
+  ASSERT_TRUE(ldk_async_result_wait(second_result));
+  ASSERT_EQ(first_context.read_size, sizeof(first));
+  ASSERT_EQ(second_context.read_size, sizeof(second));
+  ASSERT_TRUE(memcmp(first, data + 2, sizeof(first)) == 0);
+  ASSERT_TRUE(memcmp(second, data + 10, sizeof(second)) == 0);
+
+  ldk_async_result_release(&first_result);
+  ldk_async_result_release(&second_result);
+  ldk_jobs_terminate(&jobs);
   ldk_package_close(package);
   ASSERT_TRUE(x_fs_directory_delete_recursive(x_fs_path_cstr(&root)));
   return 0;
@@ -271,6 +358,7 @@ int main(void)
 {
   STDXTestCase tests[] = {
       X_TEST(test_package_round_trip),
+      X_TEST(test_package_concurrent_reads),
       X_TEST(test_package_rejects_invalid_entries),
       X_TEST(test_package_rejects_duplicate_paths),
   };

@@ -13,6 +13,7 @@
 #include <ldk_asset.h>
 #include <ldk_common.h>
 #include <ldk_package.h>
+#include <module/ldk_jobs.h>
 #include <stdx/stdx_filesystem.h>
 
 #ifdef __cplusplus
@@ -21,6 +22,7 @@ extern "C"
 #endif
 
   typedef struct LDKAssetSourcePackage LDKAssetSourcePackage;
+  typedef LDKAsyncResult LDKAsyncRead;
 
   typedef enum LDKAssetSourceOrigin
   {
@@ -84,6 +86,21 @@ extern "C"
       const char *path, LDKAssetSourceFile *out_file);
 
   LDK_API u64 ldk_asset_source_file_size(const LDKAssetSourceFile *file);
+
+  /* Reads up to size bytes starting at offset. Reaching the end of the file is
+   * not an error; out_read receives the bytes read. */
+  LDK_API bool ldk_asset_source_file_read_at(const LDKAssetSourceFile *file,
+      u64 offset, void *out_data, u64 size, u64 *out_read);
+
+  /* Schedules the same read operation on the engine Jobs module. out_data and
+   * out_read, when provided, must remain valid until the result completes. */
+  LDK_API LDKAsyncRead ldk_asset_source_file_read_at_async(
+      const LDKAssetSourceFile *file, u64 offset, void *out_data, u64 size,
+      u64 *out_read);
+
+  /* Schedules a complete file read on the engine Jobs module. */
+  LDK_API LDKAsyncRead ldk_asset_source_file_read_async(
+      const LDKAssetSourceFile *file, void *out_data, u64 out_size);
 
   /* Reads the complete file into caller-owned memory. out_size must be at
    * least ldk_asset_source_file_size(file). */

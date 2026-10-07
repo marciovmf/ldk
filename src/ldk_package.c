@@ -8,6 +8,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 #define LDK_PACKAGE_VERSION 1u
 #define LDK_PACKAGE_HEADER_SIZE 32u
 #define LDK_PACKAGE_MANIFEST_ENTRY_SIZE 40u
@@ -38,8 +46,13 @@ struct LDKPackageEntry
 struct LDKPackage
 {
   FILE *file;
+#ifdef _WIN32
+  HANDLE mapping;
+  const u8 *mapped_data;
+#endif
   LDKPackageEntry *entries;
   u8 *manifest_data;
+  u64 file_size;
   u32 entry_count;
 };
 
@@ -330,6 +343,57 @@ static bool s_file_read_all(FILE *file, void *data, u64 size)
   return true;
 }
 
+static bool s_package_file_read_at(const LDKPackage *package, u64 offset,
+    void *data, u64 size)
+{
+  u8 *cursor = (u8 *)data;
+
+  if (!package || offset > package->file_size ||
+      size > package->file_size - offset || (size > 0 && !data))
+  {
+    return false;
+  }
+
+#ifdef _WIN32
+  if (!package->mapped_data)
+  {
+    return false;
+  }
+
+  while (size > 0)
+  {
+    size_t chunk = size > (u64)SIZE_MAX ? SIZE_MAX : (size_t)size;
+    memcpy(cursor, package->mapped_data + (size_t)offset, chunk);
+    cursor += chunk;
+    offset += (u64)chunk;
+    size -= (u64)chunk;
+  }
+  return true;
+#else
+  int fd = fileno(package->file);
+  if (fd < 0 || offset > (u64)INT64_MAX)
+  {
+    return false;
+  }
+
+  while (size > 0)
+  {
+    size_t chunk = size > LDK_PACKAGE_IO_BUFFER_SIZE
+                       ? LDK_PACKAGE_IO_BUFFER_SIZE
+                       : (size_t)size;
+    ssize_t read_size = pread(fd, cursor, chunk, (off_t)offset);
+    if (read_size <= 0)
+    {
+      return false;
+    }
+    cursor += (size_t)read_size;
+    offset += (u64)read_size;
+    size -= (u64)read_size;
+  }
+  return true;
+#endif
+}
+
 static bool s_file_copy(FILE *source, FILE *destination, u64 size)
 {
   u8 buffer[LDK_PACKAGE_IO_BUFFER_SIZE];
@@ -615,7 +679,36 @@ LDKPackage *ldk_package_open(const char *path)
   package->file = file;
   package->entries = entries;
   package->manifest_data = manifest_data;
+  package->file_size = file_size;
   package->entry_count = entry_count;
+
+#ifdef _WIN32
+  {
+    intptr_t os_handle = _get_osfhandle(_fileno(file));
+    if (os_handle == -1)
+    {
+      ldk_package_close(package);
+      return NULL;
+    }
+
+    package->mapping = CreateFileMappingA(
+        (HANDLE)os_handle, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (!package->mapping)
+    {
+      ldk_package_close(package);
+      return NULL;
+    }
+
+    package->mapped_data =
+        (const u8 *)MapViewOfFile(package->mapping, FILE_MAP_READ, 0, 0, 0);
+    if (!package->mapped_data)
+    {
+      ldk_package_close(package);
+      return NULL;
+    }
+  }
+#endif
+
   return package;
 }
 
@@ -625,6 +718,17 @@ void ldk_package_close(LDKPackage *package)
   {
     return;
   }
+
+#ifdef _WIN32
+  if (package->mapped_data)
+  {
+    UnmapViewOfFile(package->mapped_data);
+  }
+  if (package->mapping)
+  {
+    CloseHandle(package->mapping);
+  }
+#endif
 
   if (package->file != NULL)
   {
@@ -718,11 +822,29 @@ LDKPackageCompression ldk_package_entry_get_compression(
   return (LDKPackageCompression)entry->compression;
 }
 
-bool ldk_package_entry_read(LDKPackage *package, const LDKPackageEntry *entry,
-    void *out_data, u64 out_size)
+bool ldk_package_entry_read_at(const LDKPackage *package,
+    const LDKPackageEntry *entry, u64 offset, void *out_data, u64 size,
+    u64 *out_read)
 {
-  if (!s_package_entry_owned(package, entry) || out_size < entry->size ||
-      (entry->size > 0 && out_data == NULL))
+  u64 read_size;
+
+  if (out_read)
+  {
+    *out_read = 0;
+  }
+
+  if (!s_package_entry_owned(package, entry) || offset > entry->size)
+  {
+    return false;
+  }
+
+  read_size = entry->size - offset;
+  if (read_size > size)
+  {
+    read_size = size;
+  }
+
+  if (read_size > 0 && !out_data)
   {
     return false;
   }
@@ -730,15 +852,36 @@ bool ldk_package_entry_read(LDKPackage *package, const LDKPackageEntry *entry,
   switch (entry->compression)
   {
   case LDK_PACKAGE_COMPRESSION_NONE:
-    if (entry->size == 0)
+    if (read_size > 0 &&
+        !s_package_file_read_at(
+            package, entry->data_offset + offset, out_data, read_size))
     {
-      return true;
+      return false;
     }
-    return s_file_seek(package->file, entry->data_offset) &&
-           s_file_read_all(package->file, out_data, entry->size);
+    if (out_read)
+    {
+      *out_read = read_size;
+    }
+    return true;
   default:
     return false;
   }
+}
+
+bool ldk_package_entry_read(LDKPackage *package, const LDKPackageEntry *entry,
+    void *out_data, u64 out_size)
+{
+  u64 read_size = 0;
+
+  if (!s_package_entry_owned(package, entry) || out_size < entry->size ||
+      (entry->size > 0 && out_data == NULL))
+  {
+    return false;
+  }
+
+  return ldk_package_entry_read_at(
+             package, entry, 0, out_data, entry->size, &read_size) &&
+         read_size == entry->size;
 }
 
 static bool s_destination_parent_create(const char *destination_path)
@@ -783,9 +926,31 @@ bool ldk_package_entry_extract(LDKPackage *package,
   switch (entry->compression)
   {
   case LDK_PACKAGE_COMPRESSION_NONE:
-    result = s_file_seek(package->file, entry->data_offset) &&
-             s_file_copy(package->file, destination, entry->stored_size);
+  {
+    u8 buffer[LDK_PACKAGE_IO_BUFFER_SIZE];
+    u64 offset = 0;
+    result = true;
+    while (offset < entry->size)
+    {
+      u64 requested = entry->size - offset;
+      u64 read_size = 0;
+      if (requested > sizeof(buffer))
+      {
+        requested = sizeof(buffer);
+      }
+      if (!ldk_package_entry_read_at(
+              package, entry, offset, buffer, requested, &read_size) ||
+          read_size != requested ||
+          fwrite(buffer, 1, (size_t)read_size, destination) !=
+              (size_t)read_size)
+      {
+        result = false;
+        break;
+      }
+      offset += read_size;
+    }
     break;
+  }
   default:
     result = false;
     break;

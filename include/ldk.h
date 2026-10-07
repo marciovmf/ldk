@@ -54,6 +54,7 @@ extern "C"
     LDK_MODULE_SCENE_MANAGER,
     LDK_MODULE_ASSET_SOURCE,
     LDK_MODULE_AUDIO,
+    LDK_MODULE_JOBS,
   } LDKModuleType;
 
   struct LDKGame;

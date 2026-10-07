@@ -12,6 +12,7 @@
 #define X_IMPL_STRBUILDER
 #define X_IMPL_STRING
 #define X_IMPL_TML
+#define X_IMPL_THREAD
 #endif
 
 #include <stdx/stdx_arena.h>
@@ -26,3 +27,4 @@
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_tml.h>
+#include <stdx/stdx_thread.h>
