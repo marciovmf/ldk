@@ -346,6 +346,7 @@ extern "C"
     LDK_UI_WINDOW_NO_BG = 1 << 4,
     LDK_UI_WINDOW_CLOSE_BUTTON = 1 << 5,
     LDK_UI_WINDOW_NO_PADDING = 1 << 6,
+    LDK_UI_WINDOW_CACHEABLE = 1 << 7,
     LDK_UI_WINDOW_TOOL = LDK_UI_WINDOW_CLOSE_BUTTON | LDK_UI_WINDOW_TITLE_BAR |
                          LDK_UI_WINDOW_DRAGGABLE | LDK_UI_WINDOW_RESIZABLE |
                          LDK_UI_WINDOW_BORDER,
@@ -408,6 +409,7 @@ extern "C"
   typedef struct LDKUILayoutItemCache
   {
     LDKUIId layout_id;
+    LDKUIId owner_window_id;
     u32 item_index;
     LDKUIRect rect;
     u32 last_frame_touched;
@@ -416,6 +418,7 @@ extern "C"
   struct LDKUIScrollViewCache
   {
     LDKUIId id;
+    LDKUIId owner_window_id;
     float content_w;
     float content_h;
     float scroll_x;
@@ -469,6 +472,7 @@ extern "C"
     LDKUIRect rect;
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
+    LDKUIRect cache_parent_clip;
     u32 flags;
     i32 z_order;
     u32 last_frame_seen;
@@ -476,7 +480,12 @@ extern "C"
     XArray_ldk_ui_vertex *vertices;
     XArray_ldk_ui_u32 *indices;
     XArray_ldk_ui_draw_cmd *commands;
+    LDKFontInstance *cache_font;
+    u8 cache_idle_frames;
     bool close_requested;
+    bool cache_valid;
+    bool cache_dirty;
+    bool cache_reused;
   };
 
   struct LDKUIWindowStackEntry
@@ -766,6 +775,9 @@ extern "C"
   LDK_API bool ldk_ui_begin_window_open(LDKUIContext *ctx, char const *title,
       LDKUIRect *rect, bool *open, u32 flags);
   LDK_API bool ldk_ui_window_close_requested(LDKUIContext *ctx);
+  LDK_API bool ldk_ui_window_content_should_build(LDKUIContext *ctx);
+  LDK_API void ldk_ui_window_invalidate(LDKUIContext *ctx, LDKUIId id);
+  LDK_API void ldk_ui_windows_invalidate(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_window(LDKUIContext *ctx);
 
   //----------------------------------------------------------

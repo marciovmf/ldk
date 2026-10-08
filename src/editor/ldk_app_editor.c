@@ -1698,6 +1698,11 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 
   s_editor_statistics_time_update(editor, delta_time);
 
+  LDK_PROFILE_BEGIN("Editor Window State Update");
+  ldki_editor_file_explorer_update(editor);
+  ldki_editor_console_update(editor);
+  LDK_PROFILE_END();
+
   LDK_PROFILE_BEGIN("Editor Toolbar");
   ldki_editor_toolbar_show((LDKEditor *)editor);
   LDK_PROFILE_END();
@@ -1978,6 +1983,7 @@ bool ldki_editor_font_apply(
   editor->font = new_font;
   editor->font_instance = new_instance;
   editor->ui.font = new_instance;
+  ldk_ui_windows_invalidate(&editor->ui);
   editor->editor_font = normalized_path;
   editor->editor_font_size = font_size;
 

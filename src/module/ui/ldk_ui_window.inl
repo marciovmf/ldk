@@ -54,36 +54,26 @@ static void s_ui_windows_destroy_all(LDKUIContext *ctx)
   x_array_ldk_ui_window_clear(ctx->windows);
 }
 
-static void s_ui_windows_clear_frame_buffers(LDKUIContext *ctx)
+static void s_ui_window_clear_frame_buffers(LDKUIWindow *window)
 {
-  if (ctx == NULL)
+  if (window == NULL)
   {
     return;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_window_count(ctx->windows); ++i)
+  if (window->vertices != NULL)
   {
-    LDKUIWindow *window = x_array_ldk_ui_window_get(ctx->windows, i);
+    x_array_ldk_ui_vertex_clear(window->vertices);
+  }
 
-    if (window == NULL)
-    {
-      continue;
-    }
+  if (window->indices != NULL)
+  {
+    x_array_ldk_ui_u32_clear(window->indices);
+  }
 
-    if (window->vertices != NULL)
-    {
-      x_array_ldk_ui_vertex_clear(window->vertices);
-    }
-
-    if (window->indices != NULL)
-    {
-      x_array_ldk_ui_u32_clear(window->indices);
-    }
-
-    if (window->commands != NULL)
-    {
-      x_array_ldk_ui_draw_cmd_clear(window->commands);
-    }
+  if (window->commands != NULL)
+  {
+    x_array_ldk_ui_draw_cmd_clear(window->commands);
   }
 }
 
@@ -137,35 +127,44 @@ static void s_ui_append_window_draw_data(LDKUIContext *ctx, LDKUIWindow *window)
   index_count = x_array_ldk_ui_u32_count(window->indices);
   command_count = x_array_ldk_ui_draw_cmd_count(window->commands);
 
-  for (u32 i = 0; i < vertex_count; ++i)
+  if (vertex_count > 0 &&
+      x_array_ldk_ui_vertex_add_range(ctx->vertices,
+          x_array_ldk_ui_vertex_data_const(window->vertices), vertex_count) !=
+          XARRAY_OK)
   {
-    LDKUIVertex *vertex = x_array_ldk_ui_vertex_get(window->vertices, i);
+    return;
+  }
 
-    if (vertex != NULL)
+  if (index_count > 0)
+  {
+    if (x_array_ldk_ui_u32_add_range(ctx->indices,
+            x_array_ldk_ui_u32_data_const(window->indices), index_count) !=
+        XARRAY_OK)
     {
-      x_array_ldk_ui_vertex_push(ctx->vertices, *vertex);
+      return;
+    }
+
+    u32 *indices = x_array_ldk_ui_u32_data(ctx->indices);
+    for (u32 i = 0; i < index_count; ++i)
+    {
+      indices[base_index + i] += base_vertex;
     }
   }
 
-  for (u32 i = 0; i < index_count; ++i)
+  if (command_count > 0)
   {
-    u32 *index = x_array_ldk_ui_u32_get(window->indices, i);
-
-    if (index != NULL)
+    u32 command_base = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+    if (x_array_ldk_ui_draw_cmd_add_range(ctx->commands,
+            x_array_ldk_ui_draw_cmd_data_const(window->commands),
+            command_count) != XARRAY_OK)
     {
-      x_array_ldk_ui_u32_push(ctx->indices, *index + base_vertex);
+      return;
     }
-  }
 
-  for (u32 i = 0; i < command_count; ++i)
-  {
-    LDKUIDrawCmd *command = x_array_ldk_ui_draw_cmd_get(window->commands, i);
-
-    if (command != NULL)
+    LDKUIDrawCmd *commands = x_array_ldk_ui_draw_cmd_data(ctx->commands);
+    for (u32 i = 0; i < command_count; ++i)
     {
-      LDKUIDrawCmd adjusted = *command;
-      adjusted.index_offset += base_index;
-      x_array_ldk_ui_draw_cmd_push(ctx->commands, adjusted);
+      commands[command_base + i].index_offset += base_index;
     }
   }
 }
@@ -222,6 +221,22 @@ static LDKUIWindow *s_ui_window_find(LDKUIContext *ctx, LDKUIId id)
   }
 
   return NULL;
+}
+
+static bool s_ui_window_cache_retains_state(
+    LDKUIContext *ctx, LDKUIId window_id)
+{
+  LDKUIWindow *window;
+
+  if (ctx == NULL || window_id == 0)
+  {
+    return false;
+  }
+
+  window = s_ui_window_find(ctx, window_id);
+  return window != NULL &&
+         (window->flags & LDK_UI_WINDOW_CACHEABLE) != 0 &&
+         window->cache_valid;
 }
 
 static LDKUIWindow *s_ui_window_get_or_create(
@@ -853,6 +868,9 @@ static LDKUIRect s_ui_begin_window_internal(
 {
   LDKUIId id;
   LDKUIWindow *window;
+  LDKUIRect previous_rect;
+  LDKUIRect parent_clip;
+  u32 previous_flags;
   LDKPoint cursor = {0};
   bool inside_window = false;
   bool inside_title = false;
@@ -860,6 +878,16 @@ static LDKUIRect s_ui_begin_window_internal(
   bool mouse_down = false;
   bool mouse_pressed = false;
   bool can_drag_from_background = false;
+  bool cacheable;
+  bool title_changed;
+  bool rect_changed;
+  bool flags_changed;
+  bool font_changed;
+  bool parent_clip_changed;
+  bool interactive;
+  bool popup_open;
+  bool warmup = false;
+  bool reuse = false;
   u32 resize_edges = LDK_UI_WINDOW_RESIZE_NONE;
 
   if (ctx == NULL)
@@ -883,10 +911,20 @@ static LDKUIRect s_ui_begin_window_internal(
     return rect;
   }
 
+  previous_rect = window->rect;
+  parent_clip = ctx->clip_rect;
+  previous_flags = window->flags;
+  title_changed = title != NULL ? strcmp(window->title, title) != 0
+                                : window->title[0] != 0;
+
   if (title != NULL)
   {
     strncpy(window->title, title, sizeof(window->title) - 1);
     window->title[sizeof(window->title) - 1] = 0;
+  }
+  else
+  {
+    window->title[0] = 0;
   }
 
   if ((flags & LDK_UI_WINDOW_RESIZABLE) != 0)
@@ -996,6 +1034,63 @@ static LDKUIRect s_ui_begin_window_internal(
   window->title_bar_rect = s_ui_window_title_bar_rect(rect, flags);
   window->content_rect = s_ui_window_content_rect(ctx, rect, flags);
 
+  rect_changed = previous_rect.x != rect.x || previous_rect.y != rect.y ||
+                 previous_rect.w != rect.w || previous_rect.h != rect.h;
+  flags_changed = previous_flags != flags;
+  font_changed = window->cache_valid && window->cache_font != ctx->font;
+  parent_clip_changed = window->cache_valid &&
+      (window->cache_parent_clip.x != parent_clip.x ||
+       window->cache_parent_clip.y != parent_clip.y ||
+       window->cache_parent_clip.w != parent_clip.w ||
+       window->cache_parent_clip.h != parent_clip.h);
+  cacheable = (flags & LDK_UI_WINDOW_CACHEABLE) != 0;
+  interactive = ctx->hovered_window_id == window->id ||
+                ctx->focused_window_id == window->id ||
+                ctx->dragging_window_id == window->id ||
+                ctx->resizing_window_id == window->id;
+  popup_open = ctx->open_popups != NULL &&
+               !x_array_ldk_ui_id_is_empty(ctx->open_popups);
+
+  window->cache_reused = false;
+
+  if (!cacheable)
+  {
+    window->cache_valid = false;
+    window->cache_dirty = false;
+    window->cache_idle_frames = 0;
+  }
+  else
+  {
+    if (window->cache_dirty || rect_changed || flags_changed || title_changed ||
+        font_changed || parent_clip_changed)
+    {
+      window->cache_idle_frames = 0;
+    }
+
+    if (interactive || popup_open)
+    {
+      window->cache_idle_frames = 0;
+    }
+    else if (window->cache_idle_frames < 2)
+    {
+      window->cache_idle_frames += 1;
+      warmup = true;
+    }
+
+    reuse = window->cache_valid && !window->cache_dirty && !rect_changed &&
+            !flags_changed && !title_changed && !font_changed &&
+            !parent_clip_changed && !interactive && !popup_open && !warmup;
+  }
+
+  if (!reuse)
+  {
+    s_ui_window_clear_frame_buffers(window);
+  }
+  else
+  {
+    window->cache_reused = true;
+  }
+
   {
     LDKUIWindowStackEntry entry = {0};
     entry.window = window;
@@ -1010,6 +1105,12 @@ static LDKUIRect s_ui_begin_window_internal(
   ctx->last_rect = window->rect;
   ctx->last_bounding_rect = window->rect;
   ctx->last_id = window->id;
+  ctx->clip_rect = s_ui_rect_intersect(&ctx->clip_rect, &window->content_rect);
+
+  if (reuse)
+  {
+    return rect;
+  }
 
   s_ui_window_draw(ctx, window);
 
@@ -1018,8 +1119,6 @@ static LDKUIRect s_ui_begin_window_internal(
     window->close_requested = true;
     ctx->last_window_close_requested = true;
   }
-
-  ctx->clip_rect = s_ui_rect_intersect(&ctx->clip_rect, &window->content_rect);
 
   s_ui_window_push_content_layout(ctx, window);
 
@@ -1085,6 +1184,53 @@ bool ldk_ui_window_close_requested(LDKUIContext *ctx)
   return ctx->last_window_close_requested;
 }
 
+bool ldk_ui_window_content_should_build(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->current_window == NULL)
+  {
+    return true;
+  }
+
+  return !ctx->current_window->cache_reused;
+}
+
+void ldk_ui_window_invalidate(LDKUIContext *ctx, LDKUIId id)
+{
+  LDKUIWindow *window;
+
+  if (ctx == NULL || ctx->windows == NULL || id == 0)
+  {
+    return;
+  }
+
+  window = s_ui_window_find(ctx, id);
+  if (window == NULL)
+  {
+    return;
+  }
+
+  window->cache_dirty = true;
+  window->cache_idle_frames = 0;
+}
+
+void ldk_ui_windows_invalidate(LDKUIContext *ctx)
+{
+  if (ctx == NULL || ctx->windows == NULL)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < x_array_ldk_ui_window_count(ctx->windows); ++i)
+  {
+    LDKUIWindow *window = x_array_ldk_ui_window_get(ctx->windows, i);
+    if (window != NULL)
+    {
+      window->cache_dirty = true;
+      window->cache_idle_frames = 0;
+    }
+  }
+}
+
 void ldk_ui_end_window(LDKUIContext *ctx)
 {
   LDKUIWindowStackEntry entry;
@@ -1117,6 +1263,21 @@ void ldk_ui_end_window(LDKUIContext *ctx)
     x_array_ldk_ui_layout_count(ctx->layout_stack) > entry.layout_stack_count)
   {
     s_ui_layout_pop(ctx);
+  }
+
+  if (entry.window != NULL && !entry.window->cache_reused)
+  {
+    if ((entry.window->flags & LDK_UI_WINDOW_CACHEABLE) != 0)
+    {
+      entry.window->cache_valid = true;
+      entry.window->cache_dirty = false;
+      entry.window->cache_font = ctx->font;
+      entry.window->cache_parent_clip = entry.previous_clip_rect;
+    }
+    else
+    {
+      entry.window->cache_valid = false;
+    }
   }
 
   ctx->clip_rect = entry.previous_clip_rect;

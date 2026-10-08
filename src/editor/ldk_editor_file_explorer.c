@@ -170,7 +170,10 @@ typedef struct ProjectExplorerState
   XFSWatch *watch;
   u64 cache_dirty_ticks;
   u64 asset_source_revision;
+  u32 last_update_frame;
   bool cache_dirty;
+  bool root_available;
+  bool redraw_dirty;
   i32 selected_package;
   XSmallstr selected_package_directory;
   ProjectExplorerThumbnailCache thumbnails;
@@ -211,6 +214,7 @@ void ldki_editor_file_explorer_zoom_set(float zoom)
   }
 
   s_project_explorer_state.icon_size = zoom;
+  s_project_explorer_state.redraw_dirty = true;
 }
 
 float ldki_editor_file_explorer_tree_width_get(void)
@@ -226,6 +230,7 @@ void ldki_editor_file_explorer_tree_width_set(float width)
   }
 
   s_project_explorer_state.tree_width = width;
+  s_project_explorer_state.redraw_dirty = true;
 }
 
 static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
@@ -645,10 +650,11 @@ static ProjectExplorerThumbnail *s_project_explorer_thumbnail_request(
   return available;
 }
 
-static void s_project_explorer_thumbnail_process(
+static bool s_project_explorer_thumbnail_process(
     ProjectExplorerThumbnailCache *cache)
 {
   u32 active_jobs = 0;
+  bool changed = false;
 
   for (u32 i = 0; i < PROJECT_EXPLORER_THUMBNAIL_CAPACITY; i++)
   {
@@ -680,6 +686,7 @@ static void s_project_explorer_thumbnail_process(
 
     thumbnail->status = succeeded ? PROJECT_EXPLORER_THUMBNAIL_READY
                                   : PROJECT_EXPLORER_THUMBNAIL_FAILED;
+    changed = true;
   }
 
   while (active_jobs < PROJECT_EXPLORER_THUMBNAIL_MAX_JOBS)
@@ -706,6 +713,7 @@ static void s_project_explorer_thumbnail_process(
     if (!jobs)
     {
       pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      changed = true;
       break;
     }
 
@@ -714,6 +722,7 @@ static void s_project_explorer_thumbnail_process(
     if (!pending->job_data)
     {
       pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      changed = true;
       continue;
     }
 
@@ -726,11 +735,14 @@ static void s_project_explorer_thumbnail_process(
       free(pending->job_data);
       pending->job_data = NULL;
       pending->status = PROJECT_EXPLORER_THUMBNAIL_FAILED;
+      changed = true;
       continue;
     }
 
     active_jobs++;
   }
+
+  return changed;
 }
 
 static LDKUIIcon s_project_explorer_thumbnail_icon(LDKRenderer *renderer,
@@ -777,7 +789,7 @@ static void s_project_explorer_directory_cache_clear(
 static void s_project_explorer_directory_cache_dirty(
     ProjectExplorerState *state);
 static void s_project_explorer_watch_reset(ProjectExplorerState *state);
-static void s_project_explorer_directory_cache_update(
+static bool s_project_explorer_directory_cache_update(
     ProjectExplorerState *state);
 static ProjectExplorerDirectorySnapshot *
 s_project_explorer_directory_snapshot_get(
@@ -1519,7 +1531,7 @@ s_project_explorer_directory_snapshot_get(
       x_array_count(state->directory_snapshots) - 1u);
 }
 
-static void s_project_explorer_directory_cache_update(
+static bool s_project_explorer_directory_cache_update(
     ProjectExplorerState *state)
 {
   XFSWatchEvent events[PROJECT_EXPLORER_WATCH_EVENT_CAPACITY];
@@ -1528,7 +1540,7 @@ static void s_project_explorer_directory_cache_update(
 
   if (!state)
   {
-    return;
+    return false;
   }
 
   if (state->watch)
@@ -1555,26 +1567,109 @@ static void s_project_explorer_directory_cache_update(
 
   if (!state->cache_dirty)
   {
-    return;
+    return false;
   }
 
   now = ldk_os_time_ticks_get();
   if (ldk_os_time_ticks_interval_get_seconds(state->cache_dirty_ticks, now) <
       PROJECT_EXPLORER_CACHE_REFRESH_SECONDS)
   {
-    return;
+    return false;
   }
 
   s_project_explorer_directory_cache_clear(state);
   state->cache_dirty = false;
   state->cache_dirty_ticks = 0;
   LDK_PROFILE_COUNTER_ADD("File Explorer Cache Refreshes", 1);
+  return true;
+}
+
+static void s_project_explorer_update(
+    LDKEditorContext *editor, const char *root_path)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+  XFSPath previous_root;
+  bool previous_root_available;
+  bool renderer_changed;
+  bool changed = false;
+
+  if (editor == NULL || state->last_update_frame == editor->ui.frame_index)
+  {
+    return;
+  }
+
+  state->last_update_frame = editor->ui.frame_index;
+  ldki_editor_package_catalog_sync(editor);
+
+  if (!s_project_explorer_initialize(state))
+  {
+    return;
+  }
+
+  previous_root = state->root;
+  previous_root_available = state->root_available;
+  renderer_changed = state->thumbnails.renderer != editor->renderer;
+
+  state->root_available =
+      root_path != NULL && s_project_explorer_root_set(state, root_path);
+
+  if (state->root_available != previous_root_available ||
+      (state->root_available &&
+          x_fs_path_compare(&state->root, &previous_root) != 0))
+  {
+    changed = true;
+  }
+
+  if (state->root_available && s_project_explorer_directory_cache_update(state))
+  {
+    changed = true;
+  }
+
+  if (!renderer_changed &&
+      s_project_explorer_thumbnail_process(&state->thumbnails))
+  {
+    changed = true;
+  }
+
+  if (renderer_changed || state->redraw_dirty)
+  {
+    changed = true;
+  }
+
+  state->redraw_dirty = false;
+
+  if (changed)
+  {
+    ldki_editor_window_invalidate(editor, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
+  }
+}
+
+void ldki_editor_file_explorer_update(LDKEditorContext *editor)
+{
+  const char *root_path = NULL;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  if (editor->project.loaded && editor->project.run_root_path.length)
+  {
+    root_path = editor->project.run_root_path.buf;
+  }
+  else if (editor->engine_runtree.length > 0)
+  {
+    root_path = editor->engine_runtree.buf;
+  }
+
+  s_project_explorer_update(editor, root_path);
 }
 
 
 void ldki_editor_file_explorer_package_mounts_clear(void)
 {
   s_project_explorer_package_mounts_clear(&s_project_explorer_state);
+  s_project_explorer_state.redraw_dirty = true;
 }
 
 void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor)
@@ -1591,6 +1686,7 @@ void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor)
   s_project_explorer_directory_select(state, &state->root, true);
   state->tree_scroll = (LDKUIPoint){0};
   state->file_scroll = (LDKUIPoint){0};
+  state->redraw_dirty = true;
 }
 
 bool ldki_editor_file_explorer_package_mount(
@@ -1620,6 +1716,7 @@ bool ldki_editor_file_explorer_package_mount(
       state->selected_package = (i32)i;
       memset(&state->selected_package_directory, 0,
           sizeof(state->selected_package_directory));
+      state->redraw_dirty = true;
       return true;
     }
   }
@@ -1652,6 +1749,7 @@ bool ldki_editor_file_explorer_package_mount(
   memset(&state->selected_package_directory, 0,
       sizeof(state->selected_package_directory));
   memset(&state->selected_file, 0, sizeof(state->selected_file));
+  state->redraw_dirty = true;
   return true;
 }
 
@@ -1722,6 +1820,7 @@ bool ldki_editor_file_explorer_reveal_asset(
   state->last_click_ticks = 0;
   state->file_scroll = (LDKUIPoint){0};
   state->reveal_scroll_pending = true;
+  state->redraw_dirty = true;
   return ldki_editor_window_activate(LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
 }
 
@@ -3271,7 +3370,6 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     ldk_ui_end_horizontal(ui);
   }
 
-  s_project_explorer_thumbnail_process(&state->thumbnails);
   return right_click_handled;
 }
 
@@ -3406,8 +3504,7 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   ldk_ui_end_vertical(ui);
 }
 
-static void s_editor_project_explorer(
-    LDKEditorContext *editor, const char *root_path)
+static void s_editor_project_explorer(LDKEditorContext *editor)
 {
   ProjectExplorerState *state = &s_project_explorer_state;
   LDKUIContext *ui = &editor->ui;
@@ -3430,9 +3527,10 @@ static void s_editor_project_explorer(
     return;
   }
 
-  s_project_explorer_thumbnail_frame_begin(&state->thumbnails, editor->renderer);
+  s_project_explorer_thumbnail_frame_begin(
+      &state->thumbnails, editor->renderer);
 
-  if (!s_project_explorer_root_set(state, root_path))
+  if (!state->root_available)
   {
     ldk_ui_label(ui, "No project root.");
 
@@ -3443,7 +3541,6 @@ static void s_editor_project_explorer(
     return;
   }
 
-  s_project_explorer_directory_cache_update(state);
   s_project_explorer_rename_before_draw(editor, state, ui);
 
   LDKUIIcon file_icon = {0};
@@ -3502,6 +3599,6 @@ static void s_editor_project_explorer(
 void ldk_editor_file_explorer_show(LDKEditor *editor, const char *root_path)
 {
   LDKEditorContext *context = (LDKEditorContext *)editor;
-  ldki_editor_package_catalog_sync(context);
-  s_editor_project_explorer(context, root_path);
+  s_project_explorer_update(context, root_path);
+  s_editor_project_explorer(context);
 }

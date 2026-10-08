@@ -431,6 +431,7 @@ void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);
 
+void ldki_editor_console_update(LDKEditorContext *editor);
 void ldki_editor_console_append(LDKEditorContext *editor,
     LDKEditorConsoleEntryType type, const char *message);
 const char *ldki_editor_console_last_message_get(LDKEditorContext *editor,
@@ -523,6 +524,8 @@ void ldki_editor_profiler_update(void);
 void ldki_editor_profiler_terminate(void);
 
 bool ldki_editor_window_is_open(LDKEditorWindowId window_id);
+void ldki_editor_window_invalidate(
+    LDKEditorContext *editor, LDKEditorWindowId window_id);
 bool ldki_editor_window_hide(LDKEditorWindowId window_id);
 bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 
@@ -550,6 +553,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path);
 void ldki_editor_file_explorer_package_mounts_clear(void);
+void ldki_editor_file_explorer_update(LDKEditorContext *editor);
 void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor);
 bool ldki_editor_file_explorer_reveal_asset(
     LDKEditorContext *editor, const char *asset_path);

@@ -30,7 +30,7 @@ static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text);
 static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
     bool expanded, u32 depth, u32 flags, bool area_header);
 static void s_ui_windows_destroy_all(LDKUIContext *ctx);
-static void s_ui_windows_clear_frame_buffers(LDKUIContext *ctx);
+static void s_ui_window_clear_frame_buffers(LDKUIWindow *window);
 static void s_ui_window_destroy_buffers(LDKUIWindow *window);
 static void s_ui_windows_refresh_z_order(LDKUIContext *ctx);
 static void s_ui_append_window_draw_data(
@@ -42,6 +42,8 @@ static void s_ui_append_draw_data(LDKUIContext *ctx,
 static void s_ui_submit_popup_draw_data(LDKUIContext *ctx);
 static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx);
 static void s_ui_window_cache_gc(LDKUIContext *ctx);
+static bool s_ui_window_cache_retains_state(
+    LDKUIContext *ctx, LDKUIId window_id);
 
 /**
  * Mixes a 32-bit value into an existing UI identifier hash.
@@ -2121,7 +2123,7 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
     s_ui_tab_focus_resolve(ctx, backwards);
   }
 
-  x_arena_reset_keep_head(ctx->frame_arena);
+  x_arena_reset(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);
   x_array_ldk_ui_bool_clear(ctx->disabled_stack);
   x_array_ldk_ui_vertex_clear(ctx->vertices);
@@ -2133,8 +2135,6 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   x_array_ldk_ui_hit_candidate_clear(ctx->hit_candidates);
   x_array_ldk_ui_popup_stack_entry_clear(ctx->popup_stack);
   x_array_ldk_ui_popup_frame_entry_clear(ctx->popup_frame_entries);
-
-  s_ui_windows_clear_frame_buffers(ctx);
 
   ctx->cursor_type = LDK_CURSOR_ARROW;
 }
@@ -2150,46 +2150,61 @@ static void s_ui_append_draw_data(LDKUIContext *ctx,
     XArray_ldk_ui_vertex *vertices, XArray_ldk_ui_u32 *indices,
     XArray_ldk_ui_draw_cmd *commands)
 {
+  u32 vertex_base;
+  u32 index_base;
+  u32 vertex_count;
+  u32 index_count;
+  u32 command_count;
+
   if (ctx == NULL || vertices == NULL || indices == NULL || commands == NULL)
   {
     return;
   }
 
-  u32 vertex_base = x_array_ldk_ui_vertex_count(ctx->vertices);
-  u32 index_base = x_array_ldk_ui_u32_count(ctx->indices);
-  u32 vertex_count = x_array_ldk_ui_vertex_count(vertices);
-  u32 index_count = x_array_ldk_ui_u32_count(indices);
-  u32 command_count = x_array_ldk_ui_draw_cmd_count(commands);
+  vertex_base = x_array_ldk_ui_vertex_count(ctx->vertices);
+  index_base = x_array_ldk_ui_u32_count(ctx->indices);
+  vertex_count = x_array_ldk_ui_vertex_count(vertices);
+  index_count = x_array_ldk_ui_u32_count(indices);
+  command_count = x_array_ldk_ui_draw_cmd_count(commands);
 
-  for (u32 i = 0; i < vertex_count; ++i)
+  if (vertex_count > 0 &&
+      x_array_ldk_ui_vertex_add_range(ctx->vertices,
+          x_array_ldk_ui_vertex_data_const(vertices), vertex_count) !=
+          XARRAY_OK)
   {
-    LDKUIVertex *vertex = x_array_ldk_ui_vertex_get(vertices, i);
+    return;
+  }
 
-    if (vertex != NULL)
+  if (index_count > 0)
+  {
+    if (x_array_ldk_ui_u32_add_range(ctx->indices,
+            x_array_ldk_ui_u32_data_const(indices), index_count) != XARRAY_OK)
     {
-      x_array_ldk_ui_vertex_push(ctx->vertices, *vertex);
+      return;
+    }
+
+    u32 *destination_indices = x_array_ldk_ui_u32_data(ctx->indices);
+    for (u32 i = 0; i < index_count; ++i)
+    {
+      destination_indices[index_base + i] += vertex_base;
     }
   }
 
-  for (u32 i = 0; i < index_count; ++i)
+  if (command_count > 0)
   {
-    u32 *index = x_array_ldk_ui_u32_get(indices, i);
-
-    if (index != NULL)
+    u32 command_base = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+    if (x_array_ldk_ui_draw_cmd_add_range(ctx->commands,
+            x_array_ldk_ui_draw_cmd_data_const(commands), command_count) !=
+        XARRAY_OK)
     {
-      x_array_ldk_ui_u32_push(ctx->indices, *index + vertex_base);
+      return;
     }
-  }
 
-  for (u32 i = 0; i < command_count; ++i)
-  {
-    LDKUIDrawCmd *cmd = x_array_ldk_ui_draw_cmd_get(commands, i);
-
-    if (cmd != NULL)
+    LDKUIDrawCmd *destination_commands =
+        x_array_ldk_ui_draw_cmd_data(ctx->commands);
+    for (u32 i = 0; i < command_count; ++i)
     {
-      LDKUIDrawCmd adjusted = *cmd;
-      adjusted.index_offset += index_base;
-      x_array_ldk_ui_draw_cmd_push(ctx->commands, adjusted);
+      destination_commands[command_base + i].index_offset += index_base;
     }
   }
 }
@@ -2268,6 +2283,7 @@ bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme)
   }
 
   ctx->theme = *theme;
+  ldk_ui_windows_invalidate(ctx);
   return true;
 }
 

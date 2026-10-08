@@ -26,6 +26,8 @@ typedef struct LDKEditorConsoleLastMessageCache
 
 static LDKEditorConsoleLastMessageCache s_last_message_cache = {0};
 static XStrBuilder *s_console_view_sb = NULL;
+static LDKEditorContext *s_console_cache_editor = NULL;
+static size_t s_console_cache_length = 0;
 
 static bool s_editor_console_entry_type_valid(char type)
 {
@@ -610,6 +612,29 @@ static void s_editor_console_toolbar(
   ldk_ui_horizontal_line(ui);
 }
 
+void ldki_editor_console_update(LDKEditorContext *editor)
+{
+  size_t length;
+
+  if (editor == NULL || editor->console_sb == NULL)
+  {
+    return;
+  }
+
+  if (s_console_cache_editor != editor)
+  {
+    s_console_cache_editor = editor;
+    s_console_cache_length = 0;
+  }
+
+  length = x_strbuilder_length(editor->console_sb);
+  if (length != s_console_cache_length)
+  {
+    s_console_cache_length = length;
+    ldki_editor_window_invalidate(editor, LDK_EDITOR_WINDOW_CONSOLE);
+  }
+}
+
 void ldki_editor_console_append(LDKEditorContext *editor,
     LDKEditorConsoleEntryType type, const char *message)
 {
@@ -627,6 +652,7 @@ void ldki_editor_console_append(LDKEditorContext *editor,
 
   x_strbuilder_append_format(editor->console_sb, "~~%c:%zu:%s", (char)type,
       message_length, message);
+  ldki_editor_window_invalidate(editor, LDK_EDITOR_WINDOW_CONSOLE);
 
   if (x_strbuilder_length(editor->console_sb) > previous_length &&
       !editor->console_auto_scroll_disabled)

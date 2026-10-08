@@ -191,7 +191,8 @@ static void s_ui_layout_item_cache_gc(LDKUIContext *ctx)
       continue;
     }
 
-    if (ctx->frame_index - cache->last_frame_touched > 2)
+    if (ctx->frame_index - cache->last_frame_touched > 2 &&
+        !s_ui_window_cache_retains_state(ctx, cache->owner_window_id))
     {
       x_array_ldk_ui_layout_item_cache_delete_at(ctx->layout_item_cache, i);
       continue;
@@ -665,6 +666,8 @@ static LDKUILayoutItemCache *s_ui_layout_item_cache_get_or_create(
 
   if (cache != NULL)
   {
+    cache->owner_window_id =
+        ctx->current_window != NULL ? ctx->current_window->id : 0;
     cache->last_frame_touched = ctx->frame_index;
     return cache;
   }
@@ -679,6 +682,8 @@ static LDKUILayoutItemCache *s_ui_layout_item_cache_get_or_create(
   }
 
   cache->layout_id = layout_id;
+  cache->owner_window_id =
+      ctx->current_window != NULL ? ctx->current_window->id : 0;
   cache->item_index = item_index;
   cache->last_frame_touched = ctx->frame_index;
 

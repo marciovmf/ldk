@@ -1432,7 +1432,8 @@ static void s_editor_inspector_mesh_selector(
     return;
   }
 
-  names = (const char **)calloc(mesh_count, sizeof(*names));
+  names = (const char **)x_arena_alloc(
+      ui->frame_arena, (size_t)mesh_count * sizeof(*names));
   if (!names)
   {
     ldk_ui_end_horizontal(ui);
@@ -1445,7 +1446,6 @@ static void s_editor_inspector_mesh_selector(
         assets, mesh->source_asset, i);
     if (!names[i] || !names[i][0])
     {
-      free(names);
       ldk_ui_end_horizontal(ui);
       return;
     }
@@ -1461,8 +1461,6 @@ static void s_editor_inspector_mesh_selector(
   {
     ldki_editor_log_error(editor, "Failed to select mesh from asset.");
   }
-
-  free(names);
 }
 
 static bool s_editor_inspector_asset_path_validate(
@@ -2180,7 +2178,8 @@ static void s_editor_inspector_field_draw(
   if (field->type == LDK_FIELD_ENUM && field->enum_meta)
   {
     const LDKEnumMeta *meta = field->enum_meta;
-    const char **labels = malloc((meta->count + 1u) * sizeof(*labels));
+    const char **labels = (const char **)x_arena_alloc(
+        ui->frame_arena, (size_t)(meta->count + 1u) * sizeof(*labels));
     if (labels)
     {
       char unknown[64];
@@ -2204,7 +2203,6 @@ static void s_editor_inspector_field_draw(
       {
         meta->write(field_value, meta->options[next].value);
       }
-      free(labels);
     }
     else
     {
@@ -2551,12 +2549,12 @@ static void s_editor_inspector_fields_draw(
     return;
   }
 
-  previous_path = (u32 *)malloc(sizeof(u32) * meta->group_count);
-  current_path = (u32 *)malloc(sizeof(u32) * meta->group_count);
+  previous_path = (u32 *)x_arena_alloc(
+      ui->frame_arena, sizeof(u32) * (size_t)meta->group_count);
+  current_path = (u32 *)x_arena_alloc(
+      ui->frame_arena, sizeof(u32) * (size_t)meta->group_count);
   if (!previous_path || !current_path)
   {
-    free(previous_path);
-    free(current_path);
     s_editor_inspector_row_group_depth = 0u;
     for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
     {
@@ -2638,8 +2636,6 @@ static void s_editor_inspector_fields_draw(
   }
 
   s_editor_inspector_row_group_depth = 0u;
-  free(current_path);
-  free(previous_path);
 }
 
 static void s_editor_inspector_scene_properties_draw(
@@ -3802,15 +3798,15 @@ static void s_editor_inspector_system_grouping_draw(
   }
 
   item_count = grouping_count + 1u + (!current_found ? 1u : 0u);
-  labels = (const char **)calloc(item_count, sizeof(*labels));
-  ids = (u64 *)calloc(item_count, sizeof(*ids));
+  labels = (const char **)x_arena_alloc(
+      ui->frame_arena, (size_t)item_count * sizeof(*labels));
+  ids = (u64 *)x_arena_alloc(
+      ui->frame_arena, (size_t)item_count * sizeof(*ids));
 
   s_editor_inspector_row_begin(editor, "Grouping");
 
   if (!labels || !ids)
   {
-    free(labels);
-    free(ids);
     ldk_ui_label(ui, "<grouping unavailable>");
     ldk_ui_end_horizontal(ui);
     return;
@@ -3860,8 +3856,6 @@ static void s_editor_inspector_system_grouping_draw(
     ldki_editor_log_error(editor, "Failed to change scene system grouping.");
   }
 
-  free(ids);
-  free(labels);
   ldk_ui_end_horizontal(ui);
 }
 
