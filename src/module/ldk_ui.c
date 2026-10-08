@@ -1976,6 +1976,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
       x_array_ldk_ui_layout_item_create(LDK_UI_LAYOUT_ITEM_CAPACITY);
   ctx->layout_item_cache = x_array_ldk_ui_layout_item_cache_create(
       LDK_UI_LAYOUT_ITEM_CACHE_CAPACITY);
+  ctx->layout_item_cache_index =
+      x_hashtable_ldk_ui_layout_item_cache_index_create();
   ctx->scrollview_stack = x_array_ldk_ui_scrollview_stack_entry_create(
       LDK_UI_SCROLLVIEW_STACK_CAPACITY);
   ctx->scrollview_cache =
@@ -2013,7 +2015,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
          ctx->popup_cache != NULL && ctx->windows != NULL &&
          ctx->window_stack != NULL && ctx->measure_entries != NULL &&
          ctx->layout_items != NULL && ctx->layout_item_cache != NULL &&
-         ctx->scrollview_stack != NULL && ctx->scrollview_cache != NULL &&
+         ctx->layout_item_cache_index != NULL && ctx->scrollview_stack != NULL &&
+         ctx->scrollview_cache != NULL &&
          ctx->area_stack != NULL;
 }
 
@@ -2049,6 +2052,8 @@ void ldk_ui_terminate(LDKUIContext *ctx)
   x_array_destroy(ctx->measure_entries);
   x_array_destroy(ctx->layout_items);
   x_array_destroy(ctx->layout_item_cache);
+  x_hashtable_ldk_ui_layout_item_cache_index_destroy(
+      ctx->layout_item_cache_index);
   x_array_destroy(ctx->scrollview_stack);
   x_array_destroy(ctx->scrollview_cache);
   x_array_destroy(ctx->area_stack);

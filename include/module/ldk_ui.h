@@ -11,6 +11,7 @@ extern "C"
 #include <ldk_ttf.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_arena.h>
+#include <stdx/stdx_hashtable.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -403,6 +404,7 @@ extern "C"
     LDKUIId layout_id;
     u32 item_index;
     u32 next_layout_item_array_index;
+    u32 cache_array_index;
     LDKUILayoutRequest request;
     LDKUIRect fallback_rect;
   } LDKUILayoutItem;
@@ -624,6 +626,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIMeasureEntry, ldk_ui_measure_entry);
   X_ARRAY_TYPE_NAMED(LDKUILayoutItem, ldk_ui_layout_item);
   X_ARRAY_TYPE_NAMED(LDKUILayoutItemCache, ldk_ui_layout_item_cache);
+  X_HASHTABLE_TYPE_NAMED(u64, u32, ldk_ui_layout_item_cache_index);
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewStackEntry, ldk_ui_scrollview_stack_entry);
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewCache, ldk_ui_scrollview_cache);
   X_ARRAY_TYPE_NAMED(LDKUIAreaStackEntry, ldk_ui_area_stack_entry);
@@ -670,6 +673,7 @@ extern "C"
 
     XArray_ldk_ui_layout_item *layout_items;
     XArray_ldk_ui_layout_item_cache *layout_item_cache;
+    XHashtable_ldk_ui_layout_item_cache_index *layout_item_cache_index;
 
     XArray_ldk_ui_scrollview_stack_entry *scrollview_stack;
     XArray_ldk_ui_scrollview_cache *scrollview_cache;
