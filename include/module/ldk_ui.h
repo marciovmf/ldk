@@ -402,6 +402,7 @@ extern "C"
   {
     LDKUIId layout_id;
     u32 item_index;
+    u32 next_layout_item_array_index;
     LDKUILayoutRequest request;
     LDKUIRect fallback_rect;
   } LDKUILayoutItem;
@@ -456,6 +457,9 @@ extern "C"
     float content_used_right;
     float content_used_bottom;
     u32 item_count;
+    u32 first_item_array_index;
+    u32 last_item_array_index;
+    u32 parent_item_array_index;
     bool has_measure_entry;
     u32 measure_entry_index;
     bool has_requested_size_override;

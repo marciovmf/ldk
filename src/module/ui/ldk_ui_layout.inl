@@ -693,44 +693,45 @@ static LDKUILayoutItemCache *s_ui_layout_item_cache_get_or_create(
 static void s_ui_layout_item_record(LDKUIContext *ctx, LDKUILayout *layout,
     u32 item_index, LDKUILayoutRequest request, LDKUIRect fallback_rect)
 {
+  u32 item_array_index;
+  u32 previous_item_array_index;
+  LDKUILayoutItem new_item = {0};
+
   if (ctx == NULL || layout == NULL)
   {
     return;
   }
 
-  LDKUILayoutItem new_item = {0};
+  item_array_index = x_array_ldk_ui_layout_item_count(ctx->layout_items);
+  previous_item_array_index = layout->last_item_array_index;
+
   new_item.layout_id = layout->id;
   new_item.item_index = item_index;
+  new_item.next_layout_item_array_index = UINT32_MAX;
   new_item.request = request;
   new_item.fallback_rect = fallback_rect;
-  x_array_ldk_ui_layout_item_push(ctx->layout_items, new_item);
-}
 
-static LDKUILayoutItem *s_ui_layout_item_find(
-    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index)
-{
-  if (ctx == NULL || layout_id == 0)
+  if (x_array_ldk_ui_layout_item_push(ctx->layout_items, new_item) != XARRAY_OK)
   {
-    return NULL;
+    return;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  if (previous_item_array_index != UINT32_MAX)
   {
-    LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+    LDKUILayoutItem *previous_item = x_array_ldk_ui_layout_item_get(
+        ctx->layout_items, previous_item_array_index);
 
-    if (item == NULL)
+    if (previous_item != NULL)
     {
-      continue;
-    }
-
-    if (item->layout_id == layout_id && item->item_index == item_index)
-    {
-      return item;
+      previous_item->next_layout_item_array_index = item_array_index;
     }
   }
+  else
+  {
+    layout->first_item_array_index = item_array_index;
+  }
 
-  return NULL;
+  layout->last_item_array_index = item_array_index;
 }
 
 static void s_ui_layout_accept_rect(
@@ -854,19 +855,15 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
     return;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
-    }
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
+      break;
     }
 
     item_count += 1;
@@ -884,6 +881,8 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
     {
       weight_total += item->request.weight;
     }
+
+    item_array_index = item->next_layout_item_array_index;
   }
 
   if (item_count == 0)
@@ -906,23 +905,19 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
                ? layout->content_rect.x
                : layout->content_rect.y;
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
+      break;
     }
     float main_size;
     LDKUIRect rect = {0};
     LDKUILayoutItemCache *cache;
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
-    }
 
     if (layout->direction == LDK_UI_LAYOUT_HORIZONTAL)
     {
@@ -972,6 +967,8 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
       cache->rect = cached_rect;
       cache->last_frame_touched = ctx->frame_index;
     }
+
+    item_array_index = item->next_layout_item_array_index;
   }
 }
 
@@ -986,22 +983,18 @@ static LDKUISize s_ui_layout_requested_content_size(
     return size;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
+      break;
     }
     float item_width;
     float item_height;
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
-    }
 
     item_width = s_ui_layout_request_width(layout, &item->request);
     item_height = s_ui_layout_request_height(layout, &item->request);
@@ -1018,6 +1011,7 @@ static LDKUISize s_ui_layout_requested_content_size(
     }
 
     item_count += 1;
+    item_array_index = item->next_layout_item_array_index;
   }
 
   if (item_count > 1)
@@ -1070,6 +1064,10 @@ static LDKUILayout *s_ui_layout_push_with_id(LDKUIContext *ctx,
   layout->bounding_rect = bounding_rect;
   layout->unpadded_content_rect = rect;
   layout->spacing = LDK_UI_DEFAULT_SPACING;
+  layout->first_item_array_index = UINT32_MAX;
+  layout->last_item_array_index = UINT32_MAX;
+  layout->parent_item_array_index =
+      parent != NULL ? parent->last_item_array_index : UINT32_MAX;
   layout->parent = parent;
   s_ui_layout_apply_padding(layout,
       direction == LDK_UI_LAYOUT_VERTICAL ? LDK_UI_DEFAULT_PADDING : 0.0f);
@@ -1114,11 +1112,10 @@ static void s_ui_layout_pop(LDKUIContext *ctx)
   }
 
   if (!layout->skip_parent_item_min_size_update && parent != NULL &&
-      parent->item_count > 0)
+      layout->parent_item_array_index != UINT32_MAX)
   {
-    u32 parent_item_index = parent->item_count - 1;
-    LDKUILayoutItem *parent_item =
-        s_ui_layout_item_find(ctx, parent->id, parent_item_index);
+    LDKUILayoutItem *parent_item = x_array_ldk_ui_layout_item_get(
+        ctx->layout_items, layout->parent_item_array_index);
 
     if (parent_item != NULL)
     {
