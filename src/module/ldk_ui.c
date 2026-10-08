@@ -1,6 +1,7 @@
 #include <ldk_common.h>
 #include <ldk_geom.h>
 #include <ldk_os.h>
+#include <ldk_profiler.h>
 #include <ldk_ttf.h>
 #include <ldk_text.h>
 #include <module/ldk_ui.h>
@@ -1361,6 +1362,7 @@ typedef struct LDKUIWidgetBox
   LDKUIRect rect;
   LDKUIRect clip;
   bool disabled;
+  bool fully_clipped;
 } LDKUIWidgetBox;
 
 /**
@@ -1376,6 +1378,19 @@ static LDKUIRect s_ui_current_clip_rect(LDKUIContext *ctx)
   }
 
   return ctx->clip_rect;
+}
+
+/**
+ * Checks whether a non-empty rectangle is completely outside its clip.
+ * @arg rect Screen-space rectangle occupied by the item.
+ * @arg clip_rect Intersection between the item and its active clip.
+ * @return true when rect has area but clip_rect has none. False otherwise.
+ */
+static bool s_ui_rect_is_fully_clipped(
+    LDKUIRect rect, LDKUIRect clip_rect)
+{
+  return rect.w > 0.0f && rect.h > 0.0f &&
+         (clip_rect.w <= 0.0f || clip_rect.h <= 0.0f);
 }
 
 /**
@@ -1430,6 +1445,12 @@ static void s_ui_add_hit_candidate(
 
   if (ctx == NULL || ctx->hit_candidates == NULL)
   {
+    return;
+  }
+
+  if (s_ui_rect_is_fully_clipped(rect, clip_rect))
+  {
+    ctx->profile_fully_clipped_hit_candidate_count += 1;
     return;
   }
 
@@ -2072,6 +2093,9 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   }
 
   ctx->delta_time = delta;
+  ctx->profile_widget_box_count = 0;
+  ctx->profile_fully_clipped_widget_box_count = 0;
+  ctx->profile_fully_clipped_hit_candidate_count = 0;
 
   if (ctx->theme.text_cursor_blink &&
       ctx->theme.text_cursor_blink_interval > 0.0f)
@@ -2263,6 +2287,13 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   ctx->render_data.command_count = x_array_ldk_ui_draw_cmd_count(ctx->commands);
   ctx->render_data.viewport_size.w = ctx->viewport.w;
   ctx->render_data.viewport_size.h = ctx->viewport.h;
+
+  LDK_PROFILE_COUNTER_SET(
+      "UI Widget Boxes", ctx->profile_widget_box_count);
+  LDK_PROFILE_COUNTER_SET("UI Fully Clipped Widget Boxes",
+      ctx->profile_fully_clipped_widget_box_count);
+  LDK_PROFILE_COUNTER_SET("UI Fully Clipped Hit Candidates",
+      ctx->profile_fully_clipped_hit_candidate_count);
 
   if (ctx->cursor_type != ldk_os_cursor_type_get())
   {
@@ -2640,6 +2671,14 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
   box->clip = s_ui_rect_intersect(&parent_clip, &box->rect);
   box->disabled = s_ui_take_next_disabled(ctx);
 
+  ctx->profile_widget_box_count += 1;
+
+  box->fully_clipped = s_ui_rect_is_fully_clipped(box->rect, box->clip);
+  if (box->fully_clipped)
+  {
+    ctx->profile_fully_clipped_widget_box_count += 1;
+  }
+
   ctx->last_id = id;
   ctx->last_rect = rect;
   ctx->last_bounding_rect = rect;
@@ -2649,6 +2688,58 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
     s_ui_add_hit_candidate(ctx, box->id, box->rect, box->clip);
   }
 
+  return true;
+}
+
+/**
+ * Checks whether a fully clipped widget can skip interaction and rendering work.
+ * Focus traversal registration is preserved for focusable widgets. Widgets that
+ * still own transient interaction state are not skipped.
+ * @arg ctx UI context that owns interaction and focus state.
+ * @arg box Prepared widget box.
+ * @arg focusable Whether the widget participates in keyboard focus traversal.
+ * @return true when the remaining widget work can be skipped safely.
+ */
+static bool s_ui_widget_box_can_skip(
+    LDKUIContext *ctx, LDKUIWidgetBox const *box, bool focusable)
+{
+  LDKUIId window_id;
+
+  if (ctx == NULL || box == NULL || !box->fully_clipped)
+  {
+    return false;
+  }
+
+  if (ctx->hot_id == box->id || ctx->active_id == box->id ||
+      ctx->focused_id == box->id || ctx->input_box_id == box->id)
+  {
+    return false;
+  }
+
+  if (!focusable)
+  {
+    return true;
+  }
+
+  if (ctx->next_focus)
+  {
+    return false;
+  }
+
+  if (box->disabled)
+  {
+    return true;
+  }
+
+  window_id = ctx->current_window != NULL ? ctx->current_window->id : 0;
+
+  if (ctx->tab_focus_id == box->id &&
+      ctx->tab_focus_window_id == window_id)
+  {
+    return false;
+  }
+
+  s_ui_tab_focus_register(ctx, box->id);
   return true;
 }
 

@@ -36,6 +36,11 @@ void ldk_ui_widget_panel(LDKUIContext *ctx, LDKUIId id, LDKUIRect rect)
     return;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
+  {
+    return;
+  }
+
   bg = ctx->theme.colors[LDK_UI_COLOR_PANEL_BG];
   border = ctx->theme.colors[LDK_UI_COLOR_BORDER];
 
@@ -61,6 +66,11 @@ void ldk_ui_widget_label(
     return;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
+  {
+    return;
+  }
+
   text_size = s_ui_widget_text_size(ctx, text);
   text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
@@ -74,6 +84,11 @@ void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
   LDKUIWidgetBox box = {0};
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
+  {
+    return;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
   {
     return;
   }
@@ -92,6 +107,11 @@ void ldk_ui_widget_gradient(LDKUIContext *ctx, LDKUIId id,
   u32 base_index;
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
+  {
+    return;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
   {
     return;
   }
@@ -144,6 +164,11 @@ void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
     return;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
+  {
+    return;
+  }
+
   text_color = box.disabled ? ctx->theme.colors[LDK_UI_COLOR_TEXT_DISABLED]
                             : ctx->theme.colors[LDK_UI_COLOR_TEXT];
 
@@ -168,6 +193,11 @@ bool ldk_ui_widget_button(
   }
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return false;
   }
@@ -205,6 +235,11 @@ bool ldk_ui_widget_color_view(
     return false;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
+  {
+    return false;
+  }
+
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   //bg = s_ui_render_control_bg_color(ctx, color);
   border = s_ui_render_control_border_color(ctx, frame.visual_state);
@@ -231,6 +266,11 @@ bool ldk_ui_widget_button_flat(
   }
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return false;
   }
@@ -266,6 +306,11 @@ bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   }
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return false;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return false;
   }
@@ -329,6 +374,11 @@ bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
     return false;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
+  {
+    return false;
+  }
+
   LDKUIFrameState frame =
       s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
@@ -381,6 +431,11 @@ bool ldk_ui_widget_toggle(
   LDKUIRect check_rect;
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return value;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return value;
   }
@@ -505,6 +560,11 @@ float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
   LDKUIFrameState frame;
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return value;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return value;
   }
@@ -671,6 +731,11 @@ static float s_ui_widget_scrollbar(LDKUIContext *ctx, LDKUIId id, float scroll,
   float thumb_range;
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
+  {
+    return scroll;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
   {
     return scroll;
   }
@@ -1444,6 +1509,11 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
     return result;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
+  {
+    return result;
+  }
+
   buffer_len = s_ui_text_cstr_len_u32(buffer);
   text_size = s_ui_widget_text_size(ctx, buffer);
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
@@ -1723,6 +1793,11 @@ static void s_ui_widget_selectable_text(LDKUIContext *ctx, LDKUIId id,
     return;
   }
 
+  if (s_ui_widget_box_can_skip(ctx, &box, true))
+  {
+    return;
+  }
+
   text_length = s_ui_text_cstr_len_u32(text);
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
@@ -1813,6 +1888,13 @@ static float s_ui_widget_resize_handle(LDKUIContext *ctx, LDKUIId id,
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, hit_rect, true))
   {
+    return value;
+  }
+
+  if (s_ui_widget_box_can_skip(ctx, &box, false))
+  {
+    ctx->last_rect = rect;
+    ctx->last_bounding_rect = rect;
     return value;
   }
 
