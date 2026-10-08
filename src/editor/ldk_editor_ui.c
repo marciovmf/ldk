@@ -1034,6 +1034,20 @@ static bool s_editor_ini_bool_write(
   return result;
 }
 
+void ldki_editor_profile_set(LDKEditorContext *editor, bool profile)
+{
+  if (profile == editor->profile)
+  {
+    return;
+  }
+  if (!s_editor_ini_bool_write(&editor->editor_config_path, "profile", profile))
+  {
+    ldki_editor_log_warning(editor, "Could not save the Profile preference.");
+    return;
+  }
+  editor->profile = profile;
+}
+
 static bool s_editor_project_play_current_scene_write(
     LDKEditorContext *editor, bool value)
 {
@@ -1206,24 +1220,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_label(ui, "Statistics");
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  bool profile = ldk_ui_toggle(ui, editor->profile);
-  if (profile != editor->profile)
-  {
-    if (!s_editor_ini_bool_write(
-            &editor->editor_config_path, "profile", profile))
-    {
-      ldki_editor_log_warning(
-          editor, "Could not save the Profile preference.");
-    }
-    else
-    {
-      editor->profile = profile;
-    }
-  }
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui, "Profile");
 
   s_editor_layout_combo_box(editor);
   ldk_ui_end_horizontal(&editor->ui);

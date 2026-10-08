@@ -9,15 +9,7 @@
 #include <string.h>
 #include <time.h>
 
-#ifndef LDK_EDITOR_PROFILER_CAPTURE_CAPACITY
-#define LDK_EDITOR_PROFILER_CAPTURE_CAPACITY 128u
-#endif
-
-typedef struct LDKEditorProfilerCapture
-{
-  XFSPath path;
-  time_t modified;
-} LDKEditorProfilerCapture;
+extern void ldki_editor_profile_set(LDKEditorContext *editor, bool profile);
 
 typedef struct LDKEditorProfilerFrame
 {
@@ -39,9 +31,6 @@ typedef struct LDKEditorProfilerTreeNode
 
 typedef struct LDKEditorProfilerState
 {
-  LDKEditorProfilerCapture captures[LDK_EDITOR_PROFILER_CAPTURE_CAPACITY];
-  u32 capture_count;
-
   LDKProfilerCaptureHeader header;
   LDKProfilerSourceRecord sources[LDK_PROFILER_SOURCE_CAPACITY];
   bool source_valid[LDK_PROFILER_SOURCE_CAPACITY];
@@ -67,7 +56,6 @@ typedef struct LDKEditorProfilerState
   u32 tree_capacity;
 
   XFSPath loaded_path;
-  XFSPath catalog_root;
   u32 selected_frame;
   i32 selected_tree_node;
   u32 dropped_records;
@@ -81,15 +69,13 @@ typedef struct LDKEditorProfilerState
   LDKUIRect timeline_clip_rect;
   float overview_ratio;
   char error[256];
-  bool captures_dirty;
-  bool window_was_open;
   bool auto_load_pending;
   u64 observed_revision;
   XFSPath automatic_path;
 } LDKEditorProfilerState;
 
 static LDKEditorProfilerState s_editor_profiler = {
-    .captures_dirty = true, .auto_load_pending = true};
+    .auto_load_pending = true};
 
 static void s_editor_profiler_error(const char *message)
 {
@@ -430,71 +416,9 @@ static bool s_editor_profiler_capture_load(const char *path)
   return true;
 }
 
-static int s_editor_profiler_capture_compare(const void *a, const void *b)
-{
-  const LDKEditorProfilerCapture *left =
-      (const LDKEditorProfilerCapture *)a;
-  const LDKEditorProfilerCapture *right =
-      (const LDKEditorProfilerCapture *)b;
-  if (left->modified > right->modified)
-    return -1;
-  if (left->modified < right->modified)
-    return 1;
-  return strcmp(left->path.buf, right->path.buf);
-}
 
-static void s_editor_profiler_captures_refresh(LDKEditorContext *editor)
-{
-  XFSPath directory = {0};
-  XFSDireEntry entry = {0};
-  XFSDireHandle *handle;
 
-  s_editor_profiler.capture_count = 0;
-  s_editor_profiler.captures_dirty = false;
-  s_editor_profiler.catalog_root.length = 0;
-  s_editor_profiler.catalog_root.buf[0] = 0;
 
-  XFSPath path = {0};
-  if (!ldki_editor_profiler_path_get(editor, &path) ||
-      !x_fs_path_dirname(&path, &directory))
-  {
-    return;
-  }
-
-  x_fs_path_set(
-      &s_editor_profiler.catalog_root, editor->project.game_dll_path.buf);
-  x_fs_path_normalize(&s_editor_profiler.catalog_root);
-
-  handle = x_fs_find_first_file(directory.buf, &entry);
-  if (!handle)
-  {
-    return;
-  }
-
-  do
-  {
-    size_t length = strlen(entry.name);
-    if (entry.is_directory || length < 5 ||
-        strcmp(entry.name + length - 5, ".ldkp") != 0 ||
-        s_editor_profiler.capture_count >=
-            LDK_EDITOR_PROFILER_CAPTURE_CAPACITY)
-    {
-      continue;
-    }
-
-    LDKEditorProfilerCapture *capture =
-        &s_editor_profiler.captures[s_editor_profiler.capture_count++];
-    x_fs_path(&capture->path, directory.buf, entry.name);
-    x_fs_path_normalize(&capture->path);
-    capture->modified = entry.last_modified;
-  } while (x_fs_find_next_file(handle, &entry));
-
-  x_fs_find_close(handle);
-
-  qsort(s_editor_profiler.captures, s_editor_profiler.capture_count,
-      sizeof(s_editor_profiler.captures[0]),
-      s_editor_profiler_capture_compare);
-}
 
 static double s_editor_profiler_ticks_ms(u64 begin, u64 end)
 {
@@ -682,14 +606,6 @@ static void s_editor_profiler_frame_graph(LDKUIContext *ui)
   {
     first = s_editor_profiler.frame_count - count;
   }
-  char range[128];
-  snprintf(range, sizeof(range), "Frames %llu - %llu (%u total)",
-      (unsigned long long)s_editor_profiler.frames[first].index,
-      (unsigned long long)s_editor_profiler.frames[first + count - 1u].index,
-      s_editor_profiler.frame_count);
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, range);
-
   for (u32 i = first; i < first + count; ++i)
   {
     double ms = s_editor_profiler_ticks_ms(
@@ -705,7 +621,7 @@ static void s_editor_profiler_frame_graph(LDKUIContext *ui)
     max_ms = 1.0;
   }
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(90.0f));
+  ldk_ui_set_next_height(ui, ldk_ui_px(44.0f));
   ldk_ui_spacer(ui);
   graph_rect = ldk_ui_last_rect(ui);
 
@@ -888,7 +804,7 @@ static void s_editor_profiler_timeline(LDKUIContext *ui)
         frame_ms * (view_begin + view_span * (float)tick / 4.0f));
     ldk_ui_widget_label(ui, 0x50525200u + tick, label, cell);
   }
-  ldk_ui_set_next_height(ui, ldk_ui_px(128.0f));
+  ldk_ui_set_next_height(ui, ldk_ui_px(96.0f));
   ldk_ui_spacer(ui);
   timeline_rect = ldk_ui_last_rect(ui);
   s_editor_profiler.timeline_view_rect = timeline_rect;
@@ -1197,107 +1113,14 @@ static void s_editor_profiler_save_as(LDKEditorContext *editor)
     return;
   }
   s_editor_profiler.error[0] = 0;
-  s_editor_profiler.captures_dirty = true;
   ldki_editor_log_info(editor, "Profiler capture copy saved.");
 }
 
-static void s_editor_profiler_capture_list(
-    LDKEditorContext *editor, LDKUIContext *ui)
-{
-  char label[320];
 
-  if (editor && editor->project.loaded &&
-      strcmp(s_editor_profiler.catalog_root.buf,
-          editor->project.game_dll_path.buf) != 0)
-  {
-    s_editor_profiler.captures_dirty = true;
-  }
-
-  if (s_editor_profiler.captures_dirty)
-  {
-    s_editor_profiler_captures_refresh(editor);
-  }
-
-  ldk_ui_set_next_height(ui,
-      ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Refresh"))
-  {
-    s_editor_profiler_captures_refresh(editor);
-    s_editor_profiler.auto_load_pending = true;
-  }
-
-  ldk_ui_set_next_disabled(ui, editor->profiler_recording);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Open Capture..."))
-  {
-    XFSPath path = {0};
-    if (ldk_os_dialog_show_open_file(editor->window, "Open Profiler Capture",
-            "LDK Profiler Capture (*.ldkp)\0*.ldkp\0All Files (*.*)\0*.*\0\0",
-            &path))
-    {
-      s_editor_profiler_capture_load(path.buf);
-      if (s_editor_profiler.frame_count)
-      {
-        s_editor_profiler_frame_select(
-            s_editor_profiler.frame_count - 1u);
-      }
-    }
-  }
-  ldk_ui_set_next_disabled(
-      ui, editor->profiler_recording || !s_editor_profiler.loaded_path.length);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  if (ldk_ui_button_flat(ui, "Save As..."))
-  {
-    s_editor_profiler_save_as(editor);
-  }
-  ldk_ui_spacer(ui);
-  ldk_ui_end_horizontal(ui);
-
-  if (!editor->project.loaded)
-  {
-    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-    ldk_ui_label(ui, "Load a project to list captures.");
-    return;
-  }
-
-  for (u32 i = 0; i < s_editor_profiler.capture_count; ++i)
-  {
-    XSlice basename =
-        x_fs_path_basename_cstr(s_editor_profiler.captures[i].path.buf);
-    size_t copy_length =
-        basename.length < sizeof(label) - 1 ? basename.length
-                                           : sizeof(label) - 1;
-    memcpy(label, basename.ptr, copy_length);
-    label[copy_length] = 0;
-
-    ldk_ui_push_id_u32(ui, i);
-    ldk_ui_set_next_disabled(ui, editor->profiler_recording);
-    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-    if (ldk_ui_button_flat(ui, label))
-    {
-      s_editor_profiler_capture_load(
-          s_editor_profiler.captures[i].path.buf);
-      if (s_editor_profiler.frame_count)
-      {
-        s_editor_profiler_frame_select(
-            s_editor_profiler.frame_count - 1u);
-      }
-    }
-    ldk_ui_pop_id(ui);
-  }
-}
 
 void ldki_editor_profiler_update(void)
 {
-  bool open = ldki_editor_window_is_open(LDK_EDITOR_WINDOW_PROFILER);
-  if (open && !s_editor_profiler.window_was_open)
-  {
-    s_editor_profiler.auto_load_pending = true;
-  }
-  s_editor_profiler.window_was_open = open;
-  if (!open)
+  if (!ldki_editor_window_is_open(LDK_EDITOR_WINDOW_PROFILER))
   {
     s_editor_profiler.timeline_view_rect = (LDKUIRect){0};
   }
@@ -1311,14 +1134,12 @@ static void s_editor_profiler_auto_load(LDKEditorContext *editor)
   {
     s_editor_profiler.automatic_path = path;
     s_editor_profiler.auto_load_pending = true;
-    s_editor_profiler.captures_dirty = true;
     s_editor_profiler_capture_clear();
   }
   if (s_editor_profiler.observed_revision != editor->profiler_revision)
   {
     s_editor_profiler.observed_revision = editor->profiler_revision;
     s_editor_profiler.auto_load_pending = true;
-    s_editor_profiler.captures_dirty = true;
   }
   if (editor->profiler_recording || !s_editor_profiler.auto_load_pending)
   {
@@ -1351,7 +1172,7 @@ static float s_editor_profiler_overview_height(float available)
 
   if (s_editor_profiler.overview_ratio <= 0.0f)
   {
-    s_editor_profiler.overview_ratio = 0.4f;
+    s_editor_profiler.overview_ratio = 0.55f;
   }
 
   minimum = s_editor_profiler_pane_min_height(available);
@@ -1381,12 +1202,44 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
 
   ui = &editor->ui;
   s_editor_profiler_auto_load(editor);
-  s_editor_profiler_capture_list(editor, ui);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool profile = ldk_ui_toggle(ui, editor->profile);
+  if (profile != editor->profile)
+  {
+    ldki_editor_profile_set(editor, profile);
+  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, "Profile");
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_disabled(ui, editor->profiler_recording);
+  if (ldk_ui_button_flat(ui, "Open Capture..."))
+  {
+    XFSPath path = {0};
+    if (ldk_os_dialog_show_open_file(editor->window, "Open Profiler Capture",
+            "LDK Profiler Capture (*.ldkp)\0*.ldkp\0All Files (*.*)\0*.*\0\0",
+            &path) &&
+        s_editor_profiler_capture_load(path.buf) &&
+        s_editor_profiler.frame_count)
+    {
+      s_editor_profiler_frame_select(s_editor_profiler.frame_count - 1u);
+    }
+  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_disabled(ui,
+      editor->profiler_recording || !s_editor_profiler.loaded_path.length);
+  if (ldk_ui_button_flat(ui, "Save As..."))
+  {
+    s_editor_profiler_save_as(editor);
+  }
+  ldk_ui_spacer(ui);
+  ldk_ui_end_horizontal(ui);
 
   if (editor->profiler_recording)
   {
     ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-    ldk_ui_label(ui, "Recording Play capture. Stop Play to view results.");
+    ldk_ui_label(ui, "Capturing... Stop Play to view results.");
     return;
   }
 
@@ -1398,6 +1251,8 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
 
   if (!s_editor_profiler.loaded_path.length)
   {
+    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+    ldk_ui_label(ui, "No capture available. Enable Profile and start Play.");
     return;
   }
 
@@ -1424,14 +1279,10 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
       ldk_ui_begin_scrollview(ui, s_editor_profiler.overview_scroll,
           LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
   ui->mouse = saved_mouse;
-  snprintf(text, sizeof(text), "Capture: %s",
-      s_editor_profiler.loaded_path.buf);
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_selectable_text(ui, text);
-
-  snprintf(text, sizeof(text), "Frames: %u    CPU samples: %u    Dropped: %u",
-      s_editor_profiler.frame_count, s_editor_profiler.sample_count,
-      s_editor_profiler.dropped_records);
+  XSlice basename = x_fs_path_basename_cstr(s_editor_profiler.loaded_path.buf);
+  snprintf(text, sizeof(text), "%.*s    Frames: %u    Samples: %u    Dropped: %u",
+      (int)basename.length, basename.ptr, s_editor_profiler.frame_count,
+      s_editor_profiler.sample_count, s_editor_profiler.dropped_records);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, text);
 
@@ -1511,6 +1362,5 @@ void ldki_editor_profiler_terminate(void)
   free(s_editor_profiler.counter_samples);
   free(s_editor_profiler.tree);
   memset(&s_editor_profiler, 0, sizeof(s_editor_profiler));
-  s_editor_profiler.captures_dirty = true;
   s_editor_profiler.auto_load_pending = true;
 }
