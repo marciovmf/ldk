@@ -1105,10 +1105,11 @@ static LDKUIRect s_ui_begin_window_internal(
   ctx->last_rect = window->rect;
   ctx->last_bounding_rect = window->rect;
   ctx->last_id = window->id;
-  ctx->clip_rect = s_ui_rect_intersect(&ctx->clip_rect, &window->content_rect);
 
   if (reuse)
   {
+    ctx->clip_rect =
+      s_ui_rect_intersect(&ctx->clip_rect, &window->content_rect);
     return rect;
   }
 
@@ -1120,6 +1121,7 @@ static LDKUIRect s_ui_begin_window_internal(
     ctx->last_window_close_requested = true;
   }
 
+  ctx->clip_rect = s_ui_rect_intersect(&ctx->clip_rect, &window->content_rect);
   s_ui_window_push_content_layout(ctx, window);
 
   return rect;
