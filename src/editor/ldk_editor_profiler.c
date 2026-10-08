@@ -60,6 +60,8 @@ typedef struct LDKEditorProfilerState
   i32 selected_tree_node;
   u32 dropped_records;
   LDKUIPoint scroll;
+  LDKUIPoint details_scroll;
+  float tree_width;
   LDKUIPoint overview_scroll;
   float first_visible_frame;
   bool reveal_selected_frame;
@@ -68,6 +70,7 @@ typedef struct LDKEditorProfilerState
   LDKUIRect timeline_view_rect;
   LDKUIRect timeline_clip_rect;
   float overview_ratio;
+  float frame_graph_height;
   char error[256];
   bool auto_load_pending;
   u64 observed_revision;
@@ -568,7 +571,37 @@ static void s_editor_profiler_frame_select(u32 frame_index)
       s_editor_profiler.frames[frame_index].index);
 }
 
-static void s_editor_profiler_frame_graph(LDKUIContext *ui)
+/* Only show the guide while the cursor is inside the visible graph. */
+static bool s_editor_profiler_cursor_get(
+    LDKUIContext *ui, LDKUIRect rect, float *cursor_x)
+{
+  if (!ui->mouse || !ui->current_window ||
+      ui->hovered_window_id != ui->current_window->id)
+  {
+    return false;
+  }
+
+  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  LDKUIRect visible = ldk_rectf_intersect(&ui->clip_rect, &rect);
+  if (visible.w <= 0.0f || visible.h <= 0.0f ||
+      !ldk_rectf_contains(&visible, (float)cursor.x, (float)cursor.y))
+  {
+    return false;
+  }
+  *cursor_x = (float)cursor.x;
+  return true;
+}
+
+static void s_editor_profiler_cursor_draw(
+    LDKUIContext *ui, LDKUIRect rect, float cursor_x, LDKUIId id)
+{
+  LDKUIRect guide = {cursor_x, rect.y, 1.0f, rect.h};
+  rgba32 color = ui->theme.colors[LDK_UI_COLOR_FOCUS];
+  /* A cursor guide must not participate in widget hit testing. */
+  ldk_ui_widget_gradient(ui, id, color, color, color, color, guide);
+}
+
+static void s_editor_profiler_frame_graph(LDKUIContext *ui, float graph_height)
 {
   LDKUIRect graph_rect;
   double max_ms = 0.0;
@@ -621,7 +654,7 @@ static void s_editor_profiler_frame_graph(LDKUIContext *ui)
     max_ms = 1.0;
   }
 
-  ldk_ui_set_next_height(ui, ldk_ui_px(44.0f));
+  ldk_ui_set_next_height(ui, ldk_ui_px(graph_height));
   ldk_ui_spacer(ui);
   graph_rect = ldk_ui_last_rect(ui);
 
@@ -651,6 +684,27 @@ static void s_editor_profiler_frame_graph(LDKUIContext *ui)
             ui, 0x50524700u + i, color, bar))
     {
       s_editor_profiler_frame_select(frame_i);
+    }
+  }
+  {
+    float cursor_x;
+    if (s_editor_profiler_cursor_get(ui, graph_rect, &cursor_x))
+    {
+      s_editor_profiler_cursor_draw(
+          ui, graph_rect, cursor_x, 0x505247FFu);
+      u32 hovered = (u32)((cursor_x - graph_rect.x) / bar_width);
+      if (hovered < count)
+      {
+        u32 frame_i = first + hovered;
+        double ms = s_editor_profiler_ticks_ms(
+            s_editor_profiler.frames[frame_i].begin_ticks,
+            s_editor_profiler.frames[frame_i].end_ticks);
+        char label[128];
+        snprintf(label, sizeof(label), "Frame %llu: %.3f ms",
+            (unsigned long long)s_editor_profiler.frames[frame_i].index, ms);
+        LDKUIRect info = {graph_rect.x, graph_rect.y, graph_rect.w, 16.0f};
+        ldk_ui_widget_label(ui, 0x505247FEu, label, info);
+      }
     }
   }
   ldk_ui_set_next_height(ui, ldk_ui_px(14.0f));
@@ -743,7 +797,7 @@ static bool s_editor_profiler_timeline_wheel(LDKUIContext *ui)
   return true;
 }
 
-static void s_editor_profiler_timeline(LDKUIContext *ui)
+static void s_editor_profiler_timeline(LDKUIContext *ui, float graph_height)
 {
   LDKUIRect timeline_rect;
   const LDKEditorProfilerFrame *frame;
@@ -804,7 +858,7 @@ static void s_editor_profiler_timeline(LDKUIContext *ui)
         frame_ms * (view_begin + view_span * (float)tick / 4.0f));
     ldk_ui_widget_label(ui, 0x50525200u + tick, label, cell);
   }
-  ldk_ui_set_next_height(ui, ldk_ui_px(96.0f));
+  ldk_ui_set_next_height(ui, ldk_ui_px(graph_height));
   ldk_ui_spacer(ui);
   timeline_rect = ldk_ui_last_rect(ui);
   s_editor_profiler.timeline_view_rect = timeline_rect;
@@ -872,6 +926,25 @@ static void s_editor_profiler_timeline(LDKUIContext *ui)
           break;
         }
       }
+    }
+  }
+  {
+    float cursor_x;
+    if (s_editor_profiler_cursor_get(ui, timeline_rect, &cursor_x))
+    {
+      s_editor_profiler_cursor_draw(
+          ui, timeline_rect, cursor_x, 0x505254FFu);
+      double cursor_ms = frame_ms *
+          (view_begin + view_span * (cursor_x - timeline_rect.x) /
+              timeline_rect.w);
+      snprintf(label, sizeof(label), "%.3f ms", cursor_ms);
+      float label_x = cursor_x + 4.0f;
+      if (label_x + 90.0f > timeline_rect.x + timeline_rect.w)
+      {
+        label_x = cursor_x - 94.0f;
+      }
+      LDKUIRect info = {label_x, timeline_rect.y, 90.0f, 16.0f};
+      ldk_ui_widget_label(ui, 0x505254FEu, label, info);
     }
   }
   ui->clip_rect = previous_clip;
@@ -967,7 +1040,6 @@ static void s_editor_profiler_selection_draw(
   const LDKProfilerSourceRecord *source =
       s_editor_profiler_source_get(sample->source_id);
 
-  ldk_ui_horizontal_line(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, "Selection");
 
@@ -1265,6 +1337,29 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
     available = 0.0f;
   }
   float overview_height = s_editor_profiler_overview_height(available);
+  /* The upper pane has its own splitter for the frame history.
+   * Leave room for frame controls, the ruler, and the current timeline. */
+  float overview_spacing = layout->spacing;
+  float minimum_graph_height = 24.0f;
+  float maximum_graph_height = overview_height -
+      (4.0f * LDK_UI_DEFAULT_CONTROL_HEIGHT + 14.0f +
+          6.0f * overview_spacing + 48.0f + 12.0f);
+  if (maximum_graph_height < minimum_graph_height)
+  {
+    maximum_graph_height = minimum_graph_height;
+  }
+  if (s_editor_profiler.frame_graph_height <= 0.0f)
+  {
+    s_editor_profiler.frame_graph_height = 44.0f;
+  }
+  if (s_editor_profiler.frame_graph_height > maximum_graph_height)
+  {
+    s_editor_profiler.frame_graph_height = maximum_graph_height;
+  }
+  if (s_editor_profiler.frame_graph_height < minimum_graph_height)
+  {
+    s_editor_profiler.frame_graph_height = minimum_graph_height;
+  }
   bool timeline_wheel = s_editor_profiler_timeline_wheel(ui);
   const LDKMouseState *saved_mouse = ui->mouse;
   LDKMouseState overview_mouse = {0};
@@ -1286,7 +1381,21 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, text);
 
-  s_editor_profiler_frame_graph(ui);
+  s_editor_profiler_frame_graph(ui, s_editor_profiler.frame_graph_height);
+
+  /* History / current-frame splitter (red line in the layout). */
+  s_editor_profiler.frame_graph_height = ldk_ui_resize_handle_horizontal(ui,
+      s_editor_profiler.frame_graph_height, minimum_graph_height,
+      maximum_graph_height);
+
+  float timeline_height = overview_height -
+      (4.0f * LDK_UI_DEFAULT_CONTROL_HEIGHT +
+          s_editor_profiler.frame_graph_height + 14.0f +
+          6.0f * overview_spacing + 12.0f);
+  if (timeline_height < 48.0f)
+  {
+    timeline_height = 48.0f;
+  }
 
   if (s_editor_profiler.selected_frame < s_editor_profiler.frame_count)
   {
@@ -1299,7 +1408,7 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
     ldk_ui_label(ui, text);
   }
 
-  s_editor_profiler_timeline(ui);
+  s_editor_profiler_timeline(ui, timeline_height);
   ldk_ui_end_scrollview(ui);
 
   /* Fixed footer: vertical scrolling must never hide timeline navigation. */
@@ -1322,13 +1431,51 @@ static void s_editor_profiler_show(LDKEditorContext *editor)
     }
   }
   ldk_ui_set_next_height(ui, ldk_ui_px(available - overview_height));
-  s_editor_profiler.scroll = ldk_ui_begin_scrollview(ui,
-      s_editor_profiler.scroll,
-      LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-  s_editor_profiler_tree_draw(ui);
-  s_editor_profiler_selection_draw(editor, ui);
-  s_editor_profiler_counters_draw(ui);
-  ldk_ui_end_scrollview(ui);
+  ldk_ui_begin_horizontal(ui);
+  {
+    LDKUILayout *details_layout = ui->current_layout;
+    float width = details_layout->content_rect.w;
+    float spacing = details_layout->spacing;
+    float minimum = width >= 320.0f ? 150.0f : width * 0.30f;
+    float maximum = width - minimum - spacing;
+    if (maximum < minimum)
+    {
+      minimum = maximum > 0.0f ? maximum * 0.5f : 0.0f;
+    }
+    if (s_editor_profiler.tree_width <= 0.0f)
+    {
+      s_editor_profiler.tree_width = width * 0.65f;
+    }
+    if (s_editor_profiler.tree_width < minimum)
+    {
+      s_editor_profiler.tree_width = minimum;
+    }
+    if (s_editor_profiler.tree_width > maximum)
+    {
+      s_editor_profiler.tree_width = maximum;
+    }
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(s_editor_profiler.tree_width));
+    ldk_ui_set_next_height(ui, ldk_ui_fill());
+    s_editor_profiler.scroll = ldk_ui_begin_scrollview(ui,
+        s_editor_profiler.scroll,
+        LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+    s_editor_profiler_tree_draw(ui);
+    ldk_ui_end_scrollview(ui);
+
+    s_editor_profiler.tree_width = ldk_ui_resize_handle_vertical(
+        ui, s_editor_profiler.tree_width, minimum, maximum);
+
+    ldk_ui_set_next_width(ui, ldk_ui_fill());
+    ldk_ui_set_next_height(ui, ldk_ui_fill());
+    s_editor_profiler.details_scroll = ldk_ui_begin_scrollview(ui,
+        s_editor_profiler.details_scroll,
+        LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+    s_editor_profiler_selection_draw(editor, ui);
+    s_editor_profiler_counters_draw(ui);
+    ldk_ui_end_scrollview(ui);
+  }
+  ldk_ui_end_horizontal(ui);
   ldk_ui_end_vertical(ui);
 }
 
