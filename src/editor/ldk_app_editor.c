@@ -708,7 +708,12 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   if (event->type != LDK_EVENT_TYPE_FRAME)
     return false;
 
-  s_editor_profiler_frame_event(editor, event);
+  /* Keep the profiler frame open through editor work performed after the
+   * engine render phase. */
+  if (event->frame_event.type != LDK_FRAME_EVENT_RENDER_AFTER)
+  {
+    s_editor_profiler_frame_event(editor, event);
+  }
 
   if (event->frame_event.type == LDK_FRAME_EVENT_UPDATE_AFTER)
   {
@@ -729,8 +734,14 @@ static bool on_event_frame(const LDKEvent *event, void *state)
       return false;
     }
     s_editor_camera_ensure(editor);
+
+    LDK_PROFILE_BEGIN("Editor Camera Update");
     ldki_editor_camera_update(editor, event->frame_event.delta_time);
+    LDK_PROFILE_END();
+
+    LDK_PROFILE_BEGIN("Editor Gizmo Update");
     ldki_editor_gizmo_update(editor);
+    LDK_PROFILE_END();
     return false;
   }
 
@@ -738,10 +749,17 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   {
     if (editor->game_only_active)
     {
+      s_editor_profiler_frame_event(editor, event);
       return false;
     }
+
+    LDK_PROFILE_BEGIN("Editor Project Actions");
     s_editor_project_action_process(editor);
+    LDK_PROFILE_END();
+
+    LDK_PROFILE_BEGIN("Editor Game Module Watch");
     s_project_game_module_watch_update(editor);
+    LDK_PROFILE_END();
 
     if (editor->create_project_window_close_requested)
     {
@@ -770,6 +788,7 @@ static bool on_event_frame(const LDKEvent *event, void *state)
       editor->create_project_window_open_requested = false;
     }
 
+    s_editor_profiler_frame_event(editor, event);
     return false;
   }
 
@@ -790,8 +809,14 @@ static bool on_event_frame(const LDKEvent *event, void *state)
     return true;
   }
   s_editor_update(editor, size.w, size.h, event->frame_event.delta_time);
+
+  LDK_PROFILE_BEGIN("Editor Grid Submit");
   ldki_editor_grid_submit(editor);
+  LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Editor Gizmo Submit");
   ldki_editor_gizmo_submit(editor);
+  LDK_PROFILE_END();
   return true;
 }
 
@@ -1667,16 +1692,36 @@ static void s_editor_statistics_only(LDKEditorContext *editor, i32 window_width,
 
 static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
 {
+  LDK_PROFILE_BEGIN("Editor Profiler Update");
   ldki_editor_profiler_update();
+  LDK_PROFILE_END();
+
   s_editor_statistics_time_update(editor, delta_time);
 
+  LDK_PROFILE_BEGIN("Editor Window State Update");
+  ldki_editor_file_explorer_update(editor);
+  ldki_editor_console_update(editor);
+  LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Editor Toolbar");
   ldki_editor_toolbar_show((LDKEditor *)editor);
+  LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Editor Dock");
   ldk_editor_dock_update(editor);
+  LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Editor Scene Catalog Sync");
   ldki_editor_scene_catalog_sync(editor);
+  LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Editor Menubar");
   ldki_editor_menubar_show(editor);
+  LDK_PROFILE_END();
 
   if (editor->show_input_window)
   {
+    LDK_PROFILE_BEGIN("Editor Input Window");
     u32 input_result = ldki_editor_input_window(editor, "SAVE LAYOUT AS");
 
     if ((input_result & LDK_UI_INPUT_BOX_COMMITTED) != 0 &&
@@ -1684,9 +1729,12 @@ static void s_draw_editor_ui(LDKEditorContext *editor, float delta_time)
     {
       editor->show_input_window = false;
     }
+    LDK_PROFILE_END();
   }
 
+  LDK_PROFILE_BEGIN("Editor Status");
   ldki_editor_status_show(editor);
+  LDK_PROFILE_END();
 }
 
 static void s_editor_update(LDKEditorContext *editor, i32 window_width,
@@ -1705,20 +1753,41 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
   ldk_input_game_view_clear();
   ldki_editor_gizmo_begin_ui_frame(editor);
 
+  LDK_PROFILE_BEGIN("Editor UI Begin Frame");
   ldk_ui_begin_frame(&editor->ui, delta_time, &mouse_state, &kbd_state,
       &editor->text_input_state, ui_viewport);
+  LDK_PROFILE_END();
+
   if (ldk_os_mouse_button_down(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
   {
     ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
   }
+
+  LDK_PROFILE_BEGIN("Editor UI Build");
   s_draw_editor_ui(editor, delta_time);
+  LDK_PROFILE_END();
+
   if (!ldk_os_mouse_button_is_pressed(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
   {
     ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
   }
+
+  LDK_PROFILE_BEGIN("Editor UI End Frame");
   ldk_ui_end_frame(&editor->ui);
+  LDK_PROFILE_END();
+
   const LDKUIRenderData *ui_data = ldk_ui_get_render_data(&editor->ui);
+  if (ui_data != NULL)
+  {
+    LDK_PROFILE_COUNTER_SET("Editor UI Vertices", ui_data->vertex_count);
+    LDK_PROFILE_COUNTER_SET("Editor UI Indices", ui_data->index_count);
+    LDK_PROFILE_COUNTER_SET("Editor UI Draw Commands", ui_data->command_count);
+  }
+
+  LDK_PROFILE_BEGIN("Editor UI Submit");
   ldk_renderer_submit_ui(ldk_module_get(LDK_MODULE_RENDERER), ui_data);
+  LDK_PROFILE_END();
+
   editor->text_input_state.codepoint_count = 0;
 }
 
@@ -1914,6 +1983,7 @@ bool ldki_editor_font_apply(
   editor->font = new_font;
   editor->font_instance = new_instance;
   editor->ui.font = new_instance;
+  ldk_ui_windows_invalidate(&editor->ui);
   editor->editor_font = normalized_path;
   editor->editor_font_size = font_size;
 

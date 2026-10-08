@@ -107,6 +107,13 @@ static int test_asset_source_package_precedes_filesystem(void)
   ASSERT_TRUE(ldk_asset_source_file_read(&file, buffer, sizeof(buffer)));
   ASSERT_TRUE(memcmp(buffer, package_data, sizeof(package_data) - 1) == 0);
 
+  memset(buffer, 0, sizeof(buffer));
+  u64 partial_size = 0;
+  ASSERT_TRUE(ldk_asset_source_file_read_at(
+      &file, 1, buffer, 3, &partial_size));
+  ASSERT_EQ(partial_size, 3u);
+  ASSERT_TRUE(memcmp(buffer, package_data + 1, 3) == 0);
+
   ASSERT_TRUE(ldk_asset_source_package_close(&source, package));
   memset(buffer, 0, sizeof(buffer));
   ASSERT_TRUE(ldk_asset_source_find(&source, "assets/value.bin", &file));
@@ -115,6 +122,13 @@ static int test_asset_source_package_precedes_filesystem(void)
   ASSERT_TRUE(ldk_asset_source_file_read(&file, buffer, sizeof(buffer)));
   ASSERT_TRUE(
       memcmp(buffer, filesystem_data, sizeof(filesystem_data) - 1) == 0);
+
+  memset(buffer, 0, sizeof(buffer));
+  ASSERT_TRUE(ldk_asset_source_file_read_at(
+      &file, 2, buffer, sizeof(buffer), &partial_size));
+  ASSERT_EQ(partial_size, sizeof(filesystem_data) - 3);
+  ASSERT_TRUE(memcmp(
+      buffer, filesystem_data + 2, sizeof(filesystem_data) - 3) == 0);
 
   ldk_asset_source_terminate(&source);
   ASSERT_TRUE(x_fs_directory_delete_recursive(x_fs_path_cstr(&root)));

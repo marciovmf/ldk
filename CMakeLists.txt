@@ -506,6 +506,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
   ${INCLUDE_DIR}/module/ldk_component.h       src/module/ldk_component.c
   ${INCLUDE_DIR}/module/ldk_entity.h          src/module/ldk_entity.c
+  ${INCLUDE_DIR}/module/ldk_jobs.h            src/module/ldk_jobs.c
   ${INCLUDE_DIR}/module/ldk_eventqueue.h      src/module/ldk_eventqueue.c
   ${INCLUDE_DIR}/module/ldk_ecs.h             src/module/ldk_ecs.c
   ${INCLUDE_DIR}/module/ldk_renderer.h        src/module/ldk_renderer.c
@@ -914,6 +915,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)
   ldk_test_build(TARGET test_package SOURCES src/tests/test_ldk_package.c)
   ldk_test_build(TARGET test_asset_source SOURCES src/tests/test_ldk_asset_source.c)
+  ldk_test_build(TARGET test_jobs SOURCES src/tests/test_ldk_jobs.c)
   ldk_test_build(TARGET test_raycast SOURCES src/tests/test_ldk_raycast.c)
   ldk_test_build(TARGET test_ui_theme_io SOURCES src/tests/test_ldk_ui_theme_io.c)
 endif()

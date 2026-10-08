@@ -4,6 +4,7 @@
 #include "ldk_editor_project_window.h"
 #include "module/ldk_ui.h"
 #include <ldk.h>
+#include <ldk_profiler.h>
 #include <module/ldk_eventqueue.h>
 #include <float.h>
 #include <math.h>
@@ -119,6 +120,8 @@ typedef struct LDKEditorDockLeaf
   LDKEditorWindowId pressed_window;
   LDKUIRect tab_bar_rect;
   LDKUIId ui_window_id;
+  LDKUIId cache_window_id;
+  LDKEditorWindowId last_active_window;
   bool tab_bar_rect_valid;
 } LDKEditorDockLeaf;
 
@@ -347,6 +350,42 @@ bool ldki_editor_window_is_open(LDKEditorWindowId window_id)
   LDKEditorDockWindow *window =
       s_editor_dock_window_get(&s_editor_dock, window_id);
   return window != NULL && window->open;
+}
+
+void ldki_editor_window_invalidate(
+    LDKEditorContext *editor, LDKEditorWindowId window_id)
+{
+  LDKEditorDockWindow *window;
+  LDKUIId ui_window_id = 0;
+
+  if (editor == NULL)
+  {
+    return;
+  }
+
+  window = s_editor_dock_window_get(&s_editor_dock, window_id);
+  if (window == NULL)
+  {
+    return;
+  }
+
+  if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    LDKEditorDockNode *node = &s_editor_dock.nodes[window->leaf];
+    if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF)
+    {
+      ui_window_id = node->data.leaf.cache_window_id;
+    }
+  }
+  else
+  {
+    ui_window_id = window->ui_window_id;
+  }
+
+  if (ui_window_id != 0)
+  {
+    ldk_ui_window_invalidate(&editor->ui, ui_window_id);
+  }
 }
 
 bool ldki_editor_window_activate(LDKEditorWindowId window_id)
@@ -1523,6 +1562,93 @@ static bool s_editor_builtin_windows_add(
 // Window drawing
 //----------------------------------------------------------
 
+static void s_editor_dock_window_profile_begin(LDKEditorWindowId window_id)
+{
+  static LDKProfilerSource files_source = {0};
+  static LDKProfilerSource scene_source = {0};
+  static LDKProfilerSource inspector_source = {0};
+  static LDKProfilerSource console_source = {0};
+  static LDKProfilerSource game_source = {0};
+  static LDKProfilerSource hierarchy_source = {0};
+  static LDKProfilerSource profiler_source = {0};
+  static LDKProfilerSource scene_catalog_source = {0};
+  static LDKProfilerSource tag_catalog_source = {0};
+  static LDKProfilerSource grouping_catalog_source = {0};
+  static LDKProfilerSource package_catalog_source = {0};
+  static LDKProfilerSource settings_source = {0};
+  static LDKProfilerSource project_source = {0};
+  static LDKProfilerSource other_source = {0};
+  LDKProfilerSource *source = &other_source;
+  const char *name = "Editor Window";
+
+  switch (window_id)
+  {
+  case LDK_EDITOR_WINDOW_PROJECT_EXPLORER:
+    source = &files_source;
+    name = "Editor Window: Files";
+    break;
+  case LDK_EDITOR_WINDOW_SCENE:
+    source = &scene_source;
+    name = "Editor Window: Scene";
+    break;
+  case LDK_EDITOR_WINDOW_INSPECTOR:
+    source = &inspector_source;
+    name = "Editor Window: Inspector";
+    break;
+  case LDK_EDITOR_WINDOW_CONSOLE:
+    source = &console_source;
+    name = "Editor Window: Console";
+    break;
+  case LDK_EDITOR_WINDOW_GAME:
+    source = &game_source;
+    name = "Editor Window: Game";
+    break;
+  case LDK_EDITOR_WINDOW_HIERARCHY:
+    source = &hierarchy_source;
+    name = "Editor Window: Hierarchy";
+    break;
+  case LDK_EDITOR_WINDOW_PROFILER:
+    source = &profiler_source;
+    name = "Editor Window: Profiler";
+    break;
+  case LDK_EDITOR_WINDOW_SCENE_CATALOG:
+    source = &scene_catalog_source;
+    name = "Editor Window: Scene Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_TAG_CATALOG:
+    source = &tag_catalog_source;
+    name = "Editor Window: Tag Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_GROUPING_CATALOG:
+    source = &grouping_catalog_source;
+    name = "Editor Window: Grouping Catalog";
+    break;
+  case LDK_EDITOR_WINDOW_PACKAGE_CATALOG:
+    source = &package_catalog_source;
+    name = "Editor Window: Packages";
+    break;
+  case LDK_EDITOR_WINDOW_SETTINGS:
+    source = &settings_source;
+    name = "Editor Window: Settings";
+    break;
+  case LDK_EDITOR_WINDOW_PROJECT:
+    source = &project_source;
+    name = "Editor Window: Project";
+    break;
+  default:
+    break;
+  }
+
+  ldk_profiler_zone_begin_source(source, LDK_PROFILER_ZONE_USER, name,
+      __FILE__, __func__, __LINE__);
+}
+
+static bool s_editor_dock_window_cacheable(LDKEditorWindowId window_id)
+{
+  return window_id == LDK_EDITOR_WINDOW_PROJECT_EXPLORER ||
+         window_id == LDK_EDITOR_WINDOW_CONSOLE;
+}
+
 static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
     LDKEditorContext *editor, LDKEditorWindowId window_id)
 {
@@ -1530,7 +1656,9 @@ static void s_editor_dock_window_content_draw(LDKEditorDockState *dock,
 
   if (window != NULL && window->window.function != NULL)
   {
+    s_editor_dock_window_profile_begin(window_id);
     window->window.function((LDKEditor *)editor, window->window.data);
+    LDK_PROFILE_END();
   }
 }
 
@@ -1550,12 +1678,51 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
   }
 
   LDKUIContext *ui = &editor->ui;
+  bool cacheable = s_editor_dock_window_cacheable(leaf->active_window);
+  u32 window_flags = LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING;
   char window_title[32];
-  snprintf(window_title, sizeof(window_title), "Dock Leaf %d", leaf_index);
 
-  ldk_ui_begin_window_fixed(ui, window_title, node->rect,
-      LDK_UI_WINDOW_BORDER | LDK_UI_WINDOW_NO_PADDING);
+  if (leaf->last_active_window != LDK_EDITOR_WINDOW_ID_INVALID &&
+      leaf->last_active_window != leaf->active_window &&
+      leaf->cache_window_id != 0)
+  {
+    ldk_ui_window_invalidate(ui, leaf->cache_window_id);
+  }
+
+  if (cacheable)
+  {
+    window_flags |= LDK_UI_WINDOW_CACHEABLE;
+  }
+
+  snprintf(window_title, sizeof(window_title), "Dock Leaf %d", leaf_index);
+  ldk_ui_begin_window_fixed(ui, window_title, node->rect, window_flags);
   LDKUIId dock_window_id = ui->last_id;
+  bool build_content = ldk_ui_window_content_should_build(ui);
+
+  leaf->ui_window_id = dock_window_id;
+  leaf->cache_window_id = dock_window_id;
+
+  LDKEditorDockWindow *active_window =
+      s_editor_dock_window_get(dock, leaf->active_window);
+  if (active_window != NULL)
+  {
+    active_window->ui_window_id = dock_window_id;
+  }
+
+  if (cacheable)
+  {
+    LDK_PROFILE_COUNTER_ADD(build_content ? "Editor Cached Window Rebuilds"
+                                          : "Editor Cached Window Reuses",
+        1);
+  }
+
+  if (!build_content)
+  {
+    leaf->tab_bar_rect_valid = true;
+    leaf->last_active_window = leaf->active_window;
+    ldk_ui_end_window(ui);
+    return LDK_EDITOR_WINDOW_ID_INVALID;
+  }
 
   LDKUITabBarItem tab_items[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY] = {0};
   char tab_titles[LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY][64];
@@ -1587,7 +1754,6 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
   LDKUITabBarResult tab_result =
       ldk_ui_tab_bar(ui, tab_items, leaf->window_count, active_index);
   leaf->tab_bar_rect = ldk_ui_last_rect(ui);
-  leaf->ui_window_id = dock_window_id;
   leaf->tab_bar_rect_valid = true;
 
   if (tab_result.pressed_index < leaf->window_count)
@@ -1616,15 +1782,14 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
     close_requested = leaf->active_window;
   }
 
-  LDKEditorDockWindow *active_window =
-      s_editor_dock_window_get(dock, leaf->active_window);
-
+  active_window = s_editor_dock_window_get(dock, leaf->active_window);
   if (active_window != NULL)
   {
     active_window->ui_window_id = dock_window_id;
     s_editor_dock_window_content_draw(dock, editor, leaf->active_window);
   }
 
+  leaf->last_active_window = leaf->active_window;
   ldk_ui_end_window(ui);
   return close_requested;
 }
@@ -1633,8 +1798,14 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
     LDKEditorContext *editor, LDKEditorDockWindow *window)
 {
   LDKUIContext *ui = &editor->ui;
+  bool cacheable = s_editor_dock_window_cacheable(window->window.id);
   u32 flags = LDK_UI_WINDOW_TOOL;
   bool was_open = window->open;
+
+  if (cacheable)
+  {
+    flags |= LDK_UI_WINDOW_CACHEABLE;
+  }
 
   if (!ldk_ui_begin_window_open(ui, window->window.title,
           &window->floating_rect, &window->open, flags))
@@ -1648,7 +1819,20 @@ static void s_editor_dock_floating_window_draw(LDKEditorDockState *dock,
   }
 
   window->ui_window_id = ui->last_id;
-  s_editor_dock_window_content_draw(dock, editor, window->window.id);
+  bool build_content = ldk_ui_window_content_should_build(ui);
+
+  if (cacheable)
+  {
+    LDK_PROFILE_COUNTER_ADD(build_content ? "Editor Cached Window Rebuilds"
+                                          : "Editor Cached Window Reuses",
+        1);
+  }
+
+  if (build_content)
+  {
+    s_editor_dock_window_content_draw(dock, editor, window->window.id);
+  }
+
   ldk_ui_end_window(ui);
 }
 

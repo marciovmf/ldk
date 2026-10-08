@@ -15,15 +15,37 @@
 #include "../depend/miniaudio/miniaudio.h"
 
 #define LDK_AUDIO_VOICE_PAGE_CAPACITY 64u
+#define LDK_AUDIO_STREAM_BUFFER_SIZE (64u * 1024u)
+#define LDK_AUDIO_STREAM_BUFFER_COUNT 3u
+
+typedef struct LDKAudioStreamBuffer
+{
+  u8 *data;
+  u64 offset;
+  u64 size;
+  u64 read_size;
+  LDKAsyncRead read;
+  bool valid;
+} LDKAudioStreamBuffer;
+
+typedef struct LDKAudioStream
+{
+  LDKAssetSourceFile file;
+  LDKAudioStreamBuffer buffers[LDK_AUDIO_STREAM_BUFFER_COUNT];
+  u64 cursor;
+  bool async_enabled;
+} LDKAudioStream;
 
 typedef struct LDKAudioVoiceData
 {
   ma_decoder decoder;
   ma_sound sound;
+  LDKAudioStream stream;
   LDKAssetAudio asset;
   LDKAudioPriority priority;
   bool decoder_initialized;
   bool sound_initialized;
+  bool stream_initialized;
 } LDKAudioVoiceData;
 
 typedef struct LDKAudioInternal
@@ -33,6 +55,447 @@ typedef struct LDKAudioInternal
   XHPool voices;
   XArray *finished_voices;
 } LDKAudioInternal;
+
+static void s_audio_stream_buffer_release(LDKAudioStreamBuffer *buffer)
+{
+  if (!buffer)
+  {
+    return;
+  }
+
+  if (ldk_async_result_is_valid(buffer->read))
+  {
+    ldk_async_result_release(&buffer->read);
+  }
+
+  buffer->offset = 0;
+  buffer->size = 0;
+  buffer->read_size = 0;
+  buffer->valid = false;
+}
+
+static bool s_audio_stream_buffer_contains(
+    const LDKAudioStreamBuffer *buffer, u64 offset)
+{
+  return buffer && buffer->valid && offset >= buffer->offset &&
+         offset < buffer->offset + buffer->size;
+}
+
+static bool s_audio_stream_buffer_pending_contains(
+    const LDKAudioStreamBuffer *buffer, u64 offset)
+{
+  return buffer && ldk_async_result_is_valid(buffer->read) &&
+         offset >= buffer->offset && offset < buffer->offset + buffer->size;
+}
+
+static bool s_audio_stream_buffer_finish(LDKAudioStreamBuffer *buffer,
+    bool wait)
+{
+  bool succeeded;
+
+  if (!buffer || !ldk_async_result_is_valid(buffer->read))
+  {
+    return buffer && buffer->valid;
+  }
+
+  if (!wait && !ldk_async_result_is_done(buffer->read))
+  {
+    return false;
+  }
+
+  succeeded = ldk_async_result_wait(buffer->read);
+  ldk_async_result_release(&buffer->read);
+  buffer->valid = succeeded && buffer->read_size > 0;
+  buffer->size = buffer->read_size;
+  return buffer->valid;
+}
+
+static bool s_audio_stream_buffer_read_sync(LDKAudioStream *stream,
+    LDKAudioStreamBuffer *buffer, u64 offset)
+{
+  u64 size;
+
+  if (!stream || !buffer || offset >= stream->file.size)
+  {
+    return false;
+  }
+
+  s_audio_stream_buffer_release(buffer);
+  size = stream->file.size - offset;
+  if (size > LDK_AUDIO_STREAM_BUFFER_SIZE)
+  {
+    size = LDK_AUDIO_STREAM_BUFFER_SIZE;
+  }
+
+  buffer->offset = offset;
+  buffer->size = size;
+  buffer->read_size = 0;
+  if (!ldk_asset_source_file_read_at(&stream->file, offset, buffer->data,
+          size, &buffer->read_size))
+  {
+    buffer->size = 0;
+    return false;
+  }
+
+  buffer->size = buffer->read_size;
+  buffer->valid = buffer->read_size > 0;
+  return buffer->valid;
+}
+
+static bool s_audio_stream_buffer_read_async(LDKAudioStream *stream,
+    LDKAudioStreamBuffer *buffer, u64 offset)
+{
+  u64 size;
+
+  if (!stream || !buffer || offset >= stream->file.size ||
+      ldk_async_result_is_valid(buffer->read))
+  {
+    return false;
+  }
+
+  buffer->offset = offset;
+  size = stream->file.size - offset;
+  if (size > LDK_AUDIO_STREAM_BUFFER_SIZE)
+  {
+    size = LDK_AUDIO_STREAM_BUFFER_SIZE;
+  }
+  buffer->size = size;
+  buffer->read_size = 0;
+  buffer->valid = false;
+  buffer->read = ldk_asset_source_file_read_at_async(&stream->file, offset,
+      buffer->data, size, &buffer->read_size);
+  if (!ldk_async_result_is_valid(buffer->read))
+  {
+    buffer->size = 0;
+    return false;
+  }
+
+  return true;
+}
+
+static LDKAudioStreamBuffer *s_audio_stream_buffer_find(
+    LDKAudioStream *stream, u64 offset, bool wait)
+{
+  for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    LDKAudioStreamBuffer *buffer = &stream->buffers[i];
+    if (s_audio_stream_buffer_contains(buffer, offset))
+    {
+      return buffer;
+    }
+  }
+
+  for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    LDKAudioStreamBuffer *buffer = &stream->buffers[i];
+    if (!s_audio_stream_buffer_pending_contains(buffer, offset))
+    {
+      continue;
+    }
+
+    if (s_audio_stream_buffer_finish(buffer, wait) &&
+        s_audio_stream_buffer_contains(buffer, offset))
+    {
+      return buffer;
+    }
+    return NULL;
+  }
+
+  return NULL;
+}
+
+static LDKAudioStreamBuffer *s_audio_stream_dynamic_buffer_available(
+    LDKAudioStream *stream, const LDKAudioStreamBuffer *exclude)
+{
+  for (u32 i = 1; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    LDKAudioStreamBuffer *buffer = &stream->buffers[i];
+    if (buffer == exclude)
+    {
+      continue;
+    }
+
+    if (ldk_async_result_is_valid(buffer->read))
+    {
+      if (!ldk_async_result_is_done(buffer->read))
+      {
+        continue;
+      }
+      (void)s_audio_stream_buffer_finish(buffer, false);
+    }
+
+    return buffer;
+  }
+
+  return NULL;
+}
+
+static void s_audio_stream_prefetch(
+    LDKAudioStream *stream, const LDKAudioStreamBuffer *current)
+{
+  LDKAudioStreamBuffer *next;
+  u64 offset;
+
+  if (!stream || !stream->async_enabled || !current || !current->valid)
+  {
+    return;
+  }
+
+  offset = current->offset + current->size;
+  if (offset >= stream->file.size ||
+      s_audio_stream_buffer_find(stream, offset, false))
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    if (s_audio_stream_buffer_pending_contains(&stream->buffers[i], offset))
+    {
+      return;
+    }
+  }
+
+  next = s_audio_stream_dynamic_buffer_available(stream, current);
+  if (next)
+  {
+    (void)s_audio_stream_buffer_read_async(stream, next, offset);
+  }
+}
+
+static bool s_audio_stream_init(
+    LDKAudioStream *stream, const LDKAssetSourceFile *file)
+{
+  if (!stream || !file || file->size == 0)
+  {
+    return false;
+  }
+
+  memset(stream, 0, sizeof(*stream));
+  stream->file = *file;
+
+  for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    stream->buffers[i].data = (u8 *)malloc(LDK_AUDIO_STREAM_BUFFER_SIZE);
+    if (!stream->buffers[i].data)
+    {
+      for (u32 j = 0; j < i; ++j)
+      {
+        free(stream->buffers[j].data);
+      }
+      memset(stream, 0, sizeof(*stream));
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool s_audio_stream_start(LDKAudioStream *stream)
+{
+  LDKAudioStreamBuffer *current;
+
+  if (!stream)
+  {
+    return false;
+  }
+
+  if (!s_audio_stream_buffer_read_sync(stream, &stream->buffers[0], 0))
+  {
+    return false;
+  }
+
+  current = s_audio_stream_buffer_find(stream, stream->cursor, false);
+  if (!current && stream->cursor < stream->file.size)
+  {
+    current = &stream->buffers[1];
+    if (!s_audio_stream_buffer_read_sync(stream, current, stream->cursor))
+    {
+      return false;
+    }
+  }
+
+  stream->async_enabled = true;
+  if (current)
+  {
+    s_audio_stream_prefetch(stream, current);
+  }
+  return true;
+}
+
+static void s_audio_stream_terminate(LDKAudioStream *stream)
+{
+  if (!stream)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+  {
+    s_audio_stream_buffer_release(&stream->buffers[i]);
+    free(stream->buffers[i].data);
+  }
+
+  memset(stream, 0, sizeof(*stream));
+}
+
+static ma_result s_audio_stream_read(ma_decoder *decoder, void *out_data,
+    size_t size, size_t *out_read)
+{
+  LDKAudioStream *stream = (LDKAudioStream *)decoder->pUserData;
+  u8 *cursor = (u8 *)out_data;
+  size_t total = 0;
+
+  if (out_read)
+  {
+    *out_read = 0;
+  }
+
+  if (!stream || (!out_data && size > 0))
+  {
+    return MA_INVALID_ARGS;
+  }
+
+  if (!stream->async_enabled)
+  {
+    u64 read_size = 0;
+    if (!ldk_asset_source_file_read_at(
+            &stream->file, stream->cursor, out_data, (u64)size, &read_size))
+    {
+      return MA_ERROR;
+    }
+    stream->cursor += read_size;
+    if (out_read)
+    {
+      *out_read = (size_t)read_size;
+    }
+    return read_size > 0 ? MA_SUCCESS : MA_AT_END;
+  }
+
+  while (total < size && stream->cursor < stream->file.size)
+  {
+    LDKAudioStreamBuffer *buffer =
+        s_audio_stream_buffer_find(stream, stream->cursor, false);
+    if (!buffer)
+    {
+      bool pending = false;
+      for (u32 i = 0; i < LDK_AUDIO_STREAM_BUFFER_COUNT; ++i)
+      {
+        if (s_audio_stream_buffer_pending_contains(
+                &stream->buffers[i], stream->cursor))
+        {
+          pending = true;
+          break;
+        }
+      }
+
+      if (!pending)
+      {
+        LDKAudioStreamBuffer *available =
+            s_audio_stream_dynamic_buffer_available(stream, NULL);
+        if (available)
+        {
+          (void)s_audio_stream_buffer_read_async(
+              stream, available, stream->cursor);
+        }
+      }
+
+      u64 read_size = 0;
+      if (!ldk_asset_source_file_read_at(&stream->file, stream->cursor,
+              cursor + total, (u64)(size - total), &read_size))
+      {
+        return total > 0 ? MA_SUCCESS : MA_ERROR;
+      }
+
+      stream->cursor += read_size;
+      total += (size_t)read_size;
+      if (read_size == 0)
+      {
+        break;
+      }
+      continue;
+    }
+
+    u64 buffer_offset = stream->cursor - buffer->offset;
+    u64 available = buffer->size - buffer_offset;
+    size_t copy_size = size - total;
+    if ((u64)copy_size > available)
+    {
+      copy_size = (size_t)available;
+    }
+
+    memcpy(cursor + total, buffer->data + buffer_offset, copy_size);
+    stream->cursor += (u64)copy_size;
+    total += copy_size;
+    s_audio_stream_prefetch(stream, buffer);
+  }
+
+  if (out_read)
+  {
+    *out_read = total;
+  }
+  return total > 0 ? MA_SUCCESS : MA_AT_END;
+}
+
+static ma_result s_audio_stream_seek(
+    ma_decoder *decoder, ma_int64 offset, ma_seek_origin origin)
+{
+  LDKAudioStream *stream = (LDKAudioStream *)decoder->pUserData;
+  ma_int64 base;
+  ma_int64 target;
+
+  if (!stream || stream->file.size > (u64)INT64_MAX)
+  {
+    return MA_BAD_SEEK;
+  }
+
+  if (origin == ma_seek_origin_current)
+  {
+    base = (ma_int64)stream->cursor;
+  }
+  else if (origin == ma_seek_origin_end)
+  {
+    base = (ma_int64)stream->file.size;
+  }
+  else
+  {
+    base = 0;
+  }
+
+  if (offset >= 0)
+  {
+    if (base > INT64_MAX - offset)
+    {
+      return MA_BAD_SEEK;
+    }
+    target = base + offset;
+  }
+  else
+  {
+    ma_uint64 magnitude = (ma_uint64)(-(offset + 1)) + 1u;
+    target = magnitude > (ma_uint64)base
+        ? 0
+        : base - (ma_int64)magnitude;
+  }
+  if ((u64)target > stream->file.size)
+  {
+    target = (ma_int64)stream->file.size;
+  }
+
+  stream->cursor = (u64)target;
+  if (stream->async_enabled && stream->cursor < stream->file.size &&
+      !s_audio_stream_buffer_find(stream, stream->cursor, false))
+  {
+    LDKAudioStreamBuffer *available =
+        s_audio_stream_dynamic_buffer_available(stream, NULL);
+    if (available)
+    {
+      (void)s_audio_stream_buffer_read_async(stream, available, stream->cursor);
+    }
+  }
+
+  return MA_SUCCESS;
+}
 
 static XHandle s_audio_voice_to_x(LDKAudioVoice voice)
 {
@@ -80,6 +543,11 @@ static void s_audio_voice_destroy(void *user, void *item)
   if (voice->decoder_initialized)
   {
     ma_decoder_uninit(&voice->decoder);
+  }
+
+  if (voice->stream_initialized)
+  {
+    s_audio_stream_terminate(&voice->stream);
   }
 
   if (internal && internal->assets && !x_handle_is_null(voice->asset.h))
@@ -478,9 +946,8 @@ LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio, LDKAssetAudio asset,
   s_audio_finished_voices_collect(internal);
 
   asset_data = ldk_asset_manager_audio_get(internal->assets, asset);
-  if (!asset_data || !asset_data->encoded_data ||
-      asset_data->encoded_size == 0 ||
-      asset_data->encoded_size > (u64)SIZE_MAX)
+  if (!asset_data || asset_data->source_file.size == 0 ||
+      (asset_data->encoded_data && asset_data->encoded_size > (u64)SIZE_MAX))
   {
     return s_audio_voice_from_x(handle);
   }
@@ -509,8 +976,24 @@ LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio, LDKAssetAudio asset,
   }
 
   voice->asset = ldk_asset_audio_null();
-  result = ma_decoder_init_memory(asset_data->encoded_data,
-      (size_t)asset_data->encoded_size, NULL, &voice->decoder);
+  if (asset_data->encoded_data)
+  {
+    result = ma_decoder_init_memory(asset_data->encoded_data,
+        (size_t)asset_data->encoded_size, NULL, &voice->decoder);
+  }
+  else
+  {
+    if (!s_audio_stream_init(&voice->stream, &asset_data->source_file))
+    {
+      ldk_log_error("Failed to initialize audio stream '%s'.\n", path);
+      x_hpool_free(&internal->voices, handle);
+      return ldk_audio_voice_null();
+    }
+    voice->stream_initialized = true;
+    result = ma_decoder_init(s_audio_stream_read, s_audio_stream_seek,
+        &voice->stream, NULL, &voice->decoder);
+  }
+
   if (result != MA_SUCCESS)
   {
     ldk_log_error("Failed to decode audio asset '%s': %s.\n", path,
@@ -519,6 +1002,13 @@ LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio, LDKAssetAudio asset,
     return ldk_audio_voice_null();
   }
   voice->decoder_initialized = true;
+
+  if (voice->stream_initialized && !s_audio_stream_start(&voice->stream))
+  {
+    ldk_log_error("Failed to prime audio stream '%s'.\n", path);
+    x_hpool_free(&internal->voices, handle);
+    return ldk_audio_voice_null();
+  }
 
   result = ma_sound_init_from_data_source(&internal->engine,
       (ma_data_source *)&voice->decoder, 0, NULL, &voice->sound);

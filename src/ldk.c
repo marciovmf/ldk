@@ -28,6 +28,7 @@
 #include <module/ldk_component.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
+#include <module/ldk_jobs.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 #include <module/ldk_scene_manager.h>
@@ -42,6 +43,7 @@ struct LDKRoot
 {
   // Engine Modules
   LDKAudio audio;
+  LDKJobs jobs;
   LDKAssetManager asset_manager;
   LDKAssetSource asset_source;
   LDKSceneManager scene_manager;
@@ -450,6 +452,7 @@ static void s_terminate_all_modules(LDKRoot *e)
   ldk_ecs_system_registry_stop(&e->ecs);
 
   ldk_audio_terminate(&e->audio);
+  ldk_jobs_terminate(&e->jobs);
 
   /* Scene Manager owns scene state backed by the ECS. */
   ldk_scene_manager_terminate(&e->scene_manager);
@@ -1072,6 +1075,9 @@ void *ldk_module_get(LDKModuleType module_type)
   case LDK_MODULE_AUDIO:
     return &g_engine.audio;
 
+  case LDK_MODULE_JOBS:
+    return &g_engine.jobs;
+
   case LDK_MODULE_ECS:
     return &g_engine.ecs;
 
@@ -1283,6 +1289,12 @@ bool ldk_engine_initialize_with_config(const LDKConfig *config)
   if (!ldk_event_queue_initialize(&e->event_queue))
   {
     ldk_log_error("Failed to initialize module: Event Queue.");
+    engine_init_failed = true;
+  }
+
+  if (!ldk_jobs_initialize(&e->jobs, LDK_JOBS_DEFAULT_WORKER_COUNT))
+  {
+    ldk_log_error("Failed to initialize module: Jobs.");
     engine_init_failed = true;
   }
 

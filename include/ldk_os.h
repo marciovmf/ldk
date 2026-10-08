@@ -58,6 +58,8 @@ extern "C"
     LDK_WINDOW_FLAG_NOTITLEBAR = 1 << 7,
   } LDKWindowFlags;
 
+  LDK_API void ldk_os_events_pump(void);
+  LDK_API bool ldk_os_event_next(LDKEvent *event);
   LDK_API bool ldk_os_events_poll(LDKEvent *event);
   LDK_API LDKWindow ldk_os_window_create_with_flags(
       const char *title, i32 width, i32 height, LDKWindowFlags flags);

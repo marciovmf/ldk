@@ -169,6 +169,11 @@ static LDKUIRect s_ui_rect_union_bounds(LDKUIRect a, LDKUIRect b)
 // Frame preparation
 //------------------------------------------------------------
 
+static u64 s_ui_layout_item_cache_key(LDKUIId layout_id, u32 item_index)
+{
+  return ((u64)layout_id << 32) | (u64)item_index;
+}
+
 static void s_ui_layout_item_cache_gc(LDKUIContext *ctx)
 {
   u32 i = 0;
@@ -178,9 +183,7 @@ static void s_ui_layout_item_cache_gc(LDKUIContext *ctx)
     return;
   }
 
-  const u32 count =
-      x_array_ldk_ui_layout_item_cache_count(ctx->layout_item_cache);
-  while (i < count)
+  while (i < x_array_ldk_ui_layout_item_cache_count(ctx->layout_item_cache))
   {
     LDKUILayoutItemCache *cache =
         x_array_ldk_ui_layout_item_cache_get(ctx->layout_item_cache, i);
@@ -191,9 +194,55 @@ static void s_ui_layout_item_cache_gc(LDKUIContext *ctx)
       continue;
     }
 
-    if (ctx->frame_index - cache->last_frame_touched > 2)
+    if (ctx->frame_index - cache->last_frame_touched > 2 &&
+        !s_ui_window_cache_retains_state(ctx, cache->owner_window_id))
     {
-      x_array_ldk_ui_layout_item_cache_delete_at(ctx->layout_item_cache, i);
+      u32 last_index =
+          x_array_ldk_ui_layout_item_cache_count(ctx->layout_item_cache) - 1;
+      u64 cache_key =
+          s_ui_layout_item_cache_key(cache->layout_id, cache->item_index);
+
+      if (i != last_index)
+      {
+        LDKUILayoutItemCache *last_cache =
+            x_array_ldk_ui_layout_item_cache_get(
+                ctx->layout_item_cache, last_index);
+
+        if (last_cache == NULL)
+        {
+          i += 1;
+          continue;
+        }
+
+        u64 last_cache_key = s_ui_layout_item_cache_key(
+            last_cache->layout_id, last_cache->item_index);
+
+        if (!x_hashtable_ldk_ui_layout_item_cache_index_set(
+                ctx->layout_item_cache_index, last_cache_key, i))
+        {
+          i += 1;
+          continue;
+        }
+
+        if (!x_hashtable_ldk_ui_layout_item_cache_index_remove(
+                ctx->layout_item_cache_index, cache_key))
+        {
+          x_hashtable_ldk_ui_layout_item_cache_index_set(
+              ctx->layout_item_cache_index, last_cache_key, last_index);
+          i += 1;
+          continue;
+        }
+
+        *cache = *last_cache;
+      }
+      else if (!x_hashtable_ldk_ui_layout_item_cache_index_remove(
+                   ctx->layout_item_cache_index, cache_key))
+      {
+        i += 1;
+        continue;
+      }
+
+      x_array_ldk_ui_layout_item_cache_pop(ctx->layout_item_cache);
       continue;
     }
 
@@ -287,6 +336,8 @@ static LDKUISize s_ui_layout_text_size(LDKUIContext *ctx, char const *text)
     return size;
   }
 
+  ctx->profile_text_measure_count += 1;
+  ctx->profile_layout_text_measure_count += 1;
   text_size = ldk_ttf_measure_text_cstr(ctx->font, text);
   size.w = text_size.w;
   size.h = text_size.h;
@@ -628,104 +679,153 @@ static LDKUIRect s_ui_layout_next_rect(LDKUIContext *ctx,
 }
 
 static LDKUILayoutItemCache *s_ui_layout_item_cache_find(
-    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index)
+    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index,
+    u32 *out_cache_array_index)
 {
-  if (ctx == NULL || layout_id == 0)
+  u32 cache_array_index;
+  LDKUILayoutItemCache *cache;
+
+  if (out_cache_array_index != NULL)
+  {
+    *out_cache_array_index = UINT32_MAX;
+  }
+
+  if (ctx == NULL || layout_id == 0 || out_cache_array_index == NULL)
   {
     return NULL;
   }
 
-  for (u32 i = 0;
-      i < x_array_ldk_ui_layout_item_cache_count(ctx->layout_item_cache); ++i)
+  if (!x_hashtable_ldk_ui_layout_item_cache_index_get(
+          ctx->layout_item_cache_index,
+          s_ui_layout_item_cache_key(layout_id, item_index),
+          &cache_array_index))
   {
-    LDKUILayoutItemCache *cache =
-        x_array_ldk_ui_layout_item_cache_get(ctx->layout_item_cache, i);
+    return NULL;
+  }
+
+  cache = x_array_ldk_ui_layout_item_cache_get(
+      ctx->layout_item_cache, cache_array_index);
+
+  if (cache == NULL || cache->layout_id != layout_id ||
+      cache->item_index != item_index)
+  {
+    return NULL;
+  }
+
+  *out_cache_array_index = cache_array_index;
+  return cache;
+}
+
+static LDKUILayoutItemCache *s_ui_layout_item_cache_get_or_create(
+    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index,
+    u32 *cache_array_index)
+{
+  LDKUILayoutItemCache *cache;
+
+  if (ctx == NULL || layout_id == 0 || cache_array_index == NULL)
+  {
+    return NULL;
+  }
+
+  if (*cache_array_index != UINT32_MAX)
+  {
+    cache = x_array_ldk_ui_layout_item_cache_get(
+        ctx->layout_item_cache, *cache_array_index);
 
     if (cache != NULL && cache->layout_id == layout_id &&
         cache->item_index == item_index)
     {
+      cache->owner_window_id =
+          ctx->current_window != NULL ? ctx->current_window->id : 0;
+      cache->last_frame_touched = ctx->frame_index;
       return cache;
     }
+
+    *cache_array_index = UINT32_MAX;
   }
 
-  return NULL;
-}
+  *cache_array_index =
+      x_array_ldk_ui_layout_item_cache_count(ctx->layout_item_cache);
 
-static LDKUILayoutItemCache *s_ui_layout_item_cache_get_or_create(
-    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index)
-{
-  LDKUILayoutItemCache *cache;
-
-  if (ctx == NULL || layout_id == 0)
+  if (x_array_ldk_ui_layout_item_cache_push(
+          ctx->layout_item_cache, (LDKUILayoutItemCache){0}) != XARRAY_OK)
   {
+    *cache_array_index = UINT32_MAX;
     return NULL;
   }
 
-  cache = s_ui_layout_item_cache_find(ctx, layout_id, item_index);
-
-  if (cache != NULL)
-  {
-    cache->last_frame_touched = ctx->frame_index;
-    return cache;
-  }
-
-  x_array_ldk_ui_layout_item_cache_push(
-      ctx->layout_item_cache, (LDKUILayoutItemCache){0});
   cache = x_array_ldk_ui_layout_item_cache_back(ctx->layout_item_cache);
 
   if (cache == NULL)
   {
+    x_array_ldk_ui_layout_item_cache_pop(ctx->layout_item_cache);
+    *cache_array_index = UINT32_MAX;
     return NULL;
   }
 
   cache->layout_id = layout_id;
+  cache->owner_window_id =
+      ctx->current_window != NULL ? ctx->current_window->id : 0;
   cache->item_index = item_index;
   cache->last_frame_touched = ctx->frame_index;
+
+  if (!x_hashtable_ldk_ui_layout_item_cache_index_set(
+          ctx->layout_item_cache_index,
+          s_ui_layout_item_cache_key(layout_id, item_index),
+          *cache_array_index))
+  {
+    x_array_ldk_ui_layout_item_cache_pop(ctx->layout_item_cache);
+    *cache_array_index = UINT32_MAX;
+    return NULL;
+  }
 
   return cache;
 }
 
 static void s_ui_layout_item_record(LDKUIContext *ctx, LDKUILayout *layout,
-    u32 item_index, LDKUILayoutRequest request, LDKUIRect fallback_rect)
+    u32 item_index, LDKUILayoutRequest request, LDKUIRect fallback_rect,
+    u32 cache_array_index)
 {
+  u32 item_array_index;
+  u32 previous_item_array_index;
+  LDKUILayoutItem new_item = {0};
+
   if (ctx == NULL || layout == NULL)
   {
     return;
   }
 
-  LDKUILayoutItem new_item = {0};
+  item_array_index = x_array_ldk_ui_layout_item_count(ctx->layout_items);
+  previous_item_array_index = layout->last_item_array_index;
+
   new_item.layout_id = layout->id;
   new_item.item_index = item_index;
+  new_item.next_layout_item_array_index = UINT32_MAX;
+  new_item.cache_array_index = cache_array_index;
   new_item.request = request;
   new_item.fallback_rect = fallback_rect;
-  x_array_ldk_ui_layout_item_push(ctx->layout_items, new_item);
-}
 
-static LDKUILayoutItem *s_ui_layout_item_find(
-    LDKUIContext *ctx, LDKUIId layout_id, u32 item_index)
-{
-  if (ctx == NULL || layout_id == 0)
+  if (x_array_ldk_ui_layout_item_push(ctx->layout_items, new_item) != XARRAY_OK)
   {
-    return NULL;
+    return;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  if (previous_item_array_index != UINT32_MAX)
   {
-    LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+    LDKUILayoutItem *previous_item = x_array_ldk_ui_layout_item_get(
+        ctx->layout_items, previous_item_array_index);
 
-    if (item == NULL)
+    if (previous_item != NULL)
     {
-      continue;
-    }
-
-    if (item->layout_id == layout_id && item->item_index == item_index)
-    {
-      return item;
+      previous_item->next_layout_item_array_index = item_array_index;
     }
   }
+  else
+  {
+    layout->first_item_array_index = item_array_index;
+  }
 
-  return NULL;
+  layout->last_item_array_index = item_array_index;
 }
 
 static void s_ui_layout_accept_rect(
@@ -785,6 +885,7 @@ static LDKUIRect s_ui_layout_next_rect_from_request(
 {
   LDKUILayout *layout;
   u32 item_index;
+  u32 cache_array_index = UINT32_MAX;
   LDKUILayoutItemCache *cache;
   LDKUIRect fallback_rect;
 
@@ -797,7 +898,8 @@ static LDKUIRect s_ui_layout_next_rect_from_request(
 
   layout = ctx->current_layout;
   item_index = layout->item_count;
-  cache = s_ui_layout_item_cache_find(ctx, layout->id, item_index);
+  cache = s_ui_layout_item_cache_find(
+      ctx, layout->id, item_index, &cache_array_index);
 
   if (cache != NULL)
   {
@@ -824,12 +926,14 @@ static LDKUIRect s_ui_layout_next_rect_from_request(
       rect.h = s_ui_layout_request_height(layout, &request);
 
     s_ui_layout_accept_rect(ctx, layout, rect);
-    s_ui_layout_item_record(ctx, layout, item_index, request, rect);
+    s_ui_layout_item_record(
+        ctx, layout, item_index, request, rect, cache_array_index);
     return rect;
   }
 
   fallback_rect = s_ui_layout_legacy_rect_from_request(ctx, request);
-  s_ui_layout_item_record(ctx, layout, item_index, request, fallback_rect);
+  s_ui_layout_item_record(ctx, layout, item_index, request, fallback_rect,
+      cache_array_index);
 
   return fallback_rect;
 }
@@ -849,19 +953,15 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
     return;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
-    }
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
+      break;
     }
 
     item_count += 1;
@@ -879,6 +979,8 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
     {
       weight_total += item->request.weight;
     }
+
+    item_array_index = item->next_layout_item_array_index;
   }
 
   if (item_count == 0)
@@ -901,23 +1003,19 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
                ? layout->content_rect.x
                : layout->content_rect.y;
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
+      break;
     }
     float main_size;
     LDKUIRect rect = {0};
     LDKUILayoutItemCache *cache;
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
-    }
 
     if (layout->direction == LDK_UI_LAYOUT_HORIZONTAL)
     {
@@ -956,8 +1054,8 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
       cursor += rect.h + layout->spacing;
     }
 
-    cache =
-        s_ui_layout_item_cache_get_or_create(ctx, layout->id, item->item_index);
+    cache = s_ui_layout_item_cache_get_or_create(
+        ctx, layout->id, item->item_index, &item->cache_array_index);
 
     if (cache != NULL)
     {
@@ -967,6 +1065,8 @@ static void s_ui_layout_solve_and_cache(LDKUIContext *ctx, LDKUILayout *layout)
       cache->rect = cached_rect;
       cache->last_frame_touched = ctx->frame_index;
     }
+
+    item_array_index = item->next_layout_item_array_index;
   }
 }
 
@@ -981,22 +1081,18 @@ static LDKUISize s_ui_layout_requested_content_size(
     return size;
   }
 
-  for (u32 i = 0; i < x_array_ldk_ui_layout_item_count(ctx->layout_items); ++i)
+  for (u32 item_array_index = layout->first_item_array_index;
+      item_array_index != UINT32_MAX;)
   {
     LDKUILayoutItem *item =
-        x_array_ldk_ui_layout_item_get(ctx->layout_items, i);
+        x_array_ldk_ui_layout_item_get(ctx->layout_items, item_array_index);
 
     if (item == NULL)
     {
-      continue;
+      break;
     }
     float item_width;
     float item_height;
-
-    if (item->layout_id != layout->id)
-    {
-      continue;
-    }
 
     item_width = s_ui_layout_request_width(layout, &item->request);
     item_height = s_ui_layout_request_height(layout, &item->request);
@@ -1013,6 +1109,7 @@ static LDKUISize s_ui_layout_requested_content_size(
     }
 
     item_count += 1;
+    item_array_index = item->next_layout_item_array_index;
   }
 
   if (item_count > 1)
@@ -1065,6 +1162,10 @@ static LDKUILayout *s_ui_layout_push_with_id(LDKUIContext *ctx,
   layout->bounding_rect = bounding_rect;
   layout->unpadded_content_rect = rect;
   layout->spacing = LDK_UI_DEFAULT_SPACING;
+  layout->first_item_array_index = UINT32_MAX;
+  layout->last_item_array_index = UINT32_MAX;
+  layout->parent_item_array_index =
+      parent != NULL ? parent->last_item_array_index : UINT32_MAX;
   layout->parent = parent;
   s_ui_layout_apply_padding(layout,
       direction == LDK_UI_LAYOUT_VERTICAL ? LDK_UI_DEFAULT_PADDING : 0.0f);
@@ -1109,11 +1210,10 @@ static void s_ui_layout_pop(LDKUIContext *ctx)
   }
 
   if (!layout->skip_parent_item_min_size_update && parent != NULL &&
-      parent->item_count > 0)
+      layout->parent_item_array_index != UINT32_MAX)
   {
-    u32 parent_item_index = parent->item_count - 1;
-    LDKUILayoutItem *parent_item =
-        s_ui_layout_item_find(ctx, parent->id, parent_item_index);
+    LDKUILayoutItem *parent_item = x_array_ldk_ui_layout_item_get(
+        ctx->layout_items, layout->parent_item_array_index);
 
     if (parent_item != NULL)
     {

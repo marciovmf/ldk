@@ -741,15 +741,13 @@ void ldki_editor_grouping_catalog_show(LDKEditor *instance, void *data)
   }
   u32 component_capacity = metadata_count + 4u;
   u32 component_count = 1u;
-  const char **component_labels =
-      (const char **)calloc(component_capacity, sizeof(*component_labels));
-  u32 *component_types =
-      (u32 *)calloc(component_capacity, sizeof(*component_types));
+  const char **component_labels = (const char **)x_arena_alloc(
+      ui->frame_arena, (size_t)component_capacity * sizeof(*component_labels));
+  u32 *component_types = (u32 *)x_arena_alloc(
+      ui->frame_arena, (size_t)component_capacity * sizeof(*component_types));
 
   if (!component_labels || !component_types)
   {
-    free(component_labels);
-    free(component_types);
     ldk_ui_label(ui, "Failed to allocate component list.");
     return;
   }
@@ -920,7 +918,4 @@ void ldki_editor_grouping_catalog_show(LDKEditor *instance, void *data)
     s_grouping_catalog_clear();
     s_grouping_catalog_load(editor);
   }
-
-  free(component_types);
-  free(component_labels);
 }

@@ -87,9 +87,9 @@ extern "C"
       LDKAudio *audio, LDKAudioVoice voice, LDKAudioPriority priority);
 
   /**
-   * Plays a shared audio asset and returns a versioned playback handle.
-   * Audio bytes are owned by LDKAssetManager and may originate from RunTree or
-   * an open .box package. Active voices retain a reference to the asset data.
+   * Plays a shared audio asset and returns a versioned playback handle. Small
+   * assets may be cached in memory; larger assets stream from RunTree or an
+   * open .box package. Active voices retain a reference to the asset data.
    */
   LDK_API LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio,
       LDKAssetAudio asset, const LDKAudioPlayDesc *desc);

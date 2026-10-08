@@ -162,7 +162,8 @@ static void s_scrollview_cache_gc(LDKUIContext* ctx)
       continue;
     }
 
-    if (ctx->frame_index - cache->last_frame_touched > 2)
+    if (ctx->frame_index - cache->last_frame_touched > 2 &&
+        !s_ui_window_cache_retains_state(ctx, cache->owner_window_id))
     {
       x_array_ldk_ui_scrollview_cache_delete_at(ctx->scrollview_cache, i);
       continue;
@@ -185,6 +186,8 @@ static LDKUIScrollViewCache* s_scrollview_cache_get_or_create(
 
   if (cache != NULL)
   {
+    cache->owner_window_id =
+      ctx->current_window != NULL ? ctx->current_window->id : 0;
     cache->last_frame_touched = ctx->frame_index;
     return cache;
   }
@@ -198,6 +201,8 @@ static LDKUIScrollViewCache* s_scrollview_cache_get_or_create(
   }
 
   cache->id = id;
+  cache->owner_window_id =
+    ctx->current_window != NULL ? ctx->current_window->id : 0;
   cache->last_frame_touched = ctx->frame_index;
 
   return cache;

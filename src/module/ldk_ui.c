@@ -1,6 +1,7 @@
 #include <ldk_common.h>
 #include <ldk_geom.h>
 #include <ldk_os.h>
+#include <ldk_profiler.h>
 #include <ldk_ttf.h>
 #include <ldk_text.h>
 #include <module/ldk_ui.h>
@@ -30,7 +31,7 @@ static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text);
 static u32 s_ui_tree_node_ex(LDKUIContext *ctx, char const *title, LDKUIIcon icon,
     bool expanded, u32 depth, u32 flags, bool area_header);
 static void s_ui_windows_destroy_all(LDKUIContext *ctx);
-static void s_ui_windows_clear_frame_buffers(LDKUIContext *ctx);
+static void s_ui_window_clear_frame_buffers(LDKUIWindow *window);
 static void s_ui_window_destroy_buffers(LDKUIWindow *window);
 static void s_ui_windows_refresh_z_order(LDKUIContext *ctx);
 static void s_ui_append_window_draw_data(
@@ -42,6 +43,8 @@ static void s_ui_append_draw_data(LDKUIContext *ctx,
 static void s_ui_submit_popup_draw_data(LDKUIContext *ctx);
 static void s_ui_close_popups_on_outside_click(LDKUIContext *ctx);
 static void s_ui_window_cache_gc(LDKUIContext *ctx);
+static bool s_ui_window_cache_retains_state(
+    LDKUIContext *ctx, LDKUIId window_id);
 
 /**
  * Mixes a 32-bit value into an existing UI identifier hash.
@@ -1359,6 +1362,7 @@ typedef struct LDKUIWidgetBox
   LDKUIRect rect;
   LDKUIRect clip;
   bool disabled;
+  bool fully_clipped;
 } LDKUIWidgetBox;
 
 /**
@@ -1374,6 +1378,19 @@ static LDKUIRect s_ui_current_clip_rect(LDKUIContext *ctx)
   }
 
   return ctx->clip_rect;
+}
+
+/**
+ * Checks whether a non-empty rectangle is completely outside its clip.
+ * @arg rect Screen-space rectangle occupied by the item.
+ * @arg clip_rect Intersection between the item and its active clip.
+ * @return true when rect has area but clip_rect has none. False otherwise.
+ */
+static bool s_ui_rect_is_fully_clipped(
+    LDKUIRect rect, LDKUIRect clip_rect)
+{
+  return rect.w > 0.0f && rect.h > 0.0f &&
+         (clip_rect.w <= 0.0f || clip_rect.h <= 0.0f);
 }
 
 /**
@@ -1428,6 +1445,12 @@ static void s_ui_add_hit_candidate(
 
   if (ctx == NULL || ctx->hit_candidates == NULL)
   {
+    return;
+  }
+
+  if (s_ui_rect_is_fully_clipped(rect, clip_rect))
+  {
+    ctx->profile_fully_clipped_hit_candidate_count += 1;
     return;
   }
 
@@ -1974,6 +1997,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
       x_array_ldk_ui_layout_item_create(LDK_UI_LAYOUT_ITEM_CAPACITY);
   ctx->layout_item_cache = x_array_ldk_ui_layout_item_cache_create(
       LDK_UI_LAYOUT_ITEM_CACHE_CAPACITY);
+  ctx->layout_item_cache_index =
+      x_hashtable_ldk_ui_layout_item_cache_index_create();
   ctx->scrollview_stack = x_array_ldk_ui_scrollview_stack_entry_create(
       LDK_UI_SCROLLVIEW_STACK_CAPACITY);
   ctx->scrollview_cache =
@@ -2011,7 +2036,8 @@ bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config)
          ctx->popup_cache != NULL && ctx->windows != NULL &&
          ctx->window_stack != NULL && ctx->measure_entries != NULL &&
          ctx->layout_items != NULL && ctx->layout_item_cache != NULL &&
-         ctx->scrollview_stack != NULL && ctx->scrollview_cache != NULL &&
+         ctx->layout_item_cache_index != NULL && ctx->scrollview_stack != NULL &&
+         ctx->scrollview_cache != NULL &&
          ctx->area_stack != NULL;
 }
 
@@ -2047,6 +2073,8 @@ void ldk_ui_terminate(LDKUIContext *ctx)
   x_array_destroy(ctx->measure_entries);
   x_array_destroy(ctx->layout_items);
   x_array_destroy(ctx->layout_item_cache);
+  x_hashtable_ldk_ui_layout_item_cache_index_destroy(
+      ctx->layout_item_cache_index);
   x_array_destroy(ctx->scrollview_stack);
   x_array_destroy(ctx->scrollview_cache);
   x_array_destroy(ctx->area_stack);
@@ -2065,6 +2093,14 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   }
 
   ctx->delta_time = delta;
+  ctx->profile_widget_box_count = 0;
+  ctx->profile_fully_clipped_widget_box_count = 0;
+  ctx->profile_fully_clipped_hit_candidate_count = 0;
+  ctx->profile_text_measure_count = 0;
+  ctx->profile_layout_text_measure_count = 0;
+  ctx->profile_widget_text_measure_count = 0;
+  ctx->profile_input_text_measure_count = 0;
+  ctx->profile_input_duplicate_text_measure_count = 0;
 
   if (ctx->theme.text_cursor_blink &&
       ctx->theme.text_cursor_blink_interval > 0.0f)
@@ -2121,7 +2157,7 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
     s_ui_tab_focus_resolve(ctx, backwards);
   }
 
-  x_arena_reset_keep_head(ctx->frame_arena);
+  x_arena_reset(ctx->frame_arena);
   x_array_ldk_ui_id_clear(ctx->id_stack);
   x_array_ldk_ui_bool_clear(ctx->disabled_stack);
   x_array_ldk_ui_vertex_clear(ctx->vertices);
@@ -2133,8 +2169,6 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   x_array_ldk_ui_hit_candidate_clear(ctx->hit_candidates);
   x_array_ldk_ui_popup_stack_entry_clear(ctx->popup_stack);
   x_array_ldk_ui_popup_frame_entry_clear(ctx->popup_frame_entries);
-
-  s_ui_windows_clear_frame_buffers(ctx);
 
   ctx->cursor_type = LDK_CURSOR_ARROW;
 }
@@ -2150,46 +2184,61 @@ static void s_ui_append_draw_data(LDKUIContext *ctx,
     XArray_ldk_ui_vertex *vertices, XArray_ldk_ui_u32 *indices,
     XArray_ldk_ui_draw_cmd *commands)
 {
+  u32 vertex_base;
+  u32 index_base;
+  u32 vertex_count;
+  u32 index_count;
+  u32 command_count;
+
   if (ctx == NULL || vertices == NULL || indices == NULL || commands == NULL)
   {
     return;
   }
 
-  u32 vertex_base = x_array_ldk_ui_vertex_count(ctx->vertices);
-  u32 index_base = x_array_ldk_ui_u32_count(ctx->indices);
-  u32 vertex_count = x_array_ldk_ui_vertex_count(vertices);
-  u32 index_count = x_array_ldk_ui_u32_count(indices);
-  u32 command_count = x_array_ldk_ui_draw_cmd_count(commands);
+  vertex_base = x_array_ldk_ui_vertex_count(ctx->vertices);
+  index_base = x_array_ldk_ui_u32_count(ctx->indices);
+  vertex_count = x_array_ldk_ui_vertex_count(vertices);
+  index_count = x_array_ldk_ui_u32_count(indices);
+  command_count = x_array_ldk_ui_draw_cmd_count(commands);
 
-  for (u32 i = 0; i < vertex_count; ++i)
+  if (vertex_count > 0 &&
+      x_array_ldk_ui_vertex_add_range(ctx->vertices,
+          x_array_ldk_ui_vertex_data_const(vertices), vertex_count) !=
+          XARRAY_OK)
   {
-    LDKUIVertex *vertex = x_array_ldk_ui_vertex_get(vertices, i);
+    return;
+  }
 
-    if (vertex != NULL)
+  if (index_count > 0)
+  {
+    if (x_array_ldk_ui_u32_add_range(ctx->indices,
+            x_array_ldk_ui_u32_data_const(indices), index_count) != XARRAY_OK)
     {
-      x_array_ldk_ui_vertex_push(ctx->vertices, *vertex);
+      return;
+    }
+
+    u32 *destination_indices = x_array_ldk_ui_u32_data(ctx->indices);
+    for (u32 i = 0; i < index_count; ++i)
+    {
+      destination_indices[index_base + i] += vertex_base;
     }
   }
 
-  for (u32 i = 0; i < index_count; ++i)
+  if (command_count > 0)
   {
-    u32 *index = x_array_ldk_ui_u32_get(indices, i);
-
-    if (index != NULL)
+    u32 command_base = x_array_ldk_ui_draw_cmd_count(ctx->commands);
+    if (x_array_ldk_ui_draw_cmd_add_range(ctx->commands,
+            x_array_ldk_ui_draw_cmd_data_const(commands), command_count) !=
+        XARRAY_OK)
     {
-      x_array_ldk_ui_u32_push(ctx->indices, *index + vertex_base);
+      return;
     }
-  }
 
-  for (u32 i = 0; i < command_count; ++i)
-  {
-    LDKUIDrawCmd *cmd = x_array_ldk_ui_draw_cmd_get(commands, i);
-
-    if (cmd != NULL)
+    LDKUIDrawCmd *destination_commands =
+        x_array_ldk_ui_draw_cmd_data(ctx->commands);
+    for (u32 i = 0; i < command_count; ++i)
     {
-      LDKUIDrawCmd adjusted = *cmd;
-      adjusted.index_offset += index_base;
-      x_array_ldk_ui_draw_cmd_push(ctx->commands, adjusted);
+      destination_commands[command_base + i].index_offset += index_base;
     }
   }
 }
@@ -2244,6 +2293,23 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
   ctx->render_data.viewport_size.w = ctx->viewport.w;
   ctx->render_data.viewport_size.h = ctx->viewport.h;
 
+  LDK_PROFILE_COUNTER_SET(
+      "UI Widget Boxes", ctx->profile_widget_box_count);
+  LDK_PROFILE_COUNTER_SET("UI Fully Clipped Widget Boxes",
+      ctx->profile_fully_clipped_widget_box_count);
+  LDK_PROFILE_COUNTER_SET("UI Fully Clipped Hit Candidates",
+      ctx->profile_fully_clipped_hit_candidate_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Text Measure CStr", ctx->profile_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Layout Text Measure", ctx->profile_layout_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Widget Text Measure", ctx->profile_widget_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Input Text Measure", ctx->profile_input_text_measure_count);
+  LDK_PROFILE_COUNTER_SET("UI Input Duplicate Text Measure",
+      ctx->profile_input_duplicate_text_measure_count);
+
   if (ctx->cursor_type != ldk_os_cursor_type_get())
   {
     ldk_os_cursor_type_set(ctx->cursor_type);
@@ -2268,6 +2334,7 @@ bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme)
   }
 
   ctx->theme = *theme;
+  ldk_ui_windows_invalidate(ctx);
   return true;
 }
 
@@ -2619,6 +2686,14 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
   box->clip = s_ui_rect_intersect(&parent_clip, &box->rect);
   box->disabled = s_ui_take_next_disabled(ctx);
 
+  ctx->profile_widget_box_count += 1;
+
+  box->fully_clipped = s_ui_rect_is_fully_clipped(box->rect, box->clip);
+  if (box->fully_clipped)
+  {
+    ctx->profile_fully_clipped_widget_box_count += 1;
+  }
+
   ctx->last_id = id;
   ctx->last_rect = rect;
   ctx->last_bounding_rect = rect;
@@ -2628,6 +2703,58 @@ static bool s_ui_widget_box_from_explicit_rect(LDKUIContext *ctx,
     s_ui_add_hit_candidate(ctx, box->id, box->rect, box->clip);
   }
 
+  return true;
+}
+
+/**
+ * Checks whether a fully clipped widget can skip interaction and rendering work.
+ * Focus traversal registration is preserved for focusable widgets. Widgets that
+ * still own transient interaction state are not skipped.
+ * @arg ctx UI context that owns interaction and focus state.
+ * @arg box Prepared widget box.
+ * @arg focusable Whether the widget participates in keyboard focus traversal.
+ * @return true when the remaining widget work can be skipped safely.
+ */
+static bool s_ui_widget_box_can_skip(
+    LDKUIContext *ctx, LDKUIWidgetBox const *box, bool focusable)
+{
+  LDKUIId window_id;
+
+  if (ctx == NULL || box == NULL || !box->fully_clipped)
+  {
+    return false;
+  }
+
+  if (ctx->hot_id == box->id || ctx->active_id == box->id ||
+      ctx->focused_id == box->id || ctx->input_box_id == box->id)
+  {
+    return false;
+  }
+
+  if (!focusable)
+  {
+    return true;
+  }
+
+  if (ctx->next_focus)
+  {
+    return false;
+  }
+
+  if (box->disabled)
+  {
+    return true;
+  }
+
+  window_id = ctx->current_window != NULL ? ctx->current_window->id : 0;
+
+  if (ctx->tab_focus_id == box->id &&
+      ctx->tab_focus_window_id == window_id)
+  {
+    return false;
+  }
+
+  s_ui_tab_focus_register(ctx, box->id);
   return true;
 }
 

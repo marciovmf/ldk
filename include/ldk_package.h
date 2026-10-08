@@ -45,6 +45,12 @@ extern "C"
   LDK_API LDKPackageCompression ldk_package_entry_get_compression(
       const LDKPackageEntry *entry);
 
+  /* Reads up to size bytes from an uncompressed entry at offset. Reaching the
+   * end of the entry is not an error; out_read receives the bytes read. */
+  LDK_API bool ldk_package_entry_read_at(const LDKPackage *package,
+      const LDKPackageEntry *entry, u64 offset, void *out_data, u64 size,
+      u64 *out_read);
+
   /* Reads the complete uncompressed entry into caller-owned memory.
    * out_size must be at least ldk_package_entry_get_size(entry). */
   LDK_API bool ldk_package_entry_read(LDKPackage *package,

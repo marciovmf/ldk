@@ -143,6 +143,7 @@ extern "C" {
 
   typedef struct LDKAssetAudioData
   {
+    LDKAssetSourceFile source_file;
     void* encoded_data;
     u64 encoded_size;
     u32 ref_count;

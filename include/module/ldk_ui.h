@@ -11,6 +11,7 @@ extern "C"
 #include <ldk_ttf.h>
 #include <stdx/stdx_array.h>
 #include <stdx/stdx_arena.h>
+#include <stdx/stdx_hashtable.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -346,6 +347,7 @@ extern "C"
     LDK_UI_WINDOW_NO_BG = 1 << 4,
     LDK_UI_WINDOW_CLOSE_BUTTON = 1 << 5,
     LDK_UI_WINDOW_NO_PADDING = 1 << 6,
+    LDK_UI_WINDOW_CACHEABLE = 1 << 7,
     LDK_UI_WINDOW_TOOL = LDK_UI_WINDOW_CLOSE_BUTTON | LDK_UI_WINDOW_TITLE_BAR |
                          LDK_UI_WINDOW_DRAGGABLE | LDK_UI_WINDOW_RESIZABLE |
                          LDK_UI_WINDOW_BORDER,
@@ -401,6 +403,8 @@ extern "C"
   {
     LDKUIId layout_id;
     u32 item_index;
+    u32 next_layout_item_array_index;
+    u32 cache_array_index;
     LDKUILayoutRequest request;
     LDKUIRect fallback_rect;
   } LDKUILayoutItem;
@@ -408,6 +412,7 @@ extern "C"
   typedef struct LDKUILayoutItemCache
   {
     LDKUIId layout_id;
+    LDKUIId owner_window_id;
     u32 item_index;
     LDKUIRect rect;
     u32 last_frame_touched;
@@ -416,6 +421,7 @@ extern "C"
   struct LDKUIScrollViewCache
   {
     LDKUIId id;
+    LDKUIId owner_window_id;
     float content_w;
     float content_h;
     float scroll_x;
@@ -453,6 +459,9 @@ extern "C"
     float content_used_right;
     float content_used_bottom;
     u32 item_count;
+    u32 first_item_array_index;
+    u32 last_item_array_index;
+    u32 parent_item_array_index;
     bool has_measure_entry;
     u32 measure_entry_index;
     bool has_requested_size_override;
@@ -469,6 +478,7 @@ extern "C"
     LDKUIRect rect;
     LDKUIRect title_bar_rect;
     LDKUIRect content_rect;
+    LDKUIRect cache_parent_clip;
     u32 flags;
     i32 z_order;
     u32 last_frame_seen;
@@ -476,7 +486,12 @@ extern "C"
     XArray_ldk_ui_vertex *vertices;
     XArray_ldk_ui_u32 *indices;
     XArray_ldk_ui_draw_cmd *commands;
+    LDKFontInstance *cache_font;
+    u8 cache_idle_frames;
     bool close_requested;
+    bool cache_valid;
+    bool cache_dirty;
+    bool cache_reused;
   };
 
   struct LDKUIWindowStackEntry
@@ -611,6 +626,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIMeasureEntry, ldk_ui_measure_entry);
   X_ARRAY_TYPE_NAMED(LDKUILayoutItem, ldk_ui_layout_item);
   X_ARRAY_TYPE_NAMED(LDKUILayoutItemCache, ldk_ui_layout_item_cache);
+  X_HASHTABLE_TYPE_NAMED(u64, u32, ldk_ui_layout_item_cache_index);
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewStackEntry, ldk_ui_scrollview_stack_entry);
   X_ARRAY_TYPE_NAMED(LDKUIScrollViewCache, ldk_ui_scrollview_cache);
   X_ARRAY_TYPE_NAMED(LDKUIAreaStackEntry, ldk_ui_area_stack_entry);
@@ -657,6 +673,7 @@ extern "C"
 
     XArray_ldk_ui_layout_item *layout_items;
     XArray_ldk_ui_layout_item_cache *layout_item_cache;
+    XHashtable_ldk_ui_layout_item_cache_index *layout_item_cache_index;
 
     XArray_ldk_ui_scrollview_stack_entry *scrollview_stack;
     XArray_ldk_ui_scrollview_cache *scrollview_cache;
@@ -708,6 +725,14 @@ extern "C"
     bool text_cursor_blink_visible;
 
     u32 hit_order;
+    u32 profile_widget_box_count;
+    u32 profile_fully_clipped_widget_box_count;
+    u32 profile_fully_clipped_hit_candidate_count;
+    u32 profile_text_measure_count;
+    u32 profile_layout_text_measure_count;
+    u32 profile_widget_text_measure_count;
+    u32 profile_input_text_measure_count;
+    u32 profile_input_duplicate_text_measure_count;
     u32 frame_index;
     u32 resizing_window_edges;
     i32 next_z_order;
@@ -766,6 +791,9 @@ extern "C"
   LDK_API bool ldk_ui_begin_window_open(LDKUIContext *ctx, char const *title,
       LDKUIRect *rect, bool *open, u32 flags);
   LDK_API bool ldk_ui_window_close_requested(LDKUIContext *ctx);
+  LDK_API bool ldk_ui_window_content_should_build(LDKUIContext *ctx);
+  LDK_API void ldk_ui_window_invalidate(LDKUIContext *ctx, LDKUIId id);
+  LDK_API void ldk_ui_windows_invalidate(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_window(LDKUIContext *ctx);
 
   //----------------------------------------------------------
