@@ -725,6 +725,9 @@ extern "C"
     bool text_cursor_blink_visible;
 
     u32 hit_order;
+    u32 profile_widget_box_count;
+    u32 profile_fully_clipped_widget_box_count;
+    u32 profile_fully_clipped_hit_candidate_count;
     u32 frame_index;
     u32 resizing_window_edges;
     i32 next_z_order;
