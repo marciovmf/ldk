@@ -4,6 +4,15 @@
 
 static const float s_ui_resize_handle_hit_size = 8.0f;
 
+void ldk_ui_format_float(char *buffer, u32 buffer_size, float value)
+{
+  if (!buffer || buffer_size == 0)
+  {
+    return;
+  }
+  snprintf(buffer, buffer_size, "%.4f", (double)value);
+}
+
 /**
  * Measures the rendered size of a null-terminated string.
  * @arg ctx UI context that owns the font used for measurement.
@@ -51,17 +60,11 @@ void ldk_ui_widget_panel(LDKUIContext *ctx, LDKUIId id, LDKUIRect rect)
       ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
 }
 
-void ldk_ui_widget_label(
-    LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect)
+static void s_ui_widget_label_with_text_size(LDKUIContext *ctx, LDKUIId id,
+    char const *text, LDKUISize text_size, LDKUIRect rect)
 {
   LDKUIWidgetBox box = {0};
-  LDKUISize text_size;
   float text_y;
-
-  if (text == NULL)
-  {
-    text = "";
-  }
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, false))
   {
@@ -73,11 +76,24 @@ void ldk_ui_widget_label(
     return;
   }
 
-  text_size = s_ui_widget_text_size(ctx, text);
   text_y = box.rect.y + (box.rect.h - text_size.h) * 0.5f;
 
   s_ui_render_text_wrapped(ctx, text, box.rect.x, text_y, box.rect.w,
       ctx->theme.colors[LDK_UI_COLOR_TEXT], box.clip);
+}
+
+void ldk_ui_widget_label(
+    LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect)
+{
+  LDKUISize text_size;
+
+  if (text == NULL)
+  {
+    text = "";
+  }
+
+  text_size = s_ui_widget_text_size(ctx, text);
+  s_ui_widget_label_with_text_size(ctx, id, text, text_size, rect);
 }
 
 void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
@@ -638,7 +654,8 @@ float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id, float value,
     input_id = 1;
   }
 
-  input_rect.w = s_ui_minf(72.0f, rect.w * 0.5f);
+  const float LDK_UI_SLIDER_INPUT_BOX_WIDTH = 90.0f;
+  input_rect.w = s_ui_minf(LDK_UI_SLIDER_INPUT_BOX_WIDTH , rect.w * 0.5f);
   input_rect.x = rect.x + rect.w - input_rect.w;
   spacing = s_ui_minf(LDK_UI_DEFAULT_SPACING, rect.w * 0.05f);
   slider_rect.w = rect.w - input_rect.w - spacing;
@@ -663,7 +680,7 @@ float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id, float value,
   }
   else
   {
-    snprintf(buffer, sizeof(buffer), "%.9g", (double)value);
+    ldk_ui_format_float(buffer, (u32)sizeof(buffer), value);
   }
 
   ctx->next_focus = focus_requested;
@@ -686,7 +703,7 @@ float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id, float value,
 
     if ((result & finish_flags) != 0)
     {
-      snprintf(buffer, sizeof(buffer), "%.9g", (double)value);
+      ldk_ui_format_float(buffer, (u32)sizeof(buffer), value);
       initial_value = value;
     }
 
@@ -2272,7 +2289,7 @@ void ldk_ui_label(LDKUIContext *ctx, char const *text)
     return;
   }
 
-  ldk_ui_widget_label(ctx, id, text, rect);
+  s_ui_widget_label_with_text_size(ctx, id, text, text_size, rect);
 }
 
 bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color)

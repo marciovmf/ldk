@@ -520,7 +520,7 @@ static u32 s_editor_inspector_input_box(
 
 static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
     LDKEntity entity, u32 component_type, const LDKComponentFieldMeta *field,
-    u32 value_index, char *buffer, u32 buffer_size)
+    u32 value_index, char *buffer, u32 buffer_size, const float *float_value)
 {
   bool state_matches;
   char *input_buffer;
@@ -547,30 +547,15 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
   }
   else
   {
-    snprintf(s_editor_inspector_input_buffer,
-        sizeof(s_editor_inspector_input_buffer), "%s", buffer);
     input_buffer = s_editor_inspector_input_buffer;
-    if (field->type == LDK_FIELD_FLOAT || field->type == LDK_FIELD_VEC2 ||
-        field->type == LDK_FIELD_VEC3 || field->type == LDK_FIELD_VEC4 ||
-        field->type == LDK_FIELD_QUAT)
+    if (float_value)
     {
-      float value = strtof(buffer, NULL);
-      float magnitude = fabsf(value);
-      if (magnitude >= 1000000.0f || (magnitude > 0.0f && magnitude < 0.001f))
-      {
-        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY,
-            "%.3g", (double)value);
-      }
-      else
-      {
-        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY,
-            "%.3f", (double)value);
-        char *end = input_buffer + strlen(input_buffer);
-        while (end > input_buffer && end[-1] == '0')
-          *--end = '\0';
-        if (end > input_buffer && end[-1] == '.')
-          *--end = '\0';
-      }
+      ldk_ui_format_float(input_buffer,
+          LDK_EDITOR_INSPECTOR_INPUT_CAPACITY, *float_value);
+    }
+    else
+    {
+      snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY, "%s", buffer);
     }
   }
 
@@ -590,19 +575,6 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
   {
     if (!state_matches)
     {
-      // Formatting only affects idle display. Start edits with full precision.
-      if ((result & LDK_UI_INPUT_BOX_CHANGED) == 0)
-      {
-        u32 display_length = (u32)strlen(input_buffer);
-        snprintf(input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY, "%s", buffer);
-        u32 edit_length = (u32)strlen(input_buffer);
-        if (ui->text_cursor == display_length)
-          ui->text_cursor = edit_length;
-        if (ui->text_select_start == display_length)
-          ui->text_select_start = edit_length;
-        if (ui->text_select_end == display_length)
-          ui->text_select_end = edit_length;
-      }
       s_editor_inspector_input_state.entity = entity;
       s_editor_inspector_input_state.component_type = component_type;
       s_editor_inspector_input_state.field_offset = field->offset;
@@ -954,7 +926,7 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     snprintf(out, out_size, "%u", *(const u32 *)value);
     break;
   case LDK_FIELD_FLOAT:
-    snprintf(out, out_size, "%.9g", (double)*(const float *)value);
+    ldk_ui_format_float(out, (u32)out_size, *(const float *)value);
     break;
   case LDK_FIELD_STRING:
   {
@@ -975,28 +947,51 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_VEC2:
   {
     const Vec2 *v = (const Vec2 *)value;
-    snprintf(out, out_size, "%.9g, %.9g", (double)v->x, (double)v->y);
+    char x[32];
+    char y[32];
+    ldk_ui_format_float(x, (u32)sizeof(x), v->x);
+    ldk_ui_format_float(y, (u32)sizeof(y), v->y);
+    snprintf(out, out_size, "%s, %s", x, y);
     break;
   }
   case LDK_FIELD_VEC3:
   {
     const Vec3 *v = (const Vec3 *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g", (double)v->x, (double)v->y,
-        (double)v->z);
+    char x[32];
+    char y[32];
+    char z[32];
+    ldk_ui_format_float(x, (u32)sizeof(x), v->x);
+    ldk_ui_format_float(y, (u32)sizeof(y), v->y);
+    ldk_ui_format_float(z, (u32)sizeof(z), v->z);
+    snprintf(out, out_size, "%s, %s, %s", x, y, z);
     break;
   }
   case LDK_FIELD_VEC4:
   {
     const Vec4 *v = (const Vec4 *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g", (double)v->x,
-        (double)v->y, (double)v->z, (double)v->w);
+    char x[32];
+    char y[32];
+    char z[32];
+    char w[32];
+    ldk_ui_format_float(x, (u32)sizeof(x), v->x);
+    ldk_ui_format_float(y, (u32)sizeof(y), v->y);
+    ldk_ui_format_float(z, (u32)sizeof(z), v->z);
+    ldk_ui_format_float(w, (u32)sizeof(w), v->w);
+    snprintf(out, out_size, "%s, %s, %s, %s", x, y, z, w);
     break;
   }
   case LDK_FIELD_QUAT:
   {
     const Quat *q = (const Quat *)value;
-    snprintf(out, out_size, "%.9g, %.9g, %.9g, %.9g", (double)q->x,
-        (double)q->y, (double)q->z, (double)q->w);
+    char x[32];
+    char y[32];
+    char z[32];
+    char w[32];
+    ldk_ui_format_float(x, (u32)sizeof(x), q->x);
+    ldk_ui_format_float(y, (u32)sizeof(y), q->y);
+    ldk_ui_format_float(z, (u32)sizeof(z), q->z);
+    ldk_ui_format_float(w, (u32)sizeof(w), q->w);
+    snprintf(out, out_size, "%s, %s, %s, %s", x, y, z, w);
     break;
   }
   case LDK_FIELD_MAT4:
@@ -1051,11 +1046,10 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
   }
 
   original = *value;
-  snprintf(buffer, sizeof(buffer), "%.9g", (double)original);
 
   ldk_ui_begin_disabled(ui, readonly);
   result = s_editor_inspector_field_input_box(ui, entity, component_type, field,
-      value_index, buffer, (u32)sizeof(buffer));
+      value_index, buffer, (u32)sizeof(buffer), &original);
   ldk_ui_end_disabled(ui);
 
   if (readonly || (result & LDK_UI_INPUT_BOX_CHANGED) == 0)
@@ -1308,6 +1302,7 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
   for (u32 axis = 0; axis < 3; axis++)
   {
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+    float axis_value;
     float parsed;
     u32 result;
     bool focused;
@@ -1315,12 +1310,11 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
     ldk_ui_push_id_u32(ui, axis);
     ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
     ldk_ui_label(ui, axis_names[axis]);
-    snprintf(buffer, sizeof(buffer), "%.9g",
-        (double)s_editor_inspector_euler_axis_get(state->degrees, axis));
+    axis_value = s_editor_inspector_euler_axis_get(state->degrees, axis);
 
     ldk_ui_begin_disabled(ui, readonly);
     result = s_editor_inspector_field_input_box(ui, entity, component_type,
-        field, axis, buffer, (u32)sizeof(buffer));
+        field, axis, buffer, (u32)sizeof(buffer), &axis_value);
     ldk_ui_end_disabled(ui);
 
     focused = ui->focused_id == ui->last_id;
@@ -2241,7 +2235,7 @@ static void s_editor_inspector_field_draw(
     snprintf(buffer, sizeof(buffer), "%d", original);
     ldk_ui_begin_disabled(ui, readonly);
     result = s_editor_inspector_field_input_box(
-        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer));
+        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer), NULL);
     ldk_ui_end_disabled(ui);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -2274,7 +2268,7 @@ static void s_editor_inspector_field_draw(
     snprintf(buffer, sizeof(buffer), "%u", original);
     ldk_ui_begin_disabled(ui, readonly);
     result = s_editor_inspector_field_input_box(
-        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer));
+        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer), NULL);
     ldk_ui_end_disabled(ui);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
@@ -2917,8 +2911,8 @@ static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
   }
 
   ui = &editor->ui;
-  snprintf(x_buffer, sizeof(x_buffer), "%.9g", (double)value->x);
-  snprintf(y_buffer, sizeof(y_buffer), "%.9g", (double)value->y);
+  ldk_ui_format_float(x_buffer, (u32)sizeof(x_buffer), value->x);
+  ldk_ui_format_float(y_buffer, (u32)sizeof(y_buffer), value->y);
 
   ldk_ui_push_id_cstr(ui, label);
   s_editor_material_row_begin(editor, label);

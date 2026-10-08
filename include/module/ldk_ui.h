@@ -780,6 +780,8 @@ extern "C"
   LDK_API void ldk_ui_end_disabled(LDKUIContext *ctx);
 
   LDK_API LDKUIRect ldk_ui_rect(float x, float y, float w, float h);
+  LDK_API void ldk_ui_format_float(
+      char *buffer, u32 buffer_size, float value);
 
   //----------------------------------------------------------
   // Windows
