@@ -20,6 +20,8 @@ static LDKUISize s_ui_widget_text_size(LDKUIContext *ctx, char const *text)
     return size;
   }
 
+  ctx->profile_text_measure_count += 1;
+  ctx->profile_widget_text_measure_count += 1;
   size = ldk_ttf_measure_text_cstr(ctx->font, text);
 
   return size;
@@ -1515,7 +1517,6 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   }
 
   buffer_len = s_ui_text_cstr_len_u32(buffer);
-  text_size = s_ui_widget_text_size(ctx, buffer);
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, false, box.disabled);
 
   previous_text_cursor = ctx->text_cursor;
@@ -1699,6 +1700,7 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
     s_ui_input_cursor_blink_reset(ctx);
   }
 
+  ctx->profile_input_text_measure_count += 1;
   text_size = s_ui_widget_text_size(ctx, buffer);
 
   bg = s_ui_render_input_bg_color(ctx, frame.visual_state);
@@ -2071,6 +2073,7 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
   const char *selected_text =
       items[selected_index] != NULL ? items[selected_index] : "";
 
+  ctx->profile_text_measure_count += 1;
   LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
   LDKUIIcon icon =
       s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);

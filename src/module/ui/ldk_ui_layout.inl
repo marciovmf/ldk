@@ -336,6 +336,8 @@ static LDKUISize s_ui_layout_text_size(LDKUIContext *ctx, char const *text)
     return size;
   }
 
+  ctx->profile_text_measure_count += 1;
+  ctx->profile_layout_text_measure_count += 1;
   text_size = ldk_ttf_measure_text_cstr(ctx->font, text);
   size.w = text_size.w;
   size.h = text_size.h;

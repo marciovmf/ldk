@@ -2096,6 +2096,11 @@ void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
   ctx->profile_widget_box_count = 0;
   ctx->profile_fully_clipped_widget_box_count = 0;
   ctx->profile_fully_clipped_hit_candidate_count = 0;
+  ctx->profile_text_measure_count = 0;
+  ctx->profile_layout_text_measure_count = 0;
+  ctx->profile_widget_text_measure_count = 0;
+  ctx->profile_input_text_measure_count = 0;
+  ctx->profile_input_duplicate_text_measure_count = 0;
 
   if (ctx->theme.text_cursor_blink &&
       ctx->theme.text_cursor_blink_interval > 0.0f)
@@ -2294,6 +2299,16 @@ void ldk_ui_end_frame(LDKUIContext *ctx)
       ctx->profile_fully_clipped_widget_box_count);
   LDK_PROFILE_COUNTER_SET("UI Fully Clipped Hit Candidates",
       ctx->profile_fully_clipped_hit_candidate_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Text Measure CStr", ctx->profile_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Layout Text Measure", ctx->profile_layout_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Widget Text Measure", ctx->profile_widget_text_measure_count);
+  LDK_PROFILE_COUNTER_SET(
+      "UI Input Text Measure", ctx->profile_input_text_measure_count);
+  LDK_PROFILE_COUNTER_SET("UI Input Duplicate Text Measure",
+      ctx->profile_input_duplicate_text_measure_count);
 
   if (ctx->cursor_type != ldk_os_cursor_type_get())
   {

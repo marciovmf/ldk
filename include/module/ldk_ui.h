@@ -728,6 +728,11 @@ extern "C"
     u32 profile_widget_box_count;
     u32 profile_fully_clipped_widget_box_count;
     u32 profile_fully_clipped_hit_candidate_count;
+    u32 profile_text_measure_count;
+    u32 profile_layout_text_measure_count;
+    u32 profile_widget_text_measure_count;
+    u32 profile_input_text_measure_count;
+    u32 profile_input_duplicate_text_measure_count;
     u32 frame_index;
     u32 resizing_window_edges;
     i32 next_z_order;
