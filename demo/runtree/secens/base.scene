@@ -482,7 +482,6 @@ scene:
             material_asset: "assets/checkers_orange"
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
-      grouping: "0x8000000000000003"
     - id: "0x1e2c227aa2362f6a"
       data:
         heightmap: "assets/textures/hmap.png"
@@ -546,4 +545,3 @@ scene:
         surface_7_texture_weight: 0.00000000
         casts_shadows: false
     - id: "0x05047ea6f003fb8f"
-      grouping: "0x8000000000000002"

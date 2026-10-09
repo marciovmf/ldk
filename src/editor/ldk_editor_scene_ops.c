@@ -40,8 +40,8 @@ typedef struct LDKEditorSceneApplyOverride
   LDKEditorSceneApplyKind kind;
   i32 scene_entity_id;
   u32 component_type;
+  bool component_enabled;
   u64 system_id;
-  u64 grouping_id;
   void *data;
   u32 data_size;
   LDKEditorSceneApplyMaterial *materials;
@@ -762,8 +762,7 @@ static bool s_editor_play_scene_authoring_systems_capture(
     snapshot->kind = LDK_EDITOR_SCENE_APPLY_SYSTEM;
     snapshot->scene_entity_id = -1;
     snapshot->system_id = system_id;
-    snapshot->grouping_id = ldk_scene_systems_grouping_get(
-        &editor->current_scene_systems, system_id);
+
 
     meta = s_editor_play_scene_system_meta(game, system_id);
     if (!meta)
@@ -855,6 +854,11 @@ static bool s_editor_play_scene_component_override_apply(
     }
   }
 
+  if (!ldk_ecs_component_enabled_set(
+          entity, override->component_type, override->component_enabled))
+  {
+    return false;
+  }
   if (override->component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {
     LDKInstancedMeshSource *instances = (LDKInstancedMeshSource *)component;
@@ -927,19 +931,15 @@ static bool s_editor_play_scene_system_override_apply(
   if (!s_editor_play_scene_system_index(
           &editor->current_scene_systems, override->system_id, &system_index))
   {
-    if (!ldk_scene_systems_add_with_grouping(&editor->current_scene_systems,
-            override->system_id, override->grouping_id) ||
+    if (!ldk_scene_systems_add(&editor->current_scene_systems,
+            override->system_id) ||
         !s_editor_play_scene_system_index(&editor->current_scene_systems,
             override->system_id, &system_index))
     {
       return false;
     }
   }
-  else if (!ldk_scene_systems_grouping_set(&editor->current_scene_systems,
-               override->system_id, override->grouping_id))
-  {
-    return false;
-  }
+
 
   game = ldk_game_get();
   meta = s_editor_play_scene_system_meta(game, override->system_id);
@@ -1170,6 +1170,8 @@ bool ldki_editor_scene_play_apply_component(
     return false;
   }
 
+  override->component_enabled =
+      ldk_ecs_component_is_enabled(entity, component_type);
   override->data_size = meta->size;
   if (meta->size)
   {
@@ -1283,8 +1285,7 @@ bool ldki_editor_scene_play_apply_system(
     return false;
   }
 
-  override->grouping_id = ldk_scene_systems_grouping_get(
-      &editor->current_scene_systems, system_id);
+
   override->data_size = meta->size;
   if (meta->size)
   {
@@ -1375,19 +1376,13 @@ static bool s_editor_play_scene_authoring_systems_restore(
       if (!s_editor_play_scene_system_index(
               &editor->current_scene_systems, snapshot->system_id, NULL))
       {
-        if (!ldk_scene_systems_add_with_grouping(
-                &editor->current_scene_systems, snapshot->system_id,
-                snapshot->grouping_id))
+        if (!ldk_scene_systems_add(
+                &editor->current_scene_systems, snapshot->system_id))
         {
           return false;
         }
       }
-      else if (!ldk_scene_systems_grouping_set(
-                   &editor->current_scene_systems, snapshot->system_id,
-                   snapshot->grouping_id))
-      {
-        return false;
-      }
+
       continue;
     }
 

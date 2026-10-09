@@ -46,9 +46,16 @@
 #error "Incompatible defines: LDK_GAME_STATIC and LDK_EDITOR"
 #endif
 
+/* Increment when shared engine/game layouts or calling contracts change. */
+#define LDK_GAME_ABI_VERSION 2u
+#define LDK_GAME_ABI_VERSION_NAME "game_abi_version"
+typedef u32 (*LDKGameABIVersionFunc)(void);
+LDK_GAME_API u32 game_abi_version(void);
+
 LDK_GAME_API bool game_initialize(struct LDKGame* game);
 /* Registers engine-provided and game-defined systems for this game. Call once
- * during game_initialize, before systems start. Failure removes only systems
+ * during game_initialize, after registering game components and before systems
+ * start. Failure removes only systems
  * registered by this call. Existing registrations are preserved; a duplicate
  * registration is an error, not an update.
  */

@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 #ifdef LDK_ENGINE
-//@system name=LDKTerrainFollowerSystem flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE order=50
+//@system components=LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER name=LDKTerrainFollowerSystem flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE order=50
 void ldk_terrain_follower_system_update(
     void *data, const LDKEntityGroup *group, float dt);
 #endif

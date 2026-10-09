@@ -268,8 +268,6 @@ static bool s_scene_system_data_release(LDKSceneSystems *systems, u32 index)
     if ((ldk_system_registry_system_is_started(registry, systems->ids[index]) &&
          !ldk_system_registry_system_stop(registry, systems->ids[index])) ||
         !ldk_system_registry_system_data_set(
-            registry, systems->ids[index], NULL) ||
-        !ldk_system_registry_system_group_set(
             registry, systems->ids[index], NULL))
     {
       return false;
@@ -386,7 +384,8 @@ bool ldk_scene_systems_add_with_grouping(
   }
 
   systems->ids[systems->count] = id;
-  systems->grouping_ids[systems->count] = grouping_id;
+  (void)grouping_id;
+  systems->grouping_ids[systems->count] = 0;
   systems->data[systems->count] = NULL;
   systems->data_sizes[systems->count] = 0;
   systems->count += 1u;
@@ -461,19 +460,25 @@ bool ldk_scene_systems_grouping_set(
     return false;
   }
 
-  systems->grouping_ids[index] = grouping_id;
+  (void)grouping_id;
+  systems->grouping_ids[index] = 0;
   return true;
 }
 
 u64 ldk_scene_systems_grouping_get(
     const LDKSceneSystems *systems, u64 system_id)
 {
-  u32 index;
-  return s_scene_system_find_index(systems, system_id, &index) &&
-             systems->grouping_ids
-             ? systems->grouping_ids[index]
-             : 0;
+  LDKSystemDesc desc = {0};
+  LDKSystemRegistry *registry = ldk_engine_is_initialized()
+      ? ldk_ecs_system_registry_get() : NULL;
+  if (!ldk_scene_systems_contains(systems, system_id) || !registry ||
+      !ldk_system_registry_find_by_id(registry, system_id, &desc))
+  {
+    return 0;
+  }
+  return ldk_ecs_grouping_id(desc.component_types, desc.component_count);
 }
+
 
 static bool s_scene_system_id_parse(
     const TMLEntry *entry, bool allow_zero, u64 *out_id)
@@ -590,12 +595,7 @@ bool ldk_scene_systems_from_tml(
         goto failed;
       }
 
-      entry = tml_node_find_entry(parse.document, child, "grouping");
-      if (entry && !s_scene_system_id_parse(entry, true, &grouping_id))
-      {
-        ldk_scene_result_set_error(result, "invalid scene system grouping id");
-        goto failed;
-      }
+      /* Legacy grouping entries are deliberately ignored. */
 
       if (ldk_scene_systems_contains(&systems, id))
       {
@@ -687,7 +687,6 @@ bool ldk_scene_systems_validate_bindings(
   for (u32 i = 0; i < systems->count; ++i)
   {
     u64 id = systems->ids[i];
-    u64 grouping_id = systems->grouping_ids ? systems->grouping_ids[i] : 0;
 
     LDKSystemDesc desc = {0};
     if (!ldk_system_registry_find_by_id(registry, id, &desc))
@@ -697,13 +696,7 @@ bool ldk_scene_systems_validate_bindings(
           id);
       continue;
     }
-    if (grouping_id != 0 && !ldk_ecs_grouping_get(grouping_id))
-    {
-      ldk_log_error("Scene system 0x%016" PRIx64
-                    " references unknown grouping 0x%016" PRIx64 ".\n",
-          id, grouping_id);
-      return false;
-    }
+
   }
 
   return true;
@@ -739,8 +732,7 @@ bool ldk_scene_systems_stop_missing(
       return false;
     }
 
-    if (!ldk_system_registry_system_data_set(registry, desc.id, NULL) ||
-        !ldk_system_registry_system_group_set(registry, desc.id, NULL))
+    if (!ldk_system_registry_system_data_set(registry, desc.id, NULL))
     {
       return false;
     }
@@ -776,8 +768,6 @@ bool ldk_scene_systems_start(
   {
     LDKSystemDesc desc = {0};
     u32 index;
-    const LDKEntityGroup *group;
-    u64 grouping_id;
     if (!ldk_system_registry_at(registry, i, &desc))
     {
       goto failed;
@@ -786,15 +776,9 @@ bool ldk_scene_systems_start(
     {
       continue;
     }
-    grouping_id = systems->grouping_ids[index];
-    group = grouping_id ? ldk_ecs_grouping_get(grouping_id) : NULL;
     if (ldk_system_registry_system_data_get(registry, desc.id) !=
             systems->data[index] &&
         !ldk_system_registry_system_stop(registry, desc.id))
-    {
-      goto failed;
-    }
-    if (!ldk_system_registry_system_group_set(registry, desc.id, group))
     {
       goto failed;
     }
@@ -827,7 +811,7 @@ failed:
     u64 id = started[--started_count];
     ldk_system_registry_system_stop(registry, id);
     ldk_system_registry_system_data_set(registry, id, NULL);
-    ldk_system_registry_system_group_set(registry, id, NULL);
+
   }
   free(started);
   return false;

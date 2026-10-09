@@ -11,6 +11,7 @@
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <module/ldk_scene_manager.h>
+#include <module/ldk_ecs.h>
 #include <stdx/stdx_string.h>
 #include <ctype.h>
 #include <errno.h>
@@ -3759,98 +3760,32 @@ static LDKEntity s_editor_inspector_system_key(u64 id)
 static void s_editor_inspector_system_grouping_draw(
     LDKEditorContext *editor, LDKSceneSystems *systems, u64 system_id)
 {
-  LDKUIContext *ui;
-  u64 current_id;
-  u32 grouping_count;
-  bool current_found;
-  u32 item_count;
-  const char **labels;
-  u64 *ids;
-  u32 selected = 0;
-  u32 write_index = 1;
-  bool can_edit;
-  char missing_label[64];
-
-  if (!editor || !systems)
+  (void)systems;
+  LDKSystemRegistry *registry = ldk_ecs_system_registry_get();
+  LDKSystemDesc desc = {0};
+  if (!editor || !registry || !registry->is_initialized ||
+      !ldk_system_registry_find_by_id(registry, system_id, &desc))
   {
     return;
   }
-
-  ui = &editor->ui;
-  current_id = ldk_scene_systems_grouping_get(systems, system_id);
-  grouping_count = ldk_ecs_grouping_count();
-  current_found = current_id == 0;
-
-  for (u32 i = 0; i < grouping_count; ++i)
+  LDKUIContext *ui = &editor->ui;
+  char label[64];
+  snprintf(label, sizeof(label), "0x%016" PRIx64,
+      ldk_ecs_grouping_id(desc.component_types, desc.component_count));
+  ldk_ui_label(ui, "Grouping ID");
+  ldk_ui_label(ui, label);
+  ldk_ui_label(ui, "Required Components");
+  if (!desc.component_count)
   {
-    LDKGroupingDesc desc = {0};
-    if (ldk_ecs_grouping_at(i, &desc) && desc.id == current_id)
-    {
-      current_found = true;
-      break;
-    }
+    ldk_ui_label(ui, "None (global system)");
   }
-
-  item_count = grouping_count + 1u + (!current_found ? 1u : 0u);
-  labels = (const char **)x_arena_alloc(
-      ui->frame_arena, (size_t)item_count * sizeof(*labels));
-  ids = (u64 *)x_arena_alloc(
-      ui->frame_arena, (size_t)item_count * sizeof(*ids));
-
-  s_editor_inspector_row_begin(editor, "Grouping");
-
-  if (!labels || !ids)
+  for (u32 i = 0; i < desc.component_count; ++i)
   {
-    ldk_ui_label(ui, "<grouping unavailable>");
-    ldk_ui_end_horizontal(ui);
-    return;
+    const char *name = ldk_component_name_get(
+        ldk_ecs_component_registry_get(), desc.component_types[i]);
+    snprintf(label, sizeof(label), "0x%08x", desc.component_types[i]);
+    ldk_ui_label(ui, name ? name : label);
   }
-
-  labels[0] = "<No Grouping>";
-  ids[0] = 0;
-
-  for (u32 i = 0; i < grouping_count; ++i)
-  {
-    LDKGroupingDesc desc = {0};
-    if (!ldk_ecs_grouping_at(i, &desc))
-    {
-      continue;
-    }
-
-    labels[write_index] = desc.name;
-    ids[write_index] = desc.id;
-    if (desc.id == current_id)
-    {
-      selected = write_index;
-    }
-    ++write_index;
-  }
-
-  if (!current_found)
-  {
-    snprintf(missing_label, sizeof(missing_label),
-        "<missing 0x%016" PRIx64 ">", current_id);
-    labels[write_index] = missing_label;
-    ids[write_index] = current_id;
-    selected = write_index;
-    ++write_index;
-  }
-
-  can_edit = editor->project.loaded &&
-             editor->editor_state == LDK_EDITOR_STATE_STOPED &&
-             editor->current_scene_path.length != 0;
-
-  ldk_ui_begin_disabled(ui, !can_edit);
-  u32 new_selected = ldk_ui_combo_box(ui, labels, write_index, selected);
-  ldk_ui_end_disabled(ui);
-  if (can_edit && new_selected < write_index && new_selected != selected &&
-      !ldk_scene_systems_grouping_set(
-          systems, system_id, ids[new_selected]))
-  {
-    ldki_editor_log_error(editor, "Failed to change scene system grouping.");
-  }
-
-  ldk_ui_end_horizontal(ui);
 }
 
 static bool s_editor_inspector_system_draw(
@@ -4615,6 +4550,25 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 #endif
     delete_rect.w = 24.0f;
     delete_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+    if (component_type != LDK_COMPONENT_TYPE_TRANSFORM)
+    {
+      LDKUIRect enabled_rect = delete_rect;
+      enabled_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+      if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+      {
+        enabled_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+      }
+      bool enabled = ldk_ecs_component_is_enabled(entity, component_type);
+      bool next = ldk_ui_widget_toggle(
+          ui, (LDKUIId)0x454e4142u, enabled, enabled_rect);
+      if (next != enabled &&
+          !ldk_ecs_component_enabled_set(entity, component_type, next))
+      {
+        ldki_editor_log_error(
+            editor, "Failed to change component enabled state.");
+      }
+    }
+
     if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
     {
       const LDKUIId apply_id = LDK_INSPECTOR_LIKE_BUTTON_ID + id;

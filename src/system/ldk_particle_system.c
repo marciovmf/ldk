@@ -326,7 +326,8 @@ static bool s_main_camera_view_get(Mat4 *out_view)
   {
     const LDKCamera *camera = x_array_get(cameras, i);
     const LDKEntity *entity = x_array_get(owners, i);
-    if (!camera || !entity || camera->role != LDK_CAMERA_ROLE_MAIN)
+    if (!camera || !entity || camera->role != LDK_CAMERA_ROLE_MAIN ||
+        !ldk_ecs_component_is_enabled(*entity, LDK_COMPONENT_TYPE_CAMERA))
     {
       continue;
     }
@@ -761,6 +762,16 @@ void ldk_particle_system_update(
     else
     {
       s_emitter_error_clear(emitter, LDK_PARTICLE_EMITTER_ERROR_PROXY);
+    }
+
+    if (!ldk_ecs_component_is_enabled(
+            *entity, LDK_COMPONENT_TYPE_PARTICLE_EMITTER))
+    {
+      if (mesh)
+      {
+        (void)s_particle_instances_clear(emitter, *entity, mesh);
+      }
+      continue;
     }
 
     if (!s_emitter_is_valid(emitter))

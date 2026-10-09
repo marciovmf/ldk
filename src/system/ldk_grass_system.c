@@ -385,7 +385,9 @@ static void s_interaction_components_collect(void)
     }
     state->seen = true;
 
-    if (!interactor->enabled)
+    if (!interactor->enabled ||
+        !ldk_ecs_component_is_enabled(
+            *entity, LDK_COMPONENT_TYPE_GRASS_INTERACT))
     {
       state->initialized = false;
       continue;

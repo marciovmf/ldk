@@ -599,6 +599,19 @@ bool ldk_game_instance_load_from_shared_lib(const char *path)
     return false;
   }
 
+  LDKGameABIVersionFunc abi_version = (LDKGameABIVersionFunc)
+      ldk_os_library_fuction_ptr_get(lib, LDK_GAME_ABI_VERSION_NAME);
+  if (!abi_version || abi_version() != LDK_GAME_ABI_VERSION)
+  {
+    ldk_log_error("Incompatible game DLL ABI. "
+                  "Rebuild engine, editor and game together.\n");
+    if (!ldk_os_library_unload(lib))
+    {
+      ldk_log_error("Failed to unload incompatible game DLL.\n");
+    }
+    return false;
+  }
+
   s_game_instance_init_default(game);
 
   game->lib = lib;
@@ -1584,7 +1597,8 @@ void ldk_engine_frame(void)
       LDKEntity *entity = x_array_get(camera_owners, i);
       LDK_ASSERT(camera);
       LDK_ASSERT(entity);
-      if (!camera->enabled || camera->role == LDK_CAMERA_ROLE_NONE)
+      if (!camera->enabled || camera->role == LDK_CAMERA_ROLE_NONE ||
+          !ldk_ecs_component_is_enabled(*entity, LDK_COMPONENT_TYPE_CAMERA))
       {
         continue;
       }
@@ -1640,7 +1654,9 @@ void ldk_engine_frame(void)
           (const LDKPostProcessing *)ldk_ecs_component_get_const(
               *entity, LDK_COMPONENT_TYPE_POST_PROCESSING);
       LDKRendererPostProcessing renderer_post_processing = {0};
-      if (post_processing != NULL)
+      if (post_processing != NULL &&
+          ldk_ecs_component_is_enabled(
+              *entity, LDK_COMPONENT_TYPE_POST_PROCESSING))
       {
         renderer_post_processing.enabled = post_processing->enabled;
         renderer_post_processing.tonemapping_enabled =
@@ -1770,6 +1786,7 @@ void ldk_engine_frame(void)
         void *component = x_array_get(lights, i);
         Mat4 world;
         if (!owner || !component ||
+            !ldk_ecs_component_is_enabled(*owner, light_types[type]) ||
             !ldk_transform_get_world_matrix(*owner, &world))
         {
           continue;
@@ -1838,7 +1855,18 @@ void ldk_engine_frame(void)
         LDKMeshSource *mesh = instances ? &instances->source : component;
         LDKEntity *entity = x_array_get(mesh_owners, i);
 
-        if (!mesh || !entity)
+        if (!mesh || !entity ||
+            !ldk_ecs_component_is_enabled(*entity, mesh_types[type_index]))
+        {
+          continue;
+        }
+
+        /* An emitter owns its instance proxy. Hide it even while paused,
+         * before the particle update has had a chance to clear instances. */
+        if (instances && ldk_entity_component_has(&e->ecs.entity, *entity,
+                             LDK_COMPONENT_TYPE_PARTICLE_EMITTER) &&
+            !ldk_ecs_component_is_enabled(
+                *entity, LDK_COMPONENT_TYPE_PARTICLE_EMITTER))
         {
           continue;
         }
@@ -1975,6 +2003,7 @@ void ldk_engine_frame(void)
         LDKText3DComponent *text = x_array_get(all_text, i);
         LDKEntity *entity = x_array_get(text_owners, i);
         if (!text || !entity || !text->text.length ||
+            !ldk_ecs_component_is_enabled(*entity, LDK_COMPONENT_TYPE_TEXT3D) ||
             x_handle_is_null(text->font.h) ||
             !isfinite(text->pixel_height) || text->pixel_height <= 0.0f)
         {

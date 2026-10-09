@@ -458,7 +458,18 @@ bool ldk_entity_component_flags_set(LDKEntityRegistry* module,
     return false;
   }
 
+  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM &&
+      (flags & LDK_COMPONENT_INSTANCE_FLAG_DISABLED))
+  {
+    return false;
+  }
+  u16 previous = info->components.component_flags[slot];
   info->components.component_flags[slot] = flags;
+  if (((previous ^ flags) & LDK_COMPONENT_INSTANCE_FLAG_DISABLED) &&
+      module->component_state_changed)
+  {
+    module->component_state_changed(module->component_state_user, entity);
+  }
   return true;
 }
 

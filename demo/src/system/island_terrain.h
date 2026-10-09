@@ -46,7 +46,7 @@ typedef struct IslandMapDataView
 
 bool island_terrain_map_data_get(IslandMapDataView *out_view);
 
-//@system initialize=island_terrain_system_initialize update=island_terrain_system_update terminate=island_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
+//@system components=LDK_COMPONENT_TYPE_CAMERA initialize=island_terrain_system_initialize update=island_terrain_system_update terminate=island_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
 typedef struct IslandTerrain
 {
   //@begin_group "Island Generation"

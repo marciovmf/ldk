@@ -1673,6 +1673,13 @@ static bool s_apply_entity_components(const TMLDocument *doc,
         return false;
       }
 
+      if (!ldk_component_is_registered(
+              ldk_ecs_component_registry_get(), component_type))
+      {
+        ldk_log_warning("Scene component 0x%08x is not registered. Skipping.\n",
+            component_type);
+        continue;
+      }
       meta = ldk_scene_component_meta_find_by_type(game, component_type);
       if (!meta)
       {
@@ -1692,6 +1699,21 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       if (!component)
       {
         s_result_error(result, "failed to create component");
+        return false;
+      }
+
+      const TMLEntry *enabled_entry =
+          tml_node_find_entry(doc, component_node, "enabled");
+      u8 enabled = 1;
+      if (enabled_entry && !tml_entry_get_bool(enabled_entry, &enabled))
+      {
+        s_result_error(result, "invalid component enabled state");
+        return false;
+      }
+      if (!ldk_ecs_component_enabled_set(entity, component_type, enabled))
+      {
+        s_result_error(result,
+            "invalid component enabled state (Transform must stay enabled)");
         return false;
       }
 
@@ -2890,6 +2912,11 @@ static bool s_write_component(LDKSceneSaveContext *context,
   x_strbuilder_append_format(context->out, "- type: %u # %s\n",
       component_type, meta->name ? meta->name : "component");
 
+  if (!ldk_ecs_component_is_enabled(entity, component_type))
+  {
+    s_append_indent(context->out, 5u);
+    x_strbuilder_append(context->out, "enabled: false\n");
+  }
   s_append_indent(context->out, 5u);
   x_strbuilder_append(context->out, "fields:\n");
 
@@ -3094,11 +3121,7 @@ static bool s_write_systems(LDKSceneSaveContext *context,
     }
     x_strbuilder_append_format(context->out,
         "    - id: \"0x%016" PRIx64 "\"\n", systems->ids[i]);
-    if (systems->grouping_ids && systems->grouping_ids[i])
-    {
-      x_strbuilder_append_format(context->out,
-          "      grouping: \"0x%016" PRIx64 "\"\n", systems->grouping_ids[i]);
-    }
+
     if (!size)
     {
       continue;

@@ -4808,20 +4808,6 @@ static i32 s_editor_main(const char *project_file_path)
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_TAG_CATALOG);
 
-  LDKEditorWindow grouping_catalog_window = {
-      .id = LDK_EDITOR_WINDOW_GROUPING_CATALOG,
-      .title = "Grouping Catalog",
-      .function = ldki_editor_grouping_catalog_show,
-      .data = NULL};
-
-  if (!ldk_editor_window_add((LDKEditor *)editor, &grouping_catalog_window))
-  {
-    ldk_log_error("Failed to register the Grouping Catalog editor window.\n");
-    ldk_engine_terminate();
-    return 1;
-  }
-  ldki_editor_window_hide(LDK_EDITOR_WINDOW_GROUPING_CATALOG);
-
   LDKEditorWindow package_catalog_window = {.id = LDK_EDITOR_WINDOW_PACKAGE_CATALOG,
       .title = "Packages",
       .function = ldki_editor_package_catalog_show,

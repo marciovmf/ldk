@@ -345,6 +345,12 @@ void ldk_system_registry_terminate(LDKSystemRegistry *registry)
   {
     x_array_u32_destroy(internal->buckets[i]);
   }
+  for (u32 n = 0; n < x_array_LDKRegisteredSystem_count(internal->systems); ++n)
+  {
+    LDKRegisteredSystem *item =
+        x_array_LDKRegisteredSystem_get(internal->systems, n);
+    LDK_FREE((void *)item->desc.component_types);
+  }
   x_array_LDKRegisteredSystem_destroy(internal->systems);
   LDK_FREE(internal);
   memset(registry, 0, sizeof(*registry));
@@ -360,6 +366,8 @@ bool ldk_system_registry_register(
       !internal || internal->in_callback || desc->id == 0 ||
       (u32)desc->bucket >= LDK_SYSTEM_BUCKET_COUNT ||
       !s_system_desc_has_any_callback(desc) ||
+      desc->component_count > LDK_ENTITY_MAX_COMPONENTS ||
+      (desc->component_count && !desc->component_types) ||
       s_system_registry_find_by_id_const(registry, desc->id) != NULL)
   {
     return false;
@@ -367,10 +375,27 @@ bool ldk_system_registry_register(
 
   memset(&system, 0, sizeof(system));
   system.desc = *desc;
+  system.desc.component_types = NULL;
+  if (desc->component_count)
+  {
+    u32 *types = LDK_ALLOC(sizeof(*types) * desc->component_count);
+    if (!types)
+    {
+      return false;
+    }
+    memcpy(
+        types, desc->component_types, sizeof(*types) * desc->component_count);
+    system.desc.component_types = types;
+  }
   system.group = &s_empty_group;
   system.registration_index =
       x_array_LDKRegisteredSystem_count(internal->systems);
-  return x_array_LDKRegisteredSystem_add(internal->systems, system) == XARRAY_OK;
+  if (x_array_LDKRegisteredSystem_add(internal->systems, system) != XARRAY_OK)
+  {
+    LDK_FREE((void *)system.desc.component_types);
+    return false;
+  }
+  return true;
 }
 
 bool ldk_system_registry_unregister(LDKSystemRegistry *registry, u64 id)
@@ -390,6 +415,7 @@ bool ldk_system_registry_unregister(LDKSystemRegistry *registry, u64 id)
         x_array_LDKRegisteredSystem_get(internal->systems, i);
     if (system->desc.id == id)
     {
+      LDK_FREE((void *)system->desc.component_types);
       x_array_LDKRegisteredSystem_delete_at(internal->systems, i);
       s_system_registry_rebuild_registration_indices(registry);
       return true;
@@ -458,6 +484,12 @@ bool ldk_system_registry_clear(LDKSystemRegistry *registry)
     return false;
   }
 
+  for (u32 n = 0; n < x_array_LDKRegisteredSystem_count(internal->systems); ++n)
+  {
+    LDKRegisteredSystem *item =
+        x_array_LDKRegisteredSystem_get(internal->systems, n);
+    LDK_FREE((void *)item->desc.component_types);
+  }
   x_array_LDKRegisteredSystem_clear(internal->systems);
   s_system_registry_clear_bucket_lists(registry);
   return true;

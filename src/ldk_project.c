@@ -256,7 +256,8 @@ static bool s_copy_runtime_sections(FILE *in_file, FILE *out_file)
     if (is_section)
     {
       skip_section = private_section ||
-                     s_line_is_section_named(line, "packages");
+                     s_line_is_section_named(line, "packages") ||
+                     s_line_is_section_named(line, "groupings");
     }
 
     if (!skip_section)
@@ -745,6 +746,9 @@ bool ldk_project_save(LDKProject *project)
     return false;
   }
 
+  /* Automatic requirements replace the legacy project grouping catalog. */
+  (void)x_ini_remove_section(&ini, "groupings");
+
   ok = x_ini_set(&ini, ".project", "project_cmake_generator",
            project->cmake_generator.buf) &&
        x_ini_set(&ini, ".project", "project_cmake_arch",
@@ -940,7 +944,7 @@ bool ldk_project_scene_catalog_save(const LDKProject *project,
       goto done;
     begin += 3;
   }
-  /* Keep all bytes outside [scenes], including comments and line endings. */
+  /* Preserve unrelated sections; retire the legacy grouping catalog. */
   for (const char *line = begin; *line;)
   {
     const char *end = strchr(line, '\n');
@@ -958,7 +962,8 @@ bool ldk_project_scene_catalog_save(const LDKProject *project,
           ++p;
         while (close > p && isspace((unsigned char)close[-1]))
           --close;
-        skip = close - p == 6 && memcmp(p, "scenes", 6) == 0;
+        skip = (close - p == 6 && memcmp(p, "scenes", 6) == 0) ||
+               (close - p == 9 && memcmp(p, "groupings", 9) == 0);
       }
     }
     if (!skip &&

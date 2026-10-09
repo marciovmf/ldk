@@ -27,7 +27,7 @@ static bool s_tftf_find_player(LDKEntity entity, void *user)
     return false;
   }
 
-  if (ldk_ecs_component_get_const(
+  if (ldk_ecs_component_is_enabled(
           entity, ldk_component_type(TFTFPlayerCharacterComponent)))
   {
     search->entity = entity;

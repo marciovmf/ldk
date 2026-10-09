@@ -248,12 +248,6 @@ static void s_editor_menu_bar(LDKEditorContext *editor)
   {
     LDKUIMark mark = ldk_ui_mark(ui);
 
-    if (ldk_ui_button_flat(ui, "Entity Group"))
-    {
-      ldki_editor_grouping_catalog_open(editor);
-      ldk_ui_close_current_popup(ui);
-    }
-
     u32 window_count = ldki_editor_window_count();
 
     for (u32 i = 0; i < window_count; ++i)

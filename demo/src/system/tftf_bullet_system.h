@@ -38,7 +38,7 @@ void tftf_bullet_system_terminate(void *data);
 bool tftf_burst(
     TFTFBulletPatternName name, Vec3 origin, Vec3 direction);
 
-//@system initialize=tftf_bullet_system_initialize update=tftf_bullet_system_update terminate=tftf_bullet_system_terminate order=20
+//@system components=LDK_COMPONENT_TFTFProjectileComponent initialize=tftf_bullet_system_initialize update=tftf_bullet_system_update terminate=tftf_bullet_system_terminate order=20
 typedef struct TFTFBulletSystem
 {
   //@begin_group "Visual"

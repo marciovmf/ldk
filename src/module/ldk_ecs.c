@@ -90,15 +90,6 @@ typedef struct LDKGroupingBuildContext
   bool ok;
 } LDKGroupingBuildContext;
 
-typedef struct LDKGroupingConfigEntry
-{
-  u64 id;
-  char *name;
-  u32 *component_types;
-  u32 component_count;
-} LDKGroupingConfigEntry;
-
-
 static LDKECS *s_ecs(void)
 {
   return (LDKECS *)ldk_module_get(LDK_MODULE_ECS);
@@ -310,81 +301,6 @@ static const LDKRegisteredGrouping *s_grouping_find_const(
   return s_grouping_find((LDKGroupingRegistryInternal *)internal, id);
 }
 
-static bool s_grouping_name_exists(
-    const LDKGroupingRegistryInternal *internal, const char *name,
-    bool ignore_config_defined)
-{
-  if (!internal || !name)
-  {
-    return false;
-  }
-
-  for (u32 i = 0; i < internal->count; ++i)
-  {
-    const LDKRegisteredGrouping *grouping = internal->groupings[i];
-    if (ignore_config_defined && grouping->config_defined)
-    {
-      continue;
-    }
-    if (strcmp(grouping->desc.name, name) == 0)
-    {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static bool s_grouping_desc_is_valid(LDKECS *ecs, const LDKGroupingDesc *desc,
-    bool ignore_config_defined)
-{
-  LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
-
-  if (!ecs || !internal || !desc || desc->id == 0 || !desc->name ||
-      !desc->name[0] || desc->component_count > LDK_ENTITY_MAX_COMPONENTS ||
-      (desc->component_count && !desc->component_types))
-  {
-    return false;
-  }
-
-  for (u32 i = 0; i < internal->count; ++i)
-  {
-    const LDKRegisteredGrouping *grouping = internal->groupings[i];
-    if (ignore_config_defined && grouping->config_defined)
-    {
-      continue;
-    }
-    if (grouping->desc.id == desc->id)
-    {
-      return false;
-    }
-  }
-
-  if (s_grouping_name_exists(internal, desc->name, ignore_config_defined))
-  {
-    return false;
-  }
-
-  for (u32 i = 0; i < desc->component_count; ++i)
-  {
-    if (desc->component_types[i] == 0 ||
-        !ldk_component_is_registered(&ecs->component, desc->component_types[i]))
-    {
-      return false;
-    }
-
-    for (u32 j = 0; j < i; ++j)
-    {
-      if (desc->component_types[j] == desc->component_types[i])
-      {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
 static bool s_grouping_matches_entity(
     LDKECS *ecs, const LDKRegisteredGrouping *grouping, LDKEntity entity)
 {
@@ -395,10 +311,17 @@ static bool s_grouping_matches_entity(
     return false;
   }
 
+  if (!grouping->desc.component_count)
+  {
+    return false;
+  }
   for (u32 i = 0; i < grouping->desc.component_count; ++i)
   {
     if (!ldk_entity_component_has(
-            &ecs->entity, entity, grouping->desc.component_types[i]))
+            &ecs->entity, entity, grouping->desc.component_types[i]) ||
+        ldk_entity_component_flags_has(&ecs->entity, entity,
+            grouping->desc.component_types[i],
+            LDK_COMPONENT_INSTANCE_FLAG_DISABLED))
     {
       return false;
     }
@@ -693,6 +616,11 @@ static void s_grouping_entity_dirty(LDKECS *ecs, LDKEntity entity)
   internal->dirty_entities[internal->dirty_count++] = entity;
 }
 
+static void s_component_state_changed(void *user, LDKEntity entity)
+{
+  s_grouping_entity_dirty((LDKECS *)user, entity);
+}
+
 static bool s_grouping_flush(LDKECS *ecs)
 {
   LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
@@ -846,181 +774,6 @@ static void s_grouping_systems_unbind_group(
   }
 }
 
-static bool s_parse_u64(const char *text, u64 *out)
-{
-  unsigned long long value;
-  char *end;
-
-  if (!text || !*text || !out || text[0] == '-')
-  {
-    return false;
-  }
-
-  errno = 0;
-  value = strtoull(text, &end, 0);
-  if (errno == ERANGE || end == text || *end != 0 || value == 0)
-  {
-    return false;
-  }
-
-  *out = (u64)value;
-  return true;
-}
-
-static bool s_parse_u32(const char *text, u32 *out, bool allow_zero)
-{
-  unsigned long value;
-  char *end;
-
-  if (!text || !*text || !out || text[0] == '-')
-  {
-    return false;
-  }
-
-  errno = 0;
-  value = strtoul(text, &end, 0);
-  if (errno == ERANGE || end == text || *end != 0 || value > UINT32_MAX ||
-      (!allow_zero && value == 0))
-  {
-    return false;
-  }
-
-  *out = (u32)value;
-  return true;
-}
-
-static void s_grouping_config_entries_free(
-    LDKGroupingConfigEntry *entries, u32 count)
-{
-  if (!entries)
-  {
-    return;
-  }
-
-  for (u32 i = 0; i < count; ++i)
-  {
-    free(entries[i].component_types);
-    free(entries[i].name);
-  }
-  free(entries);
-}
-
-static bool s_grouping_config_entries_load(
-    XIni *ini, LDKGroupingConfigEntry **out_entries, u32 *out_count)
-{
-  LDKGroupingConfigEntry *entries = NULL;
-  const char *count_text;
-  int section = -1;
-  u32 count = 0;
-
-  if (!ini || !out_entries || !out_count)
-  {
-    return false;
-  }
-
-  *out_entries = NULL;
-  *out_count = 0;
-  count_text = x_ini_get(ini, "groupings", "count", NULL);
-  if (!count_text)
-  {
-    return true;
-  }
-
-  if (!s_parse_u32(count_text, &count, true))
-  {
-    return false;
-  }
-
-  for (int i = 0; i < x_ini_section_count(ini); ++i)
-  {
-    if (strcmp(x_ini_section_name(ini, i), "groupings") == 0)
-    {
-      section = i;
-      break;
-    }
-  }
-
-  if (section < 0 ||
-      count > (u32)x_ini_key_count(ini, section))
-  {
-    return false;
-  }
-
-  if (count)
-  {
-    entries = (LDKGroupingConfigEntry *)calloc(count, sizeof(*entries));
-    if (!entries)
-    {
-      return false;
-    }
-  }
-
-  for (u32 i = 0; i < count; ++i)
-  {
-    char key[64];
-    const char *value;
-    u32 component_count;
-
-    snprintf(key, sizeof(key), "%u.id", i);
-    value = x_ini_get(ini, "groupings", key, NULL);
-    if (!s_parse_u64(value, &entries[i].id))
-    {
-      goto failed;
-    }
-
-    snprintf(key, sizeof(key), "%u.name", i);
-    value = x_ini_get(ini, "groupings", key, NULL);
-    if (!value || !*value)
-    {
-      goto failed;
-    }
-    entries[i].name = s_string_copy(value);
-    if (!entries[i].name)
-    {
-      goto failed;
-    }
-
-    snprintf(key, sizeof(key), "%u.component_count", i);
-    value = x_ini_get(ini, "groupings", key, NULL);
-    if (!s_parse_u32(value, &component_count, true) ||
-        component_count > LDK_ENTITY_MAX_COMPONENTS)
-    {
-      goto failed;
-    }
-    entries[i].component_count = component_count;
-
-    if (component_count)
-    {
-      entries[i].component_types =
-          (u32 *)malloc(sizeof(u32) * (size_t)component_count);
-      if (!entries[i].component_types)
-      {
-        goto failed;
-      }
-    }
-
-    for (u32 component_index = 0; component_index < component_count;
-         ++component_index)
-    {
-      snprintf(key, sizeof(key), "%u.component_%u", i, component_index);
-      value = x_ini_get(ini, "groupings", key, NULL);
-      if (!s_parse_u32(
-              value, &entries[i].component_types[component_index], false))
-      {
-        goto failed;
-      }
-    }
-  }
-
-  *out_entries = entries;
-  *out_count = count;
-  return true;
-
-failed:
-  s_grouping_config_entries_free(entries, count);
-  return false;
-}
-
 typedef struct LDKECSEntityForeachContext
 {
   bool (*fn)(LDKEntity entity, void *user);
@@ -1129,6 +882,9 @@ bool ldk_ecs_initialize(
     ldk_entity_module_terminate(entity_registry);
     return false;
   }
+
+  context->entity.component_state_changed = s_component_state_changed;
+  context->entity.component_state_user = context;
 
   if (!ldk_system_registry_callback_sync_set(
           system_registry, s_grouping_callback_sync, context))
@@ -1548,29 +1304,111 @@ bool ldk_ecs_component_register(const LDKComponentDesc *desc)
 // Grouping management
 // ---------------------------------------------------------------------------
 
-bool ldk_ecs_grouping_register(const LDKGroupingDesc *desc)
+static bool s_grouping_types_sort(const u32 *types, u32 count, u32 *sorted)
 {
-  LDKECS *ecs = s_ecs();
-  LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
-  LDKRegisteredGrouping *grouping;
-
-  if (!ecs || !internal || ldk_game_instance_is_started() ||
-      ldk_system_registry_is_busy(&ecs->system) ||
-      !s_grouping_desc_is_valid(ecs, desc, false) ||
-      !s_grouping_registry_reserve(internal, internal->count + 1u))
+  if (count > LDK_ENTITY_MAX_COMPONENTS || (count && !types))
   {
     return false;
   }
+  for (u32 i = 0; i < count; ++i)
+  {
+    if (!types[i])
+    {
+      return false;
+    }
+    u32 j = i;
+    while (j && sorted[j - 1] > types[i])
+    {
+      sorted[j] = sorted[j - 1];
+      --j;
+    }
+    sorted[j] = types[i];
+  }
+  for (u32 i = 1; i < count; ++i)
+  {
+    if (sorted[i] == sorted[i - 1])
+    {
+      return false;
+    }
+  }
+  return true;
+}
 
-  grouping = s_grouping_create(ecs, desc, false);
+u64 ldk_ecs_grouping_id(const u32 *types, u32 count)
+{
+  u32 sorted[LDK_ENTITY_MAX_COMPONENTS];
+  u64 hash = UINT64_C(14695981039346656037);
+  if (!count || !s_grouping_types_sort(types, count, sorted))
+  {
+    return 0;
+  }
+  /* FNV-1a, fixed byte order independent of host architecture. */
+  for (u32 i = 0; i <= count; ++i)
+  {
+    u32 value = i ? sorted[i - 1] : count;
+    for (u32 byte = 0; byte < 4; ++byte)
+    {
+      hash ^= (value >> (byte * 8)) & 255u;
+      hash *= UINT64_C(1099511628211);
+    }
+  }
+  return hash ? hash : UINT64_C(1);
+}
+
+bool ldk_ecs_grouping_register(const LDKGroupingDesc *desc)
+{
+  LDKECS *ecs = (LDKECS *)ldk_module_get(LDK_MODULE_ECS);
+  LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
+  u32 sorted[LDK_ENTITY_MAX_COMPONENTS];
+  if (!ecs || !internal || !desc || ldk_system_registry_is_busy(&ecs->system) ||
+      !s_grouping_types_sort(
+          desc->component_types, desc->component_count, sorted))
+  {
+    ldk_log_error("Invalid grouping requirements.\n");
+    return false;
+  }
+  if (!desc->component_count)
+  {
+    return true;
+  }
+  LDKGroupingDesc canonical = *desc;
+  canonical.id = ldk_ecs_grouping_id(sorted, desc->component_count);
+  canonical.component_types = sorted;
+  canonical.name = desc->name && desc->name[0] ? desc->name : "Automatic";
+  for (u32 i = 0; i < canonical.component_count; ++i)
+  {
+    if (!ldk_component_is_registered(&ecs->component, sorted[i]))
+    {
+      ldk_log_error("Grouping %s requires unregistered component 0x%08x.\n",
+          canonical.name, sorted[i]);
+      return false;
+    }
+  }
+  LDKRegisteredGrouping *existing = s_grouping_find(internal, canonical.id);
+  if (existing)
+  {
+    if (existing->desc.component_count == canonical.component_count &&
+        memcmp(existing->component_types, sorted,
+            sizeof(u32) * canonical.component_count) == 0)
+    {
+      return true;
+    }
+    ldk_log_error("Grouping hash collision.\n");
+    return false;
+  }
+  if (!s_grouping_registry_reserve(internal, internal->count + 1u))
+  {
+    return false;
+  }
+  LDKRegisteredGrouping *grouping = s_grouping_create(ecs, &canonical, false);
   if (!grouping)
   {
     return false;
   }
-
   internal->groupings[internal->count++] = grouping;
   return true;
 }
+
 
 bool ldk_ecs_grouping_unregister(u64 id)
 {
@@ -1587,6 +1425,18 @@ bool ldk_ecs_grouping_unregister(u64 id)
   {
     if (internal->groupings[i]->desc.id == id)
     {
+      for (u32 n = 0; n < ldk_system_registry_count(&ecs->system); ++n)
+      {
+        LDKSystemDesc system = {0};
+        if (ldk_system_registry_at(&ecs->system, n, &system) &&
+            ldk_ecs_grouping_id(
+                system.component_types, system.component_count) == id)
+        {
+          ldk_log_error(
+              "Cannot remove a grouping required by a registered system.\n");
+          return false;
+        }
+      }
       s_grouping_systems_unbind_group(ecs, &internal->groupings[i]->view);
       s_grouping_destroy(internal->groupings[i]);
       memmove(&internal->groupings[i], &internal->groupings[i + 1u],
@@ -1644,6 +1494,11 @@ bool ldk_ecs_grouping_at(u32 index, LDKGroupingDesc *out)
 
 const LDKEntityGroup *ldk_ecs_grouping_get(u64 id)
 {
+  static const LDKEntityGroup empty = {0};
+  if (!id)
+  {
+    return &empty;
+  }
   LDKECS *ecs = s_ecs();
   LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
   LDKRegisteredGrouping *grouping;
@@ -1672,126 +1527,11 @@ bool ldk_ecs_grouping_is_config_defined(u64 id)
 
 bool ldk_ecs_grouping_configure_file(const char *ini_path)
 {
-  LDKECS *ecs = s_ecs();
-  LDKGroupingRegistryInternal *internal = s_grouping_internal(ecs);
-  LDKGroupingConfigEntry *entries = NULL;
-  LDKRegisteredGrouping **new_groupings = NULL;
-  XIni ini = {0};
-  XIniError error = {0};
-  u32 entry_count = 0;
-  u32 code_count = 0;
-  bool ok = false;
-
-  if (!ecs || !internal || !ini_path || ldk_game_instance_is_started() ||
-      ldk_system_registry_is_busy(&ecs->system))
-  {
-    return false;
-  }
-
-  if (!x_ini_load_file(ini_path, &ini, &error))
-  {
-    return false;
-  }
-
-  if (!s_grouping_config_entries_load(&ini, &entries, &entry_count))
-  {
-    goto done;
-  }
-
-  for (u32 i = 0; i < entry_count; ++i)
-  {
-    LDKGroupingDesc desc = {.id = entries[i].id,
-        .name = entries[i].name,
-        .component_types = entries[i].component_types,
-        .component_count = entries[i].component_count};
-
-    if (!s_grouping_desc_is_valid(ecs, &desc, true))
-    {
-      goto done;
-    }
-
-    for (u32 j = 0; j < i; ++j)
-    {
-      if (entries[j].id == entries[i].id ||
-          strcmp(entries[j].name, entries[i].name) == 0)
-      {
-        goto done;
-      }
-    }
-  }
-
-  if (entry_count)
-  {
-    new_groupings = (LDKRegisteredGrouping **)calloc(
-        entry_count, sizeof(*new_groupings));
-    if (!new_groupings)
-    {
-      goto done;
-    }
-  }
-
-  for (u32 i = 0; i < entry_count; ++i)
-  {
-    LDKGroupingDesc desc = {.id = entries[i].id,
-        .name = entries[i].name,
-        .component_types = entries[i].component_types,
-        .component_count = entries[i].component_count};
-    new_groupings[i] = s_grouping_create(ecs, &desc, true);
-    if (!new_groupings[i])
-    {
-      goto done;
-    }
-  }
-
-  for (u32 i = 0; i < internal->count; ++i)
-  {
-    if (!internal->groupings[i]->config_defined)
-    {
-      code_count += 1u;
-    }
-  }
-
-  if (!s_grouping_registry_reserve(internal, code_count + entry_count))
-  {
-    goto done;
-  }
-
-  u32 write_index = 0;
-  for (u32 i = 0; i < internal->count; ++i)
-  {
-    LDKRegisteredGrouping *grouping = internal->groupings[i];
-    if (grouping->config_defined)
-    {
-      s_grouping_systems_unbind_group(ecs, &grouping->view);
-      s_grouping_destroy(grouping);
-    }
-    else
-    {
-      internal->groupings[write_index++] = grouping;
-    }
-  }
-
-  for (u32 i = 0; i < entry_count; ++i)
-  {
-    internal->groupings[write_index++] = new_groupings[i];
-    new_groupings[i] = NULL;
-  }
-  internal->count = write_index;
-  ok = true;
-
-done:
-  if (new_groupings)
-  {
-    for (u32 i = 0; i < entry_count; ++i)
-    {
-      s_grouping_destroy(new_groupings[i]);
-    }
-  }
-  free(new_groupings);
-  s_grouping_config_entries_free(entries, entry_count);
-  x_ini_free(&ini);
-  return ok;
+  /* Legacy project sections no longer define ECS membership. */
+  (void)ini_path;
+  return true;
 }
+
 
 // ---------------------------------------------------------------------------
 // System management
@@ -1799,15 +1539,48 @@ done:
 
 bool ldk_ecs_system_register(const LDKSystemDesc *desc)
 {
-  LDKSystemRegistry *system_registry = ldk_ecs_system_registry_get();
-
-  if (!system_registry)
+  LDKECS *ecs = s_ecs();
+  LDKSystemRegistry *registry = ldk_ecs_system_registry_get();
+  u32 sorted[LDK_ENTITY_MAX_COMPONENTS];
+  if (!ecs || !registry || !desc ||
+      !s_grouping_types_sort(
+          desc->component_types, desc->component_count, sorted))
   {
+    ldk_log_error("Invalid system requirements.\n");
     return false;
   }
-
-  return ldk_system_registry_register(system_registry, desc);
+  u64 grouping_id = ldk_ecs_grouping_id(sorted, desc->component_count);
+  bool existed = !grouping_id ||
+      s_grouping_find(s_grouping_internal(ecs), grouping_id) != NULL;
+  if (!ldk_system_registry_register(registry, desc))
+  {
+    ldk_log_error("Failed to register system descriptor %s.\n",
+        desc->name ? desc->name : "<unnamed>");
+    return false;
+  }
+  LDKGroupingDesc grouping = {0};
+  grouping.name = desc->name;
+  grouping.component_types = sorted;
+  grouping.component_count = desc->component_count;
+  if (!ldk_ecs_grouping_register(&grouping))
+  {
+    ldk_system_registry_unregister(registry, desc->id);
+    return false;
+  }
+  const LDKEntityGroup *group = ldk_ecs_grouping_get(grouping_id);
+  if (!group ||
+      !ldk_system_registry_system_group_set(registry, desc->id, group))
+  {
+    ldk_system_registry_unregister(registry, desc->id);
+    if (!existed)
+    {
+      ldk_ecs_grouping_unregister(grouping_id);
+    }
+    return false;
+  }
+  return true;
 }
+
 
 bool ldk_ecs_system_unregister(u64 id)
 {
@@ -1917,3 +1690,27 @@ bool ldk_ecs_system_bucket_run(
 }
 
 #endif
+
+bool ldk_ecs_component_is_enabled(LDKEntity entity, u32 component_type)
+{
+  LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+  return registry &&
+      ldk_entity_component_has(registry, entity, component_type) &&
+      !ldk_entity_component_flags_has(registry, entity, component_type,
+          LDK_COMPONENT_INSTANCE_FLAG_DISABLED);
+}
+
+bool ldk_ecs_component_enabled_set(
+    LDKEntity entity, u32 component_type, bool enabled)
+{
+  LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+  if (!registry || !ldk_entity_component_has(registry, entity, component_type))
+  {
+    return false;
+  }
+  return enabled
+      ? ldk_entity_component_flags_remove(registry, entity, component_type,
+            LDK_COMPONENT_INSTANCE_FLAG_DISABLED)
+      : ldk_entity_component_flags_add(registry, entity, component_type,
+            LDK_COMPONENT_INSTANCE_FLAG_DISABLED);
+}

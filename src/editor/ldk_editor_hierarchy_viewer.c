@@ -476,18 +476,7 @@ static void s_editor_hierarchy_systems_draw(
   grouping_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   LDKUIRect add_button_rect = grouping_button_rect;
-  add_button_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
 
-  LDKUIIcon grouping_icon = icon;
-  grouping_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CATEGORY];
-
-  ldk_ui_begin_disabled(ui, !editor->project.loaded);
-  if (ldk_ui_widget_icon_button(
-          ui, EDIT_GROUPINGS_BUTTON, grouping_icon, "", grouping_button_rect))
-  {
-    ldki_editor_grouping_catalog_open(editor);
-  }
-  ldk_ui_end_disabled(ui);
 
   ldk_ui_begin_disabled(ui, !can_edit);
   if (ldk_ui_widget_button(ui, ADD_SYSTEM_BUTTON, "+", add_button_rect))
@@ -713,7 +702,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
   delete_button_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
 
   LDKUIRect add_button_rect = delete_button_rect;
-  add_button_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
+
 
   LDKUIIcon delete_icon = icon;
   delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];

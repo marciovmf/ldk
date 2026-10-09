@@ -49,7 +49,8 @@ typedef enum LDKEntityInternalFlags
 typedef enum LDKComponentInstanceFlags
 {
   LDK_COMPONENT_INSTANCE_FLAG_NONE = 0,
-  LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR = 1 << 0
+  LDK_COMPONENT_INSTANCE_FLAG_HIDE_IN_EDITOR = 1 << 0,
+  LDK_COMPONENT_INSTANCE_FLAG_DISABLED = 1 << 1
 } LDKComponentInstanceFlags;
 
 typedef enum LDKBuiltinComponentType
@@ -108,6 +109,9 @@ typedef bool (*LDKEntityIterFn)(LDKEntity entity, LDKEntityInfo* info, void* use
 typedef struct LDKEntityRegistry
 {
   XHPool pool;
+  /* Engine notification; flags remain per instance, outside component data. */
+  void (*component_state_changed)(void *user, LDKEntity entity);
+  void *component_state_user;
 } LDKEntityRegistry;
 
 typedef struct LDKTransform LDKTransform;

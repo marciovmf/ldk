@@ -3,7 +3,7 @@
 
 #include <module/ldk_system.h>
 
-//@system name=TFTFBulbPlantAISystem order=10
+//@system components=LDK_COMPONENT_TFTFBulbPlantAIComponent name=TFTFBulbPlantAISystem order=10
 void tftf_bulb_plant_ai_system_update(
     void *data, const LDKEntityGroup *group, float dt);
 

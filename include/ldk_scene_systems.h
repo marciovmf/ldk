@@ -16,12 +16,10 @@ extern "C" {
 /**
  * System associations belonging to the open scene, not to the scene catalog.
  * Initialize with {0}. The list owns its storage and must be cleared when the
- * scene is discarded. Unknown system and grouping ids are retained.
- *
- * grouping_ids mirrors ids by index. A grouping id of 0 means the system is
- * not bound to an entity grouping. Keeping ids as its own array preserves the
- * existing scene-system API and storage semantics for callers that only care
- * about the selected systems. data/data_sizes mirror the same indices.
+ * scene is discarded. Unknown system IDs are retained.
+ * grouping_ids is reserved compatibility storage, always zero.
+ * Requirements belong to registered systems; scenes cannot override them.
+ * data/data_sizes mirror ids by index.
  * Each non-NULL data pointer owns one zero-initialized struct whose address
  * stays stable when the association list grows. The registry only borrows it.
  */
@@ -39,13 +37,16 @@ typedef struct LDKSceneSystems
  * Do not call while the registry is executing a callback. */
 LDK_API void ldk_scene_systems_clear(LDKSceneSystems *systems);
 LDK_API bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id);
-/** Adds an unbound system and allocates its data when registered. */
+/** Adds a system and allocates its data when registered. */
 LDK_API bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id);
+/** Deprecated: grouping_id is ignored. */
 LDK_API bool ldk_scene_systems_add_with_grouping(
     LDKSceneSystems *systems, u64 id, u64 grouping_id);
 LDK_API bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id);
+/** Deprecated: validates membership only; grouping_id is ignored. */
 LDK_API bool ldk_scene_systems_grouping_set(
     LDKSceneSystems *systems, u64 system_id, u64 grouping_id);
+/** Returns the registered system requirement hash, or zero if unavailable. */
 LDK_API u64 ldk_scene_systems_grouping_get(
     const LDKSceneSystems *systems, u64 system_id);
 
@@ -63,12 +64,11 @@ LDK_API void *ldk_scene_systems_data_get(
  * An absent node produces an empty list. On failure, out is unchanged.
  * Accepted ids are positive signed integers or strings representing u64s.
  * The writer uses quoted hexadecimal strings to support the full u64 range.
- * The optional grouping entry defaults to 0 for old scene files.
+ * Legacy grouping entries are ignored.
  *
  *   scene:
  *     systems:
  *       - id: "0x0000000000000100"
- *         grouping: "0x0000000000000200"
  */
 LDK_API bool ldk_scene_systems_from_tml(
     const char *source, LDKSceneSystems *out, LDKSceneResult *result);

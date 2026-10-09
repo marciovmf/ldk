@@ -478,7 +478,6 @@ scene:
         type_15_bottom_color: 0
         type_15_top_color: 0
     - id: "0xf8ae7c8bf28b5e6d"
-      grouping: "0x8000000000000001"
       data:
         seed: 10012
         map_size: 600
@@ -545,9 +544,7 @@ scene:
         forward_offset: 4.00000000
         material: "assets/tftf_island.material"
     - id: "0x05047ea6f003fb8f"
-      grouping: "0x8000000000000002"
     - id: "0xea9d0015f4bf0348"
-      grouping: "0x8000000000000004"
       data:
         projectile_mesh: -1
         projectile_material: "assets/materials/tftf_projectile.tml"
@@ -620,7 +617,6 @@ scene:
         pattern_3_sine_phase_degrees: 0.00000000
         pattern_3_color: 0
     - id: "0xc438be868c0566d0"
-      grouping: "0x8000000000000005"
     - id: "0x1e2c227aa2362f6a"
       data:
         heightmap: -1
@@ -736,4 +732,3 @@ scene:
         caustics_speed: 0.200000003
         caustics_depth: 1.00000000
     - id: "0xb9ce38dc680ce4e0"
-      grouping: "0x8000000000000007"

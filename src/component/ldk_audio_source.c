@@ -42,6 +42,11 @@ LDKAudioSource ldk_audio_source_make_default(void)
 
 bool ldk_audio_source_play(LDKEntity entity)
 {
+  if (!ldk_ecs_component_is_enabled(entity, LDK_COMPONENT_TYPE_AUDIO_SOURCE))
+  {
+    return false;
+  }
+
   LDKAudioSource *source = s_audio_source_get(entity);
   LDKAudio *audio = (LDKAudio *)ldk_module_get(LDK_MODULE_AUDIO);
   LDKAudioPlayDesc desc;
@@ -194,10 +199,10 @@ void ldk_audio_source_update_all(void)
     }
 
     game_started = ldk_game_instance_is_started();
-    if (!game_started)
+    if (!game_started ||
+        !ldk_ecs_component_is_enabled(*entity, LDK_COMPONENT_TYPE_AUDIO_SOURCE))
     {
-      if (source->runtime_started &&
-          ldk_audio_voice_is_alive(audio, source->voice))
+      if (ldk_audio_voice_is_alive(audio, source->voice))
       {
         ldk_audio_voice_stop(audio, source->voice);
       }

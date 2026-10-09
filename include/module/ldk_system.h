@@ -103,6 +103,8 @@ typedef struct LDKSystemDesc
   LDKSystemInitializeFn initialize;
   LDKSystemUpdateFn update;
   LDKSystemTerminateFn terminate;
+  const u32 *component_types;
+  u32 component_count;
 } LDKSystemDesc;
 
 typedef struct LDKSystemRegistry
@@ -171,7 +173,8 @@ LDK_API void *ldk_system_registry_system_data_get(
 
 /**
  * Change the entity group delivered to a registered system's update callback.
- * This is scene binding state, not part of LDKSystemDesc or system lifecycle.
+ * Engine-internal binding, resolved by the ECS from LDKSystemDesc requirements.
+ * Scene start/stop must preserve it. Game code should use the ECS facade.
  * Passing NULL binds the system to the empty group.
  */
 LDK_API bool ldk_system_registry_system_group_set(LDKSystemRegistry *registry,

@@ -139,3 +139,8 @@ LDK_GAME_API bool game_register_systems(void)
 
   return true;
 }
+
+LDK_GAME_API u32 game_abi_version(void)
+{
+  return LDK_GAME_ABI_VERSION;
+}
