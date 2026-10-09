@@ -377,6 +377,8 @@ typedef struct LDKEditorContext
   float editor_camera_near_clip;
   float editor_camera_far_clip;
   bool file_explorer_open_folders_single_click;
+  char source_viewer_path[X_FS_PATH_MAX_LENGTH];
+  char source_viewer_args[LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY];
   LDKEditorFileAssociation
       file_associations[LDK_EDITOR_FILE_ASSOCIATION_CAPACITY];
   u32 file_association_count;

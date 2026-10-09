@@ -1021,6 +1021,108 @@ static void s_editor_profiler_tree_draw(LDKUIContext *ui)
   }
 }
 
+static bool s_editor_profiler_source_command_expand(const char *command,
+    const char *file, u32 line, char *out, size_t capacity)
+{
+  char line_text[16];
+  size_t used = 0;
+  const char *cursor = command;
+
+  if (command == NULL || file == NULL || out == NULL || capacity == 0)
+  {
+    return false;
+  }
+
+  snprintf(line_text, sizeof(line_text), "%u", line);
+  out[0] = 0;
+  while (*cursor)
+  {
+    const char *value = NULL;
+    size_t marker_length = 0;
+    if (strncmp(cursor, "%file%", 6) == 0)
+    {
+      value = file;
+      marker_length = 6;
+    }
+    else if (strncmp(cursor, "%line%", 6) == 0)
+    {
+      value = line_text;
+      marker_length = 6;
+    }
+    if (value != NULL)
+    {
+      /* Quoting is part of expansion so paths containing spaces stay intact. */
+      bool quote = value == file;
+      size_t length = strlen(value);
+      size_t required = length + (quote ? 2u : 0u);
+      if (required >= capacity - used)
+      {
+        return false;
+      }
+      if (quote)
+      {
+        out[used++] = '"';
+      }
+      memcpy(out + used, value, length);
+      used += length;
+      if (quote)
+      {
+        out[used++] = '"';
+      }
+      out[used] = 0;
+      cursor += marker_length;
+      continue;
+    }
+    if (used + 1 >= capacity)
+    {
+      return false;
+    }
+    out[used++] = *cursor++;
+    out[used] = 0;
+  }
+  return true;
+}
+
+static bool s_editor_profiler_source_viewer_launch(
+    LDKEditorContext *editor, const char *file, u32 line)
+{
+  char arguments[LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY +
+                 X_FS_PATH_MAX_LENGTH * 2u + 32u];
+  XFSPath working_directory = {0};
+  LDKOSProcessDesc desc = {0};
+  LDKOSProcessResult result;
+
+  if (editor->source_viewer_path[0] == 0 ||
+      !s_editor_profiler_source_command_expand(editor->source_viewer_args,
+          file, line, arguments, sizeof(arguments)))
+  {
+    ldki_editor_log_error(editor, "Invalid Source viewer configuration.");
+    return false;
+  }
+
+  if (x_fs_path_is_absolute_cstr(file))
+  {
+    XFSPath path = {0};
+    x_fs_path_set(&path, file);
+    x_fs_path_dirname(&path, &working_directory);
+  }
+  desc.executable = editor->source_viewer_path;
+  desc.arguments = arguments;
+  desc.working_directory = working_directory.length != 0
+                               ? working_directory.buf : NULL;
+  desc.new_console = false;
+  result = ldk_os_process_launch(&desc);
+  if (!result.started)
+  {
+    char message[256];
+    snprintf(message, sizeof(message),
+        "Failed to launch Source viewer (OS error %u).", result.os_error);
+    ldki_editor_log_error(editor, message);
+    return false;
+  }
+  return true;
+}
+
 static void s_editor_profiler_selection_draw(
     LDKEditorContext *editor, LDKUIContext *ui)
 {
@@ -1081,6 +1183,12 @@ static void s_editor_profiler_selection_draw(
       if (ldk_ui_button(ui, "Copy Source Path"))
       {
         ldk_os_clipboard_text_set(editor->window, source->file);
+      }
+      ldk_ui_set_next_disabled(ui, editor->source_viewer_path[0] == 0);
+      if (ldk_ui_button(ui, "Go to Source"))
+      {
+        s_editor_profiler_source_viewer_launch(
+            editor, source->file, source->line);
       }
     }
   }

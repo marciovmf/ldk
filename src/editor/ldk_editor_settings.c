@@ -23,6 +23,8 @@ typedef struct LDKEditorSettingsDraft
   char camera_near_clip[32];
   char camera_far_clip[32];
   char font_path[X_FS_PATH_MAX_LENGTH];
+  char source_viewer_path[X_FS_PATH_MAX_LENGTH];
+  char source_viewer_args[LDK_EDITOR_FILE_ASSOCIATION_ARGUMENTS_CAPACITY];
   rgba32 debug_color;
   rgba32 selection_color_1;
   rgba32 selection_color_2;
@@ -94,6 +96,10 @@ static void s_editor_settings_draft_reset(
   draft->debug_line_width = editor->debug_line_width;
   draft->selection_line_width = editor->selection_line_width;
   draft->selection_pulse_seconds = editor->selection_pulse_seconds;
+  snprintf(draft->source_viewer_path, sizeof(draft->source_viewer_path),
+      "%s", editor->source_viewer_path);
+  snprintf(draft->source_viewer_args, sizeof(draft->source_viewer_args),
+      "%s", editor->source_viewer_args);
   draft->file_association_count = editor->file_association_count;
   memcpy(draft->file_associations, editor->file_associations,
       sizeof(draft->file_associations));
@@ -270,7 +276,11 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
        x_ini_set_f32(&ini, ".editor", "selection_line_width",
            draft->selection_line_width) &&
        x_ini_set_f32(&ini, ".editor", "selection_pulse_seconds",
-           draft->selection_pulse_seconds);
+           draft->selection_pulse_seconds) &&
+       x_ini_set(&ini, ".editor", "source_viewer_path",
+           draft->source_viewer_path) &&
+       x_ini_set(&ini, ".editor", "source_viewer_args",
+           draft->source_viewer_args);
 
   for (u32 i = 0; ok && i < draft->file_association_count; ++i)
   {
@@ -323,6 +333,10 @@ static bool s_editor_settings_save(LDKEditorContext *editor,
   {
     x_fs_path_normalize(&editor->editor_font);
   }
+  snprintf(editor->source_viewer_path, sizeof(editor->source_viewer_path),
+      "%s", draft->source_viewer_path);
+  snprintf(editor->source_viewer_args, sizeof(editor->source_viewer_args),
+      "%s", draft->source_viewer_args);
   editor->file_association_count = draft->file_association_count;
   memcpy(editor->file_associations, draft->file_associations,
       sizeof(editor->file_associations));
@@ -600,6 +614,18 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
 
   if (external_programs_open)
   {
+    u32 viewer_result = s_editor_settings_browse_row(editor,
+        "Source viewer path", draft.source_viewer_path,
+        (u32)sizeof(draft.source_viewer_path), "Choose Source Viewer",
+        "Programs\0*.exe\0All Files\0*.*\0\0");
+    viewer_result |= s_editor_settings_input_row(editor,
+        "Source viewer args", draft.source_viewer_args,
+        (u32)sizeof(draft.source_viewer_args));
+    if ((viewer_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      draft.dirty = true;
+    }
+    ldk_ui_label(ui, "Use %file% and %line% in Source viewer args.");
     ldk_ui_label(ui,
         "Use %file% in Arguments. Extensions may be separated by spaces, "
         "commas, or semicolons.");

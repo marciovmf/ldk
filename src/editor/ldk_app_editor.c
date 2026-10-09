@@ -2142,6 +2142,11 @@ static bool s_editor_config_load_from_ini(
   editor->file_explorer_open_folders_single_click = x_ini_get_bool(
       ini, EDITOR, "file_explorer_open_folders_single_click", false);
 
+  snprintf(editor->source_viewer_path, sizeof(editor->source_viewer_path),
+      "%s", x_ini_get(ini, EDITOR, "source_viewer_path", ""));
+  snprintf(editor->source_viewer_args, sizeof(editor->source_viewer_args),
+      "%s", x_ini_get(ini, EDITOR, "source_viewer_args", ""));
+
   memset(editor->file_associations, 0, sizeof(editor->file_associations));
   editor->file_association_count = 0;
 
