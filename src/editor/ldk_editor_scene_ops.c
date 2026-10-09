@@ -1569,6 +1569,9 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
     return false;
   }
 
+  /* Restore editor-only preview poses before the scene is replaced. */
+  ldki_editor_animation_scene_reset();
+
   if (!s_editor_scene_ecs_clear())
   {
     ldki_editor_log_error(editor, "Failed to clear the current scene.");

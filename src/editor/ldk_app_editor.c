@@ -1763,6 +1763,9 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
     ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
   }
 
+  /* Animation preview has its own clock; no gameplay session is required. */
+  ldki_editor_animation_preview_tick(editor, delta_time);
+
   LDK_PROFILE_BEGIN("Editor UI Build");
   s_draw_editor_ui(editor, delta_time);
   LDK_PROFILE_END();
@@ -2401,6 +2404,9 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
     return false;
   }
 
+  /* A preview never becomes the initial pose of the gameplay session,
+   * and its entity handles must not survive a scene reload. */
+  ldki_editor_animation_scene_reset();
   ecs = ldk_module_get(LDK_MODULE_ECS);
   if (!ecs || !ecs->system.is_started)
   {
@@ -4786,6 +4792,19 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_PROFILER);
+
+  LDKEditorWindow animation_window = {.id = LDK_EDITOR_WINDOW_ANIMATION,
+      .title = "Animation",
+      .function = ldki_editor_animation_window_show,
+      .data = NULL};
+
+  if (!ldk_editor_window_add((LDKEditor *)editor, &animation_window))
+  {
+    ldk_log_error("Failed to register the Animation editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_ANIMATION);
 
   LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
       .title = "Scene Catalog",

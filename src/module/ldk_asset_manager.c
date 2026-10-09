@@ -1,6 +1,7 @@
 #include <module/ldk_asset_manager.h>
 #include <stdx/stdx_io.h>
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,6 +80,15 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
         free(data->text);
       }
 
+      free(data);
+    }
+  }
+  else if (info->type == LDK_ASSET_TYPE_KEYFRAME_ANIMATION)
+  {
+    LDKAssetKeyframeAnimationData *data = info->data;
+    if (data)
+    {
+      ldk_keyframe_animation_clear(&data->clip);
       free(data);
     }
   }
@@ -486,6 +496,191 @@ const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManage
   return ldk_asset_manager_text_file_get(manager, asset);
 }
 
+
+// ---------------------------------------------------------------------------
+// Keyframe animation (.anim)
+// ---------------------------------------------------------------------------
+
+LDKAssetKeyframeAnimation ldk_asset_keyframe_animation_null(void)
+{
+  LDKAssetKeyframeAnimation result = {x_handle_null()};
+  return result;
+}
+
+bool ldk_asset_manager_keyframe_animation_is_alive(
+    LDKAssetManager *manager, LDKAssetKeyframeAnimation asset)
+{
+  LDKAssetHandle generic = {asset.h};
+  return ldk_asset_handle_is_alive(manager, generic) &&
+      ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_KEYFRAME_ANIMATION;
+}
+
+const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_const(
+    LDKAssetManager *manager, LDKAssetKeyframeAnimation asset)
+{
+  LDKAssetHandle generic = {asset.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(manager, generic);
+  return info && info->type == LDK_ASSET_TYPE_KEYFRAME_ANIMATION
+      ? (const LDKAssetKeyframeAnimationData *)info->data : NULL;
+}
+
+typedef struct LDKSharedKeyframeLookup
+{
+  LDKAssetPath path;
+  u64 revision;
+  LDKAssetKeyframeAnimation result;
+} LDKSharedKeyframeLookup;
+
+static bool s_shared_keyframe_find(
+    LDKAssetHandle handle, LDKAssetInfo *info, void *user)
+{
+  LDKSharedKeyframeLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_KEYFRAME_ANIMATION &&
+      info->source_revision == lookup->revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->result.h = handle.h;
+    return false;
+  }
+  return true;
+}
+
+static bool s_keyframe_asset_path_valid(const char *path)
+{
+  const char *extension = path ? strrchr(path, '.') : NULL;
+  static const char suffix[] = ".anim";
+  if (!extension || strlen(extension) != sizeof(suffix) - 1u)
+  {
+    return false;
+  }
+  for (size_t i = 0; i < sizeof(suffix) - 1u; ++i)
+  {
+    if (tolower((unsigned char)extension[i]) != suffix[i])
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_load_shared(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedKeyframeLookup lookup = {0};
+  LDKAssetKeyframeAnimationData *data = NULL;
+  LDKAssetInfo *info;
+  char *source;
+  u64 source_size;
+  XHandle handle;
+
+  lookup.result = ldk_asset_keyframe_animation_null();
+  if (!manager || !manager->source ||
+      !s_keyframe_asset_path_valid(path) ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return lookup.result;
+  }
+  lookup.revision = manager->source->revision;
+  ldk_asset_foreach(manager, s_shared_keyframe_find, &lookup);
+  if (!x_handle_is_null(lookup.result.h))
+  {
+    return lookup.result;
+  }
+
+  source = s_asset_source_read(manager, path, &lookup.path, &source_size, true);
+  if (!source)
+  {
+    return lookup.result;
+  }
+  data = calloc(1, sizeof(*data));
+  if (!data)
+  {
+    free(source);
+    return lookup.result;
+  }
+  ldk_keyframe_animation_init(&data->clip);
+  bool loaded = ldk_keyframe_animation_from_tml(&data->clip, source);
+  free(source);
+  if (!loaded)
+  {
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return lookup.result;
+  }
+  handle = x_hpool_alloc(&manager->pool);
+  if (x_handle_is_null(handle))
+  {
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return lookup.result;
+  }
+  info = x_hpool_get(&manager->pool, handle);
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, handle);
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return lookup.result;
+  }
+  info->type = LDK_ASSET_TYPE_KEYFRAME_ANIMATION;
+  info->data = data;
+  info->asset_path = lookup.path;
+  info->source_revision = lookup.revision;
+#ifdef LDK_DEBUG
+  info->load_timestamp = (u64)time(NULL);
+#endif
+  lookup.result.h = handle;
+  return lookup.result;
+}
+
+bool ldk_asset_manager_keyframe_animation_reload(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedKeyframeLookup lookup = {0};
+  LDKAssetKeyframeAnimationData *data;
+  LDKKeyframeAnimation parsed;
+  char *source;
+  u64 size;
+  bool ok;
+
+  if (!manager || !manager->source || !s_keyframe_asset_path_valid(path) ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return false;
+  }
+  lookup.revision = manager->source->revision;
+  lookup.result = ldk_asset_keyframe_animation_null();
+  ldk_asset_foreach(manager, s_shared_keyframe_find, &lookup);
+  /* Nothing to reload if no instance currently owns this asset. */
+  if (x_handle_is_null(lookup.result.h))
+  {
+    return true;
+  }
+  source = s_asset_source_read(manager, path, &lookup.path, &size, true);
+  if (!source)
+  {
+    return false;
+  }
+  ldk_keyframe_animation_init(&parsed);
+  ok = ldk_keyframe_animation_from_tml(&parsed, source);
+  free(source);
+  if (!ok)
+  {
+    ldk_keyframe_animation_clear(&parsed);
+    return false;
+  }
+  LDKAssetHandle generic = {lookup.result.h};
+  LDKAssetInfo *info = ldk_asset_get_info(manager, generic);
+  data = info ? (LDKAssetKeyframeAnimationData *)info->data : NULL;
+  if (!data)
+  {
+    ldk_keyframe_animation_clear(&parsed);
+    return false;
+  }
+  ldk_keyframe_animation_clear(&data->clip);
+  data->clip = parsed;
+  return true;
+}
 
 // ---------------------------------------------------------------------------
 // Image asset

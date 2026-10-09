@@ -2,6 +2,7 @@
 #define LDK_ASSET_MANAGER_H
 
 #include <ldk_asset.h>
+#include <ldk_keyframe_animation.h>
 #include <ldk_common.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
@@ -69,6 +70,27 @@ extern "C" {
   LDK_API LDKAssetTextFileData* ldk_asset_manager_text_file_get(LDKAssetManager* manager, LDKAssetTextFile asset);
   LDK_API const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManager* manager, LDKAssetTextFile asset);
 
+
+  // ---------------------------------------------------------------------------
+  // Keyframe animation (.anim)
+  // ---------------------------------------------------------------------------
+
+  typedef struct LDKAssetKeyframeAnimationData
+  {
+    LDKKeyframeAnimation clip;
+  } LDKAssetKeyframeAnimationData;
+
+  LDK_API LDKAssetKeyframeAnimation ldk_asset_keyframe_animation_null(void);
+  LDK_API bool ldk_asset_manager_keyframe_animation_is_alive(
+      LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
+  /* Cached by asset path and source revision; manager owns the result. */
+  LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_load_shared(
+      LDKAssetManager *manager, const char *path);
+  /* Refresh an existing shared clip after the editor saves its TML. */
+  LDK_API bool ldk_asset_manager_keyframe_animation_reload(
+      LDKAssetManager *manager, const char *path);
+  LDK_API const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_const(
+      LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
 
   // ---------------------------------------------------------------------------
   // Image

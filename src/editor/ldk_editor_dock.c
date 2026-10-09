@@ -7,6 +7,9 @@
 #include <ldk_profiler.h>
 #include <module/ldk_eventqueue.h>
 #include <float.h>
+#include <inttypes.h>
+#include <stdlib.h>
+#include "ldk_editor_animation.inl"
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -867,6 +870,10 @@ bool ldki_editor_window_hide(LDKEditorWindowId window_id)
 
   was_open = window->open;
   window->open = false;
+  if (window_id == LDK_EDITOR_WINDOW_ANIMATION)
+  {
+    ldki_editor_animation_preview_stop();
+  }
 
   if (s_editor_dock.drag.window == window_id)
   {
@@ -1561,6 +1568,35 @@ static bool s_editor_builtin_windows_add(
 //----------------------------------------------------------
 // Window drawing
 //----------------------------------------------------------
+
+void ldki_editor_animation_window_show(LDKEditor *editor, void *data)
+{
+  s_editor_animation_window(editor, data);
+}
+
+void ldki_editor_animation_preview_stop(void)
+{
+  s_editor_animation_restore();
+  s_editor_animation.playhead = 0.0f;
+}
+
+void ldki_editor_animation_scene_reset(void)
+{
+  ldki_editor_animation_preview_stop();
+  s_editor_animation.root = x_handle_null();
+}
+
+void ldki_editor_animation_preview_tick(LDKEditorContext *editor, float dt)
+{
+  if (editor && editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    s_editor_animation_tick(dt);
+  }
+  else
+  {
+    ldki_editor_animation_preview_stop();
+  }
+}
 
 static void s_editor_dock_window_profile_begin(LDKEditorWindowId window_id)
 {
@@ -4103,6 +4139,7 @@ void ldk_editor_dock_update(LDKEditorContext *editor)
 void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
+  s_editor_animation_terminate();
 
   s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
   s_editor_dock_layouts =

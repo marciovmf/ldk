@@ -260,6 +260,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"scene", LDK_EDITOR_ICON_PROJECT},
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
+    {"anim", LDK_EDITOR_ICON_DATA_OBJECT},
     {"skybox", LDK_EDITOR_ICON_DATA_OBJECT},
     {"json", LDK_EDITOR_ICON_DATA_OBJECT},
     {"mesh", LDK_EDITOR_ICON_MESH},

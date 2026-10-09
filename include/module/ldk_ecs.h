@@ -116,6 +116,8 @@ LDK_API bool ldk_ecs_entity_component_type_at(
     LDKEntity entity, u32 component_index, u32 *out_component_type);
 LDK_API const char *ldk_ecs_entity_name_get(LDKEntity entity);
 LDK_API bool ldk_ecs_entity_name_set(LDKEntity entity, const char *name);
+LDK_API u64 ldk_ecs_entity_name_hash_get(LDKEntity entity);
+LDK_API bool ldk_ecs_entity_name_hash_set(LDKEntity entity, u64 hash);
 
   // ---------------------------------------------------------------------------
   // Entity iteraction

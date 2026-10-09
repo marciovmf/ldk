@@ -227,6 +227,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     {
       return LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER;
     }
+
+    if (strcmp(meta->name, "LDKKeyFrameAnimationSource") == 0)
+    {
+      return LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE;
+    }
   }
 
   return meta->type;
@@ -1292,6 +1297,40 @@ static bool s_apply_field_value(const TMLDocument *doc,
     return false;
   }
 
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+  {
+    i64 null_value;
+    LDKAssetManager *assets;
+    LDKAssetKeyframeAnimation animation;
+    TMLString saved_path;
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+
+    *(LDKAssetKeyframeAnimation *)ptr = ldk_asset_keyframe_animation_null();
+    if (tml_entry_get_i64(entry, &null_value))
+    {
+      return null_value == -1;
+    }
+    if (!tml_entry_get_string(entry, &saved_path) ||
+        saved_path.size == 0 || saved_path.size > LDK_ASSET_PATH_MAX_LENGTH)
+    {
+      return false;
+    }
+    memcpy(path, saved_path.data, saved_path.size);
+    path[saved_path.size] = 0;
+    assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets)
+    {
+      return false;
+    }
+    animation = ldk_asset_manager_keyframe_animation_load_shared(assets, path);
+    if (x_handle_is_null(animation.h))
+    {
+      return false;
+    }
+    *(LDKAssetKeyframeAnimation *)ptr = animation;
+  }
+  break;
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -1362,6 +1401,44 @@ static bool s_read_entity_headers(const TMLDocument *doc,
       }
     }
 #endif
+
+    {
+      TMLString saved_hash;
+      if (tml_node_get_string(doc, entity_node, "name_hash", &saved_hash))
+      {
+        char text[32];
+        char *end = NULL;
+        unsigned long long number;
+        if (saved_hash.size >= sizeof(text))
+        {
+          s_result_error(result, "invalid entity name hash");
+          return false;
+        }
+        memcpy(text, saved_hash.data, saved_hash.size);
+        text[saved_hash.size] = 0;
+        number = strtoull(text, &end, 0);
+        if (!end || *end || !ldk_ecs_entity_name_hash_set(entity, (u64)number))
+        {
+          s_result_error(result, "invalid entity name hash");
+          return false;
+        }
+      }
+      else
+      {
+        /* Backwards compatible scenes saved before name_hash was added. */
+        TMLString name;
+        if (tml_node_get_string(doc, entity_node, "name", &name))
+        {
+          char buffer[LDK_ENTITY_NAME_MAX_LEN];
+          u32 length = name.size < sizeof(buffer)
+              ? name.size : sizeof(buffer) - 1u;
+          memcpy(buffer, name.data, length);
+          buffer[length] = 0;
+          ldk_ecs_entity_name_hash_set(
+              entity, ldk_entity_name_hash(buffer));
+        }
+      }
+    }
 
     {
       const TMLEntry *flags_entry =
@@ -1908,6 +1985,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     case LDK_FIELD_ASSET_AUDIO:
       field_size = sizeof(LDKAssetAudio);
       alignment = _Alignof(LDKAssetAudio);
+      break;
+    case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+      field_size = sizeof(LDKAssetKeyframeAnimation);
+      alignment = _Alignof(LDKAssetKeyframeAnimation);
       break;
     default:
       return false;
@@ -2737,6 +2818,29 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+  {
+    const LDKAssetKeyframeAnimation *value = (const LDKAssetKeyframeAnimation *)ptr;
+    LDKAssetManager *assets;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+    assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    generic.h = value->h;
+    info = assets ? ldk_asset_get_info_const(assets, generic) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_KEYFRAME_ANIMATION ||
+        !assets->source || info->source_revision != assets->source->revision)
+    {
+      return false;
+    }
+    s_append_escaped_string(out, info->asset_path.buf);
+  }
+  break;
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -3061,6 +3165,10 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
       x_strbuilder_append_char(context->out, '\n');
     }
   }
+
+  s_append_indent(context->out, 3u);
+  x_strbuilder_append_format(context->out, "name_hash: \"0x%016" PRIx64 "\"\n",
+      ldk_ecs_entity_name_hash_get(entity));
 
   s_append_indent(context->out, 3u);
   x_strbuilder_append(context->out, "components:\n");

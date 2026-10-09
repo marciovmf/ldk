@@ -19,6 +19,7 @@
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_text3d.h>
+#include <component/ldk_keyframe_animation_source.h>
 
 #include <module/ldk_system.h>
 #include <module/ldk_audio.h>
@@ -932,6 +933,7 @@ bool ldk_game_instance_start(void)
 
     e->game_updating = false;
     e->game_started = false;
+    ldk_keyframe_animation_source_reset_all();
     e->game_paused = false;
     ldk_scene_systems_stop_missing(&e->ecs.system, NULL);
     ldk_system_registry_pause(&e->ecs.system);
@@ -996,6 +998,7 @@ bool ldk_game_instance_stop(void)
   }
 
   ldk_scene_manager_pending_clear(&e->scene_manager);
+  ldk_keyframe_animation_source_reset_all();
   e->game_paused = false;
   e->game_stop_requested = false;
   return ok;
@@ -1513,6 +1516,8 @@ void ldk_engine_frame(void)
 
     if (tick && !e->game_stop_requested)
     {
+      /* Native implicit animation pass: before game update and scenegraph. */
+      ldk_keyframe_animation_source_update_all(delta_time);
       e->game.update(&e->game, delta_time);
     }
 
@@ -2119,3 +2124,7 @@ const LDKConfig *ldk_engine_config_get(void)
 {
   return (const LDKConfig *)&g_engine.config;
 }
+
+/* Transform keyframe clip API, owned by the engine binary. */
+#include "ldk_keyframe_animation.inl"
+#include "ldk_keyframe_animation_source.inl"

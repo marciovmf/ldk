@@ -504,6 +504,10 @@ typedef enum LDKEditorEventTag
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
+void ldki_editor_animation_window_show(LDKEditor *editor, void *data);
+void ldki_editor_animation_preview_stop(void);
+void ldki_editor_animation_scene_reset(void);
+void ldki_editor_animation_preview_tick(LDKEditorContext *editor, float dt);
 bool ldki_editor_window_remove(LDKEditorWindowId window_id);
 bool ldki_editor_window_is_focused(
     LDKEditorContext *editor, LDKEditorWindowId window_id);
@@ -550,6 +554,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_SETTINGS ((LDKEditorWindowId)0x4C444B0Du)
 #define LDK_EDITOR_WINDOW_PROJECT ((LDKEditorWindowId)0x4C444B0Eu)
 #define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
+#define LDK_EDITOR_WINDOW_ANIMATION ((LDKEditorWindowId)0x4C444B10u)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(

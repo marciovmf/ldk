@@ -69,6 +69,7 @@ typedef enum LDKBuiltinComponentType
   LDK_COMPONENT_TYPE_GRASS_INTERACT = UINT32_MAX - 12,
   /* UINT32_MAX - 13 was the retired CharacterController. Do not reuse it. */
   LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER = UINT32_MAX - 14,
+  LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE = UINT32_MAX - 15,
 } LDKBuiltinComponentType;
 
 /**
@@ -99,6 +100,7 @@ typedef struct LDKEntityInfo
   u32 transform_index; // Transform is a special component. An entity always have a transform.
   u16 internal_flags;
   u16 flags;
+  u64 name_hash; /* Stable hash of the authoring name, zero means unnamed. */
 #if defined(_DEBUG) || defined(LDK_EDITOR)
   u8 name[LDK_ENTITY_NAME_MAX_LEN];
 #endif
@@ -135,6 +137,12 @@ LDK_API u16 ldk_entity_internal_flags_get(LDKEntityRegistry* system, LDKEntity e
 LDK_API bool ldk_entity_internal_flags_has(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 LDK_API bool ldk_entity_name_set(LDKEntityRegistry* system, LDKEntity entity, const char* name);
 LDK_API const char* ldk_entity_name_get(LDKEntityRegistry* system, LDKEntity entity);
+/* Name hashes are FNV-1a 64-bit. Names need not exist in release builds. */
+LDK_API u64 ldk_entity_name_hash(const char *name);
+LDK_API bool ldk_entity_name_hash_set(
+    LDKEntityRegistry *registry, LDKEntity entity, u64 hash);
+LDK_API u64 ldk_entity_name_hash_get(
+    LDKEntityRegistry *registry, LDKEntity entity);
 LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
 
 LDK_API LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,

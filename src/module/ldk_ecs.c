@@ -6,6 +6,7 @@
 #include <component/ldk_audio_source.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_terrain_follower.h>
+#include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -55,6 +56,8 @@
 #ifndef LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT
 #define LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT 32
 #endif
+
+#define LDK_DEFAULT_KEYFRAME_ANIMATION_SOURCE_COUNT 16
 
 X_HASHTABLE_TYPE_NAMED(u64, u32, grouping_slot);
 
@@ -991,6 +994,15 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc keyframe_source_desc =
+      ldk_keyframe_animation_source_component_desc(
+          LDK_DEFAULT_KEYFRAME_ANIMATION_SOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &keyframe_source_desc))
+  {
+    ldk_log_error("Failed to register component: KeyFrameAnimationSource.");
+    error = true;
+  }
+
   if (error)
   {
     s_grouping_registry_terminate(context);
@@ -1260,6 +1272,17 @@ bool ldk_ecs_entity_name_set(LDKEntity entity, const char *name)
   }
 
   return ldk_entity_name_set(entity_registry, entity, name);
+}
+
+u64 ldk_ecs_entity_name_hash_get(LDKEntity entity)
+{
+  return ldk_entity_name_hash_get(ldk_ecs_entity_registry_get(), entity);
+}
+
+bool ldk_ecs_entity_name_hash_set(LDKEntity entity, u64 hash)
+{
+  return ldk_entity_name_hash_set(
+      ldk_ecs_entity_registry_get(), entity, hash);
 }
 
 bool ldk_ecs_component_remove(LDKEntity entity, u32 component_type)

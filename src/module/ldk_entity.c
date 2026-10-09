@@ -325,6 +325,40 @@ bool ldk_entity_internal_flags_has(LDKEntityRegistry* module, LDKEntity entity, 
   return (info->internal_flags & flags) == flags;
 }
 
+u64 ldk_entity_name_hash(const char *name)
+{
+  u64 hash = UINT64_C(14695981039346656037);
+  const unsigned char *cursor = (const unsigned char *)name;
+  if (!name || !name[0])
+  {
+    return 0;
+  }
+  while (*cursor)
+  {
+    hash ^= (u64)*cursor++;
+    hash *= UINT64_C(1099511628211);
+  }
+  return hash ? hash : 1;
+}
+
+bool ldk_entity_name_hash_set(
+    LDKEntityRegistry *registry, LDKEntity entity, u64 hash)
+{
+  LDKEntityInfo *info = ldk_entity_info_get(registry, entity);
+  if (!info)
+  {
+    return false;
+  }
+  info->name_hash = hash;
+  return true;
+}
+
+u64 ldk_entity_name_hash_get(LDKEntityRegistry *registry, LDKEntity entity)
+{
+  const LDKEntityInfo *info = ldk_entity_info_get_const(registry, entity);
+  return info ? info->name_hash : 0;
+}
+
 bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char* name)
 {
 #if defined(_DEBUG) || defined(LDK_EDITOR)
@@ -339,6 +373,7 @@ bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char
   if (!name)
   {
     info->name[0] = 0;
+    info->name_hash = 0;
     return true;
   }
 
@@ -351,6 +386,7 @@ bool ldk_entity_name_set(LDKEntityRegistry* module, LDKEntity entity, const char
 
   memcpy(info->name, name, len);
   info->name[len] = 0;
+  info->name_hash = ldk_entity_name_hash((const char *)info->name);
 
   return true;
 #else

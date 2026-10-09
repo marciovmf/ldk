@@ -8,6 +8,7 @@ scene:
       parent: -1
       flags: 4
       name: "Quad"
+      name_hash: "0x45308213b11221ae"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -25,6 +26,7 @@ scene:
       parent: -1
       flags: 0
       name: "Entity"
+      name_hash: "0x757a4c2248c0b9da"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -41,6 +43,7 @@ scene:
       parent: -1
       flags: 0
       name: "Entity"
+      name_hash: "0x757a4c2248c0b9da"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -59,6 +62,7 @@ scene:
       parent: 12
       flags: 0
       name: "Camera"
+      name_hash: "0x54d1b2a64667e32e"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -123,6 +127,7 @@ scene:
       parent: -1
       flags: 0
       name: "directional_light"
+      name_hash: "0xf8fa3014b7a0263c"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -139,6 +144,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -156,6 +162,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -172,11 +179,12 @@ scene:
     - entity: 7
       parent: -1
       flags: 0
-      name: "Cube"
+      name: "animated_cube"
+      name_hash: "0xe4cdac96998507b4"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 5.31266451, 2.49312544, 0.00602841377
+            local_position: 5.31266451, 1.24415588, 0.00602841377
             local_scale: 1.83333325, 1.83333325, 1.83333325
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
@@ -186,10 +194,17 @@ scene:
             casts_shadows: true
             billboard: false
             material_asset: "assets/materials/castle_checkers.tml"
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            animation: "bounce.anim"
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
     - entity: 8
       parent: -1
       flags: 0
       name: "Tree"
+      name_hash: "0x85b3b9fb528f2775"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -226,6 +241,7 @@ scene:
       parent: -1
       flags: 0
       name: "Sphere"
+      name_hash: "0x6e9ec2fc72e7f158"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -243,6 +259,7 @@ scene:
       parent: -1
       flags: 0
       name: "Capsule"
+      name_hash: "0xe61afc6bb8a571cc"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -264,6 +281,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cone"
+      name_hash: "0x3657fc9d1acde46a"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -285,6 +303,7 @@ scene:
       parent: -1
       flags: 0
       name: "Hero"
+      name_hash: "0x34dbfcd860d2c1d9"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -322,6 +341,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -339,6 +359,7 @@ scene:
       parent: -1
       flags: 0
       name: "Rock"
+      name_hash: "0xcaa6172bef74e234"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -369,6 +390,7 @@ scene:
       parent: -1
       flags: 0
       name: "Capsule"
+      name_hash: "0xe61afc6bb8a571cc"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -390,6 +412,7 @@ scene:
       parent: -1
       flags: 0
       name: "Text"
+      name_hash: "0x2492f5fb1b05b45e"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -416,6 +439,7 @@ scene:
       parent: 12
       flags: 0
       name: "Smoke"
+      name_hash: "0xe6982bd921a6a106"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -467,6 +491,7 @@ scene:
       parent: -1
       flags: 4
       name: "Quad"
+      name_hash: "0x45308213b11221ae"
       components:
         - type: 4294967294 # LDKTransform
           fields:
