@@ -1,5 +1,6 @@
 #include <module/ldk_jobs.h>
 
+
 #include <stdx/stdx_thread.h>
 
 #include <limits.h>
@@ -119,7 +120,8 @@ bool ldk_jobs_initialize(LDKJobs *jobs, u32 worker_count)
   return true;
 }
 
-void ldk_jobs_terminate(LDKJobs *jobs)
+void ldk_jobs_terminate_with_diagnostics(LDKJobs *jobs,
+    XThreadPoolShutdownCallback callback, void *user_data)
 {
   if (!jobs)
   {
@@ -131,12 +133,17 @@ void ldk_jobs_terminate(LDKJobs *jobs)
   {
     if (internal->pool)
     {
-      x_threadpool_destroy(internal->pool);
+      x_threadpool_destroy_with_diagnostics(internal->pool, callback, user_data);
     }
     free(internal);
   }
 
   memset(jobs, 0, sizeof(*jobs));
+}
+
+void ldk_jobs_terminate(LDKJobs *jobs)
+{
+  ldk_jobs_terminate_with_diagnostics(jobs, NULL, NULL);
 }
 
 LDKAsyncResult ldk_jobs_submit(

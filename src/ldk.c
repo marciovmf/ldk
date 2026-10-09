@@ -448,22 +448,68 @@ static void s_on_signal(i32 signal)
   g_signal_requested_stop = 1;
 }
 
+static void s_jobs_shutdown_report(
+    const XThreadPoolShutdownStatus *status, void *user_data)
+{
+  (void)user_data;
+
+  if (status->event == X_THREADPOOL_SHUTDOWN_JOIN_WAITING)
+  {
+    ldk_log_warning("Jobs shutdown: worker %d/%d (thread %u) still active; "
+                    "running jobs=%d, queued jobs=%d.\n",
+        status->worker_index + 1, status->worker_count, status->thread_id,
+        status->active_tasks, status->queued_tasks);
+  }
+  else if (status->event == X_THREADPOOL_SHUTDOWN_JOIN_ERROR)
+  {
+    ldk_log_error("Jobs shutdown: unable to wait for worker %d "
+                  "(thread %u).\n",
+        status->worker_index + 1, status->thread_id);
+  }
+  else
+  {
+    ldk_log_info("Jobs shutdown: worker %d/%d (thread %u) %s; "
+                 "running jobs=%d, queued jobs=%d.\n",
+        status->worker_index + 1, status->worker_count, status->thread_id,
+        status->event == X_THREADPOOL_SHUTDOWN_JOIN_BEGIN ? "joining" : "joined",
+        status->active_tasks, status->queued_tasks);
+  }
+}
+
+static void s_jobs_terminate_with_diagnostics(LDKJobs *jobs)
+{
+  ldk_log_info("Jobs shutdown: stopping worker pool.\n");
+  ldk_jobs_terminate_with_diagnostics(jobs, s_jobs_shutdown_report, NULL);
+  ldk_log_info("Jobs shutdown: worker pool terminated.\n");
+}
+
 static void s_terminate_all_modules(LDKRoot *e)
 {
-  ldk_ecs_system_registry_stop(&e->ecs);
+#define LDK_SHUTDOWN_STEP(label, expr)                                         \
+  do                                                                          \
+  {                                                                           \
+    ldk_log_info("Shutdown: %s begin.\n", label);                            \
+    expr;                                                                     \
+    ldk_log_info("Shutdown: %s complete.\n", label);                         \
+  } while (0)
 
-  ldk_audio_terminate(&e->audio);
-  ldk_jobs_terminate(&e->jobs);
-
+  LDK_SHUTDOWN_STEP("ECS systems", ldk_ecs_system_registry_stop(&e->ecs));
+  LDK_SHUTDOWN_STEP("Audio", ldk_audio_terminate(&e->audio));
+  LDK_SHUTDOWN_STEP("Jobs", s_jobs_terminate_with_diagnostics(&e->jobs));
   /* Scene Manager owns scene state backed by the ECS. */
-  ldk_scene_manager_terminate(&e->scene_manager);
-  ldk_ecs_terminate();
-  ldk_event_queue_terminate(&e->event_queue);
-  ldk_renderer_terminate(&e->renderer);
-  ldk_asset_manager_terminate(&e->asset_manager);
-  ldk_asset_source_terminate(&e->asset_source);
-  ldk_rhi_terminate(&e->rhi);
-  ldk_os_terminate();
+  LDK_SHUTDOWN_STEP(
+      "Scene Manager", ldk_scene_manager_terminate(&e->scene_manager));
+  LDK_SHUTDOWN_STEP("ECS", ldk_ecs_terminate());
+  LDK_SHUTDOWN_STEP("Event Queue", ldk_event_queue_terminate(&e->event_queue));
+  LDK_SHUTDOWN_STEP("Renderer", ldk_renderer_terminate(&e->renderer));
+  LDK_SHUTDOWN_STEP(
+      "Asset Manager", ldk_asset_manager_terminate(&e->asset_manager));
+  LDK_SHUTDOWN_STEP(
+      "Asset Source", ldk_asset_source_terminate(&e->asset_source));
+  LDK_SHUTDOWN_STEP("RHI", ldk_rhi_terminate(&e->rhi));
+  LDK_SHUTDOWN_STEP("OS", ldk_os_terminate());
+
+#undef LDK_SHUTDOWN_STEP
 
   ldk_log_info("LDK Terminated\n");
   x_log_close(&e->logger);
@@ -2080,7 +2126,9 @@ void ldk_engine_terminate(void)
     return;
   }
 
+  ldk_log_info("Shutdown: game instance unload begin.\n");
   ldk_game_instance_unload();
+  ldk_log_info("Shutdown: game instance unload complete.\n");
 
   s_terminate_all_modules(e);
 

@@ -2145,11 +2145,6 @@ static bool s_editor_config_load_from_ini(
   editor->file_explorer_open_folders_single_click = x_ini_get_bool(
       ini, EDITOR, "file_explorer_open_folders_single_click", false);
 
-  snprintf(editor->source_viewer_path, sizeof(editor->source_viewer_path),
-      "%s", x_ini_get(ini, EDITOR, "source_viewer_path", ""));
-  snprintf(editor->source_viewer_args, sizeof(editor->source_viewer_args),
-      "%s", x_ini_get(ini, EDITOR, "source_viewer_args", ""));
-
   memset(editor->file_associations, 0, sizeof(editor->file_associations));
   editor->file_association_count = 0;
 
@@ -4275,8 +4270,11 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
 static void s_editor_terminate(LDKEditorContext *editor)
 {
+  ldk_log_info("Editor shutdown: stopping profiler capture.\n");
   s_editor_profiler_stop(editor);
+  ldk_log_info("Editor shutdown: stopping profiler writer thread.\n");
   ldk_profiler_terminate();
+  ldk_log_info("Editor shutdown: profiler writer stopped.\n");
   ldki_editor_profiler_terminate();
   s_project_game_module_watch_close();
   ldki_editor_scene_catalog_close(editor);
@@ -4296,6 +4294,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldki_editor_gizmo_terminate(editor);
   ldki_editor_theme_terminate(editor);
   ldk_editor_dock_terminate(editor);
+  ldk_log_info("Editor shutdown: complete.\n");
 }
 
 //----------------------------------------------------------
