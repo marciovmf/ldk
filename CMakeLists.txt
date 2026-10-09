@@ -340,7 +340,14 @@ function(ldk_game_build)
     file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
     string(APPEND GAME_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
   endforeach()
-  file(GENERATE OUTPUT "${GAME_METADATA_INPUTS_STAMP}"
+  # The input-set template changes when a component/system is added or removed.
+  # Keeping templates outside generated/ lets the build restore deleted outputs.
+  # The build rules below restore their working copies if generated/ is deleted.
+  set(GAME_METADATA_TEMPLATE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/metadata_templates/${GAME_TARGET}/$<CONFIG>")
+  set(GAME_METADATA_INPUTS_TEMPLATE
+    "${GAME_METADATA_TEMPLATE_DIR}/generated_component_metadata_inputs.txt")
+  file(GENERATE OUTPUT "${GAME_METADATA_INPUTS_TEMPLATE}"
     CONTENT "${GAME_METADATA_INPUTS_TEXT}")
 
   # Include every header passed to Comet, including headers explicitly listed
@@ -359,8 +366,22 @@ function(ldk_game_build)
 
   # OUTPUT_DIR may contain $<CONFIG>; generate the companion in the same
   # configuration-specific directory as the Comet header.
-  file(GENERATE OUTPUT "${GAME_METADATA_INCLUDES_HEADER}"
+  set(GAME_METADATA_INCLUDES_TEMPLATE
+    "${GAME_METADATA_TEMPLATE_DIR}/generated_component_metadata_includes.h")
+  file(GENERATE OUTPUT "${GAME_METADATA_INCLUDES_TEMPLATE}"
     CONTENT "${GAME_METADATA_INCLUDES_TEXT}")
+
+  add_custom_command(
+    OUTPUT "${GAME_METADATA_INPUTS_STAMP}" "${GAME_METADATA_INCLUDES_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GAME_METADATA_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${GAME_METADATA_INPUTS_TEMPLATE}" "${GAME_METADATA_INPUTS_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${GAME_METADATA_INCLUDES_TEMPLATE}" "${GAME_METADATA_INCLUDES_HEADER}"
+    DEPENDS "${GAME_METADATA_INPUTS_TEMPLATE}" "${GAME_METADATA_INCLUDES_TEMPLATE}"
+    VERBATIM
+    COMMENT "Restoring game metadata companion files..."
+  )
 
   add_custom_command(
     OUTPUT "${GAME_METADATA_HEADER}"
@@ -371,6 +392,7 @@ function(ldk_game_build)
       comet
       ${GAME_METADATA_INPUTS}
       "${GAME_METADATA_INPUTS_STAMP}"
+      "${GAME_METADATA_INCLUDES_HEADER}"
     COMMAND_EXPAND_LISTS
     VERBATIM
     COMMENT "Running component and system metadata extraction tool..."
@@ -692,7 +714,12 @@ if (NOT OPTION_LDK_USE_PREBUILT)
     file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
     string(APPEND LDK_ENGINE_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
   endforeach()
-  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+  # Store metadata templates outside generated/ so deleted outputs can be rebuilt.
+  set(LDK_ENGINE_METADATA_TEMPLATE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/metadata_templates/ldk_engine/$<CONFIG>")
+  set(LDK_ENGINE_METADATA_INPUTS_TEMPLATE
+    "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_inputs.txt")
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}"
     CONTENT "${LDK_ENGINE_METADATA_INPUTS_TEXT}")
 
   set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
@@ -702,8 +729,22 @@ if (NOT OPTION_LDK_USE_PREBUILT)
       "#include \"${metadata_header}\"\n")
   endforeach()
 
-  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+  set(LDK_ENGINE_METADATA_INCLUDES_TEMPLATE
+    "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_includes.h")
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
     CONTENT "${LDK_ENGINE_METADATA_INCLUDES_TEXT}")
+
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_INPUTS_STAMP}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    DEPENDS "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
+    VERBATIM
+    COMMENT "Restoring engine metadata companion files..."
+  )
 
   add_custom_command(
     OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
@@ -714,6 +755,7 @@ if (NOT OPTION_LDK_USE_PREBUILT)
       comet
       ${LDK_ENGINE_METADATA_INPUTS}
       "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+      "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
     COMMAND_EXPAND_LISTS
     VERBATIM
     COMMENT "Running engine component and system metadata extraction tool..."
