@@ -76,11 +76,11 @@ typedef struct LDKMetaEnum
 
 typedef struct LDKMetaState
 {
-  LDKMetaComponent* components;
+  LDKMetaComponent *components;
   u32 component_count;
   u32 component_capacity;
 
-  LDKMetaField* fields;
+  LDKMetaField *fields;
   u32 field_count;
   u32 field_capacity;
 
@@ -98,10 +98,10 @@ typedef struct LDKMetaState
 } LDKMetaState;
 
 #define LDK_META_FLAG_READONLY 1u
-#define LDK_META_FLAG_RUNTIME  2u
-#define LDK_META_FLAG_HIDDEN   4u
+#define LDK_META_FLAG_RUNTIME 2u
+#define LDK_META_FLAG_HIDDEN 4u
 
-static u32 ldk_meta_hash_fnv1a32(const char* text)
+static u32 ldk_meta_hash_fnv1a32(const char *text)
 {
   u32 hash = 2166136261u;
 
@@ -134,7 +134,7 @@ static u64 ldk_meta_hash_fnv1a64(const char *text)
   return hash;
 }
 
-static void ldk_meta_set_error(LDKMetaState* state, const char* msg)
+static void ldk_meta_set_error(LDKMetaState *state, const char *msg)
 {
   if (!state || !msg)
   {
@@ -144,11 +144,12 @@ static void ldk_meta_set_error(LDKMetaState* state, const char* msg)
   snprintf(state->error, sizeof(state->error), "%s", msg);
 }
 
-static bool ldk_meta_read_file(const char* path, char** out_text, size_t* out_size)
+static bool ldk_meta_read_file(
+    const char *path, char **out_text, size_t *out_size)
 {
-  FILE* file = NULL;
+  FILE *file = NULL;
   long size = 0;
-  char* text = NULL;
+  char *text = NULL;
   size_t read_size = 0;
 
   if (!path || !out_text || !out_size)
@@ -172,7 +173,7 @@ static bool ldk_meta_read_file(const char* path, char** out_text, size_t* out_si
     return false;
   }
 
-  text = (char*)malloc((size_t)size + 1u);
+  text = (char *)malloc((size_t)size + 1u);
   if (!text)
   {
     fclose(file);
@@ -229,9 +230,9 @@ static void ldk_meta_display_name_from_field_name(
   out[write_index] = 0;
 }
 
-static char* ldk_meta_trim(char* text)
+static char *ldk_meta_trim(char *text)
 {
-  char* end = NULL;
+  char *end = NULL;
 
   while (*text && isspace((unsigned char)*text))
   {
@@ -253,7 +254,8 @@ static bool ldk_meta_is_ident_char(char c)
   return isalnum((unsigned char)c) || c == '_';
 }
 
-static void ldk_meta_copy_ident(char* dst, size_t dst_size, const char* begin, const char* end)
+static void ldk_meta_copy_ident(
+    char *dst, size_t dst_size, const char *begin, const char *end)
 {
   size_t size = 0;
 
@@ -272,17 +274,18 @@ static void ldk_meta_copy_ident(char* dst, size_t dst_size, const char* begin, c
   dst[size] = 0;
 }
 
-static bool ldk_meta_push_component(LDKMetaState* state, const LDKMetaComponent* component)
+static bool ldk_meta_push_component(
+    LDKMetaState *state, const LDKMetaComponent *component)
 {
-  LDKMetaComponent* new_components = NULL;
+  LDKMetaComponent *new_components = NULL;
   u32 new_capacity = 0;
 
   if (state->component_count == state->component_capacity)
   {
-    new_capacity = state->component_capacity == 0u ? 16u : state->component_capacity * 2u;
-    new_components = (LDKMetaComponent*)realloc(
-        state->components,
-        sizeof(LDKMetaComponent) * new_capacity);
+    new_capacity =
+        state->component_capacity == 0u ? 16u : state->component_capacity * 2u;
+    new_components = (LDKMetaComponent *)realloc(
+        state->components, sizeof(LDKMetaComponent) * new_capacity);
 
     if (!new_components)
     {
@@ -298,17 +301,17 @@ static bool ldk_meta_push_component(LDKMetaState* state, const LDKMetaComponent*
   return true;
 }
 
-static bool ldk_meta_push_field(LDKMetaState* state, const LDKMetaField* field)
+static bool ldk_meta_push_field(LDKMetaState *state, const LDKMetaField *field)
 {
-  LDKMetaField* new_fields = NULL;
+  LDKMetaField *new_fields = NULL;
   u32 new_capacity = 0;
 
   if (state->field_count == state->field_capacity)
   {
-    new_capacity = state->field_capacity == 0u ? 64u : state->field_capacity * 2u;
-    new_fields = (LDKMetaField*)realloc(
-        state->fields,
-        sizeof(LDKMetaField) * new_capacity);
+    new_capacity =
+        state->field_capacity == 0u ? 64u : state->field_capacity * 2u;
+    new_fields = (LDKMetaField *)realloc(
+        state->fields, sizeof(LDKMetaField) * new_capacity);
 
     if (!new_fields)
     {
@@ -331,7 +334,8 @@ static bool ldk_meta_push_group(LDKMetaState *state, const LDKMetaGroup *group)
 
   if (state->group_count == state->group_capacity)
   {
-    new_capacity = state->group_capacity == 0u ? 32u : state->group_capacity * 2u;
+    new_capacity =
+        state->group_capacity == 0u ? 32u : state->group_capacity * 2u;
     new_groups = (LDKMetaGroup *)realloc(
         state->groups, sizeof(LDKMetaGroup) * new_capacity);
     if (!new_groups)
@@ -348,7 +352,8 @@ static bool ldk_meta_push_group(LDKMetaState *state, const LDKMetaGroup *group)
   return true;
 }
 
-static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_t out_size, char* out_widget, size_t out_widget_size)
+static bool ldk_meta_kind_from_type(const char *type_name, char *out_kind,
+    size_t out_size, char *out_widget, size_t out_widget_size)
 {
   if (strcmp(type_name, "bool") == 0)
   {
@@ -479,10 +484,11 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
   return false;
 }
 
-static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* annotation)
+static void ldk_meta_apply_inspect_annotation(
+    LDKMetaField *field, const char *annotation)
 {
   char buffer[512];
-  char* token = NULL;
+  char *token = NULL;
 
   if (!field || !annotation)
   {
@@ -527,7 +533,8 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     }
     else if (strncmp(token, "widget=", 7) == 0)
     {
-      snprintf(field->widget, sizeof(field->widget), "LDK_FIELD_WIDGET_%s", token + 7);
+      snprintf(field->widget, sizeof(field->widget), "LDK_FIELD_WIDGET_%s",
+          token + 7);
     }
 
     token = strtok(NULL, " \t\r\n");
@@ -731,8 +738,8 @@ static bool ldk_meta_parse_enums(LDKMetaState *state, const char *path)
     }
     else
     {
-      LDKMetaEnum *items = realloc(state->enums,
-          (state->enum_count + 1u) * sizeof(*items));
+      LDKMetaEnum *items =
+          realloc(state->enums, (state->enum_count + 1u) * sizeof(*items));
       if (!items)
       {
         goto invalid;
@@ -758,15 +765,19 @@ static void ldk_meta_write_enums(FILE *out, LDKMetaState *state)
   for (u32 i = 0; i < state->enum_count; ++i)
   {
     const LDKMetaEnum *item = &state->enums[i];
-    fprintf(out, "static i64 ldk_enum_%s_read(const void *ptr)\n{\n"
+    fprintf(out,
+        "static i64 ldk_enum_%s_read(const void *ptr)\n{\n"
         "  %s value;\n  memcpy(&value, ptr, sizeof(value));\n"
-        "  return (i64)value;\n}\n", item->name, item->name);
-    fprintf(out, "static void ldk_enum_%s_write(void *ptr, i64 raw)\n{\n"
+        "  return (i64)value;\n}\n",
+        item->name, item->name);
+    fprintf(out,
+        "static void ldk_enum_%s_write(void *ptr, i64 raw)\n{\n"
         "  %s value = (%s)raw;\n  memcpy(ptr, &value, sizeof(value));\n}\n",
         item->name, item->name, item->name);
     for (u32 j = 0; j < item->count; ++j)
     {
-      fprintf(out, "X_STATIC_ASSERT((%s) <= INT64_MAX, "
+      fprintf(out,
+          "X_STATIC_ASSERT((%s) <= INT64_MAX, "
           "ldk_enum_%s_%s_fits_i64);\n",
           item->items[j], item->name, item->items[j]);
     }
@@ -805,19 +816,20 @@ static void ldk_meta_write_enums(FILE *out, LDKMetaState *state)
           word_start = false;
         }
       }
-      fprintf(out, "  {\"%s\", \"%s\", (i64)%s},\n",
-          item->items[j], label, item->items[j]);
+      fprintf(out, "  {\"%s\", \"%s\", (i64)%s},\n", item->items[j], label,
+          item->items[j]);
     }
-    fprintf(out, "};\nstatic const LDKEnumMeta ldk_enum_%s =\n{\n"
+    fprintf(out,
+        "};\nstatic const LDKEnumMeta ldk_enum_%s =\n{\n"
         "  \"%s\", ldk_enum_%s_options, %uu, sizeof(%s), _Alignof(%s),\n"
         "  ldk_enum_%s_read, ldk_enum_%s_write\n};\n\n",
-        item->name, item->name, item->name, item->count, item->name,
-        item->name, item->name, item->name);
+        item->name, item->name, item->name, item->count, item->name, item->name,
+        item->name, item->name);
   }
 }
 
-static void ldk_meta_write_enum_reference(FILE *out, LDKMetaState *state,
-    const LDKMetaField *field)
+static void ldk_meta_write_enum_reference(
+    FILE *out, LDKMetaState *state, const LDKMetaField *field)
 {
   if (ldk_meta_enum_find(state, field->type_name))
   {
@@ -837,32 +849,41 @@ static void ldk_meta_write_c_string(FILE *out, const char *text)
   {
     switch (*p)
     {
-    case '\\': fprintf(out, "\\\\"); break;
-    case '"': fprintf(out, "\\\""); break;
-    case '\n': fprintf(out, "\\n"); break;
-    case '\r': fprintf(out, "\\r"); break;
-    case '\t': fprintf(out, "\\t"); break;
-    default: fputc((int)*p, out); break;
+    case '\\':
+      fprintf(out, "\\\\");
+      break;
+    case '"':
+      fprintf(out, "\\\"");
+      break;
+    case '\n':
+      fprintf(out, "\\n");
+      break;
+    case '\r':
+      fprintf(out, "\\r");
+      break;
+    case '\t':
+      fprintf(out, "\\t");
+      break;
+    default:
+      fputc((int)*p, out);
+      break;
     }
     ++p;
   }
   fputc('"', out);
 }
 
-static bool ldk_meta_parse_field_line(
-    LDKMetaState* state,
-    const char* component_name,
-    char* line,
-    const char* pending_annotation,
+static bool ldk_meta_parse_field_line(LDKMetaState *state,
+    const char *component_name, char *line, const char *pending_annotation,
     i32 group_index)
 {
   LDKMetaField field;
-  char* semi = NULL;
-  char* text = NULL;
-  char* comment = NULL;
-  char* last_space = NULL;
-  char* name = NULL;
-  char* type = NULL;
+  char *semi = NULL;
+  char *text = NULL;
+  char *comment = NULL;
+  char *last_space = NULL;
+  char *name = NULL;
+  char *type = NULL;
 
   memset(&field, 0, sizeof(field));
   field.group_index = group_index;
@@ -907,13 +928,15 @@ static bool ldk_meta_parse_field_line(
     return true;
   }
 
-  snprintf(field.component_name, sizeof(field.component_name), "%s", component_name);
+  snprintf(
+      field.component_name, sizeof(field.component_name), "%s", component_name);
   snprintf(field.type_name, sizeof(field.type_name), "%s", type);
   snprintf(field.field_name, sizeof(field.field_name), "%s", name);
   ldk_meta_display_name_from_field_name(
       field.display_name, sizeof(field.display_name), name);
 
-  if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
+  if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind),
+          field.widget, sizeof(field.widget)))
   {
     if (ldk_meta_enum_find(state, type) ||
         (pending_annotation && strstr(pending_annotation, "enum")))
@@ -968,8 +991,8 @@ static bool ldk_meta_group_stack_push(
   return true;
 }
 
-static bool ldk_meta_parse_group_name(
-    LDKMetaState *state, const char *annotation, char *out_name, size_t out_size)
+static bool ldk_meta_parse_group_name(LDKMetaState *state,
+    const char *annotation, char *out_name, size_t out_size)
 {
   const char *p = annotation;
   const char *begin;
@@ -1014,15 +1037,12 @@ static bool ldk_meta_parse_group_name(
   return true;
 }
 
-static bool ldk_meta_parse_struct_body(
-    LDKMetaState* state,
-    const char* component_name,
-    const char* body_begin,
-    const char* body_end,
+static bool ldk_meta_parse_struct_body(LDKMetaState *state,
+    const char *component_name, const char *body_begin, const char *body_end,
     u32 first_group)
 {
   char pending_annotation[512];
-  const char* cursor = body_begin;
+  const char *cursor = body_begin;
   i32 *group_stack = NULL;
   u32 group_stack_count = 0u;
   u32 group_stack_capacity = 0u;
@@ -1033,10 +1053,10 @@ static bool ldk_meta_parse_struct_body(
   while (cursor < body_end)
   {
     char line[1024];
-    char* inspect = NULL;
-    char* begin_group = NULL;
-    char* end_group = NULL;
-    const char* next = cursor;
+    char *inspect = NULL;
+    char *begin_group = NULL;
+    char *end_group = NULL;
+    const char *next = cursor;
     size_t len = 0;
     bool field_ended;
 
@@ -1065,12 +1085,11 @@ static bool ldk_meta_parse_struct_body(
       i32 local_index = (i32)(state->group_count - first_group);
 
       memset(&group, 0, sizeof(group));
-      group.parent_index = group_stack_count > 0u
-          ? group_stack[group_stack_count - 1u]
-          : -1;
+      group.parent_index =
+          group_stack_count > 0u ? group_stack[group_stack_count - 1u] : -1;
       if (!ldk_meta_parse_group_name(state,
-              begin_group + strlen("//@begin_group"),
-              group.name, sizeof(group.name)))
+              begin_group + strlen("//@begin_group"), group.name,
+              sizeof(group.name)))
       {
         ok = false;
         break;
@@ -1093,7 +1112,8 @@ static bool ldk_meta_parse_struct_body(
     {
       if (group_stack_count == 0u)
       {
-        ldk_meta_set_error(state, "//@end_group without matching //@begin_group");
+        ldk_meta_set_error(
+            state, "//@end_group without matching //@begin_group");
         ok = false;
         break;
       }
@@ -1106,12 +1126,10 @@ static bool ldk_meta_parse_struct_body(
     }
     else
     {
-      i32 group_index = group_stack_count > 0u
-          ? group_stack[group_stack_count - 1u]
-          : -1;
+      i32 group_index =
+          group_stack_count > 0u ? group_stack[group_stack_count - 1u] : -1;
       if (!ldk_meta_parse_field_line(state, component_name, line,
-              pending_annotation[0] ? pending_annotation : NULL,
-              group_index))
+              pending_annotation[0] ? pending_annotation : NULL, group_index))
       {
         ok = false;
         break;
@@ -1140,9 +1158,9 @@ static bool ldk_meta_parse_struct_body(
   return ok;
 }
 
-static const char* ldk_meta_find_matching_brace(const char* open_brace)
+static const char *ldk_meta_find_matching_brace(const char *open_brace)
 {
-  const char* p = open_brace;
+  const char *p = open_brace;
   int depth = 0;
 
   while (*p)
@@ -1166,13 +1184,13 @@ static const char* ldk_meta_find_matching_brace(const char* open_brace)
   return NULL;
 }
 
-static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
+static bool ldk_meta_parse_component_at(LDKMetaState *state, const char *marker)
 {
-  const char* typedef_struct = NULL;
-  const char* open_brace = NULL;
-  const char* close_brace = NULL;
-  const char* name_begin = NULL;
-  const char* name_end = NULL;
+  const char *typedef_struct = NULL;
+  const char *open_brace = NULL;
+  const char *close_brace = NULL;
+  const char *name_begin = NULL;
+  const char *name_end = NULL;
   LDKMetaComponent component;
   u32 first_field = 0;
 
@@ -1224,8 +1242,10 @@ static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
     return false;
   }
 
-  ldk_meta_copy_ident(component.type_name, sizeof(component.type_name), name_begin, name_end);
-  snprintf(component.meta_fn_name, sizeof(component.meta_fn_name), "%s_component_meta", component.type_name);
+  ldk_meta_copy_ident(
+      component.type_name, sizeof(component.type_name), name_begin, name_end);
+  snprintf(component.meta_fn_name, sizeof(component.meta_fn_name),
+      "%s_component_meta", component.type_name);
   component.type_id = ldk_meta_hash_fnv1a32(component.type_name);
   component.first_field = state->field_count;
   component.first_group = state->group_count;
@@ -1285,8 +1305,7 @@ static bool ldk_meta_system_callbacks_are_valid(
       (system->terminate[0] &&
           !ldk_meta_system_name_is_valid(system->terminate)))
   {
-    ldk_meta_set_error(
-        state, "system callbacks must be C identifiers");
+    ldk_meta_set_error(state, "system callbacks must be C identifiers");
     return false;
   }
 
@@ -1456,8 +1475,8 @@ static bool ldk_meta_push_system(LDKMetaState *state, LDKMetaSystem *system)
     }
   }
 
-  systems = (LDKMetaSystem *)realloc(state->systems,
-      ((size_t)state->system_count + 1u) * sizeof(*systems));
+  systems = (LDKMetaSystem *)realloc(
+      state->systems, ((size_t)state->system_count + 1u) * sizeof(*systems));
   if (!systems)
   {
     ldk_meta_set_error(state, "failed to allocate system metadata");
@@ -1504,7 +1523,8 @@ static bool ldk_meta_parse_system_struct(LDKMetaState *state,
 
   if (!ldk_meta_path_is_header(path))
   {
-    ldk_meta_set_error(state, "stateful //@system structs must be declared in a header");
+    ldk_meta_set_error(
+        state, "stateful //@system structs must be declared in a header");
     return false;
   }
 
@@ -1537,8 +1557,8 @@ static bool ldk_meta_parse_system_struct(LDKMetaState *state,
     return false;
   }
 
-  ldk_meta_copy_ident(system->type_name, sizeof(system->type_name),
-      name_begin, name_end);
+  ldk_meta_copy_ident(
+      system->type_name, sizeof(system->type_name), name_begin, name_end);
   snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
       system->type_name);
   if (!system->name[0])
@@ -1589,8 +1609,8 @@ static bool ldk_meta_parse_system_struct(LDKMetaState *state,
   return true;
 }
 
-static bool ldk_meta_parse_system_function(LDKMetaState *state,
-    const char *declaration, LDKMetaSystem *system)
+static bool ldk_meta_parse_system_function(
+    LDKMetaState *state, const char *declaration, LDKMetaSystem *system)
 {
   const char *open_paren = strchr(declaration, '(');
   const char *name_end;
@@ -1620,11 +1640,12 @@ static bool ldk_meta_parse_system_function(LDKMetaState *state,
     return false;
   }
 
-  ldk_meta_copy_ident(function_name, sizeof(function_name), name_begin, name_end);
+  ldk_meta_copy_ident(
+      function_name, sizeof(function_name), name_begin, name_end);
   if (system->update[0])
   {
-    ldk_meta_set_error(state,
-        "function //@system uses the annotated function as update; remove update=");
+    ldk_meta_set_error(state, "function //@system uses the annotated function "
+                              "as update; remove update=");
     return false;
   }
   snprintf(system->update, sizeof(system->update), "%s", function_name);
@@ -1637,17 +1658,17 @@ static bool ldk_meta_parse_system_function(LDKMetaState *state,
   {
     if (!ldk_meta_system_name_is_valid(system->name))
     {
-      ldk_meta_set_error(state,
-          "function //@system name must be a C identifier");
+      ldk_meta_set_error(
+          state, "function //@system name must be a C identifier");
       return false;
     }
-    snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
-        system->name);
+    snprintf(
+        system->symbol_name, sizeof(system->symbol_name), "%s", system->name);
   }
   else
   {
-    snprintf(system->symbol_name, sizeof(system->symbol_name), "%s",
-        function_name);
+    snprintf(
+        system->symbol_name, sizeof(system->symbol_name), "%s", function_name);
     snprintf(system->name, sizeof(system->name), "%s", function_name);
   }
 
@@ -1704,11 +1725,11 @@ static bool ldk_meta_parse_system_at(
   return ldk_meta_push_system(state, &system);
 }
 
-static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
+static bool ldk_meta_parse_file(LDKMetaState *state, const char *path)
 {
-  char* text = NULL;
+  char *text = NULL;
   size_t size = 0;
-  const char* cursor = NULL;
+  const char *cursor = NULL;
 
   if (!ldk_meta_read_file(path, &text, &size))
   {
@@ -1719,7 +1740,7 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
   cursor = text;
   while (true)
   {
-    const char* marker = strstr(cursor, "//@component");
+    const char *marker = strstr(cursor, "//@component");
 
     if (!marker)
     {
@@ -1767,7 +1788,7 @@ static u32 ldk_meta_emit_flags(u32 flags)
   return result;
 }
 
-static bool ldk_meta_check_collisions(LDKMetaState* state)
+static bool ldk_meta_check_collisions(LDKMetaState *state)
 {
   u32 i = 0;
 
@@ -1779,12 +1800,9 @@ static bool ldk_meta_check_collisions(LDKMetaState* state)
     {
       if (state->components[i].type_id == state->components[j].type_id)
       {
-        snprintf(
-            state->error,
-            sizeof(state->error),
+        snprintf(state->error, sizeof(state->error),
             "component type hash collision: %s and %s",
-            state->components[i].type_name,
-            state->components[j].type_name);
+            state->components[i].type_name, state->components[j].type_name);
         return false;
       }
 
@@ -1795,8 +1813,8 @@ static bool ldk_meta_check_collisions(LDKMetaState* state)
   return true;
 }
 
-static void ldk_meta_write_groups(FILE *out, LDKMetaState *state,
-    u32 first_group, u32 group_count)
+static void ldk_meta_write_groups(
+    FILE *out, LDKMetaState *state, u32 first_group, u32 group_count)
 {
   if (!group_count)
   {
@@ -1824,9 +1842,9 @@ static void ldk_meta_write_groups(FILE *out, LDKMetaState *state,
   fprintf(out, "  };\n\n");
 }
 
-static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
+static bool ldk_meta_write_header(LDKMetaState *state, const char *output_path)
 {
-  FILE* out = NULL;
+  FILE *out = NULL;
   u32 i = 0;
 
   out = fopen(output_path, "wb");
@@ -1838,24 +1856,22 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 
   fprintf(out, "#ifndef LDK_COMPONENTS_GENERATED_H\n");
   fprintf(out, "#define LDK_COMPONENTS_GENERATED_H\n");
-  fprintf(out, "//----------------------------------------------------------\n");
+  fprintf(
+      out, "//----------------------------------------------------------\n");
   fprintf(out, "// Generated by ldk comet tool.\n");
   fprintf(out, "// DO NOT EDIT MANUALLY!\n");
-  fprintf(out, "// ----------------------------------------------------------\n\n");
+  fprintf(
+      out, "// ----------------------------------------------------------\n\n");
   fprintf(out, "#include <ldk_common.h>\n");
   fprintf(out, "#include <ldk_game.h>\n");
   fprintf(out, "#include <stddef.h>\n#include <string.h>\n");
   fprintf(out, "#include <editor/ldk_component_metadata.h>\n\n");
 
-
   for (i = 0; i < state->component_count; i++)
   {
-    LDKMetaComponent* component = &state->components[i];
+    LDKMetaComponent *component = &state->components[i];
 
-    fprintf(
-        out,
-        "#define LDK_COMPONENT_%s 0x%08Xu\n",
-        component->type_name,
+    fprintf(out, "#define LDK_COMPONENT_%s 0x%08Xu\n", component->type_name,
         component->type_id);
   }
 
@@ -1863,11 +1879,12 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   for (i = 0; i < state->system_count; ++i)
   {
     LDKMetaSystem *system = &state->systems[i];
-    const char *initialize = system->initialize[0] ? system->initialize : "NULL";
+    const char *initialize =
+        system->initialize[0] ? system->initialize : "NULL";
     const char *update = system->update[0] ? system->update : "NULL";
     const char *terminate = system->terminate[0] ? system->terminate : "NULL";
-    fprintf(out, "#define LDK_SYSTEM_%s 0x%016llxULL\n",
-        system->symbol_name, (unsigned long long)system->id);
+    fprintf(out, "#define LDK_SYSTEM_%s 0x%016llxULL\n", system->symbol_name,
+        (unsigned long long)system->id);
     if (system->stateful)
     {
       fprintf(out,
@@ -1875,9 +1892,9 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           "(&(const LDKSystemDesc){.id = LDK_SYSTEM_%s, .name = \"%s\", "
           ".flags = %s, .bucket = %s, .order = %s, .data_size = sizeof(%s), "
           ".initialize = %s, .update = %s, .terminate = %s})\n",
-          system->symbol_name, system->symbol_name, system->name,
-          system->flags, system->bucket, system->order, system->type_name,
-          initialize, update, terminate);
+          system->symbol_name, system->symbol_name, system->name, system->flags,
+          system->bucket, system->order, system->type_name, initialize, update,
+          terminate);
     }
     else
     {
@@ -1886,9 +1903,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           "(&(const LDKSystemDesc){.id = LDK_SYSTEM_%s, .name = \"%s\", "
           ".flags = %s, .bucket = %s, .order = %s, .data_size = 0u, "
           ".initialize = %s, .update = %s, .terminate = %s})\n",
-          system->symbol_name, system->symbol_name, system->name,
-          system->flags, system->bucket, system->order,
-          initialize, update, terminate);
+          system->symbol_name, system->symbol_name, system->name, system->flags,
+          system->bucket, system->order, initialize, update, terminate);
     }
   }
   fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n");
@@ -1898,32 +1914,29 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 
   for (i = 0; i < state->component_count; i++)
   {
-    LDKMetaComponent* component = &state->components[i];
+    LDKMetaComponent *component = &state->components[i];
     u32 field_index = 0;
 
-    fprintf(out, "static inline const LDKComponentMeta* %s(void)\n", component->meta_fn_name);
+    fprintf(out, "static inline const LDKComponentMeta* %s(void)\n",
+        component->meta_fn_name);
     fprintf(out, "{\n");
-    ldk_meta_write_groups(out, state, component->first_group, component->group_count);
+    ldk_meta_write_groups(
+        out, state, component->first_group, component->group_count);
     fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
     fprintf(out, "  {\n");
 
     for (field_index = 0; field_index < component->field_count; field_index++)
     {
-      LDKMetaField* field = &state->fields[component->first_field + field_index];
+      LDKMetaField *field =
+          &state->fields[component->first_field + field_index];
       u32 emitted_flags = ldk_meta_emit_flags(field->flags);
       float min_value = field->has_min ? field->min_value : 0.0f;
       float max_value = field->has_max ? field->max_value : 0.0f;
 
-      fprintf(
-          out,
+      fprintf(out,
           "    { \"%s\", %s, offsetof(%s, %s), %uu, %s, %.9ff, %.9ff, ",
-          field->field_name,
-          field->field_kind,
-          component->type_name,
-          field->field_name,
-          emitted_flags,
-          field->widget,
-          min_value,
+          field->field_name, field->field_kind, component->type_name,
+          field->field_name, emitted_flags, field->widget, min_value,
           max_value);
       ldk_meta_write_enum_reference(out, state, field);
       fprintf(out, ", ");
@@ -1965,14 +1978,15 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  return %uu;\n", state->component_count);
   fprintf(out, "}\n\n");
 
-  fprintf(out, "const LDKComponentMeta* game_component_metadata_get(u32 index)\n");
+  fprintf(
+      out, "const LDKComponentMeta* game_component_metadata_get(u32 index)\n");
   fprintf(out, "{\n");
   fprintf(out, "  switch (index)\n");
   fprintf(out, "  {\n");
 
   for (i = 0; i < state->component_count; i++)
   {
-    LDKMetaComponent* component = &state->components[i];
+    LDKMetaComponent *component = &state->components[i];
 
     fprintf(out, "    case %uu:\n", i);
     fprintf(out, "      return %s();\n\n", component->meta_fn_name);
@@ -1992,16 +2006,17 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "{\n");
     if (system->stateful)
     {
-      ldk_meta_write_groups(out, state, system->first_group, system->group_count);
+      ldk_meta_write_groups(
+          out, state, system->first_group, system->group_count);
     }
     if (system->stateful && system->field_count)
     {
       fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
       fprintf(out, "  {\n");
-      for (u32 field_index = 0; field_index < system->field_count; ++field_index)
+      for (u32 field_index = 0; field_index < system->field_count;
+          ++field_index)
       {
-        LDKMetaField *field =
-            &state->fields[system->first_field + field_index];
+        LDKMetaField *field = &state->fields[system->first_field + field_index];
         u32 emitted_flags = ldk_meta_emit_flags(field->flags);
         float min_value = field->has_min ? field->min_value : 0.0f;
         float max_value = field->has_max ? field->max_value : 0.0f;
@@ -2110,8 +2125,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  return %uu;\n", state->system_count);
   fprintf(out, "}\n\n");
 
-  fprintf(out,
-      "bool game_system_descriptor_get(u32 index, LDKSystemDesc *out)\n");
+  fprintf(
+      out, "bool game_system_descriptor_get(u32 index, LDKSystemDesc *out)\n");
   fprintf(out, "{\n");
   fprintf(out, "  if (!out)\n");
   fprintf(out, "  {\n");
@@ -2139,7 +2154,7 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 }
 
 bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
-                              const char* output_header_path)
+    const char *output_header_path)
 {
   LDKMetaState state;
   u32 i = 0;
@@ -2180,20 +2195,21 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   }
 
   // print components found
-  for (u32 i = 0; i < state.component_count; i++)
+  printf("[comet] Found %d components, %d systems\n", state.component_count,
+      state.system_count);
+
+  for (u32 i = 0; i < state.component_count; ++i)
   {
-    LDKMetaComponent* meta = &state.components[i];
-    printf(" Component %d/%d - %s : 0x%X\n",
-           (i+1), state.component_count,
-           (const char*)&meta->type_name[0],
-           state.components[i].type_id);
+    const LDKMetaComponent *meta = &state.components[i];
+
+    printf("\t%-10s 0x%016llX : %s\n", "COMPONENT",
+        (unsigned long long)meta->type_id, meta->type_name);
   }
 
   for (u32 i = 0; i < state.system_count; ++i)
   {
-    printf(" System %u/%u - %s : 0x%016llX\n", i + 1u,
-        state.system_count, state.systems[i].name,
-        (unsigned long long)state.systems[i].id);
+    printf("\t%-10s 0x%016llX : %s\n", "SYSTEM",
+        (unsigned long long)state.systems[i].id, state.systems[i].name);
   }
 
   if (ok && !ldk_meta_write_header(&state, output_header_path))
@@ -2211,14 +2227,13 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   return ok;
 }
 
-
 void show_usage()
 {
   printf("usage\ncmg output_file <files>\n");
   printf("<files> is a list of C headers and sources\n");
 }
 
-int main(i32 argc, const char** argv)
+int main(i32 argc, const char **argv)
 {
   if (argc < 3)
   {
@@ -2227,7 +2242,7 @@ int main(i32 argc, const char** argv)
   }
 
   const u32 num_files = argc - 2;
-  const char** files = &argv[2];
+  const char **files = &argv[2];
   XTimer timer;
 
   x_timer_start(&timer);
@@ -2237,7 +2252,8 @@ int main(i32 argc, const char** argv)
 
   if (success)
   {
-    printf("Component/system metadata extraction finished in %f milliseconds\n", milliseconds);
+    printf("Component/system metadata extraction finished in %f milliseconds\n",
+        milliseconds);
     return 0;
   }
 
