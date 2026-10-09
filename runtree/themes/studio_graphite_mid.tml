@@ -83,11 +83,11 @@ ldk_editor_theme:
     input_border_size: 0.8
     window_border_size: 1.0
     window_interaction_border_size: 4.0
-    slider_track_height: 0.16
-    slider_thumb_width: 0.30
+    slider_track_height: 1.0
+    slider_thumb_width: 0.1
     text_cursor_blink: true
     text_cursor_blink_interval: 0.50
-    text_cursor_width: 1.5
+    text_cursor_width: 2.0
     text_cursor_padding_y: 4.0
 
     # Explicit UI color slot mappings
