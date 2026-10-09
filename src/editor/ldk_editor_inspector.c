@@ -3772,19 +3772,23 @@ static void s_editor_inspector_system_grouping_draw(
   char label[64];
   snprintf(label, sizeof(label), "0x%016" PRIx64,
       ldk_ecs_grouping_id(desc.component_types, desc.component_count));
-  ldk_ui_label(ui, "Grouping ID");
+  s_editor_inspector_row_begin(editor, "Group ID");
   ldk_ui_label(ui, label);
-  ldk_ui_label(ui, "Required Components");
+  ldk_ui_end_horizontal(ui);
   if (!desc.component_count)
   {
+    s_editor_inspector_row_begin(editor, "Components");
     ldk_ui_label(ui, "None (global system)");
+    ldk_ui_end_horizontal(ui);
   }
   for (u32 i = 0; i < desc.component_count; ++i)
   {
     const char *name = ldk_component_name_get(
         ldk_ecs_component_registry_get(), desc.component_types[i]);
     snprintf(label, sizeof(label), "0x%08x", desc.component_types[i]);
+    s_editor_inspector_row_begin(editor, i == 0 ? "Components" : "");
     ldk_ui_label(ui, name ? name : label);
+    ldk_ui_end_horizontal(ui);
   }
 }
 
