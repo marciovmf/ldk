@@ -184,9 +184,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 5.31266451, 1.24415588, 0.00602841377
+            local_position: 5.31266451, 3.80682063, 0.00602841377
             local_scale: 1.83333325, 1.83333325, 1.83333325
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+            local_rotation: 0.00000000, -0.559004128, 0.00000000, 0.829164922
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
@@ -196,10 +196,13 @@ scene:
             material_asset: "assets/materials/castle_checkers.tml"
         - type: 4294967280 # LDKKeyFrameAnimationSource
           fields:
-            animation: "bounce.anim"
+            current_animation: 0
             play_on_start: true
             loop: true
             speed: 1.00000000
+            animations:
+              - path: "bounce.anim"
+              - path: "teste.anim"
     - entity: 8
       parent: -1
       flags: 0

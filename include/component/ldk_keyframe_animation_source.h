@@ -16,7 +16,14 @@ extern "C" {
 //@component
 typedef struct LDKKeyFrameAnimationSource
 {
-  LDKAssetKeyframeAnimation animation;
+  /* Assets shared by all instances; bindings are relative to this entity. */
+  //@inspect hidden
+  LDKAssetKeyframeAnimation *animations;
+  //@inspect hidden
+  u32 animation_count;
+  //@inspect hidden
+  u32 animation_capacity;
+  i32 current_animation;
   bool play_on_start;
   bool loop;
   float speed;
@@ -32,6 +39,12 @@ typedef struct LDKKeyFrameAnimationSource
 } LDKKeyFrameAnimationSource;
 
 LDK_API LDKKeyFrameAnimationSource ldk_keyframe_animation_source_make_default(void);
+LDK_API bool ldk_keyframe_animation_source_add(
+    LDKEntity root, LDKAssetKeyframeAnimation animation);
+LDK_API bool ldk_keyframe_animation_source_remove(LDKEntity root, u32 index);
+LDK_API bool ldk_keyframe_animation_source_replace(
+    LDKEntity root, u32 index, LDKAssetKeyframeAnimation animation);
+LDK_API bool ldk_keyframe_animation_source_set_current(LDKEntity root, i32 index);
 LDK_API bool ldk_keyframe_animation_source_play(LDKEntity root);
 LDK_API void ldk_keyframe_animation_source_pause(LDKEntity root);
 LDK_API void ldk_keyframe_animation_source_stop(LDKEntity root);

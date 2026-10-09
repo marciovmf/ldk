@@ -24,8 +24,11 @@ static const LDKKeyframeAnimation *s_keyframe_source_clip(
 {
   LDKAssetManager *assets = (LDKAssetManager *)ldk_module_get(
       LDK_MODULE_ASSET_MANAGER);
-  const LDKAssetKeyframeAnimationData *data = source && assets
-      ? ldk_asset_manager_keyframe_animation_get_const(assets, source->animation)
+  const LDKAssetKeyframeAnimationData *data = source && assets &&
+      source->current_animation >= 0 &&
+      (u32)source->current_animation < source->animation_count
+      ? ldk_asset_manager_keyframe_animation_get_const(assets,
+          source->animations[source->current_animation])
       : NULL;
   return data ? &data->clip : NULL;
 }
@@ -33,7 +36,7 @@ static const LDKKeyframeAnimation *s_keyframe_source_clip(
 LDKKeyFrameAnimationSource ldk_keyframe_animation_source_make_default(void)
 {
   LDKKeyFrameAnimationSource result = {0};
-  result.animation = ldk_asset_keyframe_animation_null();
+  result.current_animation = -1;
   result.play_on_start = true;
   result.loop = true;
   result.speed = 1.0f;
@@ -54,8 +57,176 @@ static bool s_keyframe_source_attach(LDKEntityRegistry *entities,
   {
     return false;
   }
-  *source = initial ? *(const LDKKeyFrameAnimationSource *)initial
-                    : ldk_keyframe_animation_source_make_default();
+  *source = ldk_keyframe_animation_source_make_default();
+  if (initial)
+  {
+    const LDKKeyFrameAnimationSource *config = initial;
+    source->play_on_start = config->play_on_start;
+    source->loop = config->loop;
+    source->speed = config->speed;
+    if (config->animation_count)
+    {
+      if (!config->animations ||
+          config->animation_count > UINT32_MAX / sizeof(*source->animations))
+      {
+        return false;
+      }
+      source->animations = malloc((size_t)config->animation_count *
+          sizeof(*source->animations));
+      if (!source->animations)
+      {
+        return false;
+      }
+      memcpy(source->animations, config->animations,
+          (size_t)config->animation_count * sizeof(*source->animations));
+      source->animation_count = config->animation_count;
+      source->animation_capacity = config->animation_count;
+      source->current_animation = config->current_animation >= 0 &&
+          (u32)config->current_animation < source->animation_count
+          ? config->current_animation : 0;
+    }
+  }
+  source->time = 0.0f;
+  source->playing = false;
+  source->runtime_started = false;
+  source->restart_pending = true;
+  return true;
+}
+
+static void s_keyframe_source_destroy(LDKEntityRegistry *entities,
+    LDKComponentRegistry *components, LDKEntity entity, void *component,
+    u32 index, void *user)
+{
+  LDKKeyFrameAnimationSource *source = component;
+  (void)entities;
+  (void)components;
+  (void)entity;
+  (void)index;
+  (void)user;
+  if (source)
+  {
+    free(source->animations);
+    source->animations = NULL;
+    source->animation_count = source->animation_capacity = 0;
+  }
+}
+
+bool ldk_keyframe_animation_source_add(
+    LDKEntity root, LDKAssetKeyframeAnimation animation)
+{
+  LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
+  if (!source || x_handle_is_null(animation.h) ||
+      source->animation_count >= INT32_MAX)
+  {
+    return false;
+  }
+  for (u32 i = 0; i < source->animation_count; ++i)
+  {
+    if (source->animations[i].h.index == animation.h.index &&
+        source->animations[i].h.version == animation.h.version)
+    {
+      return false;
+    }
+  }
+  if (source->animation_count == source->animation_capacity)
+  {
+    u32 capacity = source->animation_capacity
+        ? source->animation_capacity * 2u : 4u;
+    if (capacity <= source->animation_capacity ||
+        (size_t)capacity > SIZE_MAX / sizeof(*source->animations))
+    {
+      return false;
+    }
+    LDKAssetKeyframeAnimation *items = realloc(source->animations,
+        (size_t)capacity * sizeof(*items));
+    if (!items)
+    {
+      return false;
+    }
+    source->animations = items;
+    source->animation_capacity = capacity;
+  }
+  source->animations[source->animation_count++] = animation;
+  if (source->current_animation < 0)
+  {
+    source->current_animation = 0;
+  }
+  return true;
+}
+
+bool ldk_keyframe_animation_source_replace(
+    LDKEntity root, u32 index, LDKAssetKeyframeAnimation animation)
+{
+  LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
+  if (!source || index >= source->animation_count ||
+      x_handle_is_null(animation.h))
+  {
+    return false;
+  }
+  for (u32 i = 0; i < source->animation_count; ++i)
+  {
+    if (i != index && source->animations[i].h.index == animation.h.index &&
+        source->animations[i].h.version == animation.h.version)
+    {
+      return false;
+    }
+  }
+  source->animations[index] = animation;
+  if (source->current_animation == (i32)index)
+  {
+    source->time = 0.0f;
+    source->playing = false;
+    source->runtime_started = false;
+    source->restart_pending = true;
+  }
+  return true;
+}
+
+bool ldk_keyframe_animation_source_set_current(LDKEntity root, i32 index)
+{
+  LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
+  if (!source || index < 0 || (u32)index >= source->animation_count)
+  {
+    return false;
+  }
+  if (source->current_animation != index)
+  {
+    source->current_animation = index;
+    source->time = 0.0f;
+    source->playing = false;
+    source->runtime_started = false;
+    source->restart_pending = true;
+  }
+  return true;
+}
+
+bool ldk_keyframe_animation_source_remove(LDKEntity root, u32 index)
+{
+  LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
+  if (!source || index >= source->animation_count)
+  {
+    return false;
+  }
+  if (index + 1 < source->animation_count)
+  {
+    memmove(&source->animations[index], &source->animations[index + 1],
+        (size_t)(source->animation_count - index - 1) *
+            sizeof(*source->animations));
+  }
+  --source->animation_count;
+  if (!source->animation_count)
+  {
+    source->current_animation = -1;
+  }
+  else if (source->current_animation > (i32)index)
+  {
+    --source->current_animation;
+  }
+  else if (source->current_animation == (i32)index ||
+      source->current_animation >= (i32)source->animation_count)
+  {
+    source->current_animation = 0;
+  }
   source->time = 0.0f;
   source->playing = false;
   source->runtime_started = false;
@@ -75,6 +246,7 @@ LDKComponentDesc ldk_keyframe_animation_source_component_desc(
   desc.required_components = required;
   desc.required_component_count = 1;
   desc.attach = s_keyframe_source_attach;
+  desc.destroy = s_keyframe_source_destroy;
   return desc;
 }
 

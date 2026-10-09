@@ -49,7 +49,7 @@
 #endif
 
 /* Increment when shared engine/game layouts or calling contracts change. */
-#define LDK_GAME_ABI_VERSION 4u
+#define LDK_GAME_ABI_VERSION 5u
 #define LDK_GAME_ABI_VERSION_NAME "game_abi_version"
 typedef u32 (*LDKGameABIVersionFunc)(void);
 LDK_GAME_API u32 game_abi_version(void);

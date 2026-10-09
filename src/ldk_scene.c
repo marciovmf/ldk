@@ -15,6 +15,7 @@
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
+#include <component/ldk_keyframe_animation_source.h>
 
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
@@ -1690,6 +1691,79 @@ static bool s_apply_materials(const TMLDocument *doc, const TMLNode *fields,
   return true;
 }
 
+static bool s_apply_keyframe_animations(const TMLDocument *doc,
+    const TMLNode *fields, LDKEntity entity, LDKSceneResult *result)
+{
+  const TMLNode *list = fields
+      ? s_node_find_child(doc, fields, "animations") : NULL;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKKeyFrameAnimationSource *source = ldk_ecs_component_get(
+      entity, LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE);
+  if (!source)
+  {
+    return false;
+  }
+  if (list)
+  {
+    for (u32 i = 0; i < list->child_count; ++i)
+    {
+      const TMLNode *item = tml_node_child_at(doc, list, i);
+      TMLString string;
+      char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+      LDKAssetKeyframeAnimation animation;
+      if (!item || !tml_node_get_string(doc, item, "path", &string) ||
+          !string.size || string.size > LDK_ASSET_PATH_MAX_LENGTH ||
+          memchr(string.data, 0, string.size) || !assets)
+      {
+        s_result_error(result, "invalid animation asset reference");
+        return false;
+      }
+      memcpy(path, string.data, string.size);
+      path[string.size] = 0;
+      animation = ldk_asset_manager_keyframe_animation_load_shared(
+          assets, path);
+      if (x_handle_is_null(animation.h) ||
+          !ldk_keyframe_animation_source_add(entity, animation))
+      {
+        s_result_error(result, "failed to load animation asset");
+        return false;
+      }
+    }
+  }
+  else if (fields)
+  {
+    /* Accept scenes written by the original single-clip component. */
+    const TMLEntry *legacy = s_node_find_entry(doc, fields, "animation");
+    TMLString string;
+    if (legacy && tml_entry_get_string(legacy, &string) && string.size &&
+        string.size <= LDK_ASSET_PATH_MAX_LENGTH &&
+        !memchr(string.data, 0, string.size) && assets)
+    {
+      char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+      memcpy(path, string.data, string.size);
+      path[string.size] = 0;
+      LDKAssetKeyframeAnimation animation =
+          ldk_asset_manager_keyframe_animation_load_shared(assets, path);
+      if (!x_handle_is_null(animation.h) &&
+          !ldk_keyframe_animation_source_add(entity, animation))
+      {
+        s_result_error(result, "failed to restore legacy animation");
+        return false;
+      }
+    }
+  }
+  if (!source->animation_count)
+  {
+    source->current_animation = -1;
+  }
+  else if (source->current_animation < 0 ||
+      (u32)source->current_animation >= source->animation_count)
+  {
+    source->current_animation = 0;
+  }
+  return true;
+}
+
 static bool s_apply_entity_components(const TMLDocument *doc,
     const TMLNode *entities_node, LDKGame *game,
     const LDKSceneEntityMap *map, LDKSceneResult *result)
@@ -1807,6 +1881,11 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       }
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
+      {
+        return false;
+      }
+      if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
+          !s_apply_keyframe_animations(doc, fields_node, entity, result))
       {
         return false;
       }
@@ -3073,6 +3152,31 @@ static bool s_write_component(LDKSceneSaveContext *context,
     if (!s_write_materials(context, component))
     {
       return false;
+    }
+    wrote_any_field = true;
+  }
+
+  if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
+  {
+    const LDKKeyFrameAnimationSource *source = component;
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "animations:\n");
+    for (u32 index = 0; index < source->animation_count; ++index)
+    {
+      LDKAssetHandle handle = {.h = source->animations[index].h};
+      const LDKAssetInfo *info = assets
+          ? ldk_asset_get_info_const(assets, handle) : NULL;
+      if (!info || info->type != LDK_ASSET_TYPE_KEYFRAME_ANIMATION ||
+          !assets->source || info->source_revision != assets->source->revision)
+      {
+        s_result_error(context->result, "invalid animation asset in source");
+        return false;
+      }
+      s_append_indent(context->out, 7u);
+      x_strbuilder_append(context->out, "- path: ");
+      s_append_escaped_string(context->out, info->asset_path.buf);
+      x_strbuilder_append_char(context->out, '\n');
     }
     wrote_any_field = true;
   }

@@ -10,6 +10,7 @@
 #include <ldk_scene.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_ecs.h>
 #include <stdx/stdx_string.h>
@@ -2116,6 +2117,84 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
   return true;
 }
 
+/* Both the runtime source and the Animation window use the same index. */
+static void s_editor_inspector_keyframe_current_draw(
+    LDKEditorContext *editor, LDKEntity entity,
+    const LDKKeyFrameAnimationSource *source, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  s_editor_inspector_row_begin(editor, "Current Animation");
+  if (!source->animation_count)
+  {
+    ldk_ui_label(ui, "(none)");
+  }
+  else
+  {
+    const char **names = calloc(source->animation_count, sizeof(*names));
+    if (names)
+    {
+      for (u32 i = 0; i < source->animation_count; ++i)
+      {
+        LDKAssetHandle handle = {.h = source->animations[i].h};
+        const LDKAssetInfo *info = assets
+            ? ldk_asset_get_info_const(assets, handle) : NULL;
+        names[i] = info ? info->asset_path.buf : "(missing)";
+      }
+      u32 current = source->current_animation >= 0 &&
+          (u32)source->current_animation < source->animation_count
+          ? (u32)source->current_animation : 0u;
+      ldk_ui_begin_disabled(ui, readonly);
+      u32 next = ldk_ui_combo_box(ui, names, source->animation_count, current);
+      if (!readonly && next != current)
+      {
+        (void)ldk_keyframe_animation_source_set_current(entity, (i32)next);
+      }
+      ldk_ui_end_disabled(ui);
+      free(names);
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+}
+
+static void s_editor_inspector_keyframe_animations_draw(
+    LDKEditorContext *editor, LDKEntity entity,
+    LDKKeyFrameAnimationSource *source, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  ldk_ui_label(ui, "Animations");
+  for (u32 i = 0; i < source->animation_count; ++i)
+  {
+    char label[32];
+    snprintf(label, sizeof(label), "Animation %u", i);
+    ldk_ui_push_id_u32(ui, i);
+    LDKAssetKeyframeAnimation asset = source->animations[i];
+    if (s_editor_inspector_keyframe_animation_asset_field(
+            editor, label, &asset, readonly) &&
+        !ldk_keyframe_animation_source_replace(entity, i, asset))
+    {
+      ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+    }
+    ldk_ui_begin_disabled(ui, readonly);
+    if (ldk_ui_button(ui, "Remove"))
+    {
+      (void)ldk_keyframe_animation_source_remove(entity, i);
+      ldk_ui_end_disabled(ui);
+      ldk_ui_pop_id(ui);
+      break;
+    }
+    ldk_ui_end_disabled(ui);
+    ldk_ui_pop_id(ui);
+  }
+  LDKAssetKeyframeAnimation addition = ldk_asset_keyframe_animation_null();
+  if (s_editor_inspector_keyframe_animation_asset_field(
+          editor, "Add Animation", &addition, readonly) &&
+      !ldk_keyframe_animation_source_add(entity, addition))
+  {
+    ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+  }
+}
+
 static const char *s_editor_inspector_field_display_name(
     const LDKComponentFieldMeta *field)
 {
@@ -2149,6 +2228,14 @@ static void s_editor_inspector_field_draw(
   }
 
   ui = &editor->ui;
+  if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
+      strcmp(field->name, "current_animation") == 0)
+  {
+    s_editor_inspector_keyframe_current_draw(editor, entity,
+        (const LDKKeyFrameAnimationSource *)component,
+        (field->flags & LDK_FIELD_FLAG_READONLY) != 0);
+    return;
+  }
   display_name = s_editor_inspector_field_display_name(field);
   if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
   {
@@ -4754,6 +4841,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       {
         s_editor_inspector_instanced_mesh_instances_draw(
             editor, entity, (LDKInstancedMeshSource *)component);
+      }
+      if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
+      {
+        s_editor_inspector_keyframe_animations_draw(editor, entity,
+            (LDKKeyFrameAnimationSource *)component,
+            editor->editor_state != LDK_EDITOR_STATE_STOPED);
       }
     }
 
