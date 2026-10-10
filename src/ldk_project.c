@@ -1138,14 +1138,12 @@ bool ldk_project_generate_game_module(
 
   x_strbuilder_append_format(arguments,
       " -DCMAKE_BUILD_TYPE=\"%s\""
-      " -DOPTION_LDK_USE_PREBUILT=ON"
-      " -DOPTION_LDK_PREBUILT_DIR=\"%s\""
       " -DOPTION_BUILD_GAME=ON"
       " -DOPTION_BUILD_GAME_LAUNCHER=OFF"
       " -DOPTION_BUILD_EDITOR=OFF"
       " -DOPTION_BUILD_TESTS=OFF"
       " -DOPTION_GAME_DIR=\"%s\"",
-      s_project_build_config(desc->config), desc->ldk_root_path,
+      s_project_build_config(desc->config),
       x_fs_path_cstr(&project->project_root_path));
 
   process_desc.executable = desc->cmake_path;
@@ -1247,14 +1245,12 @@ LDKOSProcess *ldk_project_generate_game_module_start(
 
   x_strbuilder_append_format(arguments,
       " -DCMAKE_BUILD_TYPE=\"%s\""
-      " -DOPTION_LDK_USE_PREBUILT=ON"
-      " -DOPTION_LDK_PREBUILT_DIR=\"%s\""
       " -DOPTION_BUILD_GAME=ON"
       " -DOPTION_BUILD_GAME_LAUNCHER=OFF"
       " -DOPTION_BUILD_EDITOR=OFF"
       " -DOPTION_BUILD_TESTS=OFF"
       " -DOPTION_GAME_DIR=\"%s\"",
-      s_project_build_config(desc->config), desc->ldk_root_path,
+      s_project_build_config(desc->config),
       x_fs_path_cstr(&project->project_root_path));
 
   return s_project_process_start(project, desc, arguments, out_result);
@@ -1398,7 +1394,6 @@ bool ldk_project_generate_game_launcher(
 
   x_strbuilder_append_format(arguments,
       " -DCMAKE_BUILD_TYPE=\"%s\""
-      " -DOPTION_LDK_USE_PREBUILT=OFF"
       " -DOPTION_BUILD_GAME=OFF"
       " -DOPTION_BUILD_GAME_LAUNCHER=ON"
       " -DOPTION_BUILD_EDITOR=OFF"
@@ -1513,7 +1508,6 @@ LDKOSProcess *ldk_project_generate_game_launcher_start(
 
   x_strbuilder_append_format(arguments,
       " -DCMAKE_BUILD_TYPE=\"%s\""
-      " -DOPTION_LDK_USE_PREBUILT=OFF"
       " -DOPTION_BUILD_GAME=OFF"
       " -DOPTION_BUILD_GAME_LAUNCHER=ON"
       " -DOPTION_BUILD_EDITOR=OFF"
