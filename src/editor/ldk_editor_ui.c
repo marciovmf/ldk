@@ -4,6 +4,7 @@
 #include "ldk_editor_theme.h"
 #include "ldk_os.h"
 #include "module/ldk_ui.h"
+#include <module/ldk_audio.h>
 #include <module/ldk_scene_manager.h>
 #include <stdx/stdx_ini.h>
 #include <stddef.h>
@@ -1066,20 +1067,108 @@ static bool s_editor_project_build_on_play_write(
       &editor->project.project_file_path, "build_on_play", value);
 }
 
+static void s_editor_audio_volume_popup(LDKEditorContext *editor,
+    LDKUIId popup_id)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAudio *audio = (LDKAudio *)ldk_module_get(LDK_MODULE_AUDIO);
+  float volume;
+  float next_volume;
+  char volume_text[8];
+
+  if (!ldk_ui_begin_popup(ui, popup_id))
+  {
+    return;
+  }
+
+  if (!audio || !audio->is_initialized)
+  {
+    ldk_ui_close_current_popup(ui);
+    ldk_ui_end_popup(ui);
+    return;
+  }
+
+  volume = ldk_audio_master_volume_get(audio) * 100.0f;
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(160.0f));
+  next_volume = ldk_ui_slider(ui, volume, 0.0f, 100.0f);
+  snprintf(volume_text, sizeof(volume_text), "%.0f%%", next_volume);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_label(ui, volume_text);
+  ldk_ui_end_horizontal(ui);
+
+  if (next_volume != volume &&
+      !ldk_audio_master_volume_set(audio, next_volume / 100.0f))
+  {
+    ldki_editor_log_warning(editor, "Failed to set master audio volume.");
+  }
+
+  ldk_ui_end_popup(ui);
+}
+
 static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
+  const LDKUIId audio_popup_id = 0x41554456u;
   LDKUIRect toolbar_rect = {ui->viewport.x,
       ui->viewport.y + LDK_EDITOR_MENU_BAR_HEIGHT(ui), ui->viewport.w,
       LDK_EDITOR_TOOL_BAR_HEIGHT(ui)};
   ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
-  ldk_ui_set_next_disabled(ui,
-      editor->editor_state != LDK_EDITOR_STATE_STOPED);
-  ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  editor->exclusive_mode = ldk_ui_toggle(ui, editor->exclusive_mode);
-  ldk_ui_set_next_width(ui, ldk_ui_px(144.0f));
-  ldk_ui_label(ui, "EXCLUSIVE MODE");
+
+  {
+    LDKAudio *audio = (LDKAudio *)ldk_module_get(LDK_MODULE_AUDIO);
+    LDKUIIcon icon = {0};
+    LDKUIRect button_rect;
+    bool clicked;
+
+    icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+    icon.size = ldk_sizef(
+        LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+    icon.texture =
+        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+    icon.uv = ldk_editor_icon_rects[
+        ldk_audio_master_volume_get(audio) <= 0.0f
+            ? LDK_EDITOR_ICON_AUDIO_MUTE
+            : LDK_EDITOR_ICON_AUDIO];
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_disabled(ui, !audio || !audio->is_initialized);
+    clicked = ldk_ui_icon_button(ui, icon, NULL);
+    button_rect = ldk_ui_last_rect(ui);
+
+    if (clicked)
+    {
+      if (ldk_ui_popup_is_open(ui, audio_popup_id))
+      {
+        ldk_ui_close_popup(ui, audio_popup_id);
+      }
+      else
+      {
+        LDKUIPoint position = {
+            button_rect.x, button_rect.y + button_rect.h};
+        ldk_ui_open_popup_at(ui, audio_popup_id, position);
+      }
+    }
+  }
+
+  {
+    LDKUIIcon icon = {0};
+    icon.texture =
+        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+    icon.size = ldk_sizef(
+        LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FULLSCREEN];
+
+    ldk_ui_set_next_disabled(
+        ui, editor->editor_state != LDK_EDITOR_STATE_STOPED);
+    ldk_ui_set_next_weight(ui, 0.0f);
+    if (s_editor_push_button(ui, NULL, icon, editor->exclusive_mode))
+    {
+      editor->exclusive_mode = !editor->exclusive_mode;
+    }
+  }
+
   ldk_ui_spacer(ui);
 
   {
@@ -1216,8 +1305,10 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_label(ui, "Statistics");
 
   s_editor_layout_combo_box(editor);
+
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
+  s_editor_audio_volume_popup(editor, audio_popup_id);
 }
 
 //------------------------------------------------------------

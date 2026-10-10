@@ -710,6 +710,33 @@ void ldk_audio_terminate(LDKAudio *audio)
   memset(audio, 0, sizeof(*audio));
 }
 
+bool ldk_audio_master_volume_set(LDKAudio *audio, float volume)
+{
+  LDKAudioInternal *internal;
+
+  if (!audio || !audio->is_initialized || !audio->internal ||
+      !(volume >= 0.0f && volume <= 1.0f))
+  {
+    return false;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  return ma_engine_set_volume(&internal->engine, volume) == MA_SUCCESS;
+}
+
+float ldk_audio_master_volume_get(LDKAudio *audio)
+{
+  LDKAudioInternal *internal;
+
+  if (!audio || !audio->is_initialized || !audio->internal)
+  {
+    return 1.0f;
+  }
+
+  internal = (LDKAudioInternal *)audio->internal;
+  return ma_engine_get_volume(&internal->engine);
+}
+
 void ldk_audio_listener_set(
     LDKAudio *audio, Vec3 position, Vec3 direction, Vec3 world_up)
 {

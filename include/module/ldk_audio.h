@@ -56,6 +56,19 @@ extern "C"
   LDK_API void ldk_audio_terminate(LDKAudio *audio);
 
   // -------------------------------------------------------------------------
+  // Master volume
+  // -------------------------------------------------------------------------
+
+  /**
+   * Set the master output volume for all voices (0.0 = silent, 1.0 = full).
+   * Returns false if audio is not initialized or volume is outside [0, 1].
+   */
+  LDK_API bool ldk_audio_master_volume_set(LDKAudio *audio, float volume);
+
+  /** Return the current master volume, or 1.0 if audio is unavailable. */
+  LDK_API float ldk_audio_master_volume_get(LDKAudio *audio);
+
+  // -------------------------------------------------------------------------
   // Listener
   // -------------------------------------------------------------------------
 

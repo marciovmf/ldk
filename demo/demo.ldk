@@ -26,7 +26,7 @@ fullscreen=false
 icon_path=assets/ldk.ico
 
 [.editor]
-play_current_scene=true
+play_current_scene=false
 build_on_play=true
 
 [.flags]
