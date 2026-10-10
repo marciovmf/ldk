@@ -19,13 +19,22 @@ static LDKKeyFrameAnimationSource *s_keyframe_source_get(LDKEntity entity)
       entity, LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE);
 }
 
+/** @brief Check whether an animation handle refers to a live animation asset. */
+static bool s_keyframe_source_asset_valid(LDKAssetKeyframeAnimation animation)
+{
+  LDKAssetManager *assets = (LDKAssetManager *)ldk_module_get(
+      LDK_MODULE_ASSET_MANAGER);
+  return assets && ldk_asset_manager_keyframe_animation_is_alive(
+      assets, animation);
+}
+
 static const LDKKeyframeAnimation *s_keyframe_source_clip(
     const LDKKeyFrameAnimationSource *source)
 {
   LDKAssetManager *assets = (LDKAssetManager *)ldk_module_get(
       LDK_MODULE_ASSET_MANAGER);
   const LDKAssetKeyframeAnimationData *data = source && assets &&
-      source->current_animation >= 0 &&
+      source->animations && source->current_animation >= 0 &&
       (u32)source->current_animation < source->animation_count
       ? ldk_asset_manager_keyframe_animation_get_const(assets,
           source->animations[source->current_animation])
@@ -71,6 +80,13 @@ static bool s_keyframe_source_attach(LDKEntityRegistry *entities,
       {
         return false;
       }
+      for (u32 i = 0; i < config->animation_count; ++i)
+      {
+        if (!s_keyframe_source_asset_valid(config->animations[i]))
+        {
+          return false;
+        }
+      }
       source->animations = malloc((size_t)config->animation_count *
           sizeof(*source->animations));
       if (!source->animations)
@@ -115,7 +131,7 @@ bool ldk_keyframe_animation_source_add(
     LDKEntity root, LDKAssetKeyframeAnimation animation)
 {
   LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
-  if (!source || x_handle_is_null(animation.h) ||
+  if (!source || !s_keyframe_source_asset_valid(animation) ||
       source->animation_count >= INT32_MAX)
   {
     return false;
@@ -159,7 +175,7 @@ bool ldk_keyframe_animation_source_replace(
 {
   LDKKeyFrameAnimationSource *source = s_keyframe_source_get(root);
   if (!source || index >= source->animation_count ||
-      x_handle_is_null(animation.h))
+      !s_keyframe_source_asset_valid(animation))
   {
     return false;
   }
@@ -363,7 +379,8 @@ static void s_keyframe_source_tick(LDKEntity root, float dt)
     }
     /* A synchronous event handler can remove the component. */
     source = s_keyframe_source_get(root);
-    if (!source)
+    if (!source || !source->playing ||
+        !(clip = s_keyframe_source_clip(source)))
     {
       return;
     }
@@ -413,7 +430,9 @@ static void s_keyframe_source_tick(LDKEntity root, float dt)
     ldk_keyframe_animation_events_dispatch(clip, root, cursor, duration,
         s_keyframe_source_event_handler, s_keyframe_source_event_user);
     source = s_keyframe_source_get(root);
-    if (!source || !source->playing)
+    if (!source || !source->playing ||
+        !(clip = s_keyframe_source_clip(source)) ||
+        clip->duration != duration)
     {
       return;
     }
@@ -422,13 +441,15 @@ static void s_keyframe_source_tick(LDKEntity root, float dt)
     ldk_keyframe_animation_events_dispatch(clip, root, -FLT_EPSILON, 0.0f,
         s_keyframe_source_event_handler, s_keyframe_source_event_user);
     source = s_keyframe_source_get(root);
-    if (!source || !source->playing)
+    if (!source || !source->playing ||
+        !(clip = s_keyframe_source_clip(source)) ||
+        clip->duration != duration)
     {
       return;
     }
   }
   source = s_keyframe_source_get(root);
-  if (!source)
+  if (!source || !(clip = s_keyframe_source_clip(source)))
   {
     return;
   }

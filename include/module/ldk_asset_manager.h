@@ -80,23 +80,58 @@ extern "C" {
     LDKKeyframeAnimation clip;
   } LDKAssetKeyframeAnimationData;
 
+  /**
+   * @brief Return an invalid keyframe-animation asset handle.
+   * @return Null handle.
+   */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_keyframe_animation_null(void);
+  /**
+   * @brief Check whether a handle refers to a live keyframe-animation asset.
+   * @param manager Initialized asset manager.
+   * @param asset Keyframe animation asset handle.
+   * @return True only for a currently alive asset of the expected type.
+   */
   LDK_API bool ldk_asset_manager_keyframe_animation_is_alive(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
-  /* Create a transient asset from a code-authored clip. Copies all clip data;
-   * no filesystem access required. Save separately for scene persistence. */
+  /**
+   * @brief Create a transient, manager-owned keyframe asset from a code-authored clip.
+   * @param manager Initialized asset manager.
+   * @param clip Animation clip instance.
+   * @return Live asset handle on success, null handle on failure. Clip is deep-copied.
+   * @note The created asset has no path and is not automatically scene-persistent.
+   */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_create(
       LDKAssetManager *manager, const LDKKeyframeAnimation *clip);
-  /* Invalidates the handle: detach it from animation sources before calling.
-   * Shared file assets remain owned by the manager until unloaded/cleared. */
+  /**
+   * @brief Destroy a keyframe-animation asset and invalidate its handle.
+   * @param manager Initialized asset manager.
+   * @param asset Keyframe animation asset handle.
+   * @return Nothing. Detach it from all animation sources first.
+   */
   LDK_API void ldk_asset_manager_keyframe_animation_unload(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
-  /* Cached by asset path and source revision; manager owns the result. */
+  /**
+   * @brief Load or reuse a version-2 .anim asset by path and source revision.
+   * @param manager Initialized asset manager.
+   * @param path Logical path to an .anim asset.
+   * @return Live shared handle, or null on failure. Owned by the manager.
+   */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_load_shared(
       LDKAssetManager *manager, const char *path);
-  /* Refresh an existing shared clip after the editor saves its TML. */
+  /**
+   * @brief Reload a cached shared animation asset from its source.
+   * @param manager Initialized asset manager.
+   * @param path Logical path to a cached .anim asset.
+   * @return True on successful refresh or if not cached; false on I/O or parsing errors.
+   */
   LDK_API bool ldk_asset_manager_keyframe_animation_reload(
       LDKAssetManager *manager, const char *path);
+  /**
+   * @brief Get immutable animation data for a live keyframe asset handle.
+   * @param manager Initialized asset manager.
+   * @param asset Keyframe animation asset handle.
+   * @return Borrowed pointer or NULL. Invalidated when the asset is unloaded or reloaded.
+   */
   LDK_API const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_const(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
 

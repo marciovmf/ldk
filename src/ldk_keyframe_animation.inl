@@ -101,11 +101,105 @@ void ldk_keyframe_animation_clear(LDKKeyframeAnimation *clip)
   ldk_keyframe_animation_init(clip);
 }
 
+/** @brief Validate the structural invariants of a keyframe clip.
+ * @param clip Clip to validate. No component metadata or scene is required.
+ * @return True for a well-formed clip with finite, ordered keys and events.
+ */
+bool ldk_keyframe_animation_validate(const LDKKeyframeAnimation *clip)
+{
+  if (!clip || !isfinite(clip->duration) || clip->duration <= 0.0f ||
+      (clip->track_count && !clip->tracks) ||
+      (clip->event_count && !clip->events))
+  {
+    return false;
+  }
+  for (u32 i = 0; i < clip->track_count; ++i)
+  {
+    const LDKKeyframeTrack *t = &clip->tracks[i];
+    if (!t->target_path || !t->component_type ||
+        !memchr(t->property_name, 0, sizeof(t->property_name)) ||
+        !t->property_name[0] || (t->count && !t->keys))
+    {
+      return false;
+    }
+    switch (t->value_type)
+    {
+    case LDK_FIELD_FLOAT: case LDK_FIELD_VEC2: case LDK_FIELD_VEC3:
+    case LDK_FIELD_VEC4: case LDK_FIELD_QUAT: case LDK_FIELD_I32:
+    case LDK_FIELD_U32: case LDK_FIELD_BOOL: case LDK_FIELD_ENUM:
+    case LDK_FIELD_STRING:
+      break;
+    default:
+      return false;
+    }
+    for (u32 j = 0; j < i; ++j)
+    {
+      const LDKKeyframeTrack *previous = &clip->tracks[j];
+      if (previous->target_path == t->target_path &&
+          previous->component_type == t->component_type &&
+          strcmp(previous->property_name, t->property_name) == 0)
+      {
+        return false;
+      }
+    }
+    for (u32 k = 0; k < t->count; ++k)
+    {
+      const LDKKeyframe *key = &t->keys[k];
+      const LDKPropertyValue *v = &key->value;
+      if (!isfinite(key->time) || key->time < 0.0f ||
+          key->time > clip->duration || v->type != t->value_type ||
+          (k && key->time <= t->keys[k - 1].time))
+      {
+        return false;
+      }
+      switch (v->type)
+      {
+      case LDK_FIELD_FLOAT: case LDK_FIELD_VEC2: case LDK_FIELD_VEC3:
+      case LDK_FIELD_VEC4: case LDK_FIELD_QUAT:
+        if (!isfinite(v->vector.x) || !isfinite(v->vector.y) ||
+            !isfinite(v->vector.z) || !isfinite(v->vector.w))
+          return false;
+        break;
+      case LDK_FIELD_U32:
+        if (v->integer < 0 || v->integer > UINT32_MAX) return false;
+        break;
+      case LDK_FIELD_I32:
+        if (v->integer < INT32_MIN || v->integer > INT32_MAX) return false;
+        break;
+      case LDK_FIELD_BOOL:
+        if (v->integer != 0 && v->integer != 1) return false;
+        break;
+      case LDK_FIELD_STRING:
+        if (v->string.length > X_SMALLSTR_MAX_LENGTH ||
+            v->string.buf[v->string.length] != 0 ||
+            strlen(v->string.buf) != v->string.length)
+          return false;
+        break;
+      default:
+        break;
+      }
+    }
+  }
+  for (u32 i = 0; i < clip->event_count; ++i)
+  {
+    const LDKKeyframeEvent *event = &clip->events[i];
+    if (!isfinite(event->time) || event->time < 0.0f ||
+        event->time > clip->duration ||
+        (i && event->time < clip->events[i - 1].time) ||
+        (event->type != LDK_KEYFRAME_EVENT_INTEGER &&
+         event->type != LDK_KEYFRAME_EVENT_STRING) ||
+        (event->type == LDK_KEYFRAME_EVENT_STRING && !event->text))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool ldk_keyframe_animation_copy(
     LDKKeyframeAnimation *destination, const LDKKeyframeAnimation *source)
 {
-  if (!destination || !source || !isfinite(source->duration) ||
-      source->duration <= 0.0f)
+  if (!destination || !ldk_keyframe_animation_validate(source))
   {
     return false;
   }
@@ -517,6 +611,10 @@ static void s_keyframe_resolve_children(LDKEntity entity, u64 parent_path,
 bool ldk_keyframe_target_resolve(
     LDKEntity root, u64 path, LDKEntity *out)
 {
+  if (!out || !ldk_ecs_component_get(root, LDK_COMPONENT_TYPE_TRANSFORM))
+  {
+    return false;
+  }
   if (path == ldk_keyframe_path_root())
   {
     *out = root;
@@ -715,18 +813,66 @@ void ldk_keyframe_animation_events_dispatch(
     float current_time, LDKKeyframeEventFn fn, void *user)
 {
   if (!clip || !fn || !isfinite(previous_time) || !isfinite(current_time) ||
-      current_time < previous_time)
+      current_time < previous_time ||
+      (clip->event_count && !clip->events))
   {
     return;
   }
-  for (u32 i = 0; i < clip->event_count; i++)
+  /* Handlers can unload the asset or mutate its events. Snapshot all crossed
+   * markers before calling user code; neither the source clip nor its strings
+   * may be accessed after the first callback. */
+  u32 count = 0;
+  for (u32 i = 0; i < clip->event_count; ++i)
   {
-    const LDKKeyframeEvent *event = &clip->events[i];
-    if (event->time > previous_time && event->time <= current_time)
+    if (clip->events[i].time > previous_time &&
+        clip->events[i].time <= current_time)
     {
-      fn(root, event, user);
+      ++count;
     }
   }
+  if (!count || (size_t)count > SIZE_MAX / sizeof(LDKKeyframeEvent))
+  {
+    return;
+  }
+  LDKKeyframeEvent *snapshot = calloc(count, sizeof(*snapshot));
+  if (!snapshot)
+  {
+    return;
+  }
+  u32 copied = 0;
+  for (u32 i = 0; i < clip->event_count; ++i)
+  {
+    const LDKKeyframeEvent *event = &clip->events[i];
+    if (event->time <= previous_time || event->time > current_time)
+    {
+      continue;
+    }
+    snapshot[copied] = *event;
+    snapshot[copied].text = NULL;
+    if (event->text)
+    {
+      size_t length = strlen(event->text);
+      snapshot[copied].text = malloc(length + 1);
+      if (!snapshot[copied].text)
+      {
+        break;
+      }
+      memcpy(snapshot[copied].text, event->text, length + 1);
+    }
+    ++copied;
+  }
+  if (copied == count)
+  {
+    for (u32 i = 0; i < count; ++i)
+    {
+      fn(root, &snapshot[i], user);
+    }
+  }
+  for (u32 i = 0; i < count; ++i)
+  {
+    free(snapshot[i].text);
+  }
+  free(snapshot);
 }
 
 static void s_keyframe_append_escaped(XStrBuilder *out, const char *s)
@@ -750,7 +896,7 @@ static void s_keyframe_append_escaped(XStrBuilder *out, const char *s)
 bool ldk_keyframe_animation_to_tml(
     const LDKKeyframeAnimation *clip, char **out_source)
 {
-  if (!clip || !out_source || !isfinite(clip->duration) || clip->duration <= 0)
+  if (!out_source || !ldk_keyframe_animation_validate(clip))
   {
     return false;
   }
@@ -1074,6 +1220,10 @@ bool ldk_keyframe_animation_from_tml(
     }
   }
   tml_document_free(parsed.document);
+  if (valid)
+  {
+    valid = ldk_keyframe_animation_validate(&loaded);
+  }
   if (!valid)
   {
     ldk_keyframe_animation_clear(&loaded);

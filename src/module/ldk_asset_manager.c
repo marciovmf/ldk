@@ -528,7 +528,7 @@ LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_create(
     LDKAssetManager *manager, const LDKKeyframeAnimation *clip)
 {
   LDKAssetKeyframeAnimation result = ldk_asset_keyframe_animation_null();
-  if (!manager || !clip)
+  if (!manager || !ldk_keyframe_animation_validate(clip))
   {
     return result;
   }
