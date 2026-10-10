@@ -1,0 +1,53 @@
+animation:
+  version: 2
+  duration: 5.000000000
+  tracks:
+    - target: "0xcbf29ce484222325"
+      component: 4294967290
+      property: "enabled"
+      type: 0
+      keys:
+        - time: 0.150000006
+          value: true
+        - time: 0.203777269
+          value: false
+        - time: 0.293153256
+          value: true
+        - time: 0.512422383
+          value: false
+        - time: 0.526722550
+          value: true
+        - time: 0.556514561
+          value: false
+        - time: 0.605373383
+          value: true
+        - time: 0.865159631
+          value: false
+        - time: 0.923551977
+          value: true
+        - time: 1.664767265
+          value: false
+        - time: 1.690149069
+          value: true
+        - time: 1.733102918
+          value: false
+        - time: 1.750674963
+          value: true
+        - time: 4.380777836
+          value: false
+        - time: 4.440000057
+          value: true
+    - target: "0xcbf29ce484222325"
+      component: 4294967290
+      property: "range"
+      type: 3
+      keys:
+        - time: 0.010000000
+          value: 10.000000000
+        - time: 2.317817450
+          value: 12.000000000
+        - time: 3.150000095
+          value: 8.000000000
+        - time: 3.460000038
+          value: 10.000000000
+  events:

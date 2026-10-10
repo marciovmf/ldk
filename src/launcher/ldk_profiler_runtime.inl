@@ -760,7 +760,37 @@ void ldk_profiler_terminate(void)
   {
     InterlockedExchange(&s_profiler.shutdown, 1);
     SetEvent(s_profiler.writer_event);
-    WaitForSingleObject(s_profiler.writer_thread, INFINITE);
+    {
+      DWORD thread_id = GetThreadId(s_profiler.writer_thread);
+      bool joined = false;
+      ldk_log_info("Profiler shutdown: joining writer thread %lu.\n",
+          (unsigned long)thread_id);
+      for (;;)
+      {
+        DWORD result = WaitForSingleObject(s_profiler.writer_thread, 2000);
+        if (result == WAIT_OBJECT_0)
+        {
+          joined = true;
+          break;
+        }
+        if (result != WAIT_TIMEOUT)
+        {
+          ldk_log_error("Profiler shutdown: writer thread %lu wait failed "
+                        "(error %lu).\n",
+              (unsigned long)thread_id, (unsigned long)GetLastError());
+          break;
+        }
+        ldk_log_warning("Profiler shutdown: writer thread %lu still active "
+                        "(queued chunks=%ld).\n",
+            (unsigned long)thread_id,
+            (long)InterlockedCompareExchange(&s_profiler.queued_chunks, 0, 0));
+      }
+      if (joined)
+      {
+        ldk_log_info("Profiler shutdown: writer thread %lu joined.\n",
+            (unsigned long)thread_id);
+      }
+    }
     CloseHandle(s_profiler.writer_thread);
   }
 

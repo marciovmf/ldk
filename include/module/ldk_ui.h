@@ -932,6 +932,11 @@ extern "C"
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_toggle(
       LDKUIContext *ctx, LDKUIId id, bool value, LDKUIRect rect);
+  /* Explicit-rectangle variant of ldk_ui_combo_box; shares the same
+   * rendering, popup behavior and selection semantics. */
+  LDK_API u32 ldk_ui_widget_combo_box(LDKUIContext *ctx, LDKUIId id,
+      const char *const *items, u32 item_count, u32 selected_index,
+      LDKUIRect rect);
   LDK_API float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
       float min_value, float max_value, LDKUIRect rect);
   LDK_API float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id,

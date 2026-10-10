@@ -24,6 +24,8 @@
 #include <component/ldk_text3d.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_transform.h>
+#include <ldk_keyframe_animation.h>
+#include <component/ldk_keyframe_animation_source.h>
 #include <component/ldk_grass_interact.h>
 
 #include <module/ldk_asset_manager.h>
@@ -47,7 +49,7 @@
 #endif
 
 /* Increment when shared engine/game layouts or calling contracts change. */
-#define LDK_GAME_ABI_VERSION 2u
+#define LDK_GAME_ABI_VERSION 6u
 #define LDK_GAME_ABI_VERSION_NAME "game_abi_version"
 typedef u32 (*LDKGameABIVersionFunc)(void);
 LDK_GAME_API u32 game_abi_version(void);

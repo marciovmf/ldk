@@ -158,6 +158,31 @@ int32_t x_threadpool_enqueue(XThreadPool* pool, XThreadTask fn, void* arg);
  */
 void x_threadpool_destroy(XThreadPool* pool);
 
+/* Optional shutdown diagnostics. Does not change the thread pool shutdown policy. */
+typedef enum XThreadPoolShutdownEvent
+{
+  X_THREADPOOL_SHUTDOWN_JOIN_BEGIN,
+  X_THREADPOOL_SHUTDOWN_JOIN_WAITING,
+  X_THREADPOOL_SHUTDOWN_JOIN_END,
+  X_THREADPOOL_SHUTDOWN_JOIN_ERROR
+} XThreadPoolShutdownEvent;
+
+typedef struct XThreadPoolShutdownStatus
+{
+  XThreadPoolShutdownEvent event;
+  int32_t worker_index;
+  uint32_t thread_id; /* Zero where no platform thread ID is available. */
+  int32_t worker_count;
+  int32_t active_tasks;
+  int32_t queued_tasks;
+} XThreadPoolShutdownStatus;
+
+typedef void (*XThreadPoolShutdownCallback)(
+    const XThreadPoolShutdownStatus* status, void* user_data);
+
+void x_threadpool_destroy_with_diagnostics(XThreadPool* pool,
+    XThreadPoolShutdownCallback callback, void* user_data);
+
 #ifdef __cplusplus
 }
 #endif
@@ -412,6 +437,8 @@ extern "C" {
 
     XTask* head;
     XTask* tail;
+    int32_t active_tasks;
+    int32_t queued_tasks;
 
     XMutex* lock;
     XCondVar* cv;
@@ -442,12 +469,17 @@ extern "C" {
       {
         pool->head = task->next;
         if (!pool->head) pool->tail = NULL;
+        --pool->queued_tasks;
+        ++pool->active_tasks;
       }
       x_thread_mutex_unlock(pool->lock);
 
       if (task)
       {
         task->fn(task->arg);
+        x_thread_mutex_lock(pool->lock);
+        --pool->active_tasks;
+        x_thread_mutex_unlock(pool->lock);
         X_THREAD_FREE(task);
       }
     }
@@ -491,13 +523,34 @@ extern "C" {
     {
       pool->head = pool->tail = task;
     }
+    ++pool->queued_tasks;
     x_thread_condvar_signal(pool->cv);
     x_thread_mutex_unlock(pool->lock);
 
     return 0;
   }
 
-  void x_threadpool_destroy(XThreadPool* pool)
+  static void x_threadpool_shutdown_report(XThreadPool* pool,
+      XThreadPoolShutdownCallback callback, void* user_data,
+      XThreadPoolShutdownEvent event, int32_t worker_index,
+      uint32_t thread_id)
+  {
+    if (!callback) return;
+
+    XThreadPoolShutdownStatus status = {0};
+    status.event = event;
+    status.worker_index = worker_index;
+    status.worker_count = pool->num_threads;
+    status.thread_id = thread_id;
+    x_thread_mutex_lock(pool->lock);
+    status.active_tasks = pool->active_tasks;
+    status.queued_tasks = pool->queued_tasks;
+    x_thread_mutex_unlock(pool->lock);
+    callback(&status, user_data);
+  }
+
+  void x_threadpool_destroy_with_diagnostics(XThreadPool* pool,
+      XThreadPoolShutdownCallback callback, void* user_data)
   {
     if (!pool) return;
 
@@ -509,7 +562,41 @@ extern "C" {
 
     for (int i = 0; i < pool->num_threads; ++i)
     {
+      uint32_t thread_id = 0;
+      bool wait_failed = false;
+#ifdef _WIN32
+      if (pool->threads[i] && pool->threads[i]->handle)
+      {
+        thread_id = (uint32_t)GetThreadId(pool->threads[i]->handle);
+      }
+#endif
+      x_threadpool_shutdown_report(pool, callback, user_data,
+          X_THREADPOOL_SHUTDOWN_JOIN_BEGIN, i, thread_id);
+#ifdef _WIN32
+      if (callback && pool->threads[i] && pool->threads[i]->handle)
+      {
+        for (;;)
+        {
+          DWORD result = WaitForSingleObject(pool->threads[i]->handle, 2000);
+          if (result == WAIT_OBJECT_0) break;
+          if (result != WAIT_TIMEOUT)
+          {
+            x_threadpool_shutdown_report(pool, callback, user_data,
+                X_THREADPOOL_SHUTDOWN_JOIN_ERROR, i, thread_id);
+            wait_failed = true;
+            break;
+          }
+          x_threadpool_shutdown_report(pool, callback, user_data,
+              X_THREADPOOL_SHUTDOWN_JOIN_WAITING, i, thread_id);
+        }
+      }
+#endif
       x_thread_join(pool->threads[i]);
+      if (!wait_failed)
+      {
+        x_threadpool_shutdown_report(pool, callback, user_data,
+            X_THREADPOOL_SHUTDOWN_JOIN_END, i, thread_id);
+      }
       x_thread_destroy(pool->threads[i]);
     }
 
@@ -526,6 +613,11 @@ extern "C" {
     }
 
     X_THREAD_FREE(pool);
+  }
+
+  void x_threadpool_destroy(XThreadPool* pool)
+  {
+    x_threadpool_destroy_with_diagnostics(pool, NULL, NULL);
   }
 
 #ifdef __cplusplus

@@ -68,6 +68,12 @@ extern "C"
     float shadow_distance;
   } LDKProject;
 
+  /* Optional main-thread observer for project manifest load errors.
+   * Each failure is also written to the engine logger. */
+  typedef void (*LDKProjectDiagnosticFn)(const char *message, void *user);
+  LDK_API void ldk_project_diagnostic_handler_set(
+      LDKProjectDiagnosticFn handler, void *user);
+
   LDK_API bool ldk_project_create(const LDKProjectCreateDesc *desc);
   LDK_API bool ldk_project_load(
       LDKProject *project, const char *project_file_path);

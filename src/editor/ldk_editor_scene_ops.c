@@ -11,6 +11,7 @@
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_scenegraph.h>
 #include <stdx/stdx_strbuilder.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1563,11 +1564,21 @@ static bool s_editor_scene_full_path(
 
 bool ldki_editor_scene_clear(LDKEditorContext *editor)
 {
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
+  if (!editor)
   {
+    ldk_log_error("[Scene] Cannot clear scene: NULL editor.\n");
     return false;
   }
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      ldk_game_instance_is_started() || ldk_game_instance_is_updating())
+  {
+    ldki_editor_log_error(editor,
+        "Cannot clear scene while editor or game is running/updating.");
+    return false;
+  }
+
+  /* Restore editor-only preview poses before the scene is replaced. */
+  ldki_editor_animation_scene_reset();
 
   if (!s_editor_scene_ecs_clear())
   {
@@ -1578,7 +1589,9 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
   LDKSceneManager *manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
   if (!manager || !ldk_scene_manager_current_reset(manager))
   {
-    ldki_editor_log_error(editor, "Failed to reset Scene Manager state.");
+    ldki_editor_log_error(editor, manager
+        ? "Failed to reset Scene Manager state after clearing ECS."
+        : "Failed to reset Scene Manager: module unavailable.");
     return false;
   }
 
@@ -1588,30 +1601,74 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
   return true;
 }
 
+static void s_editor_scene_load_error(LDKEditorContext *editor,
+    const XFSPath *path, const char *stage, const char *reason)
+{
+  char message[512];
+  snprintf(message, sizeof(message),
+      "Scene load failed (%s) for '%s': %s", stage,
+      path ? x_fs_path_cstr(path) : "<null>",
+      reason && reason[0] ? reason : "unknown error");
+  if (editor)
+  {
+    ldki_editor_log_error(editor, message);
+  }
+  else
+  {
+    ldk_log_error("%s\n", message);
+  }
+}
+
 bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
 {
-  LDKSceneResult result;
+  LDKSceneResult result = {0};
   LDKSceneSystems systems = {0};
   XFSPath relative = {0};
 
+  if (!editor)
+  {
+    s_editor_scene_load_error(NULL, path, "validation", "NULL editor");
+    return false;
+  }
   ldki_editor_scene_state_sync(editor);
 
-  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldki_editor_scene_path_is_scene(path) ||
-      !s_editor_scene_path_relative(editor, path, &relative))
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
   {
+    s_editor_scene_load_error(editor, path, "validation",
+        "editor must be stopped");
+    return false;
+  }
+  if (!path || !ldki_editor_scene_path_is_scene(path))
+  {
+    s_editor_scene_load_error(editor, path, "validation",
+        "missing path or extension is not .scene");
+    return false;
+  }
+  if (!editor->project.loaded)
+  {
+    s_editor_scene_load_error(editor, path, "validation",
+        "no project loaded");
+    return false;
+  }
+  if (!s_editor_scene_path_relative(editor, path, &relative))
+  {
+    s_editor_scene_load_error(editor, path, "validation",
+        "scene is outside the project runtree or path is invalid");
     return false;
   }
 
-  /* Validate the association list before destroying the open scene. */
+  /* Preflight the target scene before destroying the current scene. */
   if (!ldk_scene_systems_load_tml_file(x_fs_path_cstr(path), &systems, &result))
   {
-    ldki_editor_log_error(editor, result.error);
+    s_editor_scene_load_error(editor, path, "systems preflight", result.error);
+    ldk_scene_systems_clear(&systems);
     return false;
   }
 
   if (!ldki_editor_scene_clear(editor))
   {
+    s_editor_scene_load_error(editor, path, "clear previous scene",
+        "ECS or Scene Manager could not be reset; see preceding error");
     ldk_scene_systems_clear(&systems);
     return false;
   }
@@ -1619,9 +1676,13 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
   if (!ldk_scene_load_tml_file_with_systems(
           x_fs_path_cstr(path), &systems, &result))
   {
-    s_editor_scene_ecs_clear();
+    if (!s_editor_scene_ecs_clear())
+    {
+      s_editor_scene_load_error(editor, path, "cleanup",
+          "failed to remove partially loaded entities");
+    }
     ldk_scene_systems_clear(&systems);
-    ldki_editor_log_error(editor, result.error);
+    s_editor_scene_load_error(editor, path, "deserialize", result.error);
     return false;
   }
 

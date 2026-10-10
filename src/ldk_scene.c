@@ -15,6 +15,7 @@
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
+#include <component/ldk_keyframe_animation_source.h>
 
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_component.h>
@@ -26,6 +27,8 @@
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_tml.h>
 
+#include <errno.h>
+#include <stdint.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,20 +137,22 @@ void ldk_scene_result_clear(LDKSceneResult *result)
 void ldk_scene_result_set_error(
     LDKSceneResult *result, const char *error)
 {
-  if (!result)
+  const char *message = error && error[0] ? error : "unspecified scene error";
+
+  if (result)
   {
-    return;
+    result->ok = false;
+    snprintf(result->error, sizeof(result->error), "%s", message);
   }
 
-  result->ok = false;
-
-  if (!error)
+  /* Diagnostics must not depend on callers inspecting LDKSceneResult. The
+   * editor observer mirrors the message to its Console; the logger also
+   * writes it to the process console and configured log file. */
+  ldk_log_error("[Scene] %s\n", message);
+  if (s_scene_diagnostic_handler)
   {
-    result->error[0] = 0;
-    return;
+    s_scene_diagnostic_handler(message, s_scene_diagnostic_user);
   }
-
-  snprintf(result->error, sizeof(result->error), "%s", error);
 }
 
 u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
@@ -226,6 +231,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKTerrainFollowerComponent") == 0)
     {
       return LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER;
+    }
+
+    if (strcmp(meta->name, "LDKKeyFrameAnimationSource") == 0)
+    {
+      return LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE;
     }
   }
 
@@ -742,14 +752,10 @@ static bool s_read_scene_entity_reference(
 static void s_result_error_format(LDKSceneResult *result,
     const char *format, const char *first, const char *second)
 {
-  if (!result)
-  {
-    return;
-  }
-
-  result->ok = false;
-  snprintf(result->error, sizeof(result->error), format,
+  char message[256];
+  snprintf(message, sizeof(message), format,
       first ? first : "", second ? second : "");
+  ldk_scene_result_set_error(result, message);
 }
 
 static LDKMaterialIOContext s_material_io_context(void);
@@ -1292,6 +1298,40 @@ static bool s_apply_field_value(const TMLDocument *doc,
     return false;
   }
 
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+  {
+    i64 null_value;
+    LDKAssetManager *assets;
+    LDKAssetKeyframeAnimation animation;
+    TMLString saved_path;
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+
+    *(LDKAssetKeyframeAnimation *)ptr = ldk_asset_keyframe_animation_null();
+    if (tml_entry_get_i64(entry, &null_value))
+    {
+      return null_value == -1;
+    }
+    if (!tml_entry_get_string(entry, &saved_path) ||
+        saved_path.size == 0 || saved_path.size > LDK_ASSET_PATH_MAX_LENGTH)
+    {
+      return false;
+    }
+    memcpy(path, saved_path.data, saved_path.size);
+    path[saved_path.size] = 0;
+    assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets)
+    {
+      return false;
+    }
+    animation = ldk_asset_manager_keyframe_animation_load_shared(assets, path);
+    if (x_handle_is_null(animation.h))
+    {
+      return false;
+    }
+    *(LDKAssetKeyframeAnimation *)ptr = animation;
+  }
+  break;
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -1362,6 +1402,44 @@ static bool s_read_entity_headers(const TMLDocument *doc,
       }
     }
 #endif
+
+    {
+      TMLString saved_hash;
+      if (tml_node_get_string(doc, entity_node, "name_hash", &saved_hash))
+      {
+        char text[32];
+        char *end = NULL;
+        unsigned long long number;
+        if (saved_hash.size >= sizeof(text))
+        {
+          s_result_error(result, "invalid entity name hash");
+          return false;
+        }
+        memcpy(text, saved_hash.data, saved_hash.size);
+        text[saved_hash.size] = 0;
+        number = strtoull(text, &end, 0);
+        if (!end || *end || !ldk_ecs_entity_name_hash_set(entity, (u64)number))
+        {
+          s_result_error(result, "invalid entity name hash");
+          return false;
+        }
+      }
+      else
+      {
+        /* Backwards compatible scenes saved before name_hash was added. */
+        TMLString name;
+        if (tml_node_get_string(doc, entity_node, "name", &name))
+        {
+          char buffer[LDK_ENTITY_NAME_MAX_LEN];
+          u32 length = name.size < sizeof(buffer)
+              ? name.size : sizeof(buffer) - 1u;
+          memcpy(buffer, name.data, length);
+          buffer[length] = 0;
+          ldk_ecs_entity_name_hash_set(
+              entity, ldk_entity_name_hash(buffer));
+        }
+      }
+    }
 
     {
       const TMLEntry *flags_entry =
@@ -1613,6 +1691,79 @@ static bool s_apply_materials(const TMLDocument *doc, const TMLNode *fields,
   return true;
 }
 
+static bool s_apply_keyframe_animations(const TMLDocument *doc,
+    const TMLNode *fields, LDKEntity entity, LDKSceneResult *result)
+{
+  const TMLNode *list = fields
+      ? s_node_find_child(doc, fields, "animations") : NULL;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKKeyFrameAnimationSource *source = ldk_ecs_component_get(
+      entity, LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE);
+  if (!source)
+  {
+    return false;
+  }
+  if (list)
+  {
+    for (u32 i = 0; i < list->child_count; ++i)
+    {
+      const TMLNode *item = tml_node_child_at(doc, list, i);
+      TMLString string;
+      char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+      LDKAssetKeyframeAnimation animation;
+      if (!item || !tml_node_get_string(doc, item, "path", &string) ||
+          !string.size || string.size > LDK_ASSET_PATH_MAX_LENGTH ||
+          memchr(string.data, 0, string.size) || !assets)
+      {
+        s_result_error(result, "invalid animation asset reference");
+        return false;
+      }
+      memcpy(path, string.data, string.size);
+      path[string.size] = 0;
+      animation = ldk_asset_manager_keyframe_animation_load_shared(
+          assets, path);
+      if (x_handle_is_null(animation.h) ||
+          !ldk_keyframe_animation_source_add(entity, animation))
+      {
+        s_result_error(result, "failed to load animation asset");
+        return false;
+      }
+    }
+  }
+  else if (fields)
+  {
+    /* Accept scenes written by the original single-clip component. */
+    const TMLEntry *legacy = s_node_find_entry(doc, fields, "animation");
+    TMLString string;
+    if (legacy && tml_entry_get_string(legacy, &string) && string.size &&
+        string.size <= LDK_ASSET_PATH_MAX_LENGTH &&
+        !memchr(string.data, 0, string.size) && assets)
+    {
+      char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+      memcpy(path, string.data, string.size);
+      path[string.size] = 0;
+      LDKAssetKeyframeAnimation animation =
+          ldk_asset_manager_keyframe_animation_load_shared(assets, path);
+      if (!x_handle_is_null(animation.h) &&
+          !ldk_keyframe_animation_source_add(entity, animation))
+      {
+        s_result_error(result, "failed to restore legacy animation");
+        return false;
+      }
+    }
+  }
+  if (!source->animation_count)
+  {
+    source->current_animation = -1;
+  }
+  else if (source->current_animation < 0 ||
+      (u32)source->current_animation >= source->animation_count)
+  {
+    source->current_animation = 0;
+  }
+  return true;
+}
+
 static bool s_apply_entity_components(const TMLDocument *doc,
     const TMLNode *entities_node, LDKGame *game,
     const LDKSceneEntityMap *map, LDKSceneResult *result)
@@ -1730,6 +1881,11 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       }
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
+      {
+        return false;
+      }
+      if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
+          !s_apply_keyframe_animations(doc, fields_node, entity, result))
       {
         return false;
       }
@@ -1909,6 +2065,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(LDKAssetAudio);
       alignment = _Alignof(LDKAssetAudio);
       break;
+    case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+      field_size = sizeof(LDKAssetKeyframeAnimation);
+      alignment = _Alignof(LDKAssetKeyframeAnimation);
+      break;
     default:
       return false;
     }
@@ -2054,14 +2214,10 @@ static bool s_scene_from_tml(const char *source,
   parse = tml_parse(source);
   if (!parse.ok)
   {
-    if (result)
-    {
-      result->ok = false;
-      snprintf(result->error, sizeof(result->error),
-          "TML parse error at %u:%u: %s", parse.line, parse.column,
-          parse.error);
-    }
-
+    char error[256];
+    snprintf(error, sizeof(error), "TML parse error at %u:%u: %s",
+        parse.line, parse.column, parse.error);
+    s_result_error(result, error);
     return false;
   }
 
@@ -2150,48 +2306,95 @@ bool ldk_scene_from_tml_with_systems(const char *source,
   return s_scene_from_tml(source, systems, result);
 }
 
-static bool s_file_read_text(const char *path, char **out_text)
+static bool s_scene_file_read_error(LDKSceneResult *result,
+    const char *stage, const char *path, int error_number)
+{
+  char message[256];
+  if (error_number)
+  {
+    snprintf(message, sizeof(message), "cannot %s scene file '%s': %s",
+        stage, path ? path : "<null>", strerror(error_number));
+  }
+  else
+  {
+    snprintf(message, sizeof(message), "cannot %s scene file '%s'",
+        stage, path ? path : "<null>");
+  }
+  ldk_scene_result_set_error(result, message);
+  return false;
+}
+
+static bool s_file_read_text(const char *path, char **out_text,
+    LDKSceneResult *result)
 {
   FILE *file;
   long size;
   char *text;
   size_t read_size;
+  int os_error;
 
-  if (!path || !out_text)
+  if (!path || !path[0] || !out_text)
   {
-    return false;
+    return s_scene_file_read_error(result, "read (invalid arguments)",
+        path, 0);
   }
 
   *out_text = NULL;
-
   file = fopen(path, "rb");
   if (!file)
   {
-    return false;
+    return s_scene_file_read_error(result, "open", path, errno);
   }
 
   if (fseek(file, 0, SEEK_END) != 0)
   {
+    os_error = errno;
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "seek", path, os_error);
   }
 
   size = ftell(file);
-  if (size < 0 || fseek(file, 0, SEEK_SET) != 0)
+  if (size < 0)
+  {
+    os_error = errno;
+    fclose(file);
+    return s_scene_file_read_error(result, "determine size of", path,
+        os_error);
+  }
+  if (fseek(file, 0, SEEK_SET) != 0)
+  {
+    os_error = errno;
+    fclose(file);
+    return s_scene_file_read_error(result, "rewind", path, os_error);
+  }
+  if ((unsigned long long)size >= (unsigned long long)SIZE_MAX)
   {
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "allocate (too large)", path, 0);
   }
 
   text = (char *)malloc((size_t)size + 1u);
   if (!text)
   {
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "allocate memory for", path, 0);
   }
 
   read_size = fread(text, 1u, (size_t)size, file);
-  fclose(file);
+  if (read_size != (size_t)size)
+  {
+    os_error = ferror(file) ? errno : 0;
+    free(text);
+    fclose(file);
+    return s_scene_file_read_error(result, "read completely", path,
+        os_error);
+  }
+  if (fclose(file) != 0)
+  {
+    os_error = errno;
+    free(text);
+    return s_scene_file_read_error(result, "close", path, os_error);
+  }
 
   text[read_size] = 0;
   *out_text = text;
@@ -2215,13 +2418,17 @@ bool ldk_scene_load_tml_file(
     return false;
   }
 
-  if (!s_file_read_text(path, &text))
+  if (!s_file_read_text(path, &text, result))
   {
-    s_result_error(result, "failed to read scene TML file");
     return false;
   }
 
   ok = ldk_scene_from_tml(text, result);
+  if (!ok)
+  {
+    ldk_log_error("[Scene] Loading '%s' failed: %s\n", path,
+        result ? result->error : "see previous scene diagnostic");
+  }
   free(text);
   return ok;
 }
@@ -2232,12 +2439,21 @@ bool ldk_scene_load_tml_file_with_systems(const char *path,
   char *text;
   bool ok;
   ldk_scene_result_clear(result);
-  if (!path || !systems || !s_file_read_text(path, &text))
+  if (!systems)
   {
-    s_result_error(result, "failed to read scene TML file");
+    s_result_error(result, "invalid scene systems argument");
+    return false;
+  }
+  if (!s_file_read_text(path, &text, result))
+  {
     return false;
   }
   ok = ldk_scene_from_tml_with_systems(text, systems, result);
+  if (!ok)
+  {
+    ldk_log_error("[Scene] Loading '%s' failed: %s\n", path,
+        result ? result->error : "see previous scene diagnostic");
+  }
   free(text);
   return ok;
 }
@@ -2737,6 +2953,29 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+  {
+    const LDKAssetKeyframeAnimation *value = (const LDKAssetKeyframeAnimation *)ptr;
+    LDKAssetManager *assets;
+    const LDKAssetInfo *info;
+    LDKAssetHandle generic;
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append_format(out, "%d", -1);
+      break;
+    }
+    assets = (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    generic.h = value->h;
+    info = assets ? ldk_asset_get_info_const(assets, generic) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_KEYFRAME_ANIMATION ||
+        !assets->source || info->source_revision != assets->source->revision)
+    {
+      return false;
+    }
+    s_append_escaped_string(out, info->asset_path.buf);
+  }
+  break;
+
   case LDK_FIELD_RESOURCE_MESH:
     return false;
 
@@ -2973,6 +3212,31 @@ static bool s_write_component(LDKSceneSaveContext *context,
     wrote_any_field = true;
   }
 
+  if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
+  {
+    const LDKKeyFrameAnimationSource *source = component;
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "animations:\n");
+    for (u32 index = 0; index < source->animation_count; ++index)
+    {
+      LDKAssetHandle handle = {.h = source->animations[index].h};
+      const LDKAssetInfo *info = assets
+          ? ldk_asset_get_info_const(assets, handle) : NULL;
+      if (!info || info->type != LDK_ASSET_TYPE_KEYFRAME_ANIMATION ||
+          !assets->source || info->source_revision != assets->source->revision)
+      {
+        s_result_error(context->result, "invalid animation asset in source");
+        return false;
+      }
+      s_append_indent(context->out, 7u);
+      x_strbuilder_append(context->out, "- path: ");
+      s_append_escaped_string(context->out, info->asset_path.buf);
+      x_strbuilder_append_char(context->out, '\n');
+    }
+    wrote_any_field = true;
+  }
+
   if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {
     const LDKInstancedMeshSource *source = component;
@@ -3061,6 +3325,10 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
       x_strbuilder_append_char(context->out, '\n');
     }
   }
+
+  s_append_indent(context->out, 3u);
+  x_strbuilder_append_format(context->out, "name_hash: \"0x%016" PRIx64 "\"\n",
+      ldk_ecs_entity_name_hash_get(entity));
 
   s_append_indent(context->out, 3u);
   x_strbuilder_append(context->out, "components:\n");

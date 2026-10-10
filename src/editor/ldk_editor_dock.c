@@ -7,6 +7,8 @@
 #include <ldk_profiler.h>
 #include <module/ldk_eventqueue.h>
 #include <float.h>
+#include <inttypes.h>
+#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -867,6 +869,10 @@ bool ldki_editor_window_hide(LDKEditorWindowId window_id)
 
   was_open = window->open;
   window->open = false;
+  if (window_id == LDK_EDITOR_WINDOW_ANIMATION)
+  {
+    ldki_editor_animation_preview_stop();
+  }
 
   if (s_editor_dock.drag.window == window_id)
   {
@@ -4103,6 +4109,7 @@ void ldk_editor_dock_update(LDKEditorContext *editor)
 void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
+  ldki_editor_animation_terminate();
 
   s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
   s_editor_dock_layouts =

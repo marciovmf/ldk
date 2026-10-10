@@ -7,6 +7,7 @@
 #include "stdx/stdx_filesystem.h"
 #include <ldk_image.h>
 #include <ldk_material_io.h>
+#include <ldk_keyframe_animation.h>
 #include <ldk_package.h>
 #include <ldk_scene.h>
 #include <module/ldk_asset_manager.h>
@@ -260,6 +261,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"scene", LDK_EDITOR_ICON_PROJECT},
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
+    {"anim", LDK_EDITOR_ICON_DATA_OBJECT},
     {"skybox", LDK_EDITOR_ICON_DATA_OBJECT},
     {"json", LDK_EDITOR_ICON_DATA_OBJECT},
     {"mesh", LDK_EDITOR_ICON_MESH},
@@ -2735,6 +2737,44 @@ static bool s_project_explorer_create_material(
   return true;
 }
 
+static bool s_project_explorer_create_animation(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath parent;
+  XFSPath created = {0};
+  LDKKeyframeAnimation clip;
+  char *text = NULL;
+  bool ok;
+
+  if (!editor || !state || !state->context_target.is_directory)
+  {
+    return false;
+  }
+  parent = state->context_target.path;
+  if (!s_project_explorer_unique_child_path(
+          &parent, "New Animation", ".anim", &created))
+  {
+    return false;
+  }
+  ldk_keyframe_animation_init(&clip);
+  ok = ldk_keyframe_animation_to_tml(&clip, &text) && text &&
+      x_io_write_text(created.buf, text);
+  free(text);
+  ldk_keyframe_animation_clear(&clip);
+  if (!ok)
+  {
+    return false;
+  }
+  s_project_explorer_directory_select(state, &parent, true);
+  s_project_explorer_directory_cache_dirty(state);
+  state->selected_file = created;
+  state->context_target.path = created;
+  state->context_target.is_directory = false;
+  state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
+  s_project_explorer_rename_begin(state);
+  return true;
+}
+
 static void s_project_explorer_context_menu_draw(
     LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui)
 {
@@ -2909,6 +2949,15 @@ static void s_project_explorer_context_menu_draw(
         if (!s_project_explorer_create_material(editor, state))
         {
           ldki_editor_log_error(editor, "Failed to create material.");
+        }
+        ldk_ui_close_current_popup(ui);
+      }
+
+      if (ldk_ui_button_flat(ui, "New Animation"))
+      {
+        if (!s_project_explorer_create_animation(editor, state))
+        {
+          ldki_editor_log_error(editor, "Failed to create animation.");
         }
         ldk_ui_close_current_popup(ui);
       }

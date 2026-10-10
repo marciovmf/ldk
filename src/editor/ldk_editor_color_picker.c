@@ -644,6 +644,45 @@ static void s_open(LDKEditorContext *editor, LDKUIId popup_id, rgba32 color)
   ldk_ui_open_popup(ui, popup_id);
 }
 
+bool ldki_editor_color_swatch_widget(LDKEditorContext *editor,
+    LDKUIId id, rgba32 *color, bool readonly, LDKUIRect rect)
+{
+  if (!editor || !color || !id || rect.w <= 0 || rect.h <= 0)
+  {
+    return false;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  rgba32 previous = *color;
+  LDKUIId swatch_id = id;
+  LDKUIId popup_id = swatch_id ^ 0x434f4c52u;
+  if (!popup_id)
+  {
+    popup_id = 0x434f4c52u;
+  }
+
+  ldk_ui_begin_disabled(ui, readonly);
+  bool clicked = ldk_ui_widget_color_view(ui, swatch_id, *color, rect);
+  ldk_ui_end_disabled(ui);
+  if (clicked && !readonly)
+  {
+    ui->focused_id = 0;
+    ui->input_box_id = 0;
+    s_color_picker.viewer_hex_valid = false;
+    s_open(editor, popup_id, *color);
+  }
+  if (s_color_picker.popup_id == popup_id &&
+      ldk_ui_popup_is_open(ui, popup_id))
+  {
+    (void)s_popup(editor, color, readonly);
+  }
+  else if (s_color_picker.popup_id == popup_id)
+  {
+    s_color_picker.drag = LDK_EDITOR_COLOR_PICKER_DRAG_NONE;
+  }
+  return *color != previous;
+}
+
 bool ldki_editor_color_field(
     LDKEditorContext *editor, rgba32 *color, bool readonly)
 {

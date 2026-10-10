@@ -8,8 +8,10 @@
 #include "module/ldk_entity.h"
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
+#include <ldk_property.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_ecs.h>
 #include <stdx/stdx_string.h>
@@ -1024,6 +1026,7 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     snprintf(out, out_size, "<asset skybox>");
     break;
   case LDK_FIELD_ASSET_AUDIO:
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
     snprintf(out, out_size, "<asset audio>");
     break;
   default:
@@ -1068,33 +1071,50 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
   return true;
 }
 
-static bool s_editor_inspector_transform_field_apply(LDKEntity entity,
-    u32 component_type, const LDKComponentFieldMeta *field, const void *value)
+/* Generic reflected edits use the same writer as animation playback.
+ * Scene properties (component_type == 0) are edited in a temporary copy. */
+static bool s_editor_inspector_property_write(LDKEntity entity,
+    u32 component_type, const LDKComponentFieldMeta *field, const void *raw)
 {
-  if (component_type != LDK_COMPONENT_TYPE_TRANSFORM || !field || !value)
+  if (!component_type || !field || !raw)
   {
     return false;
   }
-
-  if (field->offset == offsetof(LDKTransform, local_position))
+  LDKPropertyValue value = {0};
+  value.type = field->type;
+  switch (field->type)
   {
-    ldk_transform_set_local_position(entity, *(const Vec3 *)value);
-    return true;
-  }
-
-  if (field->offset == offsetof(LDKTransform, local_rotation))
+  case LDK_FIELD_BOOL: value.integer = *(const bool *)raw; break;
+  case LDK_FIELD_I32: value.integer = *(const i32 *)raw; break;
+  case LDK_FIELD_U32: value.integer = *(const u32 *)raw; break;
+  case LDK_FIELD_ENUM:
+    if (!field->enum_meta || !field->enum_meta->read) return false;
+    value.integer = field->enum_meta->read(raw);
+    break;
+  case LDK_FIELD_FLOAT: value.vector.x = *(const float *)raw; break;
+  case LDK_FIELD_VEC2:
   {
-    ldk_transform_set_local_rotation(entity, *(const Quat *)value);
-    return true;
+    const Vec2 *v = (const Vec2 *)raw;
+    value.vector = vec4_make(v->x, v->y, 0.0f, 0.0f);
+    break;
   }
-
-  if (field->offset == offsetof(LDKTransform, local_scale))
+  case LDK_FIELD_VEC3:
   {
-    ldk_transform_set_local_scale(entity, *(const Vec3 *)value);
-    return true;
+    const Vec3 *v = (const Vec3 *)raw;
+    value.vector = vec4_make(v->x, v->y, v->z, 0.0f);
+    break;
   }
-
-  return false;
+  case LDK_FIELD_VEC4: value.vector = *(const Vec4 *)raw; break;
+  case LDK_FIELD_QUAT:
+  {
+    const Quat *q = (const Quat *)raw;
+    value.vector = vec4_make(q->x, q->y, q->z, q->w);
+    break;
+  }
+  case LDK_FIELD_STRING: value.string = *(const XSmallstr *)raw; break;
+  default: return false;
+  }
+  return ldk_property_set(entity, component_type, field->name, &value);
 }
 
 static bool s_editor_inspector_euler_quat_equal(Quat a, Quat b)
@@ -1250,12 +1270,11 @@ static bool s_editor_inspector_euler_rotation_apply(LDKEntity entity,
     u32 component_type, const LDKComponentFieldMeta *field,
     void *field_value, Quat rotation)
 {
-  if (component_type == LDK_COMPONENT_TYPE_TRANSFORM &&
-      field->offset == offsetof(LDKTransform, local_rotation))
+  if (component_type)
   {
-    return ldk_transform_set_local_rotation(entity, rotation);
+    return s_editor_inspector_property_write(
+        entity, component_type, field, &rotation);
   }
-
   *(Quat *)field_value = rotation;
   return true;
 }
@@ -1795,6 +1814,102 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
   return true;
 }
 
+static bool s_editor_inspector_keyframe_animation_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetKeyframeAnimation *value, bool readonly)
+{
+  LDKUIContext *ui;
+  LDKAssetManager *assets;
+  LDKAssetHandle handle;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  char display[sizeof(path.buf)];
+  bool assign = false;
+
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  ui = &editor->ui;
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  handle.h = value->h;
+  info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle)
+      : NULL;
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+
+  s_editor_inspector_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+                   &payload_type, &path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(
+        editor->window, "Choose animation", "Animation\0*.anim\0\0", &path);
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (!assign)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Animation",
+          "Choose an animation file inside the project's runtree folder.",
+          &asset_path))
+  {
+    return false;
+  }
+
+  const char *suffix = strrchr(asset_path.buf, '.');
+  if (!suffix || strcmp(suffix, ".anim") != 0)
+  {
+    ldki_editor_log_error(editor, "Choose a .anim asset.");
+    return false;
+  }
+
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+
+  LDKAssetKeyframeAnimation asset =
+      ldk_asset_manager_keyframe_animation_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load animation asset.");
+    return false;
+  }
+
+  *value = asset;
+  return true;
+}
+
 static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetMaterial *value, bool readonly, bool optional)
 {
@@ -2019,6 +2134,84 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
   return true;
 }
 
+/* Both the runtime source and the Animation window use the same index. */
+static void s_editor_inspector_keyframe_current_draw(
+    LDKEditorContext *editor, LDKEntity entity,
+    const LDKKeyFrameAnimationSource *source, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  s_editor_inspector_row_begin(editor, "Current Animation");
+  if (!source->animation_count)
+  {
+    ldk_ui_label(ui, "(none)");
+  }
+  else
+  {
+    const char **names = calloc(source->animation_count, sizeof(*names));
+    if (names)
+    {
+      for (u32 i = 0; i < source->animation_count; ++i)
+      {
+        LDKAssetHandle handle = {.h = source->animations[i].h};
+        const LDKAssetInfo *info = assets
+            ? ldk_asset_get_info_const(assets, handle) : NULL;
+        names[i] = info ? info->asset_path.buf : "(missing)";
+      }
+      u32 current = source->current_animation >= 0 &&
+          (u32)source->current_animation < source->animation_count
+          ? (u32)source->current_animation : 0u;
+      ldk_ui_begin_disabled(ui, readonly);
+      u32 next = ldk_ui_combo_box(ui, names, source->animation_count, current);
+      if (!readonly && next != current)
+      {
+        (void)ldk_keyframe_animation_source_set_current(entity, (i32)next);
+      }
+      ldk_ui_end_disabled(ui);
+      free(names);
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+}
+
+static void s_editor_inspector_keyframe_animations_draw(
+    LDKEditorContext *editor, LDKEntity entity,
+    LDKKeyFrameAnimationSource *source, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  ldk_ui_label(ui, "Animations");
+  for (u32 i = 0; i < source->animation_count; ++i)
+  {
+    char label[32];
+    snprintf(label, sizeof(label), "Animation %u", i);
+    ldk_ui_push_id_u32(ui, i);
+    LDKAssetKeyframeAnimation asset = source->animations[i];
+    if (s_editor_inspector_keyframe_animation_asset_field(
+            editor, label, &asset, readonly) &&
+        !ldk_keyframe_animation_source_replace(entity, i, asset))
+    {
+      ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+    }
+    ldk_ui_begin_disabled(ui, readonly);
+    if (ldk_ui_button(ui, "Remove"))
+    {
+      (void)ldk_keyframe_animation_source_remove(entity, i);
+      ldk_ui_end_disabled(ui);
+      ldk_ui_pop_id(ui);
+      break;
+    }
+    ldk_ui_end_disabled(ui);
+    ldk_ui_pop_id(ui);
+  }
+  LDKAssetKeyframeAnimation addition = ldk_asset_keyframe_animation_null();
+  if (s_editor_inspector_keyframe_animation_asset_field(
+          editor, "Add Animation", &addition, readonly) &&
+      !ldk_keyframe_animation_source_add(entity, addition))
+  {
+    ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+  }
+}
+
 static const char *s_editor_inspector_field_display_name(
     const LDKComponentFieldMeta *field)
 {
@@ -2052,6 +2245,14 @@ static void s_editor_inspector_field_draw(
   }
 
   ui = &editor->ui;
+  if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
+      strcmp(field->name, "current_animation") == 0)
+  {
+    s_editor_inspector_keyframe_current_draw(editor, entity,
+        (const LDKKeyFrameAnimationSource *)component,
+        (field->flags & LDK_FIELD_FLAG_READONLY) != 0);
+    return;
+  }
   display_name = s_editor_inspector_field_display_name(field);
   if (component_type == LDK_COMPONENT_TYPE_TRANSFORM)
   {
@@ -2139,6 +2340,15 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
+  if (field->type == LDK_FIELD_ASSET_KEYFRAME_ANIMATION)
+  {
+    LDKAssetKeyframeAnimation *value = (LDKAssetKeyframeAnimation *)field_value;
+    (void)s_editor_inspector_keyframe_animation_asset_field(
+        editor, display_name, value, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   if (field->type == LDK_FIELD_ASSET_MATERIAL)
   {
     LDKAssetMaterial *value = (LDKAssetMaterial *)field_value;
@@ -2196,7 +2406,17 @@ static void s_editor_inspector_field_draw(
       ldk_ui_end_disabled(ui);
       if (!readonly && next != selected && next < meta->count)
       {
-        meta->write(field_value, meta->options[next].value);
+        if (component_type)
+        {
+          LDKPropertyValue chosen = {0};
+          chosen.type = LDK_FIELD_ENUM;
+          chosen.integer = meta->options[next].value;
+          (void)ldk_property_set(entity, component_type, field->name, &chosen);
+        }
+        else
+        {
+          meta->write(field_value, meta->options[next].value);
+        }
       }
     }
     else
@@ -2218,9 +2438,12 @@ static void s_editor_inspector_field_draw(
     value = ldk_ui_toggle(ui, value);
     ldk_ui_end_disabled(ui);
 
-    if (!readonly)
+    if (!readonly && value != *(bool *)field_value)
     {
-      *(bool *)field_value = value;
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(bool *)field_value = value;
     }
     break;
   }
@@ -2243,7 +2466,10 @@ static void s_editor_inspector_field_draw(
     {
       if (s_editor_inspector_parse_i32(buffer, &parsed))
       {
-        *(i32 *)field_value = parsed;
+        if (component_type)
+          (void)s_editor_inspector_property_write(entity, component_type, field, &parsed);
+        else
+          *(i32 *)field_value = parsed;
       }
       else
       {
@@ -2257,8 +2483,14 @@ static void s_editor_inspector_field_draw(
   {
     if (field->widget == LDK_FIELD_WIDGET_COLOR)
     {
-      rgba32 *field_color = (rgba32 *)field_value;
-      (void)ldki_editor_color_field(editor, field_color, readonly);
+      rgba32 color = *(rgba32 *)field_value;
+      if (ldki_editor_color_field(editor, &color, readonly))
+      {
+        if (component_type)
+          (void)s_editor_inspector_property_write(entity, component_type, field, &color);
+        else
+          *(rgba32 *)field_value = color;
+      }
       break;
     }
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
@@ -2276,7 +2508,10 @@ static void s_editor_inspector_field_draw(
     {
       if (s_editor_inspector_parse_u32(buffer, &parsed))
       {
-        *(u32 *)field_value = parsed;
+        if (component_type)
+          (void)s_editor_inspector_property_write(entity, component_type, field, &parsed);
+        else
+          *(u32 *)field_value = parsed;
       }
       else
       {
@@ -2300,7 +2535,10 @@ static void s_editor_inspector_field_draw(
 
       if (!readonly)
       {
-        *(float *)field_value = value;
+        if (component_type)
+          (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+        else
+          *(float *)field_value = value;
       }
     }
     else
@@ -2308,7 +2546,10 @@ static void s_editor_inspector_field_draw(
       if (s_editor_inspector_float_input(
               ui, entity, component_type, field, 0, &value, readonly))
       {
-        *(float *)field_value = value;
+        if (component_type)
+          (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+        else
+          *(float *)field_value = value;
       }
     }
     break;
@@ -2316,26 +2557,29 @@ static void s_editor_inspector_field_draw(
 
   case LDK_FIELD_STRING:
   {
-    XSmallstr *value = (XSmallstr *)field_value;
+    XSmallstr value = *(const XSmallstr *)field_value;
     u32 result;
 
-    if (value->length > X_SMALLSTR_MAX_LENGTH ||
-        value->buf[value->length] != 0 ||
-        strlen(value->buf) != value->length)
+    if (value.length > X_SMALLSTR_MAX_LENGTH ||
+        value.buf[value.length] != 0 ||
+        strlen(value.buf) != value.length)
     {
       ldk_ui_label(ui, "<invalid string>");
       break;
     }
 
     ldk_ui_begin_disabled(ui, readonly);
-    result = ldk_ui_input_box(
-        ui, value->buf, (u32)sizeof(value->buf));
+    result = ldk_ui_input_box(ui, value.buf, (u32)sizeof(value.buf));
     ldk_ui_end_disabled(ui);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
-      value->buf[X_SMALLSTR_MAX_LENGTH] = 0;
-      value->length = strlen(value->buf);
+      value.buf[X_SMALLSTR_MAX_LENGTH] = 0;
+      value.length = strlen(value.buf);
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(XSmallstr *)field_value = value;
     }
     break;
   }
@@ -2353,7 +2597,10 @@ static void s_editor_inspector_field_draw(
 
     if (changed)
     {
-      *(Vec2 *)field_value = value;
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(Vec2 *)field_value = value;
     }
     break;
   }
@@ -2379,10 +2626,12 @@ static void s_editor_inspector_field_draw(
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 2, &value.z, readonly);
 
-    if (changed && !s_editor_inspector_transform_field_apply(
-                       entity, component_type, field, &value))
+    if (changed)
     {
-      *(Vec3 *)field_value = value;
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(Vec3 *)field_value = value;
     }
     break;
   }
@@ -2404,7 +2653,10 @@ static void s_editor_inspector_field_draw(
 
     if (changed)
     {
-      *(Vec4 *)field_value = value;
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(Vec4 *)field_value = value;
     }
     break;
   }
@@ -2431,10 +2683,12 @@ static void s_editor_inspector_field_draw(
     changed |= s_editor_inspector_float_input(
         ui, entity, component_type, field, 3, &value.w, readonly);
 
-    if (changed && !s_editor_inspector_transform_field_apply(
-                       entity, component_type, field, &value))
+    if (changed)
     {
-      *(Quat *)field_value = value;
+      if (component_type)
+        (void)s_editor_inspector_property_write(entity, component_type, field, &value);
+      else
+        *(Quat *)field_value = value;
     }
     break;
   }
@@ -2448,6 +2702,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ASSET_MATERIAL:
   case LDK_FIELD_ASSET_SKYBOX:
   case LDK_FIELD_ASSET_AUDIO:
+  case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
   default:
     s_editor_inspector_field_value_format(
         value_text, sizeof(value_text), field, field_value);
@@ -4647,6 +4902,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       {
         s_editor_inspector_instanced_mesh_instances_draw(
             editor, entity, (LDKInstancedMeshSource *)component);
+      }
+      if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
+      {
+        s_editor_inspector_keyframe_animations_draw(editor, entity,
+            (LDKKeyFrameAnimationSource *)component,
+            editor->editor_state != LDK_EDITOR_STATE_STOPED);
       }
     }
 

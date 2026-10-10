@@ -7,6 +7,7 @@
 #define LDK_JOBS_H
 
 #include <ldk_common.h>
+#include <stdx/stdx_thread.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -41,6 +42,8 @@ extern "C"
 
   LDK_API bool ldk_jobs_initialize(LDKJobs *jobs, u32 worker_count);
   LDK_API void ldk_jobs_terminate(LDKJobs *jobs);
+  LDK_API void ldk_jobs_terminate_with_diagnostics(LDKJobs *jobs,
+      XThreadPoolShutdownCallback callback, void *user_data);
 
   LDK_API LDKAsyncResult ldk_jobs_submit(
       LDKJobs *jobs, LDKJobFunc function, void *user_data);
