@@ -492,6 +492,10 @@ list(APPEND LDK_SOURCE
 
   # Core
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
+  ${INCLUDE_DIR}/ldk_property.h     src/ldk_property.c
+  ${INCLUDE_DIR}/ldk_keyframe_animation.h src/ldk_keyframe_animation.c
+  ${INCLUDE_DIR}/component/ldk_keyframe_animation_source.h
+  src/component/ldk_keyframe_animation_source.c
   ${INCLUDE_DIR}/ldk_profiler.h     src/ldk_profiler.c
   ${INCLUDE_DIR}/ldk_os.h
   ${INCLUDE_DIR}/ldk_event.h
@@ -796,6 +800,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_theme.h
     src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
+    src/editor/ldk_editor_animation.c
     src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_grid.c
     src/editor/ldk_editor_gizmo.c

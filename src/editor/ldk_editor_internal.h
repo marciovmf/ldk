@@ -508,6 +508,7 @@ void ldki_editor_animation_window_show(LDKEditor *editor, void *data);
 void ldki_editor_animation_preview_stop(void);
 void ldki_editor_animation_scene_reset(void);
 void ldki_editor_animation_preview_tick(LDKEditorContext *editor, float dt);
+void ldki_editor_animation_terminate(void);
 bool ldki_editor_window_remove(LDKEditorWindowId window_id);
 bool ldki_editor_window_is_focused(
     LDKEditorContext *editor, LDKEditorWindowId window_id);

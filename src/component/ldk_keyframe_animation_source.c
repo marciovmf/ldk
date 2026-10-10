@@ -1,4 +1,4 @@
-/* Native, implicit keyframe animation playback. Built into ldk.c. */
+/* Native, implicit keyframe animation playback. */
 #include <component/ldk_keyframe_animation_source.h>
 #include <component/ldk_transform.h>
 #include <ldk.h>

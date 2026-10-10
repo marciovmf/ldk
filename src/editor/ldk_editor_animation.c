@@ -1,9 +1,11 @@
-/* Animation authoring window. Included by ldk_editor_dock.c. */
+/* Animation authoring window, compiled independently from Dock. */
+#include "ldk_editor_internal.h"
 #include <ctype.h>
 #include <ldk_keyframe_animation.h>
 #include <ldk_property.h>
 #include "ldk_editor_color_picker.h"
 #include <errno.h>
+#include <inttypes.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_asset_manager.h>
@@ -2277,7 +2279,7 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   }
 }
 
-static void s_editor_animation_terminate(void)
+void ldki_editor_animation_terminate(void)
 {
   s_editor_animation_restore();
   s_editor_animation_ui_state_clear();
@@ -2286,4 +2288,33 @@ static void s_editor_animation_terminate(void)
     ldk_keyframe_animation_clear(&s_editor_animation.clip);
   }
   memset(&s_editor_animation, 0, sizeof(s_editor_animation));
+}
+
+void ldki_editor_animation_window_show(LDKEditor *editor, void *data)
+{
+  s_editor_animation_window(editor, data);
+}
+
+void ldki_editor_animation_preview_stop(void)
+{
+  s_editor_animation_restore();
+  s_editor_animation.playhead = 0.0f;
+}
+
+void ldki_editor_animation_scene_reset(void)
+{
+  ldki_editor_animation_preview_stop();
+  s_editor_animation.root = x_handle_null();
+}
+
+void ldki_editor_animation_preview_tick(LDKEditorContext *editor, float dt)
+{
+  if (editor && editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    s_editor_animation_tick(dt);
+  }
+  else
+  {
+    ldki_editor_animation_preview_stop();
+  }
 }

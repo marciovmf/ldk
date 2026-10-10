@@ -1,6 +1,7 @@
-/* Included from ldk.c; engine and game metadata are resolved at call time. */
+/* Shared reflected property access for runtime and editor. */
 #include <ldk_property.h>
-#include <ldk_game.h>
+#include <ldk.h>
+#include "ldk_engine_internal.h"
 #include <ldk_scene.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
@@ -11,12 +12,14 @@
 
 const LDKComponentMeta *ldk_property_component_meta(u32 component_type)
 {
-  LDKGame *game = &g_engine.game;
-  u32 count = game->metadata_count && game->metadata_get ?
+  const LDKGame *game = ldki_engine_game_metadata_get();
+  bool has_game_metadata = game && game->metadata_count &&
+      game->metadata_get;
+  u32 count = has_game_metadata ?
       game->metadata_count() : ldk_engine_component_metadata_count();
   for (u32 i = 0; i < count; ++i)
   {
-    const LDKComponentMeta *meta = game->metadata_count && game->metadata_get ?
+    const LDKComponentMeta *meta = has_game_metadata ?
         game->metadata_get(i) : ldk_engine_component_metadata_get(i);
     if (meta &&
         ldk_scene_component_meta_runtime_type(meta) == component_type)

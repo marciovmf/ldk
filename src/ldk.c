@@ -1,5 +1,6 @@
 #define LDK_IMPL_STDX
 #include "ldk_stdx.h"
+#include "ldk_engine_internal.h"
 
 #include <ldk.h>
 #include <math.h>
@@ -923,6 +924,11 @@ bool ldk_game_instance_unload(void)
   e->game_step_requested = false;
   e->game_stop_requested = false;
   return result;
+}
+
+const LDKGame *ldki_engine_game_metadata_get(void)
+{
+  return &g_engine.game;
 }
 
 LDKGame *ldk_game_get(void)
@@ -2175,7 +2181,3 @@ const LDKConfig *ldk_engine_config_get(void)
   return (const LDKConfig *)&g_engine.config;
 }
 
-/* Transform keyframe clip API, owned by the engine binary. */
-#include "ldk_property.inl"
-#include "ldk_keyframe_animation.inl"
-#include "ldk_keyframe_animation_source.inl"
