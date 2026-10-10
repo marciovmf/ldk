@@ -1,4 +1,5 @@
 /* Animation authoring window. Included by ldk_editor_dock.c. */
+#include <ctype.h>
 #include <ldk_keyframe_animation.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_keyframe_animation_source.h>
@@ -15,6 +16,26 @@ typedef struct LDKEditorAnimationSavedTransform
   Vec3 scale;
 } LDKEditorAnimationSavedTransform;
 
+typedef struct LDKEditorAnimationExpandedTrack
+{
+  u64 path;
+  LDKKeyframeTransformChannel channel;
+  bool expanded;
+} LDKEditorAnimationExpandedTrack;
+
+typedef struct LDKEditorAnimationPopupNode
+{
+  LDKEntity entity;
+  bool entity_expanded;
+  bool transform_expanded;
+} LDKEditorAnimationPopupNode;
+
+typedef struct LDKEditorAnimationRow
+{
+  i32 track; /* -3: event, -2: events header, -1: key summary. */
+  i32 axis;  /* Event index for -3; -1 parent; 0..2: X/Y/Z. */
+} LDKEditorAnimationRow;
+
 typedef struct LDKEditorAnimationState
 {
   LDKKeyframeAnimation clip;
@@ -23,6 +44,11 @@ typedef struct LDKEditorAnimationState
   char path[256];
   char event_text[128];
   char event_number[32];
+  char duration_text[48];
+  bool duration_text_editing;
+  LDKUIRect timeline_sheet_rect;
+  LDKUIRect timeline_graph_rect;
+  LDKUIRect timeline_visible_rect;
   float playhead;
   u32 selected_track;
   u32 selected_key;
@@ -30,12 +56,27 @@ typedef struct LDKEditorAnimationState
   bool key_selected;
   bool dragging_key;
   bool scrubbing;
+  float property_width;
+  u64 last_sheet_click_ticks;
+  float last_sheet_click_x;
+  float last_sheet_click_y;
+  i32 last_sheet_click_track;
+  i32 last_sheet_click_axis;
   bool events_editor_open;
   float drag_start_x;
   float drag_start_time;
   float timeline_zoom;
   float timeline_offset;
   LDKUIPoint sheet_scroll;
+  LDKUIPoint property_popup_scroll;
+  LDKEditorAnimationExpandedTrack *expanded_tracks;
+  u32 expanded_count;
+  u32 expanded_capacity;
+  LDKEditorAnimationPopupNode *popup_nodes;
+  u32 popup_node_count;
+  u32 popup_node_capacity;
+  LDKUIId axis_edit_id;
+  char axis_edit_text[48];
   bool initialized;
   bool playing;
   bool preview;
@@ -47,6 +88,100 @@ typedef struct LDKEditorAnimationState
 } LDKEditorAnimationState;
 
 static LDKEditorAnimationState s_editor_animation;
+
+static void s_editor_animation_ui_state_clear(void)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  free(state->expanded_tracks);
+  free(state->popup_nodes);
+  state->expanded_tracks = NULL;
+  state->expanded_count = state->expanded_capacity = 0;
+  state->popup_nodes = NULL;
+  state->popup_node_count = state->popup_node_capacity = 0;
+  state->axis_edit_id = 0;
+  state->axis_edit_text[0] = '\0';
+  state->property_popup_scroll = (LDKUIPoint){0};
+  state->last_sheet_click_ticks = 0;
+  state->timeline_sheet_rect = (LDKUIRect){0};
+  state->timeline_graph_rect = (LDKUIRect){0};
+  state->timeline_visible_rect = (LDKUIRect){0};
+}
+
+static bool s_editor_animation_expanded(u64 path,
+    LDKKeyframeTransformChannel channel)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  for (u32 i = 0; i < state->expanded_count; ++i)
+  {
+    if (state->expanded_tracks[i].path == path &&
+        state->expanded_tracks[i].channel == channel)
+    {
+      return state->expanded_tracks[i].expanded;
+    }
+  }
+  return false;
+}
+
+static void s_editor_animation_expand(u64 path,
+    LDKKeyframeTransformChannel channel, bool expanded)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  for (u32 i = 0; i < state->expanded_count; ++i)
+  {
+    if (state->expanded_tracks[i].path == path &&
+        state->expanded_tracks[i].channel == channel)
+    {
+      state->expanded_tracks[i].expanded = expanded;
+      return;
+    }
+  }
+  if (state->expanded_count == state->expanded_capacity)
+  {
+    u32 capacity = state->expanded_capacity ? state->expanded_capacity * 2 : 16;
+    void *memory = realloc(state->expanded_tracks,
+        (size_t)capacity * sizeof(*state->expanded_tracks));
+    if (!memory)
+    {
+      return;
+    }
+    state->expanded_tracks = memory;
+    state->expanded_capacity = capacity;
+  }
+  state->expanded_tracks[state->expanded_count++] =
+      (LDKEditorAnimationExpandedTrack){path, channel, expanded};
+}
+
+static LDKEditorAnimationPopupNode *s_editor_animation_popup_node(
+    LDKEntity entity, bool root)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  for (u32 i = 0; i < state->popup_node_count; ++i)
+  {
+    LDKEditorAnimationPopupNode *node = &state->popup_nodes[i];
+    if (node->entity.index == entity.index &&
+        node->entity.version == entity.version)
+    {
+      return node;
+    }
+  }
+  if (state->popup_node_count == state->popup_node_capacity)
+  {
+    u32 capacity = state->popup_node_capacity ?
+        state->popup_node_capacity * 2 : 16;
+    void *memory = realloc(state->popup_nodes,
+        (size_t)capacity * sizeof(*state->popup_nodes));
+    if (!memory)
+    {
+      return NULL;
+    }
+    state->popup_nodes = memory;
+    state->popup_node_capacity = capacity;
+  }
+  LDKEditorAnimationPopupNode *node =
+      &state->popup_nodes[state->popup_node_count++];
+  *node = (LDKEditorAnimationPopupNode){entity, root, root};
+  return node;
+}
 
 static void s_editor_animation_restore(void)
 {
@@ -267,6 +402,18 @@ static void s_editor_animation_zoom(float factor)
   s_editor_animation_view_clamp();
 }
 
+/* Keep the time under the pointer stationary while zooming. */
+static void s_editor_animation_wheel_zoom(float steps, float anchor)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  float old_span = s_editor_animation_span();
+  float anchor_time = state->timeline_offset + anchor * old_span;
+  state->timeline_zoom *= powf(1.25f, steps);
+  s_editor_animation_view_clamp();
+  state->timeline_offset = anchor_time - anchor * s_editor_animation_span();
+  s_editor_animation_view_clamp();
+}
+
 static float s_editor_animation_time_x(
     LDKUIRect graph, const LDKEditorAnimationState *state, float time)
 {
@@ -338,6 +485,11 @@ static void s_editor_animation_track_label(
 {
   const LDKKeyframeTrack *track = &state->clip.tracks[index];
   char name[160] = "Root";
+  const char *root_name = ldk_ecs_entity_name_get(state->root);
+  if (root_name && root_name[0])
+  {
+    snprintf(name, sizeof(name), "%s", root_name);
+  }
   if (track->target_path != ldk_keyframe_path_root() &&
       !s_editor_animation_target_walk(state->root,
           ldk_keyframe_path_root(), track->target_path,
@@ -346,7 +498,7 @@ static void s_editor_animation_track_label(
     snprintf(name, sizeof(name), "Unresolved %016" PRIx64,
         track->target_path);
   }
-  snprintf(buffer, capacity, "%s  /  %s", name,
+  snprintf(buffer, capacity, "%s : %s", name,
       s_editor_animation_channel_name(track->channel));
 }
 
@@ -476,34 +628,532 @@ static void s_editor_animation_move_key(float new_time)
   s_editor_animation_set_time(new_time);
 }
 
-static void s_editor_animation_dopesheet(LDKUIContext *ui)
+/* A track remains a single vector/quaternion in the clip; XYZ are editor views. */
+static bool s_editor_animation_track_value(u32 index, Vec4 *out)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
+  if (ldk_keyframe_animation_sample(&state->clip, index,
+          state->playhead, out))
+  {
+    return true;
+  }
+  LDKEntity entity;
+  return s_editor_animation_track_entity(index, &entity) &&
+      ldk_keyframe_animation_value_from_transform(entity,
+          state->clip.tracks[index].channel, out);
+}
+
+static Vec3 s_editor_animation_euler_degrees(Vec4 value)
+{
+  Quat q = quat_norm(quat_make(value.x, value.y, value.z, value.w));
+  Vec3 angles = quat_to_euler_xyz(q);
+  return vec3_make(rad_to_deg(angles.x), rad_to_deg(angles.y),
+      rad_to_deg(angles.z));
+}
+
+static float s_editor_animation_axis_value(u32 track, u32 axis)
+{
+  Vec4 value;
+  if (!s_editor_animation_track_value(track, &value))
+  {
+    return 0.0f;
+  }
+  if (s_editor_animation.clip.tracks[track].channel ==
+      LDK_KEYFRAME_TRANSFORM_ROTATION)
+  {
+    Vec3 degrees = s_editor_animation_euler_degrees(value);
+    return axis == 0 ? degrees.x : axis == 1 ? degrees.y : degrees.z;
+  }
+  return axis == 0 ? value.x : axis == 1 ? value.y : value.z;
+}
+
+static bool s_editor_animation_axis_set(u32 track_index, u32 axis, float next)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (!isfinite(next) || axis >= 3 || track_index >= state->clip.track_count)
+  {
+    return false;
+  }
+  Vec4 value;
+  if (!s_editor_animation_track_value(track_index, &value))
+  {
+    return false;
+  }
+  if (state->clip.tracks[track_index].channel ==
+      LDK_KEYFRAME_TRANSFORM_ROTATION)
+  {
+    Vec3 degrees = s_editor_animation_euler_degrees(value);
+    if (axis == 0)
+    {
+      degrees.x = next;
+    }
+    else if (axis == 1)
+    {
+      degrees.y = next;
+    }
+    else
+    {
+      degrees.z = next;
+    }
+    Quat qx = quat_axis_angle(vec3_make(1, 0, 0),
+        deg_to_rad(remainderf(degrees.x, 360.0f)));
+    Quat qy = quat_axis_angle(vec3_make(0, 1, 0),
+        deg_to_rad(remainderf(degrees.y, 360.0f)));
+    Quat qz = quat_axis_angle(vec3_make(0, 0, 1),
+        deg_to_rad(remainderf(degrees.z, 360.0f)));
+    Quat q = quat_norm(quat_mul(qz, quat_mul(qy, qx)));
+    value = vec4_make(q.x, q.y, q.z, q.w);
+  }
+  else if (axis == 0)
+  {
+    value.x = next;
+  }
+  else if (axis == 1)
+  {
+    value.y = next;
+  }
+  else
+  {
+    value.z = next;
+  }
+
+  if (!ldk_keyframe_animation_key_set(&state->clip,
+          track_index, state->playhead, value))
+  {
+    return false;
+  }
+  state->selected_track = track_index;
+  state->key_selected = false;
+  state->dirty = true;
+  s_editor_animation_set_time(state->playhead);
+  return true;
+}
+
+static bool s_editor_animation_key_at_cursor(u32 track_index)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  Vec4 value;
+  if (!s_editor_animation_track_value(track_index, &value) ||
+      !ldk_keyframe_animation_key_set(&state->clip, track_index,
+          state->playhead, value))
+  {
+    return false;
+  }
+  state->selected_track = track_index;
+  state->key_selected = false;
+  state->dirty = true;
+  s_editor_animation_set_time(state->playhead);
+  return true;
+}
+
+/* Removing a key affects only the selected track; no confirmation needed. */
+static bool s_editor_animation_delete_selected_key(void)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (!state->key_selected || state->selected_track >= state->clip.track_count)
+  {
+    return false;
+  }
+  const LDKKeyframeTrack *track = &state->clip.tracks[state->selected_track];
+  if (state->selected_key >= track->count ||
+      !ldk_keyframe_animation_key_remove(&state->clip,
+          state->selected_track, state->selected_key))
+  {
+    return false;
+  }
+  state->key_selected = false;
+  state->dragging_key = false;
+  state->dirty = true;
+  s_editor_animation_set_time(state->playhead);
+  return true;
+}
+
+/* A track removes all its keys, so require explicit user confirmation. */
+static bool s_editor_animation_remove_track_confirm(
+    LDKEditorContext *editor, u32 track_index)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (track_index >= state->clip.track_count ||
+      !ldk_os_dialog_show_yes_no(editor->window, "Delete animation track?",
+          "Are you sure you want to delete this track and all its keyframes?"))
+  {
+    return false;
+  }
+  s_editor_animation_restore();
+  if (!ldk_keyframe_animation_track_remove(&state->clip, track_index))
+  {
+    return false;
+  }
+  s_editor_animation_reset_selection();
+  state->last_sheet_click_ticks = 0;
+  state->dirty = true;
+  s_editor_animation_set_time(state->playhead);
+  return true;
+}
+
+static bool s_editor_animation_float_parse(const char *text, float *out)
+{
+  char *end;
+  float number;
+  if (!text || !out)
+  {
+    return false;
+  }
+  number = strtof(text, &end);
+  if (end == text || !isfinite(number))
+  {
+    return false;
+  }
+  while (isspace((unsigned char)*end))
+  {
+    ++end;
+  }
+  if (*end != '\0')
+  {
+    return false;
+  }
+  *out = number;
+  return true;
+}
+
+/* One active text edit at a time; retain partial input across UI frames. */
+static void s_editor_animation_axis_input(LDKUIContext *ui,
+    u32 track_index, u32 axis, LDKUIRect rect)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  const LDKKeyframeTrack *track = &state->clip.tracks[track_index];
+  u64 combined = track->target_path ^ (track->target_path >> 32);
+  u32 hash = (u32)combined * 16777619u +
+      (u32)track->channel * 1103515245u + axis * 2747636419u;
+  LDKUIId id = (LDKUIId)(0x5EAF7001u ^ hash);
+  if (!id)
+  {
+    id = 1;
+  }
+  char text[48];
+  if (state->axis_edit_id == id)
+  {
+    snprintf(text, sizeof(text), "%s", state->axis_edit_text);
+  }
+  else
+  {
+    snprintf(text, sizeof(text), "%.4f",
+        (double)s_editor_animation_axis_value(track_index, axis));
+  }
+  u32 result = ldk_ui_widget_input_box(ui, id, text, sizeof(text), rect);
+  bool focused = ui->focused_id == id;
+  if (focused)
+  {
+    state->playing = false;
+    state->axis_edit_id = id;
+    snprintf(state->axis_edit_text, sizeof(state->axis_edit_text), "%s", text);
+  }
+  if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+  {
+    state->axis_edit_id = 0;
+  }
+  else
+  {
+    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    {
+      float value;
+      if (s_editor_animation_float_parse(text, &value))
+      {
+        (void)s_editor_animation_axis_set(track_index, axis, value);
+      }
+    }
+    if (!focused || (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
+    {
+      state->axis_edit_id = 0;
+    }
+  }
+}
+
+static u32 s_editor_animation_rows_build(LDKEditorAnimationRow *rows)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  u32 count = 0;
+  rows[count++] = (LDKEditorAnimationRow){-2, -1};
+  for (u32 e = 0; e < state->clip.event_count; ++e)
+  {
+    rows[count++] = (LDKEditorAnimationRow){-3, (i32)e};
+  }
+  rows[count++] = (LDKEditorAnimationRow){-1, -1};
+  for (u32 i = 0; i < state->clip.track_count; ++i)
+  {
+    const LDKKeyframeTrack *track = &state->clip.tracks[i];
+    rows[count++] = (LDKEditorAnimationRow){(i32)i, -1};
+    if (s_editor_animation_expanded(track->target_path, track->channel))
+    {
+      for (u32 axis = 0; axis < 3; ++axis)
+      {
+        rows[count++] = (LDKEditorAnimationRow){(i32)i, (i32)axis};
+      }
+    }
+  }
+  return count;
+}
+
+/* Sibling names with identical hashes cannot be resolved by a relative path. */
+static bool s_editor_animation_sibling_hash_ambiguous(LDKEntity child,
+    LDKEntity first_sibling)
+{
+  u64 hash = ldk_ecs_entity_name_hash_get(child);
+  if (!hash)
+  {
+    return true;
+  }
+  u32 matches = 0;
+  for (LDKEntity cursor = first_sibling; !x_handle_is_null(cursor);)
+  {
+    const LDKTransform *transform = ldk_ecs_component_get_const(
+        cursor, LDK_COMPONENT_TYPE_TRANSFORM);
+    if (!transform)
+    {
+      break;
+    }
+    if (ldk_ecs_entity_name_hash_get(cursor) == hash && ++matches > 1)
+    {
+      return true;
+    }
+    cursor = transform->next_sibling;
+  }
+  return false;
+}
+
+static void s_editor_animation_add_property_tree(LDKUIContext *ui,
+    LDKEntity entity, u64 path, u32 depth, bool ambiguous)
+{
+  if (depth > 128)
+  {
+    return;
+  }
+  const LDKTransform *transform = ldk_ecs_component_get_const(
+      entity, LDK_COMPONENT_TYPE_TRANSFORM);
+  if (!transform)
+  {
+    return;
+  }
+  LDKEditorAnimationState *state = &s_editor_animation;
+  LDKEditorAnimationPopupNode *node = s_editor_animation_popup_node(
+      entity, depth == 0);
+  if (!node)
+  {
+    return;
+  }
+  bool entity_open = node->entity_expanded;
+  ldk_ui_push_id_u32(ui, entity.index);
+  ldk_ui_push_id_u32(ui, entity.version);
+  const char *name = ldk_ecs_entity_name_get(entity);
+  if (!name || !name[0])
+  {
+    name = depth == 0 ? "Root" : "(unnamed)";
+  }
+  u32 toggled = ldk_ui_tree_node_ex(ui, name, (LDKUIIcon){0},
+      entity_open, depth, LDK_UI_TREE_NODE_NONE);
+  if ((toggled & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
+  {
+    entity_open = !entity_open;
+  }
+  /* Recursive traversal can reallocate popup_nodes: do not retain pointers. */
+  node = s_editor_animation_popup_node(entity, false);
+  if (node)
+  {
+    node->entity_expanded = entity_open;
+  }
+  if (entity_open)
+  {
+    node = s_editor_animation_popup_node(entity, false);
+    bool transform_open = node && node->transform_expanded;
+    ldk_ui_push_id_cstr(ui, "Transform");
+    toggled = ldk_ui_tree_node_ex(ui, "Transform", (LDKUIIcon){0},
+        transform_open, depth + 1, LDK_UI_TREE_NODE_NONE);
+    if ((toggled & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
+    {
+      transform_open = !transform_open;
+    }
+    node = s_editor_animation_popup_node(entity, false);
+    if (node)
+    {
+      node->transform_expanded = transform_open;
+    }
+    if (transform_open)
+    {
+      for (u32 i = 0; i < 3; ++i)
+      {
+        LDKKeyframeTransformChannel channel = (LDKKeyframeTransformChannel)i;
+        bool exists = ldk_keyframe_animation_track_find(
+            &state->clip, path, channel) >= 0;
+        ldk_ui_push_id_u32(ui, i);
+        ldk_ui_set_next_width(ui, ldk_ui_px(270.0f));
+        ldk_ui_begin_disabled(ui, exists || ambiguous);
+        char label[80];
+        snprintf(label, sizeof(label), "%*s%s%s", (int)((depth + 2) * 2),
+            "", s_editor_animation_channel_name(channel),
+            ambiguous ? " (duplicate name)" : exists ? " (added)" : "");
+        if (ldk_ui_button_flat(ui, label))
+        {
+          i32 index = ldk_keyframe_animation_track_add(
+              &state->clip, path, channel);
+          if (index >= 0)
+          {
+            state->selected_track = (u32)index;
+            state->key_selected = false;
+            state->dirty = true;
+            s_editor_animation_expand(path, channel, true);
+          }
+          ldk_ui_close_current_popup(ui);
+        }
+        ldk_ui_end_disabled(ui);
+        ldk_ui_pop_id(ui);
+      }
+    }
+    ldk_ui_pop_id(ui);
+    LDKEntity child = transform->first_child;
+    while (!x_handle_is_null(child))
+    {
+      const LDKTransform *child_transform = ldk_ecs_component_get_const(
+          child, LDK_COMPONENT_TYPE_TRANSFORM);
+      if (!child_transform)
+      {
+        break;
+      }
+      LDKEntity next = child_transform->next_sibling;
+      u64 name_hash = ldk_ecs_entity_name_hash_get(child);
+      if (name_hash)
+      {
+        s_editor_animation_add_property_tree(ui, child,
+            ldk_keyframe_path_child(path, name_hash), depth + 1,
+            ambiguous || s_editor_animation_sibling_hash_ambiguous(
+                child, transform->first_child));
+      }
+      else
+      {
+        /* An unnamed child cannot be addressed by an animation track. */
+        ldk_ui_push_id_u32(ui, child.index);
+        ldk_ui_begin_disabled(ui, true);
+        ldk_ui_set_next_width(ui, ldk_ui_px(270.0f));
+        ldk_ui_button_flat(ui, "(unnamed child: no name hash)");
+        ldk_ui_end_disabled(ui);
+        ldk_ui_pop_id(ui);
+      }
+      child = next;
+    }
+  }
+  ldk_ui_pop_id(ui);
+  ldk_ui_pop_id(ui);
+}
+
+static void s_editor_animation_dopesheet(LDKEditorContext *editor)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKEditorAnimationState *state = &s_editor_animation;
   s_editor_animation_view_clamp();
-  const u32 row_count = state->clip.track_count + 2; /* Events + summary. */
+  u32 max_rows = 2 + state->clip.event_count + state->clip.track_count * 4;
+  LDKEditorAnimationRow *rows = calloc(max_rows, sizeof(*rows));
+  if (!rows)
+  {
+    return;
+  }
+  u32 row_count = s_editor_animation_rows_build(rows);
   const float row_h = LDK_EDITOR_ANIM_ROW_HEIGHT;
   const float ruler_h = LDK_EDITOR_ANIM_RULER_HEIGHT;
-  const float content_h = ruler_h + row_h * row_count + 6.0f;
+  /* The Add Property button belongs directly below the track rows. */
+  const float content_h = ruler_h + row_h * row_count + 44.0f;
 
   ldk_ui_set_next_height(ui, ldk_ui_fill());
   ldk_ui_set_next_width(ui, ldk_ui_fill());
+  /* Let the native scrollview handle vertical wheel scrolling across both
+   * property labels and the time axis. Ctrl+wheel zooms the time axis. */
+  const LDKMouseState *original_mouse = (LDKMouseState *)ui->mouse;
+  LDKMouseState wheel_suppressed = {0};
+  bool wheel_handled = false;
+  if (original_mouse && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      state->timeline_graph_rect.w > 0.0f)
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)original_mouse);
+    i32 wheel = ldk_os_mouse_wheel_delta((LDKMouseState *)original_mouse);
+    if (wheel && ldk_rectf_contains(&state->timeline_graph_rect,
+            (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&state->timeline_visible_rect,
+            (float)cursor.x, (float)cursor.y))
+    {
+      float steps = s_editor_animation_clamp((float)wheel / 120.0f,
+          -8.0f, 8.0f);
+      bool zoom = ui->keyboard && ldk_os_keyboard_key_is_pressed(
+          (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_CONTROL);
+      if (zoom)
+      {
+        float anchor = s_editor_animation_clamp(
+            ((float)cursor.x - state->timeline_graph_rect.x) /
+            state->timeline_graph_rect.w, 0.0f, 1.0f);
+        s_editor_animation_wheel_zoom(steps, anchor);
+        wheel_handled = true;
+      }
+    }
+  }
+  if (wheel_handled)
+  {
+    wheel_suppressed = *original_mouse;
+    wheel_suppressed.wheel_delta = 0;
+    ui->mouse = &wheel_suppressed;
+  }
   state->sheet_scroll = ldk_ui_begin_scrollview(ui, state->sheet_scroll,
       LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+  ui->mouse = original_mouse;
   ldk_ui_set_padding(ui, 0);
+
+  /* Use the same horizontal layout and resize handle as the other editor
+   * panels. The Dopesheet's custom drawing only owns its cells and ruler. */
+  ldk_ui_set_next_width(ui, ldk_ui_fill());
+  ldk_ui_set_next_height(ui, ldk_ui_px(content_h));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_padding(ui, 0);
+  float available_width = ui->current_layout->content_rect.w;
+  float min_label_width = fminf(225.0f, available_width * 0.6f);
+  float max_label_width = fmaxf(80.0f, available_width - 90.0f);
+  if (state->property_width <= 0.0f)
+  {
+    state->property_width = 420.0f;
+  }
+  state->property_width = s_editor_animation_clamp(state->property_width,
+      min_label_width, max_label_width);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(state->property_width));
+  ldk_ui_set_next_height(ui, ldk_ui_px(content_h));
+  ldk_ui_spacer(ui);
+  LDKUIRect labels = ldk_ui_last_rect(ui);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(8.0f));
+  ldk_ui_set_next_height(ui, ldk_ui_px(content_h));
+  state->property_width = ldk_ui_resize_handle_vertical(ui,
+      state->property_width, min_label_width, max_label_width);
+  LDKUIRect divider = ldk_ui_last_rect(ui);
+
   ldk_ui_set_next_width(ui, ldk_ui_fill());
   ldk_ui_set_next_height(ui, ldk_ui_px(content_h));
   ldk_ui_spacer(ui);
-  LDKUIRect sheet = ldk_ui_last_rect(ui);
+  LDKUIRect graph = ldk_ui_last_rect(ui);
+  ldk_ui_end_horizontal(ui);
+
+  LDKUIRect sheet = {labels.x, labels.y,
+      graph.x + graph.w - labels.x, content_h};
   LDKUIRect old_clip = ui->clip_rect;
+  /* Use one time-axis rectangle for ticks, keys, events, mouse hit tests and
+   * dragging. The resize handle and UI spacing are excluded by taking the
+   * actual graph's origin, never the label width as a pixel offset. Preserve
+   * the existing left inset and reserve extra room after the final key. */
+  LDKUIRect time_graph = graph;
+  float time_left = fmaxf(graph.x, divider.x + divider.w) + 5.0f;
+  float time_right = fminf(graph.x + graph.w, old_clip.x + old_clip.w) - 16.0f;
+  time_graph.x = time_left;
+  time_graph.w = fmaxf(1.0f, time_right - time_left);
+  state->timeline_sheet_rect = sheet;
+  state->timeline_graph_rect = time_graph;
+  state->timeline_visible_rect = ldk_rectf_intersect(&old_clip, &sheet);
   ui->clip_rect = ldk_rectf_intersect(&old_clip, &sheet);
-  float label_width = s_editor_animation_clamp(
-      sheet.w * 0.36f, 135.0f, 260.0f);
-  if (label_width > sheet.w - 55.0f)
-  {
-    label_width = fmaxf(0.0f, sheet.w - 55.0f);
-  }
-  LDKUIRect graph = {sheet.x + label_width + 9.0f,
-      sheet.y, fmaxf(20.0f, sheet.w - label_width - 23.0f), content_h};
+  float label_width = labels.w;
   float first_row = sheet.y + ruler_h;
 
   rgba32 bg = ui->theme.colors[LDK_UI_COLOR_PANEL_BG];
@@ -511,17 +1161,17 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
   rgba32 focus = ui->theme.colors[LDK_UI_COLOR_FOCUS];
   rgba32 key_color = ui->theme.colors[LDK_UI_COLOR_SLIDER_THUMB];
   rgba32 grid = ui->theme.colors[LDK_UI_COLOR_SEPARATOR];
-  s_editor_animation_draw_rect(ui, sheet, bg);
+  s_editor_animation_draw_rect(ui, labels, bg);
+  s_editor_animation_draw_rect(ui, graph, bg);
   s_editor_animation_draw_rect(ui,
-      (LDKUIRect){sheet.x, sheet.y, sheet.w, ruler_h}, alternate);
+      (LDKUIRect){labels.x, labels.y, labels.w, ruler_h}, alternate);
   s_editor_animation_draw_rect(ui,
-      (LDKUIRect){graph.x - 7, sheet.y, 1, content_h}, grid);
+      (LDKUIRect){graph.x, graph.y, graph.w, ruler_h}, alternate);
   ldk_ui_widget_label(ui, 0, "Properties",
       (LDKUIRect){sheet.x + 6, sheet.y + 2, label_width - 8, ruler_h - 4});
 
-  /* Ruler ticks and vertical guides use seconds rather than frame indices. */
   float span = s_editor_animation_span();
-  float desired = span * 80.0f / graph.w;
+  float desired = span * 80.0f / time_graph.w;
   float scale = powf(10.0f, floorf(log10f(fmaxf(desired, 0.0001f))));
   float step = desired <= scale ? scale :
       desired <= 2.0f * scale ? 2.0f * scale :
@@ -534,7 +1184,7 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
     {
       break;
     }
-    float x = s_editor_animation_time_x(graph, state, time);
+    float x = s_editor_animation_time_x(time_graph, state, time);
     s_editor_animation_draw_rect(ui,
         (LDKUIRect){x, sheet.y + ruler_h, 1, content_h - ruler_h}, grid);
     char time_label[32];
@@ -543,73 +1193,151 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
         (LDKUIRect){x + 2, sheet.y + 1, 72, ruler_h - 2});
   }
 
+  float delete_button_x = sheet.x + label_width - 26.0f;
+  float input_x = delete_button_x - 83.0f;
+  bool label_control_pressed = false;
+  i32 remove_track_request = -1;
+  LDKUIIcon delete_icon = {0};
+  delete_icon.size = ldk_sizef(16.0f, 16.0f);
+  delete_icon.texture = ldk_renderer_texture_ui_handle(
+      editor->renderer, editor->ui_atlas);
+  delete_icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  delete_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+  bool add_property_request = false;
   for (u32 row = 0; row < row_count; ++row)
   {
     float y = first_row + row * row_h;
-    LDKUIRect row_rect = {sheet.x, y, sheet.w, row_h};
+    LDKEditorAnimationRow item = rows[row];
     if (row & 1)
     {
-      s_editor_animation_draw_rect(ui, row_rect, alternate);
+      s_editor_animation_draw_rect(ui,
+          (LDKUIRect){labels.x, y, labels.w, row_h}, alternate);
+      s_editor_animation_draw_rect(ui,
+          (LDKUIRect){graph.x, y, graph.w, row_h}, alternate);
     }
-    if (row >= 2 && row - 2 == state->selected_track &&
-        state->clip.track_count)
+    if (item.track >= 0 && (u32)item.track == state->selected_track)
     {
       s_editor_animation_draw_rect(ui,
           (LDKUIRect){sheet.x, y, label_width, row_h},
           ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE]);
     }
     s_editor_animation_draw_rect(ui,
-        (LDKUIRect){sheet.x, y + row_h - 1, sheet.w, 1}, grid);
-    char label[256];
-    if (row == 0)
-    {
-      snprintf(label, sizeof(label), "Events (%u)", state->clip.event_count);
-    }
-    else if (row == 1)
-    {
-      snprintf(label, sizeof(label), "All keyframes");
-    }
-    else
-    {
-      s_editor_animation_track_label(state, row - 2,
-          label, sizeof(label));
-    }
+        (LDKUIRect){labels.x, y + row_h - 1, labels.w, 1}, grid);
+    s_editor_animation_draw_rect(ui,
+        (LDKUIRect){graph.x, y + row_h - 1, graph.w, 1}, grid);
     LDKUIRect label_clip = ui->clip_rect;
     ui->clip_rect = ldk_rectf_intersect(&label_clip,
         &(LDKUIRect){sheet.x, y, label_width, row_h});
-    ldk_ui_widget_label(ui, 0, label,
-        (LDKUIRect){sheet.x + 7, y + 1, label_width - 10, row_h - 2});
+
+    if (item.track < 0)
+    {
+      char label[64];
+      if (item.track == -2)
+      {
+        snprintf(label, sizeof(label), "Events (%u)", state->clip.event_count);
+      }
+      else if (item.track == -3)
+      {
+        const LDKKeyframeEvent *event = &state->clip.events[item.axis];
+        if (event->type == LDK_KEYFRAME_EVENT_INTEGER)
+        {
+          snprintf(label, sizeof(label), "  int event: %d", event->number);
+        }
+        else
+        {
+          snprintf(label, sizeof(label), "  str event: %.42s",
+              event->text ? event->text : "");
+        }
+      }
+      else
+      {
+        snprintf(label, sizeof(label), "All keyframes");
+      }
+      ldk_ui_widget_label(ui, 0, label,
+          (LDKUIRect){sheet.x + 7, y + 1, label_width - 10, row_h - 2});
+    }
+    else
+    {
+      u32 t = (u32)item.track;
+      const LDKKeyframeTrack *track = &state->clip.tracks[t];
+      if (item.axis == -1)
+      {
+        bool expanded = s_editor_animation_expanded(
+            track->target_path, track->channel);
+        /* Explicit rectangles keep the left panel aligned with graph rows. */
+        LDKUIId button_id = 0x414E2000u + t;
+        if (ldk_ui_widget_button_flat(ui, button_id,
+                expanded ? "v" : ">",
+                (LDKUIRect){sheet.x + 3, y + 2, 18, row_h - 4}))
+        {
+          s_editor_animation_expand(track->target_path,
+              track->channel, !expanded);
+          label_control_pressed = true;
+        }
+        char label[256];
+        s_editor_animation_track_label(state, t, label, sizeof(label));
+        ldk_ui_widget_label(ui, 0, label,
+            (LDKUIRect){sheet.x + 25, y + 1,
+                fmaxf(8.0f, label_width - 60.0f), row_h - 2});
+        LDKUIId delete_id = 0x414E4000u + t;
+        if (ldk_ui_widget_icon_button(ui, delete_id, delete_icon, "",
+                (LDKUIRect){delete_button_x, y + 2, 22, row_h - 4}))
+        {
+          remove_track_request = (i32)t;
+          label_control_pressed = true;
+        }
+      }
+      else
+      {
+        char label[56];
+        static const char *const axes[] = {"X", "Y", "Z"};
+        snprintf(label, sizeof(label), "%s.%s",
+            s_editor_animation_channel_name(track->channel),
+            axes[item.axis]);
+        ldk_ui_widget_label(ui, 0, label,
+            (LDKUIRect){sheet.x + 27, y + 1,
+                fmaxf(8.0f, input_x - sheet.x - 29.0f), row_h - 2});
+        if (input_x > sheet.x + 30.0f)
+        {
+          s_editor_animation_axis_input(ui, t, (u32)item.axis,
+              (LDKUIRect){input_x, y + 2, 78, row_h - 4});
+        }
+      }
+    }
     ui->clip_rect = label_clip;
 
-    if (row == 0)
+    if (item.track == -2 || item.track == -3)
     {
-      for (u32 i = 0; i < state->clip.event_count; ++i)
+      u32 begin = item.track == -3 ? (u32)item.axis : 0;
+      u32 end = item.track == -3 ? begin + 1 : state->clip.event_count;
+      for (u32 i = begin; i < end; ++i)
       {
         float x = s_editor_animation_time_x(
-            graph, state, state->clip.events[i].time);
-        if (x >= graph.x - 4 && x <= graph.x + graph.w + 4)
+            time_graph, state, state->clip.events[i].time);
+        if (x >= time_graph.x - 4 && x <= time_graph.x + time_graph.w + 4)
         {
+          rgba32 event_color = state->selected_event == (i32)i ? key_color : focus;
           s_editor_animation_draw_rect(ui,
-              (LDKUIRect){x - 2, y + 4, 5, row_h - 8}, focus);
+              (LDKUIRect){x - 2, y + 4, 5, row_h - 8}, event_color);
         }
       }
     }
     else
     {
-      u32 begin = row == 1 ? 0 : row - 2;
-      u32 end = row == 1 ? state->clip.track_count : begin + 1;
+      u32 begin = item.track == -1 ? 0 : (u32)item.track;
+      u32 end = item.track == -1 ? state->clip.track_count : begin + 1;
       for (u32 t = begin; t < end; ++t)
       {
         const LDKKeyframeTrack *track = &state->clip.tracks[t];
         for (u32 k = 0; k < track->count; ++k)
         {
           float x = s_editor_animation_time_x(
-              graph, state, track->keys[k].time);
-          if (x < graph.x - 5 || x > graph.x + graph.w + 5)
+              time_graph, state, track->keys[k].time);
+          if (x < time_graph.x - 5 || x > time_graph.x + time_graph.w + 5)
           {
             continue;
           }
-          bool selected = row >= 2 && state->key_selected &&
+          bool selected = item.track >= 0 && state->key_selected &&
               state->selected_track == t && state->selected_key == k;
           if (state->dragging_key && selected)
           {
@@ -624,8 +1352,20 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
       }
     }
   }
-  float cursor_x = s_editor_animation_time_x(graph, state, state->playhead);
-  if (cursor_x >= graph.x && cursor_x <= graph.x + graph.w)
+  /* A single Add Property control, immediately below the last track. */
+  float add_property_width = fminf(310.0f, fmaxf(1.0f, labels.w - 16.0f));
+  LDKUIRect add_property_rect = {
+      labels.x + (labels.w - add_property_width) * 0.5f,
+      first_row + row_count * row_h + 7.0f,
+      add_property_width, 28.0f};
+  if (ldk_ui_widget_button(ui, 0x414E4150u,
+          "Add Property", add_property_rect))
+  {
+    add_property_request = true;
+  }
+
+  float cursor_x = s_editor_animation_time_x(time_graph, state, state->playhead);
+  if (cursor_x >= time_graph.x && cursor_x <= time_graph.x + time_graph.w)
   {
     s_editor_animation_draw_rect(ui,
         (LDKUIRect){cursor_x, sheet.y, 2, content_h}, focus);
@@ -633,13 +1373,26 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
         (LDKUIRect){cursor_x - 4, sheet.y, 10, 7}, focus);
   }
   ui->clip_rect = old_clip;
-
   ldk_ui_end_scrollview(ui);
+  if (add_property_request)
+  {
+    ldk_ui_open_popup_at(ui, LDK_EDITOR_ANIM_ADD_PROPERTY_POPUP_ID,
+        (LDKUIPoint){add_property_rect.x,
+            add_property_rect.y + add_property_rect.h});
+  }
 
-  /* Canvas interaction is managed as one widget to avoid per-key UI state. */
+  if (remove_track_request >= 0)
+  {
+    (void)s_editor_animation_remove_track_confirm(
+        editor, (u32)remove_track_request);
+    free(rows);
+    return;
+  }
+
   LDKMouseState *mouse = (LDKMouseState *)ui->mouse;
   if (!mouse)
   {
+    free(rows);
     return;
   }
   LDKPoint pointer = ldk_os_mouse_cursor(mouse);
@@ -653,10 +1406,11 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
   bool held = ldk_os_mouse_button_is_pressed(mouse, LDK_MOUSE_BUTTON_LEFT);
   bool up = ldk_os_mouse_button_up(mouse, LDK_MOUSE_BUTTON_LEFT);
 
-  if (state->dragging_key && up)
+  bool finishing_key_drag = state->dragging_key && up;
+  if (finishing_key_drag)
   {
     float new_time = state->drag_start_time +
-        (mx - state->drag_start_x) * span / graph.w;
+        (mx - state->drag_start_x) * span / time_graph.w;
     s_editor_animation_move_key(new_time);
     state->dragging_key = false;
   }
@@ -665,50 +1419,125 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
     if (held)
     {
       s_editor_animation_set_time(
-          s_editor_animation_x_time(graph, state, mx));
+          s_editor_animation_x_time(time_graph, state, mx));
     }
     else
     {
       state->scrubbing = false;
     }
   }
-  if (!hovered || !down)
+  /* Record clicks on release, like the other editor controls. A click in a
+   * keyframe row is not a scrub gesture; two releases in the same cell add
+   * one key without relying on the mouse-down/drag state between them. */
+  if (hovered && up && !finishing_key_drag &&
+      mx >= time_graph.x && mx <= time_graph.x + time_graph.w && my >= first_row)
   {
+    u32 released_row = (u32)((my - first_row) / row_h);
+    if (released_row < row_count && rows[released_row].track >= 0)
+    {
+      LDKEditorAnimationRow cell = rows[released_row];
+      const LDKKeyframeTrack *track = &state->clip.tracks[cell.track];
+      bool existing_key = false;
+      for (u32 k = 0; k < track->count; ++k)
+      {
+        float x = s_editor_animation_time_x(
+            time_graph, state, track->keys[k].time);
+        if (fabsf(x - mx) < 7.0f)
+        {
+          existing_key = true;
+          break;
+        }
+      }
+      if (!existing_key)
+      {
+        u64 now = ldk_os_time_ticks_get();
+        bool double_click = state->last_sheet_click_ticks != 0 &&
+            state->last_sheet_click_track == cell.track &&
+            state->last_sheet_click_axis == cell.axis &&
+            fabsf(state->last_sheet_click_x - mx) <= 7.0f &&
+            fabsf(state->last_sheet_click_y - my) <= 7.0f &&
+            ldk_os_time_ticks_interval_get_seconds(
+                state->last_sheet_click_ticks, now) <= 0.35;
+        state->last_sheet_click_ticks = double_click ? 0 : now;
+        state->last_sheet_click_track = cell.track;
+        state->last_sheet_click_axis = cell.axis;
+        state->last_sheet_click_x = mx;
+        state->last_sheet_click_y = my;
+        if (double_click)
+        {
+          float key_time = s_editor_animation_x_time(time_graph, state, mx);
+          key_time = floorf(key_time * 100.0f + 0.5f) / 100.0f;
+          state->playing = false;
+          s_editor_animation_set_time(key_time);
+          if (s_editor_animation_key_at_cursor((u32)cell.track))
+          {
+            const LDKKeyframeTrack *updated = &state->clip.tracks[cell.track];
+            for (u32 k = 0; k < updated->count; ++k)
+            {
+              if (fabsf(updated->keys[k].time - key_time) < 0.0001f)
+              {
+                state->selected_key = k;
+                state->key_selected = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      else
+      {
+        state->last_sheet_click_ticks = 0;
+      }
+    }
+  }
+  if (!hovered || !down || label_control_pressed)
+  {
+    free(rows);
     return;
   }
-  if (my < first_row || mx < graph.x)
+  if (my < first_row || mx < time_graph.x)
   {
-    if (mx >= graph.x)
+    if (mx >= time_graph.x)
     {
+      state->last_sheet_click_ticks = 0;
       state->playing = false;
       state->scrubbing = true;
       s_editor_animation_set_time(
-          s_editor_animation_x_time(graph, state, mx));
+          s_editor_animation_x_time(time_graph, state, mx));
     }
-    else if (my >= first_row + 2 * row_h)
+    else if (my >= first_row)
     {
       u32 row = (u32)((my - first_row) / row_h);
-      if (row >= 2 && row - 2 < state->clip.track_count)
+      if (row < row_count && rows[row].track >= 0)
       {
-        state->selected_track = row - 2;
-        state->key_selected = false;
+        /* The input and key controls handle their own clicks. */
+        if (rows[row].axis < 0 || mx < input_x - 3)
+        {
+          state->selected_track = (u32)rows[row].track;
+          state->key_selected = false;
+        }
       }
     }
+    free(rows);
     return;
   }
-
   u32 row = (u32)((my - first_row) / row_h);
   if (row >= row_count)
   {
+    free(rows);
     return;
   }
-  if (row == 0)
+  LDKEditorAnimationRow item = rows[row];
+  state->scrubbing = false;
+  if (item.track == -2 || item.track == -3)
   {
     state->selected_event = -1;
-    for (u32 i = 0; i < state->clip.event_count; ++i)
+    u32 begin = item.track == -3 ? (u32)item.axis : 0;
+    u32 end = item.track == -3 ? begin + 1 : state->clip.event_count;
+    for (u32 i = begin; i < end; ++i)
     {
       float x = s_editor_animation_time_x(
-          graph, state, state->clip.events[i].time);
+          time_graph, state, state->clip.events[i].time);
       if (fabsf(x - mx) < 7.0f)
       {
         state->selected_event = (i32)i;
@@ -720,43 +1549,53 @@ static void s_editor_animation_dopesheet(LDKUIContext *ui)
     {
       s_editor_animation_set_time(
           state->clip.events[state->selected_event].time);
+      free(rows);
       return;
     }
   }
   else
   {
-    u32 begin = row == 1 ? 0 : row - 2;
-    u32 end = row == 1 ? state->clip.track_count : begin + 1;
+    u32 begin = item.track == -1 ? 0 : (u32)item.track;
+    u32 end = item.track == -1 ? state->clip.track_count : begin + 1;
     for (u32 t = begin; t < end; ++t)
     {
-      LDKKeyframeTrack *track = &state->clip.tracks[t];
+      const LDKKeyframeTrack *track = &state->clip.tracks[t];
       for (u32 k = 0; k < track->count; ++k)
       {
         float x = s_editor_animation_time_x(
-            graph, state, track->keys[k].time);
+            time_graph, state, track->keys[k].time);
         if (fabsf(x - mx) < 7.0f)
         {
+          state->last_sheet_click_ticks = 0;
           state->selected_track = t;
           state->selected_key = k;
           state->key_selected = true;
           state->playing = false;
-          state->dragging_key = row >= 2;
+          state->dragging_key = item.track >= 0;
           state->drag_start_x = mx;
           state->drag_start_time = track->keys[k].time;
           s_editor_animation_set_time(track->keys[k].time);
+          free(rows);
           return;
         }
       }
     }
-    if (row >= 2)
+    if (item.track >= 0)
     {
-      state->selected_track = row - 2;
+      state->selected_track = (u32)item.track;
       state->key_selected = false;
     }
+    else
+    {
+      state->last_sheet_click_ticks = 0;
+    }
   }
+  /* Empty cells select a time but do not start a drag/scrub gesture:
+   * the next mouse-down must remain eligible for a double click. */
   state->playing = false;
-  state->scrubbing = true;
-  s_editor_animation_set_time(s_editor_animation_x_time(graph, state, mx));
+  state->scrubbing = false;
+  s_editor_animation_set_time(s_editor_animation_x_time(time_graph, state, mx));
+  free(rows);
 }
 
 static void s_editor_animation_window(LDKEditor *opaque, void *data)
@@ -845,11 +1684,14 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
       state->dirty = false;
     }
     s_editor_animation_restore();
+    s_editor_animation_ui_state_clear();
     ldk_keyframe_animation_clear(&state->clip);
     state->root = root;
     state->source_animation_index = index;
     snprintf(state->path, sizeof(state->path), "%s", path);
     state->playhead = 0.0f;
+    state->duration_text_editing = false;
+    state->duration_text[0] = '\0';
     s_editor_animation_reset_selection();
     state->dirty = false;
     if (path[0] && !ldk_keyframe_animation_load(&state->clip, path))
@@ -858,6 +1700,17 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
       state->path[0] = 0;
       state->source_animation_index = -1;
     }
+  }
+
+  /* Delete affects keyframes only while the Animation window owns focus. */
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+      ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_ANIMATION) &&
+      ui->keyboard && ui->input_box_id == 0 &&
+      state->axis_edit_id == 0 &&
+      ldk_os_keyboard_key_down((LDKKeyboardState *)ui->keyboard,
+          LDK_KEYCODE_DELETE))
+  {
+    (void)s_editor_animation_delete_selected_key();
   }
 
   /* Compact transport bar; the Dopesheet owns most of the window. */
@@ -1031,31 +1884,58 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   state->looping = ldk_ui_toggle(ui, state->looping);
   ldk_ui_set_next_width(ui, ldk_ui_px(63.0f));
   ldk_ui_label(ui, "Duration");
-  ldk_ui_set_next_width(ui, ldk_ui_px(125.0f));
-  float duration = ldk_ui_slider_input(ui, state->clip.duration, 0.1f, 30.0f);
-  if (duration > 0.0f && duration != state->clip.duration)
+  ldk_ui_set_next_width(ui, ldk_ui_px(78.0f));
+  ldk_ui_spacer(ui);
+  LDKUIRect duration_rect = ldk_ui_last_rect(ui);
+  const LDKUIId duration_id = 0x414E4455u;
+  if (!state->duration_text_editing)
   {
-    state->clip.duration = duration;
-    state->dirty = true;
+    snprintf(state->duration_text, sizeof(state->duration_text), "%.4f",
+        (double)state->clip.duration);
   }
-  ldk_ui_set_next_width(ui, ldk_ui_px(65.0f));
-  if (ldk_ui_button_flat(ui, "+ Key"))
+  u32 duration_result = ldk_ui_widget_input_box(ui, duration_id,
+      state->duration_text, sizeof(state->duration_text), duration_rect);
+  bool duration_focused = ui->focused_id == duration_id;
+  if (duration_focused)
   {
-    if (state->selected_track < state->clip.track_count)
+    state->duration_text_editing = true;
+  }
+  if ((duration_result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+  {
+    state->duration_text_editing = false;
+  }
+  else if (state->duration_text_editing &&
+      ((duration_result & LDK_UI_INPUT_BOX_COMMITTED) != 0 ||
+       !duration_focused))
+  {
+    float duration = 0.0f;
+    if (s_editor_animation_float_parse(state->duration_text, &duration) &&
+        duration >= 0.1f && duration != state->clip.duration)
     {
-      LDKKeyframeTrack *track = &state->clip.tracks[state->selected_track];
-      LDKEntity target;
-      Vec4 value;
-      if (s_editor_animation_track_entity(state->selected_track, &target) &&
-          ldk_keyframe_animation_value_from_transform(
-              target, track->channel, &value) &&
-          ldk_keyframe_animation_key_set(&state->clip,
-              state->selected_track, state->playhead, value))
+      state->clip.duration = duration;
+      state->playhead = fminf(state->playhead, duration);
+      state->dirty = true;
+      s_editor_animation_view_clamp();
+      if (state->preview)
       {
-        state->dirty = true;
-        state->key_selected = false;
+        s_editor_animation_set_time(state->playhead);
       }
     }
+    state->duration_text_editing = false;
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(36.0f));
+  ldk_ui_label(ui, "Time");
+  ldk_ui_set_next_width(ui, ldk_ui_px(104.0f));
+  float slide_min = 0.1f;
+  float slide_max = fmaxf(state->clip.duration, slide_min);
+  float slider_time = ldk_ui_slider(ui,
+      s_editor_animation_clamp(state->playhead, slide_min, slide_max),
+      slide_min, slide_max);
+  if (fabsf(slider_time - s_editor_animation_clamp(state->playhead,
+          slide_min, slide_max)) > 0.0001f)
+  {
+    state->playing = false;
+    s_editor_animation_set_time(slider_time);
   }
   ldk_ui_set_next_width(ui, ldk_ui_px(56.0f));
   if (ldk_ui_button_flat(ui, "Edit..."))
@@ -1074,48 +1954,27 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   }
   ldk_ui_end_horizontal(ui);
 
-  s_editor_animation_dopesheet(ui);
+  s_editor_animation_dopesheet(editor);
 
-  /* The only persistent control beneath the Dopesheet. */
-  ldk_ui_set_next_height(ui, ldk_ui_px(30.0f));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_padding(ui, 0.0f);
-  ldk_ui_set_next_width(ui, ldk_ui_px(200.0f));
-  if (ldk_ui_button(ui, "Add Property"))
-  {
-    ldk_ui_open_popup(ui, LDK_EDITOR_ANIM_ADD_PROPERTY_POPUP_ID);
-  }
-  ldk_ui_end_horizontal(ui);
-
-  u64 target_path = 0;
-  bool valid_target = has_selection && !x_handle_is_null(state->root) &&
-      ldk_keyframe_entity_path(state->root, selected, &target_path);
   if (ldk_ui_begin_popup(ui, LDK_EDITOR_ANIM_ADD_PROPERTY_POPUP_ID))
   {
-    if (valid_target)
+    if (!x_handle_is_null(state->root) &&
+        ldk_ecs_component_get_const(state->root, LDK_COMPONENT_TYPE_TRANSFORM))
     {
-      for (u32 i = 0; i < 3; ++i)
-      {
-        LDKKeyframeTransformChannel channel = (LDKKeyframeTransformChannel)i;
-        ldk_ui_push_id_u32(ui, i);
-        if (ldk_ui_button_flat(ui, s_editor_animation_channel_name(channel)))
-        {
-          i32 track = ldk_keyframe_animation_track_add(
-              &state->clip, target_path, channel);
-          if (track >= 0)
-          {
-            state->selected_track = (u32)track;
-            state->key_selected = false;
-            state->dirty = true;
-          }
-          ldk_ui_close_current_popup(ui);
-        }
-        ldk_ui_pop_id(ui);
-      }
+      ldk_ui_set_next_width(ui, ldk_ui_px(280.0f));
+      ldk_ui_label(ui, "Choose a Transform property");
+      ldk_ui_set_next_width(ui, ldk_ui_px(295.0f));
+      ldk_ui_set_next_height(ui, ldk_ui_px(320.0f));
+      state->property_popup_scroll = ldk_ui_begin_scrollview(ui,
+          state->property_popup_scroll,
+          LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
+      s_editor_animation_add_property_tree(ui, state->root,
+          ldk_keyframe_path_root(), 0, false);
+      ldk_ui_end_scrollview(ui);
     }
     else
     {
-      ldk_ui_label(ui, "Select the root or one of its descendants.");
+      ldk_ui_label(ui, "Select an entity with an Animation Source.");
     }
     ldk_ui_end_popup(ui);
   }
@@ -1126,26 +1985,14 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     if (ldk_ui_button_flat(ui, "Delete selected key") &&
         track_valid && state->key_selected)
     {
-      LDKKeyframeTrack *track = &state->clip.tracks[state->selected_track];
-      if (state->selected_key < track->count &&
-          ldk_keyframe_animation_key_remove(&state->clip,
-              state->selected_track, state->selected_key))
-      {
-        state->key_selected = false;
-        state->dirty = true;
-      }
+      (void)s_editor_animation_delete_selected_key();
       ldk_ui_close_current_popup(ui);
     }
     if (ldk_ui_button_flat(ui, "Remove selected track") && track_valid)
     {
-      s_editor_animation_restore();
-      if (ldk_keyframe_animation_track_remove(
-              &state->clip, state->selected_track))
-      {
-        s_editor_animation_reset_selection();
-        state->dirty = true;
-      }
+      u32 target_track = state->selected_track;
       ldk_ui_close_current_popup(ui);
+      (void)s_editor_animation_remove_track_confirm(editor, target_track);
     }
     ldk_ui_end_popup(ui);
   }
@@ -1223,6 +2070,7 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
 static void s_editor_animation_terminate(void)
 {
   s_editor_animation_restore();
+  s_editor_animation_ui_state_clear();
   if (s_editor_animation.initialized)
   {
     ldk_keyframe_animation_clear(&s_editor_animation.clip);
