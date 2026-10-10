@@ -1,6 +1,9 @@
 /* Animation authoring window. Included by ldk_editor_dock.c. */
 #include <ctype.h>
 #include <ldk_keyframe_animation.h>
+#include <ldk_property.h>
+#include "ldk_editor_color_picker.h"
+#include <errno.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_asset_manager.h>
@@ -8,20 +11,28 @@
 #include <module/ldk_scenegraph.h>
 
 /* Preview state deliberately lives outside the clip. */
-typedef struct LDKEditorAnimationSavedTransform
+typedef struct LDKEditorAnimationSavedProperty
 {
   LDKEntity entity;
-  Vec3 position;
-  Quat rotation;
-  Vec3 scale;
-} LDKEditorAnimationSavedTransform;
+  u32 component_type;
+  char property_name[LDK_KEYFRAME_PROPERTY_NAME_CAPACITY];
+  LDKPropertyValue value;
+} LDKEditorAnimationSavedProperty;
 
 typedef struct LDKEditorAnimationExpandedTrack
 {
   u64 path;
-  LDKKeyframeTransformChannel channel;
+  u32 component_type;
+  char property_name[LDK_KEYFRAME_PROPERTY_NAME_CAPACITY];
   bool expanded;
 } LDKEditorAnimationExpandedTrack;
+
+typedef struct LDKEditorAnimationPopupComponent
+{
+  LDKEntity entity;
+  u32 component_type;
+  bool expanded;
+} LDKEditorAnimationPopupComponent;
 
 typedef struct LDKEditorAnimationPopupNode
 {
@@ -73,16 +84,19 @@ typedef struct LDKEditorAnimationState
   u32 expanded_count;
   u32 expanded_capacity;
   LDKEditorAnimationPopupNode *popup_nodes;
+  LDKEditorAnimationPopupComponent *popup_components;
+  u32 popup_component_count;
+  u32 popup_component_capacity;
   u32 popup_node_count;
   u32 popup_node_capacity;
   LDKUIId axis_edit_id;
-  char axis_edit_text[48];
+  char axis_edit_text[X_SMALLSTR_MAX_LENGTH + 1];
   bool initialized;
   bool playing;
   bool preview;
   bool looping;
   bool dirty;
-  LDKEditorAnimationSavedTransform *saved;
+  LDKEditorAnimationSavedProperty *saved;
   u32 saved_count;
   u32 saved_capacity;
 } LDKEditorAnimationState;
@@ -94,6 +108,9 @@ static void s_editor_animation_ui_state_clear(void)
   LDKEditorAnimationState *state = &s_editor_animation;
   free(state->expanded_tracks);
   free(state->popup_nodes);
+  free(state->popup_components);
+  state->popup_components = NULL;
+  state->popup_component_count = state->popup_component_capacity = 0;
   state->expanded_tracks = NULL;
   state->expanded_count = state->expanded_capacity = 0;
   state->popup_nodes = NULL;
@@ -107,31 +124,34 @@ static void s_editor_animation_ui_state_clear(void)
   state->timeline_visible_rect = (LDKUIRect){0};
 }
 
-static bool s_editor_animation_expanded(u64 path,
-    LDKKeyframeTransformChannel channel)
+static bool s_editor_animation_expanded(const LDKKeyframeTrack *track)
 {
-  LDKEditorAnimationState *state = &s_editor_animation;
+  const LDKEditorAnimationState *state = &s_editor_animation;
   for (u32 i = 0; i < state->expanded_count; ++i)
   {
-    if (state->expanded_tracks[i].path == path &&
-        state->expanded_tracks[i].channel == channel)
+    const LDKEditorAnimationExpandedTrack *entry = &state->expanded_tracks[i];
+    if (entry->path == track->target_path &&
+        entry->component_type == track->component_type &&
+        strcmp(entry->property_name, track->property_name) == 0)
     {
-      return state->expanded_tracks[i].expanded;
+      return entry->expanded;
     }
   }
   return false;
 }
 
-static void s_editor_animation_expand(u64 path,
-    LDKKeyframeTransformChannel channel, bool expanded)
+static void s_editor_animation_expand(const LDKKeyframeTrack *track,
+    bool expanded)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
   for (u32 i = 0; i < state->expanded_count; ++i)
   {
-    if (state->expanded_tracks[i].path == path &&
-        state->expanded_tracks[i].channel == channel)
+    LDKEditorAnimationExpandedTrack *entry = &state->expanded_tracks[i];
+    if (entry->path == track->target_path &&
+        entry->component_type == track->component_type &&
+        strcmp(entry->property_name, track->property_name) == 0)
     {
-      state->expanded_tracks[i].expanded = expanded;
+      entry->expanded = expanded;
       return;
     }
   }
@@ -147,8 +167,47 @@ static void s_editor_animation_expand(u64 path,
     state->expanded_tracks = memory;
     state->expanded_capacity = capacity;
   }
-  state->expanded_tracks[state->expanded_count++] =
-      (LDKEditorAnimationExpandedTrack){path, channel, expanded};
+  LDKEditorAnimationExpandedTrack *entry =
+      &state->expanded_tracks[state->expanded_count++];
+  *entry = (LDKEditorAnimationExpandedTrack){0};
+  entry->path = track->target_path;
+  entry->component_type = track->component_type;
+  snprintf(entry->property_name, sizeof(entry->property_name), "%s",
+      track->property_name);
+  entry->expanded = expanded;
+}
+
+static LDKEditorAnimationPopupComponent *s_editor_animation_popup_component(
+    LDKEntity entity, u32 component_type)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  for (u32 i = 0; i < state->popup_component_count; ++i)
+  {
+    LDKEditorAnimationPopupComponent *entry = &state->popup_components[i];
+    if (entry->entity.index == entity.index &&
+        entry->entity.version == entity.version &&
+        entry->component_type == component_type)
+    {
+      return entry;
+    }
+  }
+  if (state->popup_component_count == state->popup_component_capacity)
+  {
+    u32 capacity = state->popup_component_capacity ?
+        state->popup_component_capacity * 2 : 16;
+    void *memory = realloc(state->popup_components,
+        (size_t)capacity * sizeof(*state->popup_components));
+    if (!memory)
+    {
+      return NULL;
+    }
+    state->popup_components = memory;
+    state->popup_component_capacity = capacity;
+  }
+  LDKEditorAnimationPopupComponent *entry =
+      &state->popup_components[state->popup_component_count++];
+  *entry = (LDKEditorAnimationPopupComponent){entity, component_type, true};
+  return entry;
 }
 
 static LDKEditorAnimationPopupNode *s_editor_animation_popup_node(
@@ -192,13 +251,9 @@ static void s_editor_animation_restore(void)
   }
   for (u32 i = 0; i < state->saved_count; i++)
   {
-    const LDKEditorAnimationSavedTransform *s = &state->saved[i];
-    if (ldk_ecs_component_get(s->entity, LDK_COMPONENT_TYPE_TRANSFORM))
-    {
-      ldk_transform_set_local_position(s->entity, s->position);
-      ldk_transform_set_local_rotation(s->entity, s->rotation);
-      ldk_transform_set_local_scale(s->entity, s->scale);
-    }
+    const LDKEditorAnimationSavedProperty *s = &state->saved[i];
+    (void)ldk_property_set(s->entity, s->component_type,
+        s->property_name, &s->value);
   }
   if (ldk_ecs_component_get(state->root, LDK_COMPONENT_TYPE_TRANSFORM))
   {
@@ -211,51 +266,6 @@ static void s_editor_animation_restore(void)
   state->playing = false;
 }
 
-static bool s_editor_animation_capture_tree(LDKEntity entity, u32 depth)
-{
-  LDKEditorAnimationState *state = &s_editor_animation;
-  const LDKTransform *transform = ldk_ecs_component_get_const(
-      entity, LDK_COMPONENT_TYPE_TRANSFORM);
-  if (!transform || depth > 128)
-  {
-    return false;
-  }
-  if (state->saved_count == state->saved_capacity)
-  {
-    u32 capacity = state->saved_capacity ? state->saved_capacity * 2 : 16;
-    LDKEditorAnimationSavedTransform *entries = realloc(state->saved,
-        (size_t)capacity * sizeof(*entries));
-    if (!entries)
-    {
-      return false;
-    }
-    state->saved = entries;
-    state->saved_capacity = capacity;
-  }
-  LDKEditorAnimationSavedTransform *s = &state->saved[state->saved_count++];
-  s->entity = entity;
-  s->position = transform->local_position;
-  s->rotation = transform->local_rotation;
-  s->scale = transform->local_scale;
-  LDKEntity child = transform->first_child;
-  while (!x_handle_is_null(child))
-  {
-    const LDKTransform *t = ldk_ecs_component_get_const(
-        child, LDK_COMPONENT_TYPE_TRANSFORM);
-    if (!t)
-    {
-      return false;
-    }
-    LDKEntity next = t->next_sibling;
-    if (!s_editor_animation_capture_tree(child, depth + 1))
-    {
-      return false;
-    }
-    child = next;
-  }
-  return true;
-}
-
 static bool s_editor_animation_preview_begin(void)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
@@ -263,15 +273,39 @@ static bool s_editor_animation_preview_begin(void)
   {
     return true;
   }
-  if (!s_editor_animation_capture_tree(state->root, 0))
-  {
-    s_editor_animation_restore();
-    free(state->saved);
-    state->saved = NULL;
-    state->saved_count = state->saved_capacity = 0;
-    return false;
-  }
   state->preview = true;
+  for (u32 i = 0; i < state->clip.track_count; ++i)
+  {
+    const LDKKeyframeTrack *track = &state->clip.tracks[i];
+    LDKEntity entity;
+    LDKPropertyValue value;
+    if (!ldk_keyframe_target_resolve(state->root,
+            track->target_path, &entity) ||
+        !ldk_keyframe_animation_value_from_entity(entity, track, &value))
+    {
+      continue;
+    }
+    if (state->saved_count == state->saved_capacity)
+    {
+      u32 next = state->saved_capacity ? state->saved_capacity * 2 : 16;
+      void *memory = realloc(state->saved, next * sizeof(*state->saved));
+      if (!memory)
+      {
+        s_editor_animation_restore();
+        return false;
+      }
+      state->saved = memory;
+      state->saved_capacity = next;
+    }
+    LDKEditorAnimationSavedProperty *item =
+        &state->saved[state->saved_count++];
+    *item = (LDKEditorAnimationSavedProperty){0};
+    item->entity = entity;
+    item->component_type = track->component_type;
+    snprintf(item->property_name, sizeof(item->property_name), "%s",
+        track->property_name);
+    item->value = value;
+  }
   return true;
 }
 
@@ -283,7 +317,6 @@ static void s_editor_animation_set_time(float time)
   {
     (void)ldk_keyframe_animation_apply(&state->clip,
         state->root, state->playhead);
-    /* The editor preview is evaluated after the normal scenegraph pass. */
     (void)ldk_scenegraph_update_entity(state->root);
   }
 }
@@ -327,15 +360,35 @@ static void s_editor_animation_tick(float dt)
   }
 }
 
-static const char *s_editor_animation_channel_name(
-    LDKKeyframeTransformChannel channel)
+static const char *s_editor_animation_property_label(
+    const LDKKeyframeTrack *track)
 {
-  switch (channel)
+  const LDKComponentFieldMeta *field = ldk_property_field_find(
+      track->component_type, track->property_name);
+  return field && field->display_name && field->display_name[0] ?
+      field->display_name : track->property_name;
+}
+
+static u32 s_editor_animation_axis_count(const LDKKeyframeTrack *track)
+{
+  switch (track->value_type)
   {
-  case LDK_KEYFRAME_TRANSFORM_POSITION: return "Position";
-  case LDK_KEYFRAME_TRANSFORM_ROTATION: return "Rotation";
-  case LDK_KEYFRAME_TRANSFORM_SCALE: return "Scale";
-  default: return "Unknown";
+  case LDK_FIELD_VEC2: return 2;
+  case LDK_FIELD_VEC3: return 3;
+  case LDK_FIELD_VEC4: return 4;
+  case LDK_FIELD_QUAT:
+  {
+    const LDKComponentFieldMeta *field = ldk_property_field_find(
+        track->component_type, track->property_name);
+    return field && field->widget == LDK_FIELD_WIDGET_EULER ? 3 : 4;
+  }
+  case LDK_FIELD_U32:
+  {
+    const LDKComponentFieldMeta *field = ldk_property_field_find(
+        track->component_type, track->property_name);
+    return field && field->widget == LDK_FIELD_WIDGET_COLOR ? 4 : 1;
+  }
+  default: return 1;
   }
 }
 
@@ -498,8 +551,11 @@ static void s_editor_animation_track_label(
     snprintf(name, sizeof(name), "Unresolved %016" PRIx64,
         track->target_path);
   }
-  snprintf(buffer, capacity, "%s : %s", name,
-      s_editor_animation_channel_name(track->channel));
+  const LDKComponentMeta *meta =
+      ldk_property_component_meta(track->component_type);
+  snprintf(buffer, capacity, "%s : %s.%s", name,
+      meta && meta->name ? meta->name : "Component",
+      s_editor_animation_property_label(track));
 }
 
 static bool s_editor_animation_target_entity_walk(LDKEntity entity,
@@ -600,7 +656,7 @@ static void s_editor_animation_move_key(float new_time)
       return; /* Moving a key must not silently overwrite another. */
     }
   }
-  Vec4 value = track->keys[state->selected_key].value;
+  LDKPropertyValue value = track->keys[state->selected_key].value;
   if (!ldk_keyframe_animation_key_remove(
           &state->clip, state->selected_track, state->selected_key))
   {
@@ -628,8 +684,8 @@ static void s_editor_animation_move_key(float new_time)
   s_editor_animation_set_time(new_time);
 }
 
-/* A track remains a single vector/quaternion in the clip; XYZ are editor views. */
-static bool s_editor_animation_track_value(u32 index, Vec4 *out)
+/* Channels shown in the editor are views over one typed property key. */
+static bool s_editor_animation_track_value(u32 index, LDKPropertyValue *out)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
   if (ldk_keyframe_animation_sample(&state->clip, index,
@@ -639,8 +695,8 @@ static bool s_editor_animation_track_value(u32 index, Vec4 *out)
   }
   LDKEntity entity;
   return s_editor_animation_track_entity(index, &entity) &&
-      ldk_keyframe_animation_value_from_transform(entity,
-          state->clip.tracks[index].channel, out);
+      ldk_keyframe_animation_value_from_entity(
+          entity, &state->clip.tracks[index], out);
 }
 
 static Vec3 s_editor_animation_euler_degrees(Vec4 value)
@@ -651,50 +707,68 @@ static Vec3 s_editor_animation_euler_degrees(Vec4 value)
       rad_to_deg(angles.z));
 }
 
-static float s_editor_animation_axis_value(u32 track, u32 axis)
+static float s_editor_animation_axis_value(u32 track_index, u32 axis)
 {
-  Vec4 value;
-  if (!s_editor_animation_track_value(track, &value))
+  LDKPropertyValue value;
+  if (!s_editor_animation_track_value(track_index, &value))
   {
-    return 0.0f;
+    return 0;
   }
-  if (s_editor_animation.clip.tracks[track].channel ==
-      LDK_KEYFRAME_TRANSFORM_ROTATION)
+  const LDKKeyframeTrack *track = &s_editor_animation.clip.tracks[track_index];
+  const LDKComponentFieldMeta *field = ldk_property_field_find(
+      track->component_type, track->property_name);
+  if (track->value_type == LDK_FIELD_QUAT && field &&
+      field->widget == LDK_FIELD_WIDGET_EULER)
   {
-    Vec3 degrees = s_editor_animation_euler_degrees(value);
+    Vec3 degrees = s_editor_animation_euler_degrees(value.vector);
     return axis == 0 ? degrees.x : axis == 1 ? degrees.y : degrees.z;
   }
-  return axis == 0 ? value.x : axis == 1 ? value.y : value.z;
+  if (track->value_type == LDK_FIELD_U32 && field &&
+      field->widget == LDK_FIELD_WIDGET_COLOR)
+  {
+    /* rgba32 uses 0xRRGGBBAA, so R occupies the highest byte. */
+    return (float)(((u32)value.integer >> ((3u - axis) * 8u)) & 255u);
+  }
+  switch (track->value_type)
+  {
+  case LDK_FIELD_FLOAT:
+  case LDK_FIELD_VEC2:
+  case LDK_FIELD_VEC3:
+  case LDK_FIELD_VEC4:
+  case LDK_FIELD_QUAT:
+    return axis == 0 ? value.vector.x : axis == 1 ? value.vector.y :
+        axis == 2 ? value.vector.z : value.vector.w;
+  default:
+    return (float)value.integer;
+  }
 }
 
 static bool s_editor_animation_axis_set(u32 track_index, u32 axis, float next)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
-  if (!isfinite(next) || axis >= 3 || track_index >= state->clip.track_count)
+  if (!isfinite(next) || track_index >= state->clip.track_count)
   {
     return false;
   }
-  Vec4 value;
+  const LDKKeyframeTrack *track = &state->clip.tracks[track_index];
+  if (axis >= s_editor_animation_axis_count(track))
+  {
+    return false;
+  }
+  LDKPropertyValue value;
   if (!s_editor_animation_track_value(track_index, &value))
   {
     return false;
   }
-  if (state->clip.tracks[track_index].channel ==
-      LDK_KEYFRAME_TRANSFORM_ROTATION)
+  const LDKComponentFieldMeta *field = ldk_property_field_find(
+      track->component_type, track->property_name);
+  if (track->value_type == LDK_FIELD_QUAT && field &&
+      field->widget == LDK_FIELD_WIDGET_EULER)
   {
-    Vec3 degrees = s_editor_animation_euler_degrees(value);
-    if (axis == 0)
-    {
-      degrees.x = next;
-    }
-    else if (axis == 1)
-    {
-      degrees.y = next;
-    }
-    else
-    {
-      degrees.z = next;
-    }
+    Vec3 degrees = s_editor_animation_euler_degrees(value.vector);
+    if (axis == 0) degrees.x = next;
+    else if (axis == 1) degrees.y = next;
+    else degrees.z = next;
     Quat qx = quat_axis_angle(vec3_make(1, 0, 0),
         deg_to_rad(remainderf(degrees.x, 360.0f)));
     Quat qy = quat_axis_angle(vec3_make(0, 1, 0),
@@ -702,21 +776,44 @@ static bool s_editor_animation_axis_set(u32 track_index, u32 axis, float next)
     Quat qz = quat_axis_angle(vec3_make(0, 0, 1),
         deg_to_rad(remainderf(degrees.z, 360.0f)));
     Quat q = quat_norm(quat_mul(qz, quat_mul(qy, qx)));
-    value = vec4_make(q.x, q.y, q.z, q.w);
+    value.vector = vec4_make(q.x, q.y, q.z, q.w);
   }
-  else if (axis == 0)
+  else if (track->value_type == LDK_FIELD_U32 && field &&
+      field->widget == LDK_FIELD_WIDGET_COLOR)
   {
-    value.x = next;
+    u32 shift = (3u - axis) * 8u;
+    u32 mask = 255u << shift;
+    u32 channel = (u32)fmaxf(0, fminf(255, roundf(next)));
+    value.integer = ((u32)value.integer & ~mask) | (channel << shift);
   }
-  else if (axis == 1)
+  else if (track->value_type == LDK_FIELD_FLOAT ||
+      track->value_type == LDK_FIELD_VEC2 ||
+      track->value_type == LDK_FIELD_VEC3 ||
+      track->value_type == LDK_FIELD_VEC4 ||
+      track->value_type == LDK_FIELD_QUAT)
   {
-    value.y = next;
+    if (axis == 0) value.vector.x = next;
+    else if (axis == 1) value.vector.y = next;
+    else if (axis == 2) value.vector.z = next;
+    else value.vector.w = next;
   }
   else
   {
-    value.z = next;
+    if (track->value_type == LDK_FIELD_BOOL)
+    {
+      value.integer = next != 0;
+    }
+    else if (track->value_type == LDK_FIELD_I32 ||
+        track->value_type == LDK_FIELD_U32 ||
+        track->value_type == LDK_FIELD_ENUM)
+    {
+      value.integer = (i64)next;
+    }
+    else
+    {
+      return false;
+    }
   }
-
   if (!ldk_keyframe_animation_key_set(&state->clip,
           track_index, state->playhead, value))
   {
@@ -732,7 +829,7 @@ static bool s_editor_animation_axis_set(u32 track_index, u32 axis, float next)
 static bool s_editor_animation_key_at_cursor(u32 track_index)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
-  Vec4 value;
+  LDKPropertyValue value;
   if (!s_editor_animation_track_value(track_index, &value) ||
       !ldk_keyframe_animation_key_set(&state->clip, track_index,
           state->playhead, value))
@@ -816,29 +913,105 @@ static bool s_editor_animation_float_parse(const char *text, float *out)
   return true;
 }
 
-/* One active text edit at a time; retain partial input across UI frames. */
+/* The same native LDK input widget and float formatting as the Inspector.
+ * Preserve partial edits ("-", "-." etc.) until the text becomes valid. */
 static void s_editor_animation_axis_input(LDKUIContext *ui,
     u32 track_index, u32 axis, LDKUIRect rect)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
   const LDKKeyframeTrack *track = &state->clip.tracks[track_index];
+  const LDKComponentFieldMeta *field = ldk_property_field_find(
+      track->component_type, track->property_name);
   u64 combined = track->target_path ^ (track->target_path >> 32);
   u32 hash = (u32)combined * 16777619u +
-      (u32)track->channel * 1103515245u + axis * 2747636419u;
+      track->component_type * 1103515245u + axis * 2747636419u;
+  for (const char *p = track->property_name; *p; ++p)
+    hash = (hash ^ (unsigned char)*p) * 16777619u;
   LDKUIId id = (LDKUIId)(0x5EAF7001u ^ hash);
-  if (!id)
+  if (!id) id = 1;
+
+  LDKPropertyValue value;
+  if (!s_editor_animation_track_value(track_index, &value))
+    return;
+  if (track->value_type == LDK_FIELD_BOOL)
   {
-    id = 1;
+    bool enabled = value.integer != 0;
+    bool next = ldk_ui_widget_toggle(ui, id, enabled, rect);
+    if (next != enabled)
+    {
+      (void)s_editor_animation_axis_set(track_index, axis,
+          next ? 1.0f : 0.0f);
+    }
+    return;
   }
-  char text[48];
+  if (track->value_type == LDK_FIELD_ENUM && field && field->enum_meta)
+  {
+    const LDKEnumMeta *meta = field->enum_meta;
+    if (!meta->options || !meta->count || meta->count == UINT32_MAX)
+    {
+      ldk_ui_widget_label(ui, 0, "(no options)", rect);
+      return;
+    }
+    u32 selected = meta->count;
+    for (u32 i = 0; i < meta->count; ++i)
+    {
+      if (meta->options[i].value == value.integer)
+      {
+        selected = i;
+        break;
+      }
+    }
+    /* Match the Inspector: expose an unknown underlying enum value without
+     * silently changing it to the first enumerator. */
+    const char **labels = x_arena_alloc(ui->frame_arena,
+        ((size_t)meta->count + 1u) * sizeof(*labels));
+    if (!labels)
+    {
+      ldk_ui_widget_label(ui, 0, "(unavailable)", rect);
+      return;
+    }
+    for (u32 i = 0; i < meta->count; ++i)
+    {
+      labels[i] = meta->options[i].label;
+    }
+    char unknown[64];
+    snprintf(unknown, sizeof(unknown), "Unknown (%" PRId64 ")",
+        value.integer);
+    labels[meta->count] = unknown;
+    u32 count = meta->count + (selected == meta->count ? 1u : 0u);
+    u32 next = ldk_ui_widget_combo_box(ui, id, labels, count, selected, rect);
+    if (next != selected && next < meta->count)
+    {
+      value.integer = meta->options[next].value;
+      if (ldk_keyframe_animation_key_set(&state->clip,
+              track_index, state->playhead, value))
+      {
+        state->selected_track = track_index;
+        state->key_selected = false;
+        state->dirty = true;
+        s_editor_animation_set_time(state->playhead);
+      }
+    }
+    return;
+  }
+  char text[X_SMALLSTR_MAX_LENGTH + 1];
   if (state->axis_edit_id == id)
   {
     snprintf(text, sizeof(text), "%s", state->axis_edit_text);
   }
+  else if (track->value_type == LDK_FIELD_STRING)
+  {
+    snprintf(text, sizeof(text), "%s", value.string.buf);
+  }
+  else if (track->value_type == LDK_FIELD_I32 ||
+      track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM)
+  {
+    snprintf(text, sizeof(text), "%" PRId64, value.integer);
+  }
   else
   {
-    snprintf(text, sizeof(text), "%.4f",
-        (double)s_editor_animation_axis_value(track_index, axis));
+    ldk_ui_format_float(text, (u32)sizeof(text),
+        s_editor_animation_axis_value(track_index, axis));
   }
   u32 result = ldk_ui_widget_input_box(ui, id, text, sizeof(text), rect);
   bool focused = ui->focused_id == id;
@@ -848,24 +1021,58 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
     state->axis_edit_id = id;
     snprintf(state->axis_edit_text, sizeof(state->axis_edit_text), "%s", text);
   }
-  if ((result & LDK_UI_INPUT_BOX_CANCELED) != 0)
+  if (result & LDK_UI_INPUT_BOX_CANCELED)
   {
     state->axis_edit_id = 0;
   }
   else
   {
-    if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+    if (result & LDK_UI_INPUT_BOX_CHANGED)
     {
-      float value;
-      if (s_editor_animation_float_parse(text, &value))
+      if (track->value_type == LDK_FIELD_STRING)
       {
-        (void)s_editor_animation_axis_set(track_index, axis, value);
+        value.string.length = strlen(text);
+        if (value.string.length <= X_SMALLSTR_MAX_LENGTH)
+        {
+          memcpy(value.string.buf, text, value.string.length + 1);
+          if (ldk_keyframe_animation_key_set(&state->clip,
+                  track_index, state->playhead, value))
+          {
+            state->dirty = true;
+            s_editor_animation_set_time(state->playhead);
+          }
+        }
+      }
+      else if (track->value_type == LDK_FIELD_I32 ||
+          track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM)
+      {
+        char *end = NULL;
+        errno = 0;
+        long long number = strtoll(text, &end, 10);
+        if (end != text && !errno && !*end &&
+            !(track->value_type == LDK_FIELD_U32 && (number < 0 ||
+                (unsigned long long)number > UINT32_MAX)) &&
+            !(track->value_type == LDK_FIELD_I32 &&
+                (number < INT32_MIN || number > INT32_MAX)))
+        {
+          value.integer = number;
+          if (ldk_keyframe_animation_key_set(&state->clip,
+                  track_index, state->playhead, value))
+          {
+            state->dirty = true;
+            s_editor_animation_set_time(state->playhead);
+          }
+        }
+      }
+      else
+      {
+        float number;
+        if (s_editor_animation_float_parse(text, &number))
+          (void)s_editor_animation_axis_set(track_index, axis, number);
       }
     }
-    if (!focused || (result & LDK_UI_INPUT_BOX_COMMITTED) != 0)
-    {
+    if (!focused || (result & LDK_UI_INPUT_BOX_COMMITTED))
       state->axis_edit_id = 0;
-    }
   }
 }
 
@@ -883,9 +1090,9 @@ static u32 s_editor_animation_rows_build(LDKEditorAnimationRow *rows)
   {
     const LDKKeyframeTrack *track = &state->clip.tracks[i];
     rows[count++] = (LDKEditorAnimationRow){(i32)i, -1};
-    if (s_editor_animation_expanded(track->target_path, track->channel))
+    if (s_editor_animation_expanded(track))
     {
-      for (u32 axis = 0; axis < 3; ++axis)
+      for (u32 axis = 0; axis < s_editor_animation_axis_count(track); ++axis)
       {
         rows[count++] = (LDKEditorAnimationRow){(i32)i, (i32)axis};
       }
@@ -925,99 +1132,106 @@ static void s_editor_animation_add_property_tree(LDKUIContext *ui,
     LDKEntity entity, u64 path, u32 depth, bool ambiguous)
 {
   if (depth > 128)
-  {
     return;
-  }
   const LDKTransform *transform = ldk_ecs_component_get_const(
       entity, LDK_COMPONENT_TYPE_TRANSFORM);
   if (!transform)
-  {
     return;
-  }
   LDKEditorAnimationState *state = &s_editor_animation;
   LDKEditorAnimationPopupNode *node = s_editor_animation_popup_node(
       entity, depth == 0);
   if (!node)
-  {
     return;
-  }
   bool entity_open = node->entity_expanded;
   ldk_ui_push_id_u32(ui, entity.index);
   ldk_ui_push_id_u32(ui, entity.version);
   const char *name = ldk_ecs_entity_name_get(entity);
   if (!name || !name[0])
-  {
     name = depth == 0 ? "Root" : "(unnamed)";
-  }
   u32 toggled = ldk_ui_tree_node_ex(ui, name, (LDKUIIcon){0},
       entity_open, depth, LDK_UI_TREE_NODE_NONE);
-  if ((toggled & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
-  {
+  if (toggled & LDK_UI_TREE_NODE_RESULT_CLICKED)
     entity_open = !entity_open;
-  }
-  /* Recursive traversal can reallocate popup_nodes: do not retain pointers. */
   node = s_editor_animation_popup_node(entity, false);
   if (node)
-  {
     node->entity_expanded = entity_open;
-  }
   if (entity_open)
   {
-    node = s_editor_animation_popup_node(entity, false);
-    bool transform_open = node && node->transform_expanded;
-    ldk_ui_push_id_cstr(ui, "Transform");
-    toggled = ldk_ui_tree_node_ex(ui, "Transform", (LDKUIIcon){0},
-        transform_open, depth + 1, LDK_UI_TREE_NODE_NONE);
-    if ((toggled & LDK_UI_TREE_NODE_RESULT_CLICKED) != 0)
+    u32 count = ldk_ecs_entity_component_count(entity);
+    for (u32 ci = 0; ci < count; ++ci)
     {
-      transform_open = !transform_open;
-    }
-    node = s_editor_animation_popup_node(entity, false);
-    if (node)
-    {
-      node->transform_expanded = transform_open;
-    }
-    if (transform_open)
-    {
-      for (u32 i = 0; i < 3; ++i)
+      u32 component_type;
+      if (!ldk_ecs_entity_component_type_at(entity, ci, &component_type))
+        continue;
+      const LDKComponentMeta *meta =
+          ldk_property_component_meta(component_type);
+      if (!meta)
+        continue;
+      bool has_fields = false;
+      for (u32 fi = 0; fi < meta->field_count; ++fi)
+        has_fields |= !(meta->fields[fi].flags & LDK_FIELD_FLAG_READONLY);
+      if (!has_fields)
+        continue;
+      LDKEditorAnimationPopupComponent *comp =
+          s_editor_animation_popup_component(entity, component_type);
+      if (!comp)
+        continue;
+      bool expanded = comp->expanded;
+      ldk_ui_push_id_u32(ui, component_type);
+      toggled = ldk_ui_tree_node_ex(ui, meta->name, (LDKUIIcon){0},
+          expanded, depth + 1, LDK_UI_TREE_NODE_NONE);
+      if (toggled & LDK_UI_TREE_NODE_RESULT_CLICKED)
+        expanded = !expanded;
+      comp = s_editor_animation_popup_component(entity, component_type);
+      if (comp)
+        comp->expanded = expanded;
+      if (expanded)
       {
-        LDKKeyframeTransformChannel channel = (LDKKeyframeTransformChannel)i;
-        bool exists = ldk_keyframe_animation_track_find(
-            &state->clip, path, channel) >= 0;
-        ldk_ui_push_id_u32(ui, i);
-        ldk_ui_set_next_width(ui, ldk_ui_px(270.0f));
-        ldk_ui_begin_disabled(ui, exists || ambiguous);
-        char label[80];
-        snprintf(label, sizeof(label), "%*s%s%s", (int)((depth + 2) * 2),
-            "", s_editor_animation_channel_name(channel),
-            ambiguous ? " (duplicate name)" : exists ? " (added)" : "");
-        if (ldk_ui_button_flat(ui, label))
+        for (u32 fi = 0; fi < meta->field_count; ++fi)
         {
-          i32 index = ldk_keyframe_animation_track_add(
-              &state->clip, path, channel);
-          if (index >= 0)
+          const LDKComponentFieldMeta *field = &meta->fields[fi];
+          if (field->flags & LDK_FIELD_FLAG_READONLY)
+            continue;
+          bool supported = ldk_property_field_supported(field);
+          bool exists = ldk_keyframe_animation_track_find(
+              &state->clip, path, component_type, field->name) >= 0;
+          ldk_ui_push_id_u32(ui, fi);
+          ldk_ui_set_next_width(ui, ldk_ui_px(300.0f));
+          ldk_ui_begin_disabled(ui, exists || ambiguous || !supported);
+          char label[192];
+          snprintf(label, sizeof(label), "%*s%s%s", (int)((depth + 2) * 2),
+              "", field->display_name && field->display_name[0] ?
+                  field->display_name : field->name,
+              !supported ? " (unsupported type)" :
+                  ambiguous ? " (duplicate name)" :
+                      exists ? " (added)" : "");
+          if (ldk_ui_button_flat(ui, label))
           {
-            state->selected_track = (u32)index;
-            state->key_selected = false;
-            state->dirty = true;
-            s_editor_animation_expand(path, channel, true);
+            s_editor_animation_restore();
+            i32 index = ldk_keyframe_animation_track_add(
+                &state->clip, path, component_type, field->name);
+            if (index >= 0)
+            {
+              state->selected_track = (u32)index;
+              state->key_selected = false;
+              state->dirty = true;
+              s_editor_animation_expand(&state->clip.tracks[index], true);
+            }
+            ldk_ui_close_current_popup(ui);
           }
-          ldk_ui_close_current_popup(ui);
+          ldk_ui_end_disabled(ui);
+          ldk_ui_pop_id(ui);
         }
-        ldk_ui_end_disabled(ui);
-        ldk_ui_pop_id(ui);
       }
+      ldk_ui_pop_id(ui);
     }
-    ldk_ui_pop_id(ui);
     LDKEntity child = transform->first_child;
     while (!x_handle_is_null(child))
     {
       const LDKTransform *child_transform = ldk_ecs_component_get_const(
           child, LDK_COMPONENT_TYPE_TRANSFORM);
       if (!child_transform)
-      {
         break;
-      }
       LDKEntity next = child_transform->next_sibling;
       u64 name_hash = ldk_ecs_entity_name_hash_get(child);
       if (name_hash)
@@ -1026,16 +1240,6 @@ static void s_editor_animation_add_property_tree(LDKUIContext *ui,
             ldk_keyframe_path_child(path, name_hash), depth + 1,
             ambiguous || s_editor_animation_sibling_hash_ambiguous(
                 child, transform->first_child));
-      }
-      else
-      {
-        /* An unnamed child cannot be addressed by an animation track. */
-        ldk_ui_push_id_u32(ui, child.index);
-        ldk_ui_begin_disabled(ui, true);
-        ldk_ui_set_next_width(ui, ldk_ui_px(270.0f));
-        ldk_ui_button_flat(ui, "(unnamed child: no name hash)");
-        ldk_ui_end_disabled(ui);
-        ldk_ui_pop_id(ui);
       }
       child = next;
     }
@@ -1049,7 +1253,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   LDKUIContext *ui = &editor->ui;
   LDKEditorAnimationState *state = &s_editor_animation;
   s_editor_animation_view_clamp();
-  u32 max_rows = 2 + state->clip.event_count + state->clip.track_count * 4;
+  u32 max_rows = 2 + state->clip.event_count + state->clip.track_count * 5;
   LDKEditorAnimationRow *rows = calloc(max_rows, sizeof(*rows));
   if (!rows)
   {
@@ -1262,23 +1466,56 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
       const LDKKeyframeTrack *track = &state->clip.tracks[t];
       if (item.axis == -1)
       {
-        bool expanded = s_editor_animation_expanded(
-            track->target_path, track->channel);
+        bool expanded = s_editor_animation_expanded(track);
         /* Explicit rectangles keep the left panel aligned with graph rows. */
         LDKUIId button_id = 0x414E2000u + t;
         if (ldk_ui_widget_button_flat(ui, button_id,
                 expanded ? "v" : ">",
                 (LDKUIRect){sheet.x + 3, y + 2, 18, row_h - 4}))
         {
-          s_editor_animation_expand(track->target_path,
-              track->channel, !expanded);
+          s_editor_animation_expand(track, !expanded);
           label_control_pressed = true;
         }
         char label[256];
         s_editor_animation_track_label(state, t, label, sizeof(label));
+        const LDKComponentFieldMeta *property = ldk_property_field_find(
+            track->component_type, track->property_name);
+        bool color_track = track->value_type == LDK_FIELD_U32 &&
+            property && property->widget == LDK_FIELD_WIDGET_COLOR;
         ldk_ui_widget_label(ui, 0, label,
             (LDKUIRect){sheet.x + 25, y + 1,
-                fmaxf(8.0f, label_width - 60.0f), row_h - 2});
+                fmaxf(8.0f, label_width - (color_track ? 94.0f : 60.0f)),
+                row_h - 2});
+        if (color_track)
+        {
+          LDKPropertyValue color_value;
+          if (s_editor_animation_track_value(t, &color_value))
+          {
+            rgba32 color = (rgba32)(u32)color_value.integer;
+            /* Stable, track-specific ID: the native picker owns the popup. */
+            u32 color_id = 0xC0120001u ^ (u32)track->target_path ^
+                (u32)(track->target_path >> 32) ^
+                (track->component_type * 16777619u);
+            for (const char *name = track->property_name; *name; ++name)
+              color_id = (color_id ^ (u8)*name) * 16777619u;
+            if (!color_id) color_id = 0xC0120001u;
+            if (ldki_editor_color_swatch_widget(editor, color_id, &color,
+                    false, (LDKUIRect){delete_button_x - 27.0f, y + 3,
+                        21.0f, row_h - 6.0f}))
+            {
+              color_value.integer = (u32)color;
+              if (ldk_keyframe_animation_key_set(&state->clip,
+                      t, state->playhead, color_value))
+              {
+                state->playing = false;
+                state->selected_track = t;
+                state->key_selected = false;
+                state->dirty = true;
+                s_editor_animation_set_time(state->playhead);
+              }
+            }
+          }
+        }
         LDKUIId delete_id = 0x414E4000u + t;
         if (ldk_ui_widget_icon_button(ui, delete_id, delete_icon, "",
                 (LDKUIRect){delete_button_x, y + 2, 22, row_h - 4}))
@@ -1290,10 +1527,16 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
       else
       {
         char label[56];
-        static const char *const axes[] = {"X", "Y", "Z"};
-        snprintf(label, sizeof(label), "%s.%s",
-            s_editor_animation_channel_name(track->channel),
-            axes[item.axis]);
+        static const char *const axes[] = {"X", "Y", "Z", "W"};
+        const LDKComponentFieldMeta *field = ldk_property_field_find(
+            track->component_type, track->property_name);
+        const bool is_color = track->value_type == LDK_FIELD_U32 &&
+            field && field->widget == LDK_FIELD_WIDGET_COLOR;
+        const char *channel = s_editor_animation_axis_count(track) == 1 ?
+            s_editor_animation_property_label(track) :
+            is_color ? (const char *const[]){"R", "G", "B", "A"}[item.axis] :
+            axes[item.axis];
+        snprintf(label, sizeof(label), "%s", channel);
         ldk_ui_widget_label(ui, 0, label,
             (LDKUIRect){sheet.x + 27, y + 1,
                 fmaxf(8.0f, input_x - sheet.x - 29.0f), row_h - 2});
@@ -1962,7 +2205,7 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
         ldk_ecs_component_get_const(state->root, LDK_COMPONENT_TYPE_TRANSFORM))
     {
       ldk_ui_set_next_width(ui, ldk_ui_px(280.0f));
-      ldk_ui_label(ui, "Choose a Transform property");
+      ldk_ui_label(ui, "Choose a component property");
       ldk_ui_set_next_width(ui, ldk_ui_px(295.0f));
       ldk_ui_set_next_height(ui, ldk_ui_px(320.0f));
       state->property_popup_scroll = ldk_ui_begin_scrollview(ui,

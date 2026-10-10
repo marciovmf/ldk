@@ -3,6 +3,7 @@
 #include <ldk_keyframe_animation.h>
 #include <float.h>
 #include <component/ldk_transform.h>
+#include <ldk_property.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_asset_source.h>
 #include <stdx/stdx_strbuilder.h>
@@ -12,18 +13,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-static bool s_keyframe_valid_channel(LDKKeyframeTransformChannel channel)
-{
-  return channel >= LDK_KEYFRAME_TRANSFORM_POSITION &&
-      channel <= LDK_KEYFRAME_TRANSFORM_SCALE;
-}
-
-static bool s_keyframe_valid_value(Vec4 value)
-{
-  return isfinite(value.x) && isfinite(value.y) &&
-      isfinite(value.z) && isfinite(value.w);
-}
 
 u64 ldk_keyframe_path_root(void)
 {
@@ -142,16 +131,17 @@ static bool s_keyframe_reserve(void **buffer, u32 *capacity,
 }
 
 i32 ldk_keyframe_animation_track_find(const LDKKeyframeAnimation *clip,
-    u64 path, LDKKeyframeTransformChannel channel)
+    u64 path, u32 component_type, const char *property_name)
 {
-  if (!clip)
+  if (!clip || !property_name)
   {
     return -1;
   }
-  for (u32 i = 0; i < clip->track_count; i++)
+  for (u32 i = 0; i < clip->track_count; ++i)
   {
-    if (clip->tracks[i].target_path == path &&
-        clip->tracks[i].channel == channel)
+    const LDKKeyframeTrack *t = &clip->tracks[i];
+    if (t->target_path == path && t->component_type == component_type &&
+        strcmp(t->property_name, property_name) == 0)
     {
       return (i32)i;
     }
@@ -159,14 +149,17 @@ i32 ldk_keyframe_animation_track_find(const LDKKeyframeAnimation *clip,
   return -1;
 }
 
-i32 ldk_keyframe_animation_track_add(
-    LDKKeyframeAnimation *clip, u64 path, LDKKeyframeTransformChannel channel)
+static i32 s_keyframe_track_add(LDKKeyframeAnimation *clip, u64 path,
+    u32 component_type, const char *property_name, LDKFieldType value_type)
 {
-  if (!clip || !path || !s_keyframe_valid_channel(channel))
+  if (!clip || !path || !component_type || !property_name ||
+      !property_name[0] ||
+      strlen(property_name) >= LDK_KEYFRAME_PROPERTY_NAME_CAPACITY)
   {
     return -1;
   }
-  i32 existing = ldk_keyframe_animation_track_find(clip, path, channel);
+  i32 existing = ldk_keyframe_animation_track_find(
+      clip, path, component_type, property_name);
   if (existing >= 0)
   {
     return existing;
@@ -178,10 +171,26 @@ i32 ldk_keyframe_animation_track_add(
     return -1;
   }
   u32 index = clip->track_count++;
-  clip->tracks[index] = (LDKKeyframeTrack){0};
-  clip->tracks[index].target_path = path;
-  clip->tracks[index].channel = channel;
+  LDKKeyframeTrack *t = &clip->tracks[index];
+  *t = (LDKKeyframeTrack){0};
+  t->target_path = path;
+  t->component_type = component_type;
+  t->value_type = value_type;
+  memcpy(t->property_name, property_name, strlen(property_name) + 1);
   return (i32)index;
+}
+
+i32 ldk_keyframe_animation_track_add(LDKKeyframeAnimation *clip, u64 path,
+    u32 component_type, const char *property_name)
+{
+  const LDKComponentFieldMeta *field =
+      ldk_property_field_find(component_type, property_name);
+  if (!ldk_property_field_supported(field))
+  {
+    return -1;
+  }
+  return s_keyframe_track_add(clip, path, component_type,
+      property_name, field->type);
 }
 
 bool ldk_keyframe_animation_track_remove(LDKKeyframeAnimation *clip, u32 track)
@@ -198,33 +207,43 @@ bool ldk_keyframe_animation_track_remove(LDKKeyframeAnimation *clip, u32 track)
 }
 
 bool ldk_keyframe_animation_key_set(
-    LDKKeyframeAnimation *clip, u32 track, float time, Vec4 value)
+    LDKKeyframeAnimation *clip, u32 track, float time, LDKPropertyValue value)
 {
-  if (!clip || track >= clip->track_count || !isfinite(time) ||
-      time < 0.0f || !s_keyframe_valid_value(value))
+  if (!clip || track >= clip->track_count || !isfinite(time) || time < 0.0f ||
+      value.type != clip->tracks[track].value_type)
   {
     return false;
   }
-  LDKKeyframeTrack *t = &clip->tracks[track];
+  const LDKKeyframeTrack *t = &clip->tracks[track];
+  const LDKComponentFieldMeta *field =
+      ldk_property_field_find(t->component_type, t->property_name);
+  LDKPropertyValue checked;
+  /* Validate using the shared property codec. If metadata is temporarily
+   * unavailable (game DLL unloaded), clips are not editable. */
+  if (!field || !ldk_property_interpolate(field, &value, &value, 0, &checked))
+  {
+    return false;
+  }
+  LDKKeyframeTrack *edit = &clip->tracks[track];
   u32 index = 0;
-  while (index < t->count && t->keys[index].time < time)
+  while (index < edit->count && edit->keys[index].time < time)
   {
     index++;
   }
-  if (index < t->count && t->keys[index].time == time)
+  if (index < edit->count && edit->keys[index].time == time)
   {
-    t->keys[index].value = value;
+    edit->keys[index].value = value;
     return true;
   }
-  if (!s_keyframe_reserve((void **)&t->keys, &t->capacity,
-          t->count + 1, sizeof(*t->keys)))
+  if (!s_keyframe_reserve((void **)&edit->keys, &edit->capacity,
+          edit->count + 1, sizeof(*edit->keys)))
   {
     return false;
   }
-  memmove(&t->keys[index + 1], &t->keys[index],
-      (t->count - index) * sizeof(*t->keys));
-  t->keys[index] = (LDKKeyframe){time, value};
-  t->count++;
+  memmove(&edit->keys[index + 1], &edit->keys[index],
+      (edit->count - index) * sizeof(*edit->keys));
+  edit->keys[index] = (LDKKeyframe){time, value};
+  edit->count++;
   if (time > clip->duration)
   {
     clip->duration = time;
@@ -248,10 +267,9 @@ bool ldk_keyframe_animation_key_remove(
 }
 
 bool ldk_keyframe_animation_sample(const LDKKeyframeAnimation *clip,
-    u32 track, float time, Vec4 *out_value)
+    u32 track, float time, LDKPropertyValue *out_value)
 {
-  if (!clip || track >= clip->track_count || !out_value ||
-      !isfinite(time))
+  if (!clip || track >= clip->track_count || !out_value || !isfinite(time))
   {
     return false;
   }
@@ -269,65 +287,28 @@ bool ldk_keyframe_animation_sample(const LDKKeyframeAnimation *clip,
   {
     if (time <= t->keys[i].time)
     {
+      const LDKComponentFieldMeta *field =
+          ldk_property_field_find(t->component_type, t->property_name);
+      if (!field || field->type != t->value_type)
+      {
+        return false;
+      }
       const LDKKeyframe *a = &t->keys[i - 1];
       const LDKKeyframe *b = &t->keys[i];
       float alpha = (time - a->time) / (b->time - a->time);
-      if (t->channel == LDK_KEYFRAME_TRANSFORM_ROTATION)
-      {
-        Quat qa = quat_make(a->value.x, a->value.y, a->value.z, a->value.w);
-        Quat qb = quat_make(b->value.x, b->value.y, b->value.z, b->value.w);
-        /* Nlerp with shortest-path sign correction. */
-        float dot = qa.x * qb.x + qa.y * qb.y + qa.z * qb.z + qa.w * qb.w;
-        if (dot < 0.0f)
-        {
-          qb = quat_make(-qb.x, -qb.y, -qb.z, -qb.w);
-        }
-        Quat q = quat_norm(quat_make(
-            qa.x + (qb.x - qa.x) * alpha,
-            qa.y + (qb.y - qa.y) * alpha,
-            qa.z + (qb.z - qa.z) * alpha,
-            qa.w + (qb.w - qa.w) * alpha));
-        *out_value = vec4_make(q.x, q.y, q.z, q.w);
-      }
-      else
-      {
-        *out_value = vec4_lerp(a->value, b->value, alpha);
-      }
-      return true;
+      return ldk_property_interpolate(field, &a->value, &b->value,
+          alpha, out_value);
     }
   }
   *out_value = t->keys[t->count - 1].value;
   return true;
 }
 
-bool ldk_keyframe_animation_value_from_transform(
-    LDKEntity entity, LDKKeyframeTransformChannel channel, Vec4 *out_value)
+bool ldk_keyframe_animation_value_from_entity(LDKEntity entity,
+    const LDKKeyframeTrack *track, LDKPropertyValue *out_value)
 {
-  const LDKTransform *transform = ldk_ecs_component_get_const(
-      entity, LDK_COMPONENT_TYPE_TRANSFORM);
-  if (!transform || !out_value || !s_keyframe_valid_channel(channel))
-  {
-    return false;
-  }
-  switch (channel)
-  {
-  case LDK_KEYFRAME_TRANSFORM_POSITION:
-    *out_value = vec4_make(transform->local_position.x,
-        transform->local_position.y, transform->local_position.z, 0);
-    break;
-  case LDK_KEYFRAME_TRANSFORM_ROTATION:
-    *out_value = vec4_make(transform->local_rotation.x,
-        transform->local_rotation.y, transform->local_rotation.z,
-        transform->local_rotation.w);
-    break;
-  case LDK_KEYFRAME_TRANSFORM_SCALE:
-    *out_value = vec4_make(transform->local_scale.x,
-        transform->local_scale.y, transform->local_scale.z, 0);
-    break;
-  default:
-    return false;
-  }
-  return true;
+  return track && ldk_property_get(entity, track->component_type,
+      track->property_name, out_value);
 }
 
 typedef struct LDKKeyframeResolve
@@ -376,7 +357,7 @@ static void s_keyframe_resolve_children(LDKEntity entity, u64 parent_path,
   }
 }
 
-static bool s_keyframe_target_resolve(
+bool ldk_keyframe_target_resolve(
     LDKEntity root, u64 path, LDKEntity *out)
 {
   if (path == ldk_keyframe_path_root())
@@ -402,37 +383,21 @@ bool ldk_keyframe_animation_apply(
   {
     return false;
   }
-  for (u32 i = 0; i < clip->track_count; i++)
+  for (u32 i = 0; i < clip->track_count; ++i)
   {
     const LDKKeyframeTrack *track = &clip->tracks[i];
-    Vec4 value;
+    LDKPropertyValue value;
     LDKEntity target;
     if (!track->count)
     {
       continue;
     }
-    if (!s_keyframe_target_resolve(root, track->target_path, &target) ||
-        !ldk_keyframe_animation_sample(clip, i, time, &value))
+    if (!ldk_keyframe_target_resolve(root, track->target_path, &target) ||
+        !ldk_keyframe_animation_sample(clip, i, time, &value) ||
+        !ldk_property_set(target, track->component_type,
+            track->property_name, &value))
     {
       ok = false;
-      continue;
-    }
-    Vec3 vector = vec3_make(value.x, value.y, value.z);
-    switch (track->channel)
-    {
-    case LDK_KEYFRAME_TRANSFORM_POSITION:
-      ok = ldk_transform_set_local_position(target, vector) && ok;
-      break;
-    case LDK_KEYFRAME_TRANSFORM_ROTATION:
-      ok = ldk_transform_set_local_rotation(target,
-          quat_norm(quat_make(value.x, value.y, value.z, value.w))) && ok;
-      break;
-    case LDK_KEYFRAME_TRANSFORM_SCALE:
-      ok = ldk_transform_set_local_scale(target, vector) && ok;
-      break;
-    default:
-      ok = false;
-      break;
     }
   }
   return ok;
@@ -543,29 +508,61 @@ bool ldk_keyframe_animation_to_tml(
     return false;
   }
   x_strbuilder_append_format(out,
-      "animation:\n  version: 1\n  duration: %.9f\n  tracks:\n", clip->duration);
-  for (u32 i = 0; i < clip->track_count; i++)
+      "animation:\n  version: 2\n  duration: %.9f\n  tracks:\n", clip->duration);
+  for (u32 i = 0; i < clip->track_count; ++i)
   {
     const LDKKeyframeTrack *t = &clip->tracks[i];
-    static const char *channels[] = {"position", "rotation", "scale"};
-    if (!s_keyframe_valid_channel(t->channel))
-    {
-      x_strbuilder_destroy(out);
-      return false;
-    }
     x_strbuilder_append_format(out,
-        "    - target: \"0x%016" PRIx64 "\"\n      channel: \"%s\"\n      keys:\n",
-        t->target_path, channels[t->channel]);
-    for (u32 j = 0; j < t->count; j++)
+        "    - target: \"0x%016" PRIx64 "\"\n      component: %u\n      property: ",
+        t->target_path, t->component_type);
+    s_keyframe_append_escaped(out, t->property_name);
+    x_strbuilder_append_format(out, "\n      type: %u\n      keys:\n", (u32)t->value_type);
+    for (u32 j = 0; j < t->count; ++j)
     {
       const LDKKeyframe *k = &t->keys[j];
+      const LDKPropertyValue *v = &k->value;
       x_strbuilder_append_format(out,
-          "        - time: %.9f\n          value: %.9f, %.9f, %.9f, %.9f\n",
-          k->time, k->value.x, k->value.y, k->value.z, k->value.w);
+          "        - time: %.9f\n          value: ", k->time);
+      switch (t->value_type)
+      {
+      case LDK_FIELD_FLOAT:
+        x_strbuilder_append_format(out, "%.9f", v->vector.x);
+        break;
+      case LDK_FIELD_VEC2:
+      case LDK_FIELD_VEC3:
+      case LDK_FIELD_VEC4:
+      case LDK_FIELD_QUAT:
+      {
+        u32 count = t->value_type == LDK_FIELD_VEC2 ? 2 :
+            t->value_type == LDK_FIELD_VEC3 ? 3 : 4;
+        const float v4[] = {v->vector.x, v->vector.y, v->vector.z, v->vector.w};
+        for (u32 axis = 0; axis < count; ++axis)
+        {
+          x_strbuilder_append_format(out, "%s%.9f",
+              axis ? ", " : "", v4[axis]);
+        }
+        break;
+      }
+      case LDK_FIELD_BOOL:
+        x_strbuilder_append(out, v->integer ? "true" : "false");
+        break;
+      case LDK_FIELD_STRING:
+        s_keyframe_append_escaped(out, v->string.buf);
+        break;
+      case LDK_FIELD_ENUM:
+      case LDK_FIELD_I32:
+      case LDK_FIELD_U32:
+        x_strbuilder_append_format(out, "%" PRId64, v->integer);
+        break;
+      default:
+        x_strbuilder_destroy(out);
+        return false;
+      }
+      x_strbuilder_append_char(out, '\n');
     }
   }
   x_strbuilder_append(out, "  events:\n");
-  for (u32 i = 0; i < clip->event_count; i++)
+  for (u32 i = 0; i < clip->event_count; ++i)
   {
     const LDKKeyframeEvent *e = &clip->events[i];
     x_strbuilder_append_format(out, "    - time: %.9f\n", e->time);
@@ -621,6 +618,74 @@ static bool s_keyframe_read_hash(const TMLDocument *doc,
   return true;
 }
 
+static bool s_keyframe_read_value(const TMLDocument *doc,
+    const TMLNode *node, LDKFieldType type, LDKPropertyValue *out)
+{
+  LDKPropertyValue value = {0};
+  value.type = type;
+  switch (type)
+  {
+  case LDK_FIELD_FLOAT:
+  {
+    f64 number;
+    if (!tml_node_get_f64(doc, node, "value", &number) ||
+        !isfinite(number) || fabs(number) > FLT_MAX)
+      return false;
+    value.vector.x = (float)number;
+    break;
+  }
+  case LDK_FIELD_VEC2:
+  case LDK_FIELD_VEC3:
+  case LDK_FIELD_VEC4:
+  case LDK_FIELD_QUAT:
+  {
+    const TMLEntry *entry = tml_node_find_entry(doc, node, "value");
+    TMLF64Slice slice;
+    u32 needed = type == LDK_FIELD_VEC2 ? 2 :
+        type == LDK_FIELD_VEC3 ? 3 : 4;
+    if (!entry || !tml_entry_get_f64_array(doc, entry, &slice) ||
+        slice.count != needed)
+      return false;
+    float *axes[] = {&value.vector.x, &value.vector.y,
+        &value.vector.z, &value.vector.w};
+    for (u32 i = 0; i < needed; ++i)
+    {
+      if (!isfinite(slice.data[i]) || fabs(slice.data[i]) > FLT_MAX)
+        return false;
+      *axes[i] = (float)slice.data[i];
+    }
+    break;
+  }
+  case LDK_FIELD_BOOL:
+  {
+    u8 b;
+    if (!tml_node_get_bool(doc, node, "value", &b)) return false;
+    value.integer = b ? 1 : 0;
+    break;
+  }
+  case LDK_FIELD_ENUM:
+  case LDK_FIELD_I32:
+  case LDK_FIELD_U32:
+    if (!tml_node_get_i64(doc, node, "value", &value.integer)) return false;
+    break;
+  case LDK_FIELD_STRING:
+  {
+    TMLString str;
+    if (!tml_node_get_string(doc, node, "value", &str) ||
+        str.size > X_SMALLSTR_MAX_LENGTH)
+      return false;
+    memcpy(value.string.buf, str.data, str.size);
+    value.string.buf[str.size] = 0;
+    value.string.length = str.size;
+    break;
+  }
+  default:
+    return false;
+  }
+  *out = value;
+  return true;
+}
+
 bool ldk_keyframe_animation_from_tml(
     LDKKeyframeAnimation *clip, const char *source)
 {
@@ -637,17 +702,12 @@ bool ldk_keyframe_animation_from_tml(
   ldk_keyframe_animation_init(&loaded);
   const TMLDocument *doc = parsed.document;
   const TMLNode *root = tml_root_node_at(doc, 0);
-  if (!root || root->name.size != 9 ||
-      memcmp(root->name.data, "animation", 9) != 0 ||
-      doc->root_node_count != 1)
-  {
-    tml_document_free(parsed.document);
-    return false;
-  }
-  f64 duration;
-  i64 version;
-  bool valid = root != NULL &&
-      tml_node_get_i64(doc, root, "version", &version) && version == 1 &&
+  f64 duration = 0;
+  i64 version = 0;
+  bool valid = root && root->name.size == 9 &&
+      memcmp(root->name.data, "animation", 9) == 0 &&
+      doc->root_node_count == 1 &&
+      tml_node_get_i64(doc, root, "version", &version) && version == 2 &&
       tml_node_get_f64(doc, root, "duration", &duration) &&
       isfinite(duration) && duration > 0.0 && duration <= FLT_MAX;
   if (valid)
@@ -656,77 +716,69 @@ bool ldk_keyframe_animation_from_tml(
     const TMLNode *tracks = tml_node_find_child(doc, root, "tracks");
     if (tracks)
     {
-      for (u32 i = 0; valid && i < tracks->child_count; i++)
+      for (u32 i = 0; valid && i < tracks->child_count; ++i)
       {
         const TMLNode *node = tml_node_child_at(doc, tracks, i);
-        TMLString channel;
         u64 path;
-        LDKKeyframeTransformChannel kind;
+        i64 comp, kind;
+        TMLString property;
+        char name[LDK_KEYFRAME_PROPERTY_NAME_CAPACITY];
         if (!node || !s_keyframe_read_hash(doc, node, "target", &path) ||
-            !tml_node_get_string(doc, node, "channel", &channel))
+            !tml_node_get_i64(doc, node, "component", &comp) ||
+            comp <= 0 || comp > UINT32_MAX ||
+            !tml_node_get_i64(doc, node, "type", &kind) ||
+            kind < LDK_FIELD_BOOL || kind > LDK_FIELD_ASSET_KEYFRAME_ANIMATION ||
+            !tml_node_get_string(doc, node, "property", &property) ||
+            !property.size || property.size >= sizeof(name))
         {
           valid = false;
           break;
         }
-        if (channel.size == 8 && memcmp(channel.data, "position", 8) == 0)
-        {
-          kind = LDK_KEYFRAME_TRANSFORM_POSITION;
-        }
-        else if (channel.size == 8 && memcmp(channel.data, "rotation", 8) == 0)
-        {
-          kind = LDK_KEYFRAME_TRANSFORM_ROTATION;
-        }
-        else if (channel.size == 5 && memcmp(channel.data, "scale", 5) == 0)
-        {
-          kind = LDK_KEYFRAME_TRANSFORM_SCALE;
-        }
-        else
+        memcpy(name, property.data, property.size);
+        name[property.size] = 0;
+        if (ldk_keyframe_animation_track_find(
+                &loaded, path, (u32)comp, name) >= 0)
         {
           valid = false;
           break;
         }
-        if (ldk_keyframe_animation_track_find(&loaded, path, kind) >= 0)
-        {
-          valid = false;
-          break;
-        }
-        i32 track = ldk_keyframe_animation_track_add(&loaded, path, kind);
-        const TMLNode *keys = tml_node_find_child(doc, node, "keys");
+        i32 track = s_keyframe_track_add(&loaded,
+            path, (u32)comp, name, (LDKFieldType)kind);
         if (track < 0)
         {
           valid = false;
           break;
         }
-        if (!keys)
-        {
-          continue;
-        }
-        for (u32 k = 0; valid && k < keys->child_count; k++)
+        const TMLNode *keys = tml_node_find_child(doc, node, "keys");
+        for (u32 k = 0; valid && keys && k < keys->child_count; ++k)
         {
           const TMLNode *key = tml_node_child_at(doc, keys, k);
-          const TMLEntry *entry = key ? tml_node_find_entry(doc, key, "value") : NULL;
-          TMLF64Slice slice;
           f64 time;
+          LDKPropertyValue value;
           if (!key || !tml_node_get_f64(doc, key, "time", &time) ||
-              !entry || !tml_entry_get_f64_array(doc, entry, &slice) ||
-              slice.count != 4 || !isfinite(time) || time < 0.0 ||
-              time > duration)
+              !isfinite(time) || time < 0 || time > duration ||
+              !s_keyframe_read_value(doc, key, (LDKFieldType)kind, &value))
           {
             valid = false;
             break;
           }
-          Vec4 value = vec4_make((float)slice.data[0], (float)slice.data[1],
-              (float)slice.data[2], (float)slice.data[3]);
-          valid = s_keyframe_valid_value(value) &&
-              ldk_keyframe_animation_key_set(&loaded, (u32)track,
-                  (float)time, value);
+          LDKKeyframeTrack *t = &loaded.tracks[track];
+          /* Loader may run before game metadata becomes available. */
+          if (!s_keyframe_reserve((void **)&t->keys, &t->capacity,
+                  t->count + 1, sizeof(*t->keys)) ||
+              (t->count && time <= t->keys[t->count - 1].time))
+          {
+            valid = false;
+            break;
+          }
+          t->keys[t->count++] = (LDKKeyframe){(float)time, value};
         }
       }
     }
     const TMLNode *events = tml_node_find_child(doc, root, "events");
     if (events)
     {
-      for (u32 i = 0; valid && i < events->child_count; i++)
+      for (u32 i = 0; valid && i < events->child_count; ++i)
       {
         const TMLNode *node = tml_node_child_at(doc, events, i);
         const TMLEntry *integer = node ? tml_node_find_entry(doc, node, "integer") : NULL;

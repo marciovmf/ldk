@@ -42,12 +42,12 @@ scene:
     - entity: 2
       parent: -1
       flags: 0
-      name: "Entity"
-      name_hash: "0x757a4c2248c0b9da"
+      name: "Spot Light"
+      name_hash: "0xac1499d894107b41"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 3.75500178, 6.20623589, 6.59529734
+            local_position: 1.64186549, 4.44243145, 5.95797396
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: -0.122332498, 0.0398861952, 0.00492033875, 0.991675198
         - type: 4294967290 # LDKSpotLight
@@ -58,6 +58,14 @@ scene:
             inner_angle: 0.349065840
             outer_angle: 0.523598790
             enabled: true
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            current_animation: 0
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
+            animations:
+              - path: "flicker.anim"
     - entity: 3
       parent: 12
       flags: 0
@@ -137,7 +145,7 @@ scene:
         - type: 4294967289 # LDKDirectionalLight
           fields:
             color: 4294967295
-            intensity: 1.00000000
+            intensity: 0.400000006
             enabled: true
             casts_shadows: true
     - entity: 5
@@ -159,16 +167,16 @@ scene:
             billboard: false
             material_asset: "assets/checkers_orange_small"
     - entity: 6
-      parent: -1
+      parent: 7
       flags: 0
       name: "Cube"
       name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -0.163789272, 2.85927653, -1.65626860
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.0894630179, 0.457857430, 0.472425401, 0.747781575
+            local_position: 2.68835616, 0.00000000, 0.00000000
+            local_scale: 0.545454621, 0.545454562, 0.545454621
+            local_rotation: 0.338267356, 0.797652245, 0.341708362, 0.364089906
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
@@ -179,14 +187,14 @@ scene:
     - entity: 7
       parent: -1
       flags: 0
-      name: "animated_cube"
-      name_hash: "0xe4cdac96998507b4"
+      name: "Crate"
+      name_hash: "0xa78dd2004df983c0"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 5.31266451, 3.80682063, 0.00602841377
-            local_scale: 1.83333325, 1.83333325, 1.83333325
-            local_rotation: 0.00000000, -0.559004128, 0.00000000, 0.829164922
+            local_position: 5.31266451, 2.94322300, 0.00602841377
+            local_scale: 0.895996034, 0.895996034, 0.895996034
+            local_rotation: 0.00000000, -0.372884005, 0.00000000, 0.927878022
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/cube"
@@ -194,15 +202,6 @@ scene:
             casts_shadows: true
             billboard: false
             material_asset: "assets/materials/castle_checkers.tml"
-        - type: 4294967280 # LDKKeyFrameAnimationSource
-          fields:
-            current_animation: 0
-            play_on_start: true
-            loop: true
-            speed: 1.00000000
-            animations:
-              - path: "bounce.anim"
-              - path: "teste.anim"
     - entity: 8
       parent: -1
       flags: 0
@@ -510,66 +509,4 @@ scene:
             material_asset: "assets/checkers_orange"
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
-    - id: "0x1e2c227aa2362f6a"
-      data:
-        heightmap: "assets/textures/hmap.png"
-        height_channel: "LDK_TERRAIN_CHANNEL_R"
-        cell_size: 0.00000000
-        height_scale: 100.000000
-        height_offset: 0.00000000
-        center_on_origin: true
-        origin_x: 0.00000000
-        origin_z: 0.00000000
-        chunk_size: 0
-        material: -1
-        surface_count: 0
-        surface_0_name: ""
-        surface_0_min_height: 0.00000000
-        surface_0_blend_width: 0.00000000
-        surface_0_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_0_uv_scale: 0.00000000, 0.00000000
-        surface_0_texture_weight: 0.00000000
-        surface_1_name: ""
-        surface_1_min_height: 0.00000000
-        surface_1_blend_width: 0.00000000
-        surface_1_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_1_uv_scale: 0.00000000, 0.00000000
-        surface_1_texture_weight: 0.00000000
-        surface_2_name: ""
-        surface_2_min_height: 0.00000000
-        surface_2_blend_width: 0.00000000
-        surface_2_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_2_uv_scale: 0.00000000, 0.00000000
-        surface_2_texture_weight: 0.00000000
-        surface_3_name: ""
-        surface_3_min_height: 0.00000000
-        surface_3_blend_width: 0.00000000
-        surface_3_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_3_uv_scale: 0.00000000, 0.00000000
-        surface_3_texture_weight: 0.00000000
-        surface_4_name: ""
-        surface_4_min_height: 0.00000000
-        surface_4_blend_width: 0.00000000
-        surface_4_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_4_uv_scale: 0.00000000, 0.00000000
-        surface_4_texture_weight: 0.00000000
-        surface_5_name: ""
-        surface_5_min_height: 0.00000000
-        surface_5_blend_width: 0.00000000
-        surface_5_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_5_uv_scale: 0.00000000, 0.00000000
-        surface_5_texture_weight: 0.00000000
-        surface_6_name: ""
-        surface_6_min_height: 0.00000000
-        surface_6_blend_width: 0.00000000
-        surface_6_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_6_uv_scale: 0.00000000, 0.00000000
-        surface_6_texture_weight: 0.00000000
-        surface_7_name: ""
-        surface_7_min_height: 0.00000000
-        surface_7_blend_width: 0.00000000
-        surface_7_atlas_rect: 0.00000000, 0.00000000, 0.00000000, 0.00000000
-        surface_7_uv_scale: 0.00000000, 0.00000000
-        surface_7_texture_weight: 0.00000000
-        casts_shadows: false
     - id: "0x05047ea6f003fb8f"

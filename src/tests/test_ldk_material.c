@@ -2,6 +2,7 @@
 #define X_IMPL_HPOOL
 #define X_IMPL_FILESYSTEM
 #define X_IMPL_MATH
+#define X_IMPL_STRING
 #endif
 
 #include <ldk_material.h>

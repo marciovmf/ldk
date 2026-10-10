@@ -906,6 +906,8 @@ bool ldk_game_instance_unload(void)
     return false;
   }
 
+  /* Custom component writers may point into the game DLL. */
+  ldk_property_writers_clear();
   if (lib)
   {
     result = ldk_os_library_unload(lib);
@@ -2174,5 +2176,6 @@ const LDKConfig *ldk_engine_config_get(void)
 }
 
 /* Transform keyframe clip API, owned by the engine binary. */
+#include "ldk_property.inl"
 #include "ldk_keyframe_animation.inl"
 #include "ldk_keyframe_animation_source.inl"
