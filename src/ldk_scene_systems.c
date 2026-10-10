@@ -622,6 +622,25 @@ failed:
   return false;
 }
 
+static void s_scene_systems_file_error(LDKSceneResult *result,
+    const char *stage, const char *path, int os_error)
+{
+  char message[256];
+  if (os_error)
+  {
+    snprintf(message, sizeof(message),
+        "scene systems preflight: cannot %s '%s': %s", stage,
+        path ? path : "<null>", strerror(os_error));
+  }
+  else
+  {
+    snprintf(message, sizeof(message),
+        "scene systems preflight: cannot %s '%s'", stage,
+        path ? path : "<null>");
+  }
+  ldk_scene_result_set_error(result, message);
+}
+
 bool ldk_scene_systems_load_tml_file(
     const char *path, LDKSceneSystems *out, LDKSceneResult *result)
 {
@@ -629,10 +648,11 @@ bool ldk_scene_systems_load_tml_file(
   long size;
   char *source;
   bool ok;
+  int os_error;
 
   ldk_scene_result_clear(result);
 
-  if (!path || !out)
+  if (!path || !path[0] || !out)
   {
     ldk_scene_result_set_error(result, "invalid scene systems arguments");
     return false;
@@ -641,15 +661,36 @@ bool ldk_scene_systems_load_tml_file(
   file = fopen(path, "rb");
   if (!file)
   {
-    ldk_scene_result_set_error(result, "failed to read scene TML file");
+    s_scene_systems_file_error(result, "open", path, errno);
     return false;
   }
 
-  if (fseek(file, 0, SEEK_END) != 0 || (size = ftell(file)) < 0 ||
-      fseek(file, 0, SEEK_SET) != 0 || (size_t)size >= SIZE_MAX)
+  if (fseek(file, 0, SEEK_END) != 0)
+  {
+    os_error = errno;
+    fclose(file);
+    s_scene_systems_file_error(result, "seek", path, os_error);
+    return false;
+  }
+  size = ftell(file);
+  if (size < 0)
+  {
+    os_error = errno;
+    fclose(file);
+    s_scene_systems_file_error(result, "determine size of", path, os_error);
+    return false;
+  }
+  if (fseek(file, 0, SEEK_SET) != 0)
+  {
+    os_error = errno;
+    fclose(file);
+    s_scene_systems_file_error(result, "rewind", path, os_error);
+    return false;
+  }
+  if ((unsigned long long)size >= (unsigned long long)SIZE_MAX)
   {
     fclose(file);
-    ldk_scene_result_set_error(result, "failed to read scene TML file");
+    s_scene_systems_file_error(result, "allocate (too large)", path, 0);
     return false;
   }
 
@@ -657,21 +698,31 @@ bool ldk_scene_systems_load_tml_file(
   if (!source)
   {
     fclose(file);
-    ldk_scene_result_set_error(result, "failed to allocate scene source");
+    s_scene_systems_file_error(result, "allocate memory for", path, 0);
     return false;
   }
 
   ok = fread(source, 1, (size_t)size, file) == (size_t)size;
-  fclose(file);
+  os_error = ok ? 0 : (ferror(file) ? errno : 0);
+  if (fclose(file) != 0 && ok)
+  {
+    ok = false;
+    os_error = errno;
+  }
   if (!ok)
   {
     free(source);
-    ldk_scene_result_set_error(result, "failed to read scene TML file");
+    s_scene_systems_file_error(result, "read completely", path, os_error);
     return false;
   }
 
   source[size] = 0;
   ok = ldk_scene_systems_from_tml(source, out, result);
+  if (!ok)
+  {
+    ldk_log_error("[Scene] Systems preflight failed for '%s': %s\n", path,
+        result ? result->error : "see previous scene diagnostic");
+  }
   free(source);
   return ok;
 }

@@ -27,6 +27,8 @@
 #include <stdx/stdx_string.h>
 #include <stdx/stdx_tml.h>
 
+#include <errno.h>
+#include <stdint.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -135,20 +137,22 @@ void ldk_scene_result_clear(LDKSceneResult *result)
 void ldk_scene_result_set_error(
     LDKSceneResult *result, const char *error)
 {
-  if (!result)
+  const char *message = error && error[0] ? error : "unspecified scene error";
+
+  if (result)
   {
-    return;
+    result->ok = false;
+    snprintf(result->error, sizeof(result->error), "%s", message);
   }
 
-  result->ok = false;
-
-  if (!error)
+  /* Diagnostics must not depend on callers inspecting LDKSceneResult. The
+   * editor observer mirrors the message to its Console; the logger also
+   * writes it to the process console and configured log file. */
+  ldk_log_error("[Scene] %s\n", message);
+  if (s_scene_diagnostic_handler)
   {
-    result->error[0] = 0;
-    return;
+    s_scene_diagnostic_handler(message, s_scene_diagnostic_user);
   }
-
-  snprintf(result->error, sizeof(result->error), "%s", error);
 }
 
 u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
@@ -748,14 +752,10 @@ static bool s_read_scene_entity_reference(
 static void s_result_error_format(LDKSceneResult *result,
     const char *format, const char *first, const char *second)
 {
-  if (!result)
-  {
-    return;
-  }
-
-  result->ok = false;
-  snprintf(result->error, sizeof(result->error), format,
+  char message[256];
+  snprintf(message, sizeof(message), format,
       first ? first : "", second ? second : "");
+  ldk_scene_result_set_error(result, message);
 }
 
 static LDKMaterialIOContext s_material_io_context(void);
@@ -2214,14 +2214,10 @@ static bool s_scene_from_tml(const char *source,
   parse = tml_parse(source);
   if (!parse.ok)
   {
-    if (result)
-    {
-      result->ok = false;
-      snprintf(result->error, sizeof(result->error),
-          "TML parse error at %u:%u: %s", parse.line, parse.column,
-          parse.error);
-    }
-
+    char error[256];
+    snprintf(error, sizeof(error), "TML parse error at %u:%u: %s",
+        parse.line, parse.column, parse.error);
+    s_result_error(result, error);
     return false;
   }
 
@@ -2310,48 +2306,95 @@ bool ldk_scene_from_tml_with_systems(const char *source,
   return s_scene_from_tml(source, systems, result);
 }
 
-static bool s_file_read_text(const char *path, char **out_text)
+static bool s_scene_file_read_error(LDKSceneResult *result,
+    const char *stage, const char *path, int error_number)
+{
+  char message[256];
+  if (error_number)
+  {
+    snprintf(message, sizeof(message), "cannot %s scene file '%s': %s",
+        stage, path ? path : "<null>", strerror(error_number));
+  }
+  else
+  {
+    snprintf(message, sizeof(message), "cannot %s scene file '%s'",
+        stage, path ? path : "<null>");
+  }
+  ldk_scene_result_set_error(result, message);
+  return false;
+}
+
+static bool s_file_read_text(const char *path, char **out_text,
+    LDKSceneResult *result)
 {
   FILE *file;
   long size;
   char *text;
   size_t read_size;
+  int os_error;
 
-  if (!path || !out_text)
+  if (!path || !path[0] || !out_text)
   {
-    return false;
+    return s_scene_file_read_error(result, "read (invalid arguments)",
+        path, 0);
   }
 
   *out_text = NULL;
-
   file = fopen(path, "rb");
   if (!file)
   {
-    return false;
+    return s_scene_file_read_error(result, "open", path, errno);
   }
 
   if (fseek(file, 0, SEEK_END) != 0)
   {
+    os_error = errno;
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "seek", path, os_error);
   }
 
   size = ftell(file);
-  if (size < 0 || fseek(file, 0, SEEK_SET) != 0)
+  if (size < 0)
+  {
+    os_error = errno;
+    fclose(file);
+    return s_scene_file_read_error(result, "determine size of", path,
+        os_error);
+  }
+  if (fseek(file, 0, SEEK_SET) != 0)
+  {
+    os_error = errno;
+    fclose(file);
+    return s_scene_file_read_error(result, "rewind", path, os_error);
+  }
+  if ((unsigned long long)size >= (unsigned long long)SIZE_MAX)
   {
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "allocate (too large)", path, 0);
   }
 
   text = (char *)malloc((size_t)size + 1u);
   if (!text)
   {
     fclose(file);
-    return false;
+    return s_scene_file_read_error(result, "allocate memory for", path, 0);
   }
 
   read_size = fread(text, 1u, (size_t)size, file);
-  fclose(file);
+  if (read_size != (size_t)size)
+  {
+    os_error = ferror(file) ? errno : 0;
+    free(text);
+    fclose(file);
+    return s_scene_file_read_error(result, "read completely", path,
+        os_error);
+  }
+  if (fclose(file) != 0)
+  {
+    os_error = errno;
+    free(text);
+    return s_scene_file_read_error(result, "close", path, os_error);
+  }
 
   text[read_size] = 0;
   *out_text = text;
@@ -2375,13 +2418,17 @@ bool ldk_scene_load_tml_file(
     return false;
   }
 
-  if (!s_file_read_text(path, &text))
+  if (!s_file_read_text(path, &text, result))
   {
-    s_result_error(result, "failed to read scene TML file");
     return false;
   }
 
   ok = ldk_scene_from_tml(text, result);
+  if (!ok)
+  {
+    ldk_log_error("[Scene] Loading '%s' failed: %s\n", path,
+        result ? result->error : "see previous scene diagnostic");
+  }
   free(text);
   return ok;
 }
@@ -2392,12 +2439,21 @@ bool ldk_scene_load_tml_file_with_systems(const char *path,
   char *text;
   bool ok;
   ldk_scene_result_clear(result);
-  if (!path || !systems || !s_file_read_text(path, &text))
+  if (!systems)
   {
-    s_result_error(result, "failed to read scene TML file");
+    s_result_error(result, "invalid scene systems argument");
+    return false;
+  }
+  if (!s_file_read_text(path, &text, result))
+  {
     return false;
   }
   ok = ldk_scene_from_tml_with_systems(text, systems, result);
+  if (!ok)
+  {
+    ldk_log_error("[Scene] Loading '%s' failed: %s\n", path,
+        result ? result->error : "see previous scene diagnostic");
+  }
   free(text);
   return ok;
 }

@@ -221,14 +221,9 @@ static void s_result_error(LDKSceneResult *result, const char *error)
 static void s_result_error_format(
     LDKSceneResult *result, const char *format, const char *a, const char *b)
 {
-  if (!result)
-  {
-    return;
-  }
-
-  result->ok = false;
-  snprintf(result->error, sizeof(result->error), format,
-      a ? a : "", b ? b : "");
+  char message[256];
+  snprintf(message, sizeof(message), format, a ? a : "", b ? b : "");
+  ldk_scene_result_set_error(result, message);
 }
 
 static bool s_tml_string_eq(TMLString string, const char *cstr)

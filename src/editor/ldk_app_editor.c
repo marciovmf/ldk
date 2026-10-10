@@ -2693,11 +2693,17 @@ static bool s_project_game_module_runtime_load(LDKEditorContext *editor,
 
   if (!ldk_game_instance_load_from_shared_lib(x_fs_path_cstr(dll_path)))
   {
+    char message[512];
+    snprintf(message, sizeof(message), "Failed to load game DLL '%s'.",
+        x_fs_path_cstr(dll_path));
+    ldki_editor_log_error(editor, message);
     return false;
   }
 
   if (!ldk_game_instance_initialize())
   {
+    ldki_editor_log_error(editor,
+        "Failed to initialize loaded game DLL (see engine errors).");
     ldk_game_instance_unload();
     return false;
   }
@@ -2726,11 +2732,24 @@ static bool s_project_game_module_load(LDKEditorContext *editor)
 {
   XFSPath editor_game_dll_path = {0};
 
-  if (editor == NULL || !editor->project.loaded ||
-      !x_fs_path_is_file(&editor->project.game_dll_path) ||
-      !s_project_editor_game_dll_path_get(
+  if (editor == NULL || !editor->project.loaded)
+  {
+    ldk_log_error("[Project] Cannot load game module without a loaded project.\n");
+    return false;
+  }
+  if (!x_fs_path_is_file(&editor->project.game_dll_path))
+  {
+    char message[512];
+    snprintf(message, sizeof(message), "Game DLL not found at '%s'.",
+        editor->project.game_dll_path.buf);
+    ldki_editor_log_error(editor, message);
+    return false;
+  }
+  if (!s_project_editor_game_dll_path_get(
           &editor->project, &editor_game_dll_path))
   {
+    ldki_editor_log_error(editor,
+        "Failed to resolve editor game module cache path.");
     return false;
   }
 
@@ -3029,14 +3048,20 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
 
   if (!editor || !editor->project.loaded)
   {
+    ldk_log_error("[Project] Cannot import packages: no loaded project.\n");
     return false;
   }
 
   if (!x_ini_load_file(
           editor->project.project_file_path.buf, &ini, &error))
   {
-    ldk_log_error("Failed to read project imports from '%s'.\n",
-        editor->project.project_file_path.buf);
+    char message[512];
+    snprintf(message, sizeof(message),
+        "Could not read project imports from '%s' at %d:%d: %s",
+        editor->project.project_file_path.buf, error.line, error.column,
+        error.message ? error.message : "unknown INI error");
+    ldki_editor_log_error(editor, message);
+    x_ini_free(&ini);
     return false;
   }
 
@@ -3069,8 +3094,12 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
     if (!import_path || !import_path[0] || !copy_value ||
         (strcmp(copy_value, "0") != 0 && strcmp(copy_value, "1") != 0))
     {
-      ldk_log_error("Invalid [.box_imports] entry in '%s'.\n",
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Invalid [.box_imports] entry '%.160s' in '%s'.",
+          import_path ? import_path : "<null>",
           editor->project.project_file_path.buf);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
@@ -3078,8 +3107,10 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
     if (x_fs_path_is_absolute_cstr(import_path) ||
         strstr(import_path, "../") || strstr(import_path, "..\\"))
     {
-      ldk_log_error("Import path must stay relative to its RunTree: '%s'.\n",
-          import_path);
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Import path must stay relative to its RunTree: '%s'.", import_path);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
@@ -3100,8 +3131,11 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
 
     if (!relative_path[0] || x_fs_path_is_absolute_cstr(relative_path))
     {
-      ldk_log_error("Import path is invalid in '%s': '%s'.\n",
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Import path is invalid in '%s': '%s'.",
           editor->project.project_file_path.buf, import_path);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
@@ -3109,8 +3143,10 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
     const char *extension = strrchr(relative_path, '.');
     if (!extension || strcmp(extension, LDK_PACKAGE_FILE_EXTENSION) != 0)
     {
-      ldk_log_error("Imported package must be a .box file: '%s'.\n",
-          import_path);
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Imported package must be a .box file: '%s'.", import_path);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
@@ -3119,15 +3155,20 @@ static bool s_project_import_packages_mount(LDKEditorContext *editor)
     x_fs_path_normalize(&package_path);
     if (!x_fs_path_is_file(&package_path))
     {
-      ldk_log_error("Imported package not found: '%s'.\n", package_path.buf);
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Imported package not found: '%s'.", package_path.buf);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
 
     if (!ldki_editor_file_explorer_package_mount(editor, &package_path))
     {
-      ldk_log_error("Failed to mount imported package '%s'.\n",
-          package_path.buf);
+      char message[512];
+      snprintf(message, sizeof(message),
+          "Failed to mount imported package '%s'.", package_path.buf);
+      ldki_editor_log_error(editor, message);
       x_ini_free(&ini);
       return false;
     }
@@ -3232,67 +3273,99 @@ static bool s_project_unload(LDKEditorContext *editor)
   return true;
 }
 
+static void s_editor_project_load_error(LDKEditorContext *editor,
+    const char *project_path, const char *stage, const char *reason)
+{
+  char message[512];
+  snprintf(message, sizeof(message),
+      "Project load failed (%s) for '%s': %s", stage,
+      project_path ? project_path : "<null>",
+      reason ? reason : "unknown error");
+  if (editor)
+  {
+    ldki_editor_log_error(editor, message);
+  }
+  else
+  {
+    ldk_log_error("%s\n", message);
+  }
+}
+
 static bool s_project_load(
     LDKEditorContext *editor, const char *project_file_path)
 {
   LDKSceneManager *scene_manager;
-  LDKSceneResult scene_result;
+  LDKSceneResult scene_result = {0};
+  LDKAssetSource *asset_source;
   bool has_game_module;
 
   LDK_ASSERT(editor);
   LDK_ASSERT(editor->initialized);
 
-  if (!project_file_path)
+  if (!project_file_path || !project_file_path[0])
   {
+    s_editor_project_load_error(editor, project_file_path, "validation",
+        "project path is empty");
     return false;
   }
-
   if (editor->project.loaded)
   {
+    s_editor_project_load_error(editor, project_file_path, "validation",
+        "another project is still loaded");
     return false;
   }
 
+  /* ldk_project_load logs the precise .ldk/INI/derived-path failure. */
   if (!ldk_project_load(&editor->project, project_file_path))
   {
+    s_editor_project_load_error(editor, project_file_path, "project manifest",
+        "could not load/validate .ldk file; see preceding error");
     return false;
   }
 
-  LDKAssetSource *asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  asset_source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
   if (!asset_source || !ldk_asset_source_runtree_set(
                            asset_source, editor->project.run_root_path.buf))
   {
-    ldk_log_error("Failed to configure project asset source.\n");
+    s_editor_project_load_error(editor, project_file_path, "asset source",
+        asset_source ? "failed to set project runtree" :
+                       "asset source module is unavailable");
     goto fail;
   }
 
-  /* Set the explorer root before mounting packages. Changing roots clears old
-   * package mounts, so doing this afterwards would discard the packages that
-   * were just mounted. */
+  /* Focusing another root clears mounts: select RunTree first. */
   ldki_editor_file_explorer_focus_runtree(editor);
-
   if (!s_project_import_packages_mount(editor))
   {
+    s_editor_project_load_error(editor, project_file_path, "package imports",
+        "failed to mount imported packages; see preceding error");
     goto fail;
   }
-
-  /* Package mounting selects the package root. Project load should always
-   * finish with the project's RunTree selected instead. */
   ldki_editor_file_explorer_focus_runtree(editor);
 
   if (!ldk_engine_render_resolution_set(
           editor->project.project_resolution_width,
           editor->project.project_resolution_height))
   {
-    ldk_log_error("Invalid project render resolution %dx%d.\n",
+    char reason[160];
+    snprintf(reason, sizeof(reason), "invalid render resolution %dx%d",
         editor->project.project_resolution_width,
         editor->project.project_resolution_height);
+    s_editor_project_load_error(editor, project_file_path, "render settings",
+        reason);
     goto fail;
   }
 
   if (!ldk_engine_shadow_settings_set(editor->project.shadow_map_resolution,
           editor->project.shadow_distance))
   {
-    ldk_log_error("Failed to apply project shadow settings.\n");
+    char reason[160];
+    snprintf(reason, sizeof(reason),
+        "invalid shadow settings (map resolution %u, distance %.3f)",
+        editor->project.shadow_map_resolution,
+        editor->project.shadow_distance);
+    s_editor_project_load_error(editor, project_file_path, "shadow settings",
+        reason);
     goto fail;
   }
 
@@ -3301,19 +3374,22 @@ static bool s_project_load(
   {
     if (!s_project_game_module_load(editor))
     {
+      s_editor_project_load_error(editor, project_file_path, "game module",
+          "could not load/initialize game DLL; see preceding error");
       goto fail;
     }
   }
   else
   {
-    /* The scene catalog is project data and can be loaded without game
-     * metadata. Groupings are loaded later when the game module becomes
-     * available. */
+    /* Loading a project without a DLL is valid: queue an automatic build. */
     scene_manager = ldk_module_get(LDK_MODULE_SCENE_MANAGER);
-    if (!ldk_scene_manager_configure_file(scene_manager,
+    if (!scene_manager ||
+        !ldk_scene_manager_configure_file(scene_manager,
             editor->project.project_file_path.buf, &scene_result))
     {
-      ldki_editor_log_error(editor, scene_result.error);
+      s_editor_project_load_error(editor, project_file_path, "scene catalog",
+          scene_manager ? scene_result.error :
+                          "Scene Manager module is unavailable");
       goto fail;
     }
   }
@@ -3325,15 +3401,21 @@ static bool s_project_load(
       !s_editor_project_build_request_with_continuation(editor,
           LDK_EDITOR_PROJECT_BUILD_CONTINUATION_LOAD_GAME_MODULE))
   {
-    ldki_editor_log_error(
-        editor, "Game DLL is missing and the automatic build could not start.");
+    /* This is not a project load failure, but the DLL will not be built. */
+    ldki_editor_log_error(editor,
+        "Project loaded, but game DLL is missing and automatic build "
+        "could not be queued.");
   }
 
   s_editor_last_project_path_update(editor);
   return true;
 
 fail:
-  s_project_unload(editor);
+  if (!s_project_unload(editor))
+  {
+    s_editor_project_load_error(editor, project_file_path, "cleanup",
+        "failed to unload project state after load error");
+  }
   return false;
 }
 
@@ -3345,6 +3427,8 @@ static bool s_project_switch(
 
   if (editor == NULL || project_file_path == NULL || project_file_path[0] == 0)
   {
+    s_editor_project_load_error(editor, project_file_path, "switch",
+        "invalid editor or project path");
     return false;
   }
 
@@ -3356,6 +3440,8 @@ static bool s_project_switch(
 
   if (!s_project_unload(editor))
   {
+    s_editor_project_load_error(editor, project_file_path, "switch",
+        "could not unload currently open project");
     return false;
   }
 
@@ -4281,6 +4367,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldki_editor_scene_play_apply_discard(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   ldk_scene_diagnostic_handler_set(NULL, NULL);
+  ldk_project_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
 
   if (editor->project_build.active)
@@ -4601,9 +4688,9 @@ void ldk_editor_quit(LDKEditor *editor)
 // Entrypoint
 //----------------------------------------------------------
 
-static void s_editor_scene_diagnostic(const char *message, void *user)
+static void s_editor_load_diagnostic(const char *message, void *user)
 {
-  /* The scene loader already emitted this to the engine logger. */
+  /* Scene and project loaders already emitted this to the engine logger. */
   ldki_editor_console_append(
       user, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
 }
@@ -4612,7 +4699,8 @@ static i32 s_editor_main(const char *project_file_path)
 {
   LDKEditorContext *editor = s_editor_instance();
   editor->console_sb = x_strbuilder_create();
-  ldk_scene_diagnostic_handler_set(s_editor_scene_diagnostic, editor);
+  ldk_scene_diagnostic_handler_set(s_editor_load_diagnostic, editor);
+  ldk_project_diagnostic_handler_set(s_editor_load_diagnostic, editor);
 
   ldki_editor_register_commands(editor);
 

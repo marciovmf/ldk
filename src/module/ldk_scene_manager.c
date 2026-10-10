@@ -286,22 +286,40 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
   if (!source || !ldk_asset_source_find(source, scene->path.buf, &file))
   {
-    ldk_scene_result_set_error(result, "failed to find scene asset");
+    char message[256];
+    snprintf(message, sizeof(message), "cannot find scene asset '%s'%s",
+        scene->path.buf, source ? "" : " (asset source unavailable)");
+    ldk_scene_result_set_error(result, message);
     return NULL;
   }
 
   size = ldk_asset_source_file_size(&file);
   if (size > (u64)SIZE_MAX - 1u)
   {
-    ldk_scene_result_set_error(result, "scene asset is too large");
+    char message[256];
+    snprintf(message, sizeof(message), "scene asset '%s' is too large",
+        scene->path.buf);
+    ldk_scene_result_set_error(result, message);
     return NULL;
   }
 
   text = malloc((size_t)size + 1u);
-  if (!text || !ldk_asset_source_file_read(&file, text, size))
+  if (!text)
   {
+    char message[256];
+    snprintf(message, sizeof(message),
+        "cannot allocate %llu bytes for scene asset '%s'",
+        (unsigned long long)size + 1u, scene->path.buf);
+    ldk_scene_result_set_error(result, message);
+    return NULL;
+  }
+  if (!ldk_asset_source_file_read(&file, text, size))
+  {
+    char message[256];
     free(text);
-    ldk_scene_result_set_error(result, "failed to read scene asset");
+    snprintf(message, sizeof(message), "cannot read scene asset '%s'",
+        scene->path.buf);
+    ldk_scene_result_set_error(result, message);
     return NULL;
   }
   text[size] = 0;
@@ -309,6 +327,9 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
   /* Read and validate the target before destroying the current scene. */
   if (!ldk_scene_systems_from_tml(text, &systems, result))
   {
+    ldk_log_error("[Scene] Systems preflight failed for asset '%s': %s\n",
+        scene->path.buf,
+        result ? result->error : "see previous scene diagnostic");
     free(text);
     return NULL;
   }
@@ -350,6 +371,9 @@ static const LDKScene *s_scene_load(LDKSceneManager *manager,
 
   if (!ldk_scene_from_tml_with_systems(text, &systems, result))
   {
+    ldk_log_error("[Scene] Deserialization failed for asset '%s': %s\n",
+        scene->path.buf,
+        result ? result->error : "see previous scene diagnostic");
     free(text);
     /* The low-level loader can leave partially deserialized entities. */
     if (session_started)
@@ -502,6 +526,7 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   int section = -1;
   unsigned long count = 0;
   char *end;
+  char invalid_detail[128] = "invalid or missing [scenes] entry";
 
   ldk_scene_result_clear(result);
   if (!manager || !ini_path)
@@ -511,7 +536,13 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   }
   if (!x_ini_load_file(ini_path, &ini, &error))
   {
-    ldk_scene_result_set_error(result, "failed to read scene catalog INI");
+    char message[256];
+    snprintf(message, sizeof(message),
+        "cannot load scene catalog INI '%s' at %d:%d: %s",
+        ini_path, error.line, error.column,
+        error.message ? error.message : "unknown INI error");
+    ldk_scene_result_set_error(result, message);
+    x_ini_free(&ini);
     return false;
   }
 
@@ -529,6 +560,8 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     const char *value = x_ini_get(&ini, "scenes", "count", NULL);
     if (!value || !isdigit((unsigned char)*value))
     {
+      snprintf(invalid_detail, sizeof(invalid_detail),
+          "[scenes].count must be a nonnegative integer");
       goto invalid;
     }
     errno = 0;
@@ -536,6 +569,8 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     /* At least one path key per entry; also bound allocations by input size. */
     if (errno || *end || count > (unsigned long)x_ini_key_count(&ini, section))
     {
+      snprintf(invalid_detail, sizeof(invalid_detail),
+          "[scenes].count is malformed or exceeds available entries");
       goto invalid;
     }
     for (int i = 0; i < x_ini_key_count(&ini, section); ++i)
@@ -549,6 +584,8 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
       }
       if (!isdigit((unsigned char)*key))
       {
+        snprintf(invalid_detail, sizeof(invalid_detail),
+            "invalid [scenes] key '%.85s'", key);
         goto invalid;
       }
       errno = 0;
@@ -556,11 +593,15 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
       if (errno || index >= count ||
           (strcmp(end, ".path") != 0 && strcmp(end, ".name") != 0))
       {
+        snprintf(invalid_detail, sizeof(invalid_detail),
+            "out-of-range or malformed [scenes] key '%.80s'", key);
         goto invalid;
       }
       snprintf(canonical, sizeof(canonical), "%lu%s", index, end);
       if (strcmp(canonical, key) != 0)
       {
+        snprintf(invalid_detail, sizeof(invalid_detail),
+            "noncanonical [scenes] key '%.85s'", key);
         goto invalid;
       }
     }
@@ -583,12 +624,16 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     value = x_ini_get(&ini, "scenes", key, NULL);
     if (!value || !ldk_asset_path_set(&paths[i], value))
     {
+      snprintf(invalid_detail, sizeof(invalid_detail),
+          "invalid or missing [scenes].%u.path", i);
       goto invalid;
     }
     snprintf(key, sizeof(key), "%u.name", i);
     value = x_ini_get(&ini, "scenes", key, "");
     if (strlen(value) >= sizeof(names[i].buf))
     {
+      snprintf(invalid_detail, sizeof(invalid_detail),
+          "[scenes].%u.name is too long", i);
       goto invalid;
     }
     x_smallstr_from_cstr(&names[i], value);
@@ -598,6 +643,8 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   config.scene_count = (u32)count;
   if (!s_catalog_is_valid(&config))
   {
+    snprintf(invalid_detail, sizeof(invalid_detail),
+        "duplicate or invalid scene asset paths");
     goto invalid;
   }
 
@@ -619,9 +666,12 @@ bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
   goto done;
 
 invalid:
-  ldk_scene_result_set_error(result,
-      "invalid [scenes]: expected count and contiguous N.path/N.name entries; "
-      "paths must be unique asset paths");
+  {
+    char message[256];
+    snprintf(message, sizeof(message),
+        "invalid scene catalog '%s': %s", ini_path, invalid_detail);
+    ldk_scene_result_set_error(result, message);
+  }
 done:
   free(paths);
   free(names);

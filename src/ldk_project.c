@@ -1,4 +1,5 @@
 #include <ldk_common.h>
+#include <ldk.h>
 #include <ldk_project.h>
 #include <module/ldk_scene_manager.h>
 
@@ -11,8 +12,33 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+
+static LDKProjectDiagnosticFn s_project_diagnostic_handler;
+static void *s_project_diagnostic_user;
+
+void ldk_project_diagnostic_handler_set(
+    LDKProjectDiagnosticFn handler, void *user)
+{
+  s_project_diagnostic_handler = handler;
+  s_project_diagnostic_user = user;
+}
+
+static void s_project_load_error(const char *format, ...)
+{
+  char message[512];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(message, sizeof(message), format, args);
+  va_end(args);
+  ldk_log_error("[Project] %s\n", message);
+  if (s_project_diagnostic_handler)
+  {
+    s_project_diagnostic_handler(message, s_project_diagnostic_user);
+  }
+}
 
 #ifndef LDK_PROJECT_DEFAULT_CMAKE_GENERATOR
 #define LDK_PROJECT_DEFAULT_CMAKE_GENERATOR "Visual Studio 18 2026"
@@ -613,6 +639,9 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
 
   if (project == NULL || s_string_is_empty(project_file_path))
   {
+    s_project_load_error("Cannot load project: %s. Path: '%s'.",
+        project == NULL ? "output project is NULL" : "empty project path",
+        project_file_path ? project_file_path : "<null>");
     return false;
   }
 
@@ -623,6 +652,8 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
 
   if (!x_fs_path_is_file(&project->project_file_path))
   {
+    s_project_load_error("Project file does not exist or is not a file: '%s'.",
+        project->project_file_path.buf);
     return false;
   }
 
@@ -632,6 +663,11 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
   if (!x_ini_load_file(
           x_fs_path_cstr(&project->project_file_path), &ini, &ini_error))
   {
+    s_project_load_error("Could not parse project INI '%s' at %d:%d "
+        "(error %d): %s.", project->project_file_path.buf,
+        ini_error.line, ini_error.column, (int)ini_error.code,
+        ini_error.message ? ini_error.message : "unknown INI error");
+    x_ini_free(&ini);
     return false;
   }
 
@@ -646,6 +682,9 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
 
   if (x_fs_path_is_absolute_cstr(project_game_root))
   {
+    s_project_load_error("Invalid project_game_root '%s' in '%s': "
+        "path must be relative.", project_game_root,
+        project->project_file_path.buf);
     x_ini_free(&ini);
     memset(project, 0, sizeof(*project));
     return false;
@@ -707,6 +746,9 @@ bool ldk_project_load(LDKProject *project, const char *project_file_path)
 
   if (!x_fs_path_is_file(&project->game_cmake_path))
   {
+    s_project_load_error("Missing game CMakeLists.txt at '%s' "
+        "while loading '%s'. Check project_game_root.",
+        project->game_cmake_path.buf, project->project_file_path.buf);
     memset(project, 0, sizeof(*project));
     return false;
   }
