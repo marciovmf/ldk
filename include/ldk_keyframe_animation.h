@@ -66,6 +66,13 @@ LDK_API bool ldk_keyframe_target_resolve(
 
 LDK_API void ldk_keyframe_animation_init(LDKKeyframeAnimation *clip);
 LDK_API void ldk_keyframe_animation_clear(LDKKeyframeAnimation *clip);
+/* Deep copy, including keyframe arrays and event strings. Destination must
+ * have been initialized; on failure it is left unchanged. */
+LDK_API bool ldk_keyframe_animation_copy(
+    LDKKeyframeAnimation *destination, const LDKKeyframeAnimation *source);
+/* A shorter duration is rejected if it would leave keys/events outside the clip. */
+LDK_API bool ldk_keyframe_animation_duration_set(
+    LDKKeyframeAnimation *clip, float duration);
 LDK_API i32 ldk_keyframe_animation_track_find(const LDKKeyframeAnimation *clip,
     u64 path, u32 component_type, const char *property_name);
 LDK_API i32 ldk_keyframe_animation_track_add(LDKKeyframeAnimation *clip,
@@ -75,6 +82,10 @@ LDK_API bool ldk_keyframe_animation_key_set(LDKKeyframeAnimation *clip,
     u32 track, float time, LDKPropertyValue value);
 LDK_API bool ldk_keyframe_animation_key_remove(
     LDKKeyframeAnimation *clip, u32 track, u32 key);
+/* Move a key atomically, without overwriting another key or allocating. */
+LDK_API bool ldk_keyframe_animation_key_move(
+    LDKKeyframeAnimation *clip, u32 track, u32 key, float new_time,
+    u32 *out_index);
 LDK_API bool ldk_keyframe_animation_sample(const LDKKeyframeAnimation *clip,
     u32 track, float time, LDKPropertyValue *out_value);
 LDK_API bool ldk_keyframe_animation_apply(
@@ -86,6 +97,16 @@ LDK_API bool ldk_keyframe_animation_event_add_integer(
     LDKKeyframeAnimation *clip, float time, i32 number);
 LDK_API bool ldk_keyframe_animation_event_add_string(
     LDKKeyframeAnimation *clip, float time, const char *text);
+/* Mutating event operations preserve chronological ordering. */
+LDK_API bool ldk_keyframe_animation_event_remove(
+    LDKKeyframeAnimation *clip, u32 event_index);
+LDK_API bool ldk_keyframe_animation_event_move(
+    LDKKeyframeAnimation *clip, u32 event_index, float new_time,
+    u32 *out_index);
+LDK_API bool ldk_keyframe_animation_event_set_integer(
+    LDKKeyframeAnimation *clip, u32 event_index, i32 number);
+LDK_API bool ldk_keyframe_animation_event_set_string(
+    LDKKeyframeAnimation *clip, u32 event_index, const char *text);
 LDK_API void ldk_keyframe_animation_events_dispatch(
     const LDKKeyframeAnimation *clip, LDKEntity root, float previous_time,
     float current_time, LDKKeyframeEventFn fn, void *user);

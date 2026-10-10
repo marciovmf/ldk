@@ -101,6 +101,115 @@ void ldk_keyframe_animation_clear(LDKKeyframeAnimation *clip)
   ldk_keyframe_animation_init(clip);
 }
 
+bool ldk_keyframe_animation_copy(
+    LDKKeyframeAnimation *destination, const LDKKeyframeAnimation *source)
+{
+  if (!destination || !source || !isfinite(source->duration) ||
+      source->duration <= 0.0f)
+  {
+    return false;
+  }
+  if (destination == source)
+  {
+    return true;
+  }
+  LDKKeyframeAnimation result;
+  ldk_keyframe_animation_init(&result);
+  result.duration = source->duration;
+  if (source->track_count)
+  {
+    if (!source->tracks ||
+        (size_t)source->track_count > SIZE_MAX / sizeof(*result.tracks))
+    {
+      return false;
+    }
+    result.tracks = calloc(source->track_count, sizeof(*result.tracks));
+    if (!result.tracks)
+    {
+      return false;
+    }
+    result.track_count = result.track_capacity = source->track_count;
+    for (u32 i = 0; i < source->track_count; ++i)
+    {
+      const LDKKeyframeTrack *from = &source->tracks[i];
+      LDKKeyframeTrack *to = &result.tracks[i];
+      *to = *from;
+      to->keys = NULL;
+      to->count = to->capacity = 0;
+      if (from->count)
+      {
+        if (!from->keys ||
+            (size_t)from->count > SIZE_MAX / sizeof(*to->keys))
+        {
+          goto fail;
+        }
+        to->keys = malloc((size_t)from->count * sizeof(*to->keys));
+        if (!to->keys) goto fail;
+        memcpy(to->keys, from->keys,
+            (size_t)from->count * sizeof(*to->keys));
+        to->count = to->capacity = from->count;
+      }
+    }
+  }
+  if (source->event_count)
+  {
+    if (!source->events ||
+        (size_t)source->event_count > SIZE_MAX / sizeof(*result.events))
+    {
+      goto fail;
+    }
+    result.events = calloc(source->event_count, sizeof(*result.events));
+    if (!result.events) goto fail;
+    result.event_count = result.event_capacity = source->event_count;
+    for (u32 i = 0; i < source->event_count; ++i)
+    {
+      const LDKKeyframeEvent *from = &source->events[i];
+      LDKKeyframeEvent *to = &result.events[i];
+      *to = *from;
+      to->text = NULL;
+      if (from->text)
+      {
+        size_t length = strlen(from->text);
+        to->text = malloc(length + 1);
+        if (!to->text) goto fail;
+        memcpy(to->text, from->text, length + 1);
+      }
+    }
+  }
+  ldk_keyframe_animation_clear(destination);
+  *destination = result;
+  return true;
+fail:
+  ldk_keyframe_animation_clear(&result);
+  return false;
+}
+
+bool ldk_keyframe_animation_duration_set(
+    LDKKeyframeAnimation *clip, float duration)
+{
+  if (!clip || !isfinite(duration) || duration <= 0.0f)
+  {
+    return false;
+  }
+  for (u32 t = 0; t < clip->track_count; ++t)
+  {
+    const LDKKeyframeTrack *track = &clip->tracks[t];
+    if (track->count && track->keys[track->count - 1].time > duration)
+    {
+      return false;
+    }
+  }
+  for (u32 i = 0; i < clip->event_count; ++i)
+  {
+    if (clip->events[i].time > duration)
+    {
+      return false;
+    }
+  }
+  clip->duration = duration;
+  return true;
+}
+
 static bool s_keyframe_reserve(void **buffer, u32 *capacity,
     u32 required, size_t element_size)
 {
@@ -263,6 +372,54 @@ bool ldk_keyframe_animation_key_remove(
   memmove(&t->keys[key], &t->keys[key + 1],
       (t->count - key - 1) * sizeof(*t->keys));
   t->count--;
+  return true;
+}
+
+bool ldk_keyframe_animation_key_move(
+    LDKKeyframeAnimation *clip, u32 track, u32 key, float new_time,
+    u32 *out_index)
+{
+  if (!clip || track >= clip->track_count || !isfinite(new_time) ||
+      new_time < 0.0f || new_time > clip->duration)
+  {
+    return false;
+  }
+  LDKKeyframeTrack *t = &clip->tracks[track];
+  if (key >= t->count)
+  {
+    return false;
+  }
+  for (u32 i = 0; i < t->count; ++i)
+  {
+    if (i != key && fabsf(t->keys[i].time - new_time) < 0.0001f)
+    {
+      return false;
+    }
+  }
+  LDKKeyframe moved = t->keys[key];
+  if (moved.time == new_time)
+  {
+    if (out_index) *out_index = key;
+    return true;
+  }
+  if (key + 1 < t->count)
+  {
+    memmove(&t->keys[key], &t->keys[key + 1],
+        (t->count - key - 1) * sizeof(*t->keys));
+  }
+  u32 insert = 0;
+  while (insert < t->count - 1 && t->keys[insert].time < new_time)
+  {
+    ++insert;
+  }
+  if (insert < t->count - 1)
+  {
+    memmove(&t->keys[insert + 1], &t->keys[insert],
+        (t->count - 1 - insert) * sizeof(*t->keys));
+  }
+  moved.time = new_time;
+  t->keys[insert] = moved;
+  if (out_index) *out_index = insert;
   return true;
 }
 
@@ -456,6 +613,101 @@ bool ldk_keyframe_animation_event_add_string(
 {
   return s_keyframe_event_add(clip, time, LDK_KEYFRAME_EVENT_STRING,
       0, text);
+}
+
+bool ldk_keyframe_animation_event_remove(
+    LDKKeyframeAnimation *clip, u32 event_index)
+{
+  if (!clip || event_index >= clip->event_count)
+  {
+    return false;
+  }
+  free(clip->events[event_index].text);
+  if (event_index + 1 < clip->event_count)
+  {
+    memmove(&clip->events[event_index], &clip->events[event_index + 1],
+        (clip->event_count - event_index - 1) * sizeof(*clip->events));
+  }
+  --clip->event_count;
+  return true;
+}
+
+bool ldk_keyframe_animation_event_move(
+    LDKKeyframeAnimation *clip, u32 event_index, float new_time,
+    u32 *out_index)
+{
+  if (!clip || event_index >= clip->event_count || !isfinite(new_time) ||
+      new_time < 0.0f || new_time > clip->duration)
+  {
+    return false;
+  }
+  LDKKeyframeEvent moved = clip->events[event_index];
+  if (moved.time == new_time)
+  {
+    if (out_index) *out_index = event_index;
+    return true;
+  }
+  if (event_index + 1 < clip->event_count)
+  {
+    memmove(&clip->events[event_index], &clip->events[event_index + 1],
+        (clip->event_count - event_index - 1) * sizeof(*clip->events));
+  }
+  u32 insert = 0;
+  while (insert < clip->event_count - 1 &&
+      clip->events[insert].time <= new_time)
+  {
+    ++insert;
+  }
+  if (insert < clip->event_count - 1)
+  {
+    memmove(&clip->events[insert + 1], &clip->events[insert],
+        (clip->event_count - insert - 1) * sizeof(*clip->events));
+  }
+  moved.time = new_time;
+  clip->events[insert] = moved;
+  if (out_index) *out_index = insert;
+  return true;
+}
+
+bool ldk_keyframe_animation_event_set_integer(
+    LDKKeyframeAnimation *clip, u32 event_index, i32 number)
+{
+  if (!clip || event_index >= clip->event_count)
+  {
+    return false;
+  }
+  LDKKeyframeEvent *event = &clip->events[event_index];
+  free(event->text);
+  event->text = NULL;
+  event->type = LDK_KEYFRAME_EVENT_INTEGER;
+  event->number = number;
+  return true;
+}
+
+bool ldk_keyframe_animation_event_set_string(
+    LDKKeyframeAnimation *clip, u32 event_index, const char *text)
+{
+  if (!clip || event_index >= clip->event_count || !text)
+  {
+    return false;
+  }
+  size_t length = strlen(text);
+  if (length == SIZE_MAX)
+  {
+    return false;
+  }
+  char *copy = malloc(length + 1);
+  if (!copy)
+  {
+    return false;
+  }
+  memcpy(copy, text, length + 1);
+  LDKKeyframeEvent *event = &clip->events[event_index];
+  free(event->text);
+  event->text = copy;
+  event->type = LDK_KEYFRAME_EVENT_STRING;
+  event->number = 0;
+  return true;
 }
 
 void ldk_keyframe_animation_events_dispatch(

@@ -524,6 +524,56 @@ const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_co
       ? (const LDKAssetKeyframeAnimationData *)info->data : NULL;
 }
 
+LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_create(
+    LDKAssetManager *manager, const LDKKeyframeAnimation *clip)
+{
+  LDKAssetKeyframeAnimation result = ldk_asset_keyframe_animation_null();
+  if (!manager || !clip)
+  {
+    return result;
+  }
+  LDKAssetKeyframeAnimationData *data = calloc(1, sizeof(*data));
+  if (!data)
+  {
+    return result;
+  }
+  ldk_keyframe_animation_init(&data->clip);
+  if (!ldk_keyframe_animation_copy(&data->clip, clip))
+  {
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return result;
+  }
+  XHandle handle = x_hpool_alloc(&manager->pool);
+  if (x_handle_is_null(handle))
+  {
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return result;
+  }
+  LDKAssetInfo *info = x_hpool_get(&manager->pool, handle);
+  if (!info)
+  {
+    x_hpool_free(&manager->pool, handle);
+    ldk_keyframe_animation_clear(&data->clip);
+    free(data);
+    return result;
+  }
+  info->type = LDK_ASSET_TYPE_KEYFRAME_ANIMATION;
+  info->data = data;
+  result.h = handle;
+  return result;
+}
+
+void ldk_asset_manager_keyframe_animation_unload(
+    LDKAssetManager *manager, LDKAssetKeyframeAnimation asset)
+{
+  if (ldk_asset_manager_keyframe_animation_is_alive(manager, asset))
+  {
+    x_hpool_free(&manager->pool, asset.h);
+  }
+}
+
 typedef struct LDKSharedKeyframeLookup
 {
   LDKAssetPath path;

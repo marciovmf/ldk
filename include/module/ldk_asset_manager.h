@@ -83,6 +83,14 @@ extern "C" {
   LDK_API LDKAssetKeyframeAnimation ldk_asset_keyframe_animation_null(void);
   LDK_API bool ldk_asset_manager_keyframe_animation_is_alive(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
+  /* Create a transient asset from a code-authored clip. Copies all clip data;
+   * no filesystem access required. Save separately for scene persistence. */
+  LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_create(
+      LDKAssetManager *manager, const LDKKeyframeAnimation *clip);
+  /* Invalidates the handle: detach it from animation sources before calling.
+   * Shared file assets remain owned by the manager until unloaded/cleared. */
+  LDK_API void ldk_asset_manager_keyframe_animation_unload(
+      LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
   /* Cached by asset path and source revision; manager owns the result. */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_load_shared(
       LDKAssetManager *manager, const char *path);

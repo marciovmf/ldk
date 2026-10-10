@@ -37,4 +37,17 @@ animation:
           value: false
         - time: 4.440000057
           value: true
+    - target: "0xcbf29ce484222325"
+      component: 4294967290
+      property: "range"
+      type: 3
+      keys:
+        - time: 0.010000000
+          value: 10.000000000
+        - time: 2.317817450
+          value: 12.000000000
+        - time: 3.150000095
+          value: 8.000000000
+        - time: 3.460000038
+          value: 10.000000000
   events:

@@ -628,7 +628,7 @@ static void s_editor_animation_draw_rect(
   }
 }
 
-/* Dragging alters only key time, retaining its original value. */
+/* Key timing is owned by Animation Core; the editor only updates selection. */
 static void s_editor_animation_move_key(float new_time)
 {
   LDKEditorAnimationState *state = &s_editor_animation;
@@ -636,50 +636,17 @@ static void s_editor_animation_move_key(float new_time)
   {
     return;
   }
-  LDKKeyframeTrack *track = &state->clip.tracks[state->selected_track];
-  if (state->selected_key >= track->count)
-  {
-    return;
-  }
-  float old_time = track->keys[state->selected_key].time;
   new_time = s_editor_animation_clamp(new_time, 0.0f, state->clip.duration);
   new_time = floorf(new_time * 100.0f + 0.5f) / 100.0f;
-  if (fabsf(old_time - new_time) < 0.0001f)
+  u32 next_index;
+  if (state->selected_key >= state->clip.tracks[state->selected_track].count ||
+      state->clip.tracks[state->selected_track].keys[state->selected_key].time == new_time ||
+      !ldk_keyframe_animation_key_move(&state->clip, state->selected_track,
+          state->selected_key, new_time, &next_index))
   {
     return;
   }
-  for (u32 i = 0; i < track->count; ++i)
-  {
-    if (i != state->selected_key &&
-        fabsf(track->keys[i].time - new_time) < 0.0001f)
-    {
-      return; /* Moving a key must not silently overwrite another. */
-    }
-  }
-  LDKPropertyValue value = track->keys[state->selected_key].value;
-  if (!ldk_keyframe_animation_key_remove(
-          &state->clip, state->selected_track, state->selected_key))
-  {
-    return;
-  }
-  if (!ldk_keyframe_animation_key_set(
-          &state->clip, state->selected_track, new_time, value))
-  {
-    /* Preserve the original value if insertion fails. */
-    (void)ldk_keyframe_animation_key_set(
-        &state->clip, state->selected_track, old_time, value);
-    state->key_selected = false;
-    return;
-  }
-  track = &state->clip.tracks[state->selected_track];
-  for (u32 i = 0; i < track->count; ++i)
-  {
-    if (track->keys[i].time == new_time)
-    {
-      state->selected_key = i;
-      break;
-    }
-  }
+  state->selected_key = next_index;
   state->dirty = true;
   s_editor_animation_set_time(new_time);
 }
@@ -2153,9 +2120,9 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   {
     float duration = 0.0f;
     if (s_editor_animation_float_parse(state->duration_text, &duration) &&
-        duration >= 0.1f && duration != state->clip.duration)
+        duration >= 0.1f && duration != state->clip.duration &&
+        ldk_keyframe_animation_duration_set(&state->clip, duration))
     {
-      state->clip.duration = duration;
       state->playhead = fminf(state->playhead, duration);
       state->dirty = true;
       s_editor_animation_view_clamp();
