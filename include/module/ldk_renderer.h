@@ -218,7 +218,9 @@ extern "C" {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
     LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY = 1 << 0,
     LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS = 1 << 1,
-    LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD = 1 << 2
+    LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD = 1 << 2,
+    /* Editor handles: orthographic overlay in render-target pixels (Y up). */
+    LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE = 1 << 3
   } LDKRendererMeshSubmitFlag;
 
   typedef struct LDKRendererMeshSubmit
@@ -1830,6 +1832,22 @@ extern "C" {
       LDKResourceMesh mesh,
       LDKResourceMaterial material,
       Mat4 world);
+
+  /**
+   * @brief Submit a view-local orthographic overlay mesh in framebuffer pixels.
+   *
+   * The submitted world transform is in view-relative pixels: X right,
+   * Y up, origin at the bottom-left of the render target. Z represents
+   * an arbitrary local depth. The viewport-independent orthographic camera
+   * applies no perspective foreshortening. These meshes render after ordinary
+   * overlays, without scene depth testing. Intended for editor handles.
+   */
+  LDK_API bool ldk_renderer_submit_orthographic_overlay_mesh_to_view(
+      LDKRenderer* renderer,
+      LDKRendererViewId view_id,
+      LDKResourceMesh mesh,
+      LDKResourceMaterial material,
+      Mat4 pixel_transform);
 
   /**
    * @brief Submit a depth-tested wireframe mesh to one render view.

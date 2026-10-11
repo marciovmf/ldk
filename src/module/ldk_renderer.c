@@ -4513,7 +4513,9 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
   for (u32 i = 0; i < renderer->submitted_mesh_count; ++i)
   {
     LDKRendererMeshSubmit* submit = &renderer->submitted_meshes[i];
-    if ((submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) != flags ||
+    if ((submit->flags & (LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
+                              LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE)) !=
+            flags ||
         (submit->view_id != LDK_RENDERER_VIEW_ALL &&
             submit->view_id != view->id))
     {
@@ -4522,13 +4524,13 @@ static void s_renderer_mesh_pass_draw_unsorted_submissions(
 
     LDKRendererMaterialResource *material =
         s_renderer_material_get_resource(renderer, submit->material);
-    if (flags != LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY &&
+    if ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) == 0 &&
         s_renderer_material_is_blended(material))
     {
       continue;
     }
 
-    if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
+    if ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) != 0)
     {
       u32 instance_count =
           s_renderer_mesh_submit_instance_count(renderer, submit);
@@ -4559,7 +4561,7 @@ static void s_renderer_mesh_pass_draw_submissions(LDKRenderer* renderer,
   LDKRendererFrameDomainStats* stats =
       s_renderer_frame_stats_for_view(renderer, view);
 
-  if (flags == LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY)
+  if ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) != 0)
   {
     s_renderer_mesh_pass_draw_unsorted_submissions(
         renderer, pass, view, flags);
@@ -5220,8 +5222,22 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
   Mat4 camera_world = mat4_inverse_affine(view->view);
   Vec3 camera_position =
       mat4_mul_point(camera_world, vec3_make(0.0f, 0.0f, 0.0f));
-  camera_params.view = view->view;
-  camera_params.projection = view->projection;
+  /* This second overlay camera is strictly orthographic. Editor handle
+   * coordinates are viewport pixels, so neither scene projection nor zoom
+   * can change their on-screen size. */
+  if ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE) != 0)
+  {
+    camera_params.view = mat4_identity();
+    camera_params.projection = mat4_orthographic_rh_no(
+        0.0f, (float)view->width, 0.0f, (float)view->height,
+        -4096.0f, 4096.0f);
+    camera_position = vec3_make(0.0f, 0.0f, 4096.0f);
+  }
+  else
+  {
+    camera_params.view = view->view;
+    camera_params.projection = view->projection;
+  }
   camera_params.camera_position[0] = camera_position.x;
   camera_params.camera_position[1] = camera_position.y;
   camera_params.camera_position[2] = camera_position.z;
@@ -5230,7 +5246,10 @@ static void s_renderer_mesh_pass_draw(LDKRenderer* renderer,
       sizeof(camera_params), &camera_params);
 
   s_renderer_mesh_pass_draw_submissions(renderer, pass, view, flags);
-  s_renderer_lines_draw(renderer, pass, view, flags);
+  if ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE) == 0)
+  {
+    s_renderer_lines_draw(renderer, pass, view, flags);
+  }
 }
 // ---------------------------------------------------------------------------
 // Internal pass: Skybox
@@ -6278,6 +6297,9 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   }
   s_renderer_mesh_pass_draw(renderer, &renderer->mesh_pass, view,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
+  s_renderer_mesh_pass_draw(renderer, &renderer->mesh_pass, view,
+      LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
+          LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE);
   ldk_rhi_pass_end(renderer->rhi);
   return true;
 }
@@ -10721,7 +10743,10 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   if (renderer == NULL || !renderer->is_initialized ||
       (flags & ~(LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
                    LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS |
-                   LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)) != 0)
+                   LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD |
+                   LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE)) != 0 ||
+      ((flags & LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE) != 0 &&
+       (flags & LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY) == 0))
   {
     return false;
   }
@@ -11078,6 +11103,27 @@ bool ldk_renderer_submit_overlay_mesh_to_view(LDKRenderer* renderer,
   return s_renderer_submit_mesh(renderer, view_id, mesh, material,
       0, resource->index_count, world,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY);
+}
+
+bool ldk_renderer_submit_orthographic_overlay_mesh_to_view(
+    LDKRenderer* renderer, LDKRendererViewId view_id,
+    LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 pixel_transform)
+{
+  if (view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL)
+  {
+    return false;
+  }
+  LDKRendererMeshResource* resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource == NULL)
+  {
+    return false;
+  }
+  return s_renderer_submit_mesh(renderer, view_id, mesh, material,
+      0, resource->index_count, pixel_transform,
+      LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
+          LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE);
 }
 
 bool ldk_renderer_submit_wireframe_mesh_to_view(LDKRenderer *renderer,

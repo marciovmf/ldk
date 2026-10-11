@@ -16,7 +16,6 @@
 
 #define LDK_EDITOR_GIZMO_AXIS_COUNT 3u
 #define LDK_EDITOR_GIZMO_PIXEL_LENGTH 96.0f
-#define LDK_EDITOR_GIZMO_MIN_WORLD_LENGTH 0.05f
 #define LDK_EDITOR_GIZMO_PICK_RADIUS 12.0f
 #define LDK_EDITOR_GIZMO_CENTER_PICK_RADIUS 12.0f
 #define LDK_EDITOR_GIZMO_MAX_HIERARCHY_DEPTH 256u
@@ -610,39 +609,81 @@ static bool s_editor_gizmo_initialize(LDKEditorContext *editor)
   return true;
 }
 
-static float s_editor_gizmo_world_length(
-    LDKEditorContext *editor, Vec3 position)
+static bool s_editor_gizmo_world_to_scene(
+    LDKEditorContext *editor, Mat4 view_projection,
+    Vec3 world_position, LDKUIPoint *out_position);
+
+/* Screen-space gizmos have fixed dimensions, not world-space dimensions.
+ * Their orientation is the entity's world rotation expressed in camera axes.
+ * The renderer uses an orthographic pass with one unit per target pixel. */
+static bool s_editor_gizmo_screen_transform_get(
+    LDKEditorContext *editor, Vec3 world_origin, Mat4 world_orientation,
+    Vec3 *out_origin, Mat4 *out_orientation, LDKUIPoint *out_ui_origin)
 {
-  LDKCamera *camera;
-  Mat4 camera_world;
-  Vec3 camera_position;
-  float world_length;
+  const LDKUIRect *rect;
+  Mat4 view;
+  Mat4 projection;
+  Mat4 view_rotation;
+  LDKUIPoint ui_origin;
+  u32 width;
+  u32 height;
 
-  camera = (LDKCamera *)ldk_ecs_component_get(
-      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
-  if (camera == NULL || editor->gizmo.scene_view_rect.h <= 0.0f ||
-      !ldk_camera_get_world_matrix(editor->editor_camera, &camera_world))
+  if (editor == NULL || editor->renderer == NULL ||
+      !ldk_renderer_view_extent_get(
+          editor->renderer, editor->scene_view, &width, &height))
   {
-    return 1.0f;
+    return false;
+  }
+  rect = &editor->gizmo.scene_view_rect;
+  if (rect->w <= 0.0f || rect->h <= 0.0f ||
+      !ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
+      !ldk_camera_get_projection_matrix(
+          editor->editor_camera, (float)width / (float)height, &projection))
+  {
+    return false;
   }
 
-  if (camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC)
+  if (!s_editor_gizmo_world_to_scene(editor, mat4_mul(projection, view),
+          world_origin, &ui_origin))
   {
-    world_length = camera->orthographic_height *
-                   LDK_EDITOR_GIZMO_PIXEL_LENGTH /
-                   editor->gizmo.scene_view_rect.h;
-  }
-  else
-  {
-    camera_position = vec3_make(
-        camera_world.m[12], camera_world.m[13], camera_world.m[14]);
-    float distance = vec3_len(vec3_sub(position, camera_position));
-    float visible_height = 2.0f * distance * tanf(camera->fov_y * 0.5f);
-    world_length = visible_height * LDK_EDITOR_GIZMO_PIXEL_LENGTH /
-                   editor->gizmo.scene_view_rect.h;
+    return false;
   }
 
-  return float_max(world_length, LDK_EDITOR_GIZMO_MIN_WORLD_LENGTH);
+  if (out_ui_origin)
+  {
+    *out_ui_origin = ui_origin;
+  }
+  if (out_origin)
+  {
+    *out_origin = vec3_make(
+        (ui_origin.x - rect->x) * (float)width / rect->w,
+        (rect->y + rect->h - ui_origin.y) * (float)height / rect->h,
+        0.0f);
+  }
+  if (out_orientation)
+  {
+    /* Remove only camera translation: keep its rotation to orient axes. */
+    view_rotation = view;
+    view_rotation.m[12] = 0.0f;
+    view_rotation.m[13] = 0.0f;
+    view_rotation.m[14] = 0.0f;
+    *out_orientation = mat4_mul(view_rotation, world_orientation);
+  }
+  return true;
+}
+
+static float s_editor_gizmo_pixel_scale(const LDKEditorContext *editor)
+{
+  u32 width;
+  u32 height;
+  if (editor == NULL || editor->renderer == NULL ||
+      editor->gizmo.scene_view_rect.h <= 0.0f ||
+      !ldk_renderer_view_extent_get(
+          editor->renderer, editor->scene_view, &width, &height))
+  {
+    return 0.0f;
+  }
+  return (float)height / editor->gizmo.scene_view_rect.h;
 }
 
 static Mat4 s_editor_gizmo_part_world(
@@ -979,7 +1020,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     editor->gizmo.drag_origin = origin;
     editor->gizmo.drag_initial_cursor = cursor;
     editor->gizmo.drag_world_length =
-        s_editor_gizmo_world_length(editor, origin);
+        LDK_EDITOR_GIZMO_PIXEL_LENGTH;
     editor->gizmo.active_axis = active_axis;
     editor->gizmo.drag_mode = editor->gizmo.mode;
     editor->gizmo.dragging = true;
@@ -1029,7 +1070,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     editor->gizmo.drag_previous_angle = 0.0f;
     editor->gizmo.drag_accumulated_angle = 0.0f;
     editor->gizmo.drag_world_length =
-        s_editor_gizmo_world_length(editor, origin);
+        LDK_EDITOR_GIZMO_PIXEL_LENGTH;
     editor->gizmo.active_axis = active_axis;
     editor->gizmo.drag_mode = editor->gizmo.mode;
     editor->gizmo.dragging = true;
@@ -1063,7 +1104,7 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
       vec3_dot(vec3_sub(hit_position, origin), axis);
   editor->gizmo.drag_initial_cursor = cursor;
   editor->gizmo.drag_world_length =
-      s_editor_gizmo_world_length(editor, origin);
+      LDK_EDITOR_GIZMO_PIXEL_LENGTH;
   editor->gizmo.active_axis = active_axis;
   editor->gizmo.drag_mode = editor->gizmo.mode;
   editor->gizmo.dragging = true;
@@ -1419,119 +1460,47 @@ static float s_editor_gizmo_point_distance(
   return sqrtf(x * x + y * y);
 }
 
-static bool s_editor_gizmo_rotation_ring_segment_visible(
-    Mat4 ring_orientation, Mat4 camera_world, Vec3 origin,
-    float radius, float angle, bool orthographic)
-{
-  Vec3 ring_normal = vec3_make(0.0f, 0.0f, 1.0f);
-  Vec3 direction = s_editor_gizmo_rotation_ring_direction(angle);
-  Vec3 local_front_normal;
-  Vec3 local_back_normal;
-  Vec3 world_front_normal;
-  Vec3 world_back_normal;
-  Vec3 world_position;
-  Vec3 to_camera;
-  float radial_depth =
-      1.0f - LDK_EDITOR_GIZMO_ROTATION_RING_INNER_RADIUS;
-  float center_radius =
-      (1.0f + LDK_EDITOR_GIZMO_ROTATION_RING_INNER_RADIUS) * 0.5f;
-
-  local_front_normal = vec3_norm(vec3_add(
-      vec3_mul(direction, LDK_EDITOR_GIZMO_ROTATION_RING_HALF_DEPTH),
-      vec3_mul(ring_normal, radial_depth)));
-  local_back_normal = vec3_norm(vec3_sub(
-      vec3_mul(direction, LDK_EDITOR_GIZMO_ROTATION_RING_HALF_DEPTH),
-      vec3_mul(ring_normal, radial_depth)));
-  world_front_normal =
-      vec3_norm(mat4_mul_dir(ring_orientation, local_front_normal));
-  world_back_normal =
-      vec3_norm(mat4_mul_dir(ring_orientation, local_back_normal));
-  world_position = vec3_add(origin,
-      vec3_mul(mat4_mul_dir(ring_orientation, direction),
-          radius * center_radius));
-
-  if (orthographic)
-  {
-    to_camera = vec3_make(
-        camera_world.m[8], camera_world.m[9], camera_world.m[10]);
-  }
-  else
-  {
-    Vec3 camera_position = vec3_make(camera_world.m[12],
-        camera_world.m[13], camera_world.m[14]);
-    to_camera = vec3_norm(vec3_sub(camera_position, world_position));
-  }
-
-  return vec3_dot(world_front_normal, to_camera) > 0.0f ||
-         vec3_dot(world_back_normal, to_camera) > 0.0f;
-}
-
+/* Hit-test the exact orthographic arc in UI pixel coordinates. */
 static bool s_editor_gizmo_rotation_ring_distance_get(
-    LDKEditorContext *editor, Mat4 view_projection, Mat4 orientation,
-    Mat4 camera_world, bool orthographic, Vec3 origin, u32 axis,
+    Mat4 screen_orientation, LDKUIPoint ui_origin, u32 axis,
     float radius, LDKUIPoint cursor, float *out_distance)
 {
-  bool distance_valid = false;
   float best_distance = LDK_EDITOR_GIZMO_PICK_RADIUS;
-  float center_radius =
-      radius *
+  float center_radius = radius *
       (1.0f + LDK_EDITOR_GIZMO_ROTATION_RING_INNER_RADIUS) * 0.5f;
   Mat4 ring_orientation;
 
-  if (editor == NULL || out_distance == NULL ||
-      axis >= LDK_EDITOR_GIZMO_AXIS_COUNT)
+  if (out_distance == NULL || axis >= LDK_EDITOR_GIZMO_AXIS_COUNT)
   {
     return false;
   }
 
   ring_orientation =
-      s_editor_gizmo_rotation_ring_orientation(orientation, axis);
-
-  for (u32 segment = 0u;
-       segment < LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS; ++segment)
+      s_editor_gizmo_rotation_ring_orientation(screen_orientation, axis);
+  for (u32 segment = 0; segment < LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS;
+       ++segment)
   {
-    float start_t = (float)segment /
-                    (float)LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS;
-    float end_t = (float)(segment + 1u) /
-                  (float)LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS;
-    float start_angle = start_t * LDK_EDITOR_GIZMO_PI * 2.0f;
-    float end_angle = end_t * LDK_EDITOR_GIZMO_PI * 2.0f;
-    float middle_angle = (start_angle + end_angle) * 0.5f;
-    Vec3 start_direction =
-        s_editor_gizmo_rotation_ring_direction(start_angle);
-    Vec3 end_direction =
-        s_editor_gizmo_rotation_ring_direction(end_angle);
-    Vec3 start_position = vec3_add(origin,
-        vec3_mul(mat4_mul_dir(ring_orientation, start_direction),
-            center_radius));
-    Vec3 end_position = vec3_add(origin,
-        vec3_mul(mat4_mul_dir(ring_orientation, end_direction),
-            center_radius));
-    LDKUIPoint start_screen;
-    LDKUIPoint end_screen;
-
-    if (s_editor_gizmo_rotation_ring_segment_visible(ring_orientation,
-            camera_world, origin, radius, middle_angle, orthographic) &&
-        s_editor_gizmo_world_to_scene(
-            editor, view_projection, start_position, &start_screen) &&
-        s_editor_gizmo_world_to_scene(
-            editor, view_projection, end_position, &end_screen))
+    float a = 2.0f * LDK_EDITOR_GIZMO_PI * (float)segment /
+        (float)LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS;
+    float b = 2.0f * LDK_EDITOR_GIZMO_PI * (float)(segment + 1u) /
+        (float)LDK_EDITOR_GIZMO_ROTATION_RING_SEGMENTS;
+    Vec3 pa = mat4_mul_dir(ring_orientation,
+        s_editor_gizmo_rotation_ring_direction(a));
+    Vec3 pb = mat4_mul_dir(ring_orientation,
+        s_editor_gizmo_rotation_ring_direction(b));
+    LDKUIPoint start = ldk_pointf(
+        ui_origin.x + pa.x * center_radius,
+        ui_origin.y - pa.y * center_radius);
+    LDKUIPoint end = ldk_pointf(
+        ui_origin.x + pb.x * center_radius,
+        ui_origin.y - pb.y * center_radius);
+    float distance =
+        s_editor_gizmo_point_segment_distance(cursor, start, end);
+    if (distance < best_distance)
     {
-      float distance = s_editor_gizmo_point_segment_distance(
-          cursor, start_screen, end_screen);
-      if (distance < best_distance)
-      {
-        best_distance = distance;
-      }
-      distance_valid = true;
+      best_distance = distance;
     }
   }
-
-  if (!distance_valid)
-  {
-    return false;
-  }
-
   *out_distance = best_distance;
   return true;
 }
@@ -1577,25 +1546,17 @@ static bool s_editor_gizmo_target_matches_drag(
 void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
 {
   LDKECS *ecs;
-  LDKCamera *camera;
   LDKMouseState mouse;
   LDKEditorGizmoTarget target;
   Mat4 target_world;
-  Mat4 camera_world;
-  Mat4 view;
-  Mat4 projection;
-  Mat4 view_projection;
   Mat4 orientation;
   Vec3 axes[LDK_EDITOR_GIZMO_AXIS_COUNT];
   Vec3 origin;
   LDKUIPoint cursor;
   LDKUIPoint origin_screen;
   LDKEditorGizmoMode mode;
-  u32 view_width;
-  u32 view_height;
   float length;
   float best_distance;
-  float aspect;
 
   if (editor == NULL)
   {
@@ -1611,9 +1572,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_NONE;
   if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN ||
       editor->camera_controller.pan_block_pick ||
-      !editor->gizmo.scene_view_visible || editor->renderer == NULL ||
-      !ldk_renderer_view_extent_get(
-          editor->renderer, editor->scene_view, &view_width, &view_height))
+      !editor->gizmo.scene_view_visible || editor->renderer == NULL)
   {
     return;
   }
@@ -1640,27 +1599,14 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     return;
   }
 
-  length = s_editor_gizmo_world_length(editor, origin);
-  aspect = (float)view_width / (float)view_height;
-
-  camera = (LDKCamera *)ldk_ecs_component_get(
-      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
-  if (camera == NULL ||
-      !ldk_camera_get_world_matrix(
-          editor->editor_camera, &camera_world) ||
-      !ldk_camera_get_view_matrix(editor->editor_camera, &view) ||
-      !ldk_camera_get_projection_matrix(
-          editor->editor_camera, aspect, &projection))
+  length = LDK_EDITOR_GIZMO_PIXEL_LENGTH;
+  if (!s_editor_gizmo_screen_transform_get(
+          editor, origin, orientation, NULL, &orientation,
+          &origin_screen))
   {
     return;
   }
-
-  view_projection = mat4_mul(projection, view);
-  if (!s_editor_gizmo_world_to_scene(
-          editor, view_projection, origin, &origin_screen))
-  {
-    return;
-  }
+  s_editor_gizmo_axes_from_orientation(orientation, axes);
 
   cursor = ldk_pointf((float)mouse.cursor.x, (float)mouse.cursor.y);
   mode = editor->gizmo.mode;
@@ -1674,10 +1620,9 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     {
       float distance;
 
-      if (s_editor_gizmo_rotation_ring_distance_get(editor,
-              view_projection, orientation, camera_world,
-              camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC,
-              origin, axis, radius, cursor, &distance) &&
+      if (s_editor_gizmo_rotation_ring_distance_get(
+              orientation, origin_screen, axis, radius,
+              cursor, &distance) &&
           distance < best_distance)
       {
         best_distance = distance;
@@ -1698,14 +1643,9 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     {
       for (u32 axis = 0; axis < LDK_EDITOR_GIZMO_AXIS_COUNT; ++axis)
       {
-        Vec3 end = vec3_add(origin, vec3_mul(axes[axis], length));
-        LDKUIPoint end_screen;
-
-        if (!s_editor_gizmo_world_to_scene(
-                editor, view_projection, end, &end_screen))
-        {
-          continue;
-        }
+        LDKUIPoint end_screen = ldk_pointf(
+            origin_screen.x + axes[axis].x * length,
+            origin_screen.y - axes[axis].y * length);
 
         float distance = s_editor_gizmo_point_segment_distance(
             cursor, origin_screen, end_screen);
@@ -2005,44 +1945,14 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
 }
 
 static void s_editor_gizmo_rotation_submit(LDKEditorContext *editor,
-    Vec3 origin, Mat4 orientation,
-    Vec3 const axes[LDK_EDITOR_GIZMO_AXIS_COUNT], float length)
+    Vec3 origin, Mat4 orientation, float length)
 {
-  float radius;
-  float line_length;
-  float line_thickness;
-
-  if (editor == NULL || axes == NULL)
+  if (editor == NULL)
   {
     return;
   }
 
-  radius = length * LDK_EDITOR_GIZMO_ROTATION_RADIUS_SCALE;
-  line_length = radius *
-                LDK_EDITOR_GIZMO_ROTATION_RING_INNER_RADIUS;
-  line_thickness =
-      length * LDK_EDITOR_GIZMO_ROTATION_ORIGIN_LINE_SCALE;
-
-  for (u32 axis = 0u; axis < LDK_EDITOR_GIZMO_AXIS_COUNT; ++axis)
-  {
-    Vec3 line_position = vec3_add(
-        origin, vec3_mul(axes[axis], line_length * 0.5f));
-    Vec3 line_scale =
-        vec3_make(line_thickness, line_thickness, line_thickness);
-
-    if (axis == 0u)
-    {
-      line_scale.x = line_length;
-    }
-    else if (axis == 1u)
-    {
-      line_scale.y = line_length;
-    }
-    else
-    {
-      line_scale.z = line_length;
-    }
-  }
+  float radius = length * LDK_EDITOR_GIZMO_ROTATION_RADIUS_SCALE;
 
   for (u32 axis = 0u; axis < LDK_EDITOR_GIZMO_AXIS_COUNT; ++axis)
   {
@@ -2055,7 +1965,7 @@ static void s_editor_gizmo_rotation_submit(LDKEditorContext *editor,
     Mat4 ring_orientation =
         s_editor_gizmo_rotation_ring_orientation(orientation, axis);
 
-    ldk_renderer_submit_overlay_mesh_to_view(
+    ldk_renderer_submit_orthographic_overlay_mesh_to_view(
         editor->renderer, editor->scene_view, arc_mesh,
         ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(origin, ring_orientation,
@@ -2080,25 +1990,36 @@ static void s_editor_gizmo_rotation_drag_submit(
   }
 
   axis = (u32)(editor->gizmo.active_axis - LDK_EDITOR_GIZMO_AXIS_X);
-  radius = editor->gizmo.drag_world_length *
+  Vec3 screen_origin;
+  Mat4 screen_orientation;
+  float pixel_scale = s_editor_gizmo_pixel_scale(editor);
+  if (pixel_scale <= 0.0f ||
+      !s_editor_gizmo_screen_transform_get(editor,
+          editor->gizmo.drag_origin, editor->gizmo.drag_orientation,
+          &screen_origin, &screen_orientation, NULL))
+  {
+    return;
+  }
+
+  radius = LDK_EDITOR_GIZMO_PIXEL_LENGTH * pixel_scale *
            LDK_EDITOR_GIZMO_ROTATION_RADIUS_SCALE;
   ring_orientation = s_editor_gizmo_rotation_ring_orientation(
-      editor->gizmo.drag_orientation, axis);
+      screen_orientation, axis);
   reflected_orientation = mat4_mul(ring_orientation,
       mat4_scale(vec3_make(1.0f, 1.0f, -1.0f)));
   ring_scale = vec3_make(radius, radius, radius);
 
-  ldk_renderer_submit_overlay_mesh_to_view(editor->renderer,
+  ldk_renderer_submit_orthographic_overlay_mesh_to_view(editor->renderer,
       editor->scene_view,
       editor->gizmo.rotation_arc_highlight_meshes[axis],
       ldk_renderer_material_default_get(editor->renderer),
-      s_editor_gizmo_part_world(editor->gizmo.drag_origin,
+      s_editor_gizmo_part_world(screen_origin,
           ring_orientation, ring_scale));
-  ldk_renderer_submit_overlay_mesh_to_view(editor->renderer,
+  ldk_renderer_submit_orthographic_overlay_mesh_to_view(editor->renderer,
       editor->scene_view,
       editor->gizmo.rotation_arc_highlight_meshes[axis],
       ldk_renderer_material_default_get(editor->renderer),
-      s_editor_gizmo_part_world(editor->gizmo.drag_origin,
+      s_editor_gizmo_part_world(screen_origin,
           reflected_orientation, ring_scale));
 }
 
@@ -2356,10 +2277,21 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 
   origin = vec3_make(
       target_world.m[12], target_world.m[13], target_world.m[14]);
+  if (!s_editor_gizmo_screen_transform_get(editor, origin, orientation,
+          &origin, &orientation, NULL))
+  {
+    return;
+  }
+  s_editor_gizmo_axes_from_orientation(orientation, axes);
   mode = editor->gizmo.dragging
              ? editor->gizmo.drag_mode
              : editor->gizmo.mode;
-  length = s_editor_gizmo_world_length(editor, origin);
+  length = LDK_EDITOR_GIZMO_PIXEL_LENGTH *
+      s_editor_gizmo_pixel_scale(editor);
+  if (length <= 0.0f)
+  {
+    return;
+  }
 
   if (mode == LDK_EDITOR_GIZMO_MODE_ROTATE)
   {
@@ -2370,7 +2302,7 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
     else
     {
       s_editor_gizmo_rotation_submit(
-          editor, origin, orientation, axes, length);
+          editor, origin, orientation, length);
     }
     return;
   }
@@ -2419,12 +2351,12 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
       bar_scale.z = bar_length;
     }
 
-    ldk_renderer_submit_overlay_mesh_to_view(
+    ldk_renderer_submit_orthographic_overlay_mesh_to_view(
         editor->renderer, editor->scene_view,
         bar_mesh,
         ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(bar_position, orientation, bar_scale));
-    ldk_renderer_submit_overlay_mesh_to_view(
+    ldk_renderer_submit_orthographic_overlay_mesh_to_view(
         editor->renderer, editor->scene_view,
         handle_mesh,
         ldk_renderer_material_default_get(editor->renderer),
@@ -2441,7 +2373,7 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
     Vec3 center_scale =
         vec3_make(center_size, center_size, center_size);
 
-    ldk_renderer_submit_overlay_mesh_to_view(
+    ldk_renderer_submit_orthographic_overlay_mesh_to_view(
         editor->renderer, editor->scene_view, center_mesh,
         ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(origin, orientation, center_scale));
