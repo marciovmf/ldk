@@ -2,9 +2,10 @@
 set GAME_ROOT=%~dp0\demo
 cmake -S . ^
   -B %GAME_ROOT%\workspace ^
-  -G "Visual Studio 17 2022" ^
+  -G "Visual Studio 18 2026" ^
   -A x64 ^
   -DCMAKE_BUILD_TYPE=RelWithDebInfo ^
+  -DOPTION_LDK_USE_PREBUILT=ON ^
   -DOPTION_BUILD_GAME=ON ^
   -DOPTION_BUILD_EDITOR=OFF ^
   -DOPTION_BUILD_GAME_LAUNCHER=OFF ^

@@ -67,6 +67,20 @@ option(OPTION_BUILD_GAME                  "Build the game as a DLL. Requires OPT
 option(OPTION_BUILD_GAME_LAUNCHER         "Build the game launcher executable. Requires OPTION_GAME_DIR to be set." OFF)
 set(OPTION_GAME_DIR                    "" CACHE PATH "Game project root folder")
 set(OPTION_GAME_PROJECT_FILE           "" CACHE FILEPATH "Optional explicit .ldk project file")
+# A standalone game DLL uses the installed engine by default. Engine, editor,
+# tests and launcher-only builds continue building their own engine sources.
+set(_ldk_prebuilt_default OFF)
+if (OPTION_BUILD_GAME AND NOT OPTION_BUILD_EDITOR AND
+    NOT OPTION_BUILD_TESTS AND NOT OPTION_BUILD_GAME_LAUNCHER)
+  set(_ldk_prebuilt_default ON)
+endif()
+option(OPTION_LDK_USE_PREBUILT "Link game DLL against a prebuilt LDK" ${_ldk_prebuilt_default})
+set(OPTION_LDK_PREBUILT_DIR "" CACHE PATH "Root directory containing prebuilt LDK bin/ and lib/")
+if (OPTION_LDK_USE_PREBUILT AND (OPTION_BUILD_EDITOR OR OPTION_BUILD_TESTS))
+  message(FATAL_ERROR
+    "OPTION_LDK_USE_PREBUILT is for game DLL builds only. "
+    "Disable it when building the editor or engine tests.")
+endif()
 
 if (OPTION_ADDRESS_SANITIZER)
   add_compile_options(-fsanitize=address)
@@ -111,6 +125,8 @@ string(REGEX REPLACE "[^a-z0-9_-]" "_" LDK_TARGET_ARCH "${LDK_TARGET_ARCH}")
 set(LDK_COMPILER_PLATFORM "${LDK_COMPILER_ID}_${LDK_TARGET_ARCH}")
 set(LDK_LIBRARY_DIR
   "${LDK_ROOT_DIR}/lib/$<CONFIG>/${LDK_COMPILER_PLATFORM}/")
+set(LDK_IMPORT_LIBRARY_NAME
+  "${CMAKE_IMPORT_LIBRARY_PREFIX}ldk${CMAKE_IMPORT_LIBRARY_SUFFIX}")
 set(LDK_RUNTREE_DIR "${LDK_ROOT_DIR}/runtree")
 set(INCLUDE_DIR "${LDK_ROOT_DIR}/include")
 
@@ -131,6 +147,8 @@ add_custom_target(print_options ALL
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_GAME_DIR                  ${OPTION_GAME_DIR}"
   COMMAND ${CMAKE_COMMAND} -E echo "OPTION_GAME_PROJECT_FILE         ${OPTION_GAME_PROJECT_FILE}"
   COMMAND ${CMAKE_COMMAND} -E echo "LDK_COMPILER_PLATFORM            ${LDK_COMPILER_PLATFORM}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_LDK_USE_PREBUILT          ${OPTION_LDK_USE_PREBUILT}"
+  COMMAND ${CMAKE_COMMAND} -E echo "OPTION_LDK_PREBUILT_DIR          ${OPTION_LDK_PREBUILT_DIR}"
   COMMAND ${CMAKE_COMMAND} -E echo ""
 )
 
@@ -307,6 +325,9 @@ function(ldk_game_build)
 
   if ("${GAME_TYPE}" STREQUAL "SHARED")
     add_dependencies(${GAME_TARGET} comet) # make sure the tools are built
+    if (OPTION_LDK_USE_PREBUILT)
+      add_dependencies(${GAME_TARGET} ldk_prebuilt_check)
+    endif()
   endif()
 
   ldk_target_defaults(${GAME_TARGET})
@@ -654,22 +675,64 @@ else()
   message(FATAL_ERROR "UNSUPPORTED PLATFORM")
 endif()
 
-# --- ENGINE SHARED -----------------------------------------------------------
-add_library(ldk SHARED ${LDK_SOURCE})
-ldk_engine_target_defaults(ldk)
+# --- ENGINE SHARED / PREBUILT -------------------------------------------------
+if (OPTION_LDK_USE_PREBUILT)
+  if (NOT OPTION_LDK_PREBUILT_DIR)
+    set(OPTION_LDK_PREBUILT_DIR "${LDK_ROOT_DIR}")
+  endif()
+  get_filename_component(LDK_PREBUILT_ROOT "${OPTION_LDK_PREBUILT_DIR}" ABSOLUTE)
+  if (NOT IS_DIRECTORY "${LDK_PREBUILT_ROOT}/include")
+    message(FATAL_ERROR
+      "Prebuilt LDK include directory not found: ${LDK_PREBUILT_ROOT}/include")
+  endif()
 
-target_compile_definitions(ldk PRIVATE
-  LDK_SHAREDLIB
-  LDK_EDITOR
-)
+  add_library(ldk SHARED IMPORTED GLOBAL)
+  set_target_properties(ldk PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${LDK_PREBUILT_ROOT}/include"
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+  )
+  foreach(_ldk_cfg Debug Release RelWithDebInfo MinSizeRel)
+    string(TOUPPER "${_ldk_cfg}" _ldk_cfg_upper)
+    set_target_properties(ldk PROPERTIES
+      "IMPORTED_IMPLIB_${_ldk_cfg_upper}"
+        "${LDK_PREBUILT_ROOT}/lib/${_ldk_cfg}/${LDK_COMPILER_PLATFORM}/${LDK_IMPORT_LIBRARY_NAME}"
+      "IMPORTED_LOCATION_${_ldk_cfg_upper}"
+        "${LDK_PREBUILT_ROOT}/bin/${_ldk_cfg}/ldk.dll"
+    )
+  endforeach()
 
-ldk_target_output_dirs(ldk
-  RUNTIME "${LDK_OUTPUT_DIR}"
-  LIBRARY "${LDK_OUTPUT_DIR}"
-  ARCHIVE "${LDK_LIBRARY_DIR}"
-)
+  # Run on *every* game build, not only on CMake reconfiguration. It checks
+  # the selected configuration, reports missing artifacts and warns when
+  # engine sources have become newer than the published engine DLL.
+  add_custom_target(ldk_prebuilt_check
+    COMMAND "${CMAKE_COMMAND}"
+      "-DLDK_PREBUILT_ROOT=${LDK_PREBUILT_ROOT}"
+      "-DLDK_ENGINE_SOURCE_ROOT=${LDK_ROOT_DIR}"
+      "-DLDK_PREBUILT_CONFIG=$<CONFIG>"
+      "-DLDK_PREBUILT_PLATFORM=${LDK_COMPILER_PLATFORM}"
+      "-DLDK_PREBUILT_ARCH=${LDK_TARGET_ARCH}"
+      "-DLDK_PREBUILT_IMPORT_NAME=${LDK_IMPORT_LIBRARY_NAME}"
+      -P "${LDK_ROOT_DIR}/cmake/ldk_prebuilt_check.cmake"
+    VERBATIM
+    COMMENT "Checking prebuilt LDK for $<CONFIG> (${LDK_COMPILER_PLATFORM})"
+  )
+else()
+  add_library(ldk SHARED ${LDK_SOURCE})
+  ldk_engine_target_defaults(ldk)
 
-add_dependencies(ldk print_options)
+  target_compile_definitions(ldk PRIVATE
+    LDK_SHAREDLIB
+    LDK_EDITOR
+  )
+
+  ldk_target_output_dirs(ldk
+    RUNTIME "${LDK_OUTPUT_DIR}"
+    LIBRARY "${LDK_OUTPUT_DIR}"
+    ARCHIVE "${LDK_LIBRARY_DIR}"
+  )
+
+  add_dependencies(ldk print_options)
+endif()
 
 # --- BOX TOOL -----------------------------------------------------------------
 
@@ -698,84 +761,87 @@ ldk_target_output_dirs(comet
   ARCHIVE "${LDK_LIBRARY_DIR}"
 )
 
-set(LDK_ENGINE_METADATA_DIR
-  "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk_engine")
-set(LDK_ENGINE_METADATA_HEADER
-  "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata.h")
-set(LDK_ENGINE_METADATA_INCLUDES_HEADER
-  "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_includes.h")
+if (NOT OPTION_LDK_USE_PREBUILT OR OPTION_BUILD_GAME_LAUNCHER)
+  set(LDK_ENGINE_METADATA_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/ldk_engine")
+  set(LDK_ENGINE_METADATA_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata.h")
+  set(LDK_ENGINE_METADATA_INCLUDES_HEADER
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_includes.h")
 
-ldk_collect_headers_from_dir(
-  LDK_ENGINE_COMPONENT_HEADERS "${INCLUDE_DIR}/component")
-ldk_collect_headers_from_dir(
-  LDK_ENGINE_SYSTEM_HEADERS "${INCLUDE_DIR}/system")
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_COMPONENT_HEADERS "${INCLUDE_DIR}/component")
+  ldk_collect_headers_from_dir(
+    LDK_ENGINE_SYSTEM_HEADERS "${INCLUDE_DIR}/system")
 
-set(LDK_ENGINE_METADATA_INPUTS
-  ${LDK_ENGINE_COMPONENT_HEADERS}
-  ${LDK_ENGINE_SYSTEM_HEADERS}
-  ${INCLUDE_DIR}/module/ldk_audio.h
-)
+  set(LDK_ENGINE_METADATA_INPUTS
+    ${LDK_ENGINE_COMPONENT_HEADERS}
+    ${LDK_ENGINE_SYSTEM_HEADERS}
+    ${INCLUDE_DIR}/module/ldk_audio.h
+  )
 
-set(LDK_ENGINE_METADATA_INPUTS_STAMP
-  "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_inputs.txt")
-set(LDK_ENGINE_METADATA_INPUTS_TEXT "")
-foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
-  file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
-  string(APPEND LDK_ENGINE_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
-endforeach()
-# Store metadata templates outside generated/ so deleted outputs can be rebuilt.
-set(LDK_ENGINE_METADATA_TEMPLATE_DIR
-  "${CMAKE_CURRENT_BINARY_DIR}/metadata_templates/ldk_engine/$<CONFIG>")
-set(LDK_ENGINE_METADATA_INPUTS_TEMPLATE
-  "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_inputs.txt")
-file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}"
-  CONTENT "${LDK_ENGINE_METADATA_INPUTS_TEXT}")
+  set(LDK_ENGINE_METADATA_INPUTS_STAMP
+    "${LDK_ENGINE_METADATA_DIR}/generated_engine_component_metadata_inputs.txt")
+  set(LDK_ENGINE_METADATA_INPUTS_TEXT "")
+  foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
+    file(TO_CMAKE_PATH "${metadata_input}" metadata_input_path)
+    string(APPEND LDK_ENGINE_METADATA_INPUTS_TEXT "${metadata_input_path}\n")
+  endforeach()
+  # Store metadata templates outside generated/ so deleted outputs can be rebuilt.
+  set(LDK_ENGINE_METADATA_TEMPLATE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/metadata_templates/ldk_engine/$<CONFIG>")
+  set(LDK_ENGINE_METADATA_INPUTS_TEMPLATE
+    "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_inputs.txt")
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}"
+    CONTENT "${LDK_ENGINE_METADATA_INPUTS_TEXT}")
 
-set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
-foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
-  file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
-  string(APPEND LDK_ENGINE_METADATA_INCLUDES_TEXT
-    "#include \"${metadata_header}\"\n")
-endforeach()
+  set(LDK_ENGINE_METADATA_INCLUDES_TEXT "")
+  foreach(metadata_input IN LISTS LDK_ENGINE_METADATA_INPUTS)
+    file(TO_CMAKE_PATH "${metadata_input}" metadata_header)
+    string(APPEND LDK_ENGINE_METADATA_INCLUDES_TEXT
+      "#include \"${metadata_header}\"\n")
+  endforeach()
 
-set(LDK_ENGINE_METADATA_INCLUDES_TEMPLATE
-  "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_includes.h")
-file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
-  CONTENT "${LDK_ENGINE_METADATA_INCLUDES_TEXT}")
+  set(LDK_ENGINE_METADATA_INCLUDES_TEMPLATE
+    "${LDK_ENGINE_METADATA_TEMPLATE_DIR}/generated_engine_component_metadata_includes.h")
+  file(GENERATE OUTPUT "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
+    CONTENT "${LDK_ENGINE_METADATA_INCLUDES_TEXT}")
 
-add_custom_command(
-  OUTPUT "${LDK_ENGINE_METADATA_INPUTS_STAMP}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
-  DEPENDS "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
-  VERBATIM
-  COMMENT "Restoring engine metadata companion files..."
-)
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_INPUTS_STAMP}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    DEPENDS "${LDK_ENGINE_METADATA_INPUTS_TEMPLATE}" "${LDK_ENGINE_METADATA_INCLUDES_TEMPLATE}"
+    VERBATIM
+    COMMENT "Restoring engine metadata companion files..."
+  )
 
-add_custom_command(
-  OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
-  COMMAND $<TARGET_FILE:comet>
-    "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_METADATA_INPUTS}
-  DEPENDS
-    comet
-    ${LDK_ENGINE_METADATA_INPUTS}
-    "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
-    "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
-  COMMAND_EXPAND_LISTS
-  VERBATIM
-  COMMENT "Running engine component and system metadata extraction tool..."
-)
+  add_custom_command(
+    OUTPUT "${LDK_ENGINE_METADATA_HEADER}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${LDK_ENGINE_METADATA_DIR}"
+    COMMAND $<TARGET_FILE:comet>
+      "${LDK_ENGINE_METADATA_HEADER}" ${LDK_ENGINE_METADATA_INPUTS}
+    DEPENDS
+      comet
+      ${LDK_ENGINE_METADATA_INPUTS}
+      "${LDK_ENGINE_METADATA_INPUTS_STAMP}"
+      "${LDK_ENGINE_METADATA_INCLUDES_HEADER}"
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+    COMMENT "Running engine component and system metadata extraction tool..."
+  )
 
-add_custom_target(ldk_engine_metadata
-  DEPENDS "${LDK_ENGINE_METADATA_HEADER}"
-)
+  add_custom_target(ldk_engine_metadata
+    DEPENDS "${LDK_ENGINE_METADATA_HEADER}"
+  )
 
-add_dependencies(ldk ldk_engine_metadata)
-target_include_directories(ldk PRIVATE "${LDK_ENGINE_METADATA_DIR}")
+  add_dependencies(ldk ldk_engine_metadata)
+  target_include_directories(ldk PRIVATE "${LDK_ENGINE_METADATA_DIR}")
+
+endif()
 
 # --- EDITOR -----------------------------------------------------------------
 if (OPTION_BUILD_EDITOR)
