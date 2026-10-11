@@ -502,6 +502,23 @@ static LDKUIWindow *s_ui_window_bring_to_front(
   return window;
 }
 
+bool ldk_ui_window_focus(LDKUIContext *ctx, LDKUIId id)
+{
+  if (ctx == NULL || ctx->windows == NULL)
+  {
+    return false;
+  }
+
+  LDKUIWindow *window = s_ui_window_find(ctx, id);
+  if (window == NULL || window->last_frame_seen != ctx->frame_index)
+  {
+    return false;
+  }
+
+  s_ui_window_bring_to_front(ctx, window);
+  return true;
+}
+
 static float s_ui_window_border_size(LDKUIContext *ctx, u32 flags)
 {
   if (ctx == NULL)

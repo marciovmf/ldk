@@ -60,9 +60,6 @@
 #define LDK_EDITOR_WINDOW_ID_INVALID ((LDKEditorWindowId)0)
 #define LDK_EDITOR_DOCK_TML_VERSION 1
 
-#define LDK_EDITOR_DOCK_TARGET_COLOR_IDLE 0xFFFFFFFF
-#define LDK_EDITOR_DOCK_TARGET_COLOR_HOVER 0x0000FFFF
-
 
 #define LDK_EDITOR_DOCK_SIZE_MAX 0.95f
 #define LDK_EDITOR_DOCK_SIZE_MIN 0.05f
@@ -185,6 +182,9 @@ typedef struct LDKEditorDockState
   LDKEditorInspectorWindowData inspector;
 
   LDKUIId target_overlay_window_id;
+  LDKEditorWindowId pending_focus_window;
+  LDKEditorWindowId last_focused_window;
+  i32 last_focused_leaf;
   i32 root;
   bool initialized;
 } LDKEditorDockState;
@@ -254,6 +254,115 @@ static LDKEditorDockLayouts s_editor_dock_layouts = {
 // Window registry
 //----------------------------------------------------------
 
+static bool s_editor_dock_local_center(
+    LDKEditorDockState *dock, LDKEditorWindowId window, i32 target_leaf);
+static const LDKEditorDockWindow *s_editor_dock_window_get_const(
+    const LDKEditorDockState *dock, LDKEditorWindowId id);
+
+static bool s_editor_dock_leaf_can_add(
+    const LDKEditorDockState *dock, i32 leaf_index)
+{
+  return dock != NULL && leaf_index >= 0 &&
+         leaf_index < LDK_EDITOR_DOCK_NODE_CAPACITY &&
+         dock->nodes[leaf_index].used &&
+         dock->nodes[leaf_index].type == LDK_EDITOR_DOCK_NODE_LEAF &&
+         dock->nodes[leaf_index].data.leaf.window_count <
+             LDK_EDITOR_DOCK_LEAF_WINDOW_CAPACITY;
+}
+
+static i32 s_editor_dock_focused_leaf(const LDKEditorDockState *dock)
+{
+  if (dock == NULL || dock->editor == NULL)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  LDKUIId focused = dock->editor->ui.focused_window_id;
+  if (focused == 0)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
+  {
+    const LDKEditorDockNode *node = &dock->nodes[i];
+    if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF &&
+        node->data.leaf.ui_window_id == focused)
+    {
+      return i;
+    }
+  }
+
+  return LDK_EDITOR_DOCK_INVALID_NODE;
+}
+
+/* Keep a stable window identity as well as the leaf index. Leaf indices can
+ * be recycled when docks are split, collapsed or rearranged. */
+static void s_editor_dock_remember_leaf(
+    LDKEditorDockState *dock, i32 leaf_index)
+{
+  if (dock == NULL || leaf_index < 0 ||
+      leaf_index >= LDK_EDITOR_DOCK_NODE_CAPACITY ||
+      !dock->nodes[leaf_index].used ||
+      dock->nodes[leaf_index].type != LDK_EDITOR_DOCK_NODE_LEAF)
+  {
+    return;
+  }
+
+  dock->last_focused_leaf = leaf_index;
+  dock->last_focused_window = dock->nodes[leaf_index].data.leaf.active_window;
+}
+
+static i32 s_editor_dock_new_window_leaf(const LDKEditorDockState *dock)
+{
+  if (dock == NULL)
+  {
+    return LDK_EDITOR_DOCK_INVALID_NODE;
+  }
+
+  /* A deliberate dock interaction takes precedence over transient UI focus
+   * (for example a newly created widget or the Window menu). */
+  const LDKEditorDockWindow *last_window =
+      s_editor_dock_window_get_const(dock, dock->last_focused_window);
+  if (last_window != NULL && last_window->open &&
+      s_editor_dock_leaf_can_add(dock, last_window->leaf))
+  {
+    return last_window->leaf;
+  }
+
+  if (s_editor_dock_leaf_can_add(dock, dock->last_focused_leaf))
+  {
+    return dock->last_focused_leaf;
+  }
+
+  i32 focused = s_editor_dock_focused_leaf(dock);
+  if (s_editor_dock_leaf_can_add(dock, focused))
+  {
+    return focused;
+  }
+
+  /* Prefer Scene when no dock has been focused in this layout yet. */
+  for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
+  {
+    const LDKEditorDockNode *node = &dock->nodes[i];
+    if (s_editor_dock_leaf_can_add(dock, i) &&
+        node->data.leaf.active_window == LDK_EDITOR_WINDOW_SCENE)
+    {
+      return i;
+    }
+  }
+
+  for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
+  {
+    if (s_editor_dock_leaf_can_add(dock, i))
+    {
+      return i;
+    }
+  }
+
+  return LDK_EDITOR_DOCK_INVALID_NODE;
+}
+
 static LDKEditorDockWindow *s_editor_dock_window_get(
     LDKEditorDockState *dock, LDKEditorWindowId id)
 {
@@ -319,7 +428,7 @@ static bool s_editor_dock_window_add(LDKEditorDockState *dock,
  *
  * This may be called before or after ldk_editor_dock_init(). Windows registered
  * before initialization are preserved while the default dock tree is created.
- * Windows registered after initialization start as floating windows.
+ * Windows registered after initialization open as tabs in the focused dock.
  *
  * The supplied ID must be stable across runs so that a future serialized dock
  * layout can resolve the same window at startup.
@@ -328,8 +437,25 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window)
 {
   (void)editor;
 
-  return s_editor_dock_window_add(&s_editor_dock, window,
-      s_editor_dock_default_floating_rect(s_editor_dock.window_count));
+  LDKEditorDockState *dock = &s_editor_dock;
+  if (!s_editor_dock_window_add(dock, window,
+          s_editor_dock_default_floating_rect(dock->window_count)))
+  {
+    return false;
+  }
+
+  if (dock->initialized)
+  {
+    LDKEditorDockWindow *added = &dock->windows[dock->window_count - 1];
+    added->open = false;
+    if (!ldki_editor_window_show(added->window.id))
+    {
+      ldki_editor_window_remove(added->window.id);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 u32 ldki_editor_window_count(void)
@@ -392,28 +518,43 @@ void ldki_editor_window_invalidate(
 
 bool ldki_editor_window_activate(LDKEditorWindowId window_id)
 {
-  LDKEditorDockWindow *window =
-      s_editor_dock_window_get(&s_editor_dock, window_id);
-  if (!window) return false;
-  window->open = true;
-  if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
-  {
-    s_editor_dock.nodes[window->leaf].data.leaf.active_window = window_id;
-  }
-  return true;
+  return ldki_editor_window_show(window_id);
 }
 
 bool ldki_editor_window_show(LDKEditorWindowId window_id)
 {
-  LDKEditorDockWindow *window =
-      s_editor_dock_window_get(&s_editor_dock, window_id);
+  LDKEditorDockState *dock = &s_editor_dock;
+  LDKEditorDockWindow *window = s_editor_dock_window_get(dock, window_id);
 
   if (window == NULL)
   {
     return false;
   }
 
+  if (dock->initialized && !window->open &&
+      window->leaf == LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    i32 leaf = s_editor_dock_new_window_leaf(dock);
+    if (leaf != LDK_EDITOR_DOCK_INVALID_NODE &&
+        !s_editor_dock_local_center(dock, window_id, leaf))
+    {
+      return false;
+    }
+    /* With every leaf full, the window still opens as a floating tool. */
+  }
+
   window->open = true;
+  if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
+  {
+    dock->nodes[window->leaf].data.leaf.active_window = window_id;
+    s_editor_dock_remember_leaf(dock, window->leaf);
+  }
+
+  if (dock->initialized)
+  {
+    dock->pending_focus_window = window_id;
+  }
+
   return true;
 }
 
@@ -463,6 +604,83 @@ static bool s_editor_dock_mouse_down(const LDKUIContext *ui)
   return ui != NULL && ui->mouse != NULL &&
          ldk_os_mouse_button_down(
              (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+}
+
+/* Popups are drawn separately from UI windows, so hovered_window_id cannot
+ * be used to decide whether a Dock is under the pointer. The popup cache
+ * contains the rectangles from the previous frame, before this frame's menu
+ * is submitted. */
+static bool s_editor_dock_pointer_over_popup(
+    const LDKUIContext *ui, LDKUIPoint cursor)
+{
+  if (ui == NULL || ui->open_popups == NULL || ui->popup_cache == NULL)
+  {
+    return false;
+  }
+
+  for (u32 i = 0; i < x_array_ldk_ui_id_count(ui->open_popups); ++i)
+  {
+    const LDKUIId *id = x_array_ldk_ui_id_get(ui->open_popups, i);
+    if (id == NULL)
+    {
+      continue;
+    }
+
+    for (u32 j = 0; j < x_array_ldk_ui_popup_cache_count(ui->popup_cache);
+        ++j)
+    {
+      const LDKUIPopupCache *popup =
+          x_array_ldk_ui_popup_cache_get(ui->popup_cache, j);
+      if (popup != NULL && popup->id == *id && popup->has_rect &&
+          s_editor_dock_rect_contains(&popup->rect, cursor.x, cursor.y))
+      {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/* An explicit press in a Dock selects the destination for subsequently opened
+ * editor windows. This does not depend on hovered_window_id: the UI may keep
+ * focus on an older window or another layer while processing a click. */
+static void s_editor_dock_pointer_focus_update(
+    LDKEditorDockState *dock, LDKUIContext *ui)
+{
+  if (dock == NULL || ui == NULL || !s_editor_dock_mouse_down(ui))
+  {
+    return;
+  }
+
+  LDKUIPoint cursor = s_editor_dock_cursor_get(ui);
+  if (s_editor_dock_pointer_over_popup(ui, cursor))
+  {
+    return;
+  }
+
+  /* Floating editor windows render in front of docked leaves. A click there
+   * must not select the Dock located underneath the tool window. */
+  for (u32 i = 0; i < dock->window_count; ++i)
+  {
+    const LDKEditorDockWindow *window = &dock->windows[i];
+    if (window->open && window->leaf == LDK_EDITOR_DOCK_INVALID_NODE &&
+        s_editor_dock_rect_contains(&window->floating_rect, cursor.x, cursor.y))
+    {
+      return;
+    }
+  }
+
+  for (i32 i = 0; i < LDK_EDITOR_DOCK_NODE_CAPACITY; ++i)
+  {
+    const LDKEditorDockNode *node = &dock->nodes[i];
+    if (node->used && node->type == LDK_EDITOR_DOCK_NODE_LEAF &&
+        s_editor_dock_rect_contains(&node->rect, cursor.x, cursor.y))
+    {
+      s_editor_dock_remember_leaf(dock, i);
+      return;
+    }
+  }
 }
 
 static bool s_editor_dock_mouse_pressed(const LDKUIContext *ui)
@@ -551,6 +769,11 @@ static void s_editor_dock_node_release(LDKEditorDockState *dock, i32 node_index)
       node_index >= LDK_EDITOR_DOCK_NODE_CAPACITY)
   {
     return;
+  }
+
+  if (dock->last_focused_leaf == node_index)
+  {
+    dock->last_focused_leaf = LDK_EDITOR_DOCK_INVALID_NODE;
   }
 
   dock->nodes[node_index] =
@@ -869,6 +1092,10 @@ bool ldki_editor_window_hide(LDKEditorWindowId window_id)
 
   was_open = window->open;
   window->open = false;
+  if (s_editor_dock.pending_focus_window == window_id)
+  {
+    s_editor_dock.pending_focus_window = LDK_EDITOR_WINDOW_ID_INVALID;
+  }
   if (window_id == LDK_EDITOR_WINDOW_ANIMATION)
   {
     ldki_editor_animation_preview_stop();
@@ -906,6 +1133,10 @@ bool ldki_editor_window_remove(LDKEditorWindowId window_id)
   }
 
   was_open = window->open;
+  if (dock->pending_focus_window == window_id)
+  {
+    dock->pending_focus_window = LDK_EDITOR_WINDOW_ID_INVALID;
+  }
   index = (u32)(window - dock->windows);
   if (!s_editor_dock_window_detach(dock, window_id))
   {
@@ -2322,7 +2553,7 @@ static void s_editor_dock_targets_draw(
   dock->target_overlay_window_id = ui->last_id;
 
   LDKUIIcon icon = {0};
-  icon.color = 0xFFFFFFFF;
+  icon.color = ui->theme.colors[LDK_UI_COLOR_TAB_TEXT];
   icon.size = ldk_sizef(24, 24);
   icon.texture =
       ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
@@ -2335,8 +2566,8 @@ static void s_editor_dock_targets_draw(
     LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
 
     icon.color = target == dock->drag.target
-                     ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
-                     : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+                     ? ui->theme.colors[LDK_UI_COLOR_FOCUS]
+                     : ui->theme.colors[LDK_UI_COLOR_TAB_TEXT];
     icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
 
     ldk_ui_widget_icon_label(ui, id, icon, "", rect);
@@ -2353,8 +2584,8 @@ static void s_editor_dock_targets_draw(
       LDKUIId id = (LDKUIId)(0xd0c00000u + (u32)target);
 
       icon.color = target == dock->drag.target
-                       ? LDK_EDITOR_DOCK_TARGET_COLOR_HOVER
-                       : LDK_EDITOR_DOCK_TARGET_COLOR_IDLE;
+                       ? ui->theme.colors[LDK_UI_COLOR_FOCUS]
+                       : ui->theme.colors[LDK_UI_COLOR_TAB_TEXT];
       icon.uv = ldk_editor_icon_rects[s_editor_dock_target_icon(target)];
 
       ldk_ui_widget_icon_label(ui, id, icon, "", rect);
@@ -3404,6 +3635,9 @@ static bool s_editor_dock_layout_apply(
   memset(candidate.nodes, 0, sizeof(candidate.nodes));
   candidate.root = LDK_EDITOR_DOCK_INVALID_NODE;
   candidate.target_overlay_window_id = 0;
+  candidate.pending_focus_window = LDK_EDITOR_WINDOW_ID_INVALID;
+  candidate.last_focused_window = LDK_EDITOR_WINDOW_ID_INVALID;
+  candidate.last_focused_leaf = LDK_EDITOR_DOCK_INVALID_NODE;
   s_editor_dock_drag_reset(&candidate.drag);
   s_editor_dock_resize_reset(&candidate.resize);
 
@@ -3991,7 +4225,8 @@ static void s_editor_dock_layout_reset_preserving_windows(
     memcpy(windows, dock->windows, sizeof(LDKEditorDockWindow) * window_count);
   }
 
-  *dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
+  *dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE,
+      .last_focused_leaf = LDK_EDITOR_DOCK_INVALID_NODE};
 
   if (window_count > 0)
   {
@@ -4102,7 +4337,44 @@ void ldk_editor_dock_update(LDKEditorContext *editor)
     s_editor_dock_layout_node(dock, dock->root, workspace);
   }
 
+  s_editor_dock_pointer_focus_update(dock, ui);
   s_editor_dock_windows_draw(dock, editor);
+
+  if (dock->pending_focus_window != LDK_EDITOR_WINDOW_ID_INVALID)
+  {
+    LDKEditorDockWindow *window =
+        s_editor_dock_window_get(dock, dock->pending_focus_window);
+    if (window == NULL || !window->open)
+    {
+      dock->pending_focus_window = LDK_EDITOR_WINDOW_ID_INVALID;
+    }
+    else
+    {
+      LDKUIId ui_window_id = window->ui_window_id;
+      if (window->leaf != LDK_EDITOR_DOCK_INVALID_NODE)
+      {
+        ui_window_id = dock->nodes[window->leaf].data.leaf.ui_window_id;
+      }
+      if (ldk_ui_window_focus(ui, ui_window_id))
+      {
+        dock->pending_focus_window = LDK_EDITOR_WINDOW_ID_INVALID;
+      }
+    }
+  }
+
+  /* A click may also switch the active tab within a leaf. Retain its new
+   * stable window ID without treating implicit UI focus as user intent. */
+  if (s_editor_dock_mouse_down(ui))
+  {
+    i32 focused_leaf = s_editor_dock_focused_leaf(dock);
+    if (focused_leaf != LDK_EDITOR_DOCK_INVALID_NODE &&
+        focused_leaf == dock->last_focused_leaf)
+    {
+      s_editor_dock_remember_leaf(dock, focused_leaf);
+    }
+  }
+
+  /* Floating tools always render above the docked workspace. */
   s_editor_dock_floating_windows_bring_to_front(dock, ui);
 
   bool split_resizing = s_editor_dock_split_resize_update(dock, ui);

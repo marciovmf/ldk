@@ -794,6 +794,7 @@ extern "C"
       LDKUIRect *rect, bool *open, u32 flags);
   LDK_API bool ldk_ui_window_close_requested(LDKUIContext *ctx);
   LDK_API bool ldk_ui_window_content_should_build(LDKUIContext *ctx);
+  LDK_API bool ldk_ui_window_focus(LDKUIContext *ctx, LDKUIId id);
   LDK_API void ldk_ui_window_invalidate(LDKUIContext *ctx, LDKUIId id);
   LDK_API void ldk_ui_windows_invalidate(LDKUIContext *ctx);
   LDK_API void ldk_ui_end_window(LDKUIContext *ctx);

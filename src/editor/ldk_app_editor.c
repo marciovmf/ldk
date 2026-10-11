@@ -2386,6 +2386,7 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
     }
 
     editor->editor_state = LDK_EDITOR_STATE_PLAYING;
+    ldki_editor_window_show(LDK_EDITOR_WINDOW_GAME);
     return true;
   }
 
@@ -2461,6 +2462,7 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
   }
 
   editor->editor_state = LDK_EDITOR_STATE_PLAYING;
+  ldki_editor_window_show(LDK_EDITOR_WINDOW_GAME);
   return true;
 }
 
