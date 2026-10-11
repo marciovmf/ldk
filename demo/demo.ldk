@@ -27,7 +27,7 @@ icon_path=assets/ldk.ico
 
 [.editor]
 play_current_scene=true
-build_on_play=true
+build_on_play=false
 
 [.flags]
 tag_0=Hero
@@ -49,9 +49,9 @@ tag_15=tag_15
 
 [scenes]
 count=2
-0.path=island_test.scene
+0.path=scenes/island_test.scene
 0.name=island_test
-1.path=base.scene
+1.path=scenes/base.scene
 1.name=base
 
 [.box]

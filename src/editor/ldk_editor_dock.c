@@ -4390,6 +4390,7 @@ void ldk_editor_dock_terminate(LDKEditorContext *editor)
 {
   (void)editor;
   ldki_editor_animation_terminate();
+  ldki_editor_texture_atlas_terminate(editor);
 
   s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
   s_editor_dock_layouts =

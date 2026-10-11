@@ -3151,6 +3151,18 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
       image, readonly, optional, NULL, NULL, context);
 }
 
+/* Shared Inspector image picker for editor tools that reference image assets. */
+bool ldki_editor_image_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetImage *image, bool readonly)
+{
+  LDKMaterialIOContext context = {0};
+  context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  context.diagnostic = s_editor_material_diagnostic;
+  context.user = editor;
+  return s_editor_material_image_editor(editor, label, "Choose image",
+      image, readonly, false, &context);
+}
+
 static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
     const char *label, Vec2 *value, bool readonly)
 {

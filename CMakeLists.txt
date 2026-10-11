@@ -547,6 +547,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
   ${INCLUDE_DIR}/ldk_property.h     src/ldk_property.c
   ${INCLUDE_DIR}/ldk_keyframe_animation.h src/ldk_keyframe_animation.c
+  ${INCLUDE_DIR}/ldk_texture_atlas.h src/ldk_texture_atlas.c
   ${INCLUDE_DIR}/component/ldk_keyframe_animation_source.h
   src/component/ldk_keyframe_animation_source.c
   ${INCLUDE_DIR}/ldk_profiler.h     src/ldk_profiler.c
@@ -582,6 +583,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/module/ldk_audio.h           src/module/ldk_audio.c
   src/depend/miniaudio/miniaudio.h
   ${INCLUDE_DIR}/module/ldk_asset_manager.h   src/module/ldk_asset_manager.c
+  src/module/ldk_asset_texture_atlas.c
   ${INCLUDE_DIR}/module/ldk_asset_source.h    src/module/ldk_asset_source.c
   ${INCLUDE_DIR}/module/ldk_component.h       src/module/ldk_component.c
   ${INCLUDE_DIR}/module/ldk_entity.h          src/module/ldk_entity.c
@@ -867,6 +869,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_theme.c
     src/editor/ldk_editor_dock.c
     src/editor/ldk_editor_animation.c
+    src/editor/ldk_editor_texture_atlas.c
     src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_grid.c
     src/editor/ldk_editor_gizmo.c
@@ -1015,6 +1018,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
   ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
+  ldk_test_build(TARGET test_texture_atlas SOURCES src/tests/test_ldk_texture_atlas.c)
   ldk_test_build(TARGET test_water SOURCES src/tests/test_ldk_water.c)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)

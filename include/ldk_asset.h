@@ -30,7 +30,8 @@ extern "C"
     LDK_ASSET_TYPE_MATERIAL = 5,
     LDK_ASSET_TYPE_SKYBOX = 6,
     LDK_ASSET_TYPE_AUDIO = 7,
-    LDK_ASSET_TYPE_KEYFRAME_ANIMATION = 8
+    LDK_ASSET_TYPE_KEYFRAME_ANIMATION = 8,
+    LDK_ASSET_TYPE_TEXTURE_ATLAS = 9
   } LDKAssetType;
 
   typedef struct LDKAssetHandle
@@ -72,6 +73,11 @@ extern "C"
   {
     LDKHandle h;
   } LDKAssetKeyframeAnimation;
+
+  typedef struct LDKAssetTextureAtlas
+  {
+    LDKHandle h;
+  } LDKAssetTextureAtlas;
 
   typedef struct LDKAssetAudio
   {

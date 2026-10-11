@@ -8,6 +8,7 @@
 #include <ldk_image.h>
 #include <ldk_material_io.h>
 #include <ldk_keyframe_animation.h>
+#include <ldk_texture_atlas.h>
 #include <ldk_package.h>
 #include <ldk_scene.h>
 #include <module/ldk_asset_manager.h>
@@ -239,14 +240,14 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"cc", LDK_EDITOR_ICON_CODE},
     {"cpp", LDK_EDITOR_ICON_CODE},
     {"cxx", LDK_EDITOR_ICON_CODE},
+    {"frag", LDK_EDITOR_ICON_CODE},
+    {"glsl", LDK_EDITOR_ICON_CODE},
     {"h", LDK_EDITOR_ICON_CODE},
     {"hh", LDK_EDITOR_ICON_CODE},
     {"hpp", LDK_EDITOR_ICON_CODE},
     {"hxx", LDK_EDITOR_ICON_CODE},
     {"inl", LDK_EDITOR_ICON_CODE},
-    {"glsl", LDK_EDITOR_ICON_CODE},
     {"vert", LDK_EDITOR_ICON_CODE},
-    {"frag", LDK_EDITOR_ICON_CODE},
     {"png", LDK_EDITOR_ICON_IMAGE},
     {"jpg", LDK_EDITOR_ICON_IMAGE},
     {"jpeg", LDK_EDITOR_ICON_IMAGE},
@@ -2158,6 +2159,30 @@ static void s_project_explorer_on_file_double_click(
   {
     ldki_editor_scene_load(editor, &entry->path);
   }
+  else if (x_slice_eq_ci(extension, x_slice("atlas")))
+  {
+    /* Package-backed entries are metadata-only and cannot be saved in-place. */
+    XFSPath relative = {0};
+    bool read_only = entry->package_backed ||
+        !x_fs_path_is_file(&entry->path);
+    const char *logical = NULL;
+    if (read_only)
+    {
+      logical = entry->asset_path.buf[0] ?
+          entry->asset_path.buf : entry->path.buf;
+    }
+    else if (x_fs_path_relative_to(
+            editor->project.loaded ? &editor->project.run_root_path :
+            &editor->engine_runtree, &entry->path, &relative) > 0)
+    {
+      logical = relative.buf;
+    }
+    if (!logical || !ldki_editor_texture_atlas_open(
+            editor, entry->path.buf, logical, read_only))
+    {
+      ldki_editor_log_error(editor, "Failed to open texture atlas.");
+    }
+  }
   else
   {
     s_project_explorer_file_open(editor, &entry->path);
@@ -2778,6 +2803,39 @@ static bool s_project_explorer_create_animation(
   return true;
 }
 
+static bool s_project_explorer_create_atlas(
+    LDKEditorContext *editor, ProjectExplorerState *state)
+{
+  XFSPath parent;
+  XFSPath created = {0};
+  LDKTextureAtlas atlas;
+  if (!editor || !state || !state->context_target.is_directory)
+  {
+    return false;
+  }
+  parent = state->context_target.path;
+  if (!s_project_explorer_unique_child_path(
+          &parent, "New Texture Atlas", ".atlas", &created))
+  {
+    return false;
+  }
+  ldk_texture_atlas_init(&atlas);
+  bool ok = ldk_texture_atlas_save(&atlas, created.buf);
+  ldk_texture_atlas_clear(&atlas);
+  if (!ok)
+  {
+    return false;
+  }
+  s_project_explorer_directory_select(state, &parent, true);
+  s_project_explorer_directory_cache_dirty(state);
+  state->selected_file = created;
+  state->context_target.path = created;
+  state->context_target.is_directory = false;
+  state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;
+  s_project_explorer_rename_begin(state);
+  return true;
+}
+
 static void s_project_explorer_context_menu_draw(
     LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui)
 {
@@ -2952,6 +3010,15 @@ static void s_project_explorer_context_menu_draw(
         if (!s_project_explorer_create_material(editor, state))
         {
           ldki_editor_log_error(editor, "Failed to create material.");
+        }
+        ldk_ui_close_current_popup(ui);
+      }
+
+      if (ldk_ui_button_flat(ui, "New Texture Atlas"))
+      {
+        if (!s_project_explorer_create_atlas(editor, state))
+        {
+          ldki_editor_log_error(editor, "Failed to create texture atlas.");
         }
         ldk_ui_close_current_popup(ui);
       }

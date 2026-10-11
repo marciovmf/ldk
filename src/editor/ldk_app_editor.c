@@ -1,3 +1,4 @@
+#include "module/ldk_rhi.h"
 #define LDK_IMPL_STDX
 #include "../ldk_stdx.h"
 
@@ -2227,10 +2228,10 @@ static bool s_editor_config_load_from_ini(
   options.generate_mipmaps = true;
   options.min_filter = LDK_RHI_FILTER_LINEAR;
   options.mag_filter = LDK_RHI_FILTER_LINEAR;
-  options.mip_filter = LDK_RHI_FILTER_LINEAR;
+  options.mip_filter = LDK_RHI_FILTER_NONE;
 
-  options.wrap_u = LDK_RHI_WRAP_REPEAT;
-  options.wrap_v = LDK_RHI_WRAP_REPEAT;
+  options.wrap_u = LDK_RHI_WRAP_CLAMP_TO_EDGE;
+  options.wrap_v = LDK_RHI_WRAP_CLAMP_TO_EDGE;
 
   LDKResourceTexture texture_atlas = ldk_renderer_texture_create_from_image(
       ldk_module_get(LDK_MODULE_RENDERER), image_atlas, &options);
@@ -3218,6 +3219,10 @@ static bool s_project_unload(LDKEditorContext *editor)
     return true;
   }
 
+  if (!ldki_editor_texture_atlas_project_close(editor))
+  {
+    return false;
+  }
   s_editor_state_set_stop(editor);
   s_editor_profiler_stop(editor);
   has_editor_game_dll_path =
@@ -4894,6 +4899,18 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_ANIMATION);
+
+  LDKEditorWindow atlas_window = {.id = LDK_EDITOR_WINDOW_TEXTURE_ATLAS,
+      .title = "Texture Atlas",
+      .function = ldki_editor_texture_atlas_window_show,
+      .data = NULL};
+  if (!ldk_editor_window_add((LDKEditor *)editor, &atlas_window))
+  {
+    ldk_log_error("Failed to register the Texture Atlas editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_TEXTURE_ATLAS);
 
   LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
       .title = "Scene Catalog",

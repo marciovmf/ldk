@@ -1,0 +1,29 @@
+texture_atlas:
+  version: 1
+  texture: "assets/textures/tftf_terrain_atlas.png"
+  next_id: 7
+  regions:
+    - id: 1
+      name: "sprite_0000"
+      rect: 0, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
+    - id: 2
+      name: "sprite_0001"
+      rect: 32, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
+    - id: 3
+      name: "sprite_0002"
+      rect: 64, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
+    - id: 4
+      name: "sprite_0003"
+      rect: 96, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
+    - id: 5
+      name: "sprite_0004"
+      rect: 128, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
+    - id: 6
+      name: "sprite_0005"
+      rect: 160, 0, 32, 32
+      pivot: 0.500000000, 0.500000000
