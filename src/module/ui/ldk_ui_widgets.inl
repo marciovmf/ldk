@@ -313,8 +313,8 @@ bool ldk_ui_widget_button_flat(
   return frame.clicked;
 }
 
-bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
-    char const *text, LDKUIRect rect)
+bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
+                             char const *text, LDKUIRect rect, bool flat)
 {
   LDKUIWidgetBox box = {0};
 
@@ -340,9 +340,22 @@ bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
   u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
-  s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
-  s_ui_render_border(
+  if (!flat)
+  {
+    s_ui_render_border(
       ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+  }
+  else
+  {
+
+    if (frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+    {
+      u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
+      s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+    }
+  }
 
   LDKUISize text_size = s_ui_widget_text_size(ctx, text);
 
@@ -375,6 +388,18 @@ bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       ctx, icon, text, content_rect, text_color, box.clip);
 
   return frame.clicked;
+}
+
+bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
+    char const *text, LDKUIRect rect)
+{
+  return s_ui_widget_icon_button(ctx, id, icon, text, rect, false);
+}
+
+bool ldk_ui_widget_icon_button_flat(LDKUIContext *ctx, LDKUIId id,
+    LDKUIIcon icon, char const *text, LDKUIRect rect)
+{
+  return s_ui_widget_icon_button(ctx, id, icon, text, rect, true);
 }
 
 bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,

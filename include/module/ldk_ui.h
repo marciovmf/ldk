@@ -928,6 +928,8 @@ extern "C"
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
       LDKUIIcon icon, char const *text, LDKUIRect rect);
+  LDK_API bool ldk_ui_widget_icon_button_flat(LDKUIContext *ctx, LDKUIId id,
+      LDKUIIcon icon, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_button_flat(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
   LDK_API bool ldk_ui_widget_toggle(

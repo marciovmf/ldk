@@ -1163,22 +1163,62 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     ldk_ui_set_next_disabled(
         ui, editor->editor_state != LDK_EDITOR_STATE_STOPED);
     ldk_ui_set_next_weight(ui, 0.0f);
-    if (s_editor_push_button(ui, NULL, icon, editor->exclusive_mode))
+    if (s_editor_push_button(ui, "Expand on play", icon, editor->exclusive_mode))
     {
       editor->exclusive_mode = !editor->exclusive_mode;
     }
   }
 
-  ldk_ui_spacer(ui);
+  LDKUIIcon icon;
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.size =
+    ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+    ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  
+  {
+    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
+    ldk_ui_set_next_weight(ui, 0.0f);
+
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HAMMER];
+    if (s_editor_push_button(
+            ui, "Build on play", icon, editor->project.build_on_play))
+    {
+      bool build_on_play = !editor->project.build_on_play;
+      if (!s_editor_project_build_on_play_write(editor, build_on_play))
+      {
+        ldki_editor_log_warning(
+          editor, "Could not save the Build on Play preference.");
+      }
+      else
+      {
+        editor->project.build_on_play = build_on_play;
+      }
+    }
+  }
 
   {
-    LDKUIIcon icon;
-    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-    icon.size =
-        ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-    icon.texture =
-        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+    ldk_ui_set_next_weight(ui, 0.0f);
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_STATS];
+    if (s_editor_push_button(
+            ui, "View stats on play", icon, editor->show_statistics))
+    {
+      bool show_statistics = !editor->show_statistics;
+      if (!s_editor_ini_bool_write(
+            &editor->editor_config_path, "show_statistics", show_statistics))
+      {
+        ldki_editor_log_warning(
+          editor, "Could not save the Statistics preference.");
+      }
+      else
+      {
+        editor->show_statistics = show_statistics;
+      }
+    }
+  }
 
+  // play scene or game
+  {
     ldk_ui_set_next_disabled(
         ui, !editor->project.loaded ||
                 editor->editor_state != LDK_EDITOR_STATE_STOPED);
@@ -1200,27 +1240,35 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
         editor->project.play_current_scene = play_current_scene;
       }
     }
+  }
 
-    ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
-    ldk_ui_spacer(ui);
-    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
-    ldk_ui_set_next_weight(ui, 0.0f);
-    bool build_on_play = ldk_ui_toggle(ui, editor->project.build_on_play);
-    if (build_on_play != editor->project.build_on_play)
+  // Center the playback buttons against the full toolbar width, not the
+  // remaining space between the controls on either side.
+  {
+    const u32 playback_button_count =
+        editor->editor_state == LDK_EDITOR_STATE_PAUSED ? 4u : 3u;
+    const float playback_button_width =
+        icon.size.w + 4.0f * LDK_UI_DEFAULT_SPACING;
+    const float playback_group_width =
+        playback_button_count * playback_button_width +
+        (playback_button_count - 1u) * LDK_UI_DEFAULT_SPACING;
+    const float playback_start_x =
+        toolbar_rect.x + (toolbar_rect.w - playback_group_width) * 0.5f;
+    LDKUIRect previous_rect = ldk_ui_last_rect(ui);
+    float spacer_width = playback_start_x -
+                         (previous_rect.x + previous_rect.w) -
+                         2.0f * LDK_UI_DEFAULT_SPACING;
+
+    if (spacer_width < 0.0f)
     {
-      if (!s_editor_project_build_on_play_write(editor, build_on_play))
-      {
-        ldki_editor_log_warning(
-            editor, "Could not save the Build on Play preference.");
-      }
-      else
-      {
-        editor->project.build_on_play = build_on_play;
-      }
+      spacer_width = 0.0f;
     }
-    ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_label(ui, "Build on Play");
 
+    ldk_ui_set_next_width(ui, ldk_ui_px(spacer_width));
+    ldk_ui_spacer(ui);
+  }
+
+  {
     // Play/Stop button
     if (editor->editor_state != LDK_EDITOR_STATE_PLAYING)
     {
@@ -1285,24 +1333,6 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
 
   ldk_ui_spacer(ui);
-
-  ldk_ui_set_next_weight(ui, 0.0f);
-  bool show_statistics = ldk_ui_toggle(ui, editor->show_statistics);
-  if (show_statistics != editor->show_statistics)
-  {
-    if (!s_editor_ini_bool_write(
-            &editor->editor_config_path, "show_statistics", show_statistics))
-    {
-      ldki_editor_log_warning(
-          editor, "Could not save the Statistics preference.");
-    }
-    else
-    {
-      editor->show_statistics = show_statistics;
-    }
-  }
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui, "Statistics");
 
   s_editor_layout_combo_box(editor);
 

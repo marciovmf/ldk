@@ -1781,9 +1781,17 @@ static LDKEditorWindowId s_editor_dock_leaf_draw(
   close_button_rect.y +=
       (LDK_UI_TAB_BAR_TAB_HEIGHT - close_button_rect.h) * 0.5f;
 
+  
+  LDKUIIcon icon = {0};
+  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_TEXT];
+  icon.size = ldk_sizef(8, 8);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_CLOSE];
+
   const LDKUIId close_button_id =
       (LDKUIId)(0x444F4300u + (u32)leaf_index);
-  if (ldk_ui_widget_button_flat(ui, close_button_id, "x", close_button_rect))
+  if (ldk_ui_widget_icon_button_flat(ui, close_button_id, icon, NULL, close_button_rect))
   {
     close_requested = leaf->active_window;
   }

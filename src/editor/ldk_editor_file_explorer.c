@@ -254,6 +254,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"tga", LDK_EDITOR_ICON_IMAGE},
     {"gif", LDK_EDITOR_ICON_IMAGE},
     {"hdr", LDK_EDITOR_ICON_IMAGE},
+    {"anim", LDK_EDITOR_ICON_ANIMATION},
     {"wav", LDK_EDITOR_ICON_AUDIO_FILE},
     {"ogg", LDK_EDITOR_ICON_AUDIO_FILE},
     {"mp3", LDK_EDITOR_ICON_AUDIO_FILE},

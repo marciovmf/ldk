@@ -1932,13 +1932,24 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
   ldk_ui_label(ui, "Preview");
   ldk_ui_set_next_width(ui, ldk_ui_px(36.0f));
-  if (ldk_ui_button_flat(ui, "|<"))
+
+
+  LDKUIIcon icon = {0};
+  icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.size = ldk_sizef(
+    LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP_BACK];
+  if (ldk_ui_icon_button(ui, icon, ""))
   {
     state->playing = false;
     s_editor_animation_set_time(0.0f);
   }
   ldk_ui_set_next_width(ui, ldk_ui_px(36.0f));
-  if (ldk_ui_button_flat(ui, "<"))
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_FIRST];
+  if (ldk_ui_icon_button(ui, icon, NULL))
   {
     state->playing = false;
     float previous = 0.0f;
@@ -1957,11 +1968,18 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     s_editor_animation_set_time(previous);
   }
   ldk_ui_set_next_width(ui, ldk_ui_px(55.0f));
-  if (ldk_ui_button_flat(ui, state->playing ? "Pause" : "Play"))
+
+  icon.uv = ldk_editor_icon_rects[state->playing ?
+                                  LDK_EDITOR_ICON_BUTTON_STOP :
+                                  LDK_EDITOR_ICON_BUTTON_PLAY];
+
+  if (ldk_ui_icon_button(ui, icon, NULL))
   {
     if (state->playing)
     {
       state->playing = false;
+      s_editor_animation_restore();
+      state->playhead = 0.0f;
     }
     else if (!x_handle_is_null(state->root) &&
         s_editor_animation_preview_begin())
@@ -1974,14 +1992,10 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
       state->playing = true;
     }
   }
-  ldk_ui_set_next_width(ui, ldk_ui_px(46.0f));
-  if (ldk_ui_button_flat(ui, "Stop"))
-  {
-    s_editor_animation_restore();
-    state->playhead = 0.0f;
-  }
   ldk_ui_set_next_width(ui, ldk_ui_px(36.0f));
-  if (ldk_ui_button_flat(ui, ">"))
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_LAST];
+  if (ldk_ui_icon_button(ui, icon, NULL))
   {
     state->playing = false;
     float next = state->clip.duration;
@@ -2000,7 +2014,9 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     s_editor_animation_set_time(next);
   }
   ldk_ui_set_next_width(ui, ldk_ui_px(36.0f));
-  if (ldk_ui_button_flat(ui, ">|"))
+
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_BUTTON_SKIP];
+  if (ldk_ui_icon_button(ui, icon, NULL))
   {
     state->playing = false;
     s_editor_animation_set_time(state->clip.duration);
