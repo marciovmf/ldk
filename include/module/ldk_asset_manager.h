@@ -143,7 +143,8 @@ extern "C" {
   typedef struct LDKAssetTextureAtlasData
   {
     LDKTextureAtlas atlas;
-    LDKAssetImage image; /* Shared image; manager owns its lifetime. */
+    LDKAssetImage image;
+    u64 revision; /* Shared image; manager owns its lifetime. */
   } LDKAssetTextureAtlasData;
 
   LDK_API LDKAssetTextureAtlas ldk_asset_texture_atlas_null(void);

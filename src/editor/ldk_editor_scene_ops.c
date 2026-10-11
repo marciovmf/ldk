@@ -273,6 +273,9 @@ static bool s_editor_play_scene_field_size(
   case LDK_FIELD_I32:
     *out_size = sizeof(i32);
     return true;
+  case LDK_FIELD_U64:
+    *out_size = sizeof(u64);
+    return true;
   case LDK_FIELD_U32:
     *out_size = sizeof(u32);
     return true;
@@ -302,6 +305,9 @@ static bool s_editor_play_scene_field_size(
     return true;
   case LDK_FIELD_ASSET_FONT:
     *out_size = sizeof(LDKAssetFont);
+    return true;
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+    *out_size = sizeof(LDKAssetTextureAtlas);
     return true;
   case LDK_FIELD_ASSET_IMAGE:
     *out_size = sizeof(LDKAssetImage);
@@ -355,6 +361,10 @@ static bool s_editor_play_scene_asset_reference_is_persistent(
   case LDK_FIELD_ASSET_FONT:
     asset.h = ((const LDKAssetFont *)(base + field->offset))->h;
     expected_type = LDK_ASSET_TYPE_FONT;
+    break;
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+    asset.h = ((const LDKAssetTextureAtlas *)(base + field->offset))->h;
+    expected_type = LDK_ASSET_TYPE_TEXTURE_ATLAS;
     break;
   case LDK_FIELD_ASSET_IMAGE:
     asset.h = ((const LDKAssetImage *)(base + field->offset))->h;

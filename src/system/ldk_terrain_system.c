@@ -9,6 +9,7 @@
 #include <stdx/stdx_math.h>
 
 #include <float.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -113,19 +114,19 @@ static rgba32 s_surface_color(const LDKTerrainSystem *s, u32 i)
   }
 }
 
-static Vec4 s_surface_atlas_rect(const LDKTerrainSystem *s, u32 i)
+static u64 s_surface_region_id(const LDKTerrainSystem *s, u32 i)
 {
   switch (i)
   {
-  case 0: return s->surface_0_atlas_rect;
-  case 1: return s->surface_1_atlas_rect;
-  case 2: return s->surface_2_atlas_rect;
-  case 3: return s->surface_3_atlas_rect;
-  case 4: return s->surface_4_atlas_rect;
-  case 5: return s->surface_5_atlas_rect;
-  case 6: return s->surface_6_atlas_rect;
-  case 7: return s->surface_7_atlas_rect;
-  default: return vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
+  case 0: return s->surface_0_sprite_id;
+  case 1: return s->surface_1_sprite_id;
+  case 2: return s->surface_2_sprite_id;
+  case 3: return s->surface_3_sprite_id;
+  case 4: return s->surface_4_sprite_id;
+  case 5: return s->surface_5_sprite_id;
+  case 6: return s->surface_6_sprite_id;
+  case 7: return s->surface_7_sprite_id;
+  default: return 0u;
   }
 }
 
@@ -165,23 +166,19 @@ static void s_surface_defaults(LDKTerrainSystem *system)
 {
   for (u32 i = 0u; i < LDK_TERRAIN_SURFACE_COUNT; ++i)
   {
-    Vec4 *rect = NULL;
     Vec2 *scale = NULL;
     rgba32 *color = NULL;
     switch (i)
     {
-    case 0: rect=&system->surface_0_atlas_rect; scale=&system->surface_0_uv_scale; color=&system->surface_0_color; break;
-    case 1: rect=&system->surface_1_atlas_rect; scale=&system->surface_1_uv_scale; color=&system->surface_1_color; break;
-    case 2: rect=&system->surface_2_atlas_rect; scale=&system->surface_2_uv_scale; color=&system->surface_2_color; break;
-    case 3: rect=&system->surface_3_atlas_rect; scale=&system->surface_3_uv_scale; color=&system->surface_3_color; break;
-    case 4: rect=&system->surface_4_atlas_rect; scale=&system->surface_4_uv_scale; color=&system->surface_4_color; break;
-    case 5: rect=&system->surface_5_atlas_rect; scale=&system->surface_5_uv_scale; color=&system->surface_5_color; break;
-    case 6: rect=&system->surface_6_atlas_rect; scale=&system->surface_6_uv_scale; color=&system->surface_6_color; break;
-    case 7: rect=&system->surface_7_atlas_rect; scale=&system->surface_7_uv_scale; color=&system->surface_7_color; break;
+    case 0: scale=&system->surface_0_uv_scale; color=&system->surface_0_color; break;
+    case 1: scale=&system->surface_1_uv_scale; color=&system->surface_1_color; break;
+    case 2: scale=&system->surface_2_uv_scale; color=&system->surface_2_color; break;
+    case 3: scale=&system->surface_3_uv_scale; color=&system->surface_3_color; break;
+    case 4: scale=&system->surface_4_uv_scale; color=&system->surface_4_color; break;
+    case 5: scale=&system->surface_5_uv_scale; color=&system->surface_5_color; break;
+    case 6: scale=&system->surface_6_uv_scale; color=&system->surface_6_color; break;
+    case 7: scale=&system->surface_7_uv_scale; color=&system->surface_7_color; break;
     }
-    if (rect && rect->x == 0.0f && rect->y == 0.0f &&
-        rect->z == 0.0f && rect->w == 0.0f)
-      *rect = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
     if (scale && scale->x == 0.0f && scale->y == 0.0f)
       *scale = vec2_make(1.0f, 1.0f);
     if (color && *color == 0u)
@@ -207,13 +204,10 @@ static bool s_config_is_valid(const LDKTerrainSystem *system)
     float h = s_surface_min_height(system, i);
     float blend = s_surface_blend_width(system, i);
     float weight = s_surface_texture_weight(system, i);
-    Vec4 rect = s_surface_atlas_rect(system, i);
     Vec2 uv = s_surface_uv_scale(system, i);
     if (!isfinite(h) || h < 0.0f || h > 1.0f || h < previous ||
         !isfinite(blend) || blend < 0.0f || blend > 1.0f ||
         !isfinite(weight) || weight < 0.0f || weight > 1.0f ||
-        !isfinite(rect.x) || !isfinite(rect.y) ||
-        !isfinite(rect.z) || !isfinite(rect.w) ||
         !isfinite(uv.x) || !isfinite(uv.y))
       return false;
     previous = h;
@@ -360,21 +354,29 @@ static u64 s_geometry_hash(const LDKTerrainSystem *s)
   return h;
 }
 
-static u64 s_appearance_hash(const LDKTerrainSystem *s)
+static u64 s_appearance_hash(const LDKTerrainSystem *s,
+    const LDKAssetTextureAtlasData *atlas)
 {
   u64 h = UINT64_C(14695981039346656037);
   h=s_hash_bytes(h,&s->material,sizeof(s->material));
+  h=s_hash_bytes(h,&s->texture_atlas,sizeof(s->texture_atlas));
+  if (atlas)
+  {
+    h=s_hash_bytes(h,&atlas->revision,sizeof(atlas->revision));
+    h=s_hash_bytes(h,&atlas->image,sizeof(atlas->image));
+  }
   h=s_hash_bytes(h,&s->surface_count,sizeof(s->surface_count));
   for (u32 i=0;i<s->surface_count;++i)
   {
     float a=s_surface_min_height(s,i), b=s_surface_blend_width(s,i);
     float w=s_surface_texture_weight(s,i);
     rgba32 c=s_surface_color(s,i);
-    Vec4 r=s_surface_atlas_rect(s,i);
+    u64 region=s_surface_region_id(s,i);
     Vec2 u=s_surface_uv_scale(s,i);
     h=s_hash_bytes(h,&a,sizeof(a)); h=s_hash_bytes(h,&b,sizeof(b));
     h=s_hash_bytes(h,&w,sizeof(w)); h=s_hash_bytes(h,&c,sizeof(c));
-    h=s_hash_bytes(h,&r,sizeof(r)); h=s_hash_bytes(h,&u,sizeof(u));
+    h=s_hash_bytes(h,&region,sizeof(region));
+    h=s_hash_bytes(h,&u,sizeof(u));
   }
   h=s_hash_bytes(h,&s->height_scale,sizeof(s->height_scale));
   h=s_hash_bytes(h,&s->height_offset,sizeof(s->height_offset));
@@ -501,63 +503,126 @@ static void s_material_release(LDKRenderer *renderer)
 }
 
 static void s_surface_descs(const LDKTerrainSystem *system,
-    LDKRendererTerrainSurfaceDesc out[LDK_TERRAIN_SURFACE_COUNT])
+    const LDKAssetTextureAtlasData *atlas_data, const LDKImageInfo *image,
+    LDKRendererTerrainSurfaceDesc out[LDK_TERRAIN_SURFACE_COUNT],
+    u32 *out_invalid_mask)
 {
-  memset(out,0,sizeof(*out)*LDK_TERRAIN_SURFACE_COUNT);
-  for(u32 i=0;i<system->surface_count;++i)
+  memset(out, 0, sizeof(*out) * LDK_TERRAIN_SURFACE_COUNT);
+  if (out_invalid_mask) *out_invalid_mask = 0u;
+  for (u32 i = 0; i < system->surface_count; ++i)
   {
-    out[i].min_height=system->height_offset+
-        s_surface_min_height(system,i)*system->height_scale;
-    out[i].blend_width=s_surface_blend_width(system,i)*system->height_scale;
-    out[i].color=s_surface_color(system,i);
-    out[i].atlas_rect=s_surface_atlas_rect(system,i);
-    out[i].uv_scale=s_surface_uv_scale(system,i);
-    out[i].texture_weight=s_surface_texture_weight(system,i);
+    out[i].min_height = system->height_offset +
+        s_surface_min_height(system, i) * system->height_scale;
+    out[i].blend_width = s_surface_blend_width(system, i) * system->height_scale;
+    out[i].color = s_surface_color(system, i);
+    out[i].uv_scale = s_surface_uv_scale(system, i);
+    out[i].atlas_rect = vec4_make(0, 0, 1, 1);
+    out[i].texture_weight = 0.0f;
+    u64 id = s_surface_region_id(system, i);
+    if (!id || !atlas_data || !image) continue;
+    const LDKTextureAtlasRegion *region =
+        ldk_texture_atlas_region_find_const(&atlas_data->atlas, id);
+    float uv[4];
+    if (!region || !ldk_texture_atlas_region_uv(
+        region, image->width, image->height, uv))
+    {
+      /* Invalid/missing sprite: terrain still renders its color. */
+      if (out_invalid_mask) *out_invalid_mask |= 1u << i;
+      continue;
+    }
+    out[i].atlas_rect = vec4_make(uv[0], uv[1], uv[2], uv[3]);
+    out[i].texture_weight = s_surface_texture_weight(system, i);
   }
 }
 
 static bool s_material_resolve(LDKTerrainSystem *system,
     LDKRenderer *renderer, LDKAssetManager *assets)
 {
-  LDKRendererTerrainSurfaceDesc surfaces[LDK_TERRAIN_SURFACE_COUNT];
-  s_surface_descs(system,surfaces);
+  const LDKAssetTextureAtlasData *atlas_data =
+      ldk_asset_manager_texture_atlas_get_const(assets, system->texture_atlas);
+  const LDKAssetImageData *image_data = atlas_data
+      ? ldk_asset_manager_image_get_const(assets, atlas_data->image) : NULL;
+  LDKImageInfo image = {0};
+  bool has_image = image_data && image_data->image && !image_data->is_missing &&
+      ldk_image_get_info(image_data->image, &image);
 
   const LDKAssetMaterialData *data =
-      ldk_asset_manager_material_get_const(assets,system->material);
-  u64 revision=data?data->revision:0u;
-  u64 hash=s_appearance_hash(system);
-  if(ldk_renderer_material_is_valid(renderer,s_runtime.material) &&
-      s_runtime.appearance_hash==hash &&
-      s_asset_material_equal(s_runtime.material_asset,system->material) &&
-      s_runtime.material_revision==revision)
+      ldk_asset_manager_material_get_const(assets, system->material);
+  u64 revision = data ? data->revision : 0u;
+  u64 hash = s_appearance_hash(system, atlas_data);
+  if (ldk_renderer_material_is_valid(renderer, s_runtime.material) &&
+      s_runtime.appearance_hash == hash &&
+      s_asset_material_equal(s_runtime.material_asset, system->material) &&
+      s_runtime.material_revision == revision)
     return true;
 
+  if (!x_handle_is_null(system->texture_atlas.h) && !atlas_data)
+    ldk_log_error("Terrain texture atlas handle is invalid.\n");
+  else if (atlas_data && !has_image)
+    ldk_log_error("Terrain atlas image is unavailable.\n");
+
+  LDKRendererTerrainSurfaceDesc surfaces[LDK_TERRAIN_SURFACE_COUNT];
+  u32 invalid_mask = 0u;
+  s_surface_descs(system, atlas_data, has_image ? &image : NULL,
+      surfaces, &invalid_mask);
+  for (u32 i = 0u; i < system->surface_count; ++i)
+  {
+    if (invalid_mask & (1u << i))
+      ldk_log_error("Terrain surface %u: sprite ID %" PRIu64
+          " not found or outside atlas image.\n", i, s_surface_region_id(system, i));
+  }
   s_material_release(renderer);
 
-  if(data)
+  /* The material controls sampling and shading. The atlas selects only the
+   * image and named regions, never filters or GPU resource parameters. */
+  if (data || has_image)
   {
-    if(!ldk_renderer_terrain_material_resolve(renderer,assets,&data->descriptor,
-        surfaces,system->surface_count,&s_runtime.material,&s_runtime.texture,
-        &s_runtime.normal_map,&s_runtime.specular_map))
+    LDKMaterialDesc desc;
+    if (data)
+      desc = data->descriptor;
+    else if (!ldk_material_desc_defaults(LDK_MATERIAL_TYPE_TEXTURED, &desc))
       return false;
-    s_runtime.material_asset=system->material;
-    s_runtime.material_revision=revision;
+
+    if (has_image)
+    {
+      if (desc.type == LDK_MATERIAL_TYPE_VERTEX_COLOR ||
+          desc.type == LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT)
+      {
+        rgba32 tint = desc.args.vertex_color.color;
+        LDKMaterialType new_type = desc.type == LDK_MATERIAL_TYPE_VERTEX_COLOR
+            ? LDK_MATERIAL_TYPE_TEXTURED : LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+        LDKMaterialDesc textured;
+        if (!ldk_material_desc_defaults(new_type, &textured)) return false;
+        textured.args.textured.color = tint;
+        textured.alpha_mode = desc.alpha_mode;
+        textured.alpha_cutoff = desc.alpha_cutoff;
+        textured.surface = desc.surface;
+        desc = textured;
+      }
+      desc.args.textured.texture = atlas_data->image;
+    }
+    if (!ldk_renderer_terrain_material_resolve(renderer, assets, &desc,
+        surfaces, system->surface_count, &s_runtime.material, &s_runtime.texture,
+        &s_runtime.normal_map, &s_runtime.specular_map))
+      return false;
+    s_runtime.material_asset = system->material;
+    s_runtime.material_revision = revision;
   }
   else
   {
-    LDKRendererMaterialDesc desc={0};
-    desc.type=LDK_MATERIAL_TYPE_VERTEX_COLOR;
-    desc.color=LDK_RGBA32(0xffffffffu);
-    desc.shininess=32.0f;
-    desc.terrain=true;
-    desc.terrain_surface_count=system->surface_count;
-    memcpy(desc.terrain_surfaces,surfaces,
-        (size_t)system->surface_count*sizeof(*surfaces));
-    s_runtime.material=ldk_renderer_material_create(renderer,&desc);
-    if(!ldk_renderer_material_is_valid(renderer,s_runtime.material))
+    LDKRendererMaterialDesc desc = {0};
+    desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+    desc.color = LDK_RGBA32(0xffffffffu);
+    desc.shininess = 32.0f;
+    desc.terrain = true;
+    desc.terrain_surface_count = system->surface_count;
+    memcpy(desc.terrain_surfaces, surfaces,
+        (size_t)system->surface_count * sizeof(*surfaces));
+    s_runtime.material = ldk_renderer_material_create(renderer, &desc);
+    if (!ldk_renderer_material_is_valid(renderer, s_runtime.material))
       return false;
   }
-  s_runtime.appearance_hash=hash;
+  s_runtime.appearance_hash = hash;
   return true;
 }
 

@@ -181,7 +181,7 @@ static int test_water_metadata_registration(void)
   {
     LDKSystemDesc desc;
     ASSERT_TRUE(ldk_engine_system_descriptor_get(i, &desc));
-    if (strcmp(desc.name, "WaterSystem") != 0)
+    if (strcmp(desc.name, "LDKWaterSystem") != 0)
     {
       continue;
     }
@@ -202,7 +202,7 @@ static int test_water_metadata_registration(void)
   for (u32 i = 0u; i < ldk_engine_system_metadata_count(); ++i)
   {
     const LDKSystemMeta *meta = ldk_engine_system_metadata_get(i);
-    if (!meta || strcmp(meta->name, "WaterSystem") != 0)
+    if (!meta || strcmp(meta->name, "LDKWaterSystem") != 0)
     {
       continue;
     }

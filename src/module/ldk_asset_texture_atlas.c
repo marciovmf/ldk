@@ -40,6 +40,7 @@ static LDKAssetTextureAtlas s_atlas_create(LDKAssetManager *manager,
   }
   ldk_texture_atlas_init(&data->atlas);
   data->image = ldk_asset_image_null();
+  data->revision = 1u;
   if (!ldk_texture_atlas_copy(&data->atlas, atlas))
   {
     free(data);
@@ -230,5 +231,6 @@ bool ldk_asset_manager_texture_atlas_reload(LDKAssetManager *manager,
   ldk_texture_atlas_clear(&data->atlas);
   data->atlas = candidate;
   data->image = image;
+  ++data->revision;
   return true;
 }

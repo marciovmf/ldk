@@ -22,6 +22,7 @@ typedef struct LDKMetaField
   char field_kind[64];
   char widget[64];
   char display_name[128];
+  char widget_source[128];
   u32 flags;
   float min_value;
   float max_value;
@@ -366,6 +367,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
+  if (strcmp(type_name, "u64") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_U64");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_DEFAULT");
+    return true;
+  }
+
   if (strcmp(type_name, "u32") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_U32");
@@ -440,6 +448,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
   {
     snprintf(out_kind, out_size, "LDK_FIELD_ASSET_FONT");
     snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_FONT");
+    return true;
+  }
+
+  if (strcmp(type_name, "LDKAssetTextureAtlas") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_ASSET_TEXTURE_ATLAS");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_TEXTURE_ATLAS");
     return true;
   }
 
@@ -537,6 +552,14 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     else if (strncmp(token, "widget=", 7) == 0)
     {
       snprintf(field->widget, sizeof(field->widget), "LDK_FIELD_WIDGET_%s", token + 7);
+    }
+    else if (strncmp(token, "source=", 7) == 0)
+    {
+      snprintf(field->widget_source, sizeof(field->widget_source), "%s", token + 7);
+    }
+    else if (strncmp(token, "label=", 6) == 0)
+    {
+      snprintf(field->display_name, sizeof(field->display_name), "%s", token + 6);
     }
 
     token = strtok(NULL, " \t\r\n");
@@ -2013,7 +2036,18 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
       {
         fprintf(out, "NULL");
       }
-      fprintf(out, ", \"%s\" },\n", field->display_name);
+      fprintf(out, ", ");
+      ldk_meta_write_c_string(out, field->display_name);
+      fprintf(out, ", ");
+      if (field->widget_source[0])
+      {
+        ldk_meta_write_c_string(out, field->widget_source);
+      }
+      else
+      {
+        fprintf(out, "NULL");
+      }
+      fprintf(out, " },\n");
     }
 
     fprintf(out, "  };\n\n");
@@ -2099,7 +2133,18 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
         {
           fprintf(out, "NULL");
         }
-        fprintf(out, ", \"%s\" },\n", field->display_name);
+        fprintf(out, ", ");
+        ldk_meta_write_c_string(out, field->display_name);
+        fprintf(out, ", ");
+        if (field->widget_source[0])
+        {
+          ldk_meta_write_c_string(out, field->widget_source);
+        }
+        else
+        {
+          fprintf(out, "NULL");
+        }
+        fprintf(out, " },\n");
       }
       fprintf(out, "  };\n\n");
     }
@@ -2216,6 +2261,71 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   return true;
 }
 
+/* A region picker reads another reflected field in the same object. Enforce
+ * that both fields have the required types before generating C metadata. */
+static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
+{
+  u32 owner_count = state->component_count + state->system_count;
+  for (u32 owner = 0; owner < owner_count; ++owner)
+  {
+    u32 start;
+    u32 count;
+    const char *owner_name;
+    if (owner < state->component_count)
+    {
+      const LDKMetaComponent *component = &state->components[owner];
+      start = component->first_field;
+      count = component->field_count;
+      owner_name = component->type_name;
+    }
+    else
+    {
+      const LDKMetaSystem *system =
+          &state->systems[owner - state->component_count];
+      start = system->first_field;
+      count = system->field_count;
+      owner_name = system->type_name;
+    }
+    for (u32 i = 0; i < count; ++i)
+    {
+      const LDKMetaField *field = &state->fields[start + i];
+      bool is_region = strcmp(field->widget,
+          "LDK_FIELD_WIDGET_ATLAS_REGION") == 0;
+      if (!is_region && !field->widget_source[0])
+      {
+        continue;
+      }
+      if (!is_region || strcmp(field->field_kind, "LDK_FIELD_U64") != 0 ||
+          !field->widget_source[0])
+      {
+        snprintf(state->error, sizeof(state->error),
+            "%s.%s: ATLAS_REGION requires a u64 field with source=<atlas field>",
+            owner_name, field->field_name);
+        return false;
+      }
+      bool found = false;
+      for (u32 j = 0; j < count; ++j)
+      {
+        const LDKMetaField *source = &state->fields[start + j];
+        if (strcmp(source->field_name, field->widget_source) == 0 &&
+            strcmp(source->field_kind, "LDK_FIELD_ASSET_TEXTURE_ATLAS") == 0)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        snprintf(state->error, sizeof(state->error),
+            "%s.%s: atlas source '%s' must be a reflected LDKAssetTextureAtlas field",
+            owner_name, field->field_name, field->widget_source);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
                               const char* output_header_path)
 {
@@ -2252,6 +2362,12 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   }
 
   if (ok && !ldk_meta_check_collisions(&state))
+  {
+    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ok = false;
+  }
+
+  if (ok && !ldk_meta_validate_atlas_region_fields(&state))
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
     ok = false;
