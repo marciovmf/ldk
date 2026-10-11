@@ -8,6 +8,7 @@ scene:
       parent: 2
       flags: 0
       name: "MainCamera"
+      name_hash: "0x5134b2c6ef0d2a47"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -80,6 +81,7 @@ scene:
       parent: -1
       flags: 0
       name: "DirectionalLight"
+      name_hash: "0x3786b481b1f9c661"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -96,6 +98,7 @@ scene:
       parent: -1
       flags: 0
       name: "Capsule"
+      name_hash: "0xe61afc6bb8a571cc"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -139,6 +142,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -160,6 +164,7 @@ scene:
       parent: -1
       flags: 0
       name: "BulbPlantEnemy"
+      name_hash: "0x18fd054d1e0d1c45"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -187,6 +192,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -208,6 +214,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -229,6 +236,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -250,6 +258,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -271,6 +280,7 @@ scene:
       parent: -1
       flags: 0
       name: "Cube"
+      name_hash: "0x76ed629cae245060"
       components:
         - type: 4294967294 # LDKTransform
           fields:
@@ -629,53 +639,54 @@ scene:
         origin_z: 0.00000000
         chunk_size: 16
         material: "assets/tftf_island.material"
+        texture_atlas: "terrain_test.atlas"
         surface_count: 7
         surface_0_name: "Shallow Water"
         surface_0_min_height: 0.00000000
         surface_0_blend_width: 0.00000000
-        surface_0_atlas_rect: 0.00000000, 0.00000000, 0.166666672, 1.00000000
+        surface_0_sprite_id: "1"
         surface_0_uv_scale: 1.00000000, 1.00000000
         surface_0_texture_weight: 1.00000000
         surface_1_name: "Sand"
         surface_1_min_height: 0.140000001
         surface_1_blend_width: 0.00499999989
-        surface_1_atlas_rect: 0.166666672, 0.00000000, 0.333333343, 1.00000000
+        surface_1_sprite_id: "2"
         surface_1_uv_scale: 1.00000000, 1.00000000
         surface_1_texture_weight: 1.00000000
         surface_2_name: "Dry"
         surface_2_min_height: 0.170000002
         surface_2_blend_width: 0.00499999989
-        surface_2_atlas_rect: 0.333333343, 0.00000000, 0.500000000, 1.00000000
+        surface_2_sprite_id: "3"
         surface_2_uv_scale: 1.00000000, 1.00000000
         surface_2_texture_weight: 1.00000000
         surface_3_name: "Grass"
         surface_3_min_height: 0.200000003
         surface_3_blend_width: 0.00499999989
-        surface_3_atlas_rect: 0.500000000, 0.00000000, 0.666666687, 1.00000000
+        surface_3_sprite_id: "4"
         surface_3_uv_scale: 1.00000000, 1.00000000
         surface_3_texture_weight: 1.00000000
         surface_4_name: "Forest"
         surface_4_min_height: 0.230000004
         surface_4_blend_width: 0.00499999989
-        surface_4_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
+        surface_4_sprite_id: "5"
         surface_4_uv_scale: 1.00000000, 1.00000000
         surface_4_texture_weight: 1.00000000
         surface_5_name: "Thorns"
         surface_5_min_height: 0.250000000
         surface_5_blend_width: 0.00499999989
-        surface_5_atlas_rect: 0.666666687, 0.00000000, 0.833333313, 1.00000000
+        surface_5_sprite_id: "6"
         surface_5_uv_scale: 1.00000000, 1.00000000
         surface_5_texture_weight: 1.00000000
         surface_6_name: "Mountain"
         surface_6_min_height: 0.270000011
         surface_6_blend_width: 0.00999999978
-        surface_6_atlas_rect: 0.833333313, 0.00000000, 1.00000000, 1.00000000
+        surface_6_sprite_id: "0"
         surface_6_uv_scale: 1.00000000, 1.00000000
         surface_6_texture_weight: 1.00000000
         surface_7_name: ""
         surface_7_min_height: 0.00000000
         surface_7_blend_width: 0.00000000
-        surface_7_atlas_rect: 0.00000000, 0.00000000, 1.00000000, 1.00000000
+        surface_7_sprite_id: "0"
         surface_7_uv_scale: 1.00000000, 1.00000000
         surface_7_texture_weight: 0.00000000
         casts_shadows: false

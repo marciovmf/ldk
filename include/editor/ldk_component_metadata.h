@@ -30,6 +30,8 @@ extern "C"
     LDK_FIELD_STRING,
     LDK_FIELD_ASSET_AUDIO,
     LDK_FIELD_ASSET_KEYFRAME_ANIMATION,
+    LDK_FIELD_ASSET_TEXTURE_ATLAS,
+    LDK_FIELD_U64,
   } LDKFieldType;
 
   typedef enum LDKFieldWidget
@@ -58,6 +60,8 @@ extern "C"
     LDK_FIELD_WIDGET_STRING,
     LDK_FIELD_WIDGET_ASSET_AUDIO,
     LDK_FIELD_WIDGET_ASSET_KEYFRAME_ANIMATION,
+    LDK_FIELD_WIDGET_ASSET_TEXTURE_ATLAS,
+    LDK_FIELD_WIDGET_ATLAS_REGION,
   } LDKFieldWidget;
 
   typedef enum LDKFieldFlags
@@ -103,6 +107,7 @@ extern "C"
     const LDKEnumMeta *enum_meta;
     const LDKComponentGroupMeta *group;
     const char *display_name;
+    const char *widget_source; /* Name of a sibling field providing widget data. */
   } LDKComponentFieldMeta;
 
   typedef struct LDKComponentMeta

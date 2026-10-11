@@ -3,6 +3,7 @@
 
 #include <ldk_asset.h>
 #include <ldk_keyframe_animation.h>
+#include <ldk_texture_atlas.h>
 #include <ldk_common.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
@@ -134,6 +135,31 @@ extern "C" {
    */
   LDK_API const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_const(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
+
+  // ---------------------------------------------------------------------------
+  // Texture atlas (.atlas)
+  // ---------------------------------------------------------------------------
+
+  typedef struct LDKAssetTextureAtlasData
+  {
+    LDKTextureAtlas atlas;
+    LDKAssetImage image;
+    u64 revision; /* Shared image; manager owns its lifetime. */
+  } LDKAssetTextureAtlasData;
+
+  LDK_API LDKAssetTextureAtlas ldk_asset_texture_atlas_null(void);
+  LDK_API bool ldk_asset_manager_texture_atlas_is_alive(
+      LDKAssetManager *manager, LDKAssetTextureAtlas asset);
+  LDK_API LDKAssetTextureAtlas ldk_asset_manager_texture_atlas_create(
+      LDKAssetManager *manager, const LDKTextureAtlas *atlas);
+  LDK_API LDKAssetTextureAtlas ldk_asset_manager_texture_atlas_load_shared(
+      LDKAssetManager *manager, const char *path);
+  LDK_API bool ldk_asset_manager_texture_atlas_reload(
+      LDKAssetManager *manager, const char *path);
+  LDK_API void ldk_asset_manager_texture_atlas_unload(
+      LDKAssetManager *manager, LDKAssetTextureAtlas asset);
+  LDK_API const LDKAssetTextureAtlasData *ldk_asset_manager_texture_atlas_get_const(
+      LDKAssetManager *manager, LDKAssetTextureAtlas asset);
 
   // ---------------------------------------------------------------------------
   // Image

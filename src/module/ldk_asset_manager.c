@@ -92,6 +92,15 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
       free(data);
     }
   }
+  else if (info->type == LDK_ASSET_TYPE_TEXTURE_ATLAS)
+  {
+    LDKAssetTextureAtlasData *data = info->data;
+    if (data)
+    {
+      ldk_texture_atlas_clear(&data->atlas);
+      free(data);
+    }
+  }
   else if (info->type == LDK_ASSET_TYPE_FONT)
   {
     LDKAssetFontData* data = (LDKAssetFontData*)info->data;

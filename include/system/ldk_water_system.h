@@ -18,7 +18,7 @@ extern "C"
 #endif
 
   // clang-format off
-  //@system name=WaterSystem initialize=ldk_water_system_initialize update=ldk_water_system_update terminate=ldk_water_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
+  //@system name=LDKWaterSystem initialize=ldk_water_system_initialize update=ldk_water_system_update terminate=ldk_water_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
   typedef struct LDKWaterSystem
   {
     // clang-format on

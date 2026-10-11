@@ -832,6 +832,33 @@ static bool s_apply_field_value(const TMLDocument *doc,
   }
   break;
 
+  case LDK_FIELD_U64:
+  {
+    /* Quoted decimal text keeps the full 64-bit unsigned range in TML. */
+    TMLString text;
+    u64 value = 0u;
+    if (tml_entry_get_string(entry, &text))
+    {
+      if (!text.size || text.size > 20u) return false;
+      for (size_t i = 0; i < text.size; ++i)
+      {
+        unsigned char ch = (unsigned char)text.data[i];
+        if (ch < '0' || ch > '9' || value > (UINT64_MAX - (u64)(ch - '0')) / 10u)
+          return false;
+        value = value * 10u + (u64)(ch - '0');
+      }
+    }
+    else
+    {
+      i64 signed_value;
+      if (!tml_entry_get_i64(entry, &signed_value) || signed_value < 0)
+        return false;
+      value = (u64)signed_value;
+    }
+    *(u64 *)ptr = value;
+  }
+  break;
+
   case LDK_FIELD_U32:
   {
     i64 value;
@@ -1096,6 +1123,32 @@ static bool s_apply_field_value(const TMLDocument *doc,
     }
     return false;
   }
+
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+  {
+    i64 empty;
+    TMLString reference;
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+    LDKAssetManager *assets;
+    LDKAssetTextureAtlas atlas;
+    if (tml_entry_get_i64(entry, &empty))
+    {
+      if (empty != -1) return false;
+      *(LDKAssetTextureAtlas *)ptr = ldk_asset_texture_atlas_null();
+      break;
+    }
+    if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+        reference.size > LDK_ASSET_PATH_MAX_LENGTH ||
+        memchr(reference.data, 0, reference.size)) return false;
+    memcpy(path, reference.data, reference.size);
+    path[reference.size] = 0;
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets) return false;
+    atlas = ldk_asset_manager_texture_atlas_load_shared(assets, path);
+    if (x_handle_is_null(atlas.h)) return false;
+    *(LDKAssetTextureAtlas *)ptr = atlas;
+  }
+  break;
 
   case LDK_FIELD_ASSET_IMAGE:
   {
@@ -2005,6 +2058,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(i32);
       alignment = _Alignof(i32);
       break;
+    case LDK_FIELD_U64:
+      field_size = sizeof(u64);
+      alignment = _Alignof(u64);
+      break;
     case LDK_FIELD_U32:
       field_size = sizeof(u32);
       alignment = _Alignof(u32);
@@ -2048,6 +2105,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     case LDK_FIELD_ASSET_FONT:
       field_size = sizeof(LDKAssetFont);
       alignment = _Alignof(LDKAssetFont);
+      break;
+    case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+      field_size = sizeof(LDKAssetTextureAtlas);
+      alignment = _Alignof(LDKAssetTextureAtlas);
       break;
     case LDK_FIELD_ASSET_IMAGE:
       field_size = sizeof(LDKAssetImage);
@@ -2633,6 +2694,14 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
+  case LDK_FIELD_U64:
+  {
+    char digits[32];
+    snprintf(digits, sizeof(digits), "%" PRIu64, *(const u64 *)ptr);
+    s_append_escaped_string(out, digits);
+  }
+  break;
+
   case LDK_FIELD_U32:
   {
     const u32 *value = (const u32 *)ptr;
@@ -2805,6 +2874,27 @@ static bool s_write_field_value(XStrBuilder *out,
       return false;
     }
     s_append_escaped_string(out, asset_path.buf);
+  }
+  break;
+
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+  {
+    const LDKAssetTextureAtlas *value = (const LDKAssetTextureAtlas *)ptr;
+    LDKAssetManager *assets;
+    const LDKAssetInfo *info;
+    LDKAssetHandle handle;
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append(out, "-1");
+      break;
+    }
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    handle.h = value->h;
+    info = assets ? ldk_asset_get_info_const(assets, handle) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_TEXTURE_ATLAS ||
+        !assets->source || info->source_revision != assets->source->revision ||
+        !info->asset_path.length) return false;
+    s_append_escaped_string(out, info->asset_path.buf);
   }
   break;
 

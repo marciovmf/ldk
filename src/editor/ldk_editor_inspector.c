@@ -48,6 +48,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     NULL,
     NULL,
     "Ambient Color",
+    NULL,
   },
   {
     "Ambient Intensity",
@@ -60,6 +61,7 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     NULL,
     NULL,
     "Ambient Intensity",
+    NULL,
   },
 };
 
@@ -925,6 +927,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_ENUM:
     snprintf(out, out_size, "%d", *(const i32 *)value);
     break;
+  case LDK_FIELD_U64:
+    snprintf(out, out_size, "%" PRIu64, *(const u64 *)value);
+    break;
   case LDK_FIELD_U32:
     snprintf(out, out_size, "%u", *(const u32 *)value);
     break;
@@ -1012,6 +1017,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
     break;
   case LDK_FIELD_ASSET_FONT:
     snprintf(out, out_size, "<asset font>");
+    break;
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
+    snprintf(out, out_size, "<asset atlas>");
     break;
   case LDK_FIELD_ASSET_IMAGE:
     snprintf(out, out_size, "<asset image>");
@@ -2228,6 +2236,164 @@ static const char *s_editor_inspector_field_display_name(
   return field->name ? field->name : "";
 }
 
+/* The selected region is a persistent u64 ID. The atlas supplying the
+ * available names is another field of the same reflected object, identified
+ * by the annotation's source= parameter. This works for systems and
+ * components. */
+static void s_editor_inspector_atlas_region_field_draw(
+    LDKEditorContext *editor, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, void *component, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  const LDKComponentFieldMeta *source = NULL;
+  const LDKTextureAtlas *atlas = NULL;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  u64 *chosen = (u64 *)((u8 *)component + field->offset);
+
+  if (field->widget_source)
+  {
+    for (u32 i = 0; i < meta->field_count; ++i)
+    {
+      const LDKComponentFieldMeta *candidate = &meta->fields[i];
+      if (candidate->name &&
+          strcmp(candidate->name, field->widget_source) == 0 &&
+          candidate->type == LDK_FIELD_ASSET_TEXTURE_ATLAS &&
+          candidate->offset <= meta->size &&
+          sizeof(LDKAssetTextureAtlas) <= meta->size - candidate->offset)
+      {
+        source = candidate;
+        break;
+      }
+    }
+  }
+
+  if (source && assets)
+  {
+    const LDKAssetTextureAtlas *asset =
+        (const LDKAssetTextureAtlas *)((const u8 *)component + source->offset);
+    const LDKAssetTextureAtlasData *data =
+        ldk_asset_manager_texture_atlas_get_const(assets, *asset);
+    atlas = data ? &data->atlas : NULL;
+  }
+
+  const u32 region_count = atlas ? atlas->region_count : 0u;
+  const char **names = x_arena_alloc(ui->frame_arena,
+      (size_t)(region_count + 2u) * sizeof(*names));
+  s_editor_inspector_row_begin(editor,
+      s_editor_inspector_field_display_name(field));
+  if (!names)
+  {
+    ldk_ui_label(ui, "Atlas regions unavailable");
+    ldk_ui_end_horizontal(ui);
+    return;
+  }
+
+  names[0] = "(None)";
+  u32 selected = *chosen ? region_count + 1u : 0u;
+  char missing[96];
+  for (u32 i = 0; i < region_count; ++i)
+  {
+    const LDKTextureAtlasRegion *region = &atlas->regions[i];
+    names[i + 1u] = region->name;
+    if (*chosen == region->id)
+    {
+      selected = i + 1u;
+    }
+  }
+  if (selected == region_count + 1u)
+  {
+    snprintf(missing, sizeof(missing), "Missing sprite ID: %" PRIu64, *chosen);
+    names[selected] = missing;
+  }
+
+  const u32 count = region_count + 1u +
+      (selected == region_count + 1u ? 1u : 0u);
+  ldk_ui_begin_disabled(ui, readonly || !atlas || !source);
+  u32 next = ldk_ui_combo_box(ui, names, count, selected);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (!readonly && atlas && source && next != selected && next <= region_count)
+  {
+    *chosen = next == 0u ? 0u : atlas->regions[next - 1u].id;
+  }
+}
+
+static bool s_editor_inspector_texture_atlas_asset_field(
+    LDKEditorContext *editor, const char *label,
+    LDKAssetTextureAtlas *value, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetHandle handle = {value->h};
+  const LDKAssetInfo *info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle) : NULL;
+  XFSPath path = {0};
+  char display[X_FS_PATH_MAX_LENGTH] = {0};
+  bool assign = false;
+  if (info) snprintf(display, sizeof(display), "%s", info->asset_path.buf);
+  s_editor_inspector_row_begin(editor, label);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(&type, &path) &&
+          (type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+    assign = ldk_os_dialog_show_open_file(editor->window, "Choose texture atlas",
+        "Texture Atlas\0*.atlas\0\0", &path);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
+  bool clear = ldk_ui_button(ui, "X");
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (clear)
+  {
+    *value = ldk_asset_texture_atlas_null();
+    return true;
+  }
+  if (!assign) return false;
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Texture Atlas",
+      "Choose an atlas inside the project's runtree folder.", &asset_path))
+    return false;
+  const char *ext = strrchr(asset_path.buf, '.');
+  if (!ext || x_slice_eq_ci(x_slice(ext), x_slice(".atlas")) == false)
+  {
+    ldki_editor_log_error(editor, "Choose a .atlas asset.");
+    return false;
+  }
+  if (!assets) return false;
+  LDKAssetTextureAtlas selected =
+      ldk_asset_manager_texture_atlas_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load texture atlas.");
+    return false;
+  }
+  if (selected.h.index == value->h.index &&
+      selected.h.version == value->h.version) return false;
+  *value = selected;
+  return true;
+}
+
 static void s_editor_inspector_field_draw(
     LDKEditorContext *editor, LDKEntity entity,
     u32 component_type, const LDKComponentMeta *meta,
@@ -2274,6 +2440,23 @@ static void s_editor_inspector_field_draw(
       field->type == LDK_FIELD_U32 &&
       field->offset == offsetof(LDKMeshSource, mesh_index))
   {
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
+  if (field->type == LDK_FIELD_ASSET_TEXTURE_ATLAS)
+  {
+    (void)s_editor_inspector_texture_atlas_asset_field(editor, display_name,
+        (LDKAssetTextureAtlas *)field_value, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+  if (field->widget == LDK_FIELD_WIDGET_ATLAS_REGION &&
+      field->type == LDK_FIELD_U64 &&
+      sizeof(u64) <= meta->size - field->offset)
+  {
+    s_editor_inspector_atlas_region_field_draw(editor, meta, field,
+        component, readonly);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2697,6 +2880,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
   case LDK_FIELD_ASSET_FONT:
+  case LDK_FIELD_ASSET_TEXTURE_ATLAS:
   case LDK_FIELD_ASSET_IMAGE:
   case LDK_FIELD_RESOURCE_MESH:
   case LDK_FIELD_ASSET_MATERIAL:
@@ -3149,6 +3333,18 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
 {
   return s_editor_material_image_editor_ex(editor, label, dialog_title,
       image, readonly, optional, NULL, NULL, context);
+}
+
+/* Shared Inspector image picker for editor tools that reference image assets. */
+bool ldki_editor_image_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetImage *image, bool readonly)
+{
+  LDKMaterialIOContext context = {0};
+  context.assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  context.diagnostic = s_editor_material_diagnostic;
+  context.user = editor;
+  return s_editor_material_image_editor(editor, label, "Choose image",
+      image, readonly, false, &context);
 }
 
 static bool s_editor_material_vec2_editor(LDKEditorContext *editor,

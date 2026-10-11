@@ -40,7 +40,7 @@ void ldk_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt);
 void ldk_terrain_system_terminate(void *data);
 
-//@system name=TerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
+//@system name=LDKTerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKTerrainSystem
 {
   //@begin_group "Height Source"
@@ -62,6 +62,7 @@ typedef struct LDKTerrainSystem
 
   //@begin_group "Appearance"
   LDKAssetMaterial material;
+  LDKAssetTextureAtlas texture_atlas;
   //@inspect min=1 max=8
   u32 surface_count;
   //@end_group
@@ -74,7 +75,9 @@ typedef struct LDKTerrainSystem
   float surface_0_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_0_color;
-  Vec4 surface_0_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_0_sprite_id;
   Vec2 surface_0_uv_scale;
   //@inspect slider min=0 max=1
   float surface_0_texture_weight;
@@ -87,7 +90,9 @@ typedef struct LDKTerrainSystem
   float surface_1_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_1_color;
-  Vec4 surface_1_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_1_sprite_id;
   Vec2 surface_1_uv_scale;
   //@inspect slider min=0 max=1
   float surface_1_texture_weight;
@@ -100,7 +105,9 @@ typedef struct LDKTerrainSystem
   float surface_2_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_2_color;
-  Vec4 surface_2_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_2_sprite_id;
   Vec2 surface_2_uv_scale;
   //@inspect slider min=0 max=1
   float surface_2_texture_weight;
@@ -113,7 +120,9 @@ typedef struct LDKTerrainSystem
   float surface_3_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_3_color;
-  Vec4 surface_3_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_3_sprite_id;
   Vec2 surface_3_uv_scale;
   //@inspect slider min=0 max=1
   float surface_3_texture_weight;
@@ -126,7 +135,9 @@ typedef struct LDKTerrainSystem
   float surface_4_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_4_color;
-  Vec4 surface_4_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_4_sprite_id;
   Vec2 surface_4_uv_scale;
   //@inspect slider min=0 max=1
   float surface_4_texture_weight;
@@ -139,7 +150,9 @@ typedef struct LDKTerrainSystem
   float surface_5_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_5_color;
-  Vec4 surface_5_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_5_sprite_id;
   Vec2 surface_5_uv_scale;
   //@inspect slider min=0 max=1
   float surface_5_texture_weight;
@@ -152,7 +165,9 @@ typedef struct LDKTerrainSystem
   float surface_6_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_6_color;
-  Vec4 surface_6_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_6_sprite_id;
   Vec2 surface_6_uv_scale;
   //@inspect slider min=0 max=1
   float surface_6_texture_weight;
@@ -165,7 +180,9 @@ typedef struct LDKTerrainSystem
   float surface_7_blend_width;
   //@inspect widget=COLOR
   rgba32 surface_7_color;
-  Vec4 surface_7_atlas_rect;
+  /* Stable atlas region ID (0 means no sprite). */
+  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
+  u64 surface_7_sprite_id;
   Vec2 surface_7_uv_scale;
   //@inspect slider min=0 max=1
   float surface_7_texture_weight;
@@ -176,17 +193,17 @@ typedef struct LDKTerrainSystem
   //@end_group
 
   //@begin_group "Runtime"
-  //@inspect runtime
+  //@inspect readonly runtime
   u32 data_width;
-  //@inspect runtime
+  //@inspect readonly runtime
   u32 data_height;
-  //@inspect runtime
+  //@inspect readonly runtime
   u32 chunk_count;
-  //@inspect runtime
+  //@inspect readonly runtime
   u32 visible_chunk_count;
-  //@inspect runtime
+  //@inspect readonly runtime
   u32 mesh_update_count;
-  //@inspect runtime
+  //@inspect readonly runtime
   bool has_geometry;
   //@end_group
 } LDKTerrainSystem;

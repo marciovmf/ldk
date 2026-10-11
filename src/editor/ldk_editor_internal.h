@@ -504,6 +504,14 @@ typedef enum LDKEditorEventTag
 typedef void (*LDKEditorWindowFunction)(LDKEditor *editor, void *data);
 typedef u32 LDKEditorWindowId;
 
+/* Image asset selector shared with the Inspector. */
+bool ldki_editor_image_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetImage *image, bool readonly);
+void ldki_editor_texture_atlas_window_show(LDKEditor *editor, void *data);
+bool ldki_editor_texture_atlas_open(LDKEditorContext *editor,
+    const char *filename, const char *logical_path, bool read_only);
+void ldki_editor_texture_atlas_terminate(LDKEditorContext *editor);
+bool ldki_editor_texture_atlas_project_close(LDKEditorContext *editor);
 void ldki_editor_animation_window_show(LDKEditor *editor, void *data);
 void ldki_editor_animation_preview_stop(void);
 void ldki_editor_animation_scene_reset(void);
@@ -556,6 +564,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_PROJECT ((LDKEditorWindowId)0x4C444B0Eu)
 #define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
 #define LDK_EDITOR_WINDOW_ANIMATION ((LDKEditorWindowId)0x4C444B10u)
+#define LDK_EDITOR_WINDOW_TEXTURE_ATLAS ((LDKEditorWindowId)0x4C444B11u)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
