@@ -1,4 +1,3 @@
-/* Built into ldk.c so this first version needs no new build-file entry. */
 #include <ldk.h>
 #include <ldk_keyframe_animation.h>
 #include <float.h>

@@ -1512,6 +1512,27 @@ static bool s_renderer_material_is_blended(
               LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND);
 }
 
+/* Textured alpha-blended materials cast binary shadows using their
+ * opacity, without changing their color-pass blending behavior. */
+static bool s_renderer_shadow_material_uses_alpha_test(
+    const LDKRendererMaterialResource *material)
+{
+  return material &&
+      (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT ||
+          material->selection ==
+              LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT ||
+          material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND ||
+          material->selection ==
+              LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND);
+}
+
+static bool s_renderer_mesh_material_excluded_from_queue(
+    const LDKRendererMaterialResource *material, bool shadow_queue)
+{
+  return s_renderer_material_is_blended(material) &&
+      (!shadow_queue || !s_renderer_shadow_material_uses_alpha_test(material));
+}
+
 static u64* s_renderer_mesh_sort_radix(
     u64* items, u64* scratch, u32 item_count)
 {
@@ -1607,7 +1628,8 @@ static bool s_renderer_mesh_sort_queue_build(LDKRenderer* renderer,
         s_renderer_material_get_resource(renderer, submit->material);
     if (mesh == NULL || mesh->index_count == 0 || material == NULL ||
         material->selection == LDK_RENDERER_MATERIAL_SELECTION_INVALID ||
-        s_renderer_material_is_blended(material))
+        s_renderer_mesh_material_excluded_from_queue(material,
+            (required_flags & LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS) != 0))
     {
       continue;
     }
@@ -2274,7 +2296,7 @@ static LDKRHIBindings s_renderer_shadow_pass_create_cutout_bindings(
   desc.bindings[0].buffer_size = sizeof(LDKRendererShadowCameraParams);
   desc.bindings[1].slot = 1;
   desc.bindings[1].buffer = pass->object_buffer;
-  desc.bindings[1].buffer_size = sizeof(Mat4);
+  desc.bindings[1].buffer_size = sizeof(Mat4) + sizeof(Vec4);
   desc.bindings[2].slot = 2;
   desc.bindings[2].buffer = pass->material_buffer;
   desc.bindings[2].buffer_size = sizeof(LDKRendererShadowMaterialParams);
@@ -2666,15 +2688,6 @@ static bool s_renderer_shadow_camera(const LDKRendererShadowPass *pass,
   return true;
 }
 
-static bool s_renderer_shadow_material_is_cutout(
-    const LDKRendererMaterialResource *material)
-{
-  return material &&
-      (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_CUTOUT ||
-          material->selection ==
-              LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT);
-}
-
 static LDKRendererMeshSubmit *s_renderer_shadow_pass_run_submit(
     LDKRenderer *renderer, LDKRendererMeshSubmit *first_submit,
     const u64 *sort_items, u32 index)
@@ -2806,7 +2819,7 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     return;
   }
 
-  bool cutout = s_renderer_shadow_material_is_cutout(material);
+  bool cutout = s_renderer_shadow_material_uses_alpha_test(material);
   bool vegetation = material->selection ==
       LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
   LDKRHIPipeline pipeline = vegetation
@@ -2977,7 +2990,7 @@ static void s_renderer_shadow_pass_draw_unsorted(LDKRenderer *renderer,
 
     LDKRendererMaterialResource *material =
         s_renderer_material_get_resource(renderer, submit->material);
-    if (s_renderer_material_is_blended(material))
+    if (s_renderer_mesh_material_excluded_from_queue(material, true))
     {
       continue;
     }

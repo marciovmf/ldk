@@ -13,7 +13,8 @@ material:
   material_type: 2
   material_color: 0xffffffff
   material_texture: ""
-  material_alpha_mode: 2
+  material_alpha_mode: 1
+  material_alpha_cutoff: 0.5
   material_specular: 0
   material_shininess: 32
   material_emission: 0

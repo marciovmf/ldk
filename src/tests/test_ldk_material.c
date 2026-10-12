@@ -915,6 +915,11 @@ typedef struct TestRendererInstancingBackend
   LDKRHIBindingsDesc water_bindings[3];
   u32 water_params_count;
   float water_texture_flags[4][LDK_RENDERER_WATER_TEXTURE_COUNT];
+  u32 shadow_cutout_bindings_count;
+  LDKRHIBindingsDesc shadow_cutout_bindings;
+  u32 shadow_material_update_count;
+  float shadow_alpha;
+  float shadow_alpha_cutoff;
 } TestRendererInstancingBackend;
 
 static LDKRHIBuffer s_test_renderer_instancing_buffer_create(
@@ -941,6 +946,13 @@ static bool s_test_renderer_instancing_buffer_update(void *user,
     memcpy(backend->captured_uv_rects, data, size);
     backend->captured_uv_rects_valid = true;
   }
+  if (buffer == 204u && offset == 0u && size >= 2u * sizeof(float))
+  {
+    const float *alpha_and_cutoff = (const float *)data;
+    backend->shadow_alpha = alpha_and_cutoff[0];
+    backend->shadow_alpha_cutoff = alpha_and_cutoff[1];
+    backend->shadow_material_update_count++;
+  }
   if (buffer == 603u && backend->water_params_count < 4u && size == 432u)
   {
     memcpy(backend->water_texture_flags[backend->water_params_count++],
@@ -956,6 +968,18 @@ static LDKRHIBindings s_test_water_bindings_create(
   if (desc->layout == 604u && backend->water_bindings_count < 3u)
   {
     backend->water_bindings[backend->water_bindings_count++] = *desc;
+  }
+  return ++backend->next_resource;
+}
+
+static LDKRHIBindings s_test_shadow_cutout_bindings_create(
+    void *user, const LDKRHIBindingsDesc *desc)
+{
+  TestRendererInstancingBackend *backend = user;
+  if (desc->layout == 210u && desc->binding_count == 4u)
+  {
+    backend->shadow_cutout_bindings = *desc;
+    backend->shadow_cutout_bindings_count++;
   }
   return ++backend->next_resource;
 }
@@ -1181,6 +1205,101 @@ static int test_renderer_instancing_batches_color_and_shadow(void)
   ASSERT_EQ(stats.game.instanced_batch_count, 1u);
   ASSERT_EQ(stats.game.instanced_instance_count, 2u);
 
+  s_test_renderer_instancing_cleanup(&renderer, &rhi);
+  return 0;
+}
+
+static int test_renderer_textured_alpha_shadows(void)
+{
+  /* Include singleton and auto-instanced paths for both CUTOUT and BLEND.
+   * Textured BLEND keeps its normal color-pass blending, but casts a
+   * binary alpha-tested shadow if CAST_SHADOWS is set. */
+  for (u32 mode = 0u; mode < 2u; ++mode)
+  {
+    for (u32 instanced = 0u; instanced < 2u; ++instanced)
+    {
+      TestRendererInstancingBackend backend = {0};
+      LDKRHIContext rhi = {0};
+      LDKRenderer renderer = {0};
+      backend.next_resource = 1000u;
+      ASSERT_TRUE(s_test_renderer_instancing_setup(
+          &renderer, &rhi, &backend, instanced != 0u, false));
+      rhi.functions.bindings_create = s_test_shadow_cutout_bindings_create;
+      renderer.shadow_pass.bindings_layout = 210u;
+      renderer.shadow_pass.cutout_pipeline = 211u;
+      renderer.shadow_pass.cutout_instanced_pipeline = 212u;
+      if (!instanced)
+      {
+        renderer.submitted_mesh_count = 1u;
+      }
+
+      LDKRendererMaterialResource *material = &renderer.materials[0];
+      material->desc.type = LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
+      material->desc.texture.id = 1u;
+      material->desc.color = 0xffffff80u;
+      material->desc.alpha_cutoff = mode == 0u ? 0.35f : 0.5f;
+      material->selection = mode == 0u
+          ? LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_CUTOUT
+          : LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND;
+      material->render_key = (LDKRendererRenderKey)material->selection;
+      renderer.textures = calloc(1u, sizeof(*renderer.textures));
+      ASSERT_TRUE(renderer.textures != NULL);
+      renderer.texture_count = renderer.texture_capacity = 1u;
+      renderer.textures[0].texture = 213u;
+      renderer.textures[0].sampler = 214u;
+      renderer.textures[0].alive = true;
+
+      LDKRendererFrameDesc frame = {0};
+      frame.framebuffer_width = 640;
+      frame.framebuffer_height = 480;
+      ldk_renderer_render_frame(&renderer, &frame);
+      LDKRendererFrameStats stats =
+          ldk_renderer_last_frame_stats_get(&renderer);
+      ASSERT_EQ(stats.game.shadow_draw_call_count, 1u);
+      ASSERT_EQ(backend.shadow_cutout_bindings_count, 1u);
+      ASSERT_EQ(backend.shadow_cutout_bindings.bindings[1].slot, 1u);
+      ASSERT_EQ(backend.shadow_cutout_bindings.bindings[1].buffer_size,
+          sizeof(Mat4) + sizeof(Vec4));
+      ASSERT_EQ(backend.shadow_cutout_bindings.bindings[3].texture, 213u);
+      ASSERT_EQ(backend.shadow_cutout_bindings.bindings[3].sampler, 214u);
+      ASSERT_TRUE(backend.shadow_material_update_count > 0u);
+      ASSERT_EQ(backend.shadow_alpha, 128.0f / 255.0f);
+      ASSERT_EQ(backend.shadow_alpha_cutoff,
+          mode == 0u ? 0.35f : 0.5f);
+      if (instanced)
+      {
+        ASSERT_EQ(backend.draw_indexed_instanced_count, 1u);
+        ASSERT_EQ(backend.draw_indexed_count, 0u);
+      }
+      else
+      {
+        ASSERT_EQ(backend.draw_indexed_count, 1u);
+        ASSERT_EQ(backend.draw_indexed_instanced_count, 0u);
+      }
+      s_test_renderer_instancing_cleanup(&renderer, &rhi);
+    }
+  }
+  return 0;
+}
+
+static int test_renderer_vertex_color_blend_shadow_exclusion(void)
+{
+  TestRendererInstancingBackend backend = {0};
+  LDKRHIContext rhi = {0};
+  LDKRenderer renderer = {0};
+  backend.next_resource = 1000u;
+  ASSERT_TRUE(s_test_renderer_instancing_setup(
+      &renderer, &rhi, &backend, true, false));
+  renderer.materials[0].selection =
+      LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND;
+  renderer.materials[0].render_key =
+      (LDKRendererRenderKey)renderer.materials[0].selection;
+  LDKRendererFrameDesc frame = {0};
+  frame.framebuffer_width = 640;
+  frame.framebuffer_height = 480;
+  ldk_renderer_render_frame(&renderer, &frame);
+  LDKRendererFrameStats stats = ldk_renderer_last_frame_stats_get(&renderer);
+  ASSERT_EQ(stats.game.shadow_draw_call_count, 0u);
   s_test_renderer_instancing_cleanup(&renderer, &rhi);
   return 0;
 }
@@ -1552,6 +1671,8 @@ int main(void)
       X_TEST(test_shared_image_cache),
       X_TEST(test_material_sampling_reuses_image_texture),
       X_TEST(test_renderer_instancing_batches_color_and_shadow),
+      X_TEST(test_renderer_textured_alpha_shadows),
+      X_TEST(test_renderer_vertex_color_blend_shadow_exclusion),
       X_TEST(test_renderer_water_texture_bindings_and_optional_maps),
       X_TEST(test_renderer_ordinary_batches_use_instancing),
       X_TEST(test_renderer_instances_copy_transform_and_validate),
