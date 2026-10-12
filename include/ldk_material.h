@@ -120,6 +120,10 @@ extern "C"
     /* Includes added slots that do not yet have an image. */
     u32 texture_slot_mask;
     LDKMaterialTextureSettings texture_settings[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    /* Optional atlas source for each texture slot. Mutually exclusive with
+     * the legacy image asset in that slot. IDs are stable atlas region IDs. */
+    LDKAssetTextureAtlas texture_atlases[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
+    u64 texture_regions[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     /* Alpha mode is a render property shared by all material types.
      * CUTOUT currently requires a textured material; BLEND is supported by
      * both textured and vertex-color materials. */
@@ -173,6 +177,10 @@ extern "C"
   /** Assign an image to a material texture slot. */
   LDK_API bool ldk_material_texture_slot_set(
       LDKMaterialDesc *desc, u32 slot, LDKAssetImage image);
+
+  /** Assign an atlas region to a material slot; region 0 means full atlas. */
+  LDK_API bool ldk_material_texture_atlas_set(LDKMaterialDesc *desc,
+      u32 slot, LDKAssetTextureAtlas atlas, u64 region);
 
   /** Return independent settings, or the legacy material defaults. */
   LDK_API LDKMaterialTextureSettings ldk_material_texture_settings_get(

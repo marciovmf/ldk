@@ -7,6 +7,7 @@
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_terrain_follower.h>
 #include <component/ldk_keyframe_animation_source.h>
+#include <component/ldk_material_instance.h>
 #include <module/ldk_system.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_entity.h>
@@ -943,6 +944,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &meshsource_component_desc))
   {
     ldk_log_error("Failed to register component: MeshSource.");
+    error = true;
+  }
+
+  LDKComponentDesc material_instance_desc =
+      ldk_material_instance_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &material_instance_desc))
+  {
+    ldk_log_error("Failed to register component: MaterialInstance.");
     error = true;
   }
 

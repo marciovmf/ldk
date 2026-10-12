@@ -86,6 +86,11 @@ extern "C" {
     u32 index_count;
     u32 vertex_capacity;
     u32 index_capacity;
+    /* Only MeshSource immutable asset meshes are shared by asset identity. */
+    LDKAssetMesh source_asset;
+    u32 source_mesh_index;
+    u32 ref_count;
+    bool shared_asset_mesh;
     bool alive;
   } LDKRendererMeshResource;
 
@@ -236,6 +241,8 @@ extern "C" {
     u32 instance_offset;
     u32 instance_count;
     LDKResourceInstanceSet instance_set;
+    /* Per-submission albedo atlas rectangle: u0, v0, u1, v1. */
+    Vec4 uv_rect;
   } LDKRendererMeshSubmit;
 
   /* Internal frame data for the shared triangular line prism. */
@@ -439,6 +446,7 @@ extern "C" {
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
     LDKRHIBuffer instance_buffer;
+    LDKRHIBuffer instance_uv_buffer;
     u32 instance_capacity;
     LDKRHIBindings bindings;
     LDKRHIBindings vegetation_bindings;
@@ -500,7 +508,12 @@ extern "C" {
     LDKRHIBuffer lighting_buffer;
     LDKRHIBuffer instance_buffer;
     LDKRHIBuffer instance_color_buffer;
+    LDKRHIBuffer instance_uv_buffer;
     u32 instance_capacity;
+    Mat4 *staging_worlds;
+    LDKRHIColor *staging_colors;
+    Vec4 *staging_uvs;
+    u32 staging_capacity;
     // Borrowed from the renderer-owned shadow pass.
     LDKRHITexture shadow_texture;
     LDKRHISampler shadow_sampler;
@@ -809,6 +822,12 @@ extern "C" {
     Vec2 texture_uv_scales[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     Vec2 texture_uv_offsets[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     bool owns_additional_textures;
+    /* Resolved material resources are interned by their authored state. */
+    u32 ref_count;
+    const struct LDKAssetManager *source_assets;
+    LDKMaterialDesc source_desc;
+    bool has_source_desc;
+    u64 source_atlas_revisions[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
     Vec2 uv_scale;
     Vec2 uv_offset;
     bool alive;
@@ -1261,6 +1280,10 @@ extern "C" {
    * @param desc New mesh data description.
    * @return true if the mesh was updated, false otherwise.
    */
+  /** Reuse geometry uploaded for the same immutable mesh asset/index. */
+  LDK_API LDKResourceMesh ldk_renderer_mesh_asset_acquire(LDKRenderer *renderer,
+      LDKAssetMesh asset, u32 mesh_index, const LDKRendererMeshDesc *desc);
+
   LDK_API bool ldk_renderer_mesh_update(
       LDKRenderer* renderer,
       LDKResourceMesh mesh,
@@ -1484,6 +1507,11 @@ extern "C" {
    * @param material Material resource handle to validate.
    * @return true if the material is valid and alive, false otherwise.
    */
+  /** Test whether a resolved material still matches its atlas revisions.
+   *  A changed atlas may have a different backing image or region geometry. */
+  LDK_API bool ldk_renderer_material_atlases_current(LDKRenderer *renderer,
+      struct LDKAssetManager *assets, LDKResourceMaterial material);
+
   LDK_API bool ldk_renderer_material_is_valid(
       LDKRenderer* renderer,
       LDKResourceMaterial material);

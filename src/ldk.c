@@ -15,6 +15,8 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_material_instance.h>
+#include <ldk_texture_atlas.h>
 #include <component/ldk_post_processing.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
@@ -204,6 +206,164 @@ static bool s_mesh_source_material_resolve(
       &binding->material_dirty);
 }
 
+/* Resolve once per sprite change or atlas reload; unchanged animations only
+ * copy their cached rectangle to the render submission. The MaterialInstance
+ * never owns the atlas or GPU material. */
+static bool s_mesh_sprite_uv_rect(LDKRoot *engine, LDKEntity entity,
+    const LDKMaterialDesc *material, bool allow_override, Vec4 *out_rect)
+{
+  const Vec4 identity = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
+  /* Only the primary MeshSource material has a per-entity override. */
+  LDKMaterialInstance *instance = allow_override ? ldk_ecs_component_get(
+      entity, LDK_COMPONENT_TYPE_MATERIAL_INSTANCE) : NULL;
+  *out_rect = identity;
+  if (!material || x_handle_is_null(material->texture_atlases[0].h))
+  {
+    if (instance)
+    {
+      instance->atlas.h = x_handle_null();
+      instance->cache_valid = false;
+    }
+    return true;
+  }
+
+  LDKAssetTextureAtlas asset = material->texture_atlases[0];
+  const LDKAssetTextureAtlasData *data =
+      ldk_asset_manager_texture_atlas_get_const(&engine->asset_manager, asset);
+  if (instance)
+  {
+    instance->atlas = asset;
+  }
+  if (!data)
+  {
+    if (instance)
+    {
+      instance->cache_valid = false;
+    }
+    return true; /* Preserve the missing-texture fallback. */
+  }
+
+  const LDKAssetImageData *image =
+      ldk_asset_manager_image_get_const(&engine->asset_manager, data->image);
+  u32 image_width = image && image->image
+      ? ldk_image_get_width(image->image) : 0u;
+  u32 image_height = image && image->image
+      ? ldk_image_get_height(image->image) : 0u;
+  u64 default_id = material->texture_regions[0];
+  u64 sprite_id = instance && instance->sprite_id
+      ? instance->sprite_id : default_id;
+
+  if (instance && instance->cache_valid &&
+      instance->cached_atlas.h.index == asset.h.index &&
+      instance->cached_atlas.h.version == asset.h.version &&
+      instance->cached_revision == data->revision &&
+      instance->cached_sprite_id == sprite_id &&
+      instance->cached_default_sprite_id == default_id &&
+      instance->cached_image_width == image_width &&
+      instance->cached_image_height == image_height)
+  {
+    *out_rect = instance->cached_uv_rect;
+    return instance->cached_drawable;
+  }
+
+  bool drawable = true;
+  Vec4 rect = identity;
+  u64 resolved_id = sprite_id;
+  if (sprite_id)
+  {
+    float uv[4];
+    const LDKTextureAtlasRegion *region =
+        ldk_texture_atlas_region_find_const(&data->atlas, sprite_id);
+    bool valid = region && ldk_texture_atlas_region_uv(
+        region, image_width, image_height, uv);
+
+    /* Prefer the authored default when an override is unavailable. */
+    if (!valid && default_id && default_id != sprite_id)
+    {
+      region = ldk_texture_atlas_region_find_const(&data->atlas, default_id);
+      valid = region && ldk_texture_atlas_region_uv(
+          region, image_width, image_height, uv);
+      if (valid)
+      {
+        resolved_id = default_id;
+      }
+    }
+
+    /* An invalid region must never display the whole atlas by accident. */
+    if (!valid)
+    {
+      for (u32 i = 0; i < data->atlas.region_count; ++i)
+      {
+        region = &data->atlas.regions[i];
+        if (ldk_texture_atlas_region_uv(
+                region, image_width, image_height, uv))
+        {
+          valid = true;
+          resolved_id = region->id;
+          break;
+        }
+      }
+    }
+
+    if (valid)
+    {
+      rect = vec4_make(uv[0], uv[1], uv[2], uv[3]);
+    }
+    else
+    {
+      drawable = false;
+    }
+
+    /* An invalid override is reported once per cache state, not per draw. */
+    if (instance && resolved_id != sprite_id)
+    {
+      ldk_log_warning("Sprite region %llu is unavailable; using region %llu.\n",
+          (unsigned long long)sprite_id,
+          (unsigned long long)resolved_id);
+    }
+    else if (instance && !drawable)
+    {
+      ldk_log_warning("Sprite region %llu is unavailable and atlas has no "
+          "usable regions; skipping draw.\n", (unsigned long long)sprite_id);
+    }
+  }
+
+  if (instance)
+  {
+    instance->cached_atlas = asset;
+    instance->cached_revision = data->revision;
+    instance->cached_sprite_id = sprite_id;
+    instance->cached_default_sprite_id = default_id;
+    instance->cached_image_width = image_width;
+    instance->cached_image_height = image_height;
+    instance->cached_uv_rect = rect;
+    instance->cached_drawable = drawable;
+    instance->cache_valid = true;
+  }
+  *out_rect = rect;
+  return drawable;
+}
+
+/* UVs are per submission; neither the shared material nor the mesh changes.
+ * A missing region with no valid fallback must not submit a full-atlas quad. */
+static void s_mesh_sprite_submit_uv(LDKRoot *engine, LDKEntity entity,
+    const LDKMaterialDesc *material, bool allow_override, u32 previous_count)
+{
+  if (engine->renderer.submitted_mesh_count > previous_count)
+  {
+    Vec4 rect;
+    if (s_mesh_sprite_uv_rect(engine, entity, material, allow_override, &rect))
+    {
+      engine->renderer.submitted_meshes[
+          engine->renderer.submitted_mesh_count - 1u].uv_rect = rect;
+    }
+    else
+    {
+      --engine->renderer.submitted_mesh_count;
+    }
+  }
+}
+
 static bool s_mesh_source_material_runtime(
     LDKRoot *engine, LDKMeshSource *mesh_source, u32 material_slot,
     LDKResourceMaterial *out_material)
@@ -237,7 +397,9 @@ static bool s_mesh_source_material_runtime(
   }
 
   if (!ldk_renderer_material_is_valid(
-          &engine->renderer, renderer_material))
+          &engine->renderer, renderer_material) ||
+      !ldk_renderer_material_atlases_current(
+          &engine->renderer, &engine->asset_manager, renderer_material))
   {
     *material_dirty = true;
   }
@@ -1959,8 +2121,8 @@ void ldk_engine_frame(void)
 
         if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
         {
-          mesh->renderer_mesh =
-              ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
+          mesh->renderer_mesh = ldk_renderer_mesh_asset_acquire(&e->renderer,
+              mesh->source_asset, mesh->mesh_index, &mesh_desc);
           mesh->dirty = false;
         }
         else if (mesh->dirty)
@@ -2002,6 +2164,7 @@ void ldk_engine_frame(void)
             continue;
           }
 
+          u32 previous_submits = e->renderer.submitted_mesh_count;
           if (instances)
           {
             ldk_renderer_submit_mesh_instances_colored(&e->renderer,
@@ -2015,6 +2178,8 @@ void ldk_engine_frame(void)
             ldk_renderer_submit_mesh_with_flags(&e->renderer,
                 mesh->renderer_mesh, renderer_material, mesh_world, submit_flags);
           }
+          s_mesh_sprite_submit_uv(e, *entity, &mesh->material, true,
+              previous_submits);
           continue;
         }
 
@@ -2032,6 +2197,7 @@ void ldk_engine_frame(void)
             continue;
           }
 
+          u32 previous_submits = e->renderer.submitted_mesh_count;
           if (instances)
           {
             ldk_renderer_submit_mesh_instances_colored(&e->renderer,
@@ -2046,6 +2212,17 @@ void ldk_engine_frame(void)
                 mesh->renderer_mesh, renderer_material, submesh->first_index,
                 submesh->index_count, mesh_world, submit_flags);
           }
+          const LDKMaterialDesc *material = &mesh->material;
+          if (submesh->material_slot)
+          {
+            const LDKMeshSourceMaterialBinding *binding =
+                ldk_mesh_source_additional_material_binding(
+                    mesh, submesh->material_slot);
+            if (binding)
+              material = &binding->material;
+          }
+          s_mesh_sprite_submit_uv(e, *entity, material,
+              submesh->material_slot == 0u, previous_submits);
         }
       }
     }

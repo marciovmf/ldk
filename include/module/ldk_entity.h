@@ -70,6 +70,7 @@ typedef enum LDKBuiltinComponentType
   /* UINT32_MAX - 13 was the retired CharacterController. Do not reuse it. */
   LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER = UINT32_MAX - 14,
   LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE = UINT32_MAX - 15,
+  LDK_COMPONENT_TYPE_MATERIAL_INSTANCE = UINT32_MAX - 16,
 } LDKBuiltinComponentType;
 
 /**

@@ -3485,6 +3485,207 @@ static bool s_editor_material_texture_settings_editor(
   return changed;
 }
 
+/* Material slots accept either a standalone image or a texture atlas.
+ * Only the Inspector's picker is unified; the authored material retains its
+ * existing, mutually exclusive image and atlas references. */
+static bool s_editor_material_texture_asset_editor(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, LDKMaterialDesc *material,
+    u32 slot, bool readonly, bool *expanded, bool *removed,
+    const LDKMaterialIOContext *context)
+{
+  if (!editor || !label || !dialog_title || !material ||
+      slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT || !context || !context->assets)
+  {
+    return false;
+  }
+
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = context->assets;
+  LDKAssetImage image = ldk_material_texture_slot_get(material, slot);
+  LDKAssetTextureAtlas atlas = material->texture_atlases[slot];
+  bool has_image = !x_handle_is_null(image.h);
+  bool has_atlas = !x_handle_is_null(atlas.h);
+  LDKAssetHandle asset = {has_atlas ? atlas.h : image.h};
+  const LDKAssetInfo *info = (has_image || has_atlas)
+      ? ldk_asset_get_info_const(assets, asset) : NULL;
+  XFSPath path = {0};
+  char display_path[sizeof(path.buf)];
+  bool assign = false;
+
+  snprintf(display_path, sizeof(display_path), "%s",
+      info ? (info->asset_path.length ? info->asset_path.buf :
+          (has_atlas ? "Generated atlas" : "Generated image")) : "");
+
+  ldk_ui_push_id_cstr(ui, label);
+  if (expanded)
+  {
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
+    *expanded = ldk_ui_tree_node(ui, label, *expanded, 0, 0);
+  }
+  else
+  {
+    s_editor_material_row_begin(editor, label);
+  }
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display_path, sizeof(display_path));
+  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+  s_editor_inspector_asset_reveal_on_click(editor, info, target);
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign =
+          ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
+        "Images and Atlases\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.atlas\0\0",
+        &path);
+  }
+  ldk_ui_end_disabled(ui);
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly || (!has_image && !has_atlas));
+  bool clear = ldk_ui_button(ui, "X");
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+
+  if (clear)
+  {
+    if (removed)
+      *removed = true;
+    return ldk_material_texture_slot_set(
+        material, slot, ldk_asset_image_null());
+  }
+  if (!assign)
+    return false;
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, dialog_title,
+          "Choose an image or atlas inside the project's runtree folder.",
+          &asset_path))
+  {
+    return false;
+  }
+
+  const char *ext = strrchr(asset_path.buf, '.');
+  bool is_atlas = ext && x_slice_eq_ci(x_slice(ext), x_slice(".atlas"));
+  bool is_image = ext && (x_slice_eq_ci(x_slice(ext), x_slice(".png")) ||
+      x_slice_eq_ci(x_slice(ext), x_slice(".jpg")) ||
+      x_slice_eq_ci(x_slice(ext), x_slice(".jpeg")) ||
+      x_slice_eq_ci(x_slice(ext), x_slice(".bmp")) ||
+      x_slice_eq_ci(x_slice(ext), x_slice(".tga")));
+  if (!is_atlas && !is_image)
+  {
+    ldk_os_dialog_show_error(editor->window, dialog_title,
+        "Choose a supported image or a .atlas asset.");
+    return false;
+  }
+
+  if (is_atlas)
+  {
+    LDKAssetTextureAtlas selected =
+        ldk_asset_manager_texture_atlas_load_shared(assets, asset_path.buf);
+    if (x_handle_is_null(selected.h))
+    {
+      ldk_os_dialog_show_error(editor->window, dialog_title,
+          "The selected texture atlas could not be loaded.");
+      return false;
+    }
+    if (has_atlas && selected.h.index == atlas.h.index &&
+        selected.h.version == atlas.h.version && !has_image)
+    {
+      return false;
+    }
+    const LDKAssetTextureAtlasData *data =
+        ldk_asset_manager_texture_atlas_get_const(assets, selected);
+    u64 region = material->texture_regions[slot];
+    if (!data || !ldk_texture_atlas_region_find_const(&data->atlas, region))
+    {
+      region = data && data->atlas.region_count
+          ? data->atlas.regions[0].id : 0u;
+    }
+    return ldk_material_texture_atlas_set(material, slot, selected, region);
+  }
+
+  LDKAssetImage selected =
+      ldk_asset_manager_image_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldk_os_dialog_show_error(editor->window, dialog_title,
+        "The selected image could not be loaded.");
+    return false;
+  }
+  if (has_image && !has_atlas && selected.h.index == image.h.index &&
+      selected.h.version == image.h.version)
+  {
+    return false;
+  }
+  return ldk_material_texture_slot_set(material, slot, selected);
+}
+
+static bool s_editor_material_atlas_slot_editor(LDKEditorContext *editor,
+    LDKMaterialDesc *material, u32 slot, bool readonly)
+{
+  LDKUIContext *ui = &editor->ui;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetTextureAtlas atlas = material->texture_atlases[slot];
+  if (x_handle_is_null(atlas.h))
+    return false;
+  const LDKAssetTextureAtlasData *data = assets
+      ? ldk_asset_manager_texture_atlas_get_const(assets, atlas) : NULL;
+  const LDKTextureAtlas *source = data ? &data->atlas : NULL;
+  u32 count = source ? source->region_count : 0u;
+  const char **names = x_arena_alloc(ui->frame_arena,
+      (size_t)(count + 2u) * sizeof(*names));
+  if (!names)
+    return false;
+  names[0] = "(Full Atlas)";
+  u64 sprite = material->texture_regions[slot];
+  u32 selected = sprite ? count + 1u : 0u;
+  for (u32 i = 0; i < count; ++i)
+  {
+    names[i + 1u] = source->regions[i].name;
+    if (source->regions[i].id == sprite)
+      selected = i + 1u;
+  }
+  char invalid[96];
+  if (selected == count + 1u)
+  {
+    snprintf(invalid, sizeof(invalid), "Missing sprite: %" PRIu64, sprite);
+    names[selected] = invalid;
+  }
+  s_editor_material_row_begin(editor, "Region");
+  ldk_ui_begin_disabled(ui, readonly || !source);
+  u32 next = ldk_ui_combo_box(ui, names,
+      count + 1u + (selected == count + 1u), selected);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  if (next != selected && next <= count && !readonly)
+  {
+    material->texture_regions[slot] = next
+        ? source->regions[next - 1u].id : 0u;
+    return true;
+  }
+  return false;
+}
+
 static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     LDKMaterialDesc *desc, bool readonly, const LDKMaterialIOContext *context)
 {
@@ -3506,7 +3707,8 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
     if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
-        !x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h))
+        (!x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h) ||
+            !x_handle_is_null(desc->texture_atlases[slot].h)))
       active |= 1u << slot;
     if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
         !(active & (1u << slot)))
@@ -3557,12 +3759,10 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     bool removed = false;
     char prompt[64];
     snprintf(prompt, sizeof(prompt), "Choose %s texture", labels[slot]);
-    LDKAssetImage image = ldk_material_texture_slot_get(desc, slot);
     ldk_ui_push_id_u32(ui, slot);
-    if (s_editor_material_image_editor_ex(editor, labels[slot], prompt,
-            &image, readonly, true, &expanded[slot], &removed, context))
+    if (s_editor_material_texture_asset_editor(editor, labels[slot], prompt,
+            desc, slot, readonly, &expanded[slot], &removed, context))
     {
-      ldk_material_texture_slot_set(desc, slot, image);
       changed = true;
     }
     if (removed)
@@ -3575,6 +3775,8 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     }
     else if (expanded[slot])
     {
+      if (s_editor_material_atlas_slot_editor(editor, desc, slot, readonly))
+        changed = true;
       LDKMaterialTextureSettings settings =
           ldk_material_texture_settings_get(desc, slot);
       if (s_editor_material_texture_settings_editor(editor, &settings, readonly))

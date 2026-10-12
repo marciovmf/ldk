@@ -13,19 +13,23 @@
 const LDKComponentMeta *ldk_property_component_meta(u32 component_type)
 {
   const LDKGame *game = ldki_engine_game_metadata_get();
-  bool has_game_metadata = game && game->metadata_count &&
-      game->metadata_get;
-  u32 count = has_game_metadata ?
-      game->metadata_count() : ldk_engine_component_metadata_count();
-  for (u32 i = 0; i < count; ++i)
+  if (game && game->metadata_count && game->metadata_get)
   {
-    const LDKComponentMeta *meta = has_game_metadata ?
-        game->metadata_get(i) : ldk_engine_component_metadata_get(i);
-    if (meta &&
-        ldk_scene_component_meta_runtime_type(meta) == component_type)
+    u32 count = game->metadata_count();
+    for (u32 i = 0; i < count; ++i)
     {
-      return meta;
+      const LDKComponentMeta *meta = game->metadata_get(i);
+      if (meta && ldk_scene_component_meta_runtime_type(meta) == component_type)
+        return meta;
     }
+  }
+  /* Engine components remain animatable when the loaded game supplies its
+   * own Comet metadata instead of including the engine metadata. */
+  for (u32 i = 0; i < ldk_engine_component_metadata_count(); ++i)
+  {
+    const LDKComponentMeta *meta = ldk_engine_component_metadata_get(i);
+    if (meta && ldk_scene_component_meta_runtime_type(meta) == component_type)
+      return meta;
   }
   return NULL;
 }
@@ -59,6 +63,7 @@ bool ldk_property_field_supported(const LDKComponentFieldMeta *field)
   case LDK_FIELD_BOOL:
   case LDK_FIELD_I32:
   case LDK_FIELD_U32:
+  case LDK_FIELD_U64:
   case LDK_FIELD_FLOAT:
   case LDK_FIELD_VEC2:
   case LDK_FIELD_VEC3:
@@ -122,7 +127,8 @@ bool ldk_property_get(LDKEntity entity, u32 component_type,
       field->type == LDK_FIELD_VEC4 ? sizeof(Vec4) :
       field->type == LDK_FIELD_QUAT ? sizeof(Quat) :
       field->type == LDK_FIELD_FLOAT ? sizeof(float) :
-      field->type == LDK_FIELD_BOOL ? sizeof(bool) : sizeof(u32);
+      field->type == LDK_FIELD_BOOL ? sizeof(bool) :
+      field->type == LDK_FIELD_U64 ? sizeof(u64) : sizeof(u32);
   if (field->type == LDK_FIELD_ENUM)
   {
     size = field->enum_meta->size;
@@ -139,6 +145,7 @@ bool ldk_property_get(LDKEntity entity, u32 component_type,
   case LDK_FIELD_BOOL: v.integer = *(const bool *)p; break;
   case LDK_FIELD_I32: v.integer = *(const i32 *)p; break;
   case LDK_FIELD_U32: v.integer = *(const u32 *)p; break;
+  case LDK_FIELD_U64: v.integer = (i64)*(const u64 *)p; break;
   case LDK_FIELD_ENUM: v.integer = field->enum_meta->read(p); break;
   case LDK_FIELD_FLOAT: v.vector.x = *(const float *)p; break;
   case LDK_FIELD_VEC2:
@@ -252,7 +259,8 @@ bool ldk_property_set(LDKEntity entity, u32 component_type,
       value->type == LDK_FIELD_VEC4 ? sizeof(Vec4) :
       value->type == LDK_FIELD_QUAT ? sizeof(Quat) :
       value->type == LDK_FIELD_FLOAT ? sizeof(float) :
-      value->type == LDK_FIELD_BOOL ? sizeof(bool) : sizeof(u32);
+      value->type == LDK_FIELD_BOOL ? sizeof(bool) :
+      value->type == LDK_FIELD_U64 ? sizeof(u64) : sizeof(u32);
   if (value->type == LDK_FIELD_ENUM)
   {
     size = field->enum_meta->size;
@@ -272,6 +280,7 @@ bool ldk_property_set(LDKEntity entity, u32 component_type,
     case LDK_FIELD_BOOL:
     case LDK_FIELD_I32:
     case LDK_FIELD_U32:
+    case LDK_FIELD_U64:
     case LDK_FIELD_ENUM:
       equal = previous.integer == value->integer;
       break;
@@ -344,6 +353,7 @@ bool ldk_property_set(LDKEntity entity, u32 component_type,
   case LDK_FIELD_BOOL: *(bool *)p = value->integer != 0; break;
   case LDK_FIELD_I32: *(i32 *)p = (i32)value->integer; break;
   case LDK_FIELD_U32: *(u32 *)p = (u32)value->integer; break;
+  case LDK_FIELD_U64: *(u64 *)p = (u64)value->integer; break;
   case LDK_FIELD_ENUM: field->enum_meta->write(p, value->integer); break;
   case LDK_FIELD_FLOAT: *(float *)p = value->vector.x; break;
   case LDK_FIELD_VEC2: *(Vec2 *)p = vec2_make(value->vector.x, value->vector.y); break;
@@ -403,7 +413,8 @@ bool ldk_property_interpolate(const LDKComponentFieldMeta *field,
     }
     out->integer = result;
   }
-  else if (a->type == LDK_FIELD_I32 || a->type == LDK_FIELD_U32)
+  else if ((a->type == LDK_FIELD_I32 || a->type == LDK_FIELD_U32) &&
+      field->widget != LDK_FIELD_WIDGET_ATLAS_REGION)
   {
     double delta = (double)b->integer - (double)a->integer;
     out->integer = (i64)llround((double)a->integer + delta * alpha);

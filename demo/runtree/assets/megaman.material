@@ -1,0 +1,20 @@
+material:
+  material_texture_slots: 1
+  material_texture_0_filter: 0
+  material_texture_0_mip_filter: 0
+  material_texture_0_wrap_u: 1
+  material_texture_0_wrap_v: 1
+  material_texture_0_uv_scale_x: 1
+  material_texture_0_uv_scale_y: 1
+  material_texture_0_uv_offset_x: 0
+  material_texture_0_uv_offset_y: 0
+  material_texture_0_atlas: "assets/megaman.atlas"
+  material_texture_0_region: "0x000000000000000d"
+  material_type: 2
+  material_color: 0xffffffff
+  material_texture: ""
+  material_alpha_mode: 1
+  material_alpha_cutoff: 0.5
+  material_specular: 0
+  material_shininess: 32
+  material_emission: 0

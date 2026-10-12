@@ -116,6 +116,10 @@ bool ldk_material_desc_defaults(LDKMaterialType type, LDKMaterialDesc *out_desc)
   {
     out_desc->additional_textures[i].h = x_handle_null();
   }
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    out_desc->texture_atlases[slot].h = x_handle_null();
+  }
 
   if (type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT ||
       type == LDK_MATERIAL_TYPE_TEXTURED)
@@ -186,6 +190,10 @@ bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc)
     return false;
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
+    bool has_atlas = !x_handle_is_null(desc->texture_atlases[slot].h);
+    bool has_image = !x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h);
+    if ((has_atlas && has_image) || (!has_atlas && desc->texture_regions[slot]))
+      return false;
     if (!desc->texture_settings[slot].independent)
       continue;
     LDKMaterialTextureSettings settings = desc->texture_settings[slot];
@@ -224,7 +232,10 @@ LDKAssetImage ldk_material_texture_slot_get(
   switch (slot)
   {
   case LDK_MATERIAL_TEXTURE_SLOT_ALBEDO:
-    return desc->args.textured.texture;
+    /* Vertex-color materials share this union storage with color; it does
+     * not contain an image handle for these material types. */
+    return s_material_type_is_textured(desc->type)
+        ? desc->args.textured.texture : null_image;
   case LDK_MATERIAL_TEXTURE_SLOT_NORMAL:
     return desc->surface.normal_map;
   case LDK_MATERIAL_TEXTURE_SLOT_SPECULAR:
@@ -242,6 +253,8 @@ bool ldk_material_texture_slot_set(
     return false;
   }
 
+  desc->texture_atlases[slot].h = x_handle_null();
+  desc->texture_regions[slot] = 0;
   switch (slot)
   {
   case LDK_MATERIAL_TEXTURE_SLOT_ALBEDO:
@@ -261,6 +274,25 @@ bool ldk_material_texture_slot_set(
   return true;
 }
 
+bool ldk_material_texture_atlas_set(LDKMaterialDesc *desc,
+    u32 slot, LDKAssetTextureAtlas atlas, u64 region)
+{
+  if (!desc || slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT ||
+      (slot == LDK_MATERIAL_TEXTURE_SLOT_ALBEDO &&
+          !s_material_type_is_textured(desc->type)))
+  {
+    return false;
+  }
+  LDKAssetImage image = {x_handle_null()};
+  if (!ldk_material_texture_slot_set(desc, slot, image))
+  {
+    return false;
+  }
+  desc->texture_atlases[slot] = atlas;
+  desc->texture_regions[slot] = region;
+  return true;
+}
+
 bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
 {
   if (!ldk_material_desc_is_valid(a) || !ldk_material_desc_is_valid(b) ||
@@ -273,6 +305,10 @@ bool ldk_material_desc_equal(LDKMaterialDesc const *a, LDKMaterialDesc const *b)
     return false;
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
+    if (a->texture_atlases[slot].h.index != b->texture_atlases[slot].h.index ||
+        a->texture_atlases[slot].h.version != b->texture_atlases[slot].h.version ||
+        a->texture_regions[slot] != b->texture_regions[slot])
+      return false;
     LDKMaterialTextureSettings x = ldk_material_texture_settings_get(a, slot);
     LDKMaterialTextureSettings y = ldk_material_texture_settings_get(b, slot);
     if (x.filter != y.filter || x.mip_filter != y.mip_filter ||
@@ -358,6 +394,10 @@ u64 ldk_material_desc_hash(LDKMaterialDesc const *desc)
   hash = s_material_hash_u32(hash, desc->texture_slot_mask);
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
+    hash = s_material_hash_u32(hash, desc->texture_atlases[slot].h.index);
+    hash = s_material_hash_u32(hash, desc->texture_atlases[slot].h.version);
+    hash = s_material_hash_u32(hash, (u32)desc->texture_regions[slot]);
+    hash = s_material_hash_u32(hash, (u32)(desc->texture_regions[slot] >> 32));
     LDKMaterialTextureSettings settings =
         ldk_material_texture_settings_get(desc, slot);
     hash = s_material_hash_u32(hash, (u32)settings.filter);

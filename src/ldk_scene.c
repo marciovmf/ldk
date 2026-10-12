@@ -203,6 +203,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
       return LDK_COMPONENT_TYPE_MESH_SOURCE;
     }
 
+    if (strcmp(meta->name, "LDKMaterialInstance") == 0)
+    {
+      return LDK_COMPONENT_TYPE_MATERIAL_INSTANCE;
+    }
+
     if (strcmp(meta->name, "LDKParticleEmitter") == 0)
     {
       return LDK_COMPONENT_TYPE_PARTICLE_EMITTER;

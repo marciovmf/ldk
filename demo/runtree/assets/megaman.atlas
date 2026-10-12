@@ -1,0 +1,45 @@
+texture_atlas:
+  version: 1
+  texture: "assets/textures/megaman.png"
+  next_id: 23
+  regions:
+    - id: 13
+      name: "walk_0"
+      rect: 0, 0, 410, 447
+      pivot: 0.500000000, 0.500000000
+    - id: 14
+      name: "walk_1"
+      rect: 613, 0, 342, 447
+      pivot: 0.500000000, 0.500000000
+    - id: 15
+      name: "walk_2"
+      rect: 1170, 0, 396, 460
+      pivot: 0.500000000, 0.500000000
+    - id: 16
+      name: "walk_3"
+      rect: 1672, 0, 462, 460
+      pivot: 0.500000000, 0.500000000
+    - id: 17
+      name: "walk_4"
+      rect: 2237, 4, 468, 451
+      pivot: 0.500000000, 0.500000000
+    - id: 18
+      name: "walk_5"
+      rect: 0, 572, 393, 455
+      pivot: 0.500000000, 0.500000000
+    - id: 19
+      name: "walk_6"
+      rect: 589, 563, 334, 465
+      pivot: 0.500000000, 0.500000000
+    - id: 20
+      name: "walk_7"
+      rect: 1154, 563, 377, 465
+      pivot: 0.500000000, 0.500000000
+    - id: 21
+      name: "walk_8"
+      rect: 1702, 553, 435, 475
+      pivot: 0.500000000, 0.500000000
+    - id: 22
+      name: "walk_9"
+      rect: 2237, 563, 468, 465
+      pivot: 0.500000000, 0.500000000
