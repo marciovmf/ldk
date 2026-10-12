@@ -3,9 +3,6 @@
 #include <ctype.h>
 #include <ldk_keyframe_animation.h>
 #include <ldk_property.h>
-#include <ldk_texture_atlas.h>
-#include <component/ldk_material_instance.h>
-#include <component/ldk_mesh_source.h>
 #include "ldk_editor_color_picker.h"
 #include <errno.h>
 #include <inttypes.h>
@@ -916,65 +913,6 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
     }
     return;
   }
-  if (track->value_type == LDK_FIELD_U64 && field &&
-      field->widget == LDK_FIELD_WIDGET_ATLAS_REGION &&
-      track->component_type == LDK_COMPONENT_TYPE_MATERIAL_INSTANCE)
-  {
-    LDKEntity entity;
-    const LDKMaterialInstance *instance = NULL;
-    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-    if (s_editor_animation_track_entity(track_index, &entity))
-      instance = ldk_ecs_component_get_const(
-          entity, LDK_COMPONENT_TYPE_MATERIAL_INSTANCE);
-    LDKAssetTextureAtlas atlas_asset = instance
-        ? instance->atlas : (LDKAssetTextureAtlas){0};
-    if (x_handle_is_null(atlas_asset.h) && instance)
-    {
-      const LDKMeshSource *mesh = ldk_ecs_component_get_const(
-          entity, LDK_COMPONENT_TYPE_MESH_SOURCE);
-      if (mesh)
-        atlas_asset = mesh->material.texture_atlases[0];
-    }
-    const LDKAssetTextureAtlasData *data = assets
-        ? ldk_asset_manager_texture_atlas_get_const(assets, atlas_asset)
-        : NULL;
-    const LDKTextureAtlas *atlas = data ? &data->atlas : NULL;
-    u32 region_count = atlas ? atlas->region_count : 0u;
-    const char **names = x_arena_alloc(ui->frame_arena,
-        (size_t)(region_count + 2u) * sizeof(*names));
-    if (!names)
-      return;
-    names[0] = "(Default)";
-    u32 selected = (u64)value.integer ? region_count + 1u : 0u;
-    for (u32 i = 0; i < region_count; ++i)
-    {
-      names[i + 1u] = atlas->regions[i].name;
-      if (atlas->regions[i].id == (u64)value.integer)
-        selected = i + 1u;
-    }
-    char missing[72];
-    if (selected == region_count + 1u)
-    {
-      snprintf(missing, sizeof(missing), "Missing: %" PRIu64,
-          (u64)value.integer);
-      names[selected] = missing;
-    }
-    u32 count = region_count + 1u + (selected == region_count + 1u);
-    u32 next = ldk_ui_widget_combo_box(ui, id, names, count, selected, rect);
-    if (atlas && next != selected && next <= region_count)
-    {
-      value.integer = (i64)(next ? atlas->regions[next - 1u].id : 0u);
-      if (ldk_keyframe_animation_key_set(&state->clip,
-              track_index, state->playhead, value))
-      {
-        state->selected_track = track_index;
-        state->key_selected = false;
-        state->dirty = true;
-        s_editor_animation_set_time(state->playhead);
-      }
-    }
-    return;
-  }
   if (track->value_type == LDK_FIELD_ENUM && field && field->enum_meta)
   {
     const LDKEnumMeta *meta = field->enum_meta;
@@ -1035,8 +973,7 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
     snprintf(text, sizeof(text), "%s", value.string.buf);
   }
   else if (track->value_type == LDK_FIELD_I32 ||
-      track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM ||
-      track->value_type == LDK_FIELD_U64)
+      track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM)
   {
     snprintf(text, sizeof(text), "%" PRId64, value.integer);
   }
@@ -1045,8 +982,6 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
     ldk_ui_format_float(text, (u32)sizeof(text),
         s_editor_animation_axis_value(track_index, axis));
   }
-  if (state->axis_edit_id != id && track->value_type == LDK_FIELD_U64)
-    snprintf(text, sizeof(text), "%" PRIu64, (u64)value.integer);
   u32 result = ldk_ui_widget_input_box(ui, id, text, sizeof(text), rect);
   bool focused = ui->focused_id == id;
   if (focused)
@@ -1078,26 +1013,8 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
         }
       }
       else if (track->value_type == LDK_FIELD_I32 ||
-          track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM ||
-          track->value_type == LDK_FIELD_U64)
+          track->value_type == LDK_FIELD_U32 || track->value_type == LDK_FIELD_ENUM)
       {
-        if (track->value_type == LDK_FIELD_U64)
-        {
-          char *end = NULL;
-          errno = 0;
-          unsigned long long number = strtoull(text, &end, 0);
-          if (end != text && !errno && !*end && text[0] != '-')
-          {
-            value.integer = (i64)(u64)number;
-            if (ldk_keyframe_animation_key_set(&state->clip,
-                    track_index, state->playhead, value))
-            {
-              state->dirty = true;
-              s_editor_animation_set_time(state->playhead);
-            }
-          }
-          return;
-        }
         char *end = NULL;
         errno = 0;
         long long number = strtoll(text, &end, 10);
@@ -1893,6 +1810,38 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   free(rows);
 }
 
+/* Cancel only the unsaved edits of the selected clip. Keep the current
+ * in-memory clip intact if reloading its asset fails. */
+static bool s_editor_animation_discard(LDKEditorContext *editor)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (!state->dirty || !state->path[0])
+  {
+    return false;
+  }
+
+  LDKKeyframeAnimation loaded;
+  ldk_keyframe_animation_init(&loaded);
+  if (!ldk_keyframe_animation_load(&loaded, state->path))
+  {
+    ldki_editor_log_error(editor, "Unable to reload .anim asset.");
+    ldk_keyframe_animation_clear(&loaded);
+    return false;
+  }
+
+  s_editor_animation_restore();
+  s_editor_animation_ui_state_clear();
+  ldk_keyframe_animation_clear(&state->clip);
+  state->clip = loaded;
+  state->playhead = 0.0f;
+  state->duration_text_editing = false;
+  state->duration_text[0] = '\0';
+  s_editor_animation_reset_selection();
+  s_editor_animation_view_clamp();
+  state->dirty = false;
+  return true;
+}
+
 static void s_editor_animation_window(LDKEditor *opaque, void *data)
 {
   (void)data;
@@ -2108,26 +2057,6 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
       state->playhead, state->clip.duration, state->dirty ? " *" : "");
   ldk_ui_set_next_width(ui, ldk_ui_px(112.0f));
   ldk_ui_label(ui, description);
-  ldk_ui_set_next_weight(ui, 1.0f);
-  ldk_ui_spacer(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-  if (ldk_ui_button(ui, "Save") && state->path[0])
-  {
-    if (ldk_keyframe_animation_save(&state->clip, state->path))
-    {
-      if (assets && !ldk_asset_manager_keyframe_animation_reload(
-              assets, state->path))
-      {
-        ldki_editor_log_error(editor,
-            "Saved .anim but could not refresh its loaded asset.");
-      }
-      state->dirty = false;
-    }
-    else
-    {
-      ldki_editor_log_error(editor, "Unable to save .anim asset.");
-    }
-  }
   ldk_ui_end_horizontal(ui);
 
   /* The second toolbar keeps the clip picker and frequent edits visible. */
@@ -2265,7 +2194,75 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
   }
   ldk_ui_end_horizontal(ui);
 
-  s_editor_animation_dopesheet(editor);
+  /* The dock tab bar has already consumed part of the parent layout.
+   * Reserve the footer using the remaining height at the current cursor,
+   * rather than the full height of the dock content rectangle. */
+  LDKUILayout *layout = ui->current_layout;
+  const float footer_height = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  const float footer_reserve = footer_height + 1.0f +
+      layout->spacing * 2.0f;
+  float remaining_height = fmaxf(0.0f,
+      layout->content_rect.y + layout->content_rect.h - layout->cursor.y);
+  float sheet_height = fmaxf(0.0f, remaining_height - footer_reserve);
+
+  if (sheet_height >= LDK_UI_DEFAULT_CONTROL_HEIGHT)
+  {
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_height(ui, ldk_ui_px(sheet_height));
+    ldk_ui_begin_vertical(ui);
+    ldk_ui_set_padding(ui, 0.0f);
+    LDKUIRect previous_clip = ui->clip_rect;
+    ui->clip_rect = ldk_rectf_intersect(
+        &previous_clip, &ui->current_layout->rect);
+    s_editor_animation_dopesheet(editor);
+    ui->clip_rect = previous_clip;
+    ldk_ui_end_vertical(ui);
+  }
+  else
+  {
+    /* Avoid stale hit-test rectangles while the dopesheet is hidden. */
+    state->timeline_sheet_rect = (LDKUIRect){0};
+    state->timeline_graph_rect = (LDKUIRect){0};
+    state->timeline_visible_rect = (LDKUIRect){0};
+  }
+
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_horizontal_line(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_height(ui, ldk_ui_px(footer_height));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_padding(ui, 0.0f);
+  ldk_ui_spacer(ui);
+  float button_width = fminf(80.0f,
+      fmaxf(24.0f, (layout->content_rect.w - layout->spacing) * 0.5f));
+  ldk_ui_begin_disabled(ui, !state->dirty);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_width(ui, ldk_ui_px(button_width));
+  if (ldk_ui_button(ui, "Save"))
+  {
+    if (ldk_keyframe_animation_save(&state->clip, state->path))
+    {
+      if (assets && !ldk_asset_manager_keyframe_animation_reload(
+              assets, state->path))
+      {
+        ldki_editor_log_error(editor,
+            "Saved .anim but could not refresh its loaded asset.");
+      }
+      state->dirty = false;
+    }
+    else
+    {
+      ldki_editor_log_error(editor, "Unable to save .anim asset.");
+    }
+  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_width(ui, ldk_ui_px(button_width));
+  if (ldk_ui_button(ui, "Cancel"))
+  {
+    (void)s_editor_animation_discard(editor);
+  }
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
 
   if (ldk_ui_begin_popup(ui, LDK_EDITOR_ANIM_ADD_PROPERTY_POPUP_ID))
   {
