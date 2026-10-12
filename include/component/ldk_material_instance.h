@@ -30,7 +30,15 @@ typedef struct LDKMaterialInstance
   //@inspect hidden runtime
   u64 cached_sprite_id;
   //@inspect hidden runtime
+  u64 cached_default_sprite_id;
+  //@inspect hidden runtime
+  u32 cached_image_width;
+  //@inspect hidden runtime
+  u32 cached_image_height;
+  //@inspect hidden runtime
   Vec4 cached_uv_rect;
+  //@inspect hidden runtime
+  bool cached_drawable;
   //@inspect hidden runtime
   bool cache_valid;
 } LDKMaterialInstance;

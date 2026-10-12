@@ -209,14 +209,14 @@ static bool s_mesh_source_material_resolve(
 /* Resolve once per sprite change or atlas reload; unchanged animations only
  * copy their cached rectangle to the render submission. The MaterialInstance
  * never owns the atlas or GPU material. */
-static Vec4 s_mesh_sprite_uv_rect(LDKRoot *engine, LDKEntity entity,
-    const LDKMaterialDesc *material, bool allow_override)
+static bool s_mesh_sprite_uv_rect(LDKRoot *engine, LDKEntity entity,
+    const LDKMaterialDesc *material, bool allow_override, Vec4 *out_rect)
 {
-  Vec4 identity = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
-  /* One MaterialInstance overrides slot zero of the primary MeshSource
-   * material only; secondary submeshes keep their authored defaults. */
+  const Vec4 identity = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
+  /* Only the primary MeshSource material has a per-entity override. */
   LDKMaterialInstance *instance = allow_override ? ldk_ecs_component_get(
       entity, LDK_COMPONENT_TYPE_MATERIAL_INSTANCE) : NULL;
+  *out_rect = identity;
   if (!material || x_handle_is_null(material->texture_atlases[0].h))
   {
     if (instance)
@@ -224,65 +224,143 @@ static Vec4 s_mesh_sprite_uv_rect(LDKRoot *engine, LDKEntity entity,
       instance->atlas.h = x_handle_null();
       instance->cache_valid = false;
     }
-    return identity;
+    return true;
   }
 
   LDKAssetTextureAtlas asset = material->texture_atlases[0];
   const LDKAssetTextureAtlasData *data =
       ldk_asset_manager_texture_atlas_get_const(&engine->asset_manager, asset);
-  if (!data)
-    return identity;
-  u64 sprite_id = material->texture_regions[0];
   if (instance)
   {
     instance->atlas = asset;
-    if (instance->sprite_id)
-      sprite_id = instance->sprite_id;
-    if (instance->cache_valid &&
-        instance->cached_atlas.h.index == asset.h.index &&
-        instance->cached_atlas.h.version == asset.h.version &&
-        instance->cached_revision == data->revision &&
-        instance->cached_sprite_id == sprite_id)
-      return instance->cached_uv_rect;
+  }
+  if (!data)
+  {
+    if (instance)
+    {
+      instance->cache_valid = false;
+    }
+    return true; /* Preserve the missing-texture fallback. */
   }
 
+  const LDKAssetImageData *image =
+      ldk_asset_manager_image_get_const(&engine->asset_manager, data->image);
+  u32 image_width = image && image->image
+      ? ldk_image_get_width(image->image) : 0u;
+  u32 image_height = image && image->image
+      ? ldk_image_get_height(image->image) : 0u;
+  u64 default_id = material->texture_regions[0];
+  u64 sprite_id = instance && instance->sprite_id
+      ? instance->sprite_id : default_id;
+
+  if (instance && instance->cache_valid &&
+      instance->cached_atlas.h.index == asset.h.index &&
+      instance->cached_atlas.h.version == asset.h.version &&
+      instance->cached_revision == data->revision &&
+      instance->cached_sprite_id == sprite_id &&
+      instance->cached_default_sprite_id == default_id &&
+      instance->cached_image_width == image_width &&
+      instance->cached_image_height == image_height)
+  {
+    *out_rect = instance->cached_uv_rect;
+    return instance->cached_drawable;
+  }
+
+  bool drawable = true;
   Vec4 rect = identity;
+  u64 resolved_id = sprite_id;
   if (sprite_id)
   {
+    float uv[4];
     const LDKTextureAtlasRegion *region =
         ldk_texture_atlas_region_find_const(&data->atlas, sprite_id);
-    const LDKAssetImageData *image =
-        ldk_asset_manager_image_get_const(&engine->asset_manager, data->image);
-    float uv[4];
-    if (region && image && image->image &&
-        ldk_texture_atlas_region_uv(region,
-            ldk_image_get_width(image->image),
-            ldk_image_get_height(image->image), uv))
+    bool valid = region && ldk_texture_atlas_region_uv(
+        region, image_width, image_height, uv);
+
+    /* Prefer the authored default when an override is unavailable. */
+    if (!valid && default_id && default_id != sprite_id)
+    {
+      region = ldk_texture_atlas_region_find_const(&data->atlas, default_id);
+      valid = region && ldk_texture_atlas_region_uv(
+          region, image_width, image_height, uv);
+      if (valid)
+      {
+        resolved_id = default_id;
+      }
+    }
+
+    /* An invalid region must never display the whole atlas by accident. */
+    if (!valid)
+    {
+      for (u32 i = 0; i < data->atlas.region_count; ++i)
+      {
+        region = &data->atlas.regions[i];
+        if (ldk_texture_atlas_region_uv(
+                region, image_width, image_height, uv))
+        {
+          valid = true;
+          resolved_id = region->id;
+          break;
+        }
+      }
+    }
+
+    if (valid)
     {
       rect = vec4_make(uv[0], uv[1], uv[2], uv[3]);
     }
+    else
+    {
+      drawable = false;
+    }
+
+    /* An invalid override is reported once per cache state, not per draw. */
+    if (instance && resolved_id != sprite_id)
+    {
+      ldk_log_warning("Sprite region %llu is unavailable; using region %llu.\n",
+          (unsigned long long)sprite_id,
+          (unsigned long long)resolved_id);
+    }
+    else if (instance && !drawable)
+    {
+      ldk_log_warning("Sprite region %llu is unavailable and atlas has no "
+          "usable regions; skipping draw.\n", (unsigned long long)sprite_id);
+    }
   }
+
   if (instance)
   {
     instance->cached_atlas = asset;
     instance->cached_revision = data->revision;
     instance->cached_sprite_id = sprite_id;
+    instance->cached_default_sprite_id = default_id;
+    instance->cached_image_width = image_width;
+    instance->cached_image_height = image_height;
     instance->cached_uv_rect = rect;
+    instance->cached_drawable = drawable;
     instance->cache_valid = true;
   }
-  return rect;
+  *out_rect = rect;
+  return drawable;
 }
 
-/* A completed submit is the only object whose dynamic UVs may be changed;
- * the shared material resource remains untouched. */
+/* UVs are per submission; neither the shared material nor the mesh changes.
+ * A missing region with no valid fallback must not submit a full-atlas quad. */
 static void s_mesh_sprite_submit_uv(LDKRoot *engine, LDKEntity entity,
     const LDKMaterialDesc *material, bool allow_override, u32 previous_count)
 {
   if (engine->renderer.submitted_mesh_count > previous_count)
   {
-    engine->renderer.submitted_meshes[
-        engine->renderer.submitted_mesh_count - 1u].uv_rect =
-        s_mesh_sprite_uv_rect(engine, entity, material, allow_override);
+    Vec4 rect;
+    if (s_mesh_sprite_uv_rect(engine, entity, material, allow_override, &rect))
+    {
+      engine->renderer.submitted_meshes[
+          engine->renderer.submitted_mesh_count - 1u].uv_rect = rect;
+    }
+    else
+    {
+      --engine->renderer.submitted_mesh_count;
+    }
   }
 }
 
