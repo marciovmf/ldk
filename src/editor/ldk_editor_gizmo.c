@@ -1550,7 +1550,9 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   LDKEditorGizmoTarget target;
   Mat4 target_world;
   Mat4 orientation;
+  Mat4 screen_orientation;
   Vec3 axes[LDK_EDITOR_GIZMO_AXIS_COUNT];
+  Vec3 screen_axes[LDK_EDITOR_GIZMO_AXIS_COUNT];
   Vec3 origin;
   LDKUIPoint cursor;
   LDKUIPoint origin_screen;
@@ -1599,14 +1601,16 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
     return;
   }
 
+  // Picking uses camera-space directions, but dragging must preserve the
+  // original world-space orientation and axes. Do not overwrite them here.
   length = LDK_EDITOR_GIZMO_PIXEL_LENGTH;
   if (!s_editor_gizmo_screen_transform_get(
-          editor, origin, orientation, NULL, &orientation,
+          editor, origin, orientation, NULL, &screen_orientation,
           &origin_screen))
   {
     return;
   }
-  s_editor_gizmo_axes_from_orientation(orientation, axes);
+  s_editor_gizmo_axes_from_orientation(screen_orientation, screen_axes);
 
   cursor = ldk_pointf((float)mouse.cursor.x, (float)mouse.cursor.y);
   mode = editor->gizmo.mode;
@@ -1621,7 +1625,7 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
       float distance;
 
       if (s_editor_gizmo_rotation_ring_distance_get(
-              orientation, origin_screen, axis, radius,
+              screen_orientation, origin_screen, axis, radius,
               cursor, &distance) &&
           distance < best_distance)
       {
@@ -1644,8 +1648,8 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
       for (u32 axis = 0; axis < LDK_EDITOR_GIZMO_AXIS_COUNT; ++axis)
       {
         LDKUIPoint end_screen = ldk_pointf(
-            origin_screen.x + axes[axis].x * length,
-            origin_screen.y - axes[axis].y * length);
+            origin_screen.x + screen_axes[axis].x * length,
+            origin_screen.y - screen_axes[axis].y * length);
 
         float distance = s_editor_gizmo_point_segment_distance(
             cursor, origin_screen, end_screen);
