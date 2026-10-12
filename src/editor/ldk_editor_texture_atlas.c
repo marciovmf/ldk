@@ -505,12 +505,19 @@ static LDKUIRect s_atlas_to_screen(const LDKAtlasEditorState *state,
       region->height * s_atlas_editor.zoom};
 }
 
+
 static void s_atlas_draw_rect(LDKUIContext *ui, LDKUIRect rect, rgba32 color)
 {
-  if (rect.w > 0 && rect.h > 0)
+  LDKUIRect clipped = ldk_rectf_intersect(
+      &rect, &s_atlas_editor.canvas_rect);
+
+  if (clipped.w <= 0.0f || clipped.h <= 0.0f)
   {
-    ldk_ui_widget_gradient(ui, 0, color, color, color, color, rect);
+    return;
   }
+
+  ldk_ui_widget_gradient(
+      ui, 0, color, color, color, color, clipped);
 }
 
 static void s_atlas_draw_outline(LDKUIContext *ui, LDKUIRect rect, rgba32 color)
@@ -1075,152 +1082,270 @@ static void s_atlas_sprites_panel(LDKEditorContext *editor, LDKUIContext *ui)
   ldk_ui_pop_id(ui);
 }
 
+
+
 void ldki_editor_texture_atlas_window_show(LDKEditor *opaque, void *data)
 {
   (void)data;
   LDKEditorContext *editor = (LDKEditorContext *)opaque;
   LDKUIContext *ui = &editor->ui;
   LDKAtlasEditorState *state = &s_atlas_editor;
+
   if (!state->loaded)
   {
     ldk_ui_label(ui, "Double-click a .atlas file in the Project Explorer.");
     return;
   }
 
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_set_next_height(ui, ldk_ui_px(27.0f));
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_label(ui, state->read_only ? "Package (read-only):" : "Atlas:");
-  /* The atlas name is a reveal control, matching the asset fields in the
-   * Inspector. It works for filesystem files and mounted packages. */
-  ldk_ui_set_next_weight(ui, 0.0f);
-  float name_width = ldk_ttf_measure_text_cstr(
-      ui->font, state->asset_path).w + 20.0f;
-  float max_name_width = ui->current_layout != NULL ?
-      fmaxf(60.0f, ui->current_layout->content_rect.w - 145.0f) :
-      name_width;
-  ldk_ui_set_next_width(ui, ldk_ui_px(
-      s_atlas_clamp(name_width, 60.0f, max_name_width)));
-  if (ldk_ui_button_flat(ui, state->asset_path))
+  if (!ui->current_layout)
   {
-    if (!ldki_editor_file_explorer_reveal_asset(editor, state->asset_path))
-    {
-      s_atlas_error(editor, "Could not locate atlas in Project Explorer.");
-    }
+    return;
   }
-  if (state->dirty)
+
+  LDKUIRect previous_clip = ui->clip_rect;
+  LDKUILayout *root = ui->current_layout;
+  LDKUIRect content = root->content_rect;
+  ui->clip_rect = ldk_rectf_intersect(&previous_clip, &content);
+
+  const float header_height = 27.0f;
+  const float asset_height = 26.0f;
+  const float footer_height = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  const float separator_height = 1.0f;
+  const float spacing = root->spacing;
+  const float footer_reserve =
+      separator_height + footer_height + spacing * 2.0f;
+
+  /* The dock has already consumed space for its tab bar.
+   * Use the remaining layout height, not content_rect.h. */
+  float content_bottom = content.y + content.h;
+  float remaining = fmaxf(0.0f, content_bottom - root->cursor.y);
+
+  bool show_content = remaining >=
+      header_height + asset_height + spacing * 2.0f +
+          footer_reserve + 32.0f;
+
+  if (show_content)
   {
     ldk_ui_set_next_weight(ui, 0.0f);
-    ldk_ui_label(ui, "(modified)");
-  }
-  ldk_ui_spacer(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
-  if (ldk_ui_button(ui, "Fit"))
-  {
-    state->zoom = 0;
-  }
-  ldk_ui_end_horizontal(ui);
+    ldk_ui_set_next_height(ui, ldk_ui_px(header_height));
+    ldk_ui_begin_horizontal(ui);
 
-  /* Share the image asset picker with the Inspector: drag/drop, reveal and
-   * the system file dialog, with the same path validation rules. */
-  LDKAssetImage image = state->image_asset;
-  if (ldki_editor_image_asset_field(editor, "Texture asset", &image,
-          state->read_only))
-  {
-    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-    LDKAssetHandle generic = {image.h};
-    const LDKAssetInfo *info = assets ?
-        ldk_asset_get_info_const(assets, generic) : NULL;
-    if (!info || !info->asset_path.length ||
-        !s_atlas_assign_texture(editor, info->asset_path.buf))
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_label(ui, state->read_only ?
+        "Package (read-only):" : "Atlas:");
+
+    float name_width = ldk_ttf_measure_text_cstr(
+        ui->font, state->asset_path).w + 20.0f;
+    float max_name_width = fmaxf(60.0f,
+        ui->current_layout->content_rect.w - 145.0f);
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_width(ui, ldk_ui_px(
+        s_atlas_clamp(name_width, 60.0f, max_name_width)));
+
+    if (ldk_ui_button_flat(ui, state->asset_path))
     {
-      s_atlas_error(editor, "Failed to assign the selected image asset.");
+      if (!ldki_editor_file_explorer_reveal_asset(
+              editor, state->asset_path))
+      {
+        s_atlas_error(editor,
+            "Could not locate atlas in Project Explorer.");
+      }
     }
+
+    if (state->dirty)
+    {
+      ldk_ui_set_next_weight(ui, 0.0f);
+      ldk_ui_label(ui, "(modified)");
+    }
+
+    ldk_ui_spacer(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(64.0f));
+
+    if (ldk_ui_button(ui, "Fit"))
+    {
+      state->zoom = 0;
+    }
+
+    ldk_ui_end_horizontal(ui);
+
+    /* Texture asset selector. */
+    LDKAssetImage image = state->image_asset;
+    if (ldki_editor_image_asset_field(editor, "Texture asset", &image,
+            state->read_only))
+    {
+      LDKAssetManager *assets =
+          ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      LDKAssetHandle generic = {image.h};
+      const LDKAssetInfo *info = assets ?
+          ldk_asset_get_info_const(assets, generic) : NULL;
+
+      if (!info || !info->asset_path.length ||
+          !s_atlas_assign_texture(editor, info->asset_path.buf))
+      {
+        s_atlas_error(editor,
+            "Failed to assign the selected image asset.");
+      }
+    }
+
+    /* Recalculate AFTER the header and asset field.
+     * Their space has already been consumed by the root layout. */
+    remaining = fmaxf(0.0f, content_bottom - root->cursor.y);
+    float body_height = fmaxf(0.0f, remaining - footer_reserve);
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_height(ui, ldk_ui_px(body_height));
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_padding(ui, 0.0f);
+
+    /* Clip the entire body independently from the dock window. */
+    LDKUIRect body_previous_clip = ui->clip_rect;
+    LDKUIRect body_rect = ui->current_layout->rect;
+    ui->clip_rect = ldk_rectf_intersect(
+        &body_previous_clip, &body_rect);
+
+    float available = fmaxf(0.0f,
+        ui->current_layout->content_rect.w);
+
+    /* On narrow windows, prioritize the properties panel.
+     * Do not force both panels to overflow horizontally. */
+    bool split_view = available >= 240.0f;
+
+    if (split_view)
+    {
+      const float handle_width = 8.0f;
+      const float gaps =
+          LDK_UI_DEFAULT_SPACING * 2.0f + handle_width;
+
+      float max_properties = fmaxf(0.0f,
+          available - gaps - 48.0f);
+      float min_properties = fminf(180.0f, max_properties);
+
+      if (state->properties_width <= 0.0f)
+      {
+        state->properties_width = 260.0f;
+      }
+
+      state->properties_width = s_atlas_clamp(
+          state->properties_width, min_properties, max_properties);
+
+      float center_width = fmaxf(0.0f,
+          available - state->properties_width - gaps);
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(center_width));
+      ldk_ui_set_next_height(ui, ldk_ui_fill());
+      ldk_ui_begin_vertical(ui);
+      ldk_ui_set_padding(ui, 0.0f);
+
+      LDKUIRect canvas_previous_clip = ui->clip_rect;
+      ui->clip_rect = ldk_rectf_intersect(
+          &canvas_previous_clip, &ui->current_layout->rect);
+
+      if (center_width >= 10.0f &&
+          ui->current_layout->content_rect.h >= 10.0f)
+      {
+        s_atlas_canvas(editor, ui,
+            ui->current_layout->content_rect.h);
+      }
+
+      ui->clip_rect = canvas_previous_clip;
+      ldk_ui_end_vertical(ui);
+
+      ldk_ui_set_next_width(ui, ldk_ui_px(handle_width));
+      ldk_ui_set_next_height(ui, ldk_ui_fill());
+
+      float adjusted_center = ldk_ui_resize_handle_vertical(
+          ui, center_width,
+          fmaxf(0.0f, available - max_properties - gaps),
+          fmaxf(0.0f, available - min_properties - gaps));
+
+      state->properties_width = s_atlas_clamp(
+          available - adjusted_center - gaps,
+          min_properties, max_properties);
+    }
+
+    /* Properties panel: Sprite / Grid. */
+    ldk_ui_set_next_width(ui, ldk_ui_fill());
+    ldk_ui_set_next_height(ui, ldk_ui_fill());
+    ldk_ui_begin_vertical(ui);
+    ldk_ui_set_padding(ui, 0.0f);
+
+    LDKUIRect panel_previous_clip = ui->clip_rect;
+    ui->clip_rect = ldk_rectf_intersect(
+        &panel_previous_clip, &ui->current_layout->rect);
+
+    static const LDKUITabBarItem tabs[] = {
+        {.id = 1u, .label = "Sprite"},
+        {.id = 2u, .label = "Grid"},
+    };
+
+    state->active_tab = (LDKAtlasEditorTab)ldk_ui_tab_bar(
+        ui, tabs, LDK_ATLAS_EDITOR_TAB_COUNT,
+        (u32)state->active_tab).active_index;
+
+    u32 tab = (u32)state->active_tab;
+    ldk_ui_set_next_weight(ui, 1.0f);
+    ldk_ui_push_id_u32(ui, tab);
+
+    state->property_scroll[tab] = ldk_ui_begin_scrollview(
+        ui, state->property_scroll[tab],
+        LDK_UI_SCROLL_VERTICAL |
+            LDK_UI_SCROLL_HORIZONTAL |
+            LDK_UI_SCROLL_IF_NEEDED);
+
+    if (state->active_tab == LDK_ATLAS_EDITOR_TAB_GRID)
+    {
+      s_atlas_grid_controls(editor, ui);
+    }
+    else
+    {
+      s_atlas_sprites_panel(editor, ui);
+    }
+
+    ldk_ui_end_scrollview(ui);
+    ldk_ui_pop_id(ui);
+
+    ui->clip_rect = panel_previous_clip;
+    ldk_ui_end_vertical(ui);
+
+    ui->clip_rect = body_previous_clip;
+    ldk_ui_end_horizontal(ui);
+
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_horizontal_line(ui);
   }
 
-  ldk_ui_set_next_weight(ui, 1.0f);
-  ldk_ui_begin_horizontal(ui);
-  ldk_ui_set_padding(ui, 0.0f);
-  float available = ui->current_layout->content_rect.w;
-  const float handle_width = 8.0f;
-  const float gaps = LDK_UI_DEFAULT_SPACING * 2.0f + handle_width;
-  float min_properties = fminf(190.0f, fmaxf(80.0f, available * 0.35f));
-  float max_properties = fmaxf(min_properties, available - gaps - 160.0f);
-  if (state->properties_width <= 0.0f)
-  {
-    state->properties_width = 260.0f;
-  }
-  state->properties_width = s_atlas_clamp(state->properties_width,
-      min_properties, max_properties);
-  float center_width = fmaxf(30.0f,
-      available - state->properties_width - gaps);
-
-  /* With sprites now in the right-side tab, the canvas uses the full height. */
-  ldk_ui_set_next_width(ui, ldk_ui_px(center_width));
-  ldk_ui_set_next_height(ui, ldk_ui_fill());
-  ldk_ui_begin_vertical(ui);
-  ldk_ui_set_padding(ui, 0.0f);
-  s_atlas_canvas(editor, ui,
-      fmaxf(30.0f, ui->current_layout->content_rect.h));
-  ldk_ui_end_vertical(ui);
-
-  /* The same splitter widget used by the animation editor. Moving this
-   * handle resizes the properties panel while keeping the image flexible. */
-  ldk_ui_set_next_width(ui, ldk_ui_px(handle_width));
-  ldk_ui_set_next_height(ui, ldk_ui_fill());
-  float adjusted_center = ldk_ui_resize_handle_vertical(ui, center_width,
-      fmaxf(30.0f, available - max_properties - gaps),
-      fmaxf(30.0f, available - min_properties - gaps));
-  state->properties_width = s_atlas_clamp(
-      available - adjusted_center - gaps, min_properties, max_properties);
-
-  ldk_ui_set_next_width(ui, ldk_ui_fill());
-  ldk_ui_set_next_height(ui, ldk_ui_fill());
-  ldk_ui_begin_vertical(ui);
-  static const LDKUITabBarItem tabs[] = {
-      {.id = 1u, .label = "Sprite"},
-      {.id = 2u, .label = "Grid"},
-  };
-  state->active_tab = (LDKAtlasEditorTab)ldk_ui_tab_bar(ui, tabs,
-      LDK_ATLAS_EDITOR_TAB_COUNT, (u32)state->active_tab).active_index;
-  u32 tab = (u32)state->active_tab;
-  ldk_ui_set_next_weight(ui, 1.0f);
-  ldk_ui_push_id_u32(ui, tab);
-  state->property_scroll[tab] = ldk_ui_begin_scrollview(ui,
-      state->property_scroll[tab],
-      LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
-  if (state->active_tab == LDK_ATLAS_EDITOR_TAB_GRID)
-  {
-    s_atlas_grid_controls(editor, ui);
-  }
-  else
-  {
-    s_atlas_sprites_panel(editor, ui);
-  }
-  ldk_ui_end_scrollview(ui);
-  ldk_ui_pop_id(ui);
-  ldk_ui_end_vertical(ui);
-  ldk_ui_end_horizontal(ui);
+  /* Footer always uses the remaining area after the dock's tab bar.
+   * It is not a child of the scrollable properties panel. */
+  float button_width = fminf(80.0f,
+      fmaxf(20.0f,
+          (content.w - LDK_UI_DEFAULT_SPACING) * 0.5f));
 
   ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_horizontal_line(ui);
-  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_height(ui, ldk_ui_px(footer_height));
   ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_padding(ui, 0.0f);
+
   ldk_ui_spacer(ui);
+
   ldk_ui_set_next_weight(ui, 0.0f);
   ldk_ui_begin_disabled(ui, state->read_only || !state->dirty);
-  ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(button_width));
   if (ldk_ui_button(ui, "Save"))
   {
     (void)s_atlas_save(editor);
   }
+
   ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_set_next_width(ui, ldk_ui_px(80.0f));
+  ldk_ui_set_next_width(ui, ldk_ui_px(button_width));
   if (ldk_ui_button(ui, "Cancel"))
   {
     (void)s_atlas_discard(editor);
   }
+
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
+
+  ui->clip_rect = previous_clip;
 }
