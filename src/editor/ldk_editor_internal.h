@@ -373,6 +373,8 @@ typedef struct LDKEditorContext
   float selection_pulse_seconds;
   bool restore_last_project;
   XFSPath last_project_path;
+  XFSPath last_scene_path;
+  bool restore_last_scene_pending;
   float editor_camera_fov;
   float editor_camera_near_clip;
   float editor_camera_far_clip;
@@ -512,6 +514,8 @@ bool ldki_editor_texture_atlas_open(LDKEditorContext *editor,
     const char *filename, const char *logical_path, bool read_only);
 void ldki_editor_texture_atlas_terminate(LDKEditorContext *editor);
 bool ldki_editor_texture_atlas_project_close(LDKEditorContext *editor);
+/* Persist the current scene as the last scene of the current project. */
+void ldki_editor_last_scene_path_update(LDKEditorContext *editor);
 void ldki_editor_animation_window_show(LDKEditor *editor, void *data);
 void ldki_editor_animation_preview_stop(void);
 void ldki_editor_animation_scene_reset(void);

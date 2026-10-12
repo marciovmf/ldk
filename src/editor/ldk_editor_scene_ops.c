@@ -1698,6 +1698,8 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
 
   editor->current_scene_systems = systems;
   editor->current_scene_path = relative;
+  editor->restore_last_scene_pending = false;
+  ldki_editor_last_scene_path_update(editor);
   ldki_editor_log_info(editor, "Scene loaded.");
   return true;
 }
@@ -1766,6 +1768,8 @@ bool ldki_editor_scene_new_at_path(
   }
 
   editor->current_scene_path = relative;
+  editor->restore_last_scene_pending = false;
+  ldki_editor_last_scene_path_update(editor);
   ldki_editor_log_info(editor, "Scene created.");
   return true;
 }

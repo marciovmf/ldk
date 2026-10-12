@@ -2017,6 +2017,8 @@ static bool s_editor_last_project_path_write(
   }
 
   ok = x_ini_set(&ini, ".editor", "last_project", value) &&
+       x_ini_set(&ini, ".editor", "last_scene",
+           project_path != NULL ? editor->last_scene_path.buf : "") &&
        x_ini_write_file(editor->editor_config_path.buf, &ini, &error);
   x_ini_free(&ini);
   return ok;
@@ -2029,10 +2031,34 @@ static void s_editor_last_project_path_update(LDKEditorContext *editor)
     return;
   }
 
+  if (x_fs_path_compare(&editor->last_project_path,
+          &editor->project.project_file_path) != 0)
+  {
+    memset(&editor->last_scene_path, 0, sizeof(editor->last_scene_path));
+  }
   editor->last_project_path = editor->project.project_file_path;
   if (!s_editor_last_project_path_write(editor, &editor->last_project_path))
   {
     ldk_log_warning("Failed to persist the last opened project.\n");
+  }
+}
+
+void ldki_editor_last_scene_path_update(LDKEditorContext *editor)
+{
+  if (!editor || !editor->project.loaded ||
+      editor->current_scene_path.length == 0 ||
+      x_fs_path_compare(&editor->last_project_path,
+          &editor->project.project_file_path) != 0 ||
+      x_fs_path_compare(&editor->last_scene_path,
+          &editor->current_scene_path) == 0)
+  {
+    return;
+  }
+
+  editor->last_scene_path = editor->current_scene_path;
+  if (!s_editor_last_project_path_write(editor, &editor->last_project_path))
+  {
+    ldk_log_warning("Failed to persist the last opened scene.\n");
   }
 }
 
@@ -2047,6 +2073,7 @@ static bool s_editor_config_load_from_ini(
   const char *EDITOR = ".editor";
   const char *font_path;
   const char *last_project;
+  const char *last_scene;
   rgba32 legacy_selection_color;
 
   editor->editor_font_size = x_ini_get_i32(ini, EDITOR, "font_size", 18);
@@ -2116,6 +2143,18 @@ static bool s_editor_config_load_from_ini(
   {
     x_fs_path_set(&editor->last_project_path, last_project);
     x_fs_path_normalize(&editor->last_project_path);
+  }
+  last_scene = x_ini_get(ini, EDITOR, "last_scene", "");
+  if (editor->last_project_path.length != 0 && last_scene && last_scene[0] &&
+      x_fs_path_set(&editor->last_scene_path, last_scene) &&
+      !x_fs_path_is_absolute(&editor->last_scene_path) &&
+      ldki_editor_scene_path_is_scene(&editor->last_scene_path))
+  {
+    x_fs_path_normalize(&editor->last_scene_path);
+  }
+  else
+  {
+    memset(&editor->last_scene_path, 0, sizeof(editor->last_scene_path));
   }
 
   x_smallstr_from_cstr(
@@ -2731,6 +2770,50 @@ static bool s_project_game_module_runtime_load(LDKEditorContext *editor,
   return true;
 }
 
+/* Restore the editor scene only when the game module has registered its
+ * components. Missing or damaged scenes do not prevent the project opening. */
+static void s_editor_last_scene_restore(LDKEditorContext *editor)
+{
+  XFSPath path = {0};
+
+  if (!editor || !editor->restore_last_scene_pending ||
+      !editor->project.loaded || ldk_game_get() == NULL)
+  {
+    return;
+  }
+
+  editor->restore_last_scene_pending = false;
+  if (!editor->last_scene_path.length ||
+      editor->current_scene_path.length != 0)
+  {
+    return;
+  }
+
+  x_fs_path(&path, editor->project.run_root_path.buf,
+      editor->last_scene_path.buf);
+  x_fs_path_normalize(&path);
+  if (!x_fs_path_is_file(&path))
+  {
+    char message[512];
+    snprintf(message, sizeof(message),
+        "Last scene '%s' is missing; opening project without a scene.",
+        editor->last_scene_path.buf);
+    ldki_editor_log_warning(editor, message);
+    memset(&editor->last_scene_path, 0, sizeof(editor->last_scene_path));
+    if (!s_editor_last_project_path_write(editor, &editor->last_project_path))
+    {
+      ldk_log_warning("Failed to clear missing last scene.\n");
+    }
+    return;
+  }
+
+  if (!ldki_editor_scene_load(editor, &path))
+  {
+    ldki_editor_log_warning(editor,
+        "Could not restore the last scene; project remains open.");
+  }
+}
+
 static bool s_project_game_module_load(LDKEditorContext *editor)
 {
   XFSPath editor_game_dll_path = {0};
@@ -2787,6 +2870,7 @@ static bool s_project_game_module_load(LDKEditorContext *editor)
   }
 
   s_project_game_module_watch_open(editor);
+  s_editor_last_scene_restore(editor);
   return true;
 }
 
@@ -3322,6 +3406,8 @@ static bool s_project_load(
     return false;
   }
 
+  editor->restore_last_scene_pending = false;
+
   /* ldk_project_load logs the precise .ldk/INI/derived-path failure. */
   if (!ldk_project_load(&editor->project, project_file_path))
   {
@@ -3415,6 +3501,11 @@ static bool s_project_load(
   }
 
   s_editor_last_project_path_update(editor);
+  editor->restore_last_scene_pending = editor->last_scene_path.length != 0;
+  if (has_game_module)
+  {
+    s_editor_last_scene_restore(editor);
+  }
   return true;
 
 fail:
@@ -4977,6 +5068,8 @@ static i32 s_editor_main(const char *project_file_path)
         !s_project_load(editor, editor->last_project_path.buf))
     {
       memset(&editor->last_project_path, 0, sizeof(editor->last_project_path));
+      memset(&editor->last_scene_path, 0, sizeof(editor->last_scene_path));
+      editor->restore_last_scene_pending = false;
       s_editor_last_project_path_write(editor, NULL);
     }
   }
