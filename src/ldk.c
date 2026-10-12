@@ -15,6 +15,8 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_material_instance.h>
+#include <ldk_texture_atlas.h>
 #include <component/ldk_post_processing.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
@@ -204,6 +206,86 @@ static bool s_mesh_source_material_resolve(
       &binding->material_dirty);
 }
 
+/* Resolve once per sprite change or atlas reload; unchanged animations only
+ * copy their cached rectangle to the render submission. The MaterialInstance
+ * never owns the atlas or GPU material. */
+static Vec4 s_mesh_sprite_uv_rect(LDKRoot *engine, LDKEntity entity,
+    const LDKMaterialDesc *material, bool allow_override)
+{
+  Vec4 identity = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
+  /* One MaterialInstance overrides slot zero of the primary MeshSource
+   * material only; secondary submeshes keep their authored defaults. */
+  LDKMaterialInstance *instance = allow_override ? ldk_ecs_component_get(
+      entity, LDK_COMPONENT_TYPE_MATERIAL_INSTANCE) : NULL;
+  if (!material || x_handle_is_null(material->texture_atlases[0].h))
+  {
+    if (instance)
+    {
+      instance->atlas.h = x_handle_null();
+      instance->cache_valid = false;
+    }
+    return identity;
+  }
+
+  LDKAssetTextureAtlas asset = material->texture_atlases[0];
+  const LDKAssetTextureAtlasData *data =
+      ldk_asset_manager_texture_atlas_get_const(&engine->asset_manager, asset);
+  if (!data)
+    return identity;
+  u64 sprite_id = material->texture_regions[0];
+  if (instance)
+  {
+    instance->atlas = asset;
+    if (instance->sprite_id)
+      sprite_id = instance->sprite_id;
+    if (instance->cache_valid &&
+        instance->cached_atlas.h.index == asset.h.index &&
+        instance->cached_atlas.h.version == asset.h.version &&
+        instance->cached_revision == data->revision &&
+        instance->cached_sprite_id == sprite_id)
+      return instance->cached_uv_rect;
+  }
+
+  Vec4 rect = identity;
+  if (sprite_id)
+  {
+    const LDKTextureAtlasRegion *region =
+        ldk_texture_atlas_region_find_const(&data->atlas, sprite_id);
+    const LDKAssetImageData *image =
+        ldk_asset_manager_image_get_const(&engine->asset_manager, data->image);
+    float uv[4];
+    if (region && image && image->image &&
+        ldk_texture_atlas_region_uv(region,
+            ldk_image_get_width(image->image),
+            ldk_image_get_height(image->image), uv))
+    {
+      rect = vec4_make(uv[0], uv[1], uv[2], uv[3]);
+    }
+  }
+  if (instance)
+  {
+    instance->cached_atlas = asset;
+    instance->cached_revision = data->revision;
+    instance->cached_sprite_id = sprite_id;
+    instance->cached_uv_rect = rect;
+    instance->cache_valid = true;
+  }
+  return rect;
+}
+
+/* A completed submit is the only object whose dynamic UVs may be changed;
+ * the shared material resource remains untouched. */
+static void s_mesh_sprite_submit_uv(LDKRoot *engine, LDKEntity entity,
+    const LDKMaterialDesc *material, bool allow_override, u32 previous_count)
+{
+  if (engine->renderer.submitted_mesh_count > previous_count)
+  {
+    engine->renderer.submitted_meshes[
+        engine->renderer.submitted_mesh_count - 1u].uv_rect =
+        s_mesh_sprite_uv_rect(engine, entity, material, allow_override);
+  }
+}
+
 static bool s_mesh_source_material_runtime(
     LDKRoot *engine, LDKMeshSource *mesh_source, u32 material_slot,
     LDKResourceMaterial *out_material)
@@ -237,7 +319,9 @@ static bool s_mesh_source_material_runtime(
   }
 
   if (!ldk_renderer_material_is_valid(
-          &engine->renderer, renderer_material))
+          &engine->renderer, renderer_material) ||
+      !ldk_renderer_material_atlases_current(
+          &engine->renderer, &engine->asset_manager, renderer_material))
   {
     *material_dirty = true;
   }
@@ -1959,8 +2043,8 @@ void ldk_engine_frame(void)
 
         if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))
         {
-          mesh->renderer_mesh =
-              ldk_renderer_mesh_create(&e->renderer, &mesh_desc);
+          mesh->renderer_mesh = ldk_renderer_mesh_asset_acquire(&e->renderer,
+              mesh->source_asset, mesh->mesh_index, &mesh_desc);
           mesh->dirty = false;
         }
         else if (mesh->dirty)
@@ -2002,6 +2086,7 @@ void ldk_engine_frame(void)
             continue;
           }
 
+          u32 previous_submits = e->renderer.submitted_mesh_count;
           if (instances)
           {
             ldk_renderer_submit_mesh_instances_colored(&e->renderer,
@@ -2015,6 +2100,8 @@ void ldk_engine_frame(void)
             ldk_renderer_submit_mesh_with_flags(&e->renderer,
                 mesh->renderer_mesh, renderer_material, mesh_world, submit_flags);
           }
+          s_mesh_sprite_submit_uv(e, *entity, &mesh->material, true,
+              previous_submits);
           continue;
         }
 
@@ -2032,6 +2119,7 @@ void ldk_engine_frame(void)
             continue;
           }
 
+          u32 previous_submits = e->renderer.submitted_mesh_count;
           if (instances)
           {
             ldk_renderer_submit_mesh_instances_colored(&e->renderer,
@@ -2046,6 +2134,17 @@ void ldk_engine_frame(void)
                 mesh->renderer_mesh, renderer_material, submesh->first_index,
                 submesh->index_count, mesh_world, submit_flags);
           }
+          const LDKMaterialDesc *material = &mesh->material;
+          if (submesh->material_slot)
+          {
+            const LDKMeshSourceMaterialBinding *binding =
+                ldk_mesh_source_additional_material_binding(
+                    mesh, submesh->material_slot);
+            if (binding)
+              material = &binding->material;
+          }
+          s_mesh_sprite_submit_uv(e, *entity, material,
+              submesh->material_slot == 0u, previous_submits);
         }
       }
     }

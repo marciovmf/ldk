@@ -1,6 +1,8 @@
 #include <ldk_material_io.h>
 #include <ldk.h>
 
+#include <inttypes.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -369,6 +371,99 @@ static bool s_material_surface_map_write(const LDKMaterialIOContext *context,
   return true;
 }
 
+/* Atlas sources are stored separately from legacy image fields to preserve
+ * existing .material and scene formats. */
+static bool s_material_atlas_sources_read(const LDKMaterialIOContext *context,
+    const TMLDocument *doc, const TMLNode *fields, LDKMaterialDesc *desc,
+    LDKMaterialIOResult *result)
+{
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    char field[64];
+    snprintf(field, sizeof(field), "material_texture_%u_atlas", slot);
+    if (!tml_node_find_entry(doc, fields, field))
+      continue;
+    TMLString path;
+    if (!context->assets || !tml_node_get_string(doc, fields, field, &path) ||
+        path.size == 0 || path.size > LDK_ASSET_PATH_MAX_LENGTH ||
+        memchr(path.data, 0, path.size))
+    {
+      s_result_error(result, "invalid material atlas path");
+      return false;
+    }
+    char text[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+    memcpy(text, path.data, path.size);
+    text[path.size] = 0;
+    LDKAssetTextureAtlas atlas = ldk_asset_manager_texture_atlas_load_shared(
+        context->assets, text);
+    if (x_handle_is_null(atlas.h))
+    {
+      s_result_error(result, "material atlas unavailable");
+      return false;
+    }
+    u64 region = 0;
+    snprintf(field, sizeof(field), "material_texture_%u_region", slot);
+    if (tml_node_find_entry(doc, fields, field))
+    {
+      TMLString hex;
+      char number[32];
+      char *end = NULL;
+      if (!tml_node_get_string(doc, fields, field, &hex) ||
+          !hex.size || hex.size >= sizeof(number))
+      {
+        s_result_error(result, "invalid material atlas region");
+        return false;
+      }
+      memcpy(number, hex.data, hex.size);
+      number[hex.size] = 0;
+      errno = 0;
+      region = (u64)strtoull(number, &end, 0);
+      if (errno || end == number || *end || number[0] == '-')
+      {
+        s_result_error(result, "invalid material atlas region ID");
+        return false;
+      }
+    }
+    if (!ldk_material_texture_atlas_set(desc, slot, atlas, region))
+      return false;
+  }
+  return true;
+}
+
+static bool s_material_atlas_sources_write(const LDKMaterialIOContext *context,
+    const LDKMaterialDesc *desc, XStrBuilder *out, u32 indent,
+    LDKMaterialIOResult *result)
+{
+  for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+  {
+    LDKAssetTextureAtlas atlas = desc->texture_atlases[slot];
+    if (x_handle_is_null(atlas.h))
+      continue;
+    LDKAssetHandle handle = {atlas.h};
+    const LDKAssetInfo *info = context->assets
+        ? ldk_asset_get_info_const(context->assets, handle) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_TEXTURE_ATLAS ||
+        !info->asset_path.buf[0] || !context->assets->source ||
+        info->source_revision != context->assets->source->revision)
+    {
+      s_result_error(result, "material atlas needs a valid asset path");
+      return false;
+    }
+    s_append_indent(out, indent);
+    x_strbuilder_append_format(out, "material_texture_%u_atlas: ", slot);
+    s_append_escaped_string(out, info->asset_path.buf);
+    x_strbuilder_append_char(out, '\n');
+    if (desc->texture_regions[slot])
+    {
+      s_append_indent(out, indent);
+      x_strbuilder_append_format(out,
+          "material_texture_%u_region: \"0x%016" PRIx64 "\"\n",
+          slot, desc->texture_regions[slot]);
+    }
+  }
+  return true;
+}
+
 bool ldk_material_desc_read(const LDKMaterialIOContext *context,
     const TMLDocument *doc, const TMLNode *fields,
     LDKMaterialDesc *out_desc, LDKMaterialIOResult *result)
@@ -513,7 +608,8 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
           s_report_missing_image(context, asset_path.buf);
       }
     }
-    if (x_handle_is_null(desc.args.textured.texture.h))
+    if (x_handle_is_null(desc.args.textured.texture.h) &&
+        !tml_node_find_entry(doc, fields, "material_texture_0_atlas"))
       s_report_missing_image(context, NULL);
 
     for (u32 slot = 3u; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
@@ -665,6 +761,9 @@ bool ldk_material_desc_read(const LDKMaterialIOContext *context,
     desc.texture_settings[slot] = settings;
   }
 
+  if (!s_material_atlas_sources_read(context, doc, fields, &desc, result))
+    return false;
+
   if (!ldk_material_desc_is_valid(&desc))
   {
     s_result_error(result, "invalid material surface values");
@@ -727,6 +826,9 @@ bool ldk_material_desc_write(const LDKMaterialIOContext *context,
     x_strbuilder_append_format(out, "material_texture_%u_uv_offset_y: %.9g\n",
         slot, (double)settings->uv_offset.y);
   }
+  if (!s_material_atlas_sources_write(context, desc, out, indent, result))
+    return false;
+
   bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
       desc->type == LDK_MATERIAL_TYPE_TEXTURED_UNLIT;
   bool lit = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||

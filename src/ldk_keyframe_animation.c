@@ -9,6 +9,7 @@
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_tml.h>
 #include <inttypes.h>
+#include <errno.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,7 +127,7 @@ bool ldk_keyframe_animation_validate(const LDKKeyframeAnimation *clip)
     {
     case LDK_FIELD_FLOAT: case LDK_FIELD_VEC2: case LDK_FIELD_VEC3:
     case LDK_FIELD_VEC4: case LDK_FIELD_QUAT: case LDK_FIELD_I32:
-    case LDK_FIELD_U32: case LDK_FIELD_BOOL: case LDK_FIELD_ENUM:
+    case LDK_FIELD_U32: case LDK_FIELD_U64: case LDK_FIELD_BOOL: case LDK_FIELD_ENUM:
     case LDK_FIELD_STRING:
       break;
     default:
@@ -534,25 +535,32 @@ bool ldk_keyframe_animation_sample(const LDKKeyframeAnimation *clip,
     *out_value = t->keys[0].value;
     return true;
   }
-  for (u32 i = 1; i < t->count; i++)
+  /* Tracks are sorted by key time. Binary search avoids scanning every
+   * frame of a long sprite animation on each animated entity. */
+  if (time >= t->keys[t->count - 1u].time)
   {
-    if (time <= t->keys[i].time)
-    {
-      const LDKComponentFieldMeta *field =
-          ldk_property_field_find(t->component_type, t->property_name);
-      if (!field || field->type != t->value_type)
-      {
-        return false;
-      }
-      const LDKKeyframe *a = &t->keys[i - 1];
-      const LDKKeyframe *b = &t->keys[i];
-      float alpha = (time - a->time) / (b->time - a->time);
-      return ldk_property_interpolate(field, &a->value, &b->value,
-          alpha, out_value);
-    }
+    *out_value = t->keys[t->count - 1u].value;
+    return true;
   }
-  *out_value = t->keys[t->count - 1].value;
-  return true;
+  u32 low = 1u;
+  u32 high = t->count - 1u;
+  while (low < high)
+  {
+    u32 mid = low + (high - low) / 2u;
+    if (time <= t->keys[mid].time)
+      high = mid;
+    else
+      low = mid + 1u;
+  }
+  const LDKComponentFieldMeta *field =
+      ldk_property_field_find(t->component_type, t->property_name);
+  if (!field || field->type != t->value_type)
+    return false;
+  const LDKKeyframe *a = &t->keys[low - 1u];
+  const LDKKeyframe *b = &t->keys[low];
+  float alpha = (time - a->time) / (b->time - a->time);
+  return ldk_property_interpolate(field, &a->value, &b->value,
+      alpha, out_value);
 }
 
 bool ldk_keyframe_animation_value_from_entity(LDKEntity entity,
@@ -952,6 +960,10 @@ bool ldk_keyframe_animation_to_tml(
       case LDK_FIELD_U32:
         x_strbuilder_append_format(out, "%" PRId64, v->integer);
         break;
+      case LDK_FIELD_U64:
+        x_strbuilder_append_format(out, "\"0x%016" PRIx64 "\"",
+            (u64)v->integer);
+        break;
       default:
         x_strbuilder_destroy(out);
         return false;
@@ -1066,6 +1078,22 @@ static bool s_keyframe_read_value(const TMLDocument *doc,
   case LDK_FIELD_U32:
     if (!tml_node_get_i64(doc, node, "value", &value.integer)) return false;
     break;
+  case LDK_FIELD_U64:
+  {
+    TMLString source;
+    char text[32];
+    char *end = NULL;
+    if (!tml_node_get_string(doc, node, "value", &source) ||
+        !source.size || source.size >= sizeof(text))
+      return false;
+    memcpy(text, source.data, source.size);
+    text[source.size] = 0;
+    errno = 0;
+    unsigned long long n = strtoull(text, &end, 0);
+    if (errno || end == text || *end || text[0] == '-') return false;
+    value.integer = (i64)(u64)n;
+    break;
+  }
   case LDK_FIELD_STRING:
   {
     TMLString str;
@@ -1083,6 +1111,7 @@ static bool s_keyframe_read_value(const TMLDocument *doc,
   *out = value;
   return true;
 }
+
 
 bool ldk_keyframe_animation_from_tml(
     LDKKeyframeAnimation *clip, const char *source)
@@ -1125,13 +1154,36 @@ bool ldk_keyframe_animation_from_tml(
             !tml_node_get_i64(doc, node, "component", &comp) ||
             comp <= 0 || comp > UINT32_MAX ||
             !tml_node_get_i64(doc, node, "type", &kind) ||
-            kind < LDK_FIELD_BOOL || kind > LDK_FIELD_ASSET_KEYFRAME_ANIMATION ||
             !tml_node_get_string(doc, node, "property", &property) ||
             !property.size || property.size >= sizeof(name))
         {
           valid = false;
           break;
         }
+
+        switch (kind)
+        {
+        case LDK_FIELD_BOOL:
+        case LDK_FIELD_I32:
+        case LDK_FIELD_U32:
+        case LDK_FIELD_U64:
+        case LDK_FIELD_FLOAT:
+        case LDK_FIELD_VEC2:
+        case LDK_FIELD_VEC3:
+        case LDK_FIELD_VEC4:
+        case LDK_FIELD_QUAT:
+        case LDK_FIELD_ENUM:
+        case LDK_FIELD_STRING:
+          break;
+        default:
+          valid = false;
+          break;
+        }
+        if (!valid)
+        {
+          break;
+        }
+
         memcpy(name, property.data, property.size);
         name[property.size] = 0;
         if (ldk_keyframe_animation_track_find(

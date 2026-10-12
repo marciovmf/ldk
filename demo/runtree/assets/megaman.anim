@@ -1,0 +1,30 @@
+animation:
+  version: 2
+  duration: 1.000000000
+  tracks:
+    - target: "0xcbf29ce484222325"
+      component: 4294967279
+      property: "sprite_id"
+      type: 21
+      keys:
+        - time: 0.000000000
+          value: "0x000000000000000d"
+        - time: 0.10
+          value: "0x000000000000000e"
+        - time: 0.20
+          value: "0x000000000000000f"
+        - time: 0.30
+          value: "0x0000000000000010"
+        - time: 0.40
+          value: "0x0000000000000011"
+        - time: 0.50
+          value: "0x0000000000000012"
+        - time: 0.60
+          value: "0x0000000000000013"
+        - time: 0.70
+          value: "0x0000000000000014"
+        - time: 0.80
+          value: "0x0000000000000015"
+        - time: 0.90
+          value: "0x0000000000000016"
+  events:

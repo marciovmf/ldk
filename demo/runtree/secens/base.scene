@@ -145,7 +145,7 @@ scene:
         - type: 4294967289 # LDKDirectionalLight
           fields:
             color: 4294967295
-            intensity: 0.400000006
+            intensity: 1.00000000
             enabled: true
             casts_shadows: true
     - entity: 5
@@ -265,7 +265,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -3.22925425, 2.40033937, 0.309344292
+            local_position: -3.22925425, 2.86114597, 0.635183811
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: -0.328308105, -0.433601320, -0.173378825, 0.821062386
         - type: 4294967292 # LDKMeshSource
@@ -309,7 +309,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 1.18987536, 0.00000000
+            local_position: -2.71801162, 0.849406183, 0.669464111
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.999064922, 0.00000000, -0.0432350971
         - type: 4294967292 # LDKMeshSource
@@ -507,6 +507,35 @@ scene:
             casts_shadows: true
             billboard: false
             material_asset: "assets/checkers_orange"
+    - entity: 19
+      parent: -1
+      flags: 0
+      name: "Sprite_character"
+      name_hash: "0x8283df0599e2ca4c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.559224308, 1.35395181, 0.344733596
+            local_scale: 2.28125000, 2.28125000, 2.28125000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: true
+            material_asset: "assets/megaman.material"
+        - type: 4294967279 # LDKMaterialInstance
+          fields:
+            sprite_id: "0"
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            current_animation: 0
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
+            animations:
+              - path: "assets/megaman.anim"
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
     - id: "0x05047ea6f003fb8f"

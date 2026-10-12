@@ -904,10 +904,44 @@ LDKResourceMesh ldk_renderer_mesh_create(
   }
 
   resource->alive = true;
+  resource->ref_count = 1;
   renderer->mesh_count += 1;
 
   LDKResourceMesh mesh = {0};
   mesh.id = (LDKRHIResource)(index + 1u);
+  return mesh;
+}
+
+LDKResourceMesh ldk_renderer_mesh_asset_acquire(LDKRenderer *renderer,
+    LDKAssetMesh asset, u32 mesh_index, const LDKRendererMeshDesc *desc)
+{
+  if (!renderer || x_handle_is_null(asset.h) ||
+      !s_renderer_mesh_desc_is_valid(desc))
+    return ldk_renderer_mesh_null();
+  for (u32 i = 0; i < renderer->mesh_count; ++i)
+  {
+    LDKRendererMeshResource *resource = &renderer->meshes[i];
+    if (resource->alive && resource->shared_asset_mesh &&
+        resource->ref_count < UINT32_MAX &&
+        resource->source_asset.h.index == asset.h.index &&
+        resource->source_asset.h.version == asset.h.version &&
+        resource->source_mesh_index == mesh_index)
+    {
+      ++resource->ref_count;
+      LDKResourceMesh mesh = {0};
+      mesh.id = (LDKRHIResource)(i + 1u);
+      return mesh;
+    }
+  }
+  LDKResourceMesh mesh = ldk_renderer_mesh_create(renderer, desc);
+  LDKRendererMeshResource *resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  if (resource)
+  {
+    resource->source_asset = asset;
+    resource->source_mesh_index = mesh_index;
+    resource->shared_asset_mesh = true;
+  }
   return mesh;
 }
 
@@ -996,6 +1030,11 @@ void ldk_renderer_mesh_destroy(LDKRenderer* renderer, LDKResourceMesh mesh)
     return;
   }
 
+  if (resource->ref_count > 1)
+  {
+    --resource->ref_count;
+    return;
+  }
   ldk_rhi_buffer_destroy(renderer->rhi, resource->vertex_buffer);
   ldk_rhi_buffer_destroy(renderer->rhi, resource->index_buffer);
   memset(resource, 0, sizeof(*resource));
@@ -1014,6 +1053,7 @@ static void s_renderer_destroy_mesh_resources(LDKRenderer* renderer)
     {
       LDKResourceMesh mesh = {0};
       mesh.id = (LDKRHIResource)(i + 1u);
+      renderer->meshes[i].ref_count = 1;
       ldk_renderer_mesh_destroy(renderer, mesh);
     }
   }
@@ -1146,7 +1186,8 @@ static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
     u32 instance_count, u32 capacity)
 {
   if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4) ||
-      capacity > UINT32_MAX / sizeof(LDKRHIColor))
+      capacity > UINT32_MAX / sizeof(LDKRHIColor) ||
+      capacity > UINT32_MAX / sizeof(Vec4))
   {
     return false;
   }
@@ -1624,8 +1665,11 @@ static bool s_renderer_mesh_submit_same_batch(
   /* The opaque queue already fixes the view/pass. CAST_SHADOWS belongs to
    * the shadow pass and must not split the visible batch. */
   return a->mesh.id == b->mesh.id && a->material.id == b->material.id &&
-         a->first_index == b->first_index &&
-         a->index_count == b->index_count;
+    a->first_index == b->first_index &&
+          a->index_count == b->index_count &&
+          ((a->flags ^ b->flags) &
+              (LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD |
+                  LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE)) == 0u;
 }
 
 static u32 s_renderer_mesh_submit_instance_count(
@@ -1657,6 +1701,7 @@ typedef struct LDKRendererMeshObjectParams
   Mat4 world;
   LDKRHIColor instance_color;
   float options[4];
+  float uv_rect[4];
 } LDKRendererMeshObjectParams;
 
 typedef struct LDKRendererMeshMaterialParams
@@ -1686,7 +1731,7 @@ typedef struct LDKRendererMeshMaterialParams
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererMeshCameraParams) == 144,
     mesh_camera_std140_size);
-LDK_STATIC_ASSERT(sizeof(LDKRendererMeshObjectParams) == 96,
+LDK_STATIC_ASSERT(sizeof(LDKRendererMeshObjectParams) == 112,
     mesh_object_std140_size);
 LDK_STATIC_ASSERT(offsetof(LDKRendererMeshObjectParams, instance_color) == 64,
     mesh_object_color_std140_offset);
@@ -2072,6 +2117,7 @@ static void s_renderer_shadow_pass_terminate(LDKRendererShadowPass *pass)
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->vegetation_vertex_shader_module);
     ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->instance_uv_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->camera_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
@@ -2094,6 +2140,7 @@ static void s_renderer_shadow_pass_disable_instancing(
       pass->rhi, pass->vegetation_instanced_vertex_shader_module);
   ldk_rhi_shader_module_destroy(pass->rhi, pass->instanced_vertex_shader_module);
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
+  ldk_rhi_buffer_destroy(pass->rhi, pass->instance_uv_buffer);
 
   pass->cutout_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vegetation_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
@@ -2103,13 +2150,14 @@ static void s_renderer_shadow_pass_disable_instancing(
       LDK_RHI_INVALID_RESOURCE;
   pass->instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
   pass->instance_buffer = LDK_RHI_INVALID_RESOURCE;
+  pass->instance_uv_buffer = LDK_RHI_INVALID_RESOURCE;
   pass->instance_capacity = 0;
 }
 
 static void s_renderer_shadow_pass_instance_layout(
     LDKRHIPipelineDesc *desc)
 {
-  desc->vertex_buffer_layout_count = 2;
+  desc->vertex_buffer_layout_count = 3;
   desc->vertex_buffer_layouts[0] = desc->vertex_layout;
   desc->vertex_buffer_layouts[0].input_rate =
       LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX;
@@ -2125,6 +2173,14 @@ static void s_renderer_shadow_pass_instance_layout(
     instance->attributes[i].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
     instance->attributes[i].offset = i * 4u * (u32)sizeof(float);
   }
+
+  LDKRHIVertexBufferLayoutDesc *uv = &desc->vertex_buffer_layouts[2];
+  memset(uv, 0, sizeof(*uv));
+  uv->stride = sizeof(Vec4);
+  uv->attribute_count = 1;
+  uv->input_rate = LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE;
+  uv->attributes[0].location = 10u;
+  uv->attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
 }
 
 static bool s_renderer_shadow_pass_ensure_instance_capacity(
@@ -2146,7 +2202,8 @@ static bool s_renderer_shadow_pass_ensure_instance_capacity(
     capacity *= 2u;
   }
 
-  if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4))
+  if (capacity < instance_count || (capacity > UINT32_MAX / sizeof(Mat4) ||
+          capacity > UINT32_MAX / sizeof(Vec4)))
   {
     return false;
   }
@@ -2166,8 +2223,17 @@ static bool s_renderer_shadow_pass_ensure_instance_capacity(
     return false;
   }
 
+  desc.size = capacity * (u32)sizeof(Vec4);
+  LDKRHIBuffer uv_buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
+  if (uv_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_buffer_destroy(pass->rhi, buffer);
+    return false;
+  }
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
+  ldk_rhi_buffer_destroy(pass->rhi, pass->instance_uv_buffer);
   pass->instance_buffer = buffer;
+  pass->instance_uv_buffer = uv_buffer;
   pass->instance_capacity = capacity;
   return true;
 }
@@ -2353,7 +2419,7 @@ static bool s_renderer_shadow_pass_initialize(LDKRendererShadowPass *pass,
       LDK_RHI_BUFFER_USAGE_UNIFORM | LDK_RHI_BUFFER_USAGE_TRANSFER_DST;
   buffer.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
   pass->camera_buffer = ldk_rhi_buffer_create(rhi, &buffer);
-  buffer.size = sizeof(Mat4);
+  buffer.size = sizeof(Mat4) + sizeof(Vec4);
   pass->object_buffer = ldk_rhi_buffer_create(rhi, &buffer);
   buffer.size = sizeof(LDKRendererShadowMaterialParams);
   pass->material_buffer = ldk_rhi_buffer_create(rhi, &buffer);
@@ -2644,6 +2710,9 @@ static void s_renderer_shadow_pass_bind(LDKRendererShadowPass *pass,
   }
 }
 
+static bool s_renderer_mesh_pass_staging_ensure(
+    LDKRendererMeshPass *pass, u32 count);
+
 static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     LDKRendererShadowPass *pass, LDKRendererFrameDomainStats *stats,
     LDKRendererMeshSubmit *first_submit, const u64 *sort_items,
@@ -2661,6 +2730,7 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   const Mat4 *worlds = !instance_set && first_submit->instance_count
       ? renderer->submitted_instance_worlds + first_submit->instance_offset
       : NULL;
+  const Vec4 *uv_rects = NULL;
   u32 instance_buffer_offset = 0u;
   if (first_submit->instance_set.id != LDK_RHI_INVALID_RESOURCE &&
       instance_set == NULL)
@@ -2688,6 +2758,43 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     {
       submit_count = instance_set->instance_count;
     }
+  }
+
+  if (!instance_set && !worlds && submit_count > 1u &&
+      s_renderer_mesh_pass_staging_ensure(&renderer->mesh_pass, submit_count))
+  {
+    bool complete = true;
+    for (u32 i = 0; i < submit_count; ++i)
+    {
+      LDKRendererMeshSubmit *submit = s_renderer_shadow_pass_run_submit(
+          renderer, first_submit, sort_items, i);
+      if (!submit)
+      {
+        complete = false;
+        break;
+      }
+      renderer->mesh_pass.staging_worlds[i] = submit->world;
+      renderer->mesh_pass.staging_uvs[i] = submit->uv_rect;
+    }
+    if (complete)
+    {
+      worlds = renderer->mesh_pass.staging_worlds;
+      uv_rects = renderer->mesh_pass.staging_uvs;
+    }
+  }
+  if (!instance_set && worlds && !uv_rects &&
+      s_renderer_mesh_pass_staging_ensure(&renderer->mesh_pass, submit_count))
+  {
+    for (u32 i = 0; i < submit_count; ++i)
+      renderer->mesh_pass.staging_uvs[i] = first_submit->uv_rect;
+    uv_rects = renderer->mesh_pass.staging_uvs;
+  }
+  if (instance_set &&
+      s_renderer_mesh_pass_staging_ensure(&renderer->mesh_pass, submit_count))
+  {
+    for (u32 i = 0; i < submit_count; ++i)
+      renderer->mesh_pass.staging_uvs[i] = first_submit->uv_rect;
+    uv_rects = renderer->mesh_pass.staging_uvs;
   }
 
   LDKRendererMeshResource *mesh =
@@ -2777,7 +2884,11 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     instance_buffer = pass->instance_buffer;
   }
 
-  if (instance_buffer != LDK_RHI_INVALID_RESOURCE &&
+  bool valid_uv = uv_rects &&
+      s_renderer_shadow_pass_ensure_instance_capacity(pass, submit_count) &&
+      ldk_rhi_buffer_update(pass->rhi, pass->instance_uv_buffer, 0,
+          submit_count * (u32)sizeof(Vec4), uv_rects);
+  if (valid_uv && instance_buffer != LDK_RHI_INVALID_RESOURCE &&
       pass->rhi->functions.draw_indexed_instanced != NULL &&
       instanced_pipeline != LDK_RHI_INVALID_RESOURCE)
   {
@@ -2786,6 +2897,8 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
     ldk_rhi_vertex_buffer_bind_at(pass->rhi, 0, mesh->vertex_buffer, 0);
     ldk_rhi_vertex_buffer_bind_at(pass->rhi, 1, instance_buffer,
         instance_buffer_offset * (u32)sizeof(Mat4));
+    ldk_rhi_vertex_buffer_bind_at(
+        pass->rhi, 2, pass->instance_uv_buffer, 0);
     ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
         LDK_RHI_INDEX_TYPE_UINT32);
 
@@ -2827,9 +2940,15 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
       return;
     }
 
-    ldk_rhi_buffer_update(
-        pass->rhi, pass->object_buffer, 0, sizeof(Mat4),
-        worlds ? &worlds[i] : &submit->world);
+    struct {
+      Mat4 world;
+      Vec4 uv_rect;
+    } object = {
+      worlds ? worlds[i] : submit->world,
+      uv_rects ? uv_rects[i] : submit->uv_rect
+    };
+    ldk_rhi_buffer_update(pass->rhi, pass->object_buffer, 0,
+        sizeof(object), &object);
 
     LDKRHIDrawIndexedDesc draw = {0};
     draw.first_index = first_submit->first_index;
@@ -3127,7 +3246,7 @@ static bool s_renderer_mesh_pass_create_bindings_layout(
 static void s_renderer_mesh_pass_instance_layout(
     LDKRHIPipelineDesc* desc)
 {
-  desc->vertex_buffer_layout_count = 3;
+  desc->vertex_buffer_layout_count = 4;
   desc->vertex_buffer_layouts[0] = desc->vertex_layout;
   desc->vertex_buffer_layouts[0].input_rate =
       LDK_RHI_VERTEX_INPUT_RATE_PER_VERTEX;
@@ -3152,6 +3271,14 @@ static void s_renderer_mesh_pass_instance_layout(
   color->attributes[0].location = 9u;
   color->attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
   color->attributes[0].offset = 0u;
+
+  LDKRHIVertexBufferLayoutDesc* uv = &desc->vertex_buffer_layouts[3];
+  memset(uv, 0, sizeof(*uv));
+  uv->stride = sizeof(Vec4);
+  uv->attribute_count = 1;
+  uv->input_rate = LDK_RHI_VERTEX_INPUT_RATE_PER_INSTANCE;
+  uv->attributes[0].location = 10u;
+  uv->attributes[0].format = LDK_RHI_VERTEX_FORMAT_FLOAT4;
 }
 
 static void s_renderer_mesh_pass_disable_instancing(
@@ -3637,10 +3764,21 @@ static bool s_renderer_mesh_pass_ensure_instance_capacity(
     return false;
   }
 
+  desc.size = capacity * (u32)sizeof(Vec4);
+  LDKRHIBuffer uv_buffer = ldk_rhi_buffer_create(pass->rhi, &desc);
+  if (uv_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_buffer_destroy(pass->rhi, transform_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, color_buffer);
+    return false;
+  }
+
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
   ldk_rhi_buffer_destroy(pass->rhi, pass->instance_color_buffer);
+  ldk_rhi_buffer_destroy(pass->rhi, pass->instance_uv_buffer);
   pass->instance_buffer = transform_buffer;
   pass->instance_color_buffer = color_buffer;
+  pass->instance_uv_buffer = uv_buffer;
   pass->instance_capacity = capacity;
   return true;
 }
@@ -3958,6 +4096,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_texture_destroy(pass->rhi, pass->flat_normal_texture);
     ldk_rhi_buffer_destroy(pass->rhi, pass->instance_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->instance_color_buffer);
+    ldk_rhi_buffer_destroy(pass->rhi, pass->instance_uv_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->lighting_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->material_buffer);
     ldk_rhi_buffer_destroy(pass->rhi, pass->object_buffer);
@@ -4028,6 +4167,9 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
         pass->rhi, pass->vegetation_vertex_shader_module);
   }
 
+  LDK_RENDERER_FREE(pass->staging_worlds);
+  LDK_RENDERER_FREE(pass->staging_colors);
+  LDK_RENDERER_FREE(pass->staging_uvs);
   LDK_RENDERER_FREE(pass->material_bindings_cache);
   memset(pass, 0, sizeof(*pass));
 }
@@ -4156,6 +4298,37 @@ static LDKRendererMeshSubmit* s_renderer_mesh_pass_run_submit(
   return &renderer->submitted_meshes[submit_index];
 }
 
+static bool s_renderer_mesh_pass_staging_ensure(
+    LDKRendererMeshPass *pass, u32 count)
+{
+  if (count <= pass->staging_capacity)
+    return true;
+  if (count > SIZE_MAX / sizeof(Mat4) ||
+      count > SIZE_MAX / sizeof(LDKRHIColor) ||
+      count > SIZE_MAX / sizeof(Vec4))
+    return false;
+  u32 capacity = pass->staging_capacity ? pass->staging_capacity : 256u;
+  while (capacity < count)
+    capacity = capacity > UINT32_MAX / 2u ? count : capacity * 2u;
+  Mat4 *worlds = LDK_RENDERER_REALLOC(
+      pass->staging_worlds, (size_t)capacity * sizeof(Mat4));
+  if (!worlds)
+    return false;
+  pass->staging_worlds = worlds;
+  LDKRHIColor *colors = LDK_RENDERER_REALLOC(
+      pass->staging_colors, (size_t)capacity * sizeof(LDKRHIColor));
+  if (!colors)
+    return false;
+  pass->staging_colors = colors;
+  Vec4 *uvs = LDK_RENDERER_REALLOC(
+      pass->staging_uvs, (size_t)capacity * sizeof(Vec4));
+  if (!uvs)
+    return false;
+  pass->staging_uvs = uvs;
+  pass->staging_capacity = capacity;
+  return true;
+}
+
 static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     LDKRendererMeshPass* pass, LDKRendererFrameDomainStats* stats,
     LDKRendererMeshSubmit* first_submit, const u64* sort_items,
@@ -4175,6 +4348,7 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   const LDKRHIColor *colors = !instance_set && first_submit->instance_count
       ? renderer->submitted_instance_colors + first_submit->instance_offset
       : NULL;
+  const Vec4 *uv_rects = NULL;
   u32 instance_buffer_offset = 0u;
   if (first_submit->instance_set.id != LDK_RHI_INVALID_RESOURCE &&
       instance_set == NULL)
@@ -4202,6 +4376,40 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     {
       submit_count = instance_set->instance_count;
     }
+  }
+
+  /* The sorted queue contains ordinary submissions, not explicit instance
+   * arrays. Pack consecutive compatible draws into reusable CPU staging. */
+  if (!instance_set && !worlds && submit_count > 1u &&
+      s_renderer_mesh_pass_staging_ensure(pass, submit_count))
+  {
+    bool complete = true;
+    for (u32 i = 0; i < submit_count; ++i)
+    {
+      LDKRendererMeshSubmit *submit =
+          s_renderer_mesh_pass_run_submit(renderer, first_submit, sort_items, i);
+      if (!submit)
+      {
+        complete = false;
+        break;
+      }
+      pass->staging_worlds[i] = submit->world;
+      pass->staging_colors[i] = ldk_renderer_color_from_rgba32(0xffffffffu);
+      pass->staging_uvs[i] = submit->uv_rect;
+    }
+    if (complete)
+    {
+      worlds = pass->staging_worlds;
+      colors = pass->staging_colors;
+      uv_rects = pass->staging_uvs;
+    }
+  }
+  if (!instance_set && worlds && !uv_rects &&
+      s_renderer_mesh_pass_staging_ensure(pass, submit_count))
+  {
+    for (u32 i = 0; i < submit_count; ++i)
+      pass->staging_uvs[i] = first_submit->uv_rect;
+    uv_rects = pass->staging_uvs;
   }
 
   LDKRendererMeshSubmit* first = first_submit;
@@ -4383,6 +4591,12 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
 
   LDKRHIBuffer transform_buffer = LDK_RHI_INVALID_RESOURCE;
   LDKRHIBuffer color_buffer = LDK_RHI_INVALID_RESOURCE;
+  if (instance_set && s_renderer_mesh_pass_staging_ensure(pass, submit_count))
+  {
+    for (u32 i = 0; i < submit_count; ++i)
+      pass->staging_uvs[i] = first_submit->uv_rect;
+    uv_rects = pass->staging_uvs;
+  }
   if (instance_set)
   {
     transform_buffer = instance_set->transform_buffer;
@@ -4399,7 +4613,13 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     color_buffer = pass->instance_color_buffer;
   }
 
-  if (!overlay && transform_buffer != LDK_RHI_INVALID_RESOURCE &&
+  bool valid_uv = uv_rects &&
+      s_renderer_mesh_pass_ensure_instance_capacity(pass, submit_count) &&
+      ldk_rhi_buffer_update(pass->rhi, pass->instance_uv_buffer, 0,
+          submit_count * (u32)sizeof(Vec4), uv_rects);
+
+  if (!overlay && valid_uv &&
+      transform_buffer != LDK_RHI_INVALID_RESOURCE &&
       color_buffer != LDK_RHI_INVALID_RESOURCE &&
       pass->rhi->functions.draw_indexed_instanced != NULL)
   {
@@ -4410,6 +4630,10 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       LDKRendererMeshObjectParams object = {0};
       object.world = mat4_identity();
       object.instance_color = ldk_renderer_color_from_rgba32(0xffffffffu);
+      object.uv_rect[0] = 0.0f;
+      object.uv_rect[1] = 0.0f;
+      object.uv_rect[2] = 1.0f;
+      object.uv_rect[3] = 1.0f;
       object.options[0] =
           (first->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)
           ? 1.0f : 0.0f;
@@ -4426,6 +4650,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       ldk_rhi_vertex_buffer_bind_at(
           pass->rhi, 2, color_buffer,
           instance_buffer_offset * (u32)sizeof(LDKRHIColor));
+      ldk_rhi_vertex_buffer_bind_at(
+          pass->rhi, 3, pass->instance_uv_buffer, 0);
       ldk_rhi_index_buffer_bind(pass->rhi, mesh->index_buffer, 0,
           LDK_RHI_INDEX_TYPE_UINT32);
 
@@ -4480,6 +4706,10 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
     object.instance_color = colors
         ? colors[i]
         : ldk_renderer_color_from_rgba32(0xffffffffu);
+    object.uv_rect[0] = submit->uv_rect.x;
+    object.uv_rect[1] = submit->uv_rect.y;
+    object.uv_rect[2] = submit->uv_rect.z;
+    object.uv_rect[3] = submit->uv_rect.w;
     object.options[0] =
         (submit->flags & LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD)
         ? 1.0f : 0.0f;
@@ -9181,12 +9411,81 @@ static LDKResourceTexture s_renderer_material_map_acquire(LDKRenderer *renderer,
   return texture;
 }
 
-bool ldk_renderer_material_resolve(LDKRenderer *renderer,
+static LDKAssetImage s_renderer_material_source_image(
+    LDKAssetManager *assets, const LDKMaterialDesc *material, u32 slot)
+{
+  LDKAssetTextureAtlas atlas = material->texture_atlases[slot];
+  if (assets && !x_handle_is_null(atlas.h))
+  {
+    const LDKAssetTextureAtlasData *data =
+        ldk_asset_manager_texture_atlas_get_const(assets, atlas);
+    return data ? data->image : ldk_asset_image_null();
+  }
+  return ldk_material_texture_slot_get(material, slot);
+}
+
+static bool s_renderer_material_atlas_rect(LDKAssetManager *assets,
+    LDKAssetTextureAtlas atlas, u64 region_id, float uv[4])
+{
+  uv[0] = 0.0f;
+  uv[1] = 0.0f;
+  uv[2] = 1.0f;
+  uv[3] = 1.0f;
+  if (!region_id || x_handle_is_null(atlas.h))
+    return true;
+  const LDKAssetTextureAtlasData *data =
+      ldk_asset_manager_texture_atlas_get_const(assets, atlas);
+  const LDKTextureAtlasRegion *region = data
+      ? ldk_texture_atlas_region_find_const(&data->atlas, region_id) : NULL;
+  const LDKAssetImageData *image = data
+      ? ldk_asset_manager_image_get_const(assets, data->image) : NULL;
+  if (!region || !image || !image->image)
+    return false;
+  return ldk_texture_atlas_region_uv(region,
+      ldk_image_get_width(image->image), ldk_image_get_height(image->image), uv);
+}
+
+/* The albedo region is evaluated per submission, not part of GPU
+ * material state. Two authored materials that differ only in their default
+ * frame may therefore still share the same renderer material and batch. */
+bool ldk_renderer_material_atlases_current(LDKRenderer *renderer,
+    LDKAssetManager *assets, LDKResourceMaterial material)
+{
+  LDKRendererMaterialResource *resource =
+      s_renderer_material_get_resource(renderer, material);
+  if (!resource || !assets)
+    return false;
+  if (!resource->has_source_desc)
+    return true;
+  for (u32 i = 0; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+  {
+    LDKAssetTextureAtlas atlas = resource->source_desc.texture_atlases[i];
+    if (x_handle_is_null(atlas.h))
+      continue;
+    const LDKAssetTextureAtlasData *data =
+        ldk_asset_manager_texture_atlas_get_const(assets, atlas);
+    if (!data || data->revision != resource->source_atlas_revisions[i])
+      return false;
+  }
+  return true;
+}
+
+static bool s_renderer_material_gpu_source_equal(
+    const LDKMaterialDesc *a, const LDKMaterialDesc *b)
+{
+  LDKMaterialDesc x = *a;
+  LDKMaterialDesc y = *b;
+  x.texture_regions[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] = 0u;
+  y.texture_regions[LDK_MATERIAL_TEXTURE_SLOT_ALBEDO] = 0u;
+  return ldk_material_desc_equal(&x, &y);
+}
+
+static bool s_renderer_material_resolve_internal(LDKRenderer *renderer,
     LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
     LDKResourceMaterial *renderer_material,
     LDKResourceTexture *renderer_texture,
     LDKResourceTexture *renderer_normal_map,
-    LDKResourceTexture *renderer_specular_map)
+    LDKResourceTexture *renderer_specular_map, bool allow_intern)
 {
   LDKRendererMaterialDesc desc = {0};
   LDKResourceMaterial material;
@@ -9228,7 +9527,8 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     }
     desc.color = material_desc->args.textured.color;
     desc.texture = ldk_renderer_image_acquire(
-        renderer, assets, material_desc->args.textured.texture);
+        renderer, assets, s_renderer_material_source_image(
+            assets, material_desc, LDK_MATERIAL_TEXTURE_SLOT_ALBEDO));
     if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
     {
       ldk_log_error("Material image unavailable; using missing texture.\n");
@@ -9250,7 +9550,8 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   {
     for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
     {
-      LDKAssetImage image = material_desc->additional_textures[i];
+      LDKAssetImage image = s_renderer_material_source_image(
+          assets, material_desc, i + 3u);
       if (x_handle_is_null(image.h))
       {
         continue;
@@ -9292,15 +9593,54 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     if (assets)
     {
       normal_map = s_renderer_material_map_acquire(
-          renderer, assets, material_desc->surface.normal_map, "normal map");
-      specular_map = s_renderer_material_map_acquire(renderer, assets,
-          material_desc->surface.specular_map, "specular map");
+          renderer, assets, s_renderer_material_source_image(
+              assets, material_desc, LDK_MATERIAL_TEXTURE_SLOT_NORMAL),
+          "normal map");
+      specular_map = s_renderer_material_map_acquire(renderer, assets, s_renderer_material_source_image(
+              assets, material_desc, LDK_MATERIAL_TEXTURE_SLOT_SPECULAR),
+          "specular map");
     }
     desc.normal_map = normal_map;
     desc.specular_map = specular_map;
     desc.specular = material_desc->surface.specular;
     desc.shininess = material_desc->surface.shininess;
     desc.emission = material_desc->surface.emission;
+  }
+
+  /* Reuse a material with identical authored parameters and resolved GPU
+   * textures. The caller still owns one acquisition of albedo/normal/specular;
+   * optional slots 3..7 are owned once by the shared material. */
+  if (allow_intern)
+  for (u32 i = 0; i < renderer->material_count; ++i)
+  {
+    LDKRendererMaterialResource *existing = &renderer->materials[i];
+    if (!existing->alive || !existing->has_source_desc ||
+        existing->source_assets != assets ||
+        !ldk_renderer_material_atlases_current(renderer, assets,
+            (LDKResourceMaterial){i + 1u}) ||
+        !s_renderer_material_gpu_source_equal(
+            &existing->source_desc, material_desc) ||
+        existing->desc.texture.id != desc.texture.id ||
+        existing->desc.normal_map.id != desc.normal_map.id ||
+        existing->desc.specular_map.id != desc.specular_map.id)
+      continue;
+    bool same = true;
+    for (u32 j = 0; j < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++j)
+    {
+      if (existing->desc.additional_textures[j].id !=
+          desc.additional_textures[j].id)
+      {
+        same = false;
+        break;
+      }
+    }
+    if (!same || existing->ref_count == UINT32_MAX)
+      continue;
+    for (u32 j = 0; j < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++j)
+      ldk_renderer_image_release(renderer, desc.additional_textures[j]);
+    ++existing->ref_count;
+    material.id = (LDKRHIResource)(i + 1u);
+    goto material_resolved;
   }
 
   material = ldk_renderer_material_create(renderer, &desc);
@@ -9314,6 +9654,23 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       ldk_renderer_image_release(renderer, desc.additional_textures[i]);
     }
     return false;
+  }
+
+  {
+    LDKRendererMaterialResource *created =
+        s_renderer_material_get_resource(renderer, material);
+    created->source_assets = assets;
+    created->source_desc = *material_desc;
+    created->has_source_desc = allow_intern;
+    for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
+    {
+      LDKAssetTextureAtlas atlas = material_desc->texture_atlases[slot];
+      if (x_handle_is_null(atlas.h))
+        continue;
+      const LDKAssetTextureAtlasData *data =
+          ldk_asset_manager_texture_atlas_get_const(assets, atlas);
+      created->source_atlas_revisions[slot] = data ? data->revision : 0u;
+    }
   }
 
   if (material_desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
@@ -9361,6 +9718,25 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       material_resource->texture_samplers[slot] = sampler;
       material_resource->texture_uv_scales[slot] = settings.uv_scale;
       material_resource->texture_uv_offsets[slot] = settings.uv_offset;
+      /* Albedo atlas rectangles are supplied per draw/instance instead. */
+      if (slot != LDK_MATERIAL_TEXTURE_SLOT_ALBEDO &&
+          !x_handle_is_null(material_desc->texture_atlases[slot].h))
+      {
+        float uv[4];
+        if (s_renderer_material_atlas_rect(assets,
+                material_desc->texture_atlases[slot],
+                material_desc->texture_regions[slot], uv))
+        {
+          float sx = uv[2] - uv[0];
+          float sy = uv[3] - uv[1];
+          material_resource->texture_uv_scales[slot].x *= sx;
+          material_resource->texture_uv_scales[slot].y *= sy;
+          material_resource->texture_uv_offsets[slot].x =
+              uv[0] + settings.uv_offset.x * sx;
+          material_resource->texture_uv_offsets[slot].y =
+              uv[1] + settings.uv_offset.y * sy;
+        }
+      }
     }
     /* The shadow pass samples only albedo. */
     material_resource->texture_sampler = material_resource->texture_samplers[0];
@@ -9368,6 +9744,7 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
     material_resource->uv_offset = material_resource->texture_uv_offsets[0];
   }
 
+material_resolved:
   ldk_renderer_material_destroy(renderer, *renderer_material);
   ldk_renderer_image_release(renderer, *renderer_texture);
   ldk_renderer_image_release(renderer, *renderer_normal_map);
@@ -9377,6 +9754,18 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
   *renderer_specular_map = specular_map;
   *renderer_material = material;
   return true;
+}
+
+bool ldk_renderer_material_resolve(LDKRenderer *renderer,
+    LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
+    LDKResourceMaterial *renderer_material,
+    LDKResourceTexture *renderer_texture,
+    LDKResourceTexture *renderer_normal_map,
+    LDKResourceTexture *renderer_specular_map)
+{
+  return s_renderer_material_resolve_internal(renderer, assets, material_desc,
+      renderer_material, renderer_texture, renderer_normal_map,
+      renderer_specular_map, true);
 }
 
 bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
@@ -9393,9 +9782,11 @@ bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
     return false;
   }
 
-  if (!ldk_renderer_material_resolve(renderer, assets, material_desc,
+  /* Terrain carries mutable, generated surface state and must not mutate an
+   * interned material shared with ordinary MeshSources. */
+  if (!s_renderer_material_resolve_internal(renderer, assets, material_desc,
           renderer_material, renderer_texture, renderer_normal_map,
-          renderer_specular_map))
+          renderer_specular_map, false))
   {
     return false;
   }
@@ -9821,6 +10212,7 @@ LDKResourceMaterial ldk_renderer_material_create(
     resource->texture_uv_offsets[slot] = (Vec2){0.0f, 0.0f};
   }
   resource->owns_additional_textures = false;
+  resource->ref_count = 1;
   resource->uv_scale = (Vec2){1.0f, 1.0f};
   resource->uv_offset = (Vec2){0.0f, 0.0f};
   resource->alive = true;
@@ -9841,6 +10233,11 @@ void ldk_renderer_material_destroy(
     return;
   }
 
+  if (resource->ref_count > 1)
+  {
+    --resource->ref_count;
+    return;
+  }
   if (resource->owns_additional_textures)
   {
     for (u32 i = 0; i < LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT; ++i)
@@ -9874,6 +10271,7 @@ static void s_renderer_destroy_material_resources(LDKRenderer* renderer)
   {
     LDKResourceMaterial material = {0};
     material.id = (LDKRHIResource)(i + 1u);
+    renderer->materials[i].ref_count = 1;
     ldk_renderer_material_destroy(renderer, material);
   }
 
@@ -10787,6 +11185,7 @@ static bool s_renderer_submit_mesh(LDKRenderer* renderer,
   submit->instance_offset = 0;
   submit->instance_count = 0;
   submit->instance_set = ldk_renderer_instance_set_null();
+  submit->uv_rect = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
   renderer->submitted_mesh_count += 1;
   return true;
 }
