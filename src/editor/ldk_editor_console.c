@@ -3,7 +3,10 @@
 #include <float.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <stdx/stdx_thread.h>
 
 
 //------------------------------------------------------------
@@ -28,6 +31,127 @@ static LDKEditorConsoleLastMessageCache s_last_message_cache = {0};
 static XStrBuilder *s_console_view_sb = NULL;
 static LDKEditorContext *s_console_cache_editor = NULL;
 static size_t s_console_cache_length = 0;
+
+/* The logger may run on worker threads. Only the editor UI thread touches
+ * console_sb; the observer copies messages to this bounded, mutex-protected
+ * queue and ldki_editor_console_update drains it on the UI thread. */
+#define LDK_EDITOR_CONSOLE_PENDING_LIMIT 4096u
+
+typedef struct LDKEditorConsolePendingLog
+{
+  struct LDKEditorConsolePendingLog *next;
+  LDKEditorConsoleEntryType type;
+  char message[];
+} LDKEditorConsolePendingLog;
+
+typedef struct LDKEditorConsoleObserver
+{
+  XMutex *mutex;
+  LDKEditorConsolePendingLog *first;
+  LDKEditorConsolePendingLog *last;
+  u32 count;
+  u32 dropped;
+  LDKEditorContext *editor;
+} LDKEditorConsoleObserver;
+
+static LDKEditorConsoleObserver s_console_observer = {0};
+
+static void s_editor_console_log_observe(
+    XLogLevel level, const char *message, void *user)
+{
+  LDKEditorConsoleObserver *observer = user;
+  LDKEditorConsolePendingLog *pending;
+  size_t length;
+
+  if (!observer || !observer->mutex || !message)
+  {
+    return;
+  }
+
+  length = strlen(message);
+  if (length > SIZE_MAX - sizeof(*pending) - 1u)
+  {
+    return;
+  }
+  pending = malloc(sizeof(*pending) + length + 1u);
+  if (pending)
+  {
+    pending->next = NULL;
+    pending->type = level >= XLOG_LEVEL_ERROR
+        ? LDK_EDITOR_CONSOLE_ENTRY_ERROR
+        : level == XLOG_LEVEL_WARNING
+            ? LDK_EDITOR_CONSOLE_ENTRY_WARNING
+            : LDK_EDITOR_CONSOLE_ENTRY_INFO;
+    memcpy(pending->message, message, length + 1u);
+  }
+
+  x_thread_mutex_lock(observer->mutex);
+  if (!pending || observer->count >= LDK_EDITOR_CONSOLE_PENDING_LIMIT)
+  {
+    if (observer->dropped != UINT32_MAX)
+    {
+      observer->dropped++;
+    }
+    x_thread_mutex_unlock(observer->mutex);
+    free(pending);
+    return;
+  }
+  if (observer->last)
+  {
+    observer->last->next = pending;
+  }
+  else
+  {
+    observer->first = pending;
+  }
+  observer->last = pending;
+  observer->count++;
+  x_thread_mutex_unlock(observer->mutex);
+}
+
+bool ldki_editor_console_initialize(LDKEditorContext *editor)
+{
+  XLogger *logger;
+  LDKEditorConsoleObserver *observer = &s_console_observer;
+
+  if (!editor || !editor->console_sb || observer->mutex ||
+      !(logger = ldk_module_get(LDK_MODULE_LOG)) ||
+      x_thread_mutex_init(&observer->mutex) != 0 || !observer->mutex)
+  {
+    return false;
+  }
+  observer->editor = editor;
+  x_log_listener_set(logger, s_editor_console_log_observe, observer);
+  return true;
+}
+
+void ldki_editor_console_terminate(LDKEditorContext *editor)
+{
+  LDKEditorConsoleObserver *observer = &s_console_observer;
+  LDKEditorConsolePendingLog *pending;
+  XLogger *logger;
+
+  if (!observer->mutex || observer->editor != editor)
+  {
+    return;
+  }
+  /* Called after engine shutdown, when no more log callbacks can be running. */
+  logger = ldk_module_get(LDK_MODULE_LOG);
+  if (logger)
+  {
+    x_log_listener_set(logger, NULL, NULL);
+  }
+
+  pending = observer->first;
+  while (pending)
+  {
+    LDKEditorConsolePendingLog *next = pending->next;
+    free(pending);
+    pending = next;
+  }
+  x_thread_mutex_destroy(observer->mutex);
+  memset(observer, 0, sizeof(*observer));
+}
 
 static bool s_editor_console_entry_type_valid(char type)
 {
@@ -615,10 +739,41 @@ static void s_editor_console_toolbar(
 void ldki_editor_console_update(LDKEditorContext *editor)
 {
   size_t length;
+  LDKEditorConsoleObserver *observer = &s_console_observer;
+  LDKEditorConsolePendingLog *pending = NULL;
+  u32 dropped = 0;
 
   if (editor == NULL || editor->console_sb == NULL)
   {
     return;
+  }
+
+  if (observer->mutex && observer->editor == editor)
+  {
+    x_thread_mutex_lock(observer->mutex);
+    pending = observer->first;
+    dropped = observer->dropped;
+    observer->first = NULL;
+    observer->last = NULL;
+    observer->count = 0;
+    observer->dropped = 0;
+    x_thread_mutex_unlock(observer->mutex);
+  }
+
+  while (pending)
+  {
+    LDKEditorConsolePendingLog *next = pending->next;
+    ldki_editor_console_append(editor, pending->type, pending->message);
+    free(pending);
+    pending = next;
+  }
+  if (dropped)
+  {
+    char warning[128];
+    snprintf(warning, sizeof(warning),
+        "Console omitted %u log messages (pending queue full).", dropped);
+    ldki_editor_console_append(
+        editor, LDK_EDITOR_CONSOLE_ENTRY_WARNING, warning);
   }
 
   if (s_console_cache_editor != editor)

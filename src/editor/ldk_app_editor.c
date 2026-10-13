@@ -2372,8 +2372,7 @@ static void s_editor_scene_missing_systems_report(
           "Scene references system %s (0x%016llx), but the game did not "
           "register it. Skipping.",
           name, (unsigned long long)id);
-      ldki_editor_console_append(
-          editor, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
+      ldki_editor_log_error(editor, message);
     }
   }
 }
@@ -4464,8 +4463,6 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldki_editor_scene_catalog_close(editor);
   ldki_editor_scene_play_apply_discard(editor);
   ldk_scene_systems_clear(&editor->current_scene_systems);
-  ldk_scene_diagnostic_handler_set(NULL, NULL);
-  ldk_project_diagnostic_handler_set(NULL, NULL);
   LDKEventQueue *eq = ldk_module_get(LDK_MODULE_EVENT);
 
   if (editor->project_build.active)
@@ -4786,19 +4783,10 @@ void ldk_editor_quit(LDKEditor *editor)
 // Entrypoint
 //----------------------------------------------------------
 
-static void s_editor_load_diagnostic(const char *message, void *user)
-{
-  /* Scene and project loaders already emitted this to the engine logger. */
-  ldki_editor_console_append(
-      user, LDK_EDITOR_CONSOLE_ENTRY_ERROR, message);
-}
-
 static i32 s_editor_main(const char *project_file_path)
 {
   LDKEditorContext *editor = s_editor_instance();
   editor->console_sb = x_strbuilder_create();
-  ldk_scene_diagnostic_handler_set(s_editor_load_diagnostic, editor);
-  ldk_project_diagnostic_handler_set(s_editor_load_diagnostic, editor);
 
   ldki_editor_register_commands(editor);
 
@@ -5049,6 +5037,13 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
 
+  if (!ldki_editor_console_initialize(editor))
+  {
+    ldk_log_error("Failed to initialize the editor console log observer.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+
   // load layout
   ldki_editor_dock_layout_load(NULL);
 
@@ -5078,6 +5073,7 @@ static i32 s_editor_main(const char *project_file_path)
 
   s_editor_terminate(editor);
   ldk_engine_terminate();
+  ldki_editor_console_terminate(editor);
   return exit_code;
 }
 

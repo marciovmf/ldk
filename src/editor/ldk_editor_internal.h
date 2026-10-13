@@ -435,6 +435,8 @@ void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);
 
+bool ldki_editor_console_initialize(LDKEditorContext *editor);
+void ldki_editor_console_terminate(LDKEditorContext *editor);
 void ldki_editor_console_update(LDKEditorContext *editor);
 void ldki_editor_console_append(LDKEditorContext *editor,
     LDKEditorConsoleEntryType type, const char *message);
