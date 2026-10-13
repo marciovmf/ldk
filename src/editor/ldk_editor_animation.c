@@ -57,6 +57,8 @@ typedef struct LDKEditorAnimationState
   char path[256];
   char event_text[128];
   char event_number[32];
+  char event_edit_value[256];
+  i32 event_edit_index;
   char duration_text[48];
   bool duration_text_editing;
   LDKUIRect timeline_sheet_rect;
@@ -68,7 +70,10 @@ typedef struct LDKEditorAnimationState
   i32 selected_event;
   bool key_selected;
   bool dragging_key;
+  bool dragging_event;
   bool scrubbing;
+  bool panning;
+  bool pan_with_left;
   float property_width;
   u64 last_sheet_click_ticks;
   float last_sheet_click_x;
@@ -78,6 +83,8 @@ typedef struct LDKEditorAnimationState
   bool events_editor_open;
   float drag_start_x;
   float drag_start_time;
+  float pan_start_x;
+  float pan_start_offset;
   float timeline_zoom;
   float timeline_offset;
   LDKUIPoint sheet_scroll;
@@ -119,6 +126,8 @@ static void s_editor_animation_ui_state_clear(void)
   state->popup_node_count = state->popup_node_capacity = 0;
   state->axis_edit_id = 0;
   state->axis_edit_text[0] = '\0';
+  state->event_edit_value[0] = '\0';
+  state->event_edit_index = -1;
   state->property_popup_scroll = (LDKUIPoint){0};
   state->last_sheet_click_ticks = 0;
   state->timeline_sheet_rect = (LDKUIRect){0};
@@ -418,9 +427,12 @@ static void s_editor_animation_reset_selection(void)
   s_editor_animation.selected_track = 0;
   s_editor_animation.selected_key = 0;
   s_editor_animation.selected_event = -1;
+  s_editor_animation.event_edit_index = -1;
   s_editor_animation.key_selected = false;
   s_editor_animation.dragging_key = false;
+  s_editor_animation.dragging_event = false;
   s_editor_animation.scrubbing = false;
+  s_editor_animation.panning = false;
 }
 
 static float s_editor_animation_span(void)
@@ -653,6 +665,30 @@ static void s_editor_animation_move_key(float new_time)
   s_editor_animation_set_time(new_time);
 }
 
+/* Event markers use the same drag semantics as property keyframes. */
+static void s_editor_animation_move_event(float new_time)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (state->selected_event < 0 ||
+      (u32)state->selected_event >= state->clip.event_count)
+  {
+    return;
+  }
+  new_time = s_editor_animation_clamp(new_time, 0.0f, state->clip.duration);
+  new_time = floorf(new_time * 100.0f + 0.5f) / 100.0f;
+  new_time = fminf(new_time, state->clip.duration);
+  u32 index = (u32)state->selected_event;
+  if (state->clip.events[index].time == new_time ||
+      !ldk_keyframe_animation_event_move(
+          &state->clip, index, new_time, &index))
+  {
+    return;
+  }
+  state->selected_event = (i32)index;
+  state->dirty = true;
+  s_editor_animation_set_time(new_time);
+}
+
 /* Channels shown in the editor are views over one typed property key. */
 static bool s_editor_animation_track_value(u32 index, LDKPropertyValue *out)
 {
@@ -806,6 +842,7 @@ static bool s_editor_animation_key_at_cursor(u32 track_index)
     return false;
   }
   state->selected_track = track_index;
+  state->selected_event = -1;
   state->key_selected = false;
   state->dirty = true;
   s_editor_animation_set_time(state->playhead);
@@ -829,6 +866,25 @@ static bool s_editor_animation_delete_selected_key(void)
   }
   state->key_selected = false;
   state->dragging_key = false;
+  state->dirty = true;
+  s_editor_animation_set_time(state->playhead);
+  return true;
+}
+
+/* Deleting an event affects only the selected marker. */
+static bool s_editor_animation_delete_selected_event(void)
+{
+  LDKEditorAnimationState *state = &s_editor_animation;
+  if (state->selected_event < 0 ||
+      (u32)state->selected_event >= state->clip.event_count ||
+      !ldk_keyframe_animation_event_remove(
+          &state->clip, (u32)state->selected_event))
+  {
+    return false;
+  }
+  state->selected_event = -1;
+  state->event_edit_index = -1;
+  state->dragging_event = false;
   state->dirty = true;
   s_editor_animation_set_time(state->playhead);
   return true;
@@ -1238,10 +1294,13 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   ldk_ui_set_next_width(ui, ldk_ui_fill());
   /* Let the native scrollview handle vertical wheel scrolling across both
    * property labels and the time axis. Ctrl+wheel zooms the time axis. */
+  /* Custom timeline mouse handling must respect the native popup layer. */
+  bool popup_open = ui->open_popups &&
+      !x_array_ldk_ui_id_is_empty(ui->open_popups);
   const LDKMouseState *original_mouse = (LDKMouseState *)ui->mouse;
   LDKMouseState wheel_suppressed = {0};
   bool wheel_handled = false;
-  if (original_mouse && ui->current_window &&
+  if (!popup_open && original_mouse && ui->current_window &&
       ui->hovered_window_id == ui->current_window->id &&
       state->timeline_graph_rect.w > 0.0f)
   {
@@ -1326,6 +1385,65 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   state->timeline_graph_rect = time_graph;
   state->timeline_visible_rect = ldk_rectf_intersect(&old_clip, &sheet);
   ui->clip_rect = ldk_rectf_intersect(&old_clip, &sheet);
+
+  /* Ctrl+left drag or middle drag pans the time axis. Capture the gesture so
+   * motion remains smooth even when the pointer leaves the graph. */
+  bool pan_gesture = state->panning;
+  LDKMouseState *pan_mouse = (LDKMouseState *)ui->mouse;
+  if (popup_open)
+  {
+    state->panning = false;
+    state->scrubbing = false;
+    state->dragging_key = false;
+    state->dragging_event = false;
+  }
+  else if (pan_mouse)
+  {
+    LDKPoint pointer = ldk_os_mouse_cursor(pan_mouse);
+    float mx = (float)pointer.x;
+    float my = (float)pointer.y;
+    bool ctrl = ui->keyboard && ldk_os_keyboard_key_is_pressed(
+        (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_CONTROL);
+    bool left_down = ldk_os_mouse_button_down(
+        pan_mouse, LDK_MOUSE_BUTTON_LEFT);
+    bool middle_down = ldk_os_mouse_button_down(
+        pan_mouse, LDK_MOUSE_BUTTON_MIDDLE);
+    bool over_graph = ui->current_window &&
+        ui->hovered_window_id == ui->current_window->id &&
+        ldk_rectf_contains(&state->timeline_visible_rect, mx, my) &&
+        mx >= time_graph.x && mx <= time_graph.x + time_graph.w;
+
+    if (!state->panning && over_graph &&
+        (middle_down || (ctrl && left_down)))
+    {
+      state->panning = true;
+      state->pan_with_left = !middle_down;
+      state->pan_start_x = mx;
+      state->pan_start_offset = state->timeline_offset;
+      state->scrubbing = false;
+      state->dragging_key = false;
+      state->dragging_event = false;
+      state->last_sheet_click_ticks = 0;
+    }
+    if (state->panning)
+    {
+      pan_gesture = true;
+      bool held = ldk_os_mouse_button_is_pressed(pan_mouse,
+          state->pan_with_left ? LDK_MOUSE_BUTTON_LEFT :
+              LDK_MOUSE_BUTTON_MIDDLE);
+      if (!held)
+      {
+        state->panning = false;
+      }
+      else
+      {
+        state->timeline_offset = state->pan_start_offset -
+            (mx - state->pan_start_x) *
+                s_editor_animation_span() / time_graph.w;
+        s_editor_animation_view_clamp();
+      }
+    }
+  }
   float label_width = labels.w;
   float first_row = sheet.y + ruler_h;
 
@@ -1388,7 +1506,8 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
       s_editor_animation_draw_rect(ui,
           (LDKUIRect){graph.x, y, graph.w, row_h}, alternate);
     }
-    if (item.track >= 0 && (u32)item.track == state->selected_track)
+    if ((item.track >= 0 && (u32)item.track == state->selected_track) ||
+        (item.track == -3 && item.axis == state->selected_event))
     {
       s_editor_animation_draw_rect(ui,
           (LDKUIRect){sheet.x, y, label_width, row_h},
@@ -1526,11 +1645,23 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
       {
         float x = s_editor_animation_time_x(
             time_graph, state, state->clip.events[i].time);
+        if (state->dragging_event && state->selected_event == (i32)i &&
+            ui->mouse)
+        {
+          LDKPoint pointer = ldk_os_mouse_cursor(
+              (LDKMouseState *)ui->mouse);
+          x += (float)pointer.x - state->drag_start_x;
+        }
         if (x >= time_graph.x - 4 && x <= time_graph.x + time_graph.w + 4)
         {
-          rgba32 event_color = state->selected_event == (i32)i ? key_color : focus;
+          bool selected = state->selected_event == (i32)i;
+          if (selected)
+          {
+            s_editor_animation_draw_rect(ui,
+                (LDKUIRect){x - 5, y + 2, 11, row_h - 4}, focus);
+          }
           s_editor_animation_draw_rect(ui,
-              (LDKUIRect){x - 2, y + 4, 5, row_h - 8}, event_color);
+              (LDKUIRect){x - 2, y + 4, 5, row_h - 8}, key_color);
         }
       }
     }
@@ -1549,7 +1680,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
           {
             continue;
           }
-          bool selected = item.track >= 0 && state->key_selected &&
+          bool selected = state->key_selected &&
               state->selected_track == t && state->selected_key == k;
           if (state->dragging_key && selected)
           {
@@ -1557,9 +1688,13 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
                 (LDKMouseState *)ui->mouse);
             x += (float)pointer.x - state->drag_start_x;
           }
+          if (selected)
+          {
+            s_editor_animation_draw_rect(ui,
+                (LDKUIRect){x - 6, y + row_h * 0.5f - 6, 13, 13}, focus);
+          }
           s_editor_animation_draw_rect(ui,
-              (LDKUIRect){x - 4, y + row_h * 0.5f - 4, 9, 9},
-              selected ? focus : key_color);
+              (LDKUIRect){x - 4, y + row_h * 0.5f - 4, 9, 9}, key_color);
         }
       }
     }
@@ -1618,6 +1753,20 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   bool held = ldk_os_mouse_button_is_pressed(mouse, LDK_MOUSE_BUTTON_LEFT);
   bool up = ldk_os_mouse_button_up(mouse, LDK_MOUSE_BUTTON_LEFT);
 
+  if (popup_open || pan_gesture)
+  {
+    free(rows);
+    return;
+  }
+
+  bool finishing_event_drag = state->dragging_event && up;
+  if (finishing_event_drag)
+  {
+    float new_time = state->drag_start_time +
+        (mx - state->drag_start_x) * span / time_graph.w;
+    s_editor_animation_move_event(new_time);
+    state->dragging_event = false;
+  }
   bool finishing_key_drag = state->dragging_key && up;
   if (finishing_key_drag)
   {
@@ -1641,7 +1790,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   /* Record clicks on release, like the other editor controls. A click in a
    * keyframe row is not a scrub gesture; two releases in the same cell add
    * one key without relying on the mouse-down/drag state between them. */
-  if (hovered && up && !finishing_key_drag &&
+  if (hovered && up && !finishing_key_drag && !finishing_event_drag &&
       mx >= time_graph.x && mx <= time_graph.x + time_graph.w && my >= first_row)
   {
     u32 released_row = (u32)((my - first_row) / row_h);
@@ -1726,6 +1875,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
         if (rows[row].axis < 0 || mx < input_x - 3)
         {
           state->selected_track = (u32)rows[row].track;
+          state->selected_event = -1;
           state->key_selected = false;
         }
       }
@@ -1744,6 +1894,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
   if (item.track == -2 || item.track == -3)
   {
     state->selected_event = -1;
+    state->key_selected = false;
     u32 begin = item.track == -3 ? (u32)item.axis : 0;
     u32 end = item.track == -3 ? begin + 1 : state->clip.event_count;
     for (u32 i = begin; i < end; ++i)
@@ -1759,6 +1910,10 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
     state->playing = false;
     if (state->selected_event >= 0)
     {
+      state->key_selected = false;
+      state->dragging_event = true;
+      state->drag_start_x = mx;
+      state->drag_start_time = state->clip.events[state->selected_event].time;
       s_editor_animation_set_time(
           state->clip.events[state->selected_event].time);
       free(rows);
@@ -1782,6 +1937,7 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
           state->selected_track = t;
           state->selected_key = k;
           state->key_selected = true;
+          state->selected_event = -1;
           state->playing = false;
           state->dragging_key = item.track >= 0;
           state->drag_start_x = mx;
@@ -1795,12 +1951,13 @@ static void s_editor_animation_dopesheet(LDKEditorContext *editor)
     if (item.track >= 0)
     {
       state->selected_track = (u32)item.track;
-      state->key_selected = false;
     }
     else
     {
       state->last_sheet_click_ticks = 0;
     }
+    state->selected_event = -1;
+    state->key_selected = false;
   }
   /* Empty cells select a time but do not start a drag/scrub gesture:
    * the next mouse-down must remain eligible for a double click. */
@@ -1946,15 +2103,23 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     }
   }
 
-  /* Delete affects keyframes only while the Animation window owns focus. */
+  /* Delete affects the last selected event or keyframe, not text inputs. */
   if (editor->editor_state == LDK_EDITOR_STATE_STOPED &&
       ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_ANIMATION) &&
       ui->keyboard && ui->input_box_id == 0 &&
       state->axis_edit_id == 0 &&
+      (!ui->open_popups || x_array_ldk_ui_id_is_empty(ui->open_popups)) &&
       ldk_os_keyboard_key_down((LDKKeyboardState *)ui->keyboard,
           LDK_KEYCODE_DELETE))
   {
-    (void)s_editor_animation_delete_selected_key();
+    if (state->selected_event >= 0)
+    {
+      (void)s_editor_animation_delete_selected_event();
+    }
+    else
+    {
+      (void)s_editor_animation_delete_selected_key();
+    }
   }
 
   /* Compact transport bar; the Dopesheet owns most of the window. */
@@ -2370,6 +2535,61 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
           event->time,
           event->type == LDK_KEYFRAME_EVENT_INTEGER ? "integer" : "string");
       ldk_ui_label(ui, description);
+
+      if (state->event_edit_index != state->selected_event)
+      {
+        if (event->type == LDK_KEYFRAME_EVENT_INTEGER)
+        {
+          snprintf(state->event_edit_value,
+              sizeof(state->event_edit_value), "%d", event->number);
+        }
+        else
+        {
+          snprintf(state->event_edit_value,
+              sizeof(state->event_edit_value), "%s",
+              event->text ? event->text : "");
+        }
+        state->event_edit_index = state->selected_event;
+      }
+
+      ldk_ui_label(ui, event->type == LDK_KEYFRAME_EVENT_INTEGER
+          ? "Edit integer value" : "Edit string value");
+      ldk_ui_begin_horizontal(ui);
+      ldk_ui_set_next_width(ui, ldk_ui_px(180.0f));
+      ldk_ui_input_box(ui, state->event_edit_value,
+          sizeof(state->event_edit_value));
+      if (ldk_ui_button(ui, "Apply"))
+      {
+        bool updated = false;
+        if (event->type == LDK_KEYFRAME_EVENT_INTEGER)
+        {
+          char *end;
+          long number = strtol(state->event_edit_value, &end, 10);
+          if (end != state->event_edit_value && !*end &&
+              number >= INT32_MIN && number <= INT32_MAX &&
+              (i32)number != event->number)
+          {
+            updated = ldk_keyframe_animation_event_set_integer(
+                &state->clip, (u32)state->selected_event, (i32)number);
+          }
+        }
+        else if (strcmp(state->event_edit_value,
+                     event->text ? event->text : "") != 0)
+        {
+          updated = ldk_keyframe_animation_event_set_string(
+              &state->clip, (u32)state->selected_event,
+              state->event_edit_value);
+        }
+        if (updated)
+        {
+          state->dirty = true;
+        }
+      }
+      ldk_ui_end_horizontal(ui);
+    }
+    else
+    {
+      state->event_edit_index = -1;
     }
     ldk_ui_end_popup(ui);
   }

@@ -62,6 +62,32 @@ typedef struct GameData
 
 static GameData s_game_data;
 
+static void demo_animation_event_handler(
+    LDKEntity root, const LDKKeyframeEvent *event, void *user)
+{
+  (void)user;
+  if (!event)
+  {
+    return;
+  }
+
+  const char *type = "unknown";
+  if (event->type == LDK_KEYFRAME_EVENT_INTEGER)
+  {
+    type = "integer";
+  }
+  else if (event->type == LDK_KEYFRAME_EVENT_STRING)
+  {
+    type = "string";
+  }
+
+  ldk_log_info(
+      "Animation event: entity=%u:%u time=%.3f type=%s (%d) "
+      "integer=%d string=\"%s\"\n",
+      root.index, root.version, event->time, type, (int)event->type,
+      event->number, event->text ? event->text : "(null)");
+}
+
 /**
  * @brief Create a visible cube and play a code-authored rotation animation.
  * @param game_data Demo state that owns the resulting entity and asset.
@@ -240,6 +266,8 @@ bool game_initialize(LDKGame *game)
 
 bool game_start(LDKGame *game)
 {
+  ldk_keyframe_animation_source_event_handler_set(
+      demo_animation_event_handler, NULL);
   ldk_log_info("Game start\n");
   GameData *game_data = (GameData *)game->user_data;
   const LDKConfig *cfg = ldk_engine_config_get();
@@ -347,6 +375,7 @@ void game_update(LDKGame *game, float delta_time)
 
 void game_terminate(LDKGame *game)
 {
+  ldk_keyframe_animation_source_event_handler_set(NULL, NULL);
   demo_destroy_rotation_animation(&s_game_data);
   LDKEventQueue *q = ldk_module_get(LDK_MODULE_EVENT);
   ldk_event_handler_remove(q, on_window_event);
@@ -355,6 +384,7 @@ void game_terminate(LDKGame *game)
 
 void game_stop(LDKGame *game)
 {
+  ldk_keyframe_animation_source_event_handler_set(NULL, NULL);
   demo_destroy_rotation_animation(&s_game_data);
   ldk_log_info("Game stop\n");
 }
