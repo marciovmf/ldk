@@ -18,19 +18,25 @@ extern "C" {
 #endif
 
 #ifndef LDK_ENTITY_MAX_COMPONENTS
+/** @group modules.entity.components */
 #define LDK_ENTITY_MAX_COMPONENTS 16
 #endif
 
 #ifndef LDK_ENTITY_NAME_MAX_LEN
+/** @group modules.entity.names */
 #define LDK_ENTITY_NAME_MAX_LEN   32
 #endif
 
+/** @group modules.entity.components */
 #define LDK_ENTITY_INVALID_COMPONENT_INDEX UINT32_MAX
 
+/** @group modules.entity.lifecycle */
 typedef XHandle LDKEntity;
+/** @group modules.entity.components */
 typedef struct LDKComponentRegistry LDKComponentRegistry;
 struct LDKComponentRegistry;
 
+/** @group modules.entity.flags */
 typedef enum LDKEntityInternalFlags
 {
   LDK_ENTITY_INTERNAL_NONE           = 0,
@@ -46,6 +52,7 @@ typedef enum LDKEntityInternalFlags
  * Serialized IDs of engine-owned components. These values are persistent:
  * once assigned, a retired ID must not be reused for another component.
  * User component IDs must stay below the engine-reserved high-ID range.
+ * @group modules.entity.components
  */
 typedef enum LDKComponentInstanceFlags
 {
@@ -54,6 +61,7 @@ typedef enum LDKComponentInstanceFlags
   LDK_COMPONENT_INSTANCE_FLAG_DISABLED = 1 << 1
 } LDKComponentInstanceFlags;
 
+/** @group modules.entity.components */
 typedef enum LDKBuiltinComponentType
 {
   LDK_COMPONENT_TYPE_TRANSFORM    = UINT32_MAX - 1,
@@ -76,6 +84,7 @@ typedef enum LDKBuiltinComponentType
 
 /**
  * A list of all components and component types in an entity.
+ * @group modules.entity.components
  */
 typedef struct LDKComponentDirectory
 {
@@ -88,6 +97,7 @@ typedef struct LDKComponentDirectory
 
 /**
  * Stable reference to a component through its owning entity.
+ * @group modules.entity.components.references
  */
 typedef struct LDKComponentRef
 {
@@ -96,6 +106,7 @@ typedef struct LDKComponentRef
   u16 slot_index;
 } LDKComponentRef;
 
+/** @group modules.entity.lifecycle */
 typedef struct LDKEntityInfo
 {
   LDKComponentDirectory components;
@@ -114,9 +125,11 @@ typedef struct LDKEntityInfo
  * @param info Info used by this operation.
  * @param user Opaque caller-supplied data passed to the callback.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.iteration
  */
 typedef bool (*LDKEntityIterFn)(LDKEntity entity, LDKEntityInfo* info, void* user);
 
+/** @group modules.entity.registry */
 typedef struct LDKEntityRegistry
 {
   XHPool pool;
@@ -125,6 +138,7 @@ typedef struct LDKEntityRegistry
   void *component_state_user;
 } LDKEntityRegistry;
 
+/** @group modules.entity.lifecycle */
 typedef struct LDKTransform LDKTransform;
 
 /**
@@ -133,28 +147,33 @@ typedef struct LDKTransform LDKTransform;
  * @param page_capacity Number of entries per allocation page.
  * @param initial_pages Number of pages initially allocated.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.registry
  */
 LDK_API bool ldk_entity_module_initialize(LDKEntityRegistry* system, u32 page_capacity, u32 initial_pages);
 /**
  * @brief Shut down the entity module.
  * @param system System used by this operation.
+ * @group modules.entity.registry
  */
 LDK_API void ldk_entity_module_terminate(LDKEntityRegistry* system);
 /**
  * @brief Clear the state of the entity module.
  * @param system System used by this operation.
+ * @group modules.entity.registry
  */
 LDK_API void ldk_entity_module_clear(LDKEntityRegistry* system);
 /**
  * @brief Create the entity.
  * @param system System used by this operation.
  * @return The requested value.
+ * @group modules.entity.lifecycle
  */
 LDK_API LDKEntity ldk_entity_create(LDKEntityRegistry* system);
 /**
  * @brief Destroy the entity.
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
+ * @group modules.entity.lifecycle
  */
 LDK_API void ldk_entity_destroy(LDKEntityRegistry* system, LDKEntity entity);
 /**
@@ -162,6 +181,7 @@ LDK_API void ldk_entity_destroy(LDKEntityRegistry* system, LDKEntity entity);
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.lifecycle
  */
 LDK_API bool ldk_entity_is_alive(LDKEntityRegistry* system, LDKEntity entity);
 /**
@@ -169,6 +189,7 @@ LDK_API bool ldk_entity_is_alive(LDKEntityRegistry* system, LDKEntity entity);
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.lifecycle
  */
 LDK_API LDKEntityInfo* ldk_entity_info_get(LDKEntityRegistry* system, LDKEntity entity);
 /**
@@ -176,12 +197,14 @@ LDK_API LDKEntityInfo* ldk_entity_info_get(LDKEntityRegistry* system, LDKEntity 
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.lifecycle
  */
 LDK_API const LDKEntityInfo* ldk_entity_get_info_const(LDKEntityRegistry* system, LDKEntity entity);
 /**
  * @brief Count the entity alive.
  * @param system System used by this operation.
  * @return Number of matching entries.
+ * @group modules.entity.lifecycle
  */
 LDK_API u32 ldk_entity_alive_count(LDKEntityRegistry* system);
 /**
@@ -189,6 +212,7 @@ LDK_API u32 ldk_entity_alive_count(LDKEntityRegistry* system);
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -196,6 +220,7 @@ LDK_API void ldk_entity_flags_set(LDKEntityRegistry* system, LDKEntity entity, u
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return The requested value.
+ * @group modules.entity.flags
  */
 LDK_API u16 ldk_entity_flags_get(LDKEntityRegistry* system, LDKEntity entity);
 /**
@@ -203,6 +228,7 @@ LDK_API u16 ldk_entity_flags_get(LDKEntityRegistry* system, LDKEntity entity);
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_flags_add(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -210,6 +236,7 @@ LDK_API void ldk_entity_flags_add(LDKEntityRegistry* system, LDKEntity entity, u
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_flags_remove(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -218,6 +245,7 @@ LDK_API void ldk_entity_flags_remove(LDKEntityRegistry* system, LDKEntity entity
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.flags
  */
 LDK_API bool ldk_entity_flags_has(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
@@ -226,6 +254,7 @@ LDK_API bool ldk_entity_flags_has(LDKEntityRegistry* system, LDKEntity entity, u
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return The requested value.
+ * @group modules.entity.flags
  */
 LDK_API u16 ldk_entity_internal_flags_get(LDKEntityRegistry* system, LDKEntity entity);
 /**
@@ -234,6 +263,7 @@ LDK_API u16 ldk_entity_internal_flags_get(LDKEntityRegistry* system, LDKEntity e
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.flags
  */
 LDK_API bool ldk_entity_internal_flags_has(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -242,6 +272,7 @@ LDK_API bool ldk_entity_internal_flags_has(LDKEntityRegistry* system, LDKEntity 
  * @param entity Entity to inspect or modify.
  * @param name Name identifying the object or setting.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.names
  */
 LDK_API bool ldk_entity_name_set(LDKEntityRegistry* system, LDKEntity entity, const char* name);
 /**
@@ -249,6 +280,7 @@ LDK_API bool ldk_entity_name_set(LDKEntityRegistry* system, LDKEntity entity, co
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.names
  */
 LDK_API const char* ldk_entity_name_get(LDKEntityRegistry* system, LDKEntity entity);
 /* Name hashes are FNV-1a 64-bit. Names need not exist in release builds. */
@@ -256,6 +288,7 @@ LDK_API const char* ldk_entity_name_get(LDKEntityRegistry* system, LDKEntity ent
  * @brief Compute an entity name hash.
  * @param name Name identifying the object or setting.
  * @return Computed identifier or hash.
+ * @group modules.entity.names
  */
 LDK_API u64 ldk_entity_name_hash(const char *name);
 /**
@@ -264,6 +297,7 @@ LDK_API u64 ldk_entity_name_hash(const char *name);
  * @param entity Entity to inspect or modify.
  * @param hash Hash used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.names
  */
 LDK_API bool ldk_entity_name_hash_set(
     LDKEntityRegistry *registry, LDKEntity entity, u64 hash);
@@ -272,6 +306,7 @@ LDK_API bool ldk_entity_name_hash_set(
  * @param registry Registry on which the operation is performed.
  * @param entity Entity to inspect or modify.
  * @return Computed identifier or hash.
+ * @group modules.entity.names
  */
 LDK_API u64 ldk_entity_name_hash_get(
     LDKEntityRegistry *registry, LDKEntity entity);
@@ -280,6 +315,7 @@ LDK_API u64 ldk_entity_name_hash_get(
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Number of matching entries.
+ * @group modules.entity.components
  */
 LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
 
@@ -289,6 +325,7 @@ LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity enti
  * @param component_module Component module used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.lifecycle
  */
 LDK_API LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity);
@@ -299,6 +336,7 @@ LDK_API LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,
  * @param component_module Component module used by this operation.
  * @param entity Entity to inspect or modify.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.lifecycle
  */
 LDK_API const LDKTransform* ldk_entity_transform_get_const(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity);
@@ -309,6 +347,7 @@ LDK_API const LDKTransform* ldk_entity_transform_get_const(LDKEntityRegistry* en
  * @param entity Entity to inspect or modify.
  * @param component_type Registered ECS component type identifier.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_has(LDKEntityRegistry* system, LDKEntity entity, u32 component_type);
 /**
@@ -317,6 +356,7 @@ LDK_API bool ldk_entity_component_has(LDKEntityRegistry* system, LDKEntity entit
  * @param entity Entity to inspect or modify.
  * @param component_type Registered ECS component type identifier.
  * @return The requested value.
+ * @group modules.entity.components
  */
 LDK_API u16 ldk_entity_component_flags_get(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type);
@@ -327,6 +367,7 @@ LDK_API u16 ldk_entity_component_flags_get(LDKEntityRegistry* system,
  * @param component_type Registered ECS component type identifier.
  * @param flags Bitmask of options controlling this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_flags_set(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
@@ -337,6 +378,7 @@ LDK_API bool ldk_entity_component_flags_set(LDKEntityRegistry* system,
  * @param component_type Registered ECS component type identifier.
  * @param flags Bitmask of options controlling this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_flags_add(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
@@ -347,6 +389,7 @@ LDK_API bool ldk_entity_component_flags_add(LDKEntityRegistry* system,
  * @param component_type Registered ECS component type identifier.
  * @param flags Bitmask of options controlling this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_flags_remove(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
@@ -357,6 +400,7 @@ LDK_API bool ldk_entity_component_flags_remove(LDKEntityRegistry* system,
  * @param component_type Registered ECS component type identifier.
  * @param flags Bitmask of options controlling this operation.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_flags_has(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
@@ -365,6 +409,7 @@ LDK_API bool ldk_entity_component_flags_has(LDKEntityRegistry* system,
  * @param system System used by this operation.
  * @param ref Ref used by this operation.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.entity.components.references
  */
 LDK_API bool ldk_component_ref_is_valid(LDKEntityRegistry* system, LDKComponentRef ref);
 /**
@@ -372,6 +417,7 @@ LDK_API bool ldk_component_ref_is_valid(LDKEntityRegistry* system, LDKComponentR
  * @param system System used by this operation.
  * @param fn Callback invoked by this operation.
  * @param user Opaque caller-supplied data passed to the callback.
+ * @group modules.entity.iteration
  */
 LDK_API void ldk_entity_foreach(LDKEntityRegistry* system, LDKEntityIterFn fn, void* user);
 /**
@@ -381,6 +427,7 @@ LDK_API void ldk_entity_foreach(LDKEntityRegistry* system, LDKEntityIterFn fn, v
  * @param component_type Registered ECS component type identifier.
  * @param out_ref Receives the resulting ref.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components.references
  */
 LDK_API bool ldk_entity_component_ref_get(LDKEntityRegistry* system, LDKEntity entity, u32 component_type, LDKComponentRef* out_ref);
 /**
@@ -391,6 +438,7 @@ LDK_API bool ldk_entity_component_ref_get(LDKEntityRegistry* system, LDKEntity e
  * @param out_slot Receives the resulting slot.
  * @param out_component_index Receives the resulting component index.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_find(LDKEntityRegistry* system, LDKEntity entity, u32 component_type, u32* out_slot, u32* out_component_index);
 /**
@@ -399,6 +447,7 @@ LDK_API bool ldk_entity_component_find(LDKEntityRegistry* system, LDKEntity enti
  * @param component_registry Component registry used by this operation.
  * @param ref Ref used by this operation.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.components.references
  */
 LDK_API void* ldk_component_ref_get(LDKEntityRegistry* entity_system, struct LDKComponentRegistry* component_registry, LDKComponentRef ref);
 /**
@@ -407,6 +456,7 @@ LDK_API void* ldk_component_ref_get(LDKEntityRegistry* entity_system, struct LDK
  * @param component_registry Component registry used by this operation.
  * @param ref Ref used by this operation.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.components.references
  */
 LDK_API const void* ldk_component_ref_get_const(LDKEntityRegistry* entity_system, struct LDKComponentRegistry* component_registry, LDKComponentRef ref);
 /**
@@ -417,6 +467,7 @@ LDK_API const void* ldk_component_ref_get_const(LDKEntityRegistry* entity_system
  * @param component_type Registered ECS component type identifier.
  * @param initial_value Initial value used by this operation.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.components
  */
 LDK_API void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type, const void* initial_value);
 /**
@@ -426,6 +477,7 @@ LDK_API void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComp
  * @param entity Entity to inspect or modify.
  * @param component_type Registered ECS component type identifier.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.entity.components
  */
 LDK_API void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
 /**
@@ -435,9 +487,11 @@ LDK_API void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComp
  * @param entity Entity to inspect or modify.
  * @param component_type Registered ECS component type identifier.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.components
  */
 LDK_API bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
 
+/** @group modules.entity.iteration */
 typedef struct LDKEntityIterator
 {
   LDKEntityRegistry* registry;
@@ -450,6 +504,7 @@ typedef struct LDKEntityIterator
  * @brief Begin the entity iterator.
  * @param registry Registry on which the operation is performed.
  * @return The requested value.
+ * @group modules.entity.iteration
  */
 LDK_API LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry);
 /**
@@ -457,11 +512,13 @@ LDK_API LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry)
  * @param iterator Iterator used by this operation.
  * @param out_entity Receives the resulting entity.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.entity.iteration
  */
 LDK_API bool ldk_entity_iterator_next(LDKEntityIterator* iterator, LDKEntity* out_entity);
 /**
  * @brief Finish the entity iterator.
  * @param iterator Iterator used by this operation.
+ * @group modules.entity.iteration
  */
 LDK_API void ldk_entity_iterator_end(LDKEntityIterator* iterator);
 
@@ -471,6 +528,7 @@ LDK_API void ldk_entity_iterator_end(LDKEntityIterator* iterator);
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_internal_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -478,6 +536,7 @@ LDK_API void ldk_entity_internal_flags_set(LDKEntityRegistry* system, LDKEntity 
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_internal_flags_add(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 /**
@@ -485,6 +544,7 @@ LDK_API void ldk_entity_internal_flags_add(LDKEntityRegistry* system, LDKEntity 
  * @param system System used by this operation.
  * @param entity Entity to inspect or modify.
  * @param flags Bitmask of options controlling this operation.
+ * @group modules.entity.flags
  */
 LDK_API void ldk_entity_internal_flags_remove(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 #endif

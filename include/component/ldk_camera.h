@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+  /** @group components.camera */
   //@enum
   typedef enum LDKCameraProjection
   {
@@ -27,6 +28,7 @@ extern "C" {
     LDK_CAMERA_PROJECTION_ORTHOGRAPHIC
   } LDKCameraProjection;
 
+  /** @group components.camera */
   //@enum
   typedef enum LDKCameraRole
   {
@@ -36,6 +38,7 @@ extern "C" {
     LDK_CAMERA_ROLE_RENDER_TARGET
   } LDKCameraRole;
 
+  /** @group components.camera */
   //@enum
   typedef enum LDKCameraBackgroundMode
   {
@@ -44,6 +47,7 @@ extern "C" {
     LDK_CAMERA_BACKGROUND_NONE
   } LDKCameraBackgroundMode;
 
+  /** @group components.camera */
   //@component
   typedef struct LDKCamera
   {
@@ -71,6 +75,7 @@ extern "C" {
    * @brief Build the ECS registration descriptor for the camera component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
+   * @group components.camera.registration
    */
   LDK_API LDKComponentDesc ldk_camera_component_desc(u32 initial_capacity);
 #endif // LDK_ENGINE
@@ -80,6 +85,7 @@ extern "C" {
  * @param entity Entity to inspect or modify.
  * @param target Target used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group components.camera.orientation
  */
 LDK_API bool ldk_camera_look_at(LDKEntity entity, Vec3 target);
 /**
@@ -87,6 +93,7 @@ LDK_API bool ldk_camera_look_at(LDKEntity entity, Vec3 target);
  * @param entity Entity to inspect or modify.
  * @param out_world Receives the computed world transformation matrix.
  * @return True if the operation succeeds; false otherwise.
+ * @group components.camera.matrices
  */
 LDK_API bool ldk_camera_get_world_matrix(LDKEntity entity, Mat4* out_world);
 /**
@@ -94,6 +101,7 @@ LDK_API bool ldk_camera_get_world_matrix(LDKEntity entity, Mat4* out_world);
  * @param entity Entity to inspect or modify.
  * @param out_view Receives the camera view matrix.
  * @return True if the operation succeeds; false otherwise.
+ * @group components.camera.matrices
  */
 LDK_API bool ldk_camera_get_view_matrix(LDKEntity entity, Mat4* out_view);
 /**
@@ -102,6 +110,7 @@ LDK_API bool ldk_camera_get_view_matrix(LDKEntity entity, Mat4* out_view);
  * @param aspect Viewport aspect ratio.
  * @param out_projection Receives the projection matrix.
  * @return True if the operation succeeds; false otherwise.
+ * @group components.camera.matrices
  */
 LDK_API bool ldk_camera_get_projection_matrix(LDKEntity entity, float aspect, Mat4* out_projection);
 

@@ -16,6 +16,7 @@ extern "C"
 {
 #endif
 
+  /** @group modules.audio.lifecycle */
   //@enum
   typedef enum LDKAudioPriority
   {
@@ -25,12 +26,14 @@ extern "C"
     LDK_AUDIO_PRIORITY_CRITICAL
   } LDKAudioPriority;
 
+  /** @group modules.audio.voices */
   typedef struct LDKAudioVoice
   {
     u32 index;
     u32 version;
   } LDKAudioVoice;
 
+  /** @group modules.audio.playback */
   typedef struct LDKAudioPlayDesc
   {
     LDKAudioPriority priority;
@@ -41,6 +44,7 @@ extern "C"
     bool spatialized;
   } LDKAudioPlayDesc;
 
+  /** @group modules.audio.lifecycle */
   typedef struct LDKAudio
   {
     void *internal;
@@ -56,17 +60,20 @@ extern "C"
    * @param audio Audio used by this operation.
    * @param assets Asset manager used to resolve referenced assets.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.lifecycle
    */
   LDK_API bool ldk_audio_initialize(
       LDKAudio *audio, LDKAssetManager *assets);
   /**
    * @brief Update the audio.
    * @param audio Audio used by this operation.
+   * @group modules.audio.lifecycle
    */
   LDK_API void ldk_audio_update(LDKAudio *audio);
   /**
    * @brief Shut down the audio.
    * @param audio Audio used by this operation.
+   * @group modules.audio.lifecycle
    */
   LDK_API void ldk_audio_terminate(LDKAudio *audio);
 
@@ -80,12 +87,14 @@ extern "C"
    * @param audio Audio used by this operation.
    * @param volume Volume used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.mixing
    */
   LDK_API bool ldk_audio_master_volume_set(LDKAudio *audio, float volume);
 
   /** Return the current master volume, or 1.0 if audio is unavailable.
    * @param audio Audio used by this operation.
    * @return The resulting value.
+   * @group modules.audio.mixing
    */
   LDK_API float ldk_audio_master_volume_get(LDKAudio *audio);
 
@@ -99,6 +108,7 @@ extern "C"
    * @param position Position used by the operation.
    * @param direction Direction used by this operation.
    * @param world_up World up used by this operation.
+   * @group modules.audio.mixing
    */
   LDK_API void ldk_audio_listener_set(LDKAudio *audio, Vec3 position,
       Vec3 direction, Vec3 world_up);
@@ -110,18 +120,21 @@ extern "C"
   /**
    * @brief Initialize an audio playback descriptor with defaults.
    * @return A descriptor for the requested component or resource.
+   * @group modules.audio.playback
    */
   LDK_API LDKAudioPlayDesc ldk_audio_play_desc_default(void);
 
   /**
    * @brief Return an invalid handle for the audio voice.
    * @return An invalid or empty handle.
+   * @group modules.audio.voices
    */
   LDK_API LDKAudioVoice ldk_audio_voice_null(void);
   /**
    * @brief Check whether an audio voice handle is null.
    * @param voice Voice used by this operation.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_is_null(LDKAudioVoice voice);
   /**
@@ -129,6 +142,7 @@ extern "C"
    * @param audio Audio used by this operation.
    * @param voice Voice used by this operation.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_is_alive(
       LDKAudio *audio, LDKAudioVoice voice);
@@ -137,6 +151,7 @@ extern "C"
    * @param audio Audio used by this operation.
    * @param voice Voice used by this operation.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_is_playing(
       LDKAudio *audio, LDKAudioVoice voice);
@@ -144,6 +159,7 @@ extern "C"
    * @brief Stop the audio voice.
    * @param audio Audio used by this operation.
    * @param voice Voice used by this operation.
+   * @group modules.audio.voices
    */
   LDK_API void ldk_audio_voice_stop(LDKAudio *audio, LDKAudioVoice voice);
   /**
@@ -152,6 +168,7 @@ extern "C"
    * @param voice Voice used by this operation.
    * @param position Position used by the operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_position_set(
       LDKAudio *audio, LDKAudioVoice voice, Vec3 position);
@@ -161,6 +178,7 @@ extern "C"
    * @param voice Voice used by this operation.
    * @param volume Volume used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.mixing
    */
   LDK_API bool ldk_audio_voice_volume_set(
       LDKAudio *audio, LDKAudioVoice voice, float volume);
@@ -170,6 +188,7 @@ extern "C"
    * @param voice Voice used by this operation.
    * @param range Range used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_range_set(
       LDKAudio *audio, LDKAudioVoice voice, float range);
@@ -179,6 +198,7 @@ extern "C"
    * @param voice Voice used by this operation.
    * @param loop Loop used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_loop_set(
       LDKAudio *audio, LDKAudioVoice voice, bool loop);
@@ -188,6 +208,7 @@ extern "C"
    * @param voice Voice used by this operation.
    * @param priority Priority used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.audio.voices
    */
   LDK_API bool ldk_audio_voice_priority_set(
       LDKAudio *audio, LDKAudioVoice voice, LDKAudioPriority priority);
@@ -200,6 +221,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param desc Description or configuration for this operation.
    * @return The requested value.
+   * @group modules.audio.playback
    */
   LDK_API LDKAudioVoice ldk_audio_asset_play(LDKAudio *audio,
       LDKAssetAudio asset, const LDKAudioPlayDesc *desc);
@@ -210,6 +232,7 @@ extern "C"
    * @param audio Audio used by this operation.
    * @param path Path identifying the file or resource.
    * @return The requested value.
+   * @group modules.audio.sources
    */
   LDK_API LDKAudioVoice ldk_audio_sound_play(
       LDKAudio *audio, const char *path);
@@ -219,6 +242,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param desc Description or configuration for this operation.
    * @return The requested value.
+   * @group modules.audio.sources
    */
   LDK_API LDKAudioVoice ldk_audio_sound_play_ex(
       LDKAudio *audio, const char *path, const LDKAudioPlayDesc *desc);

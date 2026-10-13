@@ -13,8 +13,10 @@
 extern "C" {
 #endif
 
+/** @group core.texture_atlas.regions */
 #define LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY 96u
 
+/** @group core.texture_atlas.regions */
 typedef struct LDKTextureAtlasRegion
 {
   u64 id; /* Stable across renaming, reordering and serialization. */
@@ -23,6 +25,7 @@ typedef struct LDKTextureAtlasRegion
   float pivot_x, pivot_y; /* Fractions of the region: (0.5, 0.5) is center. */
 } LDKTextureAtlasRegion;
 
+/** @group core.texture_atlas.atlas */
 typedef struct LDKTextureAtlas
 {
   LDKAssetPath texture_path; /* Logical image asset path, not an OS path. */
@@ -34,11 +37,13 @@ typedef struct LDKTextureAtlas
 /**
  * @brief Initialize an empty texture atlas.
  * @param atlas Texture atlas being inspected or modified.
+ * @group core.texture_atlas.atlas
  */
 LDK_API void ldk_texture_atlas_init(LDKTextureAtlas *atlas);
 /**
  * @brief Clear the state of the texture atlas.
  * @param atlas Texture atlas being inspected or modified.
+ * @group core.texture_atlas.atlas
  */
 LDK_API void ldk_texture_atlas_clear(LDKTextureAtlas *atlas);
 /**
@@ -46,12 +51,14 @@ LDK_API void ldk_texture_atlas_clear(LDKTextureAtlas *atlas);
  * @param dst Destination object receiving copied data.
  * @param src Source object whose data will be copied.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.atlas
  */
 LDK_API bool ldk_texture_atlas_copy(LDKTextureAtlas *dst, const LDKTextureAtlas *src);
 /**
  * @brief Validate the texture atlas.
  * @param atlas Texture atlas being inspected or modified.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.atlas
  */
 LDK_API bool ldk_texture_atlas_validate(const LDKTextureAtlas *atlas);
 /**
@@ -59,6 +66,7 @@ LDK_API bool ldk_texture_atlas_validate(const LDKTextureAtlas *atlas);
  * @param atlas Texture atlas being inspected or modified.
  * @param path Path identifying the file or resource.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.atlas
  */
 LDK_API bool ldk_texture_atlas_texture_set(LDKTextureAtlas *atlas, const char *path);
 /**
@@ -66,6 +74,7 @@ LDK_API bool ldk_texture_atlas_texture_set(LDKTextureAtlas *atlas, const char *p
  * @param atlas Texture atlas being inspected or modified.
  * @param id Identifier of the target object.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group core.texture_atlas.regions
  */
 LDK_API LDKTextureAtlasRegion *ldk_texture_atlas_region_find(
     LDKTextureAtlas *atlas, u64 id);
@@ -74,6 +83,7 @@ LDK_API LDKTextureAtlasRegion *ldk_texture_atlas_region_find(
  * @param atlas Texture atlas being inspected or modified.
  * @param id Identifier of the target object.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group core.texture_atlas.regions
  */
 LDK_API const LDKTextureAtlasRegion *ldk_texture_atlas_region_find_const(
     const LDKTextureAtlas *atlas, u64 id);
@@ -87,6 +97,7 @@ LDK_API const LDKTextureAtlasRegion *ldk_texture_atlas_region_find_const(
  * @param height Height in pixels or the units expected by the API.
  * @param out_id Receives the resulting ID.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.regions
  */
 LDK_API bool ldk_texture_atlas_region_add(LDKTextureAtlas *atlas,
     const char *name, u32 x, u32 y, u32 width, u32 height, u64 *out_id);
@@ -95,6 +106,7 @@ LDK_API bool ldk_texture_atlas_region_add(LDKTextureAtlas *atlas,
  * @param atlas Texture atlas being inspected or modified.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.regions
  */
 LDK_API bool ldk_texture_atlas_region_remove(LDKTextureAtlas *atlas, u64 id);
 /**
@@ -103,6 +115,7 @@ LDK_API bool ldk_texture_atlas_region_remove(LDKTextureAtlas *atlas, u64 id);
  * @param id Identifier of the target object.
  * @param name Name identifying the object or setting.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.regions
  */
 LDK_API bool ldk_texture_atlas_region_rename(LDKTextureAtlas *atlas, u64 id,
     const char *name);
@@ -118,6 +131,7 @@ LDK_API bool ldk_texture_atlas_region_rename(LDKTextureAtlas *atlas, u64 id,
  * @param margin_x Margin x used by this operation.
  * @param margin_y Margin y used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.atlas
  */
 LDK_API bool ldk_texture_atlas_grid_append(LDKTextureAtlas *atlas,
     u32 image_width, u32 image_height, u32 cell_width, u32 cell_height,
@@ -132,6 +146,7 @@ LDK_API bool ldk_texture_atlas_grid_append(LDKTextureAtlas *atlas,
  * @param image_height Image height used by this operation.
  * @param out_uv Receives the resulting UV.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.regions
  */
 LDK_API bool ldk_texture_atlas_region_uv(const LDKTextureAtlasRegion *region,
     u32 image_width, u32 image_height, float out_uv[4]);
@@ -141,6 +156,7 @@ LDK_API bool ldk_texture_atlas_region_uv(const LDKTextureAtlasRegion *region,
  * @param atlas Texture atlas being inspected or modified.
  * @param out_text Destination buffer for the resulting text.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.serialization
  */
 LDK_API bool ldk_texture_atlas_to_tml(const LDKTextureAtlas *atlas, char **out_text);
 /**
@@ -148,6 +164,7 @@ LDK_API bool ldk_texture_atlas_to_tml(const LDKTextureAtlas *atlas, char **out_t
  * @param atlas Texture atlas being inspected or modified.
  * @param text Text used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.serialization
  */
 LDK_API bool ldk_texture_atlas_from_tml(LDKTextureAtlas *atlas, const char *text);
 /**
@@ -155,6 +172,7 @@ LDK_API bool ldk_texture_atlas_from_tml(LDKTextureAtlas *atlas, const char *text
  * @param atlas Texture atlas being inspected or modified.
  * @param filename Filename used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.serialization
  */
 LDK_API bool ldk_texture_atlas_load(LDKTextureAtlas *atlas, const char *filename);
 /**
@@ -162,6 +180,7 @@ LDK_API bool ldk_texture_atlas_load(LDKTextureAtlas *atlas, const char *filename
  * @param atlas Texture atlas being inspected or modified.
  * @param filename Filename used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.texture_atlas.serialization
  */
 LDK_API bool ldk_texture_atlas_save(const LDKTextureAtlas *atlas, const char *filename);
 

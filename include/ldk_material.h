@@ -16,6 +16,7 @@ extern "C"
 {
 #endif
 
+  /** @group core.materials */
   typedef enum LDKMaterialType
   {
     LDK_MATERIAL_TYPE_INVALID = 0,
@@ -25,6 +26,7 @@ extern "C"
     LDK_MATERIAL_TYPE_VERTEX_COLOR = 4
   } LDKMaterialType;
 
+  /** @group core.materials */
   typedef enum LDKMaterialAlphaMode
   {
     LDK_MATERIAL_ALPHA_MODE_OPAQUE = 0,
@@ -32,12 +34,14 @@ extern "C"
     LDK_MATERIAL_ALPHA_MODE_BLEND = 2
   } LDKMaterialAlphaMode;
 
+  /** @group core.materials.textures */
   typedef enum LDKMaterialTextureFilter
   {
     LDK_MATERIAL_TEXTURE_FILTER_NEAREST = 0,
     LDK_MATERIAL_TEXTURE_FILTER_LINEAR = 1
   } LDKMaterialTextureFilter;
 
+  /** @group core.materials.textures */
   typedef enum LDKMaterialTextureWrap
   {
     LDK_MATERIAL_TEXTURE_WRAP_REPEAT = 0,
@@ -45,6 +49,7 @@ extern "C"
     LDK_MATERIAL_TEXTURE_WRAP_MIRROR = 2
   } LDKMaterialTextureWrap;
 
+  /** @group core.materials.textures */
   typedef enum LDKMaterialTextureMipFilter
   {
     LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE = 0,
@@ -52,9 +57,12 @@ extern "C"
     LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR = 2
   } LDKMaterialTextureMipFilter;
 
+/** @group core.materials.textures */
 #define LDK_MATERIAL_TEXTURE_SLOT_COUNT 8u
+/** @group core.materials.textures */
 #define LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT 5u
 
+  /** @group core.materials.textures */
   typedef enum LDKMaterialTextureSlot
   {
     LDK_MATERIAL_TEXTURE_SLOT_ALBEDO = 0,
@@ -67,6 +75,7 @@ extern "C"
     LDK_MATERIAL_TEXTURE_SLOT_7 = 7
   } LDKMaterialTextureSlot;
 
+  /** @group core.materials.textures */
   typedef struct LDKMaterialTextureSettings
   {
     LDKMaterialTextureFilter filter;
@@ -79,6 +88,7 @@ extern "C"
     bool independent;
   } LDKMaterialTextureSettings;
 
+  /** @group core.materials.textures */
   typedef struct LDKMaterialTexturedArgs
   {
     LDKAssetImage texture;
@@ -94,11 +104,13 @@ extern "C"
     rgba32 color;
   } LDKMaterialTexturedArgs;
 
+  /** @group core.materials */
   typedef struct LDKMaterialVertexColorArgs
   {
     rgba32 color;
   } LDKMaterialVertexColorArgs;
 
+  /** @group core.materials */
   typedef union LDKMaterialArgs
   {
     LDKMaterialTexturedArgs textured;
@@ -106,6 +118,7 @@ extern "C"
   } LDKMaterialArgs;
 
   /* Surface parameters are active for lit material types. */
+  /** @group core.materials */
   typedef struct LDKMaterialSurfaceArgs
   {
     float specular;  /* Phong specular strength. */
@@ -115,6 +128,7 @@ extern "C"
     LDKAssetImage specular_map; /* Optional R-channel specular multiplier. */
   } LDKMaterialSurfaceArgs;
 
+  /** @group core.materials */
   typedef struct LDKMaterialDesc
   {
     LDKMaterialType type;
@@ -141,6 +155,7 @@ extern "C"
    * @brief Check whether a value identifies a supported material type.
    * @param type Material type to inspect.
    * @return true for a supported material type, false otherwise.
+   * @group core.materials
    */
   LDK_API bool ldk_material_type_is_valid(LDKMaterialType type);
 
@@ -158,6 +173,7 @@ extern "C"
    * @param type Material type whose defaults should be produced.
    * @param out_desc Destination descriptor.
    * @return true on success, false for an invalid type or null destination.
+   * @group core.materials
    */
   LDK_API bool ldk_material_desc_defaults(
       LDKMaterialType type, LDKMaterialDesc *out_desc);
@@ -173,6 +189,7 @@ extern "C"
    *
    * @param desc Descriptor to inspect.
    * @return true when the descriptor is structurally valid.
+   * @group core.materials
    */
   LDK_API bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc);
 
@@ -180,6 +197,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param slot Resource or binding slot identifier.
    * @return Handle to the requested object or resource.
+   * @group core.materials.textures
    */
   LDK_API LDKAssetImage ldk_material_texture_slot_get(
       LDKMaterialDesc const *desc, u32 slot);
@@ -189,6 +207,7 @@ extern "C"
    * @param slot Resource or binding slot identifier.
    * @param image Image used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.materials.textures
    */
   LDK_API bool ldk_material_texture_slot_set(
       LDKMaterialDesc *desc, u32 slot, LDKAssetImage image);
@@ -199,6 +218,7 @@ extern "C"
    * @param atlas Texture atlas being inspected or modified.
    * @param region Region used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.materials.textures
    */
   LDK_API bool ldk_material_texture_atlas_set(LDKMaterialDesc *desc,
       u32 slot, LDKAssetTextureAtlas atlas, u64 region);
@@ -207,6 +227,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param slot Resource or binding slot identifier.
    * @return The requested value.
+   * @group core.materials.textures
    */
   LDK_API LDKMaterialTextureSettings ldk_material_texture_settings_get(
       LDKMaterialDesc const *desc, u32 slot);
@@ -216,6 +237,7 @@ extern "C"
    * @param a First descriptor.
    * @param b Second descriptor.
    * @return true when both descriptors represent the same authored material.
+   * @group core.materials
    */
   LDK_API bool ldk_material_desc_equal(
       LDKMaterialDesc const *a, LDKMaterialDesc const *b);
@@ -224,6 +246,7 @@ extern "C"
    * @brief Hash the active values of a material descriptor.
    * @param desc Descriptor to hash.
    * @return Deterministic hash, or zero for a null or invalid descriptor.
+   * @group core.materials
    */
   LDK_API u64 ldk_material_desc_hash(LDKMaterialDesc const *desc);
 

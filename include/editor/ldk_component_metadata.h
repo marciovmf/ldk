@@ -14,6 +14,7 @@ extern "C"
 {
 #endif
 
+  /** @group editor.component_metadata.components */
   typedef enum LDKFieldType
   {
     LDK_FIELD_BOOL = 0,
@@ -40,6 +41,7 @@ extern "C"
     LDK_FIELD_U64,
   } LDKFieldType;
 
+  /** @group editor.component_metadata.components */
   typedef enum LDKFieldWidget
   {
     LDK_FIELD_WIDGET_DEFAULT = 0,
@@ -70,6 +72,7 @@ extern "C"
     LDK_FIELD_WIDGET_ATLAS_REGION,
   } LDKFieldWidget;
 
+  /** @group editor.component_metadata.components */
   typedef enum LDKFieldFlags
   {
     LDK_FIELD_FLAG_NONE = 0,
@@ -77,6 +80,7 @@ extern "C"
     LDK_FIELD_FLAG_RUNTIME = 1 << 1,
   } LDKFieldFlags;
 
+  /** @group editor.component_metadata.components */
   typedef struct LDKEnumOption
   {
     const char *name; /* Persistent C identifier. */
@@ -84,6 +88,7 @@ extern "C"
     i64 value;
   } LDKEnumOption;
 
+  /** @group editor.component_metadata.components */
   typedef struct LDKEnumMeta
   {
     const char *name;
@@ -95,12 +100,14 @@ extern "C"
     void (*write)(void *value, i64 raw);
   } LDKEnumMeta;
 
+  /** @group editor.component_metadata.components */
   typedef struct LDKComponentGroupMeta
   {
     const char *name;
     const struct LDKComponentGroupMeta *parent;
   } LDKComponentGroupMeta;
 
+  /** @group editor.component_metadata.components */
   typedef struct LDKComponentFieldMeta
   {
     const char *name;
@@ -116,6 +123,7 @@ extern "C"
     const char *widget_source; /* Name of a sibling field providing widget data. */
   } LDKComponentFieldMeta;
 
+  /** @group editor.component_metadata.components */
   typedef struct LDKComponentMeta
   {
     const char *name;
@@ -130,12 +138,14 @@ extern "C"
   /**
    * @brief Count the engine component metadata.
    * @return Number of matching entries.
+   * @group editor.component_metadata.components
    */
   LDK_API u32 ldk_engine_component_metadata_count(void);
   /**
    * @brief Get the engine component metadata.
    * @param index Zero-based index of the selected item.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group editor.component_metadata.components
    */
   LDK_API const LDKComponentMeta *ldk_engine_component_metadata_get(
       u32 index);

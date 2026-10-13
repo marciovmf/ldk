@@ -37,7 +37,9 @@
 extern "C" {
 #endif
 
-/** IDs of builtin systems. */
+/** IDs of builtin systems.
+ * @group modules.system.registry
+ */
 typedef enum LDKBuiltinSystemId
 {
   LDK_SYSTEM_ID_SCENEGRAPH = 0x1,
@@ -49,6 +51,7 @@ typedef enum LDKBuiltinSystemId
  *
  * UPDATE is zero intentionally so a zero-initialized descriptor gets the
  * normal/default gameplay bucket.
+ * @group modules.system.execution.buckets
  */
 typedef enum LDKSystemBucket
 {
@@ -59,6 +62,7 @@ typedef enum LDKSystemBucket
   LDK_SYSTEM_BUCKET_COUNT
 } LDKSystemBucket;
 
+/** @group modules.system.registry */
 typedef enum LDKSystemFlags
 {
   LDK_SYSTEM_FLAG_NONE = 0,
@@ -76,6 +80,7 @@ typedef enum LDKSystemFlags
  * ECS changes performed by a callback are reflected before the next system
  * callback executes.
  * A grouping_id of 0 identifies the empty, unbound group.
+ * @group modules.system.groupings
  */
 typedef struct LDKEntityGroup
 {
@@ -90,6 +95,7 @@ struct LDKRoot;
  * @brief Callback used to synchronize with system execution.
  * @param user Opaque caller-supplied data passed to the callback.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.callbacks
  */
 typedef bool (*LDKSystemCallbackSyncFn)(void *user);
 
@@ -97,6 +103,7 @@ typedef bool (*LDKSystemCallbackSyncFn)(void *user);
  * @brief Callback called during ECS system initialization.
  * @param data Source data or system-owned context for this operation.
  * @return The resulting integer value.
+ * @group modules.system.callbacks
  */
 typedef int (*LDKSystemInitializeFn)(void *data);
 /**
@@ -104,15 +111,18 @@ typedef int (*LDKSystemInitializeFn)(void *data);
  * @param data Source data or system-owned context for this operation.
  * @param group Entity group used for this system update.
  * @param dt Elapsed time since the preceding update, in seconds.
+ * @group modules.system.callbacks
  */
 typedef void (*LDKSystemUpdateFn)(
     void *data, const LDKEntityGroup *group, float dt);
 /**
  * @brief Callback called during ECS system termination.
  * @param data Source data or system-owned context for this operation.
+ * @group modules.system.callbacks
  */
 typedef void (*LDKSystemTerminateFn)(void *data);
 
+/** @group modules.system.registry */
 typedef struct LDKSystemDesc
 {
   u64 id;
@@ -128,6 +138,7 @@ typedef struct LDKSystemDesc
   u32 component_count;
 } LDKSystemDesc;
 
+/** @group modules.system.registry */
 typedef struct LDKSystemRegistry
 {
   void *internal;
@@ -139,6 +150,7 @@ typedef struct LDKSystemRegistry
 
 /** Descriptors for systems implemented by the engine. Games own registration.
  * @return Number of matching entries.
+ * @group modules.system.registry
  */
 LDK_API u32 ldk_engine_system_descriptor_count(void);
 /**
@@ -146,6 +158,7 @@ LDK_API u32 ldk_engine_system_descriptor_count(void);
  * @param index Zero-based index of the selected item.
  * @param out Output object or buffer receiving the result.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_engine_system_descriptor_get(
     u32 index, LDKSystemDesc *out);
@@ -154,11 +167,13 @@ LDK_API bool ldk_engine_system_descriptor_get(
  * @brief Initialize the system registry.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_initialize(LDKSystemRegistry *registry);
 /**
  * @brief Shut down the system registry.
  * @param registry Registry on which the operation is performed.
+ * @group modules.system.registry
  */
 LDK_API void ldk_system_registry_terminate(LDKSystemRegistry *registry);
 /**
@@ -166,6 +181,7 @@ LDK_API void ldk_system_registry_terminate(LDKSystemRegistry *registry);
  * @param registry Registry on which the operation is performed.
  * @param desc Description or configuration for this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_register(
     LDKSystemRegistry *registry, const LDKSystemDesc *desc);
@@ -174,6 +190,7 @@ LDK_API bool ldk_system_registry_register(
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_unregister(
     LDKSystemRegistry *registry, u64 id);
@@ -183,6 +200,7 @@ LDK_API bool ldk_system_registry_unregister(
  * @param id Identifier of the target object.
  * @param out Output object or buffer receiving the result.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_find_by_id(
     LDKSystemRegistry *registry, u64 id, LDKSystemDesc *out);
@@ -190,6 +208,7 @@ LDK_API bool ldk_system_registry_find_by_id(
  * @brief Count registered systems.
  * @param registry Registry on which the operation is performed.
  * @return Number of matching entries.
+ * @group modules.system.registry
  */
 LDK_API u32 ldk_system_registry_count(const LDKSystemRegistry *registry);
 /**
@@ -198,6 +217,7 @@ LDK_API u32 ldk_system_registry_count(const LDKSystemRegistry *registry);
  * @param index Zero-based index of the selected item.
  * @param out Output object or buffer receiving the result.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_at(
     const LDKSystemRegistry *registry, u32 index, LDKSystemDesc *out);
@@ -205,18 +225,21 @@ LDK_API bool ldk_system_registry_at(
  * @brief Clear the state of the system registry.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_clear(LDKSystemRegistry *registry);
 
 /** Prepare the bucket lists without initializing individual systems.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_start(LDKSystemRegistry *registry);
 
 /** Terminate all active systems in reverse registration order and unprepare.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_stop(LDKSystemRegistry *registry);
 
@@ -230,6 +253,7 @@ LDK_API bool ldk_system_registry_stop(LDKSystemRegistry *registry);
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_system_start(
     LDKSystemRegistry *registry, u64 id);
@@ -238,6 +262,7 @@ LDK_API bool ldk_system_registry_system_start(
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_system_stop(
     LDKSystemRegistry *registry, u64 id);
@@ -246,6 +271,7 @@ LDK_API bool ldk_system_registry_system_stop(
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_system_is_started(
     const LDKSystemRegistry *registry, u64 id);
@@ -253,12 +279,14 @@ LDK_API bool ldk_system_registry_system_is_started(
 /** True while a bucket or a system lifecycle callback is executing.
  * @param registry Registry on which the operation is performed.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
 
 /** True while a bucket or a system lifecycle callback is executing.
  * @param registry Registry on which the operation is performed.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
 
@@ -270,6 +298,7 @@ LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
  * @param id Identifier of the target object.
  * @param data Source data or system-owned context for this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.data
  */
 LDK_API bool ldk_system_registry_system_data_set(
     LDKSystemRegistry *registry, u64 id, void *data);
@@ -278,6 +307,7 @@ LDK_API bool ldk_system_registry_system_data_set(
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.system.data
  */
 LDK_API void *ldk_system_registry_system_data_get(
     const LDKSystemRegistry *registry, u64 id);
@@ -291,6 +321,7 @@ LDK_API void *ldk_system_registry_system_data_get(
  * @param id Identifier of the target object.
  * @param group Entity group used for this system update.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.groupings
  */
 LDK_API bool ldk_system_registry_system_group_set(LDKSystemRegistry *registry,
     u64 id, const LDKEntityGroup *group);
@@ -299,6 +330,7 @@ LDK_API bool ldk_system_registry_system_group_set(LDKSystemRegistry *registry,
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group modules.system.groupings
  */
 LDK_API const LDKEntityGroup *ldk_system_registry_system_group_get(
     const LDKSystemRegistry *registry, u64 id);
@@ -312,6 +344,7 @@ LDK_API const LDKEntityGroup *ldk_system_registry_system_group_get(
  * @param fn Callback invoked by this operation.
  * @param user Opaque caller-supplied data passed to the callback.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.callbacks
  */
 LDK_API bool ldk_system_registry_callback_sync_set(LDKSystemRegistry *registry,
     LDKSystemCallbackSyncFn fn, void *user);
@@ -319,18 +352,21 @@ LDK_API bool ldk_system_registry_callback_sync_set(LDKSystemRegistry *registry,
 /** Suspend/resume execution without terminating individual systems.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_pause(LDKSystemRegistry *registry);
 /**
  * @brief Resume the system registry.
  * @param registry Registry on which the operation is performed.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_resume(LDKSystemRegistry *registry);
 /**
  * @brief Check whether the system registry is paused.
  * @param registry Registry on which the operation is performed.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.execution.lifecycle
  */
 LDK_API bool ldk_system_registry_is_paused(
     const LDKSystemRegistry *registry);
@@ -338,6 +374,7 @@ LDK_API bool ldk_system_registry_is_paused(
 /** True while a bucket or a system lifecycle callback is executing.
  * @param registry Registry on which the operation is performed.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry *registry);
 
@@ -350,6 +387,7 @@ LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry *registry);
  * @param bucket Bucket used by this operation.
  * @param dt Elapsed time since the preceding update, in seconds.
  * @return True if the operation succeeds; false otherwise.
+ * @group modules.system.execution.buckets
  */
 LDK_API bool ldk_system_registry_run_bucket(
     LDKSystemRegistry *registry, LDKSystemBucket bucket, float dt);
@@ -358,6 +396,7 @@ LDK_API bool ldk_system_registry_run_bucket(
  * @param registry Registry on which the operation is performed.
  * @param id Identifier of the target object.
  * @return True when the queried condition holds; false otherwise.
+ * @group modules.system.registry
  */
 LDK_API bool ldk_system_registry_has(
     const LDKSystemRegistry *registry, u64 id);

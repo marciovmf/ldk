@@ -20,6 +20,7 @@ extern "C"
 #endif
 
   // clang-format off
+  /** @group systems.water.lifecycle */
   //@system name=LDKWaterSystem initialize=ldk_water_system_initialize update=ldk_water_system_update terminate=ldk_water_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
   typedef struct LDKWaterSystem
   {
@@ -151,11 +152,13 @@ extern "C"
   /**
    * @brief Set default values for water system.
    * @param system System used by this operation.
+   * @group systems.water.lifecycle
    */
   LDK_API void ldk_water_system_defaults(LDKWaterSystem *system);
   /**
    * @brief Check whether the water system is active.
    * @return True when the queried condition holds; false otherwise.
+   * @group systems.water.lifecycle
    */
   LDK_API bool ldk_water_system_is_active(void);
   /** Query the animated surface inside the configured rectangle.
@@ -163,6 +166,7 @@ extern "C"
    * @param world_z World-space Z coordinate.
    * @param out_height Receives the surface height in world-space units.
    * @return True if the operation succeeds; false otherwise.
+   * @group systems.water.lifecycle
    */
   LDK_API bool ldk_water_height_at_world(
       float world_x, float world_z, float *out_height);
@@ -171,6 +175,7 @@ extern "C"
    * @brief Initialize the water system.
    * @param data Source data or system-owned context for this operation.
    * @return System initialization status code.
+   * @group systems.water.lifecycle
    */
   LDK_API int ldk_water_system_initialize(void *data);
   /**
@@ -178,12 +183,14 @@ extern "C"
    * @param data Source data or system-owned context for this operation.
    * @param group Entity group used for this system update.
    * @param dt Elapsed time since the preceding update, in seconds.
+   * @group systems.water.lifecycle
    */
   LDK_API void ldk_water_system_update(
       void *data, const LDKEntityGroup *group, float dt);
   /**
    * @brief Shut down the water system.
    * @param data Source data or system-owned context for this operation.
+   * @group systems.water.lifecycle
    */
   LDK_API void ldk_water_system_terminate(void *data);
 

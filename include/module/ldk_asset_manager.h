@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+  /** @group modules.asset_manager.lifecycle */
   typedef struct LDKAssetInfo
   {
     LDKAssetType type;
@@ -37,9 +38,11 @@ extern "C" {
    * @param info Info used by this operation.
    * @param user Opaque caller-supplied data passed to the callback.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.asset_manager.handles
    */
   typedef bool (*LDKAssetIterFn)(LDKAssetHandle asset, LDKAssetInfo* info, void* user);
 
+  /** @group modules.asset_manager.lifecycle */
   typedef struct LDKAssetManager
   {
     XHPool pool;
@@ -57,11 +60,13 @@ extern "C" {
    * @param page_capacity Number of entries per allocation page.
    * @param initial_pages Number of pages initially allocated.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.asset_manager.lifecycle
    */
   LDK_API bool ldk_asset_manager_initialize(LDKAssetManager* manager, LDKAssetSource* source, u32 page_capacity, u32 initial_pages);
   /**
    * @brief Shut down the asset manager.
    * @param manager Asset manager that owns or resolves the asset.
+   * @group modules.asset_manager.lifecycle
    */
   LDK_API void ldk_asset_manager_terminate(LDKAssetManager* manager);
   /* Clears manager-owned assets except audio data retained by active voices. */
@@ -70,12 +75,14 @@ extern "C" {
    *
    * Audio data still referenced by active voices is retained.
    * @param manager Asset manager that owns or resolves the asset.
+   * @group modules.asset_manager.lifecycle
    */
   LDK_API void ldk_asset_manager_clear(LDKAssetManager* manager);
 
   /**
    * @brief Return an invalid handle for the asset handle.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.handles
    */
   LDK_API LDKAssetHandle ldk_asset_handle_null(void);
 
@@ -84,6 +91,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.handles
    */
   LDK_API bool ldk_asset_handle_is_alive(LDKAssetManager* manager, LDKAssetHandle asset);
 
@@ -92,6 +100,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.queries
    */
   LDK_API LDKAssetInfo* ldk_asset_get_info(LDKAssetManager* manager, LDKAssetHandle asset);
   /**
@@ -99,6 +108,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.queries
    */
   LDK_API const LDKAssetInfo* ldk_asset_get_info_const(LDKAssetManager* manager, LDKAssetHandle asset);
   /**
@@ -106,12 +116,14 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.queries
    */
   LDK_API LDKAssetType ldk_asset_get_type(LDKAssetManager* manager, LDKAssetHandle asset);
   /**
    * @brief Get the number of currently live asset handles.
    * @param manager Asset manager that owns or resolves the asset.
    * @return Number of matching entries.
+   * @group modules.asset_manager.queries
    */
   LDK_API u32 ldk_asset_alive_count(LDKAssetManager* manager);
   /**
@@ -119,6 +131,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param fn Callback invoked by this operation.
    * @param user Opaque caller-supplied data passed to the callback.
+   * @group modules.asset_manager.queries
    */
   LDK_API void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user);
 
@@ -127,6 +140,7 @@ extern "C" {
   // Text file asset
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.lifecycle */
   typedef struct LDKAssetTextFileData
   {
     char* text;
@@ -136,6 +150,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset text file.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.text_files
    */
   LDK_API LDKAssetTextFile ldk_asset_text_file_null(void);
   /**
@@ -143,6 +158,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.text_files
    */
   LDK_API bool ldk_asset_manager_text_file_is_alive(LDKAssetManager* manager, LDKAssetTextFile asset);
   /**
@@ -151,6 +167,7 @@ extern "C" {
    * @param text Text used by this operation.
    * @param byte_count Number of bytes in the supplied data.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.text_files
    */
   LDK_API LDKAssetTextFile ldk_asset_manager_text_file_create(LDKAssetManager* manager, const char* text, u64 byte_count);
   /**
@@ -158,12 +175,14 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.text_files
    */
   LDK_API LDKAssetTextFile ldk_asset_manager_text_file_load(LDKAssetManager* manager, const char* path);
   /**
    * @brief Unload the asset manager text file.
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
+   * @group modules.asset_manager.text_files
    */
   LDK_API void ldk_asset_manager_text_file_unload(LDKAssetManager* manager, LDKAssetTextFile asset);
   /**
@@ -171,6 +190,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.text_files
    */
   LDK_API LDKAssetTextFileData* ldk_asset_manager_text_file_get(LDKAssetManager* manager, LDKAssetTextFile asset);
   /**
@@ -178,6 +198,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.text_files
    */
   LDK_API const LDKAssetTextFileData* ldk_asset_manager_text_file_get_const(LDKAssetManager* manager, LDKAssetTextFile asset);
 
@@ -186,6 +207,7 @@ extern "C" {
   // Keyframe animation (.anim)
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.lifecycle */
   typedef struct LDKAssetKeyframeAnimationData
   {
     LDKKeyframeAnimation clip;
@@ -194,6 +216,7 @@ extern "C" {
   /**
    * @brief Return an invalid keyframe-animation asset handle.
    * @return Null handle.
+   * @group modules.asset_manager.animations
    */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_keyframe_animation_null(void);
   /**
@@ -201,6 +224,7 @@ extern "C" {
    * @param manager Initialized asset manager.
    * @param asset Keyframe animation asset handle.
    * @return True only for a currently alive asset of the expected type.
+   * @group modules.asset_manager.animations
    */
   LDK_API bool ldk_asset_manager_keyframe_animation_is_alive(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
@@ -210,6 +234,7 @@ extern "C" {
    * @param clip Animation clip instance.
    * @return Live asset handle on success, null handle on failure. Clip is deep-copied.
    * Note: The created asset has no path and is not automatically scene-persistent.
+   * @group modules.asset_manager.animations
    */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_create(
       LDKAssetManager *manager, const LDKKeyframeAnimation *clip);
@@ -218,6 +243,7 @@ extern "C" {
    * @param manager Initialized asset manager.
    * @param asset Keyframe animation asset handle.
    * @return Nothing. Detach it from all animation sources first.
+   * @group modules.asset_manager.animations
    */
   LDK_API void ldk_asset_manager_keyframe_animation_unload(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
@@ -226,6 +252,7 @@ extern "C" {
    * @param manager Initialized asset manager.
    * @param path Logical path to an .anim asset.
    * @return Live shared handle, or null on failure. Owned by the manager.
+   * @group modules.asset_manager.animations
    */
   LDK_API LDKAssetKeyframeAnimation ldk_asset_manager_keyframe_animation_load_shared(
       LDKAssetManager *manager, const char *path);
@@ -234,6 +261,7 @@ extern "C" {
    * @param manager Initialized asset manager.
    * @param path Logical path to a cached .anim asset.
    * @return True on successful refresh or if not cached; false on I/O or parsing errors.
+   * @group modules.asset_manager.animations
    */
   LDK_API bool ldk_asset_manager_keyframe_animation_reload(
       LDKAssetManager *manager, const char *path);
@@ -242,6 +270,7 @@ extern "C" {
    * @param manager Initialized asset manager.
    * @param asset Keyframe animation asset handle.
    * @return Borrowed pointer or NULL. Invalidated when the asset is unloaded or reloaded.
+   * @group modules.asset_manager.animations
    */
   LDK_API const LDKAssetKeyframeAnimationData *ldk_asset_manager_keyframe_animation_get_const(
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
@@ -250,6 +279,7 @@ extern "C" {
   // Texture atlas (.atlas)
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.lifecycle */
   typedef struct LDKAssetTextureAtlasData
   {
     LDKTextureAtlas atlas;
@@ -260,6 +290,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset texture atlas.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API LDKAssetTextureAtlas ldk_asset_texture_atlas_null(void);
   /**
@@ -267,6 +298,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API bool ldk_asset_manager_texture_atlas_is_alive(
       LDKAssetManager *manager, LDKAssetTextureAtlas asset);
@@ -275,6 +307,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param atlas Texture atlas being inspected or modified.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API LDKAssetTextureAtlas ldk_asset_manager_texture_atlas_create(
       LDKAssetManager *manager, const LDKTextureAtlas *atlas);
@@ -283,6 +316,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API LDKAssetTextureAtlas ldk_asset_manager_texture_atlas_load_shared(
       LDKAssetManager *manager, const char *path);
@@ -291,6 +325,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API bool ldk_asset_manager_texture_atlas_reload(
       LDKAssetManager *manager, const char *path);
@@ -298,6 +333,7 @@ extern "C" {
    * @brief Unload the asset manager texture atlas.
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API void ldk_asset_manager_texture_atlas_unload(
       LDKAssetManager *manager, LDKAssetTextureAtlas asset);
@@ -306,6 +342,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.texture_atlases
    */
   LDK_API const LDKAssetTextureAtlasData *ldk_asset_manager_texture_atlas_get_const(
       LDKAssetManager *manager, LDKAssetTextureAtlas asset);
@@ -314,6 +351,7 @@ extern "C" {
   // Image
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.images */
   typedef struct LDKAssetImageData
   {
     LDKImage* image;
@@ -323,6 +361,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset image.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_image_null(void);
   /**
@@ -330,6 +369,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.images
    */
   LDK_API bool ldk_asset_manager_image_is_alive(LDKAssetManager* manager, LDKAssetImage asset);
   /**
@@ -339,6 +379,7 @@ extern "C" {
    * @param height Height in pixels or the units expected by the API.
    * @param pixels Image pixel data.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_manager_image_create(
       LDKAssetManager* manager,
@@ -353,6 +394,7 @@ extern "C" {
    * @param format Format to use for this resource.
    * @param pixels Image pixel data.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_manager_image_create_format(
       LDKAssetManager* manager,
@@ -365,6 +407,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_manager_image_load(
       LDKAssetManager* manager,
@@ -377,6 +420,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_manager_image_load_shared(
       LDKAssetManager* manager, const char* path);
@@ -388,6 +432,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImage ldk_asset_manager_image_missing(
       LDKAssetManager* manager, const char* path);
@@ -395,6 +440,7 @@ extern "C" {
    * @brief Unload the asset manager image.
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
+   * @group modules.asset_manager.images
    */
   LDK_API void ldk_asset_manager_image_unload(
       LDKAssetManager* manager,
@@ -404,6 +450,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.images
    */
   LDK_API LDKAssetImageData* ldk_asset_manager_image_get(
       LDKAssetManager* manager,
@@ -413,6 +460,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.images
    */
   LDK_API const LDKAssetImageData* ldk_asset_manager_image_get_const(
       LDKAssetManager* manager,
@@ -422,6 +470,7 @@ extern "C" {
   // Font asset
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.fonts */
   typedef struct LDKAssetFontData
   {
     LDKFontFace* face;
@@ -430,6 +479,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset font.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.fonts
    */
   LDK_API LDKAssetFont ldk_asset_font_null(void);
   /**
@@ -437,6 +487,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.fonts
    */
   LDK_API bool ldk_asset_manager_font_is_alive(LDKAssetManager* manager, LDKAssetFont asset);
   /**
@@ -445,6 +496,7 @@ extern "C" {
    * @param data Source data or system-owned context for this operation.
    * @param data_size Size of the data buffer or region.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.fonts
    */
   LDK_API LDKAssetFont ldk_asset_manager_font_create(LDKAssetManager* manager, const void* data, u32 data_size);
   /**
@@ -452,6 +504,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.fonts
    */
   LDK_API LDKAssetFont ldk_asset_manager_font_load(LDKAssetManager* manager, const char* path);
   /* Reuse a loaded font by asset path, or load it once. The returned asset is
@@ -461,6 +514,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.fonts
    */
   LDK_API LDKAssetFont ldk_asset_manager_font_load_shared(
       LDKAssetManager* manager, const char* path);
@@ -468,6 +522,7 @@ extern "C" {
    * @brief Unload the asset manager font.
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
+   * @group modules.asset_manager.fonts
    */
   LDK_API void ldk_asset_manager_font_unload(LDKAssetManager* manager, LDKAssetFont asset);
   /**
@@ -475,6 +530,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.fonts
    */
   LDK_API LDKAssetFontData* ldk_asset_manager_font_get(LDKAssetManager* manager, LDKAssetFont asset);
   /**
@@ -482,6 +538,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.fonts
    */
   LDK_API const LDKAssetFontData* ldk_asset_manager_font_get_const(LDKAssetManager* manager, LDKAssetFont asset);
 
@@ -489,6 +546,7 @@ extern "C" {
   // Audio asset
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.audio */
   typedef struct LDKAssetAudioData
   {
     LDKAssetSourceFile source_file;
@@ -500,6 +558,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset audio.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.audio
    */
   LDK_API LDKAssetAudio ldk_asset_audio_null(void);
   /**
@@ -507,6 +566,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.audio
    */
   LDK_API bool ldk_asset_manager_audio_is_alive(
       LDKAssetManager* manager, LDKAssetAudio asset);
@@ -515,6 +575,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param path Path identifying the file or resource.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.audio
    */
   LDK_API LDKAssetAudio ldk_asset_manager_audio_load_shared(
       LDKAssetManager* manager, const char* path);
@@ -523,6 +584,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.audio
    */
   LDK_API LDKAssetAudioData* ldk_asset_manager_audio_get(
       LDKAssetManager* manager, LDKAssetAudio asset);
@@ -531,6 +593,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.audio
    */
   LDK_API const LDKAssetAudioData* ldk_asset_manager_audio_get_const(
       LDKAssetManager* manager, LDKAssetAudio asset);
@@ -540,6 +603,7 @@ extern "C" {
   // Mesh asset
   // ---------------------------------------------------------------------------
 
+  /** @group modules.asset_manager.meshes */
   typedef struct LDKAssetMeshEntry
   {
     char name[LDK_MESH_NAME_CAPACITY];
@@ -550,6 +614,7 @@ extern "C" {
     u32 material_slot_count;
   } LDKAssetMeshEntry;
 
+  /** @group modules.asset_manager.meshes */
   typedef struct LDKAssetMeshData
   {
     /*
@@ -570,6 +635,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the asset mesh.
    * @return An invalid or empty handle.
+   * @group modules.asset_manager.meshes
    */
   LDK_API LDKAssetMesh ldk_asset_mesh_null(void);
   /**
@@ -577,6 +643,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.asset_manager.meshes
    */
   LDK_API bool ldk_asset_manager_mesh_is_alive(LDKAssetManager* manager, LDKAssetMesh asset);
   /**
@@ -587,12 +654,14 @@ extern "C" {
    * @param indices Array of mesh indices.
    * @param index_count Number of indices to submit.
    * @return Handle to the requested object or resource.
+   * @group modules.asset_manager.meshes
    */
   LDK_API LDKAssetMesh ldk_asset_manager_mesh_create(LDKAssetManager* manager, const LDKMeshVertex* vertices, u32 vertex_count, const u32* indices, u32 index_count);
   /**
    * @brief Unload the asset manager mesh.
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
+   * @group modules.asset_manager.meshes
    */
   LDK_API void ldk_asset_manager_mesh_unload(LDKAssetManager* manager, LDKAssetMesh asset);
   /**
@@ -600,6 +669,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.meshes
    */
   LDK_API LDKAssetMeshData* ldk_asset_manager_mesh_get(LDKAssetManager* manager, LDKAssetMesh asset);
   /**
@@ -607,6 +677,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.asset_manager.meshes
    */
   LDK_API const LDKAssetMeshData* ldk_asset_manager_mesh_get_const(LDKAssetManager* manager, LDKAssetMesh asset);
 

@@ -34,9 +34,11 @@
 
 #include <ldk_common.h>
 
+/** @group core.argparse */
 #define LDK_ARGPARSE_MAX_ARGS_DEFAULT 8
 
 #ifndef LDK_ARGPARSE_MAX_ARGS 
+/** @group core.argparse */
 #define LDK_ARGPARSE_MAX_ARGS LDK_ARGPARSE_MAX_ARGS_DEFAULT 
 #endif
 
@@ -45,6 +47,7 @@ extern "C"
 {
 #endif
 
+  /** @group core.argparse */
   typedef enum
   {
     LDK_ARG_TYPE_FLAG,
@@ -52,6 +55,7 @@ extern "C"
     LDK_ARG_TYPE_STRING
   } LDKArgType;
 
+  /** @group core.argparse */
   typedef struct
   {
     const char *name;
@@ -66,6 +70,7 @@ extern "C"
     };
   } LDKArgument;
 
+  /** @group core.argparse */
   typedef struct
   {
     LDKArgument args[LDK_ARGPARSE_MAX_ARGS];
@@ -75,6 +80,7 @@ extern "C"
   /**
    * @brief Initialize an argument parser.
    * @param parser Argument parser to operate on.
+   * @group core.argparse
    */
   LDK_API void ldkArgInitParser(LDKArgParser* parser);
   /**
@@ -83,6 +89,7 @@ extern "C"
    * @param name Name identifying the object or setting.
    * @param type Type identifier or kind used by the operation.
    * @param description Description used by this operation.
+   * @group core.argparse
    */
   LDK_API void ldkArgAddArgument(LDKArgParser* parser, const char* name, LDKArgType type, const char* description);
   /**
@@ -90,11 +97,13 @@ extern "C"
    * @param parser Argument parser to operate on.
    * @param argc Number of command-line arguments.
    * @param argv Array of command-line arguments.
+   * @group core.argparse
    */
   LDK_API void ldkArgParseArguments(LDKArgParser* parser, u32 argc, char* argv[]);
   /**
    * @brief Print usage information for the registered command-line options.
    * @param parser Argument parser to operate on.
+   * @group core.argparse
    */
   LDK_API void ldkArgPrintUsage(const LDKArgParser* parser);
   /**
@@ -102,6 +111,7 @@ extern "C"
    * @param parser Argument parser to operate on.
    * @param name Name identifying the object or setting.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.argparse
    */
   LDK_API bool ldkArgGetFlagValue(const LDKArgParser* parser, const char* name);
   /**
@@ -109,6 +119,7 @@ extern "C"
    * @param parser Argument parser to operate on.
    * @param name Name identifying the object or setting.
    * @return The resulting integer value.
+   * @group core.argparse
    */
   LDK_API i32 ldkArgGetIntValue(const LDKArgParser* parser, const char* name);
   /**
@@ -116,12 +127,14 @@ extern "C"
    * @param parser Argument parser to operate on.
    * @param name Name identifying the object or setting.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.argparse
    */
   LDK_API const char* ldkArgGetStringValue(const LDKArgParser* parser, const char* name);
   /**
    * @brief Visit each registered argument with a callback.
    * @param parser Argument parser to operate on.
    * @param callback Callback invoked by this operation.
+   * @group core.argparse
    */
   LDK_API void ldkArgForEachArgument(const LDKArgParser* parser, void (*callback)(const LDKArgument* arg));
 

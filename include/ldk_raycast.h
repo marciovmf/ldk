@@ -15,12 +15,14 @@
 extern "C" {
 #endif
 
+/** @group core.raycast */
 typedef struct LDKRay
 {
   Vec3 origin;
   Vec3 direction;
 } LDKRay;
 
+/** @group core.raycast */
 typedef struct LDKRaycastHit
 {
   Vec3 position;
@@ -39,6 +41,7 @@ typedef struct LDKRaycastHit
  * @param direction Direction used by this operation.
  * @param out_ray Receives the resulting ray.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast
  */
 LDK_API bool ldk_ray_make(Vec3 origin, Vec3 direction, LDKRay *out_ray);
 
@@ -48,6 +51,7 @@ LDK_API bool ldk_ray_make(Vec3 origin, Vec3 direction, LDKRay *out_ray);
  * @param ray Ray used by this operation.
  * @param distance Distance in world-space units.
  * @return The requested value.
+ * @group core.raycast
  */
 LDK_API Vec3 ldk_ray_at(LDKRay ray, float distance);
 
@@ -63,6 +67,7 @@ LDK_API Vec3 ldk_ray_at(LDKRay ray, float distance);
  * @param transform Transform used by this operation.
  * @param out_ray Receives the resulting ray.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast
  */
 LDK_API bool ldk_ray_transform(
     LDKRay ray, Mat4 transform, LDKRay *out_ray);
@@ -75,6 +80,7 @@ LDK_API bool ldk_ray_transform(
  * @param plane_normal Plane normal used by this operation.
  * @param out_hit Receives the intersection details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast
  */
 LDK_API bool ldk_raycast_plane(LDKRay ray, Vec3 plane_point,
     Vec3 plane_normal, LDKRaycastHit *out_hit);
@@ -88,6 +94,7 @@ LDK_API bool ldk_raycast_plane(LDKRay ray, Vec3 plane_point,
  * @param c C used by this operation.
  * @param out_hit Receives the intersection details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast
  */
 LDK_API bool ldk_raycast_triangle(LDKRay ray, Vec3 a, Vec3 b, Vec3 c,
     LDKRaycastHit *out_hit);
@@ -102,6 +109,7 @@ LDK_API bool ldk_raycast_triangle(LDKRay ray, Vec3 a, Vec3 b, Vec3 c,
  * @param mesh Mesh resource used by the operation.
  * @param out_hit Receives the intersection details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast.meshes
  */
 LDK_API bool ldk_raycast_mesh(
     LDKRay ray, const LDKMeshData *mesh, LDKRaycastHit *out_hit);
@@ -119,6 +127,7 @@ LDK_API bool ldk_raycast_mesh(
  * @param mesh_world Mesh world used by this operation.
  * @param out_hit Receives the intersection details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.raycast.meshes
  */
 LDK_API bool ldk_raycast_mesh_transformed(LDKRay ray,
     const LDKMeshData *mesh, Mat4 mesh_world, LDKRaycastHit *out_hit);

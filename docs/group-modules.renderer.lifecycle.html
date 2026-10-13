@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lifecycle | LDK</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Reference</h1>
+      <div class="file-name"><a href="index.html">home</a> <span>/</span> <a href="group-modules.html">Modules</a> <span>/</span> <a href="group-modules.renderer.html">Renderer</a> <span>/</span> <a href="group-modules.renderer.lifecycle.html">Lifecycle</a></div>
+      <details open><summary>Groups</summary><ul class="group-tree"><li class="group-node"><details class="group-branch"><summary><a href="group-components.html">Components</a></summary><ul class="group-children"><li class="group-node"><details class="group-branch"><summary><a href="group-components.audio_source.html">Audio_source</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.audio_source.playback.html">Playback</a></li><li class="group-leaf"><a href="group-components.audio_source.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.camera.html">Camera</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.camera.matrices.html">Matrices</a></li><li class="group-leaf"><a href="group-components.camera.orientation.html">Orientation</a></li><li class="group-leaf"><a href="group-components.camera.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.grass_interact.html">Grass_interact</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.grass_interact.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.instanced_mesh_source.html">Instanced_mesh_source</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.instanced_mesh_source.colors.html">Colors</a></li><li class="group-leaf"><a href="group-components.instanced_mesh_source.instances.html">Instances</a></li><li class="group-leaf"><a href="group-components.instanced_mesh_source.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.keyframe_animation_source.html">Keyframe_animation_source</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.keyframe_animation_source.assets.html">Assets</a></li><li class="group-leaf"><a href="group-components.keyframe_animation_source.events.html">Events</a></li><li class="group-leaf"><a href="group-components.keyframe_animation_source.playback.html">Playback</a></li><li class="group-leaf"><a href="group-components.keyframe_animation_source.registration.html">Registration</a></li><li class="group-leaf"><a href="group-components.keyframe_animation_source.runtime.html">Runtime</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.light.html">Light</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.light.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.material_instance.html">Material_instance</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.material_instance.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.mesh_source.html">Mesh_source</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.mesh_source.geometry.html">Geometry</a></li><li class="group-leaf"><a href="group-components.mesh_source.materials.html">Materials</a></li><li class="group-leaf"><a href="group-components.mesh_source.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.particle_emitter.html">Particle_emitter</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.particle_emitter.emission.html">Emission</a></li><li class="group-leaf"><a href="group-components.particle_emitter.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.post_processing.html">Post_processing</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.post_processing.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.terrain_follower.html">Terrain_follower</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.terrain_follower.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.text3d.html">Text3d</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.text3d.registration.html">Registration</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-components.transform.html">Transform</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-components.transform.hierarchy.html">Hierarchy</a></li><li class="group-leaf"><a href="group-components.transform.local.html">Local</a></li><li class="group-leaf"><a href="group-components.transform.registration.html">Registration</a></li></ul></details></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.html">Core</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.argparse.html">Argparse</a></li><li class="group-leaf"><a href="group-core.assets.html">Assets</a></li><li class="group-leaf"><a href="group-core.colors.html">Colors</a></li><li class="group-leaf"><a href="group-core.common.html">Common</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.debug_draw.html">Debug_draw</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.debug_draw.drawing.html">Drawing</a></li><li class="group-leaf"><a href="group-core.debug_draw.lines.html">Lines</a></li><li class="group-leaf"><a href="group-core.debug_draw.shapes.html">Shapes</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.engine.html">Engine</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.engine.configuration.html">Configuration</a></li><li class="group-leaf"><a href="group-core.engine.game.html">Game</a></li><li class="group-leaf"><a href="group-core.engine.game_instance.html">Game_instance</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.engine.input.html">Input</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.engine.input.keyboard.html">Keyboard</a></li><li class="group-leaf"><a href="group-core.engine.input.mouse.html">Mouse</a></li><li class="group-leaf"><a href="group-core.engine.input.viewport.html">Viewport</a></li></ul></details></li><li class="group-leaf"><a href="group-core.engine.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-core.engine.logging.html">Logging</a></li><li class="group-leaf"><a href="group-core.engine.modules.html">Modules</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.engine.rendering.html">Rendering</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.engine.rendering.shadows.html">Shadows</a></li></ul></details></li><li class="group-leaf"><a href="group-core.engine.window.html">Window</a></li></ul></details></li><li class="group-leaf"><a href="group-core.events.html">Events</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.game.html">Game</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.game.lifecycle.html">Lifecycle</a></li></ul></details></li><li class="group-leaf"><a href="group-core.geometry.html">Geometry</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.images.html">Images</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.images.io.html">Io</a></li><li class="group-leaf"><a href="group-core.images.pixels.html">Pixels</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.keyframe_animation.html">Keyframe_animation</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.keyframe_animation.animation.html">Animation</a></li><li class="group-leaf"><a href="group-core.keyframe_animation.io.html">Io</a></li><li class="group-leaf"><a href="group-core.keyframe_animation.sampling.html">Sampling</a></li><li class="group-leaf"><a href="group-core.keyframe_animation.tracks.html">Tracks</a></li></ul></details></li><li class="group-leaf"><a href="group-core.material_assets.html">Material_assets</a></li><li class="group-leaf"><a href="group-core.material_io.html">Material_io</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.materials.html">Materials</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.materials.textures.html">Textures</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.mesh_assets.html">Mesh_assets</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.mesh_assets.io.html">Io</a></li></ul></details></li><li class="group-leaf"><a href="group-core.meshes.html">Meshes</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.os.html">Os</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.os.clipboard.html">Clipboard</a></li><li class="group-leaf"><a href="group-core.os.diagnostics.html">Diagnostics</a></li><li class="group-leaf"><a href="group-core.os.dialogs.html">Dialogs</a></li><li class="group-leaf"><a href="group-core.os.events.html">Events</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.os.graphics.html">Graphics</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.os.graphics.context.html">Context</a></li><li class="group-leaf"><a href="group-core.os.graphics.vsync.html">Vsync</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.os.input.html">Input</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.os.input.cursor.html">Cursor</a></li><li class="group-leaf"><a href="group-core.os.input.joystick.html">Joystick</a></li><li class="group-leaf"><a href="group-core.os.input.keyboard.html">Keyboard</a></li><li class="group-leaf"><a href="group-core.os.input.mouse.html">Mouse</a></li></ul></details></li><li class="group-leaf"><a href="group-core.os.libraries.html">Libraries</a></li><li class="group-leaf"><a href="group-core.os.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-core.os.memory.html">Memory</a></li><li class="group-leaf"><a href="group-core.os.processes.html">Processes</a></li><li class="group-leaf"><a href="group-core.os.time.html">Time</a></li><li class="group-leaf"><a href="group-core.os.windows.html">Windows</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.packages.html">Packages</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.packages.entries.html">Entries</a></li><li class="group-leaf"><a href="group-core.packages.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-core.packages.paths.html">Paths</a></li><li class="group-leaf"><a href="group-core.packages.reading.html">Reading</a></li><li class="group-leaf"><a href="group-core.packages.writing.html">Writing</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.profiler.html">Profiler</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.profiler.capture.html">Capture</a></li><li class="group-leaf"><a href="group-core.profiler.frames.html">Frames</a></li><li class="group-leaf"><a href="group-core.profiler.zones.html">Zones</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.projects.html">Projects</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.projects.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-core.projects.loading.html">Loading</a></li><li class="group-leaf"><a href="group-core.projects.saving.html">Saving</a></li><li class="group-leaf"><a href="group-core.projects.scenes.html">Scenes</a></li></ul></details></li><li class="group-leaf"><a href="group-core.properties.html">Properties</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.raycast.html">Raycast</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.raycast.meshes.html">Meshes</a></li></ul></details></li><li class="group-leaf"><a href="group-core.resources.html">Resources</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.scene_systems.html">Scene_systems</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.scene_systems.configuration.html">Configuration</a></li><li class="group-leaf"><a href="group-core.scene_systems.groupings.html">Groupings</a></li><li class="group-leaf"><a href="group-core.scene_systems.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-core.scene_systems.serialization.html">Serialization</a></li><li class="group-leaf"><a href="group-core.scene_systems.validation.html">Validation</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.scenes.html">Scenes</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.scenes.diagnostics.html">Diagnostics</a></li><li class="group-leaf"><a href="group-core.scenes.metadata.html">Metadata</a></li><li class="group-leaf"><a href="group-core.scenes.properties.html">Properties</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.scenes.serialization.html">Serialization</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.scenes.serialization.loading.html">Loading</a></li><li class="group-leaf"><a href="group-core.scenes.serialization.saving.html">Saving</a></li><li class="group-leaf"><a href="group-core.scenes.serialization.systems.html">Systems</a></li></ul></details></li></ul></details></li><li class="group-leaf"><a href="group-core.skybox_assets.html">Skybox_assets</a></li><li class="group-leaf"><a href="group-core.skybox_io.html">Skybox_io</a></li><li class="group-leaf"><a href="group-core.skyboxes.html">Skyboxes</a></li><li class="group-leaf"><a href="group-core.text.html">Text</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.texture_atlas.html">Texture_atlas</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.texture_atlas.atlas.html">Atlas</a></li><li class="group-leaf"><a href="group-core.texture_atlas.regions.html">Regions</a></li><li class="group-leaf"><a href="group-core.texture_atlas.serialization.html">Serialization</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-core.ttf.html">Ttf</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-core.ttf.fonts.html">Fonts</a></li><li class="group-leaf"><a href="group-core.ttf.glyphs.html">Glyphs</a></li><li class="group-leaf"><a href="group-core.ttf.measurement.html">Measurement</a></li><li class="group-leaf"><a href="group-core.ttf.text.html">Text</a></li></ul></details></li></ul></details></li><li class="group-node"><details class="group-branch" open><summary><a href="group-modules.html">Modules</a></summary><ul class="group-children"><li class="group-node"><details class="group-branch"><summary><a href="group-modules.asset_manager.html">Asset_manager</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.asset_manager.animations.html">Animations</a></li><li class="group-leaf"><a href="group-modules.asset_manager.audio.html">Audio</a></li><li class="group-leaf"><a href="group-modules.asset_manager.fonts.html">Fonts</a></li><li class="group-leaf"><a href="group-modules.asset_manager.handles.html">Handles</a></li><li class="group-leaf"><a href="group-modules.asset_manager.images.html">Images</a></li><li class="group-leaf"><a href="group-modules.asset_manager.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.asset_manager.meshes.html">Meshes</a></li><li class="group-leaf"><a href="group-modules.asset_manager.queries.html">Queries</a></li><li class="group-leaf"><a href="group-modules.asset_manager.text_files.html">Text_files</a></li><li class="group-leaf"><a href="group-modules.asset_manager.texture_atlases.html">Texture_atlases</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.asset_source.html">Asset_source</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.asset_source.io.html">Io</a></li><li class="group-leaf"><a href="group-modules.asset_source.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.asset_source.lookup.html">Lookup</a></li><li class="group-leaf"><a href="group-modules.asset_source.packages.html">Packages</a></li><li class="group-leaf"><a href="group-modules.asset_source.paths.html">Paths</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.audio.html">Audio</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.audio.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.audio.mixing.html">Mixing</a></li><li class="group-leaf"><a href="group-modules.audio.playback.html">Playback</a></li><li class="group-leaf"><a href="group-modules.audio.sources.html">Sources</a></li><li class="group-leaf"><a href="group-modules.audio.voices.html">Voices</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.component.html">Component</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.component.attachments.html">Attachments</a></li><li class="group-leaf"><a href="group-modules.component.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.component.queries.html">Queries</a></li><li class="group-leaf"><a href="group-modules.component.registry.html">Registry</a></li><li class="group-leaf"><a href="group-modules.component.storage.html">Storage</a></li><li class="group-leaf"><a href="group-modules.component.types.html">Types</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ecs.html">Ecs</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ecs.components.html">Components</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ecs.entities.html">Entities</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ecs.entities.components.html">Components</a></li><li class="group-leaf"><a href="group-modules.ecs.entities.names.html">Names</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.ecs.groupings.html">Groupings</a></li><li class="group-leaf"><a href="group-modules.ecs.lifecycle.html">Lifecycle</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ecs.systems.html">Systems</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ecs.systems.execution.html">Execution</a></li></ul></details></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.entity.html">Entity</a></summary><ul class="group-children"><li class="group-node"><details class="group-branch"><summary><a href="group-modules.entity.components.html">Components</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.entity.components.references.html">References</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.entity.flags.html">Flags</a></li><li class="group-leaf"><a href="group-modules.entity.iteration.html">Iteration</a></li><li class="group-leaf"><a href="group-modules.entity.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.entity.names.html">Names</a></li><li class="group-leaf"><a href="group-modules.entity.registry.html">Registry</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.eventqueue.html">Eventqueue</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.eventqueue.consuming.html">Consuming</a></li><li class="group-leaf"><a href="group-modules.eventqueue.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.eventqueue.publishing.html">Publishing</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.jobs.html">Jobs</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.jobs.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.jobs.scheduling.html">Scheduling</a></li><li class="group-leaf"><a href="group-modules.jobs.synchronization.html">Synchronization</a></li><li class="group-leaf"><a href="group-modules.jobs.workers.html">Workers</a></li></ul></details></li><li class="group-node"><details class="group-branch" open><summary><a href="group-modules.renderer.html">Renderer</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.renderer.debug_drawing.html">Debug_drawing</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.renderer.frame.html">Frame</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.renderer.frame.stats.html">Stats</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.renderer.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.renderer.lighting.html">Lighting</a></li><li class="group-leaf"><a href="group-modules.renderer.materials.html">Materials</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.renderer.meshes.html">Meshes</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.renderer.meshes.assets.html">Assets</a></li><li class="group-leaf"><a href="group-modules.renderer.meshes.instance_sets.html">Instance_sets</a></li><li class="group-leaf"><a href="group-modules.renderer.meshes.instances.html">Instances</a></li><li class="group-leaf"><a href="group-modules.renderer.meshes.submission.html">Submission</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.renderer.overlays.html">Overlays</a></li><li class="group-leaf"><a href="group-modules.renderer.shadows.html">Shadows</a></li><li class="group-leaf"><a href="group-modules.renderer.skybox.html">Skybox</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.renderer.text.html">Text</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.renderer.text.fonts.html">Fonts</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.renderer.textures.html">Textures</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.renderer.textures.images.html">Images</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.renderer.ui.html">Ui</a></li><li class="group-leaf"><a href="group-modules.renderer.vegetation.html">Vegetation</a></li><li class="group-leaf"><a href="group-modules.renderer.views.html">Views</a></li><li class="group-leaf"><a href="group-modules.renderer.water.html">Water</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.rhi.html">Rhi</a></summary><ul class="group-children"><li class="group-node"><details class="group-branch"><summary><a href="group-modules.rhi.bindings.html">Bindings</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.rhi.bindings.layout.html">Layout</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.rhi.buffers.html">Buffers</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.rhi.drawing.html">Drawing</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.rhi.drawing.buffers.html">Buffers</a></li><li class="group-leaf"><a href="group-modules.rhi.drawing.commands.html">Commands</a></li><li class="group-leaf"><a href="group-modules.rhi.drawing.raster.html">Raster</a></li><li class="group-leaf"><a href="group-modules.rhi.drawing.viewport.html">Viewport</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.rhi.frames.html">Frames</a></li><li class="group-leaf"><a href="group-modules.rhi.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.rhi.passes.html">Passes</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.rhi.pipelines.html">Pipelines</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.rhi.pipelines.states.html">States</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.rhi.samplers.html">Samplers</a></li><li class="group-leaf"><a href="group-modules.rhi.shaders.html">Shaders</a></li><li class="group-leaf"><a href="group-modules.rhi.textures.html">Textures</a></li><li class="group-leaf"><a href="group-modules.rhi.types.html">Types</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.scene_manager.html">Scene_manager</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.scene_manager.active_scene.html">Active_scene</a></li><li class="group-leaf"><a href="group-modules.scene_manager.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.scene_manager.loading.html">Loading</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.scenegraph.html">Scenegraph</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.scenegraph.hierarchy.html">Hierarchy</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.system.html">System</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.system.callbacks.html">Callbacks</a></li><li class="group-leaf"><a href="group-modules.system.data.html">Data</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.system.execution.html">Execution</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.system.execution.buckets.html">Buckets</a></li><li class="group-leaf"><a href="group-modules.system.execution.lifecycle.html">Lifecycle</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.system.groupings.html">Groupings</a></li><li class="group-leaf"><a href="group-modules.system.registry.html">Registry</a></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ui.html">Ui</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ui.areas.html">Areas</a></li><li class="group-leaf"><a href="group-modules.ui.buttons.html">Buttons</a></li><li class="group-leaf"><a href="group-modules.ui.clipboard.html">Clipboard</a></li><li class="group-leaf"><a href="group-modules.ui.colors.html">Colors</a></li><li class="group-leaf"><a href="group-modules.ui.controls.html">Controls</a></li><li class="group-leaf"><a href="group-modules.ui.frames.html">Frames</a></li><li class="group-leaf"><a href="group-modules.ui.icons.html">Icons</a></li><li class="group-leaf"><a href="group-modules.ui.ids.html">Ids</a></li><li class="group-leaf"><a href="group-modules.ui.images.html">Images</a></li><li class="group-leaf"><a href="group-modules.ui.labels.html">Labels</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ui.layout.html">Layout</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ui.layout.geometry.html">Geometry</a></li><li class="group-leaf"><a href="group-modules.ui.layout.measurement.html">Measurement</a></li><li class="group-leaf"><a href="group-modules.ui.layout.sizing.html">Sizing</a></li><li class="group-leaf"><a href="group-modules.ui.layout.spacing.html">Spacing</a></li><li class="group-leaf"><a href="group-modules.ui.layout.stacks.html">Stacks</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.ui.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-modules.ui.popups.html">Popups</a></li><li class="group-leaf"><a href="group-modules.ui.scrolling.html">Scrolling</a></li><li class="group-leaf"><a href="group-modules.ui.state.html">State</a></li><li class="group-leaf"><a href="group-modules.ui.tabs.html">Tabs</a></li><li class="group-leaf"><a href="group-modules.ui.theme.html">Theme</a></li><li class="group-leaf"><a href="group-modules.ui.trees.html">Trees</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ui.widgets.html">Widgets</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ui.widgets.buttons.html">Buttons</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.colors.html">Colors</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.controls.html">Controls</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.icons.html">Icons</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.images.html">Images</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.labels.html">Labels</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-modules.ui.widgets.layout.html">Layout</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-modules.ui.widgets.layout.sizing.html">Sizing</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.layout.stacks.html">Stacks</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.ui.widgets.panels.html">Panels</a></li><li class="group-leaf"><a href="group-modules.ui.widgets.tabs.html">Tabs</a></li></ul></details></li><li class="group-leaf"><a href="group-modules.ui.windows.html">Windows</a></li></ul></details></li></ul></details></li><li class="group-node"><details class="group-branch"><summary><a href="group-systems.html">Systems</a></summary><ul class="group-children"><li class="group-node"><details class="group-branch"><summary><a href="group-systems.grass.html">Grass</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-systems.grass.interaction.html">Interaction</a></li><li class="group-leaf"><a href="group-systems.grass.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-systems.grass.patches.html">Patches</a></li><li class="group-leaf"><a href="group-systems.grass.types.html">Types</a></li></ul></details></li><li class="group-leaf"><a href="group-systems.particle.html">Particle</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-systems.terrain.html">Terrain</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-systems.terrain.heightmaps.html">Heightmaps</a></li><li class="group-leaf"><a href="group-systems.terrain.lifecycle.html">Lifecycle</a></li><li class="group-leaf"><a href="group-systems.terrain.surfaces.html">Surfaces</a></li></ul></details></li><li class="group-leaf"><a href="group-systems.terrain_follower.html">Terrain_follower</a></li><li class="group-node"><details class="group-branch"><summary><a href="group-systems.water.html">Water</a></summary><ul class="group-children"><li class="group-leaf"><a href="group-systems.water.lifecycle.html">Lifecycle</a></li></ul></details></li></ul></details></li></ul></details>
+      <details><summary>Symbols in this group</summary><ul><li><a href="group-modules.renderer.lifecycle.html#LDKRenderer">LDKRenderer</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererBindingsCacheEntry">LDKRendererBindingsCacheEntry</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererBlurPass">LDKRendererBlurPass</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererConfig">LDKRendererConfig</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererFrameDesc">LDKRendererFrameDesc</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererInstanceSetResource">LDKRendererInstanceSetResource</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererLineSubmit">LDKRendererLineSubmit</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererPostProcessPass">LDKRendererPostProcessPass</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererPostProcessing">LDKRendererPostProcessing</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererRenderKey">LDKRendererRenderKey</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererTarget">LDKRendererTarget</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererTerrainSurfaceDesc">LDKRendererTerrainSurfaceDesc</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererUIPass">LDKRendererUIPass</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKRendererWireframeSubmit">LDKRendererWireframeSubmit</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDKShader">LDKShader</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDK_RENDERER_ALLOC">LDK_RENDERER_ALLOC</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDK_RENDERER_FREE">LDK_RENDERER_FREE</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDK_RENDERER_REALLOC">LDK_RENDERER_REALLOC</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#LDK_RENDERER_TERRAIN_SURFACE_COUNT">LDK_RENDERER_TERRAIN_SURFACE_COUNT</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#ldk_renderer_initialize">ldk_renderer_initialize</a></li>
+<li><a href="group-modules.renderer.lifecycle.html#ldk_renderer_terminate">ldk_renderer_terminate</a></li>
+</ul></details>
+      <details><summary>Files</summary><ul><li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+<li><a href="ldk_water_system.html">ldk_water_system.h</a></li>
+</ul></details>
+      <ul class="nav-extras"><li><a href="symbols.html">All Symbols</a></li><li><a href="ungrouped.html">Ungrouped</a></li></ul>
+    </nav>
+    <main class="content">
+      <header class="page-header"><h1>Lifecycle</h1><div class="subtitle"> <span>/</span> <a href="group-modules.html">Modules</a> <span>/</span> <a href="group-modules.renderer.html">Renderer</a> <span>/</span> <a href="group-modules.renderer.lifecycle.html">Lifecycle</a></div></header>
+      <ul class="group-list"></ul>
+      <article id="LDKRenderer" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRenderer">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRenderer</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRenderer</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIContext">LDKRHIContext</a></span> <span class="tok_pun">*</span><span class="tok_id">rhi</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererUIPass">LDKRendererUIPass</a></span> <span class="tok_id">ui_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.text.html#LDKRendererTextPass">LDKRendererTextPass</a></span> <span class="tok_id">text_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.meshes.html#LDKRendererMeshPass">LDKRendererMeshPass</a></span> <span class="tok_id">mesh_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.water.html#LDKRendererWaterPass">LDKRendererWaterPass</a></span> <span class="tok_id">water_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.shadows.html#LDKRendererShadowPass">LDKRendererShadowPass</a></span> <span class="tok_id">shadow_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.overlays.html#LDKRendererGridPass">LDKRendererGridPass</a></span> <span class="tok_id">grid_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.skybox.html#LDKRendererSkyboxPass">LDKRendererSkyboxPass</a></span> <span class="tok_id">skybox_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererBlurPass">LDKRendererBlurPass</a></span> <span class="tok_id">blur_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererPostProcessPass">LDKRendererPostProcessPass</a></span> <span class="tok_id">post_process_pass</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_ui.html#LDKUIRenderData">LDKUIRenderData</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">submitted_ui</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">game_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">game_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">present_game</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.views.html#LDKRendererView">LDKRendererView</a></span> <span class="tok_pun">*</span><span class="tok_id">views</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">view_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">view_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.views.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">game_view</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.meshes.html#LDKRendererMeshResource">LDKRendererMeshResource</a></span> <span class="tok_pun">*</span><span class="tok_id">meshes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererInstanceSetResource">LDKRendererInstanceSetResource</a></span> <span class="tok_pun">*</span><span class="tok_id">instance_sets</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">instance_set_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">instance_set_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.skybox.html#LDKRendererSkyboxResource">LDKRendererSkyboxResource</a></span> <span class="tok_pun">*</span><span class="tok_id">skyboxes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">skybox_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">skybox_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.textures.html#LDKRendererTextureResource">LDKRendererTextureResource</a></span> <span class="tok_pun">*</span><span class="tok_id">textures</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">texture_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">texture_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.materials.html#LDKRendererMaterialResource">LDKRendererMaterialResource</a></span> <span class="tok_pun">*</span><span class="tok_id">materials</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.materials.html#LDKRendererMaterialSamplerResource">LDKRendererMaterialSamplerResource</a></span> <span class="tok_pun">*</span><span class="tok_id">material_samplers</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_sampler_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_sampler_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-core.resources.html#LDKResourceMaterial">LDKResourceMaterial</a></span> <span class="tok_id">default_material</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.text.fonts.html#LDKRendererFontPageCacheEntry">LDKRendererFontPageCacheEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">font_pages</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">font_page_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">font_page_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lighting.html#LDKRendererAmbientLight">LDKRendererAmbientLight</a></span> <span class="tok_id">ambient_light</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-core.resources.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">vegetation_interaction_texture</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">vegetation_interaction_origin</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">vegetation_interaction_inv_world_size</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">vegetation_interaction_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lighting.html#LDKRendererLightSubmit">LDKRendererLightSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_lights</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_light_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_light_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">light_limit_reported</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-core.resources.html#LDKResourceMesh">LDKResourceMesh</a></span> <span class="tok_id">line_mesh</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererLineSubmit">LDKRendererLineSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_lines</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_line_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_line_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererWireframeSubmit">LDKRendererWireframeSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_wireframes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_wireframe_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_wireframe_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.text.html#LDKRendererTextVertex">LDKRendererTextVertex</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_text_vertices</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_vertex_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_vertex_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">submitted_text_indices</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_index_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_index_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.text.html#LDKRendererTextSubmit">LDKRendererTextSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_texts</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_text_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.meshes.html#LDKRendererMeshSubmit">LDKRendererMeshSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_meshes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_mesh_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_mesh_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.water.html#LDKRendererWaterSubmit">LDKRendererWaterSubmit</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_water</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_water_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_water_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">Mat4</span> <span class="tok_pun">*</span><span class="tok_id">submitted_instance_worlds</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIColor">LDKRHIColor</a></span> <span class="tok_pun">*</span><span class="tok_id">submitted_instance_colors</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_instance_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submitted_instance_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">mesh_sort_items</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">mesh_sort_scratch</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_sort_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">mesh_sort_mesh_ids</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_sort_mesh_id_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">mesh_sort_material_ids</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_sort_material_id_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.frame.stats.html#LDKRendererFrameStats">LDKRendererFrameStats</a></span> <span class="tok_id">current_frame_stats</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.frame.stats.html#LDKRendererFrameStats">LDKRendererFrameStats</a></span> <span class="tok_id">last_frame_stats</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">animation_start_ticks</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">animation_time_seconds</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRenderer</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererBindingsCacheEntry" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererBindingsCacheEntry">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererBindingsCacheEntry</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererBindingsCacheEntry</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.textures.html#LDKRHITexture">LDKRHITexture</a></span> <span class="tok_id">texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.samplers.html#LDKRHISampler">LDKRHISampler</a></span> <span class="tok_id">sampler</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.bindings.html#LDKRHIBindings">LDKRHIBindings</a></span> <span class="tok_id">bindings</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererBindingsCacheEntry</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererBlurPass" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererBlurPass">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererBlurPass</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererBlurPass</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIContext">LDKRHIContext</a></span> <span class="tok_pun">*</span><span class="tok_id">rhi</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">vertex_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">fragment_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.bindings.html#LDKRHIBindingsLayout">LDKRHIBindingsLayout</a></span> <span class="tok_id">bindings_layout</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.pipelines.html#LDKRHIPipeline">LDKRHIPipeline</a></span> <span class="tok_id">ldr_pipeline</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.pipelines.html#LDKRHIPipeline">LDKRHIPipeline</a></span> <span class="tok_id">hdr_pipeline</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">vertex_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">params_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.samplers.html#LDKRHISampler">LDKRHISampler</a></span> <span class="tok_id">sampler</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererBlurPass</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererConfig" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererConfig">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererConfig</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererConfig</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIContext">LDKRHIContext</a></span> <span class="tok_pun">*</span><span class="tok_id">rhi</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">initial_ui_vertex_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">initial_ui_index_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">game_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">game_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">present_game</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">shadow_map_resolution</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">shadow_distance</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererConfig</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererFrameDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererFrameDesc">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererFrameDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererFrameDesc</span><span class="tok_pun">{</span>
+  <span class="tok_id">i32</span> <span class="tok_id">framebuffer_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">framebuffer_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">clear_color</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">clear_color_enabled</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererFrameDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererInstanceSetResource" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererInstanceSetResource">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererInstanceSetResource</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererInstanceSetResource</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">transform_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">color_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">instance_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">instance_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">alive</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererInstanceSetResource</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererLineSubmit" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererLineSubmit">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererLineSubmit</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererLineSubmit</span><span class="tok_pun">{</span>
+  <span class="tok_id">Mat4</span> <span class="tok_id">world</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.views.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">view_id</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">depth_test</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererLineSubmit</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererPostProcessPass" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererPostProcessPass">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererPostProcessPass</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererPostProcessPass</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIContext">LDKRHIContext</a></span> <span class="tok_pun">*</span><span class="tok_id">rhi</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">vertex_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">fragment_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.bindings.html#LDKRHIBindingsLayout">LDKRHIBindingsLayout</a></span> <span class="tok_id">bindings_layout</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.pipelines.html#LDKRHIPipeline">LDKRHIPipeline</a></span> <span class="tok_id">pipeline</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">vertex_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">params_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.samplers.html#LDKRHISampler">LDKRHISampler</a></span> <span class="tok_id">sampler</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererPostProcessPass</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererPostProcessing" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererPostProcessing">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererPostProcessing</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererPostProcessing</span><span class="tok_pun">{</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">tonemapping_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">exposure</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">blur_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blur_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blur_focus_x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blur_focus_y</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blur_focus_size</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blur_focus_feather</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">blur_inverted</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">color_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">brightness</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">contrast</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">saturation</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">vignette_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">vignette_intensity</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">vignette_radius</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">vignette_softness</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">screen_distortion_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">screen_distortion_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">chromatic_aberration_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">chromatic_aberration_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">heat_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">heat_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">heat_amplitude</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">heat_scale</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">heat_speed</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">inverse_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">black_and_white_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">retro_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">retro_pixel_size</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">retro_color_levels</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">retro_dither_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">retro_pattern_scale</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">drunk_enabled</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">drunk_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">drunk_speed</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">drunk_ghosting</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">drunk_chromatic_aberration</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">drunk_movement</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererPostProcessing</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererRenderKey" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererRenderKey">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererRenderKey</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u64</span> <span class="tok_id">LDKRendererRenderKey</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererTarget" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererTarget">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererTarget</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererTarget</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.textures.html#LDKRHITexture">LDKRHITexture</a></span> <span class="tok_id">color_texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.textures.html#LDKRHITexture">LDKRHITexture</a></span> <span class="tok_id">depth_texture</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">width</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">height</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIFormat">LDKRHIFormat</a></span> <span class="tok_id">color_format</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIFormat">LDKRHIFormat</a></span> <span class="tok_id">depth_format</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererTarget</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererTerrainSurfaceDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererTerrainSurfaceDesc">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererTerrainSurfaceDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererTerrainSurfaceDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blend_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec4</span> <span class="tok_id">atlas_rect</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv_scale</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">texture_weight</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererTerrainSurfaceDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererUIPass" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererUIPass">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererUIPass</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererUIPass</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-modules.rhi.types.html#LDKRHIContext">LDKRHIContext</a></span> <span class="tok_pun">*</span><span class="tok_id">rhi</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">vertex_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.shaders.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">fragment_shader_module</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.bindings.html#LDKRHIBindingsLayout">LDKRHIBindingsLayout</a></span> <span class="tok_id">bindings_layout</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.pipelines.html#LDKRHIPipeline">LDKRHIPipeline</a></span> <span class="tok_id">pipeline</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">vertex_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">index_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.buffers.html#LDKRHIBuffer">LDKRHIBuffer</a></span> <span class="tok_id">params_buffer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.textures.html#LDKRHITexture">LDKRHITexture</a></span> <span class="tok_id">white_texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.rhi.samplers.html#LDKRHISampler">LDKRHISampler</a></span> <span class="tok_id">sampler</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererBindingsCacheEntry">LDKRendererBindingsCacheEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">bindings_cache</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">bindings_cache_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">bindings_cache_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">vertex_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererUIPass</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRendererWireframeSubmit" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKRendererWireframeSubmit">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKRendererWireframeSubmit</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRendererWireframeSubmit</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="group-core.resources.html#LDKResourceMesh">LDKResourceMesh</a></span> <span class="tok_id">mesh</span><span class="tok_pun">;</span>
+  <span class="tok_id">Mat4</span> <span class="tok_id">world</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="group-modules.renderer.views.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">view_id</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">line_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">flags</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRendererWireframeSubmit</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKShader" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDKShader">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDKShader</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKShader</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_SHADER_INVALID</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_UI_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_TEXT_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_PRESENT_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_INSTANCED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_GRID_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_UNLIT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_TEXTURED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_TEXTURED_UNLIT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_TEXTURED_CUTOUT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_TEXTURED_UNLIT_CUTOUT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS_CUTOUT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS_INSTANCED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_VEGETATION_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_VEGETATION_PASS_INSTANCED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS_VEGETATION</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_POST_PROCESS_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_BLUR_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_SKYBOX_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_MESH_PASS_SOLID_UNLIT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_TERRAIN_PASS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SHADER_WATER_PASS</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKShader</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RENDERER_ALLOC" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDK_RENDERER_ALLOC">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDK_RENDERER_ALLOC</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RENDERER_ALLOC</span><span class="tok_pun">(</span><span class="tok_id">size</span><span class="tok_pun">)</span> <span class="tok_id">malloc</span><span class="tok_pun">(</span><span class="tok_id">size</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RENDERER_FREE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDK_RENDERER_FREE">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDK_RENDERER_FREE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RENDERER_FREE</span><span class="tok_pun">(</span><span class="tok_id">ptr</span><span class="tok_pun">)</span> <span class="tok_id">free</span><span class="tok_pun">(</span><span class="tok_id">ptr</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RENDERER_REALLOC" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDK_RENDERER_REALLOC">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDK_RENDERER_REALLOC</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RENDERER_REALLOC</span><span class="tok_pun">(</span><span class="tok_id">ptr</span><span class="tok_pun">,</span> <span class="tok_id">size</span><span class="tok_pun">)</span> <span class="tok_id">realloc</span><span class="tok_pun">(</span><span class="tok_id">ptr</span><span class="tok_pun">,</span> <span class="tok_id">size</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RENDERER_TERRAIN_SURFACE_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#LDK_RENDERER_TERRAIN_SURFACE_COUNT">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">LDK_RENDERER_TERRAIN_SURFACE_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RENDERER_TERRAIN_SURFACE_COUNT</span> <span class="tok_num">8u</span></code></pre>
+  
+  
+</article>
+<article id="ldk_renderer_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#ldk_renderer_initialize">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">ldk_renderer_initialize</span></h2>
+  <p class="brief">Initialize the renderer.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_renderer_initialize</span>(
+ <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span>,
+ <span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererConfig">LDKRendererConfig</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">config</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span></code></dt>
+<dd>Renderer receiving this request.</dd>
+<dt><code><span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRendererConfig">LDKRendererConfig</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">config</span></code></dt>
+<dd>Configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_renderer_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+    <span class="source-reference">in <a href="ldk_renderer.html#ldk_renderer_terminate">ldk_renderer.h</a></span>
+  </div>
+  <h2><span class="symbol-name">ldk_renderer_terminate</span></h2>
+  <p class="brief">Terminate the renderer and release renderer-owned resources.
+ 
+This destroys all renderer-owned GPU resources, including mesh buffers,
+texture resources, font page textures, render targets, pass buffers,
+bindings, pipelines, samplers, and shader modules.
+ 
+CPU-side assets are not destroyed by this function. Assets remain owned by
+the asset manager or by whoever created them.
+ 
+The RHI context must still be alive when this function is called.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_renderer_terminate</span>(<span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="group-modules.renderer.lifecycle.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span></code></dt>
+<dd>Renderer instance to terminate.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

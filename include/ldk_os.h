@@ -27,14 +27,17 @@ extern "C"
   /**
    * @brief Initialize the OS.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.lifecycle
    */
   LDK_API bool ldk_os_initialize(void);
   /**
    * @brief Shut down the OS.
+   * @group core.os.lifecycle
    */
   LDK_API void ldk_os_terminate(void);
   /**
    * @brief Print the current stack trace for diagnostics.
+   * @group core.os.diagnostics
    */
   LDK_API void ldk_os_stack_trace_print(void);
 
@@ -45,11 +48,13 @@ extern "C"
    * @brief Allocate memory using the OS abstraction.
    * @param size Size of the data or region, in bytes where applicable.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.os.memory
    */
   LDK_API void *ldk_os_memory_alloc(size_t size);
   /**
    * @brief Release an OS-allocated memory block.
    * @param memory Memory used by this operation.
+   * @group core.os.memory
    */
   LDK_API void ldk_os_memory_free(void *memory);
   /**
@@ -57,6 +62,7 @@ extern "C"
    * @param memory Memory used by this operation.
    * @param size Size of the data or region, in bytes where applicable.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.os.memory
    */
   LDK_API void *ldk_os_memory_resize(void *memory, size_t size);
 
@@ -66,6 +72,7 @@ extern "C"
   /**
    * @brief Read the high-resolution time counter.
    * @return The resulting numeric value.
+   * @group core.os.time
    */
   LDK_API u64 ldk_os_time_ticks_get(void);
   /**
@@ -73,6 +80,7 @@ extern "C"
    * @param start Starting timestamp or location for this operation.
    * @param end Ending timestamp or location for this operation.
    * @return Elapsed time in seconds.
+   * @group core.os.time
    */
   LDK_API double ldk_os_time_ticks_interval_get_seconds(u64 start, u64 end);
   /**
@@ -80,6 +88,7 @@ extern "C"
    * @param start Starting timestamp or location for this operation.
    * @param end Ending timestamp or location for this operation.
    * @return Elapsed time in milliseconds.
+   * @group core.os.time
    */
   LDK_API double ldk_os_time_ticks_interval_get_milliseconds(
       u64 start, u64 end);
@@ -88,12 +97,14 @@ extern "C"
    * @param start Starting timestamp or location for this operation.
    * @param end Ending timestamp or location for this operation.
    * @return Elapsed time in nanoseconds.
+   * @group core.os.time
    */
   LDK_API double ldk_os_time_ticks_interval_get_nanoseconds(u64 start, u64 end);
 
   // ---------------------------------------------------------------------------
   // Windowing
   // ---------------------------------------------------------------------------
+  /** @group core.os.input */
   typedef enum
   {
 
@@ -108,18 +119,21 @@ extern "C"
 
   /**
    * @brief Process pending operating-system events.
+   * @group core.os.events
    */
   LDK_API void ldk_os_events_pump(void);
   /**
    * @brief Dequeue the next pending operating-system event.
    * @param event Event to inspect or receive.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.events
    */
   LDK_API bool ldk_os_event_next(LDKEvent *event);
   /**
    * @brief Poll for the next platform event.
    * @param event Event to inspect or receive.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.events
    */
   LDK_API bool ldk_os_events_poll(LDKEvent *event);
   /**
@@ -129,6 +143,7 @@ extern "C"
    * @param height Height in pixels or the units expected by the API.
    * @param flags Bitmask of options controlling this operation.
    * @return Handle to the requested object or resource.
+   * @group core.os.windows
    */
   LDK_API LDKWindow ldk_os_window_create_with_flags(
       const char *title, i32 width, i32 height, LDKWindowFlags flags);
@@ -138,6 +153,7 @@ extern "C"
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
    * @return Handle to the requested object or resource.
+   * @group core.os.windows
    */
   LDK_API LDKWindow ldk_os_window_create(
       const char *title, i32 width, i32 height);
@@ -145,22 +161,26 @@ extern "C"
    * @brief Check whether a native window has requested to close.
    * @param window Native window handle.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.windows
    */
   LDK_API bool ldk_os_window_should_close(LDKWindow window);
   /**
    * @brief Present a window by swapping its graphics buffers.
    * @param window Native window handle.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_buffers_swap(LDKWindow window);
   /**
    * @brief Destroy the OS window.
    * @param window Native window handle.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_destroy(LDKWindow window);
   /**
    * @brief Get the OS window fullscreen.
    * @param window Native window handle.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.windows
    */
   LDK_API bool ldk_os_window_fullscreen_get(LDKWindow window);
   /**
@@ -168,12 +188,14 @@ extern "C"
    * @param window Native window handle.
    * @param fs Whether fullscreen mode should be enabled.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.windows
    */
   LDK_API bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs);
   /**
    * @brief Get the OS window client area size.
    * @param window Native window handle.
    * @return The resulting size.
+   * @group core.os.windows
    */
   LDK_API LDKSize ldk_os_window_client_area_size_get(LDKWindow window);
   /**
@@ -181,6 +203,7 @@ extern "C"
    * @param window Native window handle.
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_client_area_size_set(
       LDKWindow window, int width, int height);
@@ -188,6 +211,7 @@ extern "C"
    * @brief Get the OS window position.
    * @param window Native window handle.
    * @return The resulting point.
+   * @group core.os.windows
    */
   LDK_API LDKPoint ldk_os_window_position_get(LDKWindow window);
   /**
@@ -195,6 +219,7 @@ extern "C"
    * @param window Native window handle.
    * @param x X coordinate or component.
    * @param y Y coordinate or component.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_position_set(LDKWindow window, i32 x, i32 y);
   /**
@@ -202,18 +227,21 @@ extern "C"
    * @param window Native window handle.
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_size_set(LDKWindow window, i32 width, i32 height);
   /**
    * @brief Get the OS window size.
    * @param window Native window handle.
    * @return The resulting size.
+   * @group core.os.windows
    */
   LDK_API LDKSize ldk_os_window_size_get(LDKWindow window);
   /**
    * @brief Change the title shown by a native window.
    * @param window Native window handle.
    * @param title Title shown by the window or dialog.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_title_set(LDKWindow window, const char *title);
   /**
@@ -221,6 +249,7 @@ extern "C"
    * @param window Native window handle.
    * @param outTitle Receives the current window title.
    * @return The resulting numeric value.
+   * @group core.os.windows
    */
   LDK_API size_t ldk_os_window_title_get(LDKWindow window, XSmallstr *outTitle);
 
@@ -232,6 +261,7 @@ extern "C"
    * function does nothing.
    * @param window Native window handle.
    * @param rect UI or geometry rectangle.
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect);
 
@@ -240,6 +270,7 @@ extern "C"
    * @param window Native window handle.
    * @param iconPath Path of the image used as a window icon.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.windows
    */
   LDK_API bool ldk_os_window_icon_set(LDKWindow window, const char *iconPath);
   /**
@@ -249,6 +280,7 @@ extern "C"
    * @return
    *  If the window was previously visible, the return value is nonzero.
    *  If the window was previously hidden, the return value is zero.
+   * @group core.os.windows
    */
   LDK_API bool ldk_os_window_show(LDKWindow window, bool show);
 
@@ -257,6 +289,7 @@ extern "C"
    * @param window The LDK window to maximize. The window is shown if previously
    * hidden.
    * @return void
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_maximize(LDKWindow window);
 
@@ -265,6 +298,7 @@ extern "C"
    * @param window The LDK window to minimize. The window is shown if previously
    * hidden.
    * @return void
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_minimize(LDKWindow window);
 
@@ -273,6 +307,7 @@ extern "C"
    * @param window The LDK window to restore. The window is shown if previously
    * hidden.
    * @return void
+   * @group core.os.windows
    */
   LDK_API void ldk_os_window_restore(LDKWindow window);
 
@@ -283,6 +318,7 @@ extern "C"
    * @param window Native window handle.
    * @param text Text used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.clipboard
    */
   LDK_API bool ldk_os_clipboard_text_set(LDKWindow window, const char *text);
 
@@ -296,6 +332,7 @@ extern "C"
    * @param out_text Destination buffer for the resulting text.
    * @param out_size Receives or specifies the byte size of the output buffer, as defined by the operation.
    * @return The resulting numeric value.
+   * @group core.os.clipboard
    */
   LDK_API size_t ldk_os_clipboard_text_get(
       LDKWindow window, char *out_text, size_t out_size);
@@ -303,6 +340,7 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Graphics
   // ---------------------------------------------------------------------------
+  /** @group core.os.lifecycle */
   typedef void *LDKGCtx;
   /**
    * @brief Create the OS graphics context opengl.
@@ -311,6 +349,7 @@ extern "C"
    * @param color_bits Requested number of color bits.
    * @param depth_bits Requested number of depth bits.
    * @return The requested value.
+   * @group core.os.graphics.context
    */
   LDK_API LDKGCtx ldk_os_graphics_context_opengl_create(
       i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
@@ -321,6 +360,7 @@ extern "C"
    * @param color_bits Requested number of color bits.
    * @param depth_bits Requested number of depth bits.
    * @return The requested value.
+   * @group core.os.graphics.context
    */
   LDK_API LDKGCtx ldk_os_graphics_context_opengles_create(
       i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
@@ -328,40 +368,47 @@ extern "C"
    * @brief Make a graphics context current for a window.
    * @param window Native window handle.
    * @param context Context used by this operation.
+   * @group core.os.graphics.context
    */
   LDK_API void ldk_os_graphics_context_make_current(
       LDKWindow window, LDKGCtx context);
   /**
    * @brief Destroy the OS graphics context.
    * @param context Context used by this operation.
+   * @group core.os.graphics.context
    */
   LDK_API void ldk_os_graphics_context_destroy(LDKGCtx context);
   /**
    * @brief Set the OS graphics vsync.
    * @param vsync Vsync used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.graphics.vsync
    */
   LDK_API bool ldk_os_graphics_vsync_set(bool vsync);
   /**
    * @brief Query the currently configured vertical synchronization setting.
    * @return The resulting integer value.
+   * @group core.os.graphics.vsync
    */
   LDK_API i32 ldk_os_graphics_vsync_get(void);
 
   // ---------------------------------------------------------------------------
   // Shared Library interface
   // ---------------------------------------------------------------------------
+  /** @group core.os.libraries */
   typedef void LDKLibrary;
   /**
    * @brief Load the OS library.
    * @param path Path identifying the file or resource.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.os.libraries
    */
   LDK_API LDKLibrary *ldk_os_library_load(const char *path);
   /**
    * @brief Unload the OS library.
    * @param library Library used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.libraries
    */
   LDK_API bool ldk_os_library_unload(LDKLibrary *library);
   /**
@@ -369,6 +416,7 @@ extern "C"
    * @param library Library used by this operation.
    * @param name Name identifying the object or setting.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.os.libraries
    */
   LDK_API void *ldk_os_library_fuction_ptr_get(
       LDKLibrary *library, const char *name);
@@ -377,6 +425,7 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Process
   // ---------------------------------------------------------------------------
+  /** @group core.os.lifecycle */
   typedef struct LDKOSProcessDesc
   {
     const char *executable;
@@ -385,6 +434,7 @@ extern "C"
     bool new_console;
   } LDKOSProcessDesc;
 
+  /** @group core.os.lifecycle */
   typedef struct LDKOSProcessResult
   {
     bool started;
@@ -393,12 +443,14 @@ extern "C"
     u32 os_error;
   } LDKOSProcessResult;
 
+  /** @group core.os.lifecycle */
   typedef struct LDKOSProcess LDKOSProcess;
 
   /**
    * @brief Run a child process using the supplied process description.
    * @param desc Description or configuration for this operation.
    * @return Result of the operation.
+   * @group core.os.processes
    */
   LDK_API LDKOSProcessResult ldk_os_process_run(
       const LDKOSProcessDesc *desc);
@@ -411,6 +463,7 @@ extern "C"
    * On success started is true and completed is false.
    * @param desc Description or configuration for this operation.
    * @return Result of the operation.
+   * @group core.os.processes
    */
   LDK_API LDKOSProcessResult ldk_os_process_launch(
       const LDKOSProcessDesc *desc);
@@ -419,6 +472,7 @@ extern "C"
    * Opens a file or directory with the operating system default handler.
    * @param path Path identifying the file or resource.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.processes
    */
   LDK_API bool ldk_os_open_default(const char *path);
 
@@ -432,6 +486,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.os.processes
    */
   LDK_API LDKOSProcess *ldk_os_process_start(
       const LDKOSProcessDesc *desc, LDKOSProcessResult *out_result);
@@ -446,6 +501,7 @@ extern "C"
    * @param out_buffer Destination buffer that receives the result.
    * @param buffer_size Capacity of the buffer in bytes.
    * @return The resulting numeric value.
+   * @group core.os.processes
    */
   LDK_API size_t ldk_os_process_output_read(
       LDKOSProcess *process, char *out_buffer, size_t buffer_size);
@@ -458,6 +514,7 @@ extern "C"
    * @param process Process used by this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.processes
    */
   LDK_API bool ldk_os_process_poll(
       LDKOSProcess *process, LDKOSProcessResult *out_result);
@@ -466,6 +523,7 @@ extern "C"
    * Cancels the process and its child process tree.
    * @param process Process used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.processes
    */
   LDK_API bool ldk_os_process_cancel(LDKOSProcess *process);
 
@@ -473,12 +531,14 @@ extern "C"
    * Returns true when cancellation was successfully requested for the process.
    * @param process Process used by this operation.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.processes
    */
   LDK_API bool ldk_os_process_was_cancelled(const LDKOSProcess *process);
 
   /**
    * Releases the process resources. A still-running process tree is terminated.
    * @param process Process used by this operation.
+   * @group core.os.processes
    */
   LDK_API void ldk_os_process_destroy(LDKOSProcess *process);
   
@@ -486,6 +546,7 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Mouse
   // ---------------------------------------------------------------------------
+  /** @group core.os.input */
   typedef enum
   {
     LDK_MOUSE_BUTTON_LEFT = 0,
@@ -499,6 +560,7 @@ extern "C"
     LDK_MOUSE_MAX_BUTTONS = 5
   } LDKMouseButton;
 
+  /** @group core.os.input */
   typedef enum
   {
     LDK_CURSOR_ARROW = 0,
@@ -512,20 +574,24 @@ extern "C"
   /**
    * @brief Set the OS cursor type.
    * @param type Type identifier or kind used by the operation.
+   * @group core.os.input.cursor
    */
   LDK_API void ldk_os_cursor_type_set(LDKCursorType type);
   /**
    * @brief Get the OS cursor type.
    * @return The requested value.
+   * @group core.os.input.cursor
    */
   LDK_API LDKCursorType ldk_os_cursor_type_get();
   /**
    * @brief Check whether the pointer is inside the active window client area.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.input.cursor
    */
   LDK_API bool ldk_os_cursor_is_in_client_area();
 
   // LDKMouseState
+  /** @group core.os.input */
   typedef struct
   {
     i32 wheel_delta;
@@ -537,6 +603,7 @@ extern "C"
   /**
    * @brief Get the OS mouse state.
    * @param outState Receives the requested input state snapshot.
+   * @group core.os.input.mouse
    */
   LDK_API void ldk_os_mouse_state_get(LDKMouseState *outState);
   /**
@@ -544,6 +611,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.input.mouse
    */
   LDK_API bool ldk_os_mouse_button_is_pressed(LDKMouseState *state,
       LDKMouseButton button); // True while button is pressed
@@ -552,6 +620,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.mouse
    */
   LDK_API bool ldk_os_mouse_button_down(LDKMouseState *state,
       LDKMouseButton button); // True in the frame the button was pressed
@@ -560,6 +629,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.mouse
    */
   LDK_API bool ldk_os_mouse_button_up(LDKMouseState *state,
       LDKMouseButton button); // True in the frame the button was released
@@ -567,24 +637,28 @@ extern "C"
    * @brief Get the accumulated mouse wheel movement in the input snapshot.
    * @param state Input snapshot or state object to query.
    * @return The resulting integer value.
+   * @group core.os.input.mouse
    */
   LDK_API i32 ldk_os_mouse_wheel_delta(LDKMouseState *state);
   /**
    * @brief Get the mouse cursor position.
    * @param state Input snapshot or state object to query.
    * @return The resulting point.
+   * @group core.os.input.mouse
    */
   LDK_API LDKPoint ldk_os_mouse_cursor(LDKMouseState *state);
   /**
    * @brief Get the mouse cursor position relative to the active client area.
    * @param state Input snapshot or state object to query.
    * @return The resulting point.
+   * @group core.os.input.mouse
    */
   LDK_API LDKPoint ldk_os_mouse_cursor_relative(LDKMouseState *state);
 
   // ---------------------------------------------------------------------------
   // Keyboard
   // ---------------------------------------------------------------------------
+/** @group core.os.input */
 #define LDK_KEYBOARD_KEYCODES                                                  \
   X(LDK_KEYCODE_INVALID, "", 0x00)                                             \
   X(LDK_KEYCODE_BACKSPACE, "BACK", 0x08)                                       \
@@ -707,6 +781,7 @@ extern "C"
   X(LDK_NUM_KEYCODES, "", 0xE0)
 
 #define X(keycode, name, value) keycode = value,
+  /** @group core.os.input */
   typedef enum
   {
     LDK_KEYBOARD_KEYCODES
@@ -720,6 +795,7 @@ extern "C"
   };
 
   // LDKKeyboardState
+  /** @group core.os.input */
   typedef struct
   {
     unsigned char key[LDK_KEYBOARD_MAX_KEYS];
@@ -730,6 +806,7 @@ extern "C"
   /**
    * @brief Get the OS keyboard state.
    * @param outState Receives the requested input state snapshot.
+   * @group core.os.input.keyboard
    */
   LDK_API void ldk_os_keyboard_state_get(LDKKeyboardState *outState);
 
@@ -738,6 +815,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.input.keyboard
    */
   LDK_API bool ldk_os_keyboard_key_is_pressed(LDKKeyboardState *state,
       LDKKeycode keycode); // True while the key is pressed
@@ -746,6 +824,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.keyboard
    */
   LDK_API bool ldk_os_keyboard_key_down(LDKKeyboardState *state,
       LDKKeycode keycode); // True in the frame the key was pressed
@@ -754,6 +833,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.keyboard
    */
   LDK_API bool ldk_os_keyboard_key_up(LDKKeyboardState *state,
       LDKKeycode keycode); // True in the frame the key was released
@@ -761,6 +841,7 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Joystick
   // ---------------------------------------------------------------------------
+/** @group core.os.input */
 #define LDK_JOYSTICK_BUTTONS                                                   \
   X(LDK_JOYSTICK_BUTTON_DPAD_UP, "LDK_JOYSTICK_BUTTON_DPAD_UP", 0x00)          \
   X(LDK_JOYSTICK_BUTTON_DPAD_DOWN, "LDK_JOYSTICK_BUTTON_DPAD_DOWN", 0x01)      \
@@ -786,6 +867,7 @@ extern "C"
   X(LDK_JOYSTICK_BUTTON_BTN4, "LDK_JOYSTICK_BUTTON4", 0x0D)
 
 #define X(keycode, name, value) keycode = value,
+  /** @group core.os.input */
   typedef enum
   {
     LDK_JOYSTICK_CHANGED_THIS_FRAME_BIT = 1 << 1,
@@ -796,6 +878,7 @@ extern "C"
   } LDKJoystickButton;
 #undef X
 
+/** @group core.os.input */
 #define LDK_JOYSTICK_AXIS                                                      \
   X(LDK_JOYSTICK_AXIS_LX, "LDK_JOYSTICK_AXIS_LX", 0x00)                        \
   X(LDK_JOYSTICK_AXIS_LY, "LDK_JOYSTICK_AXIS_LY", 0x01)                        \
@@ -804,8 +887,10 @@ extern "C"
   X(LDK_JOYSTICK_AXIS_LTRIGGER, "LDK_JOYSTICK_AXIS_LTRIGGER", 0x04)            \
   X(LDK_JOYSTICK_AXIS_RTRIGGER, "LDK_JOYSTICK_AXIS_RTRIGGER", 0x05)
 
+/** @group core.os.input */
 #define LDK_JOYSTICK_MAX 4
 
+  /** @group core.os.input */
   typedef enum
   {
     LDK_JOYSTICK_0,
@@ -815,6 +900,7 @@ extern "C"
   } LDKJoystickID;
 
 #define X(keycode, name, value) keycode = value,
+  /** @group core.os.input */
   typedef enum
   {
     LDK_JOYSTICK_NUM_AXIS = 6,
@@ -822,6 +908,7 @@ extern "C"
   } LDKJoystickAxis;
 #undef X
 
+  /** @group core.os.input */
   typedef struct
   {
     u32 button[LDK_JOYSTICK_NUM_BUTTONS];
@@ -835,6 +922,7 @@ extern "C"
    * @brief Get the OS joystick state.
    * @param outState Receives the requested input state snapshot.
    * @param id Identifier of the target object.
+   * @group core.os.input.joystick
    */
   LDK_API void ldk_os_joystick_state_get(
       LDKJoystickState *outState, LDKJoystickID id);
@@ -843,6 +931,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param key Key or button identifier to query.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.os.input.joystick
    */
   LDK_API bool ldk_os_joystick_button_is_pressed(
       LDKJoystickState *state, LDKJoystickButton key);
@@ -851,6 +940,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param key Key or button identifier to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.joystick
    */
   LDK_API bool ldk_os_joystick_button_down(
       LDKJoystickState *state, LDKJoystickButton key);
@@ -859,6 +949,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param key Key or button identifier to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.input.joystick
    */
   LDK_API bool ldk_os_joystick_button_up(
       LDKJoystickState *state, LDKJoystickButton key);
@@ -867,18 +958,21 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param key Key or button identifier to query.
    * @return The resulting value.
+   * @group core.os.input.joystick
    */
   LDK_API float ldk_os_joystick_axis_get(
       LDKJoystickState *state, LDKJoystickAxis key);
   /**
    * @brief Count the OS joystick.
    * @return Number of matching entries.
+   * @group core.os.input.joystick
    */
   LDK_API u32 ldk_os_joystick_count(void);
   /**
    * @brief Check whether the indicated joystick is connected.
    * @param id Identifier of the target object.
    * @return The resulting numeric value.
+   * @group core.os.input.joystick
    */
   LDK_API u32 ldk_os_joystick_is_connected(LDKJoystickID id);
 
@@ -886,6 +980,7 @@ extern "C"
    * @brief Set the OS joystick vibration left.
    * @param id Identifier of the target object.
    * @param speed Speed used by this operation.
+   * @group core.os.input.joystick
    */
   LDK_API void ldk_os_joystick_vibration_left_set(
       LDKJoystickID id, float speed);
@@ -893,6 +988,7 @@ extern "C"
    * @brief Set the OS joystick vibration right.
    * @param id Identifier of the target object.
    * @param speed Speed used by this operation.
+   * @group core.os.input.joystick
    */
   LDK_API void ldk_os_joystick_vibration_right_set(
       LDKJoystickID id, float speed);
@@ -901,18 +997,21 @@ extern "C"
    * @brief Get the OS joystick vibration left.
    * @param id Identifier of the target object.
    * @return The resulting value.
+   * @group core.os.input.joystick
    */
   LDK_API float ldk_os_joystick_vibration_left_get(LDKJoystickID id);
   /**
    * @brief Get the OS joystick vibration right.
    * @param id Identifier of the target object.
    * @return The resulting value.
+   * @group core.os.input.joystick
    */
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
 
   // ---------------------------------------------------------------------------
   // Dialogs
   // ---------------------------------------------------------------------------
+  /** @group core.os.lifecycle */
   typedef enum
   {
     LDK_OS_DIALOG_RESULT_NONE = 0,
@@ -929,6 +1028,7 @@ extern "C"
    * @param filter File type filter passed to the native dialog.
    * @param out_path Receives the resulting path.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
       const char *filter, XFSPath *out_path);
@@ -939,6 +1039,7 @@ extern "C"
    * @param owner Parent window for the dialog.
    * @param color Color value used by the operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_color_picker_show(
       LDKWindow owner, rgba32 *color);
@@ -950,6 +1051,7 @@ extern "C"
    * @param out_path Receives the resulting path.
    * @param out_path_size Receives the resulting path size.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_open_folder(LDKWindow owner,
       const char *title, const char *filter, char *out_path,
@@ -961,6 +1063,7 @@ extern "C"
    * @param filter File type filter passed to the native dialog.
    * @param out_path Receives the resulting path.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
       const char *filter, XFSPath *out_path);
@@ -970,6 +1073,7 @@ extern "C"
    * @param title Title shown by the window or dialog.
    * @param message Message displayed to the user.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_yes_no(
       LDKWindow owner, const char *title, const char *message);
@@ -979,6 +1083,7 @@ extern "C"
    * @param title Title shown by the window or dialog.
    * @param message Message displayed to the user.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_ok_cancel(
       LDKWindow owner, const char *title, const char *message);
@@ -988,6 +1093,7 @@ extern "C"
    * @param title Title shown by the window or dialog.
    * @param message Message displayed to the user.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_ok(
       LDKWindow owner, const char *title, const char *message);
@@ -997,6 +1103,7 @@ extern "C"
    * @param title Title shown by the window or dialog.
    * @param message Message displayed to the user.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.os.dialogs
    */
   LDK_API bool ldk_os_dialog_show_error(
       LDKWindow owner, const char *title, const char *message);

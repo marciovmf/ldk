@@ -14,6 +14,7 @@ extern "C"
 {
 #endif
 
+  /** @group core.material_assets */
   typedef struct LDKAssetMaterialData
   {
     LDKMaterialDesc descriptor;
@@ -29,6 +30,7 @@ extern "C"
   /**
    * @brief Return an invalid handle for the asset material.
    * @return An invalid or empty handle.
+   * @group core.material_assets
    */
   LDK_API LDKAssetMaterial ldk_asset_material_null(void);
   /**
@@ -36,6 +38,7 @@ extern "C"
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.material_assets
    */
   LDK_API const LDKAssetMaterialData *ldk_asset_manager_material_get_const(
       LDKAssetManager *manager, LDKAssetMaterial asset);
@@ -49,6 +52,7 @@ extern "C"
    * @param descriptor Resource or component descriptor.
    * @param result Optional result structure populated with error details.
    * @return Handle to the requested object or resource.
+   * @group core.material_assets
    */
   LDK_API LDKAssetMaterial ldk_asset_manager_material_create(
       const LDKMaterialIOContext *context, const char *path,
@@ -65,6 +69,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param result Optional result structure populated with error details.
    * @return Handle to the requested object or resource.
+   * @group core.material_assets
    */
   LDK_API LDKAssetMaterial ldk_asset_manager_material_load_shared(
       const LDKMaterialIOContext *context, const char *path,
@@ -78,6 +83,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param descriptor Resource or component descriptor.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.material_assets
    */
   LDK_API bool ldk_asset_manager_material_update(LDKAssetManager *manager,
       LDKAssetMaterial asset, const LDKMaterialDesc *descriptor);
@@ -90,6 +96,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.material_assets
    */
   LDK_API bool ldk_asset_manager_material_save(
       const LDKMaterialIOContext *context, LDKAssetMaterial asset,

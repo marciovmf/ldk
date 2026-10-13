@@ -16,6 +16,7 @@
 extern "C" {
 #endif
 
+/** @group components.material_instance */
 //@component
 typedef struct LDKMaterialInstance
 {
@@ -50,6 +51,7 @@ typedef struct LDKMaterialInstance
  * @brief Build the ECS registration descriptor for the material instance component.
  * @param initial_capacity Initial number of entries reserved in the registry.
  * @return A descriptor for the requested component or resource.
+ * @group components.material_instance.registration
  */
 LDK_API LDKComponentDesc ldk_material_instance_component_desc(
     u32 initial_capacity);

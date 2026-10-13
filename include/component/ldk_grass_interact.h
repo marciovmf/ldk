@@ -14,6 +14,7 @@
 extern "C" {
 #endif
 
+/** @group components.grass_interact */
 //@component
 typedef struct LDKGrassInteractComponent
 {
@@ -27,6 +28,7 @@ typedef struct LDKGrassInteractComponent
 /**
  * @brief Create default settings for grass interact component.
  * @return A value initialized with the engine defaults.
+ * @group components.grass_interact
  */
 LDK_API LDKGrassInteractComponent ldk_grass_interact_component_make_default(
     void);
@@ -36,6 +38,7 @@ LDK_API LDKGrassInteractComponent ldk_grass_interact_component_make_default(
  * @brief Build the ECS registration descriptor for the grass interact component.
  * @param initial_capacity Initial number of entries reserved in the registry.
  * @return A descriptor for the requested component or resource.
+ * @group components.grass_interact.registration
  */
 LDK_API LDKComponentDesc ldk_grass_interact_component_desc(
     u32 initial_capacity);

@@ -15,16 +15,20 @@ extern "C"
 {
 #endif
 
+/** @group modules.jobs.workers */
 #define LDK_JOBS_DEFAULT_WORKER_COUNT 4u
 
+  /** @group modules.jobs.lifecycle */
   typedef struct LDKJobs
   {
     void *internal;
     bool is_initialized;
   } LDKJobs;
 
+  /** @group modules.jobs.synchronization */
   typedef struct LDKAsyncResultState LDKAsyncResultState;
 
+  /** @group modules.jobs.synchronization */
   typedef struct LDKAsyncResult
   {
     LDKAsyncResultState *state;
@@ -34,9 +38,11 @@ extern "C"
    * @brief Callback executed as a job by the work scheduler.
    * @param user_data Opaque data forwarded to the callback or job.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.jobs.lifecycle
    */
   typedef bool (*LDKJobFunc)(void *user_data);
 
+  /** @group modules.jobs.synchronization */
   typedef enum LDKAsyncStatus
   {
     LDK_ASYNC_STATUS_INVALID = 0,
@@ -51,11 +57,13 @@ extern "C"
    * @param jobs Jobs used by this operation.
    * @param worker_count Number of worker threads configured for the job pool.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.jobs.lifecycle
    */
   LDK_API bool ldk_jobs_initialize(LDKJobs *jobs, u32 worker_count);
   /**
    * @brief Shut down the jobs.
    * @param jobs Jobs used by this operation.
+   * @group modules.jobs.lifecycle
    */
   LDK_API void ldk_jobs_terminate(LDKJobs *jobs);
   /**
@@ -63,6 +71,7 @@ extern "C"
    * @param jobs Jobs used by this operation.
    * @param callback Callback invoked by this operation.
    * @param user_data Opaque data forwarded to the callback or job.
+   * @group modules.jobs.lifecycle
    */
   LDK_API void ldk_jobs_terminate_with_diagnostics(LDKJobs *jobs,
       XThreadPoolShutdownCallback callback, void *user_data);
@@ -73,6 +82,7 @@ extern "C"
    * @param function Function to run as a scheduled job.
    * @param user_data Opaque data forwarded to the callback or job.
    * @return Asynchronous result for tracking job completion.
+   * @group modules.jobs.scheduling
    */
   LDK_API LDKAsyncResult ldk_jobs_submit(
       LDKJobs *jobs, LDKJobFunc function, void *user_data);
@@ -81,29 +91,34 @@ extern "C"
    * @brief Check whether the async result is valid.
    * @param result Optional result structure populated with error details.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.jobs.synchronization
    */
   LDK_API bool ldk_async_result_is_valid(LDKAsyncResult result);
   /**
    * @brief Check whether an asynchronous job has completed.
    * @param result Optional result structure populated with error details.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.jobs.synchronization
    */
   LDK_API bool ldk_async_result_is_done(LDKAsyncResult result);
   /**
    * @brief Read the completion status of an asynchronous job.
    * @param result Optional result structure populated with error details.
    * @return The requested value.
+   * @group modules.jobs.synchronization
    */
   LDK_API LDKAsyncStatus ldk_async_result_status(LDKAsyncResult result);
   /**
    * @brief Wait for an asynchronous job to complete.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.jobs.synchronization
    */
   LDK_API bool ldk_async_result_wait(LDKAsyncResult result);
   /**
    * @brief Release resources associated with an asynchronous result.
    * @param result Optional result structure populated with error details.
+   * @group modules.jobs.synchronization
    */
   LDK_API void ldk_async_result_release(LDKAsyncResult *result);
 

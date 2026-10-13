@@ -14,13 +14,19 @@ extern "C"
 {
 #endif
 
+/** @group core.packages.entries */
 #define LDK_PACKAGE_FILE_EXTENSION ".box"
+/** @group core.packages.paths */
 #define LDK_PACKAGE_PATH_MAX_LENGTH 511u
 
+  /** @group core.packages.lifecycle */
   typedef struct LDKPackage LDKPackage;
+  /** @group core.packages.entries */
   typedef struct LDKPackageEntry LDKPackageEntry;
+  /** @group core.packages.writing */
   typedef struct LDKPackageWriter LDKPackageWriter;
 
+  /** @group core.packages.lifecycle */
   typedef enum LDKPackageCompression
   {
     LDK_PACKAGE_COMPRESSION_NONE = 0
@@ -31,6 +37,7 @@ extern "C"
    * @brief Validate a logical path within a BOX package.
    * @param path Path identifying the file or resource.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.packages.paths
    */
   LDK_API bool ldk_package_path_is_valid(const char *path);
 
@@ -40,6 +47,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param out_hash Receives the computed hash.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.entries
    */
   LDK_API bool ldk_package_file_hash(const char *path, u64 *out_hash);
 
@@ -51,11 +59,13 @@ extern "C"
    * The reader keeps the package file open until ldk_package_close() is called.
    * @param path Path identifying the file or resource.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.packages.reading
    */
   LDK_API LDKPackage *ldk_package_open(const char *path);
   /**
    * @brief Close an open package and release its reader resources.
    * @param package Opened package used by this operation.
+   * @group core.packages.lifecycle
    */
   LDK_API void ldk_package_close(LDKPackage *package);
 
@@ -63,6 +73,7 @@ extern "C"
    * @brief Count the package entry.
    * @param package Opened package used by this operation.
    * @return Number of matching entries.
+   * @group core.packages.entries
    */
   LDK_API u32 ldk_package_entry_count(const LDKPackage *package);
   /**
@@ -70,6 +81,7 @@ extern "C"
    * @param package Opened package used by this operation.
    * @param index Zero-based index of the selected item.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.packages.entries
    */
   LDK_API const LDKPackageEntry *ldk_package_entry_at(
       const LDKPackage *package, u32 index);
@@ -78,6 +90,7 @@ extern "C"
    * @param package Opened package used by this operation.
    * @param path Path identifying the file or resource.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.packages.entries
    */
   LDK_API const LDKPackageEntry *ldk_package_entry_find(
       const LDKPackage *package, const char *path);
@@ -86,6 +99,7 @@ extern "C"
    * @brief Get the logical path of a package entry.
    * @param entry Package entry being inspected or read.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.packages.entries
    */
   LDK_API const char *ldk_package_entry_get_path(
       const LDKPackageEntry *entry);
@@ -93,12 +107,14 @@ extern "C"
    * @brief Get the uncompressed byte size of an entry.
    * @param entry Package entry being inspected or read.
    * @return Size of the result, in bytes where applicable.
+   * @group core.packages.entries
    */
   LDK_API u64 ldk_package_entry_get_size(const LDKPackageEntry *entry);
   /**
    * @brief Get the stored byte size of an entry.
    * @param entry Package entry being inspected or read.
    * @return Size of the result, in bytes where applicable.
+   * @group core.packages.entries
    */
   LDK_API u64 ldk_package_entry_get_stored_size(
       const LDKPackageEntry *entry);
@@ -106,6 +122,7 @@ extern "C"
    * @brief Get the compression mode of a package entry.
    * @param entry Package entry being inspected or read.
    * @return The requested value.
+   * @group core.packages.entries
    */
   LDK_API LDKPackageCompression ldk_package_entry_get_compression(
       const LDKPackageEntry *entry);
@@ -123,6 +140,7 @@ extern "C"
    * @param size Size of the data or region, in bytes where applicable.
    * @param out_read Receives the number of bytes actually read.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.entries
    */
   LDK_API bool ldk_package_entry_read_at(const LDKPackage *package,
       const LDKPackageEntry *entry, u64 offset, void *out_data, u64 size,
@@ -139,6 +157,7 @@ extern "C"
    * @param out_data Destination buffer for the resulting data.
    * @param out_size Receives or specifies the byte size of the output buffer, as defined by the operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.entries
    */
   LDK_API bool ldk_package_entry_read(LDKPackage *package,
       const LDKPackageEntry *entry, void *out_data, u64 out_size);
@@ -150,6 +169,7 @@ extern "C"
    * @param entry Package entry being inspected or read.
    * @param destination_path Filesystem path for the extracted file.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.entries
    */
   LDK_API bool ldk_package_entry_extract(LDKPackage *package,
       const LDKPackageEntry *entry, const char *destination_path);
@@ -160,6 +180,7 @@ extern "C"
    * @param package Opened package used by this operation.
    * @param destination_directory Filesystem directory where entries are extracted.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.lifecycle
    */
   LDK_API bool ldk_package_extract_all(
       LDKPackage *package, const char *destination_directory);
@@ -172,6 +193,7 @@ extern "C"
    * An unfinished output file is removed if the writer is destroyed before finalization.
    * @param path Path identifying the file or resource.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.packages.writing
    */
   LDK_API LDKPackageWriter *ldk_package_writer_create(const char *path);
   /**
@@ -181,6 +203,7 @@ extern "C"
    * @param package_path Logical path of the file inside the package.
    * @param compression Compression mode stored for this package entry.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.entries
    */
   LDK_API bool ldk_package_writer_add_file(LDKPackageWriter *writer,
       const char *source_path, const char *package_path,
@@ -189,11 +212,13 @@ extern "C"
    * @brief Finish writing the package and its manifest.
    * @param writer Package writer being updated.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.packages.writing
    */
   LDK_API bool ldk_package_writer_finalize(LDKPackageWriter *writer);
   /**
    * @brief Destroy the package writer.
    * @param writer Package writer being updated.
+   * @group core.packages.writing
    */
   LDK_API void ldk_package_writer_destroy(LDKPackageWriter *writer);
 

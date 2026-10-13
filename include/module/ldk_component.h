@@ -28,6 +28,7 @@ extern "C" {
    * @param initial_value Initial value used by this operation.
    * @param user Opaque caller-supplied data passed to the callback.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.attachments
    */
   typedef bool (*LDKComponentAttachFn)(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, const void* initial_value, void* user);
 
@@ -39,6 +40,7 @@ extern "C" {
    * @param component Component used by this operation.
    * @param component_index Zero-based index of the component entry.
    * @param user Opaque caller-supplied data passed to the callback.
+   * @group modules.component.lifecycle
    */
   typedef void (*LDKComponentDestroyFn)( LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, void* user);
 
@@ -46,6 +48,7 @@ extern "C" {
    * A descriptor that identifies a Component.
    * Components are plain data structures that can be attached to entities.
    * Component types needs to be registered before they are used.
+   * @group modules.component.types
    */
   typedef enum LDKComponentFlags
   {
@@ -53,6 +56,7 @@ extern "C" {
     LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR = 1 << 0
   } LDKComponentFlags;
 
+  /** @group modules.component.types */
   typedef struct LDKComponentDesc
   {
     const char* name;
@@ -67,6 +71,7 @@ extern "C" {
     void* user;
   } LDKComponentDesc;
 
+  /** @group modules.component */
   typedef struct LDKRegisteredComponent
   {
     LDKComponentDesc desc;
@@ -76,6 +81,7 @@ extern "C" {
 
   X_HASHTABLE_TYPE_NAMED(u32, LDKRegisteredComponent, u32_registered_component);
 
+  /** @group modules.component.registry */
   typedef struct LDKComponentRegistry
   {
     XHashtable_u32_registered_component* table;
@@ -85,11 +91,13 @@ extern "C" {
    * @brief Initialize the component registry.
    * @param registry Registry on which the operation is performed.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.registry
    */
   LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
   /**
    * @brief Shut down the component registry.
    * @param registry Registry on which the operation is performed.
+   * @group modules.component.registry
    */
   LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
   /**
@@ -97,6 +105,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param type Type identifier or kind used by the operation.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.component.queries
    */
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
   /**
@@ -105,6 +114,7 @@ extern "C" {
    * @param type Type identifier or kind used by the operation.
    * @param out_desc Receives the descriptor.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.types
    */
   LDK_API bool ldk_component_desc_get(LDKComponentRegistry* registry,
       u32 type, LDKComponentDesc* out_desc);
@@ -113,6 +123,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param type Type identifier or kind used by the operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.component.storage
    */
   LDK_API XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type);
   /**
@@ -120,6 +131,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param type Type identifier or kind used by the operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.component.storage
    */
   LDK_API XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type);
   /**
@@ -129,6 +141,7 @@ extern "C" {
    * @param entity Entity to inspect or modify.
    * @param component_type Registered ECS component type identifier.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.attachments
    */
   LDK_API bool ldk_component_detach(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type);
@@ -138,6 +151,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param entity_system Entity system used by this operation.
    * @param entity Entity to inspect or modify.
+   * @group modules.component.registry
    */
   LDK_API void ldk_component_registry_remove_all(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity);
@@ -147,6 +161,7 @@ extern "C" {
    * @param component_type Registered ECS component type identifier.
    * @param component_index Zero-based index of the component entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.component.lifecycle
    */
   LDK_API void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32* component_index);
   /**
@@ -155,6 +170,7 @@ extern "C" {
    * @param component_type Registered ECS component type identifier.
    * @param component_index Zero-based index of the component entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.component.queries
    */
   LDK_API void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 component_index);
   /**
@@ -164,6 +180,7 @@ extern "C" {
    * @param component_type Registered ECS component type identifier.
    * @param component_index Zero-based index of the component entry.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.lifecycle
    */
   LDK_API bool ldk_component_destroy(LDKComponentRegistry* module,
       LDKEntityRegistry* entity_module, u32 component_type, u32 component_index);
@@ -172,6 +189,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.registry
    */
   LDK_API bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDesc* desc);
   /**
@@ -183,6 +201,7 @@ extern "C" {
    * @param component_index Zero-based index of the component entry.
    * @param initial_value Initial value used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.component.attachments
    */
   LDK_API bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
       LDKEntity entity, u32 component_type, u32 component_index, const void* initial_value);
@@ -193,6 +212,7 @@ extern "C" {
    * @param entity Entity to inspect or modify.
    * @param component_type Registered ECS component type identifier.
    * @param component_index Zero-based index of the component entry.
+   * @group modules.component.lifecycle
    */
   LDK_API void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
       LDKEntity entity, u32 component_type, u32 component_index);
@@ -202,6 +222,7 @@ extern "C" {
    * @param registry Registry on which the operation is performed.
    * @param type Type identifier or kind used by the operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.component.queries
    */
   LDK_API const char* ldk_component_name_get(LDKComponentRegistry* registry, u32 type);
 

@@ -26,6 +26,7 @@ extern "C"
 
 #ifdef LDK_EDITOR
 
+  /** @group core.projects.lifecycle */
   typedef struct LDKProjectCreateDesc
   {
     const char *project_name;
@@ -34,6 +35,7 @@ extern "C"
     const char *cmake_arch;
   } LDKProjectCreateDesc;
 
+  /** @group core.projects.lifecycle */
   typedef struct LDKProjectBuildDesc
   {
     const char *cmake_path;
@@ -42,6 +44,7 @@ extern "C"
     bool new_console;
   } LDKProjectBuildDesc;
 
+  /** @group core.projects.lifecycle */
   typedef struct LDKProject
   {
     bool loaded;
@@ -75,12 +78,14 @@ extern "C"
    * @brief Callback for reporting a project diagnostic.
    * @param message Message displayed to the user.
    * @param user Opaque caller-supplied data passed to the callback.
+   * @group core.projects.lifecycle
    */
   typedef void (*LDKProjectDiagnosticFn)(const char *message, void *user);
   /**
    * @brief Set the project diagnostic handler.
    * @param handler Handler called for the corresponding event or diagnostic.
    * @param user Opaque caller-supplied data passed to the callback.
+   * @group core.projects.lifecycle
    */
   LDK_API void ldk_project_diagnostic_handler_set(
       LDKProjectDiagnosticFn handler, void *user);
@@ -89,6 +94,7 @@ extern "C"
    * @brief Create the project.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_create(const LDKProjectCreateDesc *desc);
   /**
@@ -96,24 +102,28 @@ extern "C"
    * @param project Project whose settings or files are used.
    * @param project_file_path Path to the LDK project manifest.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.loading
    */
   LDK_API bool ldk_project_load(
       LDKProject *project, const char *project_file_path);
   /**
    * @brief Unload the project.
    * @param project Project whose settings or files are used.
+   * @group core.projects.loading
    */
   LDK_API void ldk_project_unload(LDKProject *project);
   /**
    * @brief Save the project.
    * @param project Project whose settings or files are used.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.saving
    */
   LDK_API bool ldk_project_save(LDKProject *project);
   /**
    * @brief Write project runtime INI.
    * @param project Project whose settings or files are used.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_write_runtime_ini(const LDKProject *project);
   /** Replace only [scenes] and export public sections. No ECS operations.
@@ -122,6 +132,7 @@ extern "C"
    * @param count Number of items to process.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.scenes
    */
   LDK_API bool ldk_project_scene_catalog_save(const LDKProject *project,
       const LDKScene *scenes, u32 count, LDKSceneResult *result);
@@ -130,6 +141,7 @@ extern "C"
    * @param project Project whose settings or files are used.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_generate_game_module(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
@@ -138,6 +150,7 @@ extern "C"
    * @param project Project whose settings or files are used.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_build_game_module(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
@@ -146,6 +159,7 @@ extern "C"
    * @param project Project whose settings or files are used.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_generate_game_launcher(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
@@ -154,6 +168,7 @@ extern "C"
    * @param project Project whose settings or files are used.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_build_game_launcher(
       const LDKProject *project, const LDKProjectBuildDesc *desc);
@@ -164,6 +179,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.projects.lifecycle
    */
   LDK_API LDKOSProcess *ldk_project_generate_game_module_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
@@ -174,6 +190,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.projects.lifecycle
    */
   LDK_API LDKOSProcess *ldk_project_build_game_module_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
@@ -184,6 +201,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.projects.lifecycle
    */
   LDK_API LDKOSProcess *ldk_project_clean_game_module_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
@@ -194,6 +212,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.projects.lifecycle
    */
   LDK_API LDKOSProcess *ldk_project_generate_game_launcher_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
@@ -204,6 +223,7 @@ extern "C"
    * @param desc Description or configuration for this operation.
    * @param out_result Receives additional status or diagnostic information.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.projects.lifecycle
    */
   LDK_API LDKOSProcess *ldk_project_build_game_launcher_start(
       const LDKProject *project, const LDKProjectBuildDesc *desc,
@@ -215,6 +235,7 @@ extern "C"
    * @param config Configuration for this operation.
    * @param out_path Receives the resulting path.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_game_module_output_path_get(
       const LDKProject *project, const char *config, XFSPath *out_path);
@@ -224,6 +245,7 @@ extern "C"
    * @param config Configuration for this operation.
    * @param out_path Receives the resulting path.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.projects.lifecycle
    */
   LDK_API bool ldk_project_game_launcher_output_path_get(
       const LDKProject *project, const char *config, XFSPath *out_path);

@@ -19,6 +19,7 @@ extern "C"
 {
 #endif
 
+  /** @group core.debug_draw.drawing */
   typedef struct LDKDebugDraw
   {
     LDKRenderer *renderer;
@@ -34,6 +35,7 @@ extern "C"
    * @param renderer Renderer receiving this request.
    * @param view_id Renderer view receiving this operation.
    * @return The requested value.
+   * @group core.debug_draw.drawing
    */
   LDK_API LDKDebugDraw ldk_debug_draw_make(
       LDKRenderer *renderer, LDKRendererViewId view_id);
@@ -43,6 +45,7 @@ extern "C"
    * @param start Starting timestamp or location for this operation.
    * @param end Ending timestamp or location for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.lines
    */
   LDK_API bool ldk_debug_draw_line(
       const LDKDebugDraw *draw, Vec3 start, Vec3 end);
@@ -53,6 +56,7 @@ extern "C"
    * @param start Starting timestamp or location for this operation.
    * @param end Ending timestamp or location for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.drawing
    */
   LDK_API bool ldk_debug_draw_arrow(
       const LDKDebugDraw *draw, Vec3 start, Vec3 end);
@@ -65,6 +69,7 @@ extern "C"
    * @param world Object-to-world transformation matrix.
    * @param length Length used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.drawing
    */
   LDK_API bool ldk_debug_draw_axes(
       const LDKDebugDraw *draw, Mat4 world, float length);
@@ -74,6 +79,7 @@ extern "C"
    * @param minimum Minimum used by this operation.
    * @param maximum Maximum used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.shapes
    */
   LDK_API bool ldk_debug_draw_box(
       const LDKDebugDraw *draw, Vec3 minimum, Vec3 maximum);
@@ -85,6 +91,7 @@ extern "C"
    * @param radius Interaction or geometry radius.
    * @param segments Segments used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.drawing
    */
   LDK_API bool ldk_debug_draw_circle(const LDKDebugDraw *draw,
       Vec3 center, Vec3 normal, float radius, u32 segments);
@@ -96,6 +103,7 @@ extern "C"
    * @param radius Interaction or geometry radius.
    * @param segments Segments used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.shapes
    */
   LDK_API bool ldk_debug_draw_sphere(
       const LDKDebugDraw *draw, Vec3 center, float radius, u32 segments);
@@ -111,6 +119,7 @@ extern "C"
    * @param radius Interaction or geometry radius.
    * @param segments Segments used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.drawing
    */
   LDK_API bool ldk_debug_draw_cone(const LDKDebugDraw *draw,
       Vec3 apex, Vec3 direction, float height, float radius, u32 segments);
@@ -122,6 +131,7 @@ extern "C"
    * @param draw Debug drawing context.
    * @param inverse_view_projection Inverse view projection used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.debug_draw.drawing
    */
   LDK_API bool ldk_debug_draw_frustum(
       const LDKDebugDraw *draw, Mat4 inverse_view_projection);

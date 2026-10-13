@@ -23,6 +23,7 @@ extern "C" {
  * data/data_sizes mirror ids by index.
  * Each non-NULL data pointer owns one zero-initialized struct whose address
  * stays stable when the association list grows. The registry only borrows it.
+ * @group core.scene_systems.configuration
  */
 typedef struct LDKSceneSystems
 {
@@ -37,6 +38,7 @@ typedef struct LDKSceneSystems
 /** Stop and unbind owned data instances before releasing their memory.
  * Do not call while the registry is executing a callback.
  * @param systems Scene systems configuration being read or written.
+ * @group core.scene_systems.configuration
  */
 LDK_API void ldk_scene_systems_clear(LDKSceneSystems *systems);
 /**
@@ -44,12 +46,14 @@ LDK_API void ldk_scene_systems_clear(LDKSceneSystems *systems);
  * @param systems Scene systems configuration being read or written.
  * @param id Identifier of the target object.
  * @return True when the queried condition holds; false otherwise.
+ * @group core.scene_systems.configuration
  */
 LDK_API bool ldk_scene_systems_contains(const LDKSceneSystems *systems, u64 id);
 /** Adds a system and allocates its data when registered.
  * @param systems Scene systems configuration being read or written.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.configuration
  */
 LDK_API bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id);
 /** Deprecated: grouping_id is ignored.
@@ -57,6 +61,7 @@ LDK_API bool ldk_scene_systems_add(LDKSceneSystems *systems, u64 id);
  * @param id Identifier of the target object.
  * @param grouping_id Identifier of the grouping.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.groupings
  */
 LDK_API bool ldk_scene_systems_add_with_grouping(
     LDKSceneSystems *systems, u64 id, u64 grouping_id);
@@ -65,6 +70,7 @@ LDK_API bool ldk_scene_systems_add_with_grouping(
  * @param systems Scene systems configuration being read or written.
  * @param id Identifier of the target object.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.configuration
  */
 LDK_API bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id);
 /** Deprecated: validates membership only; grouping_id is ignored.
@@ -72,6 +78,7 @@ LDK_API bool ldk_scene_systems_remove(LDKSceneSystems *systems, u64 id);
  * @param system_id Identifier of the system.
  * @param grouping_id Identifier of the grouping.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.groupings
  */
 LDK_API bool ldk_scene_systems_grouping_set(
     LDKSceneSystems *systems, u64 system_id, u64 grouping_id);
@@ -79,6 +86,7 @@ LDK_API bool ldk_scene_systems_grouping_set(
  * @param systems Scene systems configuration being read or written.
  * @param system_id Identifier of the system.
  * @return The resulting numeric value.
+ * @group core.scene_systems.groupings
  */
 LDK_API u64 ldk_scene_systems_grouping_get(
     const LDKSceneSystems *systems, u64 system_id);
@@ -88,6 +96,7 @@ LDK_API u64 ldk_scene_systems_grouping_get(
  * @param registry Registry on which the operation is performed.
  * @param systems Scene systems configuration being read or written.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.lifecycle
  */
 LDK_API bool ldk_scene_systems_prepare(
     LDKSystemRegistry *registry, LDKSceneSystems *systems);
@@ -96,6 +105,7 @@ LDK_API bool ldk_scene_systems_prepare(
  * @param systems Scene systems configuration being read or written.
  * @param system_id Identifier of the system.
  * @return Pointer to the requested object or data; NULL when unavailable.
+ * @group core.scene_systems.configuration
  */
 LDK_API void *ldk_scene_systems_data_get(
     const LDKSceneSystems *systems, u64 system_id);
@@ -116,6 +126,7 @@ LDK_API void *ldk_scene_systems_data_get(
  * @param out Output object or buffer receiving the result.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.serialization
  */
 LDK_API bool ldk_scene_systems_from_tml(
     const char *source, LDKSceneSystems *out, LDKSceneResult *result);
@@ -125,6 +136,7 @@ LDK_API bool ldk_scene_systems_from_tml(
  * @param out Output object or buffer receiving the result.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.serialization
  */
 LDK_API bool ldk_scene_systems_load_tml_file(
     const char *path, LDKSceneSystems *out, LDKSceneResult *result);
@@ -144,6 +156,7 @@ LDK_API bool ldk_scene_systems_load_tml_file(
  * @param registry Registry on which the operation is performed.
  * @param systems Scene systems configuration being read or written.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.validation
  */
 LDK_API bool ldk_scene_systems_validate_bindings(
     LDKSystemRegistry *registry, const LDKSceneSystems *systems);
@@ -152,6 +165,7 @@ LDK_API bool ldk_scene_systems_validate_bindings(
  * @param registry Registry on which the operation is performed.
  * @param systems Scene systems configuration being read or written.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.lifecycle
  */
 LDK_API bool ldk_scene_systems_stop_missing(
     LDKSystemRegistry *registry, const LDKSceneSystems *systems);
@@ -160,6 +174,7 @@ LDK_API bool ldk_scene_systems_stop_missing(
  * @param registry Registry on which the operation is performed.
  * @param systems Scene systems configuration being read or written.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.lifecycle
  */
 LDK_API bool ldk_scene_systems_start(
     LDKSystemRegistry *registry, LDKSceneSystems *systems);
@@ -172,6 +187,7 @@ LDK_API bool ldk_scene_systems_start(
  * @param systems Scene systems configuration being read or written.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.serialization
  */
 LDK_API bool ldk_scene_systems_to_tml(XStrBuilder *out,
     const LDKSceneSystems *systems, LDKSceneResult *result);
@@ -181,6 +197,7 @@ LDK_API bool ldk_scene_systems_to_tml(XStrBuilder *out,
  * @param systems Scene systems configuration being read or written.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
+ * @group core.scene_systems.serialization
  */
 LDK_API bool ldk_scene_systems_save_tml_file(const char *path,
     const LDKSceneSystems *systems, LDKSceneResult *result);

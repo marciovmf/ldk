@@ -24,27 +24,35 @@ extern "C"
 
   // Utility logging macros
 
+/** @group core.engine.logging */
 #define ldk_log_raw(out, level, fg, bg, components, fmt, ...)                  \
   x_log_raw(ldk_module_get(LDK_MODULE_LOG), (out), (level), (fg), (bg),        \
       (components), fmt, ##__VA_ARGS__)
 
+/** @group core.engine.logging */
 #define ldk_log_debug(fmt, ...)                                                \
   x_log_debug(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
+/** @group core.engine.logging */
 #define ldk_log_info(fmt, ...)                                                 \
   x_log_info(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
+/** @group core.engine.logging */
 #define ldk_log_warning(fmt, ...)                                              \
   x_log_warning(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
+/** @group core.engine.logging */
 #define ldk_log_error(fmt, ...)                                                \
   x_log_error(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
+/** @group core.engine.logging */
 #define ldk_log_fatal(fmt, ...)                                                \
   x_log_fatal(ldk_module_get(LDK_MODULE_LOG), fmt, ##__VA_ARGS__)
 
+  /** @group core.engine.lifecycle */
   typedef struct LDKRoot LDKRoot;
 
+  /** @group core.engine.modules */
   typedef enum LDKModuleType
   {
     LDK_MODULE_ASSET_MANAGER,
@@ -59,8 +67,10 @@ extern "C"
   } LDKModuleType;
 
   struct LDKGame;
+  /** @group core.engine.lifecycle */
   typedef struct LDKGame LDKGame;
 
+  /** @group core.engine.configuration */
   typedef struct LDKConfig
   {
     XSmallstr title;
@@ -85,6 +95,7 @@ extern "C"
    * @brief Initialize the engine.
    * @param config_ini_path Path to the engine configuration INI.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.lifecycle
    */
   LDK_API bool ldk_engine_initialize(const char *config_ini_path);
   /**
@@ -93,6 +104,7 @@ extern "C"
    * @param ini Ini used by this operation.
    * @param config_ini_path Path to the engine configuration INI.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.configuration
    */
   LDK_API bool ldk_engine_config_from_ini(
       LDKConfig *out_config, XIni *ini, const char *config_ini_path);
@@ -100,6 +112,7 @@ extern "C"
    * @brief Initialize the engine from a configuration supplied by the caller.
    * @param config Configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.lifecycle
    */
   LDK_API bool ldk_engine_initialize_with_config(const LDKConfig *config);
   /**
@@ -107,6 +120,7 @@ extern "C"
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.rendering
    */
   LDK_API bool ldk_engine_render_resolution_set(i32 width, i32 height);
   /**
@@ -114,28 +128,33 @@ extern "C"
    * @param resolution Resolution setting.
    * @param distance Distance in world-space units.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.rendering.shadows
    */
   LDK_API bool ldk_engine_shadow_settings_set(u32 resolution, float distance);
   /**
    * @brief Check whether the engine is initialized.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.lifecycle
    */
   LDK_API bool ldk_engine_is_initialized(
       void); // Checks if the engine was initialized
   /**
    * @brief Process one engine frame.
+   * @group core.engine.lifecycle
    */
   LDK_API void ldk_engine_frame(void);
   /**
    * @brief Access the context of a registered engine module.
    * @param module_type Module type used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.engine.modules
    */
   LDK_API void *ldk_module_get(LDKModuleType
           module_type); // Returns the context pointer of a given engine module
   /**
    * @brief Enter the engine main loop and return its exit code.
    * @return Process or engine exit code.
+   * @group core.engine.lifecycle
    */
   LDK_API i32 ldk_engine_run(void);
 
@@ -144,6 +163,7 @@ extern "C"
   /**
    * @brief Get the input mouse state.
    * @param out_state Receives the requested input state snapshot.
+   * @group core.engine.input.mouse
    */
   LDK_API void ldk_input_mouse_state_get(LDKMouseState *out_state);
   /**
@@ -151,6 +171,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.input.mouse
    */
   LDK_API bool ldk_input_mouse_button_is_pressed(
       LDKMouseState *state, LDKMouseButton button);
@@ -159,6 +180,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.input.mouse
    */
   LDK_API bool ldk_input_mouse_button_down(
       LDKMouseState *state, LDKMouseButton button);
@@ -167,6 +189,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param button Mouse or input button to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.input.mouse
    */
   LDK_API bool ldk_input_mouse_button_up(
       LDKMouseState *state, LDKMouseButton button);
@@ -174,24 +197,28 @@ extern "C"
    * @brief Get the accumulated mouse wheel movement in the input snapshot.
    * @param state Input snapshot or state object to query.
    * @return The resulting integer value.
+   * @group core.engine.input.mouse
    */
   LDK_API i32 ldk_input_mouse_wheel_delta(LDKMouseState *state);
   /**
    * @brief Get the mouse cursor position.
    * @param state Input snapshot or state object to query.
    * @return The resulting point.
+   * @group core.engine.input.mouse
    */
   LDK_API LDKPoint ldk_input_mouse_cursor(LDKMouseState *state);
   /**
    * @brief Get the mouse cursor position relative to the active client area.
    * @param state Input snapshot or state object to query.
    * @return The resulting point.
+   * @group core.engine.input.mouse
    */
   LDK_API LDKPoint ldk_input_mouse_cursor_relative(LDKMouseState *state);
 
   /**
    * @brief Get the input keyboard state.
    * @param out_state Receives the requested input state snapshot.
+   * @group core.engine.input.keyboard
    */
   LDK_API void ldk_input_keyboard_state_get(LDKKeyboardState *out_state);
   /**
@@ -199,6 +226,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.input.keyboard
    */
   LDK_API bool ldk_input_keyboard_key_is_pressed(
       LDKKeyboardState *state, LDKKeycode keycode);
@@ -207,6 +235,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.input.keyboard
    */
   LDK_API bool ldk_input_keyboard_key_down(
       LDKKeyboardState *state, LDKKeycode keycode);
@@ -215,6 +244,7 @@ extern "C"
    * @param state Input snapshot or state object to query.
    * @param keycode Keyboard key to query.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.input.keyboard
    */
   LDK_API bool ldk_input_keyboard_key_up(
       LDKKeyboardState *state, LDKKeycode keycode);
@@ -228,11 +258,13 @@ extern "C"
    * @param height Height in pixels or the units expected by the API.
    * @param game_width Game width used by this operation.
    * @param game_height Game height used by this operation.
+   * @group core.engine.input.viewport
    */
   LDK_API void ldk_input_game_view_set(float x, float y, float width,
       float height, u32 game_width, u32 game_height);
   /**
    * @brief Clear the editor game viewport input remapping.
+   * @group core.engine.input.viewport
    */
   LDK_API void ldk_input_game_view_clear(void);
 #endif
@@ -241,6 +273,7 @@ extern "C"
   /**
    * @brief Get the game.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.engine.game
    */
   LDK_API LDKGame *ldk_game_get(void);
 #endif
@@ -248,16 +281,19 @@ extern "C"
   /**
    * @brief Load a statically linked game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_load_static(void);
 #endif
   /**
    * @brief Shut down the engine.
+   * @group core.engine.lifecycle
    */
   LDK_API void ldk_engine_terminate(void); // finalizes the engine
   /**
    * @brief Request termination of the engine main loop with an exit code.
    * @param exit_code Exit code used by this operation.
+   * @group core.engine.lifecycle
    */
   LDK_API void ldk_engine_stop(i32 exit_code);
 
@@ -265,16 +301,19 @@ extern "C"
    * @brief Load a game module from a dynamic library.
    * @param path Path identifying the file or resource.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_load_from_shared_lib(const char *path);
   /**
    * @brief Initialize the game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_initialize(void);
   /**
    * @brief Start the game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_start(void);
 
@@ -283,70 +322,84 @@ extern "C"
    * The editor may then reload the original scene from disk. A stop requested
    * during an update is completed at the safe frame boundary.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_stop(void);
   /**
    * @brief Pause the game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_pause(void);
   /**
    * @brief Resume the game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_resume(void);
   /**
    * @brief Advance a paused game by one update step.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_step(void);
   /**
    * @brief Check whether the game instance is started.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_is_started(void);
   /**
    * @brief Check whether the game instance is paused.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_is_paused(void);
   /**
    * @brief Check whether the game instance is in a single-step update.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_is_stepping(void);
   /**
    * @brief Check whether the game instance is currently updating.
    * @return True when the queried condition holds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_is_updating(void);
   /**
    * @brief Shut down the game instance.
+   * @group core.engine.game_instance
    */
   LDK_API void ldk_game_instance_terminate(void);
   /**
    * @brief Unload the game instance.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.engine.game_instance
    */
   LDK_API bool ldk_game_instance_unload(void);
   /**
    * @brief Get the game.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.engine.game
    */
   LDK_API LDKGame *ldk_game_get(void);
   /**
    * @brief Get the engine main window.
    * @return Handle to the requested object or resource.
+   * @group core.engine.window
    */
   LDK_API LDKWindow ldk_engine_main_window_get(void);
   /**
    * @brief Get the engine main window handle.
    * @return Handle to the requested object or resource.
+   * @group core.engine.window
    */
   LDK_API LDKWindow ldk_main_window(void);
   /**
    * @brief Get a read-only pointer to the active engine configuration.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group core.engine.configuration
    */
   LDK_API const LDKConfig *ldk_engine_config_get(void);
 

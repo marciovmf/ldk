@@ -16,20 +16,26 @@
 #include <stddef.h>
 #include <stdx/stdx_common.h>
 
+/** @group core.common */
 #define LDK_VERSION_MAJOR 0
+/** @group core.common */
 #define LDK_VERSION_PATCH 0
+/** @group core.common */
 #define LDK_VERSION_MINOR 1
 
 #ifndef LDK_BUILD_TYPE
+/** @group core.common */
 #define LDK_BUILD_TYPE ""
 #endif
 
 #ifndef LDK_ENGINE
+/** @group core.common */
 #define LDK_GAME
 #endif
 
 #ifdef _DEBUG
 #ifndef LDK_DEBUG
+/** @group core.common */
 #define LDK_DEBUG
 #endif
 #endif
@@ -47,32 +53,42 @@
 #endif
 
 #if defined(LDK_MONOLITHIC)
+/** @group core.common */
 #define LDK_GAME_API
 #else
+/** @group core.common */
 #define LDK_GAME_API X_PLAT_EXPORT
 #endif
 
 #if defined(X_OS_WINDOWS)
+/** @group core.common */
 #define LDK_OS_WINDOWS
 #elif defined(X_OS_LINUX)
+/** @group core.common */
 #define LDK_OS_LINUX
 #elif defined(X_OS_OSX)
+/** @group core.common */
 #define LDK_OS_OSX
 #endif
 
+/** @group core.common */
 #define LDK_ASSERT(expr) X_ASSERT(expr)
+/** @group core.common */
 #define LDK_STATIC_ASSERT(expr, name) X_STATIC_ASSERT((expr), name)
 
 typedef u32 rgba32;
 
 #ifdef X_LITTLE_ENDIAN
+/** @group core.common */
 #define LDK_RGBA32(c)                                                          \
   ((u32)(((c) & 0x000000FFu) << 24) | (((c) & 0x0000FF00u) << 8) |             \
       (((c) & 0x00FF0000u) >> 8) | (((c) & 0xFF000000u) >> 24))
 #else
+/** @group core.common */
 #define LDK_RGBA(c) ((u32)c)
 #endif
 
+/** @group core.common */
 typedef void *LDKWindow;
 
 #endif // LDK_COMMON_H

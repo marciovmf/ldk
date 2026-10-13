@@ -21,8 +21,10 @@
 extern "C" {
 #endif
 
+/** @group systems.terrain.surfaces */
 #define LDK_TERRAIN_SURFACE_COUNT 8u
 
+/** @group systems.terrain.lifecycle */
 //@enum
 typedef enum LDKTerrainChannel
 {
@@ -36,11 +38,13 @@ typedef enum LDKTerrainChannel
  * @brief Assign a heightmap image to the terrain system.
  * @param image Image used by this operation.
  * @return True if the operation succeeds; false otherwise.
+ * @group systems.terrain.heightmaps
  */
 LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);
 /**
  * @brief Check whether the terrain system is active.
  * @return True when the queried condition holds; false otherwise.
+ * @group systems.terrain.lifecycle
  */
 LDK_API bool ldk_terrain_system_is_active(void);
 /**
@@ -49,6 +53,7 @@ LDK_API bool ldk_terrain_system_is_active(void);
  * @param world_z World-space Z coordinate.
  * @param out_height Receives the surface height in world-space units.
  * @return True if the operation succeeds; false otherwise.
+ * @group systems.terrain.lifecycle
  */
 LDK_API bool ldk_terrain_height_at_world(
     float world_x, float world_z, float *out_height);
@@ -57,6 +62,7 @@ LDK_API bool ldk_terrain_height_at_world(
  * @brief Initialize the terrain system.
  * @param data Source data or system-owned context for this operation.
  * @return System initialization status code.
+ * @group systems.terrain.lifecycle
  */
 int ldk_terrain_system_initialize(void *data);
 /**
@@ -64,15 +70,18 @@ int ldk_terrain_system_initialize(void *data);
  * @param data Source data or system-owned context for this operation.
  * @param group Entity group used for this system update.
  * @param dt Elapsed time since the preceding update, in seconds.
+ * @group systems.terrain.lifecycle
  */
 void ldk_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt);
 /**
  * @brief Shut down the terrain system.
  * @param data Source data or system-owned context for this operation.
+ * @group systems.terrain.lifecycle
  */
 void ldk_terrain_system_terminate(void *data);
 
+/** @group systems.terrain.lifecycle */
 //@system name=LDKTerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKTerrainSystem
 {

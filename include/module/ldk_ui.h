@@ -23,122 +23,153 @@ extern "C"
 #include <stdint.h>
 
 #ifndef LDK_UI_INPUT_CODEPOINTS_CAPACITY
+/** @group modules.ui.controls */
 #define LDK_UI_INPUT_CODEPOINTS_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_DEFAULT_CONTROL_HEIGHT
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_DEFAULT_CONTROL_HEIGHT 22.0f
 #endif
 
 #ifndef LDK_UI_DEFAULT_CONTROL_WIDTH
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_DEFAULT_CONTROL_WIDTH 16.0f
 #endif
 
 #ifndef LDK_UI_LAYOUT_STACK_CAPACITY
+/** @group modules.ui.lifecycle */
 #define LDK_UI_LAYOUT_STACK_CAPACITY 64
 #endif
 
 #ifndef LDK_UI_LAYOUT_ITEM_CAPACITY
+/** @group modules.ui.lifecycle */
 #define LDK_UI_LAYOUT_ITEM_CAPACITY 512
 #endif
 
 #ifndef LDK_UI_LAYOUT_ITEM_CACHE_CAPACITY
+/** @group modules.ui.lifecycle */
 #define LDK_UI_LAYOUT_ITEM_CACHE_CAPACITY 64
 #endif
 
 #ifndef LDK_UI_MEASURE_ENTRY_CAPACITY
+/** @group modules.ui.layout.measurement */
 #define LDK_UI_MEASURE_ENTRY_CAPACITY 64
 #endif
 
 #ifndef LDK_UI_WINDOW_CAPACITY
+/** @group modules.ui.windows */
 #define LDK_UI_WINDOW_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_WINDOW_STACK_CAPACITY
+/** @group modules.ui.windows */
 #define LDK_UI_WINDOW_STACK_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_SCROLLVIEW_STACK_CAPACITY
+/** @group modules.ui.scrolling */
 #define LDK_UI_SCROLLVIEW_STACK_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_SCROLLVIEW_CACHE_CAPACITY
+/** @group modules.ui.scrolling */
 #define LDK_UI_SCROLLVIEW_CACHE_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_SCROLLBAR_SIZE
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_SCROLLBAR_SIZE 12.0f
 #endif
 
 #ifndef LDK_UI_AREA_STACK_CAPACITY
+/** @group modules.ui.areas */
 #define LDK_UI_AREA_STACK_CAPACITY 64
 #endif
 
 #ifndef LDK_UI_POPUP_STACK_CAPACITY
+/** @group modules.ui.popups */
 #define LDK_UI_POPUP_STACK_CAPACITY 16
 #endif
 
 #ifndef LDK_UI_MIN_WINDOW_WIDTH
+/** @group modules.ui.windows */
 #define LDK_UI_MIN_WINDOW_WIDTH 64.0f
 #endif
 
 #ifndef LDK_UI_MIN_WINDOW_HEIGHT
+/** @group modules.ui.windows */
 #define LDK_UI_MIN_WINDOW_HEIGHT 1
 #endif
 
 #ifndef LDK_UI_TITLE_BAR_HEIGHT
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TITLE_BAR_HEIGHT 24.0f
 #endif
 
 #ifndef LDK_UI_DEFAULT_SPACING
+/** @group modules.ui.lifecycle */
 #define LDK_UI_DEFAULT_SPACING 4.0f
 #endif
 
 #ifndef LDK_UI_DEFAULT_PADDING
+/** @group modules.ui.layout.spacing */
 #define LDK_UI_DEFAULT_PADDING 4.0f
 #endif
 
 #ifndef LDK_UI_TREE_NODE_INDENT_WIDTH
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TREE_NODE_INDENT_WIDTH 8.0f
 #endif
 
 #ifndef LDK_UI_TREE_NODE_CHEVRON_WIDTH
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TREE_NODE_CHEVRON_WIDTH 10.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_TAB_HEIGHT
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TAB_BAR_TAB_HEIGHT 34.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_HEIGHT
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TAB_BAR_HEIGHT 34.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_TAB_PADDING
+/** @group modules.ui.layout.spacing */
 #define LDK_UI_TAB_BAR_TAB_PADDING 14.0f
 #endif
 
 #ifndef LDK_UI_AREA_HEADER_HEIGHT
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_AREA_HEADER_HEIGHT 34.0f
 #endif
 
 #ifndef LDK_UI_AREA_PADDING
+/** @group modules.ui.layout.spacing */
 #define LDK_UI_AREA_PADDING 8.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH
+/** @group modules.ui.layout.sizing */
 #define LDK_UI_TAB_BAR_MENU_BUTTON_WIDTH 24.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_SPACING
+/** @group modules.ui.tabs */
 #define LDK_UI_TAB_BAR_SPACING 2.0f
 #endif
 
 #ifndef LDK_UI_TAB_BAR_LINE_THICKNESS
+/** @group modules.ui.tabs */
 #define LDK_UI_TAB_BAR_LINE_THICKNESS 1.2f
 #endif
 
+  /** @group modules.ui.lifecycle */
   typedef uint32_t LDKUIId;
+  /** @group modules.ui.lifecycle */
   typedef uintptr_t LDKUITextureHandle;
   /**
    * @brief Callback resolving the texture for a font atlas page.
@@ -146,26 +177,43 @@ extern "C"
    * @param font Font or font instance used by the operation.
    * @param page_index Index of the requested font or asset page.
    * @return Handle to the requested object or resource.
+   * @group modules.ui.lifecycle
    */
   typedef LDKUITextureHandle (*LDKUIGetFontPageTextureFn)(
       void *user, LDKFontInstance *font, u32 page_index);
+  /** @group modules.ui.lifecycle */
   typedef u32 LDKUIColor;
+  /** @group modules.ui.lifecycle */
   typedef LDKPointf LDKUIPoint;
+  /** @group modules.ui.layout.sizing */
   typedef LDKSizef LDKUISize;
+  /** @group modules.ui.layout.geometry */
   typedef LDKRectf LDKUIRect;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUILayout LDKUILayout;
+  /** @group modules.ui.windows */
   typedef struct LDKUIWindow LDKUIWindow;
+  /** @group modules.ui.windows */
   typedef struct LDKUIWindowStackEntry LDKUIWindowStackEntry;
+  /** @group modules.ui.scrolling */
   typedef struct LDKUIScrollViewCache LDKUIScrollViewCache;
+  /** @group modules.ui.scrolling */
   typedef struct LDKUIScrollViewStackEntry LDKUIScrollViewStackEntry;
+  /** @group modules.ui.areas */
   typedef struct LDKUIAreaStackEntry LDKUIAreaStackEntry;
+  /** @group modules.ui.popups */
   typedef struct LDKUIPopupStackEntry LDKUIPopupStackEntry;
+  /** @group modules.ui.popups */
   typedef struct LDKUIPopupFrameEntry LDKUIPopupFrameEntry;
+  /** @group modules.ui.popups */
   typedef struct LDKUIPopupCache LDKUIPopupCache;
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUIHitCandidate LDKUIHitCandidate;
+  /** @group modules.ui.icons */
   typedef struct LDKUIContext LDKUIContext;
 
+  /** @group modules.ui.lifecycle */
   typedef enum LDKUIColorSlot
   {
     LDK_UI_COLOR_TEXT,
@@ -227,6 +275,7 @@ extern "C"
     LDK_UI_COLOR_COUNT,
   } LDKUIColorSlot;
 
+  /** @group modules.ui.icons */
   typedef struct LDKUIIcon
   {
     uintptr_t texture;
@@ -235,6 +284,7 @@ extern "C"
     rgba32 color;
   } LDKUIIcon;
 
+  /** @group modules.ui.theme */
   typedef enum LDKUIThemeIconSlot
   {
     LDK_UI_THEME_ICON_TREE_NODE_COLLAPSED,
@@ -247,6 +297,7 @@ extern "C"
     LDK_UI_THEME_ICON_COUNT,
   } LDKUIThemeIconSlot;
 
+  /** @group modules.ui.theme */
   typedef struct LDKUITheme
   {
     rgba32 colors[LDK_UI_COLOR_COUNT];
@@ -265,6 +316,7 @@ extern "C"
     float panel_padding;
   } LDKUITheme;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUIVertex
   {
     float x;
@@ -274,6 +326,7 @@ extern "C"
     rgba32 color;
   } LDKUIVertex;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUIDrawCmd
   {
     LDKUITextureHandle texture;
@@ -288,6 +341,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIDrawCmd, ldk_ui_draw_cmd);
   X_ARRAY_TYPE_NAMED(bool, ldk_ui_bool);
 
+  /** @group modules.ui.theme */
   typedef enum LDKUIThemeType
   {
     LDK_UI_THEME_CUSTOM = 0,
@@ -295,6 +349,7 @@ extern "C"
     LDK_UI_THEME_DEFAULT_DARK = 2,
   } LDKUIThemeType;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUIRenderData
   {
     LDKUIVertex const *vertices;
@@ -307,12 +362,14 @@ extern "C"
     LDKUISize viewport_size;
   } LDKUIRenderData;
 
+  /** @group modules.ui.layout.geometry */
   typedef enum LDKUILayoutDirection
   {
     LDK_UI_LAYOUT_VERTICAL = 0,
     LDK_UI_LAYOUT_HORIZONTAL = 1,
   } LDKUILayoutDirection;
 
+  /** @group modules.ui.lifecycle */
   typedef enum LDKUIItemType
   {
     LDK_UI_ITEM_WINDOW = 1,
@@ -336,6 +393,7 @@ extern "C"
     LDK_UI_ITEM_SLIDER_INPUT = 19,
   } LDKUIItemType;
 
+  /** @group modules.ui.layout.sizing */
   typedef enum LDKUISizeMode
   {
     LDK_UI_SIZE_PIXELS = 0,
@@ -344,12 +402,14 @@ extern "C"
     LDK_UI_SIZE_AUTO = 3,
   } LDKUISizeMode;
 
+  /** @group modules.ui.layout.sizing */
   typedef struct LDKUILayoutSize
   {
     LDKUISizeMode mode;
     float value;
   } LDKUILayoutSize;
 
+  /** @group modules.ui.windows */
   typedef enum LDKUIWindowFlags
   {
     LDK_UI_WINDOW_NONE = 0,
@@ -366,6 +426,7 @@ extern "C"
                          LDK_UI_WINDOW_BORDER,
   } LDKUIWindowFlags;
 
+  /** @group modules.ui.scrolling */
   typedef enum LDKUIScrollViewFlags
   {
     LDK_UI_SCROLL_NONE = 0,
@@ -374,6 +435,7 @@ extern "C"
     LDK_UI_SCROLL_IF_NEEDED = 1 << 2,
   } LDKUIScrollViewFlags;
 
+  /** @group modules.ui.trees */
   typedef enum LDKTreeNodeFlags
   {
     LDK_UI_TREE_NODE_NONE = 0,
@@ -381,6 +443,7 @@ extern "C"
     LDK_UI_TREE_NODE_SELECTED = 1 << 1
   } LDKTreeNodeFlags;
 
+  /** @group modules.ui.trees */
   typedef enum LDKTreeNodeResult
   {
     LDK_UI_TREE_NODE_RESULT_NONE = 0,
@@ -388,18 +451,21 @@ extern "C"
     LDK_UI_TREE_NODE_RESULT_TOGGLED = 1 << 1,
   } LDKTreeNodeResult;
 
+  /** @group modules.ui.layout.measurement */
   typedef struct LDKUIMark
   {
     LDKUILayout *layout;
     u32 measure_index;
   } LDKUIMark;
 
+  /** @group modules.ui.layout.measurement */
   typedef struct LDKUIMeasureEntry
   {
     LDKUILayout *layout;
     LDKUIRect rect;
   } LDKUIMeasureEntry;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUILayoutRequest
   {
     LDKUIItemType type;
@@ -412,6 +478,7 @@ extern "C"
     bool hit_test;
   } LDKUILayoutRequest;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUILayoutItem
   {
     LDKUIId layout_id;
@@ -422,6 +489,7 @@ extern "C"
     LDKUIRect fallback_rect;
   } LDKUILayoutItem;
 
+  /** @group modules.ui.lifecycle */
   typedef struct LDKUILayoutItemCache
   {
     LDKUIId layout_id;
@@ -431,6 +499,7 @@ extern "C"
     u32 last_frame_touched;
   } LDKUILayoutItemCache;
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIScrollViewCache
   {
     LDKUIId id;
@@ -445,6 +514,7 @@ extern "C"
     bool has_scroll;
   };
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIScrollViewStackEntry
   {
     LDKUIId id;
@@ -458,6 +528,7 @@ extern "C"
     u32 flags;
   };
 
+  /** @group modules.ui.lifecycle */
   struct LDKUILayout
   {
     LDKUIId id;
@@ -484,6 +555,7 @@ extern "C"
     LDKUILayout *parent;
   };
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIWindow
   {
     LDKUIId id;
@@ -507,6 +579,7 @@ extern "C"
     bool cache_reused;
   };
 
+  /** @group modules.ui.windows */
   struct LDKUIWindowStackEntry
   {
     LDKUIWindow *window;
@@ -515,6 +588,7 @@ extern "C"
     u32 layout_stack_count;
   };
 
+  /** @group modules.ui.icons */
   typedef struct LDKUIConfig
   {
     u32 frame_arena_size;
@@ -530,6 +604,7 @@ extern "C"
     u32 font_size;
   } LDKUIConfig;
 
+  /** @group modules.ui.icons */
   typedef enum LDKUIControlVisualState
   {
     LDK_UI_CONTROL_VISUAL_STATE_IDLE = 0,
@@ -539,11 +614,13 @@ extern "C"
     LDK_UI_CONTROL_VISUAL_STATE_DISABLED = 4,
   } LDKUIControlVisualState;
 
+  /** @group modules.ui.controls */
   typedef struct LDKUITextInputState
   {
     u32 codepoints[LDK_UI_INPUT_CODEPOINTS_CAPACITY];
     u32 codepoint_count;
   } LDKUITextInputState;
+  /** @group modules.ui.controls */
   typedef enum LDKUIInputBoxResult
   {
     LDK_UI_INPUT_BOX_NONE = 0,
@@ -552,6 +629,7 @@ extern "C"
     LDK_UI_INPUT_BOX_CANCELED = 1 << 2,
   } LDKUIInputBoxResult;
 
+  /** @group modules.ui.controls */
   typedef struct LDKUISliderInputState
   {
     LDKUIId id;
@@ -560,12 +638,14 @@ extern "C"
     float value;
   } LDKUISliderInputState;
 
+  /** @group modules.ui.lifecycle */
   typedef enum LDKUIHitLayer
   {
     LDK_UI_HIT_LAYER_NORMAL = 0,
     LDK_UI_HIT_LAYER_POPUP = 1,
   } LDKUIHitLayer;
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIHitCandidate
   {
     LDKUIId window_id;
@@ -576,6 +656,7 @@ extern "C"
     u32 order;
   };
 
+  /** @group modules.ui.state */
   typedef struct LDKUITabFocusEntry
   {
     LDKUIId window_id;
@@ -585,6 +666,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIHitCandidate, ldk_ui_hit_candidate);
   X_ARRAY_TYPE_NAMED(LDKUITabFocusEntry, ldk_ui_tab_focus_entry);
 
+  /** @group modules.ui.areas */
   typedef struct LDKUIAreaStackEntry
   {
     bool expanded;
@@ -595,6 +677,7 @@ extern "C"
     bool has_background;
   } LDKUIAreaStackEntry;
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIPopupStackEntry
   {
     LDKUIId id;
@@ -604,12 +687,14 @@ extern "C"
     u32 measure_entry_index;
   };
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIPopupFrameEntry
   {
     LDKUIId id;
     LDKUIRect rect;
   };
 
+  /** @group modules.ui.lifecycle */
   struct LDKUIPopupCache
   {
     LDKUIId id;
@@ -619,6 +704,7 @@ extern "C"
     bool has_rect;
   };
 
+  /** @group modules.ui.tabs */
   typedef struct LDKUITabBarItem
   {
     LDKUIId id;
@@ -626,6 +712,7 @@ extern "C"
     char const *label;
   } LDKUITabBarItem;
 
+  /** @group modules.ui.tabs */
   typedef struct LDKUITabBarResult
   {
     u32 active_index;
@@ -647,6 +734,7 @@ extern "C"
   X_ARRAY_TYPE_NAMED(LDKUIPopupFrameEntry, ldk_ui_popup_frame_entry);
   X_ARRAY_TYPE_NAMED(LDKUIPopupCache, ldk_ui_popup_cache);
 
+  /** @group modules.ui.icons */
   struct LDKUIContext
   {
     XArena *frame_arena;
@@ -772,11 +860,13 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param config Configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.lifecycle
    */
   LDK_API bool ldk_ui_initialize(LDKUIContext *ctx, LDKUIConfig const *config);
   /**
    * @brief Shut down the UI.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.lifecycle
    */
   LDK_API void ldk_ui_terminate(LDKUIContext *ctx);
 
@@ -785,6 +875,7 @@ extern "C"
    * @param type Type identifier or kind used by the operation.
    * @param theme Theme used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.theme
    */
   LDK_API bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme);
   /**
@@ -792,6 +883,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param theme Theme used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.theme
    */
   LDK_API bool ldk_ui_theme_set(LDKUIContext *ctx, LDKUITheme *theme);
 
@@ -803,6 +895,7 @@ extern "C"
    * @param keyboard Keyboard used by this operation.
    * @param text_input Text input used by this operation.
    * @param viewport Viewport used by this operation.
+   * @group modules.ui.frames
    */
   LDK_API void ldk_ui_begin_frame(LDKUIContext *ctx, float delta,
       LDKMouseState const *mouse, LDKKeyboardState const *keyboard,
@@ -810,12 +903,14 @@ extern "C"
   /**
    * @brief Finish the current UI frame and prepare render data.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.frames
    */
   LDK_API void ldk_ui_end_frame(LDKUIContext *ctx);
   /**
    * @brief Access draw data produced by the completed UI frame.
    * @param ctx UI context used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
+   * @group modules.ui.frames
    */
   LDK_API LDKUIRenderData const *ldk_ui_get_render_data(
       LDKUIContext const *ctx);
@@ -823,6 +918,7 @@ extern "C"
    * @brief Associate a native window with UI clipboard operations.
    * @param ctx UI context used by this operation.
    * @param window Native window handle.
+   * @group modules.ui.clipboard
    */
   LDK_API void ldk_ui_clipboard_window_set(
       LDKUIContext *ctx, LDKWindow window);
@@ -831,23 +927,27 @@ extern "C"
    * @brief Push an integer onto the hierarchical UI ID stack.
    * @param ctx UI context used by this operation.
    * @param value Input value or current widget value.
+   * @group modules.ui.ids
    */
   LDK_API void ldk_ui_push_id_u32(LDKUIContext *ctx, uint32_t value);
   /**
    * @brief Push a pointer identity onto the hierarchical UI ID stack.
    * @param ctx UI context used by this operation.
    * @param value Input value or current widget value.
+   * @group modules.ui.ids
    */
   LDK_API void ldk_ui_push_id_ptr(LDKUIContext *ctx, void const *value);
   /**
    * @brief Push a string identity onto the hierarchical UI ID stack.
    * @param ctx UI context used by this operation.
    * @param value Input value or current widget value.
+   * @group modules.ui.ids
    */
   LDK_API void ldk_ui_push_id_cstr(LDKUIContext *ctx, char const *value);
   /**
    * @brief Remove the most recent UI ID scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.ids
    */
   LDK_API void ldk_ui_pop_id(LDKUIContext *ctx);
 
@@ -855,22 +955,26 @@ extern "C"
    * @brief Set disabled state for the next UI item.
    * @param ctx UI context used by this operation.
    * @param disabled Whether interaction is disabled.
+   * @group modules.ui.state
    */
   LDK_API void ldk_ui_set_next_disabled(LDKUIContext *ctx, bool disabled);
   /**
    * @brief Request keyboard focus for the next UI item.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.state
    */
   LDK_API void ldk_ui_set_next_focus(LDKUIContext *ctx);
   /**
    * @brief Begin a nested disabled-state scope.
    * @param ctx UI context used by this operation.
    * @param disabled Whether interaction is disabled.
+   * @group modules.ui.state
    */
   LDK_API void ldk_ui_begin_disabled(LDKUIContext *ctx, bool disabled);
   /**
    * @brief End the current disabled-state scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.state
    */
   LDK_API void ldk_ui_end_disabled(LDKUIContext *ctx);
 
@@ -881,6 +985,7 @@ extern "C"
    * @param w W used by this operation.
    * @param h H used by this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.layout.geometry
    */
   LDK_API LDKUIRect ldk_ui_rect(float x, float y, float w, float h);
   /**
@@ -888,6 +993,7 @@ extern "C"
    * @param buffer Buffer containing the data or receiving formatted output.
    * @param buffer_size Capacity of the buffer in bytes.
    * @param value Input value or current widget value.
+   * @group modules.ui.lifecycle
    */
   LDK_API void ldk_ui_format_float(
       char *buffer, u32 buffer_size, float value);
@@ -902,6 +1008,7 @@ extern "C"
    * @param rect UI or geometry rectangle.
    * @param flags Bitmask of options controlling this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.windows
    */
   LDK_API LDKUIRect ldk_ui_begin_window_fixed(
       LDKUIContext *ctx, char const *title, LDKUIRect rect, u32 flags);
@@ -912,6 +1019,7 @@ extern "C"
    * @param rect UI or geometry rectangle.
    * @param flags Bitmask of options controlling this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.windows
    */
   LDK_API LDKUIRect ldk_ui_begin_window(
       LDKUIContext *ctx, char const *title, LDKUIRect rect, u32 flags);
@@ -923,6 +1031,7 @@ extern "C"
    * @param open In/out flag indicating whether the window remains open.
    * @param flags Bitmask of options controlling this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.windows
    */
   LDK_API bool ldk_ui_begin_window_open(LDKUIContext *ctx, char const *title,
       LDKUIRect *rect, bool *open, u32 flags);
@@ -930,12 +1039,14 @@ extern "C"
    * @brief Report whether the current window has requested closure.
    * @param ctx UI context used by this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.windows
    */
   LDK_API bool ldk_ui_window_close_requested(LDKUIContext *ctx);
   /**
    * @brief Determine whether cached window content needs rebuilding.
    * @param ctx UI context used by this operation.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.windows
    */
   LDK_API bool ldk_ui_window_content_should_build(LDKUIContext *ctx);
   /**
@@ -943,22 +1054,26 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.windows
    */
   LDK_API bool ldk_ui_window_focus(LDKUIContext *ctx, LDKUIId id);
   /**
    * @brief Invalidate cached contents of one UI window.
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
+   * @group modules.ui.windows
    */
   LDK_API void ldk_ui_window_invalidate(LDKUIContext *ctx, LDKUIId id);
   /**
    * @brief Invalidate cached contents of all UI windows.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.windows
    */
   LDK_API void ldk_ui_windows_invalidate(LDKUIContext *ctx);
   /**
    * @brief Finish building the current UI window.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.windows
    */
   LDK_API void ldk_ui_end_window(LDKUIContext *ctx);
 
@@ -969,17 +1084,20 @@ extern "C"
    * @brief Create a pixel-based UI layout size.
    * @param value Input value or current widget value.
    * @return The resulting size.
+   * @group modules.ui.layout.sizing
    */
   LDK_API LDKUILayoutSize ldk_ui_px(float value);
   /**
    * @brief Create a percentage-based UI layout size.
    * @param value Input value or current widget value.
    * @return The resulting size.
+   * @group modules.ui.layout.sizing
    */
   LDK_API LDKUILayoutSize ldk_ui_percent(float value);
   /**
    * @brief Create a UI layout size that fills available space.
    * @return The resulting size.
+   * @group modules.ui.layout.sizing
    */
   LDK_API LDKUILayoutSize ldk_ui_fill(void);
 
@@ -987,12 +1105,14 @@ extern "C"
    * @brief Set the width constraint for the next UI item.
    * @param ctx UI context used by this operation.
    * @param width Width in pixels or the units expected by the API.
+   * @group modules.ui.layout.sizing
    */
   LDK_API void ldk_ui_set_next_width(LDKUIContext *ctx, LDKUILayoutSize width);
   /**
    * @brief Set the height constraint for the next UI item.
    * @param ctx UI context used by this operation.
    * @param height Height in pixels or the units expected by the API.
+   * @group modules.ui.layout.sizing
    */
   LDK_API void ldk_ui_set_next_height(
       LDKUIContext *ctx, LDKUILayoutSize height);
@@ -1001,6 +1121,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
+   * @group modules.ui.layout.sizing
    */
   LDK_API void ldk_ui_set_next_size(
       LDKUIContext *ctx, LDKUILayoutSize width, LDKUILayoutSize height);
@@ -1009,6 +1130,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param width Width in pixels or the units expected by the API.
    * @param height Height in pixels or the units expected by the API.
+   * @group modules.ui.layout.sizing
    */
   LDK_API void ldk_ui_set_next_min_size(
       LDKUIContext *ctx, float width, float height);
@@ -1016,6 +1138,7 @@ extern "C"
    * @brief Set the layout weight of the next UI item.
    * @param ctx UI context used by this operation.
    * @param weight Weight used by this operation.
+   * @group modules.ui.layout.sizing
    */
   LDK_API void ldk_ui_set_next_weight(LDKUIContext *ctx, float weight);
 
@@ -1023,18 +1146,21 @@ extern "C"
    * @brief Get the rectangle of the most recently emitted UI item.
    * @param ctx UI context used by this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.layout.geometry
    */
   LDK_API LDKUIRect ldk_ui_last_rect(LDKUIContext *ctx);
   /**
    * @brief Get the outer bounding rectangle of the most recent UI item.
    * @param ctx UI context used by this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.layout.geometry
    */
   LDK_API LDKUIRect ldk_ui_last_bounding_rect(LDKUIContext *ctx);
   /**
    * @brief Capture the current position in UI layout construction.
    * @param ctx UI context used by this operation.
    * @return The requested value.
+   * @group modules.ui.layout.measurement
    */
   LDK_API LDKUIMark ldk_ui_mark(LDKUIContext *ctx);
   /**
@@ -1042,6 +1168,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param mark Mark used by this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.layout.measurement
    */
   LDK_API LDKUIRect ldk_ui_measure_from(LDKUIContext *ctx, LDKUIMark mark);
 
@@ -1051,21 +1178,25 @@ extern "C"
   /**
    * @brief Begin a vertical auto-layout scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.stacks
    */
   LDK_API void ldk_ui_begin_vertical(LDKUIContext *ctx);
   /**
    * @brief Begin a horizontal auto-layout scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.stacks
    */
   LDK_API void ldk_ui_begin_horizontal(LDKUIContext *ctx);
   /**
    * @brief Close a vertical auto-layout scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.stacks
    */
   LDK_API void ldk_ui_end_vertical(LDKUIContext *ctx);
   /**
    * @brief Close a horizontal auto-layout scope.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.stacks
    */
   LDK_API void ldk_ui_end_horizontal(LDKUIContext *ctx);
 
@@ -1077,6 +1208,7 @@ extern "C"
    * the inset; negative or nonfinite values are treated as zero.
    * @param ctx UI context used by this operation.
    * @param padding Padding used by this operation.
+   * @group modules.ui.layout.spacing
    */
   LDK_API void ldk_ui_set_padding(LDKUIContext *ctx, float padding);
 
@@ -1089,12 +1221,14 @@ extern "C"
    * @param scroll Current scroll offset.
    * @param flags Bitmask of options controlling this operation.
    * @return The resulting point.
+   * @group modules.ui.scrolling
    */
   LDK_API LDKUIPoint ldk_ui_begin_scrollview(
       LDKUIContext *ctx, LDKUIPoint scroll, u32 flags);
   /**
    * @brief End the active scrollable region.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.scrolling
    */
   LDK_API void ldk_ui_end_scrollview(LDKUIContext *ctx);
 
@@ -1109,6 +1243,7 @@ extern "C"
    * @param icon Icon shown by the widget.
    * @param expanded Whether the collapsible item starts expanded.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.areas
    */
   LDK_API bool ldk_ui_begin_area_ex(
       LDKUIContext *ctx, char const *title, LDKUIIcon icon, bool expanded);
@@ -1118,17 +1253,20 @@ extern "C"
    * @param title Title shown by the window or dialog.
    * @param expanded Whether the collapsible item starts expanded.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.areas
    */
   LDK_API bool ldk_ui_begin_area(
       LDKUIContext *ctx, char const *title, bool expanded);
   /** Rectangle of the current area's header, for header action buttons.
    * @param ctx UI context used by this operation.
    * @return The resulting rectangle.
+   * @group modules.ui.layout.geometry
    */
   LDK_API LDKUIRect ldk_ui_area_header_rect(LDKUIContext *ctx);
   /**
    * @brief Close the current UI area.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.areas
    */
   LDK_API void ldk_ui_end_area(LDKUIContext *ctx);
 
@@ -1139,6 +1277,7 @@ extern "C"
    * @brief Open a popup identified by a UI ID.
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_open_popup(LDKUIContext *ctx, LDKUIId id);
   /**
@@ -1146,6 +1285,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
    * @param position Position used by the operation.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_open_popup_at(
       LDKUIContext *ctx, LDKUIId id, LDKUIPoint position);
@@ -1153,16 +1293,19 @@ extern "C"
    * @brief Close the popup with the specified UI ID.
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_close_popup(LDKUIContext *ctx, LDKUIId id);
   /**
    * @brief Close the active popup.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_close_current_popup(LDKUIContext *ctx);
   /**
    * @brief Close all open popups.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_close_all_popups(LDKUIContext *ctx);
   /**
@@ -1170,6 +1313,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
    * @return True when the queried condition holds; false otherwise.
+   * @group modules.ui.popups
    */
   LDK_API bool ldk_ui_popup_is_open(LDKUIContext *ctx, LDKUIId id);
   /**
@@ -1177,11 +1321,13 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.popups
    */
   LDK_API bool ldk_ui_begin_popup(LDKUIContext *ctx, LDKUIId id);
   /**
    * @brief Finish drawing the active popup.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.popups
    */
   LDK_API void ldk_ui_end_popup(LDKUIContext *ctx);
 
@@ -1194,6 +1340,7 @@ extern "C"
    * @param texture Texture used by this operation.
    * @param uv Texture coordinates defining the displayed image region.
    * @param size Size of the data or region, in bytes where applicable.
+   * @group modules.ui.images
    */
   LDK_API void ldk_ui_image(LDKUIContext *ctx, LDKUITextureHandle texture,
       LDKUIRect uv, LDKUISize size);
@@ -1201,6 +1348,7 @@ extern "C"
    * @brief Draw an icon UI item.
    * @param ctx UI context used by this operation.
    * @param icon Icon shown by the widget.
+   * @group modules.ui.icons
    */
   LDK_API void ldk_ui_icon(LDKUIContext *ctx, LDKUIIcon icon);
   /**
@@ -1209,6 +1357,7 @@ extern "C"
    * @param icon Icon shown by the widget.
    * @param text Text used by this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.icons
    */
   LDK_API bool ldk_ui_icon_button(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
@@ -1216,6 +1365,7 @@ extern "C"
    * @brief Draw a label UI element.
    * @param ctx UI context used by this operation.
    * @param text Text used by this operation.
+   * @group modules.ui.labels
    */
   LDK_API void ldk_ui_label(LDKUIContext *ctx, char const *text);
   /**
@@ -1223,6 +1373,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param icon Icon shown by the widget.
    * @param text Text used by this operation.
+   * @group modules.ui.icons
    */
   LDK_API void ldk_ui_icon_label(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
@@ -1230,6 +1381,7 @@ extern "C"
    * @brief Draw selectable UI text.
    * @param ctx UI context used by this operation.
    * @param text Text used by this operation.
+   * @group modules.ui.tabs
    */
   LDK_API void ldk_ui_selectable_text(
       LDKUIContext *ctx, char const *text);
@@ -1238,6 +1390,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param color Color value used by the operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.colors
    */
   LDK_API bool ldk_ui_color_view(LDKUIContext *ctx, rgba32 color);
   /**
@@ -1245,6 +1398,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param text Text used by this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.buttons
    */
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
   /**
@@ -1252,6 +1406,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param value Input value or current widget value.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.buttons
    */
   LDK_API bool ldk_ui_toggle(LDKUIContext *ctx, bool value);
   /**
@@ -1259,6 +1414,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param text Text used by this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.buttons
    */
   LDK_API bool ldk_ui_button_flat(LDKUIContext *ctx, char const *text);
   /**
@@ -1268,6 +1424,7 @@ extern "C"
    * @param item_count Number of items in the array.
    * @param selected_index Currently selected item index.
    * @return The resulting numeric value.
+   * @group modules.ui.controls
    */
   LDK_API u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
       u32 item_count, u32 selected_index);
@@ -1278,6 +1435,7 @@ extern "C"
    * @param min_value Minimum permitted value.
    * @param max_value Maximum permitted value.
    * @return The resulting value.
+   * @group modules.ui.controls
    */
   LDK_API float ldk_ui_slider(
       LDKUIContext *ctx, float value, float min_value, float max_value);
@@ -1288,6 +1446,7 @@ extern "C"
    * @param min_value Minimum permitted value.
    * @param max_value Maximum permitted value.
    * @return The resulting value.
+   * @group modules.ui.controls
    */
   LDK_API float ldk_ui_slider_input(
       LDKUIContext *ctx, float value, float min_value, float max_value);
@@ -1300,6 +1459,7 @@ extern "C"
    * @param depth Hierarchy depth or depth setting.
    * @param flags Bitmask of options controlling this operation.
    * @return The resulting numeric value.
+   * @group modules.ui.trees
    */
   LDK_API u32 ldk_ui_tree_node_ex(LDKUIContext *ctx, char const *title,
       LDKUIIcon icon, bool expanded, u32 depth, u32 flags);
@@ -1311,6 +1471,7 @@ extern "C"
    * @param depth Hierarchy depth or depth setting.
    * @param flags Bitmask of options controlling this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.trees
    */
   LDK_API bool ldk_ui_tree_node(LDKUIContext *ctx, char const *title,
       bool expanded, u32 depth, u32 flags);
@@ -1320,6 +1481,7 @@ extern "C"
    * @param buffer Buffer containing the data or receiving formatted output.
    * @param buffer_size Capacity of the buffer in bytes.
    * @return The resulting numeric value.
+   * @group modules.ui.controls
    */
   LDK_API u32 ldk_ui_input_box(
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
@@ -1329,12 +1491,14 @@ extern "C"
    * @param buffer Buffer containing the data or receiving formatted output.
    * @param buffer_size Capacity of the buffer in bytes.
    * @return The resulting numeric value.
+   * @group modules.ui.labels
    */
   LDK_API u32 ldk_ui_input_label(
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
   /**
    * @brief Draw a horizontal line UI element.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.stacks
    */
   LDK_API void ldk_ui_horizontal_line(LDKUIContext *ctx);
   /**
@@ -1344,6 +1508,7 @@ extern "C"
    * @param min_value Minimum permitted value.
    * @param max_value Maximum permitted value.
    * @return The resulting value.
+   * @group modules.ui.layout.sizing
    */
   LDK_API float ldk_ui_resize_handle_horizontal(LDKUIContext *ctx,
       float value, float min_value, float max_value);
@@ -1354,12 +1519,14 @@ extern "C"
    * @param min_value Minimum permitted value.
    * @param max_value Maximum permitted value.
    * @return The resulting value.
+   * @group modules.ui.layout.sizing
    */
   LDK_API float ldk_ui_resize_handle_vertical(LDKUIContext *ctx,
       float value, float min_value, float max_value);
   /**
    * @brief Draw a spacer UI element.
    * @param ctx UI context used by this operation.
+   * @group modules.ui.layout.spacing
    */
   LDK_API void ldk_ui_spacer(LDKUIContext *ctx);
   /**
@@ -1369,6 +1536,7 @@ extern "C"
    * @param item_count Number of items in the array.
    * @param active_index Currently active item index.
    * @return Result of the operation.
+   * @group modules.ui.tabs
    */
   LDK_API LDKUITabBarResult ldk_ui_tab_bar(LDKUIContext *ctx,
       LDKUITabBarItem const *items, u32 item_count, u32 active_index);
@@ -1381,6 +1549,7 @@ extern "C"
    * @param ctx UI context used by this operation.
    * @param id Identifier of the target object.
    * @param rect UI or geometry rectangle.
+   * @group modules.ui.widgets.panels
    */
   LDK_API void ldk_ui_widget_panel(
       LDKUIContext *ctx, LDKUIId id, LDKUIRect rect);
@@ -1390,6 +1559,7 @@ extern "C"
    * @param id Identifier of the target object.
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
+   * @group modules.ui.widgets.labels
    */
   LDK_API void ldk_ui_widget_label(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
@@ -1400,6 +1570,7 @@ extern "C"
    * @param icon Icon shown by the widget.
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
+   * @group modules.ui.widgets.icons
    */
   LDK_API void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id,
       LDKUIIcon icon, char const *text, LDKUIRect rect);
@@ -1410,6 +1581,7 @@ extern "C"
    * @param texture Texture used by this operation.
    * @param uv Texture coordinates defining the displayed image region.
    * @param rect UI or geometry rectangle.
+   * @group modules.ui.widgets.images
    */
   LDK_API void ldk_ui_widget_image(LDKUIContext *ctx, LDKUIId id,
       LDKUITextureHandle texture, LDKUIRect uv, LDKUIRect rect);
@@ -1422,6 +1594,7 @@ extern "C"
    * @param bottom_right Bottom right used by this operation.
    * @param bottom_left Bottom left used by this operation.
    * @param rect UI or geometry rectangle.
+   * @group modules.ui.widgets.colors
    */
   LDK_API void ldk_ui_widget_gradient(LDKUIContext *ctx, LDKUIId id,
       rgba32 top_left, rgba32 top_right, rgba32 bottom_right,
@@ -1433,6 +1606,7 @@ extern "C"
    * @param color Color value used by the operation.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.colors
    */
   LDK_API bool ldk_ui_widget_color_view(
     LDKUIContext *ctx, LDKUIId id, rgba32 color, LDKUIRect rect);
@@ -1443,6 +1617,7 @@ extern "C"
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.buttons
    */
   LDK_API bool ldk_ui_widget_button(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
@@ -1454,6 +1629,7 @@ extern "C"
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.icons
    */
   LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
       LDKUIIcon icon, char const *text, LDKUIRect rect);
@@ -1465,6 +1641,7 @@ extern "C"
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.icons
    */
   LDK_API bool ldk_ui_widget_icon_button_flat(LDKUIContext *ctx, LDKUIId id,
       LDKUIIcon icon, char const *text, LDKUIRect rect);
@@ -1475,6 +1652,7 @@ extern "C"
    * @param text Text used by this operation.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.buttons
    */
   LDK_API bool ldk_ui_widget_button_flat(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
@@ -1485,6 +1663,7 @@ extern "C"
    * @param value Input value or current widget value.
    * @param rect UI or geometry rectangle.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.buttons
    */
   LDK_API bool ldk_ui_widget_toggle(
       LDKUIContext *ctx, LDKUIId id, bool value, LDKUIRect rect);
@@ -1499,6 +1678,7 @@ extern "C"
    * @param selected_index Currently selected item index.
    * @param rect UI or geometry rectangle.
    * @return The resulting numeric value.
+   * @group modules.ui.widgets.controls
    */
   LDK_API u32 ldk_ui_widget_combo_box(LDKUIContext *ctx, LDKUIId id,
       const char *const *items, u32 item_count, u32 selected_index,
@@ -1512,6 +1692,7 @@ extern "C"
    * @param max_value Maximum permitted value.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.controls
    */
   LDK_API float ldk_ui_widget_slider(LDKUIContext *ctx, LDKUIId id, float value,
       float min_value, float max_value, LDKUIRect rect);
@@ -1524,6 +1705,7 @@ extern "C"
    * @param max_value Maximum permitted value.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.controls
    */
   LDK_API float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id,
       float value, float min_value, float max_value, LDKUIRect rect);
@@ -1536,6 +1718,7 @@ extern "C"
    * @param content_size Length of the scrollable content.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.layout.stacks
    */
   LDK_API float ldk_ui_widget_scrollbar_vertical(LDKUIContext *ctx, LDKUIId id,
       float scroll, float visible_size, float content_size, LDKUIRect rect);
@@ -1548,6 +1731,7 @@ extern "C"
    * @param content_size Length of the scrollable content.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.layout.stacks
    */
   LDK_API float ldk_ui_widget_scrollbar_horizontal(LDKUIContext *ctx,
       LDKUIId id, float scroll, float visible_size, float content_size,
@@ -1560,6 +1744,7 @@ extern "C"
    * @param buffer_size Capacity of the buffer in bytes.
    * @param rect UI or geometry rectangle.
    * @return The resulting numeric value.
+   * @group modules.ui.widgets.controls
    */
   LDK_API u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
@@ -1571,6 +1756,7 @@ extern "C"
    * @param buffer_size Capacity of the buffer in bytes.
    * @param rect UI or geometry rectangle.
    * @return The resulting numeric value.
+   * @group modules.ui.widgets.labels
    */
   LDK_API u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
@@ -1583,6 +1769,7 @@ extern "C"
    * @param rect UI or geometry rectangle.
    * @param active Active used by this operation.
    * @return True when the UI condition or interaction is active; false otherwise.
+   * @group modules.ui.widgets.tabs
    */
   LDK_API bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
       char const *text, LDKUIRect rect, bool active);
@@ -1595,6 +1782,7 @@ extern "C"
    * @param max_value Maximum permitted value.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.layout.sizing
    */
   LDK_API float ldk_ui_widget_resize_handle_horizontal(LDKUIContext *ctx,
       LDKUIId id, float value, float min_value, float max_value,
@@ -1608,6 +1796,7 @@ extern "C"
    * @param max_value Maximum permitted value.
    * @param rect UI or geometry rectangle.
    * @return The resulting value.
+   * @group modules.ui.widgets.layout.sizing
    */
   LDK_API float ldk_ui_widget_resize_handle_vertical(LDKUIContext *ctx,
       LDKUIId id, float value, float min_value, float max_value,
@@ -1616,7 +1805,9 @@ extern "C"
   //----------------------------------------------------------
   // Theme IO
   //----------------------------------------------------------
-  /** A resolved UI theme and its display name. Contains no owned resources. */
+  /** A resolved UI theme and its display name. Contains no owned resources.
+   * @group modules.ui.theme
+   */
   typedef struct LDKUIThemeFile
   {
     LDKUITheme theme;
@@ -1634,6 +1825,7 @@ extern "C"
    * @param error Receives an error description when parsing fails.
    * @param error_size Capacity of the error buffer, in bytes.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.theme
    */
   LDK_API bool ldk_ui_theme_tml_parse(char const *source,
       LDKUIThemeFile *out_theme, char *error, size_t error_size);
@@ -1648,6 +1840,7 @@ extern "C"
    * @param error Receives an error description when parsing fails.
    * @param error_size Capacity of the error buffer, in bytes.
    * @return True if the operation succeeds; false otherwise.
+   * @group modules.ui.theme
    */
   LDK_API bool ldk_ui_theme_tml_load(char const *path,
       LDKUIThemeFile *out_theme, char *error, size_t error_size);

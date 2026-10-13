@@ -11,18 +11,25 @@
 #include <ldk_common.h>
 #include <stdx/stdx_math.h>
 
+/** @group core.meshes */
 typedef struct LDKAssetManager LDKAssetManager;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/** @group core.meshes */
 #define LDK_MESH_NAME_CAPACITY 128u
+/** @group core.meshes */
 #define LDK_MESH_NODE_NAME_CAPACITY 128u
+/** @group core.meshes */
 #define LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY 128u
+/** @group core.meshes */
 #define LDK_MESH_NODE_NONE (-1)
+/** @group core.meshes */
 #define LDK_MESH_INDEX_NONE (-1)
 
+  /** @group core.meshes */
   typedef struct LDKMeshVertex
   {
     Vec3 position;
@@ -33,6 +40,7 @@ extern "C" {
     Vec4 tangent;
   } LDKMeshVertex;
 
+  /** @group core.meshes */
   typedef struct LDKMeshData
   {
     LDKMeshVertex* vertices;
@@ -43,6 +51,7 @@ extern "C" {
     bool has_tangents;
   } LDKMeshData;
 
+  /** @group core.meshes */
   typedef struct LDKMeshSubmesh
   {
     u32 first_index;
@@ -50,11 +59,13 @@ extern "C" {
     u32 material_slot;
   } LDKMeshSubmesh;
 
+  /** @group core.meshes */
   typedef struct LDKMeshMaterialSlot
   {
     char name[LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY];
   } LDKMeshMaterialSlot;
 
+  /** @group core.meshes */
   typedef struct LDKMeshNode
   {
     char name[LDK_MESH_NODE_NAME_CAPACITY];
@@ -65,6 +76,7 @@ extern "C" {
     Vec3 local_scale;
   } LDKMeshNode;
 
+  /** @group core.meshes */
   typedef enum LDKMeshPrimitive
   {
     LDK_MESH_PRIMITIVE_CUBE = 0,
@@ -81,12 +93,14 @@ extern "C" {
    * @param primitive Primitive used by this operation.
    * @param out_mesh Receives the resulting mesh.
    * @return True if the operation succeeds; false otherwise.
+   * @group core.meshes
    */
   LDK_API bool ldk_mesh_primitive_create(
       LDKMeshPrimitive primitive, LDKMeshData* out_mesh);
   /**
    * @brief Destroy the mesh data.
    * @param mesh Mesh resource used by the operation.
+   * @group core.meshes
    */
   LDK_API void ldk_mesh_data_destroy(LDKMeshData* mesh);
 
@@ -98,6 +112,7 @@ extern "C" {
    * @param manager Asset manager that owns or resolves the asset.
    * @param primitive Primitive used by this operation.
    * @return Handle to the requested object or resource.
+   * @group core.meshes
    */
   LDK_API LDKAssetMesh ldk_mesh_primitive_asset_get(
       LDKAssetManager* manager, LDKMeshPrimitive primitive);
