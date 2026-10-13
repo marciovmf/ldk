@@ -465,6 +465,12 @@ scene:
             enabled: true
             material: "assets/materials/particle_fire.tml"
             emission_rate: 5.00000000
+            emission_mode: 0
+            play_on_start: true
+            emission_duration: 1.00000000
+            burst_count: 1
+            particles_per_burst: 16
+            burst_interval: 0.100000001
             max_particles: 256
             lifetime: 10.0000000
             initial_velocity: 0.00000000, 0.500000000, 0.00000000
@@ -527,7 +533,7 @@ scene:
             material_asset: "assets/megaman.material"
         - type: 4294967279 # LDKMaterialInstance
           fields:
-            sprite_id: "0"
+            sprite_id: "18"
         - type: 4294967280 # LDKKeyFrameAnimationSource
           fields:
             current_animation: 0
@@ -536,6 +542,53 @@ scene:
             speed: 1.00000000
             animations:
               - path: "assets/megaman.anim"
+        - type: 4294967288 # LDKInstancedMeshSource
+          fields:
+            source_asset: -1
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+            instances:
+        - type: 4294967287 # LDKParticleEmitter
+          fields:
+            enabled: true
+            material: -1
+            emission_rate: 10.0000000
+            emission_mode: 2
+            play_on_start: true
+            emission_duration: 1.00000000
+            burst_count: 1
+            particles_per_burst: 5
+            burst_interval: 0.100000001
+            max_particles: 256
+            lifetime: 1.00000000
+            initial_velocity: 0.00000000, 1.00000000, 0.00000000
+            velocity_variation: 0.00000000, 0.00000000, 0.00000000
+            acceleration: 0.00000000, 0.00000000, 0.00000000
+            initial_scale: 1.00000000
+            initial_scale_variation: 0.00000000
+            final_scale: 1.00000000
+            final_scale_variation: 0.00000000
+            initial_alpha: 1.00000000
+            initial_alpha_variation: 0.00000000
+            final_alpha: 1.00000000
+            final_alpha_variation: 0.00000000
+            initial_tint: 4294967295
+            initial_tint_variation: 255
+            final_tint: 4294967295
+            final_tint_variation: 255
+            initial_rotation: 0.00000000
+            initial_rotation_variation: 0.00000000
+            final_rotation: 0.00000000
+            final_rotation_variation: 0.00000000
+            interpolation_curve: 0
+            simulation_space: 0
+            sort_mode: 1
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
     - id: "0x05047ea6f003fb8f"
