@@ -39,6 +39,14 @@ extern "C"
     LDK_PARTICLE_INTERPOLATION_SMOOTHSTEP
   } LDKParticleInterpolationCurve;
 
+  //@enum
+  typedef enum LDKParticleEmissionMode
+  {
+    LDK_PARTICLE_EMISSION_CONTINUOUS = 0,
+    LDK_PARTICLE_EMISSION_DURATION,
+    LDK_PARTICLE_EMISSION_BURSTS
+  } LDKParticleEmissionMode;
+
   typedef struct LDKParticleRuntime
   {
     Vec3 position;
@@ -60,6 +68,12 @@ extern "C"
     bool enabled;
     LDKAssetMaterial material;
     float emission_rate;
+    LDKParticleEmissionMode emission_mode;
+    bool play_on_start;
+    float emission_duration;
+    u32 burst_count;
+    u32 particles_per_burst;
+    float burst_interval;
     u32 max_particles;
     float lifetime;
     Vec3 initial_velocity;
@@ -94,6 +108,23 @@ extern "C"
     LDKParticleSimulationSpace simulation_space;
     LDKParticleSortMode sort_mode;
 
+    /* Playback commands select an active mode without changing authored
+     * configuration. Existing particles survive Stop and Restart. */
+    //@inspect hidden runtime
+    bool playing;
+    //@inspect hidden runtime
+    bool playback_started;
+    //@inspect hidden runtime
+    LDKParticleEmissionMode active_emission_mode;
+    //@inspect hidden runtime
+    float active_duration;
+    //@inspect hidden runtime
+    u32 active_burst_count;
+    //@inspect hidden runtime
+    float emission_elapsed;
+    //@inspect hidden runtime
+    u32 bursts_emitted;
+
     //@inspect hidden runtime
     LDKParticleRuntime *particles;
     //@inspect readonly runtime
@@ -109,6 +140,19 @@ extern "C"
   } LDKParticleEmitter;
 
   LDK_API LDKParticleEmitter ldk_particle_emitter_make_default(void);
+  /** Start the configured mode if not playing. */
+  LDK_API bool ldk_particle_emitter_play(LDKParticleEmitter *emitter);
+  /** Restart the configured mode without killing existing particles. */
+  LDK_API bool ldk_particle_emitter_restart(LDKParticleEmitter *emitter);
+  /** Stop future emission; live particles continue simulating. */
+  LDK_API void ldk_particle_emitter_stop(LDKParticleEmitter *emitter);
+  /** Play the configured burst parameters for exactly count bursts. */
+  LDK_API bool ldk_particle_emitter_emit_bursts(
+      LDKParticleEmitter *emitter, u32 count);
+  /** Play the configured emission rate for the specified duration. */
+  LDK_API bool ldk_particle_emitter_emit_for(
+      LDKParticleEmitter *emitter, float seconds);
+  /** Remove all live particles without stopping scheduled emission. */
   LDK_API void ldk_particle_emitter_clear(LDKParticleEmitter *emitter);
 
 #ifdef LDK_ENGINE

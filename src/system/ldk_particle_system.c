@@ -108,7 +108,15 @@ static void s_camera_diagnostic_set(u32 diagnostic)
 
 static bool s_emitter_is_valid(const LDKParticleEmitter *emitter)
 {
-  return emitter && isfinite(emitter->emission_rate) &&
+  return emitter &&
+      (emitter->emission_mode == LDK_PARTICLE_EMISSION_CONTINUOUS ||
+          emitter->emission_mode == LDK_PARTICLE_EMISSION_DURATION ||
+          emitter->emission_mode == LDK_PARTICLE_EMISSION_BURSTS) &&
+      isfinite(emitter->emission_duration) &&
+      emitter->emission_duration >= 0.0f &&
+      isfinite(emitter->burst_interval) &&
+      emitter->burst_interval >= 0.0f &&
+      isfinite(emitter->emission_rate) &&
       emitter->emission_rate >= 0.0f &&
       emitter->max_particles <= UINT32_MAX / sizeof(LDKParticleRuntime) &&
       isfinite(emitter->lifetime) && emitter->lifetime > 0.0f &&
@@ -427,11 +435,10 @@ static void s_particle_simulate(LDKParticleEmitter *emitter, float dt)
   }
 }
 
-static void s_particle_emit(LDKParticleEmitter *emitter, LDKEntity entity,
-    Mat4 emitter_world, Quat emitter_rotation, float dt)
+static void s_particle_emit_continuous(LDKParticleEmitter *emitter,
+    LDKEntity entity, Mat4 emitter_world, Quat emitter_rotation, float dt)
 {
-  if (!emitter->enabled || emitter->emission_rate <= 0.0f ||
-      emitter->max_particles == 0)
+  if (emitter->emission_rate <= 0.0f || emitter->max_particles == 0)
   {
     emitter->emission_accumulator = 0.0f;
     s_emitter_error_clear(emitter, LDK_PARTICLE_EMITTER_ERROR_EMISSION);
@@ -477,6 +484,112 @@ static void s_particle_emit(LDKParticleEmitter *emitter, LDKEntity entity,
     }
   }
   s_emitter_error_clear(emitter, LDK_PARTICLE_EMITTER_ERROR_STORAGE);
+}
+
+static void s_particle_emit_bursts(LDKParticleEmitter *emitter,
+    LDKEntity entity, Mat4 emitter_world, Quat emitter_rotation, float dt)
+{
+  if (emitter->bursts_emitted >= emitter->active_burst_count)
+  {
+    emitter->playing = false;
+    return;
+  }
+
+  /* A burst occurs at t=0 and each multiple of burst_interval. If a frame
+   * crosses several scheduled times, consume all of them on that frame. */
+  double elapsed = (double)emitter->emission_elapsed + (double)dt;
+  u32 due_total = emitter->active_burst_count;
+  if (emitter->burst_interval > 0.0f)
+  {
+    double due = floor(elapsed / (double)emitter->burst_interval) + 1.0;
+    if (due < (double)due_total)
+    {
+      due_total = (u32)due;
+    }
+  }
+  emitter->emission_elapsed = (float)fmin(elapsed, (double)FLT_MAX);
+  if (due_total <= emitter->bursts_emitted)
+  {
+    return;
+  }
+
+  u32 bursts = due_total - emitter->bursts_emitted;
+  emitter->bursts_emitted = due_total;
+  u32 available = emitter->max_particles - emitter->particle_count;
+  u64 requested = (u64)bursts * (u64)emitter->particles_per_burst;
+  u32 to_spawn = requested < available ? (u32)requested : available;
+  bool success = true;
+  for (u32 i = 0; i < to_spawn; ++i)
+  {
+    if (!s_particle_spawn(emitter, emitter_world, emitter_rotation))
+    {
+      s_emitter_error_set(emitter, entity, LDK_PARTICLE_EMITTER_ERROR_STORAGE,
+          "failed to allocate particle storage.");
+      success = false;
+      break;
+    }
+  }
+  if (success)
+  {
+    s_emitter_error_clear(emitter, LDK_PARTICLE_EMITTER_ERROR_STORAGE);
+  }
+  if (emitter->bursts_emitted == emitter->active_burst_count)
+  {
+    emitter->playing = false;
+  }
+}
+
+static void s_particle_emit(LDKParticleEmitter *emitter, LDKEntity entity,
+    Mat4 emitter_world, Quat emitter_rotation, float dt)
+{
+  if (!emitter->playback_started)
+  {
+    if (!emitter->play_on_start)
+    {
+      emitter->playback_started = true;
+    }
+    else if (!ldk_particle_emitter_play(emitter))
+    {
+      return;
+    }
+  }
+  if (!emitter->playing || !emitter->enabled)
+  {
+    emitter->emission_accumulator = 0.0f;
+    return;
+  }
+
+  switch (emitter->active_emission_mode)
+  {
+  case LDK_PARTICLE_EMISSION_CONTINUOUS:
+    s_particle_emit_continuous(emitter, entity, emitter_world,
+        emitter_rotation, dt);
+    break;
+  case LDK_PARTICLE_EMISSION_DURATION:
+  {
+    float remaining = emitter->active_duration - emitter->emission_elapsed;
+    if (remaining <= 0.0f)
+    {
+      emitter->playing = false;
+      break;
+    }
+    float step = fminf(dt, remaining);
+    s_particle_emit_continuous(emitter, entity, emitter_world,
+        emitter_rotation, step);
+    emitter->emission_elapsed += step;
+    if (emitter->emission_elapsed >= emitter->active_duration)
+    {
+      emitter->playing = false;
+    }
+    break;
+  }
+  case LDK_PARTICLE_EMISSION_BURSTS:
+    s_particle_emit_bursts(emitter, entity, emitter_world,
+        emitter_rotation, dt);
+    break;
+  default:
+    break;
+  }
 }
 
 static bool s_particle_proxy_prepare(LDKParticleEmitter *emitter,
@@ -672,6 +785,13 @@ static void s_particle_runtime_reset(void)
 
     emitter->particle_count = 0;
     emitter->emission_accumulator = 0.0f;
+    emitter->playing = false;
+    emitter->playback_started = false;
+    emitter->active_emission_mode = emitter->emission_mode;
+    emitter->active_duration = emitter->emission_duration;
+    emitter->active_burst_count = emitter->burst_count;
+    emitter->emission_elapsed = 0.0f;
+    emitter->bursts_emitted = 0u;
     emitter->runtime_error_flags = 0u;
 
     LDKInstancedMeshSource *mesh = ldk_ecs_component_get(
