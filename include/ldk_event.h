@@ -1,6 +1,7 @@
 /**
- * @file   ldk_event.h
- * @brief  Event definitions and types
+ * # Platform events
+ *
+ * Event definitions and types
  *
  * Declares engine and OS-level event structures and enums.
  */

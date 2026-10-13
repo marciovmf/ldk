@@ -1,7 +1,9 @@
 /**
- * @file ldk_grass_interact.h
- * @brief Grass interaction component.
+ * # Grass interaction component
+ *
+ * Grass interaction component.
  */
+
 #ifndef LDK_GRASS_INTERACT_H
 #define LDK_GRASS_INTERACT_H
 
@@ -22,10 +24,19 @@ typedef struct LDKGrassInteractComponent
   float strength;
 } LDKGrassInteractComponent;
 
+/**
+ * @brief Create default settings for grass interact component.
+ * @return A value initialized with the engine defaults.
+ */
 LDK_API LDKGrassInteractComponent ldk_grass_interact_component_make_default(
     void);
 
 #ifdef LDK_ENGINE
+/**
+ * @brief Build the ECS registration descriptor for the grass interact component.
+ * @param initial_capacity Initial number of entries reserved in the registry.
+ * @return A descriptor for the requested component or resource.
+ */
 LDK_API LDKComponentDesc ldk_grass_interact_component_desc(
     u32 initial_capacity);
 #endif

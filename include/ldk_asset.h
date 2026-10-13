@@ -1,3 +1,9 @@
+/**
+ * # Asset identifiers
+ *
+ * Common typed asset handles and identifiers used by the LDK asset manager.
+ */
+
 #ifndef LDK_ASSET_H
 #define LDK_ASSET_H
 

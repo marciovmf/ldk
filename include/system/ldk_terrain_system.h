@@ -1,7 +1,9 @@
 /**
- * @file ldk_terrain_system.h
- * @brief Generic configurable height-field terrain system.
+ * # Terrain system
+ *
+ * Generic configurable height-field terrain system.
  */
+
 #ifndef LDK_TERRAIN_SYSTEM_H
 #define LDK_TERRAIN_SYSTEM_H
 
@@ -30,14 +32,45 @@ typedef enum LDKTerrainChannel
   LDK_TERRAIN_CHANNEL_A
 } LDKTerrainChannel;
 
+/**
+ * @brief Assign a heightmap image to the terrain system.
+ * @param image Image used by this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);
+/**
+ * @brief Check whether the terrain system is active.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_terrain_system_is_active(void);
+/**
+ * @brief Query terrain height at a world-space X/Z point.
+ * @param world_x World-space X coordinate.
+ * @param world_z World-space Z coordinate.
+ * @param out_height Receives the surface height in world-space units.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_terrain_height_at_world(
     float world_x, float world_z, float *out_height);
 
+/**
+ * @brief Initialize the terrain system.
+ * @param data Source data or system-owned context for this operation.
+ * @return System initialization status code.
+ */
 int ldk_terrain_system_initialize(void *data);
+/**
+ * @brief Update the terrain system.
+ * @param data Source data or system-owned context for this operation.
+ * @param group Entity group used for this system update.
+ * @param dt Elapsed time since the preceding update, in seconds.
+ */
 void ldk_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt);
+/**
+ * @brief Shut down the terrain system.
+ * @param data Source data or system-owned context for this operation.
+ */
 void ldk_terrain_system_terminate(void *data);
 
 //@system name=LDKTerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER

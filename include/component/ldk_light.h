@@ -1,7 +1,10 @@
-/** @file ldk_light.h
- * @brief Scene light components. Spot angles are half-cone angles in radians.
+/**
+ * # Light components
+ *
+ * Scene light components. Spot angles are half-cone angles in radians.
  * Position and direction come from Transform; forward is local -Z.
  */
+
 #ifndef LDK_LIGHT_H
 #define LDK_LIGHT_H
 
@@ -46,8 +49,23 @@ extern "C"
   } LDKDirectionalLight;
 
 #ifdef LDK_ENGINE
+  /**
+   * @brief Build the ECS registration descriptor for the point light component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_point_light_component_desc(u32 initial_capacity);
+  /**
+   * @brief Build the ECS registration descriptor for the spot light component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_spot_light_component_desc(u32 initial_capacity);
+  /**
+   * @brief Build the ECS registration descriptor for the directional light component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_directional_light_component_desc(
       u32 initial_capacity);
 #endif

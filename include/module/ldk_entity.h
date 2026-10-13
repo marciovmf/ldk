@@ -1,6 +1,7 @@
 /**
- * @file   ldk_entity.h
- * @brief  Entity system (handles, lifecycle, component binding)
+ * # Entity registry
+ *
+ * Entity system (handles, lifecycle, component binding)
  *
  * Defines entity creation, destruction, and component associations.
  */
@@ -107,6 +108,13 @@ typedef struct LDKEntityInfo
 #endif
 } LDKEntityInfo;
 
+/**
+ * @brief Callback visiting an entity during iteration.
+ * @param entity Entity to inspect or modify.
+ * @param info Info used by this operation.
+ * @param user Opaque caller-supplied data passed to the callback.
+ * @return True if the operation succeeds; false otherwise.
+ */
 typedef bool (*LDKEntityIterFn)(LDKEntity entity, LDKEntityInfo* info, void* user);
 
 typedef struct LDKEntityRegistry
@@ -119,58 +127,315 @@ typedef struct LDKEntityRegistry
 
 typedef struct LDKTransform LDKTransform;
 
+/**
+ * @brief Initialize the entity module.
+ * @param system System used by this operation.
+ * @param page_capacity Number of entries per allocation page.
+ * @param initial_pages Number of pages initially allocated.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_module_initialize(LDKEntityRegistry* system, u32 page_capacity, u32 initial_pages);
+/**
+ * @brief Shut down the entity module.
+ * @param system System used by this operation.
+ */
 LDK_API void ldk_entity_module_terminate(LDKEntityRegistry* system);
+/**
+ * @brief Clear the state of the entity module.
+ * @param system System used by this operation.
+ */
 LDK_API void ldk_entity_module_clear(LDKEntityRegistry* system);
+/**
+ * @brief Create the entity.
+ * @param system System used by this operation.
+ * @return The requested value.
+ */
 LDK_API LDKEntity ldk_entity_create(LDKEntityRegistry* system);
+/**
+ * @brief Destroy the entity.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ */
 LDK_API void ldk_entity_destroy(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Check whether the entity refers to a live resource.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_entity_is_alive(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Get the entity info.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API LDKEntityInfo* ldk_entity_info_get(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Get read-only information about an entity.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKEntityInfo* ldk_entity_get_info_const(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Count the entity alive.
+ * @param system System used by this operation.
+ * @return Number of matching entries.
+ */
 LDK_API u32 ldk_entity_alive_count(LDKEntityRegistry* system);
+/**
+ * @brief Set the entity flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Get the entity flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return The requested value.
+ */
 LDK_API u16 ldk_entity_flags_get(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Add the entity flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_flags_add(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Remove the entity flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_flags_remove(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Check whether an entity has the requested flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_entity_flags_has(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 
+/**
+ * @brief Get the entity internal flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return The requested value.
+ */
 LDK_API u16 ldk_entity_internal_flags_get(LDKEntityRegistry* system, LDKEntity entity);
+/**
+ * @brief Check whether an entity has the requested internal flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_entity_internal_flags_has(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Set the entity name.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param name Name identifying the object or setting.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_name_set(LDKEntityRegistry* system, LDKEntity entity, const char* name);
+/**
+ * @brief Get the entity name.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const char* ldk_entity_name_get(LDKEntityRegistry* system, LDKEntity entity);
 /* Name hashes are FNV-1a 64-bit. Names need not exist in release builds. */
+/**
+ * @brief Compute an entity name hash.
+ * @param name Name identifying the object or setting.
+ * @return Computed identifier or hash.
+ */
 LDK_API u64 ldk_entity_name_hash(const char *name);
+/**
+ * @brief Set the entity name hash.
+ * @param registry Registry on which the operation is performed.
+ * @param entity Entity to inspect or modify.
+ * @param hash Hash used by this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_name_hash_set(
     LDKEntityRegistry *registry, LDKEntity entity, u64 hash);
+/**
+ * @brief Get the entity name hash.
+ * @param registry Registry on which the operation is performed.
+ * @param entity Entity to inspect or modify.
+ * @return Computed identifier or hash.
+ */
 LDK_API u64 ldk_entity_name_hash_get(
     LDKEntityRegistry *registry, LDKEntity entity);
+/**
+ * @brief Count the entity component.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Number of matching entries.
+ */
 LDK_API u32 ldk_entity_component_count(LDKEntityRegistry* system, LDKEntity entity);
 
+/**
+ * @brief Get the entity transform.
+ * @param entity_module Entity module used by this operation.
+ * @param component_module Component module used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API LDKTransform* ldk_entity_transform_get(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity);
 
+/**
+ * @brief Get read-only access to the entity transform.
+ * @param entity_module Entity module used by this operation.
+ * @param component_module Component module used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKTransform* ldk_entity_transform_get_const(LDKEntityRegistry* entity_module,
     LDKComponentRegistry* component_module, LDKEntity entity);
 
+/**
+ * @brief Check whether an entity owns a specific component.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_has(LDKEntityRegistry* system, LDKEntity entity, u32 component_type);
+/**
+ * @brief Get the entity component flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @return The requested value.
+ */
 LDK_API u16 ldk_entity_component_flags_get(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type);
+/**
+ * @brief Set the entity component flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_flags_set(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
+/**
+ * @brief Add the entity component flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_flags_add(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
+/**
+ * @brief Remove the entity component flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_flags_remove(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
+/**
+ * @brief Check whether a component instance has requested flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param flags Bitmask of options controlling this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_flags_has(LDKEntityRegistry* system,
     LDKEntity entity, u32 component_type, u16 flags);
+/**
+ * @brief Check whether the component ref is valid.
+ * @param system System used by this operation.
+ * @param ref Ref used by this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_component_ref_is_valid(LDKEntityRegistry* system, LDKComponentRef ref);
+/**
+ * @brief Visit each living entity using a callback.
+ * @param system System used by this operation.
+ * @param fn Callback invoked by this operation.
+ * @param user Opaque caller-supplied data passed to the callback.
+ */
 LDK_API void ldk_entity_foreach(LDKEntityRegistry* system, LDKEntityIterFn fn, void* user);
+/**
+ * @brief Get the entity component ref.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param out_ref Receives the resulting ref.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_ref_get(LDKEntityRegistry* system, LDKEntity entity, u32 component_type, LDKComponentRef* out_ref);
+/**
+ * @brief Find the entity component.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param out_slot Receives the resulting slot.
+ * @param out_component_index Receives the resulting component index.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_find(LDKEntityRegistry* system, LDKEntity entity, u32 component_type, u32* out_slot, u32* out_component_index);
+/**
+ * @brief Resolve a component reference to its data.
+ * @param entity_system Entity system used by this operation.
+ * @param component_registry Component registry used by this operation.
+ * @param ref Ref used by this operation.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API void* ldk_component_ref_get(LDKEntityRegistry* entity_system, struct LDKComponentRegistry* component_registry, LDKComponentRef ref);
+/**
+ * @brief Resolve a component reference as read-only data.
+ * @param entity_system Entity system used by this operation.
+ * @param component_registry Component registry used by this operation.
+ * @param ref Ref used by this operation.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const void* ldk_component_ref_get_const(LDKEntityRegistry* entity_system, struct LDKComponentRegistry* component_registry, LDKComponentRef ref);
+/**
+ * @brief Add the entity component.
+ * @param entity_module Entity module used by this operation.
+ * @param component_module Component module used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @param initial_value Initial value used by this operation.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API void* ldk_entity_component_add(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type, const void* initial_value);
+/**
+ * @brief Get the entity component.
+ * @param entity_module Entity module used by this operation.
+ * @param component_module Component module used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API void* ldk_entity_component_get(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
+/**
+ * @brief Remove the entity component.
+ * @param entity_module Entity module used by this operation.
+ * @param component_module Component module used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param component_type Registered ECS component type identifier.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_component_remove(LDKEntityRegistry* entity_module, LDKComponentRegistry* component_module, LDKEntity entity, u32 component_type);
 
 typedef struct LDKEntityIterator
@@ -181,13 +446,46 @@ typedef struct LDKEntityIterator
   u8 has_current;
 } LDKEntityIterator;
 
+/**
+ * @brief Begin the entity iterator.
+ * @param registry Registry on which the operation is performed.
+ * @return The requested value.
+ */
 LDK_API LDKEntityIterator ldk_entity_iterator_begin(LDKEntityRegistry* registry);
+/**
+ * @brief Advance an entity iterator to the next entity.
+ * @param iterator Iterator used by this operation.
+ * @param out_entity Receives the resulting entity.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_entity_iterator_next(LDKEntityIterator* iterator, LDKEntity* out_entity);
+/**
+ * @brief Finish the entity iterator.
+ * @param iterator Iterator used by this operation.
+ */
 LDK_API void ldk_entity_iterator_end(LDKEntityIterator* iterator);
 
 #if defined(LDK_ENGINE) || defined(LDK_EDITOR)
+/**
+ * @brief Set the entity internal flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_internal_flags_set(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Add the entity internal flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_internal_flags_add(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
+/**
+ * @brief Remove the entity internal flags.
+ * @param system System used by this operation.
+ * @param entity Entity to inspect or modify.
+ * @param flags Bitmask of options controlling this operation.
+ */
 LDK_API void ldk_entity_internal_flags_remove(LDKEntityRegistry* system, LDKEntity entity, u16 flags);
 #endif
 

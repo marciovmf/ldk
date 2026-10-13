@@ -1,3 +1,9 @@
+/**
+ * # Character controller system
+ *
+ * Engine system declarations for character controller simulation.
+ */
+
 #ifndef LDK_CHARACTER_CONTROLLER_SYSTEM_H
 #define LDK_CHARACTER_CONTROLLER_SYSTEM_H
 

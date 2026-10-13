@@ -1,7 +1,9 @@
 /**
- * @file ldk_keyframe_animation.h
- * @brief Code-authored keyframe clips, relative target bindings, and TML I/O.
+ * # Keyframe animations
+ *
+ * Code-authored keyframe clips, relative target bindings, and TML I/O.
  */
+
 #ifndef LDK_KEYFRAME_ANIMATION_H
 #define LDK_KEYFRAME_ANIMATION_H
 
@@ -148,7 +150,7 @@ LDK_API i32 ldk_keyframe_animation_track_find(const LDKKeyframeAnimation *clip,
  * @param component_type Runtime ECS component type.
  * @param property_name Persistent reflected field identifier.
  * @return Track index; existing track is reused, -1 if unavailable or unsupported.
- * @note Reflected component metadata must be registered when authoring.
+ * Note: Reflected component metadata must be registered when authoring.
  */
 LDK_API i32 ldk_keyframe_animation_track_add(LDKKeyframeAnimation *clip,
     u64 path, u32 component_type, const char *property_name);
@@ -166,7 +168,7 @@ LDK_API bool ldk_keyframe_animation_track_remove(LDKKeyframeAnimation *clip, u32
  * @param time Time in seconds.
  * @param value Type-tagged property value.
  * @return True on success; may extend clip duration. Requires available component metadata.
- * @note Reflected component metadata must be registered when authoring.
+ * Note: Reflected component metadata must be registered when authoring.
  */
 LDK_API bool ldk_keyframe_animation_key_set(LDKKeyframeAnimation *clip,
     u32 track, float time, LDKPropertyValue value);
@@ -284,7 +286,7 @@ LDK_API bool ldk_keyframe_animation_event_set_string(
  * @param fn Event callback.
  * @param user Opaque callback context.
  * @return Nothing. Event payloads are temporary snapshots valid during each callback.
- * @note Callbacks may mutate or destroy the source; do not keep event pointers.
+ * Note: Callbacks may mutate or destroy the source; do not keep event pointers.
  */
 LDK_API void ldk_keyframe_animation_events_dispatch(
     const LDKKeyframeAnimation *clip, LDKEntity root, float previous_time,

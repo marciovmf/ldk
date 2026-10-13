@@ -1,3 +1,9 @@
+/**
+ * # System editor metadata
+ *
+ * Inspect engine-registered system metadata used by the editor.
+ */
+
 #ifndef LDK_SYSTEM_METADATA_H
 #define LDK_SYSTEM_METADATA_H
 
@@ -18,7 +24,16 @@ typedef struct LDKSystemMeta
   u32 group_count;
 } LDKSystemMeta;
 
+/**
+ * @brief Count the engine system metadata.
+ * @return Number of matching entries.
+ */
 LDK_API u32 ldk_engine_system_metadata_count(void);
+/**
+ * @brief Get the engine system metadata.
+ * @param index Zero-based index of the selected item.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKSystemMeta *ldk_engine_system_metadata_get(u32 index);
 
 #endif

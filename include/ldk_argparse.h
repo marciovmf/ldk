@@ -1,6 +1,7 @@
 /**
- * @file   ldk_argparse.h
- * @brief  Command-line argument parsing
+ * # Command-line arguments
+ *
+ * Command-line argument parsing
  *
  * A very simple Command-Line argument parser
  *
@@ -17,7 +18,7 @@
  * 4. Access argument values with the corresponding retrieval functions.
  * 5. Print usage information with ldkArgPrintUsage when needed.
  * 6. Iterate over found arguments using ldkArgForEachArgument.
- * 
+ *
  *
  * Limitations:
  * - The number of arguments is intentionally fixed and determined at compile time.
@@ -71,13 +72,57 @@ extern "C"
     u32 argCount;
   } LDKArgParser; 
 
+  /**
+   * @brief Initialize an argument parser.
+   * @param parser Argument parser to operate on.
+   */
   LDK_API void ldkArgInitParser(LDKArgParser* parser);
+  /**
+   * @brief Register a named command-line argument with the parser.
+   * @param parser Argument parser to operate on.
+   * @param name Name identifying the object or setting.
+   * @param type Type identifier or kind used by the operation.
+   * @param description Description used by this operation.
+   */
   LDK_API void ldkArgAddArgument(LDKArgParser* parser, const char* name, LDKArgType type, const char* description);
+  /**
+   * @brief Parse command-line arguments according to the registered options.
+   * @param parser Argument parser to operate on.
+   * @param argc Number of command-line arguments.
+   * @param argv Array of command-line arguments.
+   */
   LDK_API void ldkArgParseArguments(LDKArgParser* parser, u32 argc, char* argv[]);
+  /**
+   * @brief Print usage information for the registered command-line options.
+   * @param parser Argument parser to operate on.
+   */
   LDK_API void ldkArgPrintUsage(const LDKArgParser* parser);
+  /**
+   * @brief Read the value of a parsed command-line flag.
+   * @param parser Argument parser to operate on.
+   * @param name Name identifying the object or setting.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldkArgGetFlagValue(const LDKArgParser* parser, const char* name);
+  /**
+   * @brief Read a parsed integer command-line argument.
+   * @param parser Argument parser to operate on.
+   * @param name Name identifying the object or setting.
+   * @return The resulting integer value.
+   */
   LDK_API i32 ldkArgGetIntValue(const LDKArgParser* parser, const char* name);
+  /**
+   * @brief Read a parsed string command-line argument.
+   * @param parser Argument parser to operate on.
+   * @param name Name identifying the object or setting.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API const char* ldkArgGetStringValue(const LDKArgParser* parser, const char* name);
+  /**
+   * @brief Visit each registered argument with a callback.
+   * @param parser Argument parser to operate on.
+   * @param callback Callback invoked by this operation.
+   */
   LDK_API void ldkArgForEachArgument(const LDKArgParser* parser, void (*callback)(const LDKArgument* arg));
 
 #ifdef __cplusplus

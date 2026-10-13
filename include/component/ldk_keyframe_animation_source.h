@@ -1,7 +1,9 @@
 /**
- * @file ldk_keyframe_animation_source.h
- * @brief Playback of an .anim asset, rooted at this entity.
+ * # Animation source component
+ *
+ * Playback of an .anim asset, rooted at this entity.
  */
+
 #ifndef LDK_KEYFRAME_ANIMATION_SOURCE_H
 #define LDK_KEYFRAME_ANIMATION_SOURCE_H
 
@@ -104,7 +106,7 @@ LDK_API bool ldk_keyframe_animation_source_seek(LDKEntity root, float time);
  * @param handler Event handler invoked synchronously, or NULL to unregister.
  * @param user Opaque callback context.
  * @return Nothing. Passing NULL disables notifications.
- * @note Callbacks may mutate or destroy the source; do not keep event pointers.
+ * Note: Callbacks may mutate or destroy the source; do not keep event pointers.
  */
 LDK_API void ldk_keyframe_animation_source_event_handler_set(
     LDKKeyframeEventFn handler, void *user);

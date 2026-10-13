@@ -1,6 +1,7 @@
 /**
- * @file ldk_resource.h
- * @brief Generic renderer-facing resource handle.
+ * # Renderer resource handles
+ *
+ * Generic renderer-facing resource handle.
  *
  * Renderer resources use the same opaque storage type as RHI resources,
  * but they are not necessarily direct RHI objects. A mesh, for example,

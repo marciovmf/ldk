@@ -1,3 +1,9 @@
+/**
+ * # Component editor metadata
+ *
+ * Inspect engine-registered component metadata used for editor controls.
+ */
+
 #ifndef LDK_COMPONENT_META_H
 #define LDK_COMPONENT_META_H
 
@@ -121,7 +127,16 @@ extern "C"
     u32 group_count;
   } LDKComponentMeta;
 
+  /**
+   * @brief Count the engine component metadata.
+   * @return Number of matching entries.
+   */
   LDK_API u32 ldk_engine_component_metadata_count(void);
+  /**
+   * @brief Get the engine component metadata.
+   * @param index Zero-based index of the selected item.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API const LDKComponentMeta *ldk_engine_component_metadata_get(
       u32 index);
 

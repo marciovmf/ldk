@@ -1,6 +1,7 @@
 /**
- * @file   ldk_system.h
- * @brief  System Registry module.
+ * # System registry
+ *
+ * System Registry module.
  *
  * Systems are registered as descriptors and owned by the registry. They are
  * identified by unique, compile-time known u64 ids.
@@ -85,11 +86,31 @@ typedef struct LDKEntityGroup
 
 struct LDKRoot;
 
+/**
+ * @brief Callback used to synchronize with system execution.
+ * @param user Opaque caller-supplied data passed to the callback.
+ * @return True if the operation succeeds; false otherwise.
+ */
 typedef bool (*LDKSystemCallbackSyncFn)(void *user);
 
+/**
+ * @brief Callback called during ECS system initialization.
+ * @param data Source data or system-owned context for this operation.
+ * @return The resulting integer value.
+ */
 typedef int (*LDKSystemInitializeFn)(void *data);
+/**
+ * @brief Callback called when an ECS system updates a group.
+ * @param data Source data or system-owned context for this operation.
+ * @param group Entity group used for this system update.
+ * @param dt Elapsed time since the preceding update, in seconds.
+ */
 typedef void (*LDKSystemUpdateFn)(
     void *data, const LDKEntityGroup *group, float dt);
+/**
+ * @brief Callback called during ECS system termination.
+ * @param data Source data or system-owned context for this operation.
+ */
 typedef void (*LDKSystemTerminateFn)(void *data);
 
 typedef struct LDKSystemDesc
@@ -116,28 +137,87 @@ typedef struct LDKSystemRegistry
   u8 is_paused;  /* Execution is suspended, not individual state. */
 } LDKSystemRegistry;
 
-/** Descriptors for systems implemented by the engine. Games own registration. */
+/** Descriptors for systems implemented by the engine. Games own registration.
+ * @return Number of matching entries.
+ */
 LDK_API u32 ldk_engine_system_descriptor_count(void);
+/**
+ * @brief Get the engine system descriptor.
+ * @param index Zero-based index of the selected item.
+ * @param out Output object or buffer receiving the result.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_engine_system_descriptor_get(
     u32 index, LDKSystemDesc *out);
 
+/**
+ * @brief Initialize the system registry.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_initialize(LDKSystemRegistry *registry);
+/**
+ * @brief Shut down the system registry.
+ * @param registry Registry on which the operation is performed.
+ */
 LDK_API void ldk_system_registry_terminate(LDKSystemRegistry *registry);
+/**
+ * @brief Register the system registry.
+ * @param registry Registry on which the operation is performed.
+ * @param desc Description or configuration for this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_register(
     LDKSystemRegistry *registry, const LDKSystemDesc *desc);
+/**
+ * @brief Unregister the system registry.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_unregister(
     LDKSystemRegistry *registry, u64 id);
+/**
+ * @brief Find a registered system by its stable ID.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @param out Output object or buffer receiving the result.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_find_by_id(
     LDKSystemRegistry *registry, u64 id, LDKSystemDesc *out);
+/**
+ * @brief Count registered systems.
+ * @param registry Registry on which the operation is performed.
+ * @return Number of matching entries.
+ */
 LDK_API u32 ldk_system_registry_count(const LDKSystemRegistry *registry);
+/**
+ * @brief Get a system registered at a particular index.
+ * @param registry Registry on which the operation is performed.
+ * @param index Zero-based index of the selected item.
+ * @param out Output object or buffer receiving the result.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_at(
     const LDKSystemRegistry *registry, u32 index, LDKSystemDesc *out);
+/**
+ * @brief Clear the state of the system registry.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_clear(LDKSystemRegistry *registry);
 
-/** Prepare the bucket lists without initializing individual systems. */
+/** Prepare the bucket lists without initializing individual systems.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_start(LDKSystemRegistry *registry);
 
-/** Terminate all active systems in reverse registration order and unprepare. */
+/** Terminate all active systems in reverse registration order and unprepare.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_stop(LDKSystemRegistry *registry);
 
 /**
@@ -147,27 +227,58 @@ LDK_API bool ldk_system_registry_stop(LDKSystemRegistry *registry);
  * can be released. A failed start leaves other systems unchanged.
  *
  * Stateful systems (data_size > 0) must have data bound before start.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_system_registry_system_start(
     LDKSystemRegistry *registry, u64 id);
+/**
+ * @brief Stop the system registry system.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_system_stop(
     LDKSystemRegistry *registry, u64 id);
+/**
+ * @brief Check whether the system registry system is started.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_system_is_started(
     const LDKSystemRegistry *registry, u64 id);
 
-/** True while a bucket or a system lifecycle callback is executing. */
+/** True while a bucket or a system lifecycle callback is executing.
+ * @param registry Registry on which the operation is performed.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
 
-/** True while a bucket or a system lifecycle callback is executing. */
+/** True while a bucket or a system lifecycle callback is executing.
+ * @param registry Registry on which the operation is performed.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry* registry);
 
 /**
  * Bind scene-owned system instance data. The registry never allocates or frees
  * this pointer. Data cannot be replaced while the system is initialized.
  * Passing NULL unbinds the current instance.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @param data Source data or system-owned context for this operation.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_system_registry_system_data_set(
     LDKSystemRegistry *registry, u64 id, void *data);
+/**
+ * @brief Get the system registry system data.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API void *ldk_system_registry_system_data_get(
     const LDKSystemRegistry *registry, u64 id);
 
@@ -176,9 +287,19 @@ LDK_API void *ldk_system_registry_system_data_get(
  * Engine-internal binding, resolved by the ECS from LDKSystemDesc requirements.
  * Scene start/stop must preserve it. Game code should use the ECS facade.
  * Passing NULL binds the system to the empty group.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @param group Entity group used for this system update.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_system_registry_system_group_set(LDKSystemRegistry *registry,
     u64 id, const LDKEntityGroup *group);
+/**
+ * @brief Get the system registry system group.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKEntityGroup *ldk_system_registry_system_group_get(
     const LDKSystemRegistry *registry, u64 id);
 
@@ -187,17 +308,37 @@ LDK_API const LDKEntityGroup *ldk_system_registry_system_group_get(
  * update callback. The system registry does not interpret the callback; the
  * ECS uses it to commit deferred grouping membership changes safely between
  * systems. Passing NULL clears the handler.
+ * @param registry Registry on which the operation is performed.
+ * @param fn Callback invoked by this operation.
+ * @param user Opaque caller-supplied data passed to the callback.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_system_registry_callback_sync_set(LDKSystemRegistry *registry,
     LDKSystemCallbackSyncFn fn, void *user);
 
-/** Suspend/resume execution without terminating individual systems. */
+/** Suspend/resume execution without terminating individual systems.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_pause(LDKSystemRegistry *registry);
+/**
+ * @brief Resume the system registry.
+ * @param registry Registry on which the operation is performed.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_resume(LDKSystemRegistry *registry);
+/**
+ * @brief Check whether the system registry is paused.
+ * @param registry Registry on which the operation is performed.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_is_paused(
     const LDKSystemRegistry *registry);
 
-/** True while a bucket or a system lifecycle callback is executing. */
+/** True while a bucket or a system lifecycle callback is executing.
+ * @param registry Registry on which the operation is performed.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry *registry);
 
 /**
@@ -205,9 +346,19 @@ LDK_API bool ldk_system_registry_is_busy(const LDKSystemRegistry *registry);
  * requested bucket. While paused, only systems with RUN_WHEN_PAUSED execute.
  * Structural and lifecycle changes are forbidden during update and lifecycle
  * callbacks.
+ * @param registry Registry on which the operation is performed.
+ * @param bucket Bucket used by this operation.
+ * @param dt Elapsed time since the preceding update, in seconds.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_system_registry_run_bucket(
     LDKSystemRegistry *registry, LDKSystemBucket bucket, float dt);
+/**
+ * @brief Check whether a system ID is registered.
+ * @param registry Registry on which the operation is performed.
+ * @param id Identifier of the target object.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_system_registry_has(
     const LDKSystemRegistry *registry, u64 id);
 

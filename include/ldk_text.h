@@ -1,3 +1,9 @@
+/**
+ * # Text rendering
+ *
+ * Text-related descriptors and helpers for engine rendering.
+ */
+
 #ifndef LDK_TEXT_H
 #define LDK_TEXT_H
 

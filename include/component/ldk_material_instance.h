@@ -1,7 +1,9 @@
 /**
- * @file ldk_material_instance.h
- * @brief Per-entity material parameters; rendering resources stay shared.
+ * # Material instance component
+ *
+ * Per-entity material parameters; rendering resources stay shared.
  */
+
 #ifndef LDK_MATERIAL_INSTANCE_H
 #define LDK_MATERIAL_INSTANCE_H
 
@@ -44,6 +46,11 @@ typedef struct LDKMaterialInstance
 } LDKMaterialInstance;
 
 #ifdef LDK_ENGINE
+/**
+ * @brief Build the ECS registration descriptor for the material instance component.
+ * @param initial_capacity Initial number of entries reserved in the registry.
+ * @return A descriptor for the requested component or resource.
+ */
 LDK_API LDKComponentDesc ldk_material_instance_component_desc(
     u32 initial_capacity);
 #endif

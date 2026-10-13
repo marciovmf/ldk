@@ -1,3 +1,9 @@
+/**
+ * # TrueType fonts
+ *
+ * Load font faces, manage font instances and glyph atlases, and measure text.
+ */
+
 #ifndef LDK_FONT_H
 #define LDK_FONT_H
 #include <ldk_geom.h>

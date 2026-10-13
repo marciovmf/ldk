@@ -1,7 +1,9 @@
 /**
- * @file ldk_terrain_follower.h
- * @brief Vertically follows the surface exposed by LDKTerrainSystem.
+ * # Terrain follower component
+ *
+ * Vertically follows the surface exposed by LDKTerrainSystem.
  */
+
 #ifndef LDK_TERRAIN_FOLLOWER_H
 #define LDK_TERRAIN_FOLLOWER_H
 
@@ -19,10 +21,19 @@ typedef struct LDKTerrainFollowerComponent
   float height_offset;
 } LDKTerrainFollowerComponent;
 
+/**
+ * @brief Create default settings for terrain follower component.
+ * @return A value initialized with the engine defaults.
+ */
 LDK_API LDKTerrainFollowerComponent
 ldk_terrain_follower_component_make_default(void);
 
 #ifdef LDK_ENGINE
+/**
+ * @brief Build the ECS registration descriptor for the terrain follower component.
+ * @param initial_capacity Initial number of entries reserved in the registry.
+ * @return A descriptor for the requested component or resource.
+ */
 LDK_API LDKComponentDesc ldk_terrain_follower_component_desc(
     u32 initial_capacity);
 #endif

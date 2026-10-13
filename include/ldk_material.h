@@ -1,3 +1,9 @@
+/**
+ * # Materials
+ *
+ * Material descriptors, shader configuration, texture slots, and rendering properties.
+ */
+
 #ifndef LDK_MATERIAL_H
 #define LDK_MATERIAL_H
 
@@ -170,19 +176,38 @@ extern "C"
    */
   LDK_API bool ldk_material_desc_is_valid(LDKMaterialDesc const *desc);
 
-  /** Return the image assigned to a material texture slot. */
+  /** Return the image assigned to a material texture slot.
+   * @param desc Description or configuration for this operation.
+   * @param slot Resource or binding slot identifier.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKAssetImage ldk_material_texture_slot_get(
       LDKMaterialDesc const *desc, u32 slot);
 
-  /** Assign an image to a material texture slot. */
+  /** Assign an image to a material texture slot.
+   * @param desc Description or configuration for this operation.
+   * @param slot Resource or binding slot identifier.
+   * @param image Image used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_material_texture_slot_set(
       LDKMaterialDesc *desc, u32 slot, LDKAssetImage image);
 
-  /** Assign an atlas region to a material slot; region 0 means full atlas. */
+  /** Assign an atlas region to a material slot; region 0 means full atlas.
+   * @param desc Description or configuration for this operation.
+   * @param slot Resource or binding slot identifier.
+   * @param atlas Texture atlas being inspected or modified.
+   * @param region Region used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_material_texture_atlas_set(LDKMaterialDesc *desc,
       u32 slot, LDKAssetTextureAtlas atlas, u64 region);
 
-  /** Return independent settings, or the legacy material defaults. */
+  /** Return independent settings, or the legacy material defaults.
+   * @param desc Description or configuration for this operation.
+   * @param slot Resource or binding slot identifier.
+   * @return The requested value.
+   */
   LDK_API LDKMaterialTextureSettings ldk_material_texture_settings_get(
       LDKMaterialDesc const *desc, u32 slot);
 

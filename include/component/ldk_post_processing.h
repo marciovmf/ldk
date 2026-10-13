@@ -1,6 +1,7 @@
 /**
- * @file ldk_post_processing.h
- * @brief Camera post-processing configuration.
+ * # Post-processing component
+ *
+ * Camera post-processing configuration.
  */
 
 #ifndef LDK_POST_PROCESSING_H
@@ -119,6 +120,11 @@ extern "C" {
   } LDKPostProcessing;
 
 #ifdef LDK_ENGINE
+  /**
+   * @brief Build the ECS registration descriptor for the post processing component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_post_processing_component_desc(
       u32 initial_capacity);
 #endif // LDK_ENGINE

@@ -1,6 +1,7 @@
 /**
- * @file   ldk_scene.h
- * @brief  Scene data and TML serialization.
+ * # Scenes and scene files
+ *
+ * Scene data and TML serialization.
  */
 
 #ifndef LDK_SCENE_H
@@ -54,19 +55,54 @@ typedef struct LDKSceneResult
   char error[256];
 } LDKSceneResult;
 
+/**
+ * @brief Set default values for scene properties.
+ * @param properties Scene or other property values being operated on.
+ */
 LDK_API void ldk_scene_properties_defaults(LDKSceneProperties *properties);
+/**
+ * @brief Get the scene properties.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKSceneProperties *ldk_scene_properties_get(void);
+/**
+ * @brief Set the scene properties.
+ * @param properties Scene or other property values being operated on.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_properties_set(const LDKSceneProperties *properties);
+/**
+ * @brief Reset the state of the scene properties.
+ */
 LDK_API void ldk_scene_properties_reset(void);
 
+/**
+ * @brief Clear the state of the scene result.
+ * @param result Optional result structure populated with error details.
+ */
 LDK_API void ldk_scene_result_clear(LDKSceneResult *result);
+/**
+ * @brief Store a scene diagnostic message in the result.
+ * @param result Optional result structure populated with error details.
+ * @param error Receives an error description when parsing fails.
+ */
 LDK_API void ldk_scene_result_set_error(
     LDKSceneResult *result, const char *error);
 
 /* Optional main-thread observer for recoverable scene-load errors. Messages
  * are also written to the engine logger. The message is valid during the call.
  * Pass NULL to unregister before destroying the observer's user data. */
+/**
+ * @brief Callback for reporting a scene diagnostic.
+ * @param message Message displayed to the user.
+ * @param user Opaque caller-supplied data passed to the callback.
+ */
 typedef void (*LDKSceneDiagnosticFn)(const char *message, void *user);
+/**
+ * @brief Set the scene diagnostic handler.
+ * @param handler Handler called for the corresponding event or diagnostic.
+ * @param user Opaque caller-supplied data passed to the callback.
+ */
 LDK_API void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user);
 
@@ -76,6 +112,9 @@ LDK_API void ldk_scene_diagnostic_handler_set(
  * This function does not clear existing entities and does not roll back
  * entities created before an error. A caller performing a full scene replace
  * is responsible for clearing the ECS before the call and after a failed call.
+ * @param source Source object or source data for this operation.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_scene_from_tml(
     const char *source, LDKSceneResult *result);
@@ -85,6 +124,9 @@ LDK_API bool ldk_scene_from_tml(
  *
  * This function has the same ECS ownership semantics as
  * ldk_scene_from_tml().
+ * @param path Path identifying the file or resource.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_scene_load_tml_file(
     const char *path, LDKSceneResult *result);
@@ -92,33 +134,83 @@ LDK_API bool ldk_scene_load_tml_file(
 /** Load entities and scene-owned system data together, resolving references
  * with the same entity map. Systems is initialized with {0}; on failure its
  * previous contents are unchanged. The caller owns ECS cleanup on failure,
- * and must stop old systems before replacing a scene. No initialize runs. */
+ * and must stop old systems before replacing a scene. No initialize runs.
+ * @param source Source object or source data for this operation.
+ * @param systems Scene systems configuration being read or written.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_from_tml_with_systems(const char *source,
     struct LDKSceneSystems *systems, LDKSceneResult *result);
+/**
+ * @brief Load scene TML file with systems.
+ * @param path Path identifying the file or resource.
+ * @param systems Scene systems configuration being read or written.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_load_tml_file_with_systems(const char *path,
     struct LDKSceneSystems *systems, LDKSceneResult *result);
 
 #ifdef LDK_EDITOR
+/**
+ * @brief Serialize a scene and its system configuration to TML.
+ * @param out Output object or buffer receiving the result.
+ * @param systems Scene systems configuration being read or written.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_to_tml_with_systems(XStrBuilder *out,
     const struct LDKSceneSystems *systems, LDKSceneResult *result);
-/** Serializes the current ECS contents to TML. */
+/** Serializes the current ECS contents to TML.
+ * @param out Output object or buffer receiving the result.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_to_tml(
     XStrBuilder *out, LDKSceneResult *result);
 
-/** Serializes the current ECS contents and writes them to a TML file. */
+/** Serializes the current ECS contents and writes them to a TML file.
+ * @param path Path identifying the file or resource.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_scene_save_tml_file(
     const char *path, LDKSceneResult *result);
 #endif
 
+/**
+ * @brief Resolve the runtime component type for reflected scene metadata.
+ * @param meta Meta used by this operation.
+ * @return The resulting numeric value.
+ */
 LDK_API u32 ldk_scene_component_meta_runtime_type(
     const LDKComponentMeta *meta);
 
+/**
+ * @brief Find serialized component metadata for a runtime type.
+ * @param game Game instance associated with this operation.
+ * @param component_type Registered ECS component type identifier.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKComponentMeta *ldk_scene_component_meta_find_by_type(
     LDKGame *game, u32 component_type);
 
+/**
+ * @brief Find the scene component field.
+ * @param meta Meta used by this operation.
+ * @param field_name Field name used by this operation.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const LDKComponentFieldMeta *ldk_scene_component_field_find(
     const LDKComponentMeta *meta, const char *field_name);
 
+/**
+ * @brief Check whether a component field may be saved in a scene.
+ * @param meta Meta used by this operation.
+ * @param field Field used by this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_scene_component_field_is_serializable(
     const LDKComponentMeta *meta, const LDKComponentFieldMeta *field);
 

@@ -1,6 +1,7 @@
 /**
- * @file   ldk_component.h
- * @brief  Component registry and storage
+ * # Component registry
+ *
+ * Component registry and storage
  *
  * Manages component type registration and packed storage for entities.
  */
@@ -17,8 +18,28 @@
 extern "C" {
 #endif
 
+  /**
+   * @brief Callback used when a component is attached to an entity.
+   * @param entity_registry Entity registry used by this operation.
+   * @param component_registry Component registry used by this operation.
+   * @param entity Entity to inspect or modify.
+   * @param component Component used by this operation.
+   * @param component_index Zero-based index of the component entry.
+   * @param initial_value Initial value used by this operation.
+   * @param user Opaque caller-supplied data passed to the callback.
+   * @return True if the operation succeeds; false otherwise.
+   */
   typedef bool (*LDKComponentAttachFn)(LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, const void* initial_value, void* user);
 
+  /**
+   * @brief Callback used when component instance data is destroyed.
+   * @param entity_registry Entity registry used by this operation.
+   * @param component_registry Component registry used by this operation.
+   * @param entity Entity to inspect or modify.
+   * @param component Component used by this operation.
+   * @param component_index Zero-based index of the component entry.
+   * @param user Opaque caller-supplied data passed to the callback.
+   */
   typedef void (*LDKComponentDestroyFn)( LDKEntityRegistry* entity_registry, LDKComponentRegistry* component_registry, LDKEntity entity, void* component, u32 component_index, void* user);
 
   /**
@@ -60,31 +81,128 @@ extern "C" {
     XHashtable_u32_registered_component* table;
   } LDKComponentRegistry;
 
+  /**
+   * @brief Initialize the component registry.
+   * @param registry Registry on which the operation is performed.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_registry_initialize(LDKComponentRegistry* registry);
+  /**
+   * @brief Shut down the component registry.
+   * @param registry Registry on which the operation is performed.
+   */
   LDK_API void ldk_component_registry_terminate(LDKComponentRegistry* registry);
+  /**
+   * @brief Check whether a component type is registered.
+   * @param registry Registry on which the operation is performed.
+   * @param type Type identifier or kind used by the operation.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_component_is_registered(LDKComponentRegistry* registry, u32 type);
+  /**
+   * @brief Get the component desc.
+   * @param registry Registry on which the operation is performed.
+   * @param type Type identifier or kind used by the operation.
+   * @param out_desc Receives the descriptor.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_desc_get(LDKComponentRegistry* registry,
       u32 type, LDKComponentDesc* out_desc);
+  /**
+   * @brief Get the component store.
+   * @param registry Registry on which the operation is performed.
+   * @param type Type identifier or kind used by the operation.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API XArray* ldk_component_store_get(LDKComponentRegistry* registry, u32 type);
+  /**
+   * @brief Get the component owners.
+   * @param registry Registry on which the operation is performed.
+   * @param type Type identifier or kind used by the operation.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API XArray* ldk_component_owners_get(LDKComponentRegistry* registry, u32 type);
+  /**
+   * @brief Detach a component from an entity.
+   * @param registry Registry on which the operation is performed.
+   * @param entity_system Entity system used by this operation.
+   * @param entity Entity to inspect or modify.
+   * @param component_type Registered ECS component type identifier.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_detach(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity, u32 component_type);
   /**
    * Removes (destroys) ALL components, including core engine components like Transform.
    * Intended for entity destruction only.
+   * @param registry Registry on which the operation is performed.
+   * @param entity_system Entity system used by this operation.
+   * @param entity Entity to inspect or modify.
    */
   LDK_API void ldk_component_registry_remove_all(LDKComponentRegistry* registry,
       LDKEntityRegistry* entity_system, LDKEntity entity);
+  /**
+   * @brief Create the component.
+   * @param module Module used by this operation.
+   * @param component_type Registered ECS component type identifier.
+   * @param component_index Zero-based index of the component entry.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API void* ldk_component_create(LDKComponentRegistry* module, u32 component_type, u32* component_index);
+  /**
+   * @brief Get the component.
+   * @param module Module used by this operation.
+   * @param component_type Registered ECS component type identifier.
+   * @param component_index Zero-based index of the component entry.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API void* ldk_component_get(LDKComponentRegistry* module, u32 component_type, u32 component_index);
+  /**
+   * @brief Destroy the component.
+   * @param module Module used by this operation.
+   * @param entity_module Entity module used by this operation.
+   * @param component_type Registered ECS component type identifier.
+   * @param component_index Zero-based index of the component entry.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_destroy(LDKComponentRegistry* module,
       LDKEntityRegistry* entity_module, u32 component_type, u32 component_index);
+  /**
+   * @brief Register the component.
+   * @param registry Registry on which the operation is performed.
+   * @param desc Description or configuration for this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_register(LDKComponentRegistry* registry, const LDKComponentDesc* desc);
+  /**
+   * @brief Attach a component to an entity.
+   * @param registry Registry on which the operation is performed.
+   * @param entity_registry Entity registry used by this operation.
+   * @param entity Entity to inspect or modify.
+   * @param component_type Registered ECS component type identifier.
+   * @param component_index Zero-based index of the component entry.
+   * @param initial_value Initial value used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_component_attach(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
       LDKEntity entity, u32 component_type, u32 component_index, const void* initial_value);
+  /**
+   * @brief Release data associated with a component instance.
+   * @param registry Registry on which the operation is performed.
+   * @param entity_registry Entity registry used by this operation.
+   * @param entity Entity to inspect or modify.
+   * @param component_type Registered ECS component type identifier.
+   * @param component_index Zero-based index of the component entry.
+   */
   LDK_API void ldk_component_destroy_data(LDKComponentRegistry* registry, LDKEntityRegistry* entity_registry,
       LDKEntity entity, u32 component_type, u32 component_index);
 
+  /**
+   * @brief Get the registered name of a component type.
+   * @param registry Registry on which the operation is performed.
+   * @param type Type identifier or kind used by the operation.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API const char* ldk_component_name_get(LDKComponentRegistry* registry, u32 type);
 
 #ifdef __cplusplus

@@ -1,3 +1,9 @@
+/**
+ * # Character controller component
+ *
+ * Component data for character motion and collision handling.
+ */
+
 #ifndef LDK_CHARACTER_CONTROLLER_H
 #define LDK_CHARACTER_CONTROLLER_H
 

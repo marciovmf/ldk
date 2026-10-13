@@ -1,6 +1,7 @@
 /**
- * @file   ldk_common.h
- * @brief  Common definitions and utilities
+ * # Common engine definitions
+ *
+ * Common definitions and utilities
  *
  * Shared types, macros, and helpers used across the LDK engine.
  *

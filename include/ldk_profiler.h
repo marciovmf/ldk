@@ -1,6 +1,7 @@
 /**
- * @file   ldk_profiler.h
- * @brief  Lightweight engine profiling instrumentation.
+ * # Runtime profiling
+ *
+ * Lightweight engine profiling instrumentation.
  *
  * The engine owns the collector in shared and monolithic builds.
  */
@@ -33,31 +34,100 @@ typedef struct LDKProfilerCounter
   volatile i32 id;
 } LDKProfilerCounter;
 
+/**
+ * @brief Initialize the profiler.
+ * @param runtree_path Path of the runtree.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_profiler_initialize(const char *runtree_path);
+/**
+ * @brief Shut down the profiler.
+ */
 LDK_API void ldk_profiler_terminate(void);
 /* Control capture only at a frame boundary, with producers quiescent. */
+/**
+ * @brief Start the profiler capture.
+ * @param path Path identifying the file or resource.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_profiler_capture_start(const char *path);
+/**
+ * @brief Stop the profiler capture.
+ */
 LDK_API void ldk_profiler_capture_stop(void);
 /* Suspend between editor frames/while paused without closing the file. */
+/**
+ * @brief Collect the current profiler sample data.
+ * @param enabled Enabled used by this operation.
+ */
 LDK_API void ldk_profiler_capture_collect(bool enabled);
+/**
+ * @brief Toggle profiler capture state.
+ */
 LDK_API void ldk_profiler_capture_toggle(void);
+/**
+ * @brief Check whether the profiler capture is active.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_profiler_capture_is_active(void);
+/**
+ * @brief Get the profiler capture path.
+ * @return Pointer to the requested object or data; NULL when unavailable.
+ */
 LDK_API const char *ldk_profiler_capture_path_get(void);
 
+/**
+ * @brief Begin the profiler frame.
+ */
 LDK_API void ldk_profiler_frame_begin(void);
+/**
+ * @brief Finish the profiler frame.
+ */
 LDK_API void ldk_profiler_frame_end(void);
 
+/**
+ * @brief Begin a profiling zone tagged with a source location.
+ * @param source Source object or source data for this operation.
+ * @param kind Kind used by this operation.
+ * @param name Name identifying the object or setting.
+ * @param file File used by this operation.
+ * @param function Function to run as a scheduled job.
+ * @param line Line used by this operation.
+ */
 LDK_API void ldk_profiler_zone_begin_source(LDKProfilerSource *source,
     LDKProfilerZoneKind kind, const char *name, const char *file,
     const char *function, u32 line);
+/**
+ * @brief Finish the profiler zone.
+ */
 LDK_API void ldk_profiler_zone_end(void);
+/**
+ * @brief Close an active profiling zone of the specified kind.
+ * @param kind Kind used by this operation.
+ */
 LDK_API void ldk_profiler_zone_end_kind(LDKProfilerZoneKind kind);
 
+/**
+ * @brief Assign a profiler counter value at a source location.
+ * @param counter Counter used by this operation.
+ * @param name Name identifying the object or setting.
+ * @param value Input value or current widget value.
+ */
 LDK_API void ldk_profiler_counter_set_source(
     LDKProfilerCounter *counter, const char *name, double value);
+/**
+ * @brief Increment a profiler counter at a source location.
+ * @param counter Counter used by this operation.
+ * @param name Name identifying the object or setting.
+ * @param value Input value or current widget value.
+ */
 LDK_API void ldk_profiler_counter_add_source(
     LDKProfilerCounter *counter, const char *name, double value);
 
+/**
+ * @brief Set the profiler thread name.
+ * @param name Name identifying the object or setting.
+ */
 LDK_API void ldk_profiler_thread_name_set(const char *name);
 
 #define LDK_PROFILE_CONCAT_INNER(a, b) a##b

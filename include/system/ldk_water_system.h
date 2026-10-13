@@ -1,7 +1,9 @@
 /**
- * @file ldk_water_system.h
- * @brief Configurable horizontal water with shader-driven waves and foam.
+ * # Water system
+ *
+ * Configurable horizontal water with shader-driven waves and foam.
  */
+
 #ifndef LDK_WATER_SYSTEM_H
 #define LDK_WATER_SYSTEM_H
 
@@ -146,15 +148,43 @@ extern "C"
     //@end_group
   } LDKWaterSystem;
 
+  /**
+   * @brief Set default values for water system.
+   * @param system System used by this operation.
+   */
   LDK_API void ldk_water_system_defaults(LDKWaterSystem *system);
+  /**
+   * @brief Check whether the water system is active.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_water_system_is_active(void);
-  /** Query the animated surface inside the configured rectangle. */
+  /** Query the animated surface inside the configured rectangle.
+   * @param world_x World-space X coordinate.
+   * @param world_z World-space Z coordinate.
+   * @param out_height Receives the surface height in world-space units.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_water_height_at_world(
       float world_x, float world_z, float *out_height);
 
+  /**
+   * @brief Initialize the water system.
+   * @param data Source data or system-owned context for this operation.
+   * @return System initialization status code.
+   */
   LDK_API int ldk_water_system_initialize(void *data);
+  /**
+   * @brief Update the water system.
+   * @param data Source data or system-owned context for this operation.
+   * @param group Entity group used for this system update.
+   * @param dt Elapsed time since the preceding update, in seconds.
+   */
   LDK_API void ldk_water_system_update(
       void *data, const LDKEntityGroup *group, float dt);
+  /**
+   * @brief Shut down the water system.
+   * @param data Source data or system-owned context for this operation.
+   */
   LDK_API void ldk_water_system_terminate(void *data);
 
 #ifdef __cplusplus

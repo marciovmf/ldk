@@ -1,6 +1,7 @@
 /**
- * @file   ldk_os.h
- * @brief  Platform abstraction layer
+ * # Operating-system services
+ *
+ * Platform abstraction layer
  *
  * Windowing, input, timing, memory, and system integration.
  */
@@ -23,24 +24,71 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Initialization / Termination
   // ---------------------------------------------------------------------------
+  /**
+   * @brief Initialize the OS.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_initialize(void);
+  /**
+   * @brief Shut down the OS.
+   */
   LDK_API void ldk_os_terminate(void);
+  /**
+   * @brief Print the current stack trace for diagnostics.
+   */
   LDK_API void ldk_os_stack_trace_print(void);
 
   // ---------------------------------------------------------------------------
   // Memory
   // ---------------------------------------------------------------------------
+  /**
+   * @brief Allocate memory using the OS abstraction.
+   * @param size Size of the data or region, in bytes where applicable.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API void *ldk_os_memory_alloc(size_t size);
+  /**
+   * @brief Release an OS-allocated memory block.
+   * @param memory Memory used by this operation.
+   */
   LDK_API void ldk_os_memory_free(void *memory);
+  /**
+   * @brief Resize an OS-allocated block of memory.
+   * @param memory Memory used by this operation.
+   * @param size Size of the data or region, in bytes where applicable.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API void *ldk_os_memory_resize(void *memory, size_t size);
 
   // ---------------------------------------------------------------------------
   // Time
   // ---------------------------------------------------------------------------
+  /**
+   * @brief Read the high-resolution time counter.
+   * @return The resulting numeric value.
+   */
   LDK_API u64 ldk_os_time_ticks_get(void);
+  /**
+   * @brief Calculate elapsed time between two counter ticks in seconds.
+   * @param start Starting timestamp or location for this operation.
+   * @param end Ending timestamp or location for this operation.
+   * @return Elapsed time in seconds.
+   */
   LDK_API double ldk_os_time_ticks_interval_get_seconds(u64 start, u64 end);
+  /**
+   * @brief Calculate elapsed time between two counter ticks in milliseconds.
+   * @param start Starting timestamp or location for this operation.
+   * @param end Ending timestamp or location for this operation.
+   * @return Elapsed time in milliseconds.
+   */
   LDK_API double ldk_os_time_ticks_interval_get_milliseconds(
       u64 start, u64 end);
+  /**
+   * @brief Calculate elapsed time between two counter ticks in nanoseconds.
+   * @param start Starting timestamp or location for this operation.
+   * @param end Ending timestamp or location for this operation.
+   * @return Elapsed time in nanoseconds.
+   */
   LDK_API double ldk_os_time_ticks_interval_get_nanoseconds(u64 start, u64 end);
 
   // ---------------------------------------------------------------------------
@@ -58,26 +106,122 @@ extern "C"
     LDK_WINDOW_FLAG_NOTITLEBAR = 1 << 7,
   } LDKWindowFlags;
 
+  /**
+   * @brief Process pending operating-system events.
+   */
   LDK_API void ldk_os_events_pump(void);
+  /**
+   * @brief Dequeue the next pending operating-system event.
+   * @param event Event to inspect or receive.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_event_next(LDKEvent *event);
+  /**
+   * @brief Poll for the next platform event.
+   * @param event Event to inspect or receive.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_events_poll(LDKEvent *event);
+  /**
+   * @brief Create a platform window with explicit window flags.
+   * @param title Title shown by the window or dialog.
+   * @param width Width in pixels or the units expected by the API.
+   * @param height Height in pixels or the units expected by the API.
+   * @param flags Bitmask of options controlling this operation.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKWindow ldk_os_window_create_with_flags(
       const char *title, i32 width, i32 height, LDKWindowFlags flags);
+  /**
+   * @brief Create the OS window.
+   * @param title Title shown by the window or dialog.
+   * @param width Width in pixels or the units expected by the API.
+   * @param height Height in pixels or the units expected by the API.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKWindow ldk_os_window_create(
       const char *title, i32 width, i32 height);
+  /**
+   * @brief Check whether a native window has requested to close.
+   * @param window Native window handle.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_os_window_should_close(LDKWindow window);
+  /**
+   * @brief Present a window by swapping its graphics buffers.
+   * @param window Native window handle.
+   */
   LDK_API void ldk_os_window_buffers_swap(LDKWindow window);
+  /**
+   * @brief Destroy the OS window.
+   * @param window Native window handle.
+   */
   LDK_API void ldk_os_window_destroy(LDKWindow window);
+  /**
+   * @brief Get the OS window fullscreen.
+   * @param window Native window handle.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_window_fullscreen_get(LDKWindow window);
+  /**
+   * @brief Set the OS window fullscreen.
+   * @param window Native window handle.
+   * @param fs Whether fullscreen mode should be enabled.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_window_fullscreen_set(LDKWindow window, bool fs);
+  /**
+   * @brief Get the OS window client area size.
+   * @param window Native window handle.
+   * @return The resulting size.
+   */
   LDK_API LDKSize ldk_os_window_client_area_size_get(LDKWindow window);
+  /**
+   * @brief Set the OS window client area size.
+   * @param window Native window handle.
+   * @param width Width in pixels or the units expected by the API.
+   * @param height Height in pixels or the units expected by the API.
+   */
   LDK_API void ldk_os_window_client_area_size_set(
       LDKWindow window, int width, int height);
+  /**
+   * @brief Get the OS window position.
+   * @param window Native window handle.
+   * @return The resulting point.
+   */
   LDK_API LDKPoint ldk_os_window_position_get(LDKWindow window);
+  /**
+   * @brief Set the OS window position.
+   * @param window Native window handle.
+   * @param x X coordinate or component.
+   * @param y Y coordinate or component.
+   */
   LDK_API void ldk_os_window_position_set(LDKWindow window, i32 x, i32 y);
+  /**
+   * @brief Set the OS window size.
+   * @param window Native window handle.
+   * @param width Width in pixels or the units expected by the API.
+   * @param height Height in pixels or the units expected by the API.
+   */
   LDK_API void ldk_os_window_size_set(LDKWindow window, i32 width, i32 height);
+  /**
+   * @brief Get the OS window size.
+   * @param window Native window handle.
+   * @return The resulting size.
+   */
   LDK_API LDKSize ldk_os_window_size_get(LDKWindow window);
+  /**
+   * @brief Change the title shown by a native window.
+   * @param window Native window handle.
+   * @param title Title shown by the window or dialog.
+   */
   LDK_API void ldk_os_window_title_set(LDKWindow window, const char *title);
+  /**
+   * @brief Copy the current native window title into a string.
+   * @param window Native window handle.
+   * @param outTitle Receives the current window title.
+   * @return The resulting numeric value.
+   */
   LDK_API size_t ldk_os_window_title_get(LDKWindow window, XSmallstr *outTitle);
 
   /**
@@ -86,9 +230,17 @@ extern "C"
    * value is the whole window.
    * If the window does not have the LDK_WINDOW_FLAG_NOTITLEBAR flag, this
    * function does nothing.
+   * @param window Native window handle.
+   * @param rect UI or geometry rectangle.
    */
   LDK_API void ldk_os_window_draggable_area_set(LDKWindow window, LDKRect rect);
 
+  /**
+   * @brief Set the OS window icon.
+   * @param window Native window handle.
+   * @param iconPath Path of the image used as a window icon.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_window_icon_set(LDKWindow window, const char *iconPath);
   /**
    * Show or hide a window.
@@ -127,7 +279,11 @@ extern "C"
   // ---------------------------------------------------------------------------
   // Clipboard
   // ---------------------------------------------------------------------------
-  /** Store UTF-8 text in the system clipboard. */
+  /** Store UTF-8 text in the system clipboard.
+   * @param window Native window handle.
+   * @param text Text used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_clipboard_text_set(LDKWindow window, const char *text);
 
   /**
@@ -136,6 +292,10 @@ extern "C"
    * Passing NULL and zero queries the required byte length. If out_size is too
    * small, out_text is left empty and the required byte length is returned.
    * The returned length excludes the null terminator.
+   * @param window Native window handle.
+   * @param out_text Destination buffer for the resulting text.
+   * @param out_size Receives or specifies the byte size of the output buffer, as defined by the operation.
+   * @return The resulting numeric value.
    */
   LDK_API size_t ldk_os_clipboard_text_get(
       LDKWindow window, char *out_text, size_t out_size);
@@ -144,22 +304,72 @@ extern "C"
   // Graphics
   // ---------------------------------------------------------------------------
   typedef void *LDKGCtx;
+  /**
+   * @brief Create the OS graphics context opengl.
+   * @param version_major Requested major graphics API version.
+   * @param version_minor Requested minor graphics API version.
+   * @param color_bits Requested number of color bits.
+   * @param depth_bits Requested number of depth bits.
+   * @return The requested value.
+   */
   LDK_API LDKGCtx ldk_os_graphics_context_opengl_create(
       i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
+  /**
+   * @brief Create the OS graphics context opengles.
+   * @param version_major Requested major graphics API version.
+   * @param version_minor Requested minor graphics API version.
+   * @param color_bits Requested number of color bits.
+   * @param depth_bits Requested number of depth bits.
+   * @return The requested value.
+   */
   LDK_API LDKGCtx ldk_os_graphics_context_opengles_create(
       i32 version_major, i32 version_minor, i32 color_bits, i32 depth_bits);
+  /**
+   * @brief Make a graphics context current for a window.
+   * @param window Native window handle.
+   * @param context Context used by this operation.
+   */
   LDK_API void ldk_os_graphics_context_make_current(
       LDKWindow window, LDKGCtx context);
+  /**
+   * @brief Destroy the OS graphics context.
+   * @param context Context used by this operation.
+   */
   LDK_API void ldk_os_graphics_context_destroy(LDKGCtx context);
+  /**
+   * @brief Set the OS graphics vsync.
+   * @param vsync Vsync used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_graphics_vsync_set(bool vsync);
+  /**
+   * @brief Query the currently configured vertical synchronization setting.
+   * @return The resulting integer value.
+   */
   LDK_API i32 ldk_os_graphics_vsync_get(void);
 
   // ---------------------------------------------------------------------------
   // Shared Library interface
   // ---------------------------------------------------------------------------
   typedef void LDKLibrary;
+  /**
+   * @brief Load the OS library.
+   * @param path Path identifying the file or resource.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API LDKLibrary *ldk_os_library_load(const char *path);
+  /**
+   * @brief Unload the OS library.
+   * @param library Library used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_library_unload(LDKLibrary *library);
+  /**
+   * @brief Find an exported function pointer in a dynamic library.
+   * @param library Library used by this operation.
+   * @param name Name identifying the object or setting.
+   * @return Pointer to the requested object or data; NULL when unavailable.
+   */
   LDK_API void *ldk_os_library_fuction_ptr_get(
       LDKLibrary *library, const char *name);
 
@@ -185,6 +395,11 @@ extern "C"
 
   typedef struct LDKOSProcess LDKOSProcess;
 
+  /**
+   * @brief Run a child process using the supplied process description.
+   * @param desc Description or configuration for this operation.
+   * @return Result of the operation.
+   */
   LDK_API LDKOSProcessResult ldk_os_process_run(
       const LDKOSProcessDesc *desc);
 
@@ -194,12 +409,16 @@ extern "C"
    * rather than managed editor jobs.
    *
    * On success started is true and completed is false.
+   * @param desc Description or configuration for this operation.
+   * @return Result of the operation.
    */
   LDK_API LDKOSProcessResult ldk_os_process_launch(
       const LDKOSProcessDesc *desc);
 
   /**
    * Opens a file or directory with the operating system default handler.
+   * @param path Path identifying the file or resource.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_os_open_default(const char *path);
 
@@ -210,6 +429,9 @@ extern "C"
    * When out_result is not NULL it receives the initial process result. On
    * success started is true and completed is false. On failure NULL is returned
    * and os_error contains the platform error when available.
+   * @param desc Description or configuration for this operation.
+   * @param out_result Receives additional status or diagnostic information.
+   * @return Pointer to the requested object or data; NULL when unavailable.
    */
   LDK_API LDKOSProcess *ldk_os_process_start(
       const LDKOSProcessDesc *desc, LDKOSProcessResult *out_result);
@@ -220,6 +442,10 @@ extern "C"
    * stdout and stderr are merged and returned in process order as observed by
    * the shared pipe. The returned byte count may be zero while the process is
    * still running.
+   * @param process Process used by this operation.
+   * @param out_buffer Destination buffer that receives the result.
+   * @param buffer_size Capacity of the buffer in bytes.
+   * @return The resulting numeric value.
    */
   LDK_API size_t ldk_os_process_output_read(
       LDKOSProcess *process, char *out_buffer, size_t buffer_size);
@@ -229,22 +455,30 @@ extern "C"
    *
    * Returns false only when polling fails. out_result is always updated when it
    * is not NULL. completed becomes true after the child process exits.
+   * @param process Process used by this operation.
+   * @param out_result Receives additional status or diagnostic information.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_os_process_poll(
       LDKOSProcess *process, LDKOSProcessResult *out_result);
 
   /**
    * Cancels the process and its child process tree.
+   * @param process Process used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_os_process_cancel(LDKOSProcess *process);
 
   /**
    * Returns true when cancellation was successfully requested for the process.
+   * @param process Process used by this operation.
+   * @return True when the queried condition holds; false otherwise.
    */
   LDK_API bool ldk_os_process_was_cancelled(const LDKOSProcess *process);
 
   /**
    * Releases the process resources. A still-running process tree is terminated.
+   * @param process Process used by this operation.
    */
   LDK_API void ldk_os_process_destroy(LDKOSProcess *process);
   
@@ -275,8 +509,20 @@ extern "C"
     LDK_CURSOR_SIZE_NS = 5,
   } LDKCursorType;
 
+  /**
+   * @brief Set the OS cursor type.
+   * @param type Type identifier or kind used by the operation.
+   */
   LDK_API void ldk_os_cursor_type_set(LDKCursorType type);
+  /**
+   * @brief Get the OS cursor type.
+   * @return The requested value.
+   */
   LDK_API LDKCursorType ldk_os_cursor_type_get();
+  /**
+   * @brief Check whether the pointer is inside the active window client area.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_os_cursor_is_in_client_area();
 
   // LDKMouseState
@@ -288,15 +534,52 @@ extern "C"
     unsigned char button[LDK_MOUSE_MAX_BUTTONS];
   } LDKMouseState;
 
+  /**
+   * @brief Get the OS mouse state.
+   * @param outState Receives the requested input state snapshot.
+   */
   LDK_API void ldk_os_mouse_state_get(LDKMouseState *outState);
+  /**
+   * @brief Test whether the button is currently held.
+   * @param state Input snapshot or state object to query.
+   * @param button Mouse or input button to query.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_os_mouse_button_is_pressed(LDKMouseState *state,
       LDKMouseButton button); // True while button is pressed
+  /**
+   * @brief Test whether the button was pressed during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param button Mouse or input button to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_mouse_button_down(LDKMouseState *state,
       LDKMouseButton button); // True in the frame the button was pressed
+  /**
+   * @brief Test whether the button was released during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param button Mouse or input button to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_mouse_button_up(LDKMouseState *state,
       LDKMouseButton button); // True in the frame the button was released
+  /**
+   * @brief Get the accumulated mouse wheel movement in the input snapshot.
+   * @param state Input snapshot or state object to query.
+   * @return The resulting integer value.
+   */
   LDK_API i32 ldk_os_mouse_wheel_delta(LDKMouseState *state);
+  /**
+   * @brief Get the mouse cursor position.
+   * @param state Input snapshot or state object to query.
+   * @return The resulting point.
+   */
   LDK_API LDKPoint ldk_os_mouse_cursor(LDKMouseState *state);
+  /**
+   * @brief Get the mouse cursor position relative to the active client area.
+   * @param state Input snapshot or state object to query.
+   * @return The resulting point.
+   */
   LDK_API LDKPoint ldk_os_mouse_cursor_relative(LDKMouseState *state);
 
   // ---------------------------------------------------------------------------
@@ -444,12 +727,34 @@ extern "C"
 
 #undef X
 
+  /**
+   * @brief Get the OS keyboard state.
+   * @param outState Receives the requested input state snapshot.
+   */
   LDK_API void ldk_os_keyboard_state_get(LDKKeyboardState *outState);
 
+  /**
+   * @brief Test whether the key is currently held.
+   * @param state Input snapshot or state object to query.
+   * @param keycode Keyboard key to query.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_os_keyboard_key_is_pressed(LDKKeyboardState *state,
       LDKKeycode keycode); // True while the key is pressed
+  /**
+   * @brief Test whether the key was pressed during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param keycode Keyboard key to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_keyboard_key_down(LDKKeyboardState *state,
       LDKKeycode keycode); // True in the frame the key was pressed
+  /**
+   * @brief Test whether the key was released during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param keycode Keyboard key to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_keyboard_key_up(LDKKeyboardState *state,
       LDKKeycode keycode); // True in the frame the key was released
 
@@ -526,25 +831,83 @@ extern "C"
     float vibration_right;
   } LDKJoystickState;
 
+  /**
+   * @brief Get the OS joystick state.
+   * @param outState Receives the requested input state snapshot.
+   * @param id Identifier of the target object.
+   */
   LDK_API void ldk_os_joystick_state_get(
       LDKJoystickState *outState, LDKJoystickID id);
+  /**
+   * @brief Test whether the button is currently held.
+   * @param state Input snapshot or state object to query.
+   * @param key Key or button identifier to query.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_os_joystick_button_is_pressed(
       LDKJoystickState *state, LDKJoystickButton key);
+  /**
+   * @brief Test whether the button was pressed during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param key Key or button identifier to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_joystick_button_down(
       LDKJoystickState *state, LDKJoystickButton key);
+  /**
+   * @brief Test whether the button was released during the current input update.
+   * @param state Input snapshot or state object to query.
+   * @param key Key or button identifier to query.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_joystick_button_up(
       LDKJoystickState *state, LDKJoystickButton key);
+  /**
+   * @brief Get the OS joystick axis.
+   * @param state Input snapshot or state object to query.
+   * @param key Key or button identifier to query.
+   * @return The resulting value.
+   */
   LDK_API float ldk_os_joystick_axis_get(
       LDKJoystickState *state, LDKJoystickAxis key);
+  /**
+   * @brief Count the OS joystick.
+   * @return Number of matching entries.
+   */
   LDK_API u32 ldk_os_joystick_count(void);
+  /**
+   * @brief Check whether the indicated joystick is connected.
+   * @param id Identifier of the target object.
+   * @return The resulting numeric value.
+   */
   LDK_API u32 ldk_os_joystick_is_connected(LDKJoystickID id);
 
+  /**
+   * @brief Set the OS joystick vibration left.
+   * @param id Identifier of the target object.
+   * @param speed Speed used by this operation.
+   */
   LDK_API void ldk_os_joystick_vibration_left_set(
       LDKJoystickID id, float speed);
+  /**
+   * @brief Set the OS joystick vibration right.
+   * @param id Identifier of the target object.
+   * @param speed Speed used by this operation.
+   */
   LDK_API void ldk_os_joystick_vibration_right_set(
       LDKJoystickID id, float speed);
 
+  /**
+   * @brief Get the OS joystick vibration left.
+   * @param id Identifier of the target object.
+   * @return The resulting value.
+   */
   LDK_API float ldk_os_joystick_vibration_left_get(LDKJoystickID id);
+  /**
+   * @brief Get the OS joystick vibration right.
+   * @param id Identifier of the target object.
+   * @return The resulting value.
+   */
   LDK_API float ldk_os_joystick_vibration_right_get(LDKJoystickID id);
 
   // ---------------------------------------------------------------------------
@@ -559,23 +922,82 @@ extern "C"
     LDK_OS_DIALOG_RESULT_NO,
   } LDKOSDialogResult;
 
+  /**
+   * @brief Open a native file selection dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param filter File type filter passed to the native dialog.
+   * @param out_path Receives the resulting path.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
       const char *filter, XFSPath *out_path);
   /* Edit RGB in a native dialog, preserving the alpha byte of 0xRRGGBBAA.
    * Returns false on cancel/error and leaves *color unchanged. */
+  /**
+   * @brief Open the native color selection dialog.
+   * @param owner Parent window for the dialog.
+   * @param color Color value used by the operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_color_picker_show(
       LDKWindow owner, rgba32 *color);
+  /**
+   * @brief Open a native folder selection dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param filter File type filter passed to the native dialog.
+   * @param out_path Receives the resulting path.
+   * @param out_path_size Receives the resulting path size.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_open_folder(LDKWindow owner,
       const char *title, const char *filter, char *out_path,
       size_t out_path_size);
+  /**
+   * @brief Open a native save-file dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param filter File type filter passed to the native dialog.
+   * @param out_path Receives the resulting path.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
       const char *filter, XFSPath *out_path);
+  /**
+   * @brief Show a Yes/No message dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param message Message displayed to the user.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_yes_no(
       LDKWindow owner, const char *title, const char *message);
+  /**
+   * @brief Show an OK/Cancel message dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param message Message displayed to the user.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_ok_cancel(
       LDKWindow owner, const char *title, const char *message);
+  /**
+   * @brief Show an OK message dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param message Message displayed to the user.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_ok(
       LDKWindow owner, const char *title, const char *message);
+  /**
+   * @brief Show an error message dialog.
+   * @param owner Parent window for the dialog.
+   * @param title Title shown by the window or dialog.
+   * @param message Message displayed to the user.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_os_dialog_show_error(
       LDKWindow owner, const char *title, const char *message);
 

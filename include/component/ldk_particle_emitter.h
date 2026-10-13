@@ -1,7 +1,9 @@
 /**
- * @file ldk_particle_emitter.h
- * @brief Particle emitter component.
+ * # Particle emitter component
+ *
+ * Particle emitter component.
  */
+
 #ifndef LDK_PARTICLE_EMITTER_H
 #define LDK_PARTICLE_EMITTER_H
 
@@ -139,23 +141,50 @@ extern "C"
     u32 runtime_error_flags;
   } LDKParticleEmitter;
 
+  /**
+   * @brief Create default settings for particle emitter.
+   * @return A value initialized with the engine defaults.
+   */
   LDK_API LDKParticleEmitter ldk_particle_emitter_make_default(void);
-  /** Start the configured mode if not playing. */
+  /** Start the configured mode if not playing.
+   * @param emitter Particle emitter component being controlled.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_particle_emitter_play(LDKParticleEmitter *emitter);
-  /** Restart the configured mode without killing existing particles. */
+  /** Restart the configured mode without killing existing particles.
+   * @param emitter Particle emitter component being controlled.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_particle_emitter_restart(LDKParticleEmitter *emitter);
-  /** Stop future emission; live particles continue simulating. */
+  /** Stop future emission; live particles continue simulating.
+   * @param emitter Particle emitter component being controlled.
+   */
   LDK_API void ldk_particle_emitter_stop(LDKParticleEmitter *emitter);
-  /** Play the configured burst parameters for exactly count bursts. */
+  /** Play the configured burst parameters for exactly count bursts.
+   * @param emitter Particle emitter component being controlled.
+   * @param count Number of items to process.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_particle_emitter_emit_bursts(
       LDKParticleEmitter *emitter, u32 count);
-  /** Play the configured emission rate for the specified duration. */
+  /** Play the configured emission rate for the specified duration.
+   * @param emitter Particle emitter component being controlled.
+   * @param seconds Duration in seconds.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_particle_emitter_emit_for(
       LDKParticleEmitter *emitter, float seconds);
-  /** Remove all live particles without stopping scheduled emission. */
+  /** Remove all live particles without stopping scheduled emission.
+   * @param emitter Particle emitter component being controlled.
+   */
   LDK_API void ldk_particle_emitter_clear(LDKParticleEmitter *emitter);
 
 #ifdef LDK_ENGINE
+  /**
+   * @brief Build the ECS registration descriptor for the particle emitter component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_particle_emitter_component_desc(
       u32 initial_capacity);
 #endif

@@ -1,6 +1,7 @@
 /**
- * @file ldk_text3d.h
- * @brief World-space text source component data.
+ * # 3D text component
+ *
+ * World-space text source component data.
  */
 
 #ifndef LDK_TEXT3D_H
@@ -29,6 +30,11 @@ extern "C" {
   } LDKText3DComponent;
 
 #ifdef LDK_ENGINE
+  /**
+   * @brief Build the ECS registration descriptor for the text3d component.
+   * @param initial_capacity Initial number of entries reserved in the registry.
+   * @return A descriptor for the requested component or resource.
+   */
   LDK_API LDKComponentDesc ldk_text3d_component_desc(u32 initial_capacity);
 #endif // LDK_ENGINE
 

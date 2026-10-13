@@ -1,7 +1,9 @@
 /**
- * @file ldk_property.h
- * @brief Shared runtime/editor access to reflected component properties.
+ * # Reflected properties
+ *
+ * Shared runtime/editor access to reflected component properties.
  */
+
 #ifndef LDK_PROPERTY_H
 #define LDK_PROPERTY_H
 

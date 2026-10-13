@@ -1,7 +1,9 @@
 /**
- * @file ldk_grass.h
- * @brief Persistent procedural grass patches.
+ * # Grass system
+ *
+ * Persistent procedural grass patches.
  */
+
 #ifndef LDK_GRASS_H
 #define LDK_GRASS_H
 
@@ -109,9 +111,24 @@ typedef struct LDKGrassPatch
   u32 version;
 } LDKGrassPatch;
 
+/**
+ * @brief Initialize the grass system.
+ * @param data Source data or system-owned context for this operation.
+ * @return System initialization status code.
+ */
 int ldk_grass_system_initialize(void *data);
+/**
+ * @brief Update the grass system.
+ * @param data Source data or system-owned context for this operation.
+ * @param group Entity group used for this system update.
+ * @param dt Elapsed time since the preceding update, in seconds.
+ */
 void ldk_grass_system_update(
     void *data, const LDKEntityGroup *group, float dt);
+/**
+ * @brief Shut down the grass system.
+ * @param data Source data or system-owned context for this operation.
+ */
 void ldk_grass_system_terminate(void *data);
 
 //@system name=GrassSystem initialize=ldk_grass_system_initialize update=ldk_grass_system_update terminate=ldk_grass_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
@@ -518,16 +535,28 @@ typedef struct LDKGrassSystem
 
 } LDKGrassSystem;
 
-/** Initialize a useful default grass type description. */
+/** Initialize a useful default grass type description.
+ * @param out_desc Receives the descriptor.
+ */
 LDK_API void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc);
 
-/** Return the active configuration index for name, or INVALID when absent. */
+/** Return the active configuration index for name, or INVALID when absent.
+ * @param name Name identifying the object or setting.
+ * @return The requested value.
+ */
 LDK_API LDKGrassTypeId ldk_grass_get_id_by_name(const char *name);
 
-/** True when type_id names a configured slot in the active GrassSystem. */
+/** True when type_id names a configured slot in the active GrassSystem.
+ * @param type_id Identifier of the type.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_grass_type_is_valid(LDKGrassTypeId type_id);
 
-/** Copy one configured type from the active GrassSystem. */
+/** Copy one configured type from the active GrassSystem.
+ * @param type_id Identifier of the type.
+ * @param out_desc Receives the descriptor.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_grass_type_get(
     LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc);
 
@@ -535,28 +564,49 @@ LDK_API bool ldk_grass_type_get(
  * Register an additional type in the first free runtime slot. Names must be
  * unique. Returns INVALID when the system is inactive, the description is
  * invalid, the name already exists, or all 16 slots are occupied.
+ * @param desc Description or configuration for this operation.
+ * @return The requested value.
  */
 LDK_API LDKGrassTypeId ldk_grass_type_register(
     const LDKGrassTypeDesc *desc);
 
-/** Initialize an empty one-square-unit patch with density scale 1. */
+/** Initialize an empty one-square-unit patch with density scale 1.
+ * @param out_desc Receives the descriptor.
+ */
 LDK_API void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc);
 
-/** Return an invalid grass patch handle. */
+/** Return an invalid grass patch handle.
+ * @return An invalid or empty handle.
+ */
 LDK_API LDKGrassPatch ldk_grass_patch_null(void);
 
-/** True while patch identifies a live entry in the active GrassSystem. */
+/** True while patch identifies a live entry in the active GrassSystem.
+ * @param patch Patch used by this operation.
+ * @return True when the queried condition holds; false otherwise.
+ */
 LDK_API bool ldk_grass_patch_is_valid(LDKGrassPatch patch);
 
-/** Generate and retain one patch using a configured grass type. */
+/** Generate and retain one patch using a configured grass type.
+ * @param type_id Identifier of the type.
+ * @param desc Description or configuration for this operation.
+ * @return The requested value.
+ */
 LDK_API LDKGrassPatch ldk_grass_add(
     LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
 
-/** Replace a patch recipe and regenerate its persistent blade transforms. */
+/** Replace a patch recipe and regenerate its persistent blade transforms.
+ * @param patch Patch used by this operation.
+ * @param type_id Identifier of the type.
+ * @param desc Description or configuration for this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_grass_update(LDKGrassPatch patch,
     LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
 
-/** Remove a patch and every opaque blade belonging to it. */
+/** Remove a patch and every opaque blade belonging to it.
+ * @param patch Patch used by this operation.
+ * @return True if the operation succeeds; false otherwise.
+ */
 LDK_API bool ldk_grass_remove(LDKGrassPatch patch);
 
 /** Remove every live patch. Renderer-side style resources remain cached. */
@@ -566,6 +616,11 @@ LDK_API void ldk_grass_clear(void);
  * Queue one world-space grass interaction capsule for the active GrassSystem.
  * Passing the same point for from and to produces a circular interaction.
  * The queued interaction is consumed by the GrassSystem render update.
+ * @param from World-space start of the interaction segment.
+ * @param to World-space end of the interaction segment.
+ * @param radius Interaction or geometry radius.
+ * @param strength Strength of the interaction.
+ * @return True if the operation succeeds; false otherwise.
  */
 LDK_API bool ldk_grass_interact(
     Vec3 from, Vec3 to, float radius, float strength);

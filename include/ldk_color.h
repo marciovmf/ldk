@@ -1,6 +1,7 @@
 /**
- * @file   ldk_color.h
- * @brief  RGB and RGBA color types and helpers
+ * # Color values
+ *
+ * RGB and RGBA color types and helpers
  *
  * Defines color structures, constructors, and named color constants.
  */
@@ -18,6 +19,13 @@ typedef struct
   u8 b;
 } LDKRGB;
 
+/**
+ * @brief Construct a color value from individual channel components.
+ * @param r R color channel.
+ * @param g G color channel.
+ * @param b Second value to compare or combine.
+ * @return The requested value.
+ */
 LDK_API LDKRGB ldkRGB(u8 r, u8 g, u8 b);
 
 // LDKRGBA
@@ -29,6 +37,14 @@ typedef struct
   u8 a;
 } LDKRGBA;
 
+/**
+ * @brief Construct a color value from individual channel components.
+ * @param r R color channel.
+ * @param g G color channel.
+ * @param b Second value to compare or combine.
+ * @param a First value to compare or combine.
+ * @return The requested value.
+ */
 LDK_API LDKRGBA ldkRGBA(u8 r, u8 g, u8 b, u8 a);
 
 #define LDK_RGBA_WHITE       ldkRGBA(255, 255, 255, 255)

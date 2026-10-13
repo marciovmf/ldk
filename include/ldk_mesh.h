@@ -1,3 +1,9 @@
+/**
+ * # Mesh geometry
+ *
+ * Mesh vertices, indices, geometry helpers, and mesh data operations.
+ */
+
 #ifndef LDK_MESH_H
 #define LDK_MESH_H
 
@@ -70,8 +76,18 @@ extern "C" {
     LDK_MESH_PRIMITIVE_COUNT
   } LDKMeshPrimitive;
 
+  /**
+   * @brief Create the mesh primitive.
+   * @param primitive Primitive used by this operation.
+   * @param out_mesh Receives the resulting mesh.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_mesh_primitive_create(
       LDKMeshPrimitive primitive, LDKMeshData* out_mesh);
+  /**
+   * @brief Destroy the mesh data.
+   * @param mesh Mesh resource used by the operation.
+   */
   LDK_API void ldk_mesh_data_destroy(LDKMeshData* mesh);
 
   /**
@@ -79,6 +95,9 @@ extern "C" {
    *
    * The asset is created lazily and reused for subsequent requests while it
    * remains alive in the supplied asset manager.
+   * @param manager Asset manager that owns or resolves the asset.
+   * @param primitive Primitive used by this operation.
+   * @return Handle to the requested object or resource.
    */
   LDK_API LDKAssetMesh ldk_mesh_primitive_asset_get(
       LDKAssetManager* manager, LDKMeshPrimitive primitive);

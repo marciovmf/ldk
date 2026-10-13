@@ -1,6 +1,7 @@
 /**
- * @file ldk_renderer.h
- * @brief LDK engine renderer.
+ * # Renderer
+ *
+ * LDK engine renderer.
  *
  * API agnostic renderer built on top of ldk_rhi.
  */
@@ -956,7 +957,16 @@ extern "C" {
     bool is_initialized;
   } LDKRenderer;
 
+  /**
+   * @brief Initialize defaults for renderer water.
+   * @param desc Description or configuration for this operation.
+   */
   LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc);
+  /**
+   * @brief Check whether the renderer water desc is valid.
+   * @param desc Description or configuration for this operation.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_renderer_water_desc_is_valid(
       const LDKRendererWaterDesc *desc);
   /**
@@ -966,6 +976,11 @@ extern "C" {
    * caller-owned and must live until render_frame() completes. Overlapping
    * water surfaces are composited in submission order; this path does not
    * sort stacked water.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param desc Description or configuration for this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_water(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -974,16 +989,28 @@ extern "C" {
   /** Set constant ambient light applied to lit materials.
    * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
    * non-negative. Ambient light does not count toward the per-view light limit.
+   * @param renderer Renderer receiving this request.
+   * @param color Color value used by the operation.
+   * @param intensity Intensity used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_ambient_light_set(
       LDKRenderer *renderer, u32 color, float intensity);
 
-  /** Bind a world-space interaction field sampled by vegetation shaders. */
+  /** Bind a world-space interaction field sampled by vegetation shaders.
+   * @param renderer Renderer receiving this request.
+   * @param texture Texture used by this operation.
+   * @param world_origin World origin used by this operation.
+   * @param world_size Size of the world buffer or region.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_vegetation_interaction_set(
       LDKRenderer *renderer, LDKResourceTexture texture, Vec2 world_origin,
       float world_size);
 
-  /** Disable the vegetation interaction field and release pass bindings. */
+  /** Disable the vegetation interaction field and release pass bindings.
+   * @param renderer Renderer receiving this request.
+   */
   LDK_API void ldk_renderer_vegetation_interaction_clear(
       LDKRenderer *renderer);
 
@@ -994,6 +1021,14 @@ extern "C" {
    * before render_frame; the queue is cleared after that frame is rendered.
    * Zero-length segments succeed without drawing. Invalid/nonfinite data,
    * nonpositive thickness and allocation failures return false.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param start Starting timestamp or location for this operation.
+   * @param end Ending timestamp or location for this operation.
+   * @param thickness Thickness used by this operation.
+   * @param color Color value used by the operation.
+   * @param depth_test Depth test used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_draw_line(LDKRenderer *renderer,
       LDKRendererViewId view_id, Vec3 start, Vec3 end, float thickness,
@@ -1010,6 +1045,14 @@ extern "C" {
    * testing is enabled by default and can be disabled per submission with
    * LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST. Views need not exist yet. The
    * transient queue is cleared after the frame is rendered.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param font Font or font instance used by the operation.
+   * @param text Text used by this operation.
+   * @param world Object-to-world transformation matrix.
+   * @param color Color value used by the operation.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_text(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKFontInstance *font, char const *text,
@@ -1018,6 +1061,9 @@ extern "C" {
   /** Submit transient world-space lighting. Views need not exist yet.
    * The first 16 matching lights illuminate each view, in submission order.
    * Returns false for invalid data or allocation failure.
+   * @param renderer Renderer receiving this request.
+   * @param light Light used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_light(LDKRenderer *renderer,
       const LDKRendererLightSubmit *light);
@@ -1038,9 +1084,22 @@ extern "C" {
    */
   // Call between frames. Resolution: power of two, 256..8192;
   // distance: finite and positive. Failure preserves existing resources.
+  /**
+   * @brief Set the renderer shadow settings.
+   * @param renderer Renderer receiving this request.
+   * @param resolution Resolution setting.
+   * @param distance Distance in world-space units.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_shadow_settings_set(
       LDKRenderer *renderer, u32 resolution, float distance);
 
+  /**
+   * @brief Initialize the renderer.
+   * @param renderer Renderer receiving this request.
+   * @param config Configuration for this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_initialize(
       LDKRenderer* renderer,
       LDKRendererConfig const* config);
@@ -1215,6 +1274,12 @@ extern "C" {
 
   /* Route overlay meshes to a transparent texture for this frame. Request
    * before rendering and compose the texture above other viewer UI layers. */
+  /**
+   * @brief Request an overlay texture associated with a renderer view.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
       LDKRenderer* renderer, LDKRendererViewId view_id);
 
@@ -1280,10 +1345,23 @@ extern "C" {
    * @param desc New mesh data description.
    * @return true if the mesh was updated, false otherwise.
    */
-  /** Reuse geometry uploaded for the same immutable mesh asset/index. */
+  /** Reuse geometry uploaded for the same immutable mesh asset/index.
+   * @param renderer Renderer receiving this request.
+   * @param asset Asset handle to inspect or modify.
+   * @param mesh_index Zero-based index of the mesh entry.
+   * @param desc Description or configuration for this operation.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKResourceMesh ldk_renderer_mesh_asset_acquire(LDKRenderer *renderer,
       LDKAssetMesh asset, u32 mesh_index, const LDKRendererMeshDesc *desc);
 
+  /**
+   * @brief Update the renderer mesh.
+   * @param renderer Renderer receiving this request.
+   * @param mesh Mesh resource used by the operation.
+   * @param desc Description or configuration for this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_mesh_update(
       LDKRenderer* renderer,
       LDKResourceMesh mesh,
@@ -1451,9 +1529,21 @@ extern "C" {
    * once per acquisition; do not destroy the borrowed texture directly.
    * In-place image edits/hot reload are not tracked by this snapshot cache.
    */
+  /**
+   * @brief Acquire a renderer resource for an image asset.
+   * @param renderer Renderer receiving this request.
+   * @param assets Asset manager used to resolve referenced assets.
+   * @param image Image used by this operation.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKResourceTexture ldk_renderer_image_acquire(
       LDKRenderer* renderer, struct LDKAssetManager* assets,
       LDKAssetImage image);
+  /**
+   * @brief Release a renderer resource acquired for an image asset.
+   * @param renderer Renderer receiving this request.
+   * @param texture Texture used by this operation.
+   */
   LDK_API void ldk_renderer_image_release(
       LDKRenderer* renderer, LDKResourceTexture texture);
 
@@ -1492,7 +1582,18 @@ extern "C" {
       LDKResourceTexture *renderer_normal_map,
       LDKResourceTexture *renderer_specular_map);
 
-  /** Resolve a normal authored material using TerrainSystem surface rules. */
+  /** Resolve a normal authored material using TerrainSystem surface rules.
+   * @param renderer Renderer receiving this request.
+   * @param assets Asset manager used to resolve referenced assets.
+   * @param material_desc Material desc used by this operation.
+   * @param surfaces Surfaces used by this operation.
+   * @param surface_count Number of surface entries.
+   * @param renderer_material Renderer material used by this operation.
+   * @param renderer_texture Renderer texture used by this operation.
+   * @param renderer_normal_map Renderer normal map used by this operation.
+   * @param renderer_specular_map Renderer specular map used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
       const LDKRendererTerrainSurfaceDesc *surfaces, u32 surface_count,
@@ -1508,10 +1609,21 @@ extern "C" {
    * @return true if the material is valid and alive, false otherwise.
    */
   /** Test whether a resolved material still matches its atlas revisions.
-   *  A changed atlas may have a different backing image or region geometry. */
+   *  A changed atlas may have a different backing image or region geometry.
+   * @param renderer Renderer receiving this request.
+   * @param assets Asset manager used to resolve referenced assets.
+   * @param material Material used by the operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_material_atlases_current(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKResourceMaterial material);
 
+  /**
+   * @brief Check whether the renderer material is valid.
+   * @param renderer Renderer receiving this request.
+   * @param material Material used by the operation.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_renderer_material_is_valid(
       LDKRenderer* renderer,
       LDKResourceMaterial material);
@@ -1627,6 +1739,10 @@ extern "C" {
    *
    * This is transient view state and must be set again after submit_view on
    * each frame. Alpha is preserved, allowing transparent camera backgrounds.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param clear_color Color for clear.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_view_clear_color_set(
       LDKRenderer* renderer,
@@ -1672,6 +1788,17 @@ extern "C" {
    * valid resources/range. Invalid data/allocation failure queues nothing.
    * Ordinary submits never use instancing. Unsupported instancing falls back
    * to one ordinary draw per instance, including ordered overlays.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param first_index First mesh index to submit.
+   * @param index_count Number of indices to submit.
+   * @param parent_world Parent world used by this operation.
+   * @param instances Instances used by this operation.
+   * @param instance_count Number of instance entries.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1681,6 +1808,18 @@ extern "C" {
   /** Explicit instancing with one optional RGBA tint per instance. Colors use
    * 0xRRGGBBAA and are copied together with the instance transforms. A NULL
    * color array means opaque white for every instance.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param first_index First mesh index to submit.
+   * @param index_count Number of indices to submit.
+   * @param parent_world Parent world used by this operation.
+   * @param instances Instances used by this operation.
+   * @param instance_colors Instance colors used by this operation.
+   * @param instance_count Number of instance entries.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_mesh_instances_colored(
       LDKRenderer *renderer, LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1688,25 +1827,75 @@ extern "C" {
       Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
       u32 instance_count, u32 flags);
 
-  /** Persistent world-space instances uploaded only when the set changes. */
+  /** Persistent world-space instances uploaded only when the set changes.
+   * @param renderer Renderer receiving this request.
+   * @param instances Instances used by this operation.
+   * @param instance_count Number of instance entries.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_create(
       LDKRenderer *renderer, const Mat4 *instances, u32 instance_count);
+  /**
+   * @brief Update the renderer instance set.
+   * @param renderer Renderer receiving this request.
+   * @param instance_set Instance set used by this operation.
+   * @param instances Instances used by this operation.
+   * @param instance_count Number of instance entries.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
       LDKResourceInstanceSet instance_set, const Mat4 *instances,
       u32 instance_count);
+  /**
+   * @brief Destroy the renderer instance set.
+   * @param renderer Renderer receiving this request.
+   * @param instance_set Instance set used by this operation.
+   */
   LDK_API void ldk_renderer_instance_set_destroy(LDKRenderer *renderer,
       LDKResourceInstanceSet instance_set);
+  /**
+   * @brief Return an invalid handle for the renderer instance set.
+   * @return An invalid or empty handle.
+   */
   LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_null(void);
+  /**
+   * @brief Check whether the renderer instance set is valid.
+   * @param renderer Renderer receiving this request.
+   * @param instance_set Instance set used by this operation.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_renderer_instance_set_is_valid(
       LDKRenderer *renderer, LDKResourceInstanceSet instance_set);
 
-  /** Submit one persistent instance set without copying its transforms. */
+  /** Submit one persistent instance set without copying its transforms.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param first_index First mesh index to submit.
+   * @param index_count Number of indices to submit.
+   * @param instance_set Instance set used by this operation.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_submit_mesh_instance_set(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
       LDKResourceMaterial material, u32 first_index, u32 index_count,
       LDKResourceInstanceSet instance_set, u32 flags);
 
-  /** Submit a contiguous range of a persistent instance set. */
+  /** Submit a contiguous range of a persistent instance set.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param first_index First mesh index to submit.
+   * @param index_count Number of indices to submit.
+   * @param instance_set Instance set used by this operation.
+   * @param first_instance First instance used by this operation.
+   * @param instance_count Number of instance entries.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_submit_mesh_instance_set_range(
       LDKRenderer *renderer, LDKRendererViewId view_id,
       LDKResourceMesh mesh, LDKResourceMaterial material,
@@ -1717,6 +1906,11 @@ extern "C" {
   /** True when an AABB is visible to the selected submitted view. VIEW_ALL
    * tests every submitted view and succeeds when any view intersects it.
    * Invalid bounds or unavailable frusta fail open and return true.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param bounds_min Bounds min used by this operation.
+   * @param bounds_max Bounds max used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_view_bounds_visible(
       const LDKRenderer *renderer, LDKRendererViewId view_id,
@@ -1748,9 +1942,29 @@ extern "C" {
    * submission functions enable CAST_SHADOWS; overlay submissions never cast.
    * These forms allow disabling casting without changing material lighting.
    */
+  /**
+   * @brief Submit renderer mesh with flags.
+   * @param renderer Renderer receiving this request.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param world Object-to-world transformation matrix.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_submit_mesh_with_flags(LDKRenderer *renderer,
       LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
       u32 flags);
+  /**
+   * @brief Submit renderer mesh range with flags.
+   * @param renderer Renderer receiving this request.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param first_index First mesh index to submit.
+   * @param index_count Number of indices to submit.
+   * @param world Object-to-world transformation matrix.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
       LDKResourceMesh mesh, LDKResourceMaterial material, u32 first_index,
       u32 index_count, Mat4 world, u32 flags);
@@ -1807,14 +2021,43 @@ extern "C" {
   // Skybox Resource
   // ---------------------------------------------------------------------------
 
+  /**
+   * @brief Return an invalid handle for the renderer skybox.
+   * @return An invalid or empty handle.
+   */
   LDK_API LDKResourceSkybox ldk_renderer_skybox_null(void);
+  /**
+   * @brief Check whether the renderer skybox is valid.
+   * @param renderer Renderer receiving this request.
+   * @param skybox Skybox used by this operation.
+   * @return True when the queried condition holds; false otherwise.
+   */
   LDK_API bool ldk_renderer_skybox_is_valid(
       LDKRenderer *renderer, LDKResourceSkybox skybox);
+  /**
+   * @brief Create the renderer skybox.
+   * @param renderer Renderer receiving this request.
+   * @param assets Asset manager used to resolve referenced assets.
+   * @param desc Description or configuration for this operation.
+   * @return Handle to the requested object or resource.
+   */
   LDK_API LDKResourceSkybox ldk_renderer_skybox_create(
       LDKRenderer *renderer, struct LDKAssetManager *assets,
       const LDKSkyboxDesc *desc);
+  /**
+   * @brief Destroy the renderer skybox.
+   * @param renderer Renderer receiving this request.
+   * @param skybox Skybox used by this operation.
+   */
   LDK_API void ldk_renderer_skybox_destroy(
       LDKRenderer *renderer, LDKResourceSkybox skybox);
+  /**
+   * @brief Submit renderer skybox to view.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param skybox Skybox used by this operation.
+   * @return True if the operation succeeds; false otherwise.
+   */
   LDK_API bool ldk_renderer_submit_skybox_to_view(
       LDKRenderer *renderer, LDKRendererViewId view_id,
       LDKResourceSkybox skybox);
@@ -1869,6 +2112,12 @@ extern "C" {
    * an arbitrary local depth. The viewport-independent orthographic camera
    * applies no perspective foreshortening. These meshes render after ordinary
    * overlays, without scene depth testing. Intended for editor handles.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param material Material used by the operation.
+   * @param pixel_transform Pixel transform used by this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_orthographic_overlay_mesh_to_view(
       LDKRenderer* renderer,
@@ -1885,6 +2134,14 @@ extern "C" {
    * occluded by the rendered scene. Color uses 0xRRGGBBAA and supports alpha
    * blending. line_width is requested in pixels and may be clamped by the RHI
    * backend. flags accepts LDK_RENDERER_MESH_SUBMIT_FLAG_BILLBOARD only.
+   * @param renderer Renderer receiving this request.
+   * @param view_id Renderer view receiving this operation.
+   * @param mesh Mesh resource used by the operation.
+   * @param world Object-to-world transformation matrix.
+   * @param color Color value used by the operation.
+   * @param line_width Line width used by this operation.
+   * @param flags Bitmask of options controlling this operation.
+   * @return True if the operation succeeds; false otherwise.
    */
   LDK_API bool ldk_renderer_submit_wireframe_mesh_to_view(
       LDKRenderer *renderer, LDKRendererViewId view_id,
