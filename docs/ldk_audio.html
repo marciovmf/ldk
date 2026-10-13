@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_audio.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_audio.h">ldk_audio.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_audio_asset_play">ldk_audio_asset_play</a></li>
+<li><a href="#ldk_audio_initialize">ldk_audio_initialize</a></li>
+<li><a href="#ldk_audio_listener_set">ldk_audio_listener_set</a></li>
+<li><a href="#ldk_audio_master_volume_get">ldk_audio_master_volume_get</a></li>
+<li><a href="#ldk_audio_master_volume_set">ldk_audio_master_volume_set</a></li>
+<li><a href="#ldk_audio_play_desc_default">ldk_audio_play_desc_default</a></li>
+<li><a href="#ldk_audio_sound_play">ldk_audio_sound_play</a></li>
+<li><a href="#ldk_audio_sound_play_ex">ldk_audio_sound_play_ex</a></li>
+<li><a href="#ldk_audio_terminate">ldk_audio_terminate</a></li>
+<li><a href="#ldk_audio_update">ldk_audio_update</a></li>
+<li><a href="#ldk_audio_voice_is_alive">ldk_audio_voice_is_alive</a></li>
+<li><a href="#ldk_audio_voice_is_null">ldk_audio_voice_is_null</a></li>
+<li><a href="#ldk_audio_voice_is_playing">ldk_audio_voice_is_playing</a></li>
+<li><a href="#ldk_audio_voice_loop_set">ldk_audio_voice_loop_set</a></li>
+<li><a href="#ldk_audio_voice_null">ldk_audio_voice_null</a></li>
+<li><a href="#ldk_audio_voice_position_set">ldk_audio_voice_position_set</a></li>
+<li><a href="#ldk_audio_voice_priority_set">ldk_audio_voice_priority_set</a></li>
+<li><a href="#ldk_audio_voice_range_set">ldk_audio_voice_range_set</a></li>
+<li><a href="#ldk_audio_voice_stop">ldk_audio_voice_stop</a></li>
+<li><a href="#ldk_audio_voice_volume_set">ldk_audio_voice_volume_set</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAudio">LDKAudio</a></li>
+<li><a href="#LDKAudioPlayDesc">LDKAudioPlayDesc</a></li>
+<li><a href="#LDKAudioVoice">LDKAudioVoice</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKAudioPriority">LDKAudioPriority</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_audio.h">
+      <header class="page-header">
+        <h1>ldk_audio.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="audio-engine">Audio engine</h1>
+<p>Audio playback module.</p>
+</div>
+      </header>
+
+      <article id="LDKAudioPriority" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKAudioPriority</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKAudioPriority</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_AUDIO_PRIORITY_LOW</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_AUDIO_PRIORITY_NORMAL</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_AUDIO_PRIORITY_HIGH</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_AUDIO_PRIORITY_CRITICAL</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAudioPriority</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAudioVoice" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAudioVoice</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAudioVoice</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">version</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAudioVoice</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAudioPlayDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAudioPlayDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAudioPlayDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPriority">LDKAudioPriority</a></span> <span class="tok_id">priority</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">volume</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">range</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">position</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">loop</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">spatialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAudioPlayDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAudio" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAudio</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAudio</span><span class="tok_pun">{</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">internal</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAudio</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_audio_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_initialize</span></h2>
+  <p class="brief">Initialize the audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_initialize</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_update" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_update</span></h2>
+  <p class="brief">Update the audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_audio_update</span>(<span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_audio_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_terminate</span></h2>
+  <p class="brief">Shut down the audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_audio_terminate</span>(<span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_audio_master_volume_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_master_volume_set</span></h2>
+  <p class="brief">Set the master output volume for all voices (0.0 = silent, 1.0 = full).
+Returns false if audio is not initialized or volume is outside [0, 1].</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_master_volume_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">volume</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">volume</span></code></dt>
+<dd>Volume used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_master_volume_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_master_volume_get</span></h2>
+  <p class="brief">Return the current master volume, or 1.0 if audio is unavailable.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">float</span> <span class="tok_id">ldk_audio_master_volume_get</span>(<span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting value.</p>
+</section>
+
+</article>
+<article id="ldk_audio_listener_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_listener_set</span></h2>
+  <p class="brief">Set the audio listener.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_audio_listener_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">position</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">direction</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">world_up</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">position</span></code></dt>
+<dd>Position used by the operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">direction</span></code></dt>
+<dd>Direction used by this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">world_up</span></code></dt>
+<dd>World up used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_audio_play_desc_default" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_play_desc_default</span></h2>
+  <p class="brief">Initialize an audio playback descriptor with defaults.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPlayDesc">LDKAudioPlayDesc</a></span> <span class="tok_id">ldk_audio_play_desc_default</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>A descriptor for the requested component or resource.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_null</span></h2>
+  <p class="brief">Return an invalid handle for the audio voice.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">ldk_audio_voice_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_is_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_is_null</span></h2>
+  <p class="brief">Check whether an audio voice handle is null.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_is_null</span>(<span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_is_alive</span></h2>
+  <p class="brief">Check whether the audio voice refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_is_playing" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_is_playing</span></h2>
+  <p class="brief">Check whether the audio voice is playing.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_is_playing</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_stop</span></h2>
+  <p class="brief">Stop the audio voice.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_audio_voice_stop</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_audio_voice_position_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_position_set</span></h2>
+  <p class="brief">Set the audio voice position.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_position_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">position</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">position</span></code></dt>
+<dd>Position used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_volume_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_volume_set</span></h2>
+  <p class="brief">Set the audio voice volume.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_volume_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">volume</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">volume</span></code></dt>
+<dd>Volume used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_range_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_range_set</span></h2>
+  <p class="brief">Set the audio voice range.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_range_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">range</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">range</span></code></dt>
+<dd>Range used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_loop_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_loop_set</span></h2>
+  <p class="brief">Set the audio voice loop.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_loop_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>,
+ <span class="tok_kw">bool</span> <span class="tok_id">loop</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+<dt><code><span class="tok_kw">bool</span> <span class="tok_id">loop</span></code></dt>
+<dd>Loop used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_voice_priority_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_voice_priority_set</span></h2>
+  <p class="brief">Set the audio voice priority.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_audio_voice_priority_set</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span>,
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPriority">LDKAudioPriority</a></span> <span class="tok_id">priority</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">voice</span></code></dt>
+<dd>Voice used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudioPriority">LDKAudioPriority</a></span> <span class="tok_id">priority</span></code></dt>
+<dd>Priority used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_audio_asset_play" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_asset_play</span></h2>
+  <p class="brief">Plays a shared audio asset and returns a versioned playback handle. Small
+assets may be cached in memory; larger assets stream from RunTree or an
+open .box package. Active voices retain a reference to the asset data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">ldk_audio_asset_play</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPlayDesc">LDKAudioPlayDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPlayDesc">LDKAudioPlayDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_audio_sound_play" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_sound_play</span></h2>
+  <p class="brief">Convenience path-based playback. The path is resolved through the asset
+manager and then played as a shared LDKAssetAudio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">ldk_audio_sound_play</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_audio_sound_play_ex" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_audio_sound_play_ex</span></h2>
+  <p class="brief">Play a sound using the supplied playback options.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioVoice">LDKAudioVoice</a></span> <span class="tok_id">ldk_audio_sound_play_ex</span>(
+ <span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPlayDesc">LDKAudioPlayDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_audio.html#LDKAudio">LDKAudio</a></span> <span class="tok_pun">*</span><span class="tok_id">audio</span></code></dt>
+<dd>Audio used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_audio.html#LDKAudioPlayDesc">LDKAudioPlayDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

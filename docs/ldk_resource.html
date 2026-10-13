@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_resource.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_resource.h">ldk_resource.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_RESOURCE_INSTANCE_SET_INVALID">LDK_RESOURCE_INSTANCE_SET_INVALID</a></li>
+<li><a href="#LDK_RESOURCE_MATERIAL_INVALID">LDK_RESOURCE_MATERIAL_INVALID</a></li>
+<li><a href="#LDK_RESOURCE_MESH_INVALID">LDK_RESOURCE_MESH_INVALID</a></li>
+<li><a href="#LDK_RESOURCE_SHADER_INVALID">LDK_RESOURCE_SHADER_INVALID</a></li>
+<li><a href="#LDK_RESOURCE_SKYBOX_INVALID">LDK_RESOURCE_SKYBOX_INVALID</a></li>
+<li><a href="#LDK_RESOURCE_TEXTURE_INVALID">LDK_RESOURCE_TEXTURE_INVALID</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKResourceInstanceSet">LDKResourceInstanceSet</a></li>
+<li><a href="#LDKResourceMaterial">LDKResourceMaterial</a></li>
+<li><a href="#LDKResourceMesh">LDKResourceMesh</a></li>
+<li><a href="#LDKResourceShader">LDKResourceShader</a></li>
+<li><a href="#LDKResourceSkybox">LDKResourceSkybox</a></li>
+<li><a href="#LDKResourceTexture">LDKResourceTexture</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_resource.h">
+      <header class="page-header">
+        <h1>ldk_resource.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="renderer-resource-handles">Renderer resource handles</h1>
+<p>Generic renderer-facing resource handle.</p>
+<p>Renderer resources use the same opaque storage type as RHI resources,
+but they are not necessarily direct RHI objects. A mesh, for example,
+may be a renderer-owned object that contains multiple RHI buffers.</p>
+</div>
+      </header>
+
+      <article id="LDKResourceTexture" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceTexture</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceTexture</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHITexture">LDKRHITexture</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceTexture</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKResourceMesh" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceMesh</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceMesh</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHIResource">LDKRHIResource</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceMesh</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKResourceShader" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceShader</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceShader</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHIShaderModule">LDKRHIShaderModule</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceShader</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKResourceMaterial" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceMaterial</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceMaterial</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHIResource">LDKRHIResource</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceMaterial</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKResourceInstanceSet" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceInstanceSet</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceInstanceSet</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHIResource">LDKRHIResource</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceInstanceSet</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKResourceSkybox" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKResourceSkybox</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKResourceSkybox</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_rhi.html#LDKRHIResource">LDKRHIResource</a></span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKResourceSkybox</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_TEXTURE_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_TEXTURE_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_TEXTURE_INVALID</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_MESH_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_MESH_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_MESH_INVALID</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceMesh">LDKResourceMesh</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_SHADER_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_SHADER_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_SHADER_INVALID</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceShader">LDKResourceShader</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_MATERIAL_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_MATERIAL_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_MATERIAL_INVALID</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceMaterial">LDKResourceMaterial</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_INSTANCE_SET_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_INSTANCE_SET_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_INSTANCE_SET_INVALID</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceInstanceSet">LDKResourceInstanceSet</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RESOURCE_SKYBOX_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RESOURCE_SKYBOX_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RESOURCE_SKYBOX_INVALID</span> <span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_resource.html#LDKResourceSkybox">LDKResourceSkybox</a></span><span class="tok_pun">)</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_rhi.html#LDK_RHI_INVALID_RESOURCE">LDK_RHI_INVALID_RESOURCE</a></span><span class="tok_pun">}</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

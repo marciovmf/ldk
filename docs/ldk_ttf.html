@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_ttf.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_ttf.h">ldk_ttf.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_ttf_clear_page_dirty">ldk_ttf_clear_page_dirty</a></li>
+<li><a href="#ldk_ttf_face_create">ldk_ttf_face_create</a></li>
+<li><a href="#ldk_ttf_face_destroy">ldk_ttf_face_destroy</a></li>
+<li><a href="#ldk_ttf_get_glyph">ldk_ttf_get_glyph</a></li>
+<li><a href="#ldk_ttf_get_instance">ldk_ttf_get_instance</a></li>
+<li><a href="#ldk_ttf_get_kerning">ldk_ttf_get_kerning</a></li>
+<li><a href="#ldk_ttf_get_line_height">ldk_ttf_get_line_height</a></li>
+<li><a href="#ldk_ttf_get_metrics">ldk_ttf_get_metrics</a></li>
+<li><a href="#ldk_ttf_get_page_count">ldk_ttf_get_page_count</a></li>
+<li><a href="#ldk_ttf_get_page_info">ldk_ttf_get_page_info</a></li>
+<li><a href="#ldk_ttf_get_pixel_height">ldk_ttf_get_pixel_height</a></li>
+<li><a href="#ldk_ttf_measure_text_cstr">ldk_ttf_measure_text_cstr</a></li>
+<li><a href="#ldk_ttf_measure_text_cstr_wrapped">ldk_ttf_measure_text_cstr_wrapped</a></li>
+<li><a href="#ldk_ttf_measure_text_cstrn">ldk_ttf_measure_text_cstrn</a></li>
+<li><a href="#ldk_ttf_preload_basic_ascii">ldk_ttf_preload_basic_ascii</a></li>
+<li><a href="#ldk_ttf_preload_range">ldk_ttf_preload_range</a></li>
+<li><a href="#ldk_ttf_utf8_consume_codepoint">ldk_ttf_utf8_consume_codepoint</a></li>
+<li><a href="#ldk_ttf_utf8_consume_codepoint_range">ldk_ttf_utf8_consume_codepoint_range</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKFontAtlasDesc">LDKFontAtlasDesc</a></li>
+<li><a href="#LDKFontFace">LDKFontFace</a></li>
+<li><a href="#LDKFontInstance">LDKFontInstance</a></li>
+<li><a href="#LDKFontMetrics">LDKFontMetrics</a></li>
+<li><a href="#LDKFontPageInfo">LDKFontPageInfo</a></li>
+<li><a href="#LDKGlyph">LDKGlyph</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKTextSize">LDKTextSize</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_ttf.h">
+      <header class="page-header">
+        <h1>ldk_ttf.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="truetype-fonts">TrueType fonts</h1>
+<p>Load font faces, manage font instances and glyph atlases, and measure text.</p>
+</div>
+      </header>
+
+      <article id="LDKTextSize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKTextSize</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw"><a href="ldk_geom.html#LDKSizef">LDKSizef</a></span> <span class="tok_id">LDKTextSize</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKFontFace" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKFontFace</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKFontFace</span> <span class="tok_id">LDKFontFace</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKFontInstance" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKFontInstance</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKFontInstance</span> <span class="tok_id">LDKFontInstance</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKFontAtlasDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKFontAtlasDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKFontAtlasDesc</span><span class="tok_pun">{</span>
+  <span class="tok_id">u16</span> <span class="tok_id">page_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">page_height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">padding</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKFontAtlasDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKFontMetrics" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKFontMetrics</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKFontMetrics</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">ascent</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">descent</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">line_gap</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">line_height</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKFontMetrics</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGlyph" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGlyph</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGlyph</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">codepoint</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">glyph_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">page_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">atlas_x0</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">atlas_y0</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">atlas_x1</span><span class="tok_pun">;</span>
+  <span class="tok_id">u16</span> <span class="tok_id">atlas_y1</span><span class="tok_pun">;</span>
+  <span class="tok_id">i16</span> <span class="tok_id">offset_x</span><span class="tok_pun">;</span>
+  <span class="tok_id">i16</span> <span class="tok_id">offset_y</span><span class="tok_pun">;</span>
+  <span class="tok_id">i16</span> <span class="tok_id">advance_x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">valid</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGlyph</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKFontPageInfo" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKFontPageInfo</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKFontPageInfo</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">page_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">dirty</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKFontPageInfo</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_ttf_utf8_consume_codepoint" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_utf8_consume_codepoint</span></h2>
+  <p class="brief">Consumes one UTF-8 codepoint and advances the input cursor.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_ttf_utf8_consume_codepoint</span>(
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">cursor</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_codepoint</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">cursor</span></code></dt>
+<dd>Pointer to the current UTF-8 string position. Updated to the next byte after the decoded sequence.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_codepoint</span></code></dt>
+<dd>Destination for the decoded Unicode codepoint.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true if a codepoint was consumed, false if input is invalid or the cursor is at the string terminator.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_utf8_consume_codepoint_range" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_utf8_consume_codepoint_range</span></h2>
+  <p class="brief">Consumes one UTF-8 codepoint within a bounded byte range and advances the input cursor.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_ttf_utf8_consume_codepoint_range</span>(
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">cursor</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">end</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_codepoint</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">cursor</span></code></dt>
+<dd>Pointer to the current UTF-8 string position. Updated to the next byte after the decoded sequence.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">end</span></code></dt>
+<dd>Exclusive end pointer for the UTF-8 byte range.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_codepoint</span></code></dt>
+<dd>Destination for the decoded Unicode codepoint.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true if a codepoint was consumed, false if input is invalid, the cursor is at the string terminator, or the cursor reached end.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_face_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_face_create</span></h2>
+  <p class="brief">Creates a font face from TrueType font data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_ttf_face_create</span>(
+ <span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">data</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">data_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source font file data.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">data_size</span></code></dt>
+<dd>Size of the source font data in bytes.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>New font face, or NULL on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_face_destroy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_face_destroy</span></h2>
+  <p class="brief">Destroys a font face and all font instances created from it.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_ttf_face_destroy</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span><span class="tok_id">face</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span><span class="tok_id">face</span></code></dt>
+<dd>Font face to destroy. May be NULL.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_ttf_get_instance" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_instance</span></h2>
+  <p class="brief">Gets or creates a font instance for a specific pixel height.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_ttf_get_instance</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span><span class="tok_id">face</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">pixel_height</span>,
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontAtlasDesc">LDKFontAtlasDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">atlas_desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span><span class="tok_id">face</span></code></dt>
+<dd>Source font face.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">pixel_height</span></code></dt>
+<dd>Requested font pixel height.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontAtlasDesc">LDKFontAtlasDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">atlas_desc</span></code></dt>
+<dd>Optional atlas configuration. NULL uses default atlas settings.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Font instance, or NULL on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_pixel_height" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_pixel_height</span></h2>
+  <p class="brief">Gets the pixel height used by a font instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">float</span> <span class="tok_id">ldk_ttf_get_pixel_height</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pixel height, or 0 if instance is NULL.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_metrics" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_metrics</span></h2>
+  <p class="brief">Gets scaled font metrics for a font instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKFontMetrics">LDKFontMetrics</a></span> <span class="tok_id">ldk_ttf_get_metrics</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Font metrics. Returns zeroed metrics if instance is NULL.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_glyph" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_glyph</span></h2>
+  <p class="brief">Gets a glyph, rasterizing and caching it if necessary.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKGlyph">LDKGlyph</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_ttf_get_glyph</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">codepoint</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">codepoint</span></code></dt>
+<dd>Unicode codepoint.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Glyph data, or NULL on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_kerning" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_kerning</span></h2>
+  <p class="brief">Gets the horizontal kerning adjustment between two codepoints.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">float</span> <span class="tok_id">ldk_ttf_get_kerning</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">left_codepoint</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">right_codepoint</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">left_codepoint</span></code></dt>
+<dd>Previous Unicode codepoint.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">right_codepoint</span></code></dt>
+<dd>Current Unicode codepoint.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Kerning adjustment in pixels, or 0 if unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_preload_range" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_preload_range</span></h2>
+  <p class="brief">Preloads and caches all glyphs in an inclusive codepoint range.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_ttf_preload_range</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">first_codepoint</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">last_codepoint</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">first_codepoint</span></code></dt>
+<dd>First Unicode codepoint to preload.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">last_codepoint</span></code></dt>
+<dd>Last Unicode codepoint to preload.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true if all glyphs were processed, false on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_preload_basic_ascii" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_preload_basic_ascii</span></h2>
+  <p class="brief">Preloads printable basic ASCII glyphs.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_ttf_preload_basic_ascii</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true if all glyphs were processed, false on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_page_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_page_count</span></h2>
+  <p class="brief">Gets the number of atlas pages owned by a font instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_ttf_get_page_count</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of atlas pages, or 0 if instance is NULL.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_get_page_info" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_page_info</span></h2>
+  <p class="brief">Gets information for a font atlas page.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_ttf_get_page_info</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">page_index</span>,
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontPageInfo">LDKFontPageInfo</a></span> <span class="tok_pun">*</span><span class="tok_id">out_page</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">page_index</span></code></dt>
+<dd>Atlas page index.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontPageInfo">LDKFontPageInfo</a></span> <span class="tok_pun">*</span><span class="tok_id">out_page</span></code></dt>
+<dd>Destination page information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true if page information was written, false on failure.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_clear_page_dirty" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_clear_page_dirty</span></h2>
+  <p class="brief">Clears the dirty flag of an atlas page.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_ttf_clear_page_dirty</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">page_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">page_index</span></code></dt>
+<dd>Atlas page index.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_ttf_get_line_height" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_get_line_height</span></h2>
+  <p class="brief">Gets the scaled line height for a font instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">float</span> <span class="tok_id">ldk_ttf_get_line_height</span>(<span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Line height in pixels, or 0 if instance is NULL.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_measure_text_cstr" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_measure_text_cstr</span></h2>
+  <p class="brief">Measures a null-terminated UTF-8 string.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKTextSize">LDKTextSize</a></span> <span class="tok_id">ldk_ttf_measure_text_cstr</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>Null-terminated UTF-8 string.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Text size in pixels.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_measure_text_cstrn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_measure_text_cstrn</span></h2>
+  <p class="brief">Measures a UTF-8 string with a byte limit.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_ttf.html#LDKTextSize">LDKTextSize</a></span> <span class="tok_id">ldk_ttf_measure_text_cstrn</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">byte_count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>UTF-8 string.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">byte_count</span></code></dt>
+<dd>Maximum number of bytes to read. If 0, measures an empty string.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Text size in pixels.</p>
+</section>
+
+</article>
+<article id="ldk_ttf_measure_text_cstr_wrapped" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_ttf_measure_text_cstr_wrapped</span></h2>
+  <p class="brief">Measures a null-terminated UTF-8 string with word wrapping.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSizef">LDKSizef</a></span> <span class="tok_id">ldk_ttf_measure_text_cstr_wrapped</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">max_width</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">instance</span></code></dt>
+<dd>Font instance.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>Null-terminated UTF-8 string.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">max_width</span></code></dt>
+<dd>Maximum line width in pixels. If less than or equal to 0, wrapping is disabled.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Wrapped text size in pixels.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

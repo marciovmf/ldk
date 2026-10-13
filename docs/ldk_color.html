@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_color.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_color.h">ldk_color.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldkRGB">ldkRGB</a></li>
+<li><a href="#ldkRGBA">ldkRGBA</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_RGBA_AQUA">LDK_RGBA_AQUA</a></li>
+<li><a href="#LDK_RGBA_BEIGE">LDK_RGBA_BEIGE</a></li>
+<li><a href="#LDK_RGBA_BLACK">LDK_RGBA_BLACK</a></li>
+<li><a href="#LDK_RGBA_BLUE">LDK_RGBA_BLUE</a></li>
+<li><a href="#LDK_RGBA_BROWN">LDK_RGBA_BROWN</a></li>
+<li><a href="#LDK_RGBA_CHOCOLATE">LDK_RGBA_CHOCOLATE</a></li>
+<li><a href="#LDK_RGBA_CORAL">LDK_RGBA_CORAL</a></li>
+<li><a href="#LDK_RGBA_CYAN">LDK_RGBA_CYAN</a></li>
+<li><a href="#LDK_RGBA_DARKGRAY">LDK_RGBA_DARKGRAY</a></li>
+<li><a href="#LDK_RGBA_DODGERBLUE">LDK_RGBA_DODGERBLUE</a></li>
+<li><a href="#LDK_RGBA_FUCHSIA">LDK_RGBA_FUCHSIA</a></li>
+<li><a href="#LDK_RGBA_GOLD">LDK_RGBA_GOLD</a></li>
+<li><a href="#LDK_RGBA_GRAY">LDK_RGBA_GRAY</a></li>
+<li><a href="#LDK_RGBA_GREEN">LDK_RGBA_GREEN</a></li>
+<li><a href="#LDK_RGBA_INDIGO">LDK_RGBA_INDIGO</a></li>
+<li><a href="#LDK_RGBA_IVORY">LDK_RGBA_IVORY</a></li>
+<li><a href="#LDK_RGBA_KHAKI">LDK_RGBA_KHAKI</a></li>
+<li><a href="#LDK_RGBA_LAVENDER">LDK_RGBA_LAVENDER</a></li>
+<li><a href="#LDK_RGBA_LIGHTBLUE">LDK_RGBA_LIGHTBLUE</a></li>
+<li><a href="#LDK_RGBA_LIGHTGRAY">LDK_RGBA_LIGHTGRAY</a></li>
+<li><a href="#LDK_RGBA_LIME">LDK_RGBA_LIME</a></li>
+<li><a href="#LDK_RGBA_MAGENTA">LDK_RGBA_MAGENTA</a></li>
+<li><a href="#LDK_RGBA_MAROON">LDK_RGBA_MAROON</a></li>
+<li><a href="#LDK_RGBA_MINT">LDK_RGBA_MINT</a></li>
+<li><a href="#LDK_RGBA_NAVY">LDK_RGBA_NAVY</a></li>
+<li><a href="#LDK_RGBA_OLIVE">LDK_RGBA_OLIVE</a></li>
+<li><a href="#LDK_RGBA_ORANGE">LDK_RGBA_ORANGE</a></li>
+<li><a href="#LDK_RGBA_PEACH">LDK_RGBA_PEACH</a></li>
+<li><a href="#LDK_RGBA_PINK">LDK_RGBA_PINK</a></li>
+<li><a href="#LDK_RGBA_PLUM">LDK_RGBA_PLUM</a></li>
+<li><a href="#LDK_RGBA_PURPLE">LDK_RGBA_PURPLE</a></li>
+<li><a href="#LDK_RGBA_RED">LDK_RGBA_RED</a></li>
+<li><a href="#LDK_RGBA_SALMON">LDK_RGBA_SALMON</a></li>
+<li><a href="#LDK_RGBA_SEASHELL">LDK_RGBA_SEASHELL</a></li>
+<li><a href="#LDK_RGBA_SILVER">LDK_RGBA_SILVER</a></li>
+<li><a href="#LDK_RGBA_SLATEGRAY">LDK_RGBA_SLATEGRAY</a></li>
+<li><a href="#LDK_RGBA_TEAL">LDK_RGBA_TEAL</a></li>
+<li><a href="#LDK_RGBA_TURQUOISE">LDK_RGBA_TURQUOISE</a></li>
+<li><a href="#LDK_RGBA_VIOLET">LDK_RGBA_VIOLET</a></li>
+<li><a href="#LDK_RGBA_WHITE">LDK_RGBA_WHITE</a></li>
+<li><a href="#LDK_RGBA_YELLOW">LDK_RGBA_YELLOW</a></li>
+<li><a href="#LDK_RGB_AQUA">LDK_RGB_AQUA</a></li>
+<li><a href="#LDK_RGB_BEIGE">LDK_RGB_BEIGE</a></li>
+<li><a href="#LDK_RGB_BLACK">LDK_RGB_BLACK</a></li>
+<li><a href="#LDK_RGB_BLUE">LDK_RGB_BLUE</a></li>
+<li><a href="#LDK_RGB_BROWN">LDK_RGB_BROWN</a></li>
+<li><a href="#LDK_RGB_CHOCOLATE">LDK_RGB_CHOCOLATE</a></li>
+<li><a href="#LDK_RGB_CORAL">LDK_RGB_CORAL</a></li>
+<li><a href="#LDK_RGB_CYAN">LDK_RGB_CYAN</a></li>
+<li><a href="#LDK_RGB_DARKGRAY">LDK_RGB_DARKGRAY</a></li>
+<li><a href="#LDK_RGB_DODGERBLUE">LDK_RGB_DODGERBLUE</a></li>
+<li><a href="#LDK_RGB_FUCHSIA">LDK_RGB_FUCHSIA</a></li>
+<li><a href="#LDK_RGB_GOLD">LDK_RGB_GOLD</a></li>
+<li><a href="#LDK_RGB_GRAY">LDK_RGB_GRAY</a></li>
+<li><a href="#LDK_RGB_GREEN">LDK_RGB_GREEN</a></li>
+<li><a href="#LDK_RGB_INDIGO">LDK_RGB_INDIGO</a></li>
+<li><a href="#LDK_RGB_IVORY">LDK_RGB_IVORY</a></li>
+<li><a href="#LDK_RGB_KHAKI">LDK_RGB_KHAKI</a></li>
+<li><a href="#LDK_RGB_LAVENDER">LDK_RGB_LAVENDER</a></li>
+<li><a href="#LDK_RGB_LIGHTBLUE">LDK_RGB_LIGHTBLUE</a></li>
+<li><a href="#LDK_RGB_LIGHTGRAY">LDK_RGB_LIGHTGRAY</a></li>
+<li><a href="#LDK_RGB_LIME">LDK_RGB_LIME</a></li>
+<li><a href="#LDK_RGB_MAGENTA">LDK_RGB_MAGENTA</a></li>
+<li><a href="#LDK_RGB_MAROON">LDK_RGB_MAROON</a></li>
+<li><a href="#LDK_RGB_MINT">LDK_RGB_MINT</a></li>
+<li><a href="#LDK_RGB_NAVY">LDK_RGB_NAVY</a></li>
+<li><a href="#LDK_RGB_OLIVE">LDK_RGB_OLIVE</a></li>
+<li><a href="#LDK_RGB_ORANGE">LDK_RGB_ORANGE</a></li>
+<li><a href="#LDK_RGB_PEACH">LDK_RGB_PEACH</a></li>
+<li><a href="#LDK_RGB_PINK">LDK_RGB_PINK</a></li>
+<li><a href="#LDK_RGB_PLUM">LDK_RGB_PLUM</a></li>
+<li><a href="#LDK_RGB_PURPLE">LDK_RGB_PURPLE</a></li>
+<li><a href="#LDK_RGB_RED">LDK_RGB_RED</a></li>
+<li><a href="#LDK_RGB_SALMON">LDK_RGB_SALMON</a></li>
+<li><a href="#LDK_RGB_SEASHELL">LDK_RGB_SEASHELL</a></li>
+<li><a href="#LDK_RGB_SILVER">LDK_RGB_SILVER</a></li>
+<li><a href="#LDK_RGB_SLATEGRAY">LDK_RGB_SLATEGRAY</a></li>
+<li><a href="#LDK_RGB_TEAL">LDK_RGB_TEAL</a></li>
+<li><a href="#LDK_RGB_TURQUOISE">LDK_RGB_TURQUOISE</a></li>
+<li><a href="#LDK_RGB_VIOLET">LDK_RGB_VIOLET</a></li>
+<li><a href="#LDK_RGB_WHITE">LDK_RGB_WHITE</a></li>
+<li><a href="#LDK_RGB_YELLOW">LDK_RGB_YELLOW</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKRGB">LDKRGB</a></li>
+<li><a href="#LDKRGBA">LDKRGBA</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_color.h">
+      <header class="page-header">
+        <h1>ldk_color.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="color-values">Color values</h1>
+<p>RGB and RGBA color types and helpers</p>
+<p>Defines color structures, constructors, and named color constants.</p>
+</div>
+      </header>
+
+      <article id="LDKRGB" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRGB</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_id">u8</span> <span class="tok_id">r</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">g</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">b</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRGB</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldkRGB" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkRGB</span></h2>
+  <p class="brief">Construct a color value from individual channel components.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_color.html#LDKRGB">LDKRGB</a></span> <span class="tok_id">ldkRGB</span>(
+ <span class="tok_id">u8</span> <span class="tok_id">r</span>,
+ <span class="tok_id">u8</span> <span class="tok_id">g</span>,
+ <span class="tok_id">u8</span> <span class="tok_id">b</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u8</span> <span class="tok_id">r</span></code></dt>
+<dd>R color channel.</dd>
+<dt><code><span class="tok_id">u8</span> <span class="tok_id">g</span></code></dt>
+<dd>G color channel.</dd>
+<dt><code><span class="tok_id">u8</span> <span class="tok_id">b</span></code></dt>
+<dd>Second value to compare or combine.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="LDKRGBA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRGBA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_id">u8</span> <span class="tok_id">r</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">g</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">b</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">a</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRGBA</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldkRGBA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkRGBA</span></h2>
+  <p class="brief">Construct a color value from individual channel components.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_color.html#LDKRGBA">LDKRGBA</a></span> <span class="tok_id">ldkRGBA</span>(
+ <span class="tok_id">u8</span> <span class="tok_id">r</span>,
+ <span class="tok_id">u8</span> <span class="tok_id">g</span>,
+ <span class="tok_id">u8</span> <span class="tok_id">b</span>,
+ <span class="tok_id">u8</span> <span class="tok_id">a</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u8</span> <span class="tok_id">r</span></code></dt>
+<dd>R color channel.</dd>
+<dt><code><span class="tok_id">u8</span> <span class="tok_id">g</span></code></dt>
+<dd>G color channel.</dd>
+<dt><code><span class="tok_id">u8</span> <span class="tok_id">b</span></code></dt>
+<dd>Second value to compare or combine.</dd>
+<dt><code><span class="tok_id">u8</span> <span class="tok_id">a</span></code></dt>
+<dd>First value to compare or combine.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="LDK_RGBA_WHITE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_WHITE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_WHITE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_BLACK" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_BLACK</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_BLACK</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_RED" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_RED</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_RED</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_GREEN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_GREEN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_GREEN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_BLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_BLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_BLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_YELLOW" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_YELLOW</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_YELLOW</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_CYAN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_CYAN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_CYAN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_MAGENTA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_MAGENTA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_MAGENTA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_ORANGE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_ORANGE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_ORANGE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">165</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_PURPLE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_PURPLE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_PURPLE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_GRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_GRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_GRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_DARKGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_DARKGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_DARKGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_LIGHTGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_LIGHTGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_LIGHTGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_PINK" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_PINK</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_PINK</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">203</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_BROWN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_BROWN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_BROWN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">165</span><span class="tok_pun">,</span> <span class="tok_num">42</span><span class="tok_pun">,</span> <span class="tok_num">42</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_GOLD" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_GOLD</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_GOLD</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">215</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_SILVER" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_SILVER</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_SILVER</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_LIME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_LIME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_LIME</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_TURQUOISE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_TURQUOISE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_TURQUOISE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">224</span><span class="tok_pun">,</span> <span class="tok_num">208</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_TEAL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_TEAL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_TEAL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_INDIGO" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_INDIGO</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_INDIGO</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">75</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">130</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_VIOLET" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_VIOLET</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_VIOLET</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">238</span><span class="tok_pun">,</span> <span class="tok_num">130</span><span class="tok_pun">,</span> <span class="tok_num">238</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_CORAL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_CORAL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_CORAL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">127</span><span class="tok_pun">,</span> <span class="tok_num">80</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_CHOCOLATE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_CHOCOLATE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_CHOCOLATE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">210</span><span class="tok_pun">,</span> <span class="tok_num">105</span><span class="tok_pun">,</span> <span class="tok_num">30</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_IVORY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_IVORY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_IVORY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">240</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_BEIGE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_BEIGE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_BEIGE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">245</span><span class="tok_pun">,</span> <span class="tok_num">222</span><span class="tok_pun">,</span> <span class="tok_num">179</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_MINT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_MINT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_MINT</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">189</span><span class="tok_pun">,</span> <span class="tok_num">252</span><span class="tok_pun">,</span> <span class="tok_num">201</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_LAVENDER" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_LAVENDER</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_LAVENDER</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">250</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_PEACH" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_PEACH</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_PEACH</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">229</span><span class="tok_pun">,</span> <span class="tok_num">180</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_SEASHELL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_SEASHELL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_SEASHELL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">228</span><span class="tok_pun">,</span> <span class="tok_num">196</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_SALMON" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_SALMON</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_SALMON</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">250</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">114</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_PLUM" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_PLUM</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_PLUM</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">221</span><span class="tok_pun">,</span> <span class="tok_num">160</span><span class="tok_pun">,</span> <span class="tok_num">221</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_MAROON" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_MAROON</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_MAROON</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_OLIVE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_OLIVE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_OLIVE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_NAVY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_NAVY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_NAVY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_FUCHSIA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_FUCHSIA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_FUCHSIA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_KHAKI" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_KHAKI</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_KHAKI</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">240</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">140</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_SLATEGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_SLATEGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_SLATEGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">112</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">144</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_AQUA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_AQUA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_AQUA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_LIGHTBLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_LIGHTBLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_LIGHTBLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">173</span><span class="tok_pun">,</span> <span class="tok_num">216</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA_DODGERBLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA_DODGERBLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA_DODGERBLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGBA">ldkRGBA</a></span><span class="tok_pun">(</span><span class="tok_num">30</span><span class="tok_pun">,</span> <span class="tok_num">144</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_WHITE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_WHITE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_WHITE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_BLACK" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_BLACK</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_BLACK</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_RED" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_RED</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_RED</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_GREEN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_GREEN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_GREEN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_BLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_BLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_BLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_YELLOW" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_YELLOW</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_YELLOW</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_CYAN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_CYAN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_CYAN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_MAGENTA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_MAGENTA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_MAGENTA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_ORANGE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_ORANGE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_ORANGE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">165</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_PURPLE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_PURPLE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_PURPLE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_GRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_GRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_GRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_DARKGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_DARKGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_DARKGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">64</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_LIGHTGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_LIGHTGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_LIGHTGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_PINK" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_PINK</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_PINK</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">203</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_BROWN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_BROWN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_BROWN</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">165</span><span class="tok_pun">,</span> <span class="tok_num">42</span><span class="tok_pun">,</span> <span class="tok_num">42</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_GOLD" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_GOLD</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_GOLD</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">215</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_SILVER" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_SILVER</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_SILVER</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">,</span> <span class="tok_num">192</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_LIME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_LIME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_LIME</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_TURQUOISE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_TURQUOISE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_TURQUOISE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">64</span><span class="tok_pun">,</span> <span class="tok_num">224</span><span class="tok_pun">,</span> <span class="tok_num">208</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_TEAL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_TEAL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_TEAL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_INDIGO" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_INDIGO</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_INDIGO</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">75</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">130</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_VIOLET" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_VIOLET</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_VIOLET</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">238</span><span class="tok_pun">,</span> <span class="tok_num">130</span><span class="tok_pun">,</span> <span class="tok_num">238</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_CORAL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_CORAL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_CORAL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">127</span><span class="tok_pun">,</span> <span class="tok_num">80</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_CHOCOLATE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_CHOCOLATE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_CHOCOLATE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">210</span><span class="tok_pun">,</span> <span class="tok_num">105</span><span class="tok_pun">,</span> <span class="tok_num">30</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_IVORY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_IVORY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_IVORY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">240</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_BEIGE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_BEIGE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_BEIGE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">245</span><span class="tok_pun">,</span> <span class="tok_num">222</span><span class="tok_pun">,</span> <span class="tok_num">179</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_MINT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_MINT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_MINT</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">189</span><span class="tok_pun">,</span> <span class="tok_num">252</span><span class="tok_pun">,</span> <span class="tok_num">201</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_LAVENDER" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_LAVENDER</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_LAVENDER</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">250</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_PEACH" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_PEACH</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_PEACH</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">229</span><span class="tok_pun">,</span> <span class="tok_num">180</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_SEASHELL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_SEASHELL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_SEASHELL</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">228</span><span class="tok_pun">,</span> <span class="tok_num">196</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_SALMON" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_SALMON</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_SALMON</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">250</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">114</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_PLUM" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_PLUM</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_PLUM</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">221</span><span class="tok_pun">,</span> <span class="tok_num">160</span><span class="tok_pun">,</span> <span class="tok_num">221</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_MAROON" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_MAROON</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_MAROON</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_OLIVE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_OLIVE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_OLIVE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_NAVY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_NAVY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_NAVY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_FUCHSIA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_FUCHSIA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_FUCHSIA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_KHAKI" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_KHAKI</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_KHAKI</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">240</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">,</span> <span class="tok_num">140</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_SLATEGRAY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_SLATEGRAY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_SLATEGRAY</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">112</span><span class="tok_pun">,</span> <span class="tok_num">128</span><span class="tok_pun">,</span> <span class="tok_num">144</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_AQUA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_AQUA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_AQUA</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_LIGHTBLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_LIGHTBLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_LIGHTBLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">173</span><span class="tok_pun">,</span> <span class="tok_num">216</span><span class="tok_pun">,</span> <span class="tok_num">230</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGB_DODGERBLUE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGB_DODGERBLUE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGB_DODGERBLUE</span> <span class="tok_kw"><a href="ldk_color.html#ldkRGB">ldkRGB</a></span><span class="tok_pun">(</span><span class="tok_num">30</span><span class="tok_pun">,</span> <span class="tok_num">144</span><span class="tok_pun">,</span> <span class="tok_num">255</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

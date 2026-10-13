@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_image.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_image.h">ldk_image.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_image_create">ldk_image_create</a></li>
+<li><a href="#ldk_image_create_format">ldk_image_create_format</a></li>
+<li><a href="#ldk_image_create_from_memory">ldk_image_create_from_memory</a></li>
+<li><a href="#ldk_image_destroy">ldk_image_destroy</a></li>
+<li><a href="#ldk_image_get_byte_count">ldk_image_get_byte_count</a></li>
+<li><a href="#ldk_image_get_bytes_per_channel">ldk_image_get_bytes_per_channel</a></li>
+<li><a href="#ldk_image_get_channel_count">ldk_image_get_channel_count</a></li>
+<li><a href="#ldk_image_get_format">ldk_image_get_format</a></li>
+<li><a href="#ldk_image_get_height">ldk_image_get_height</a></li>
+<li><a href="#ldk_image_get_info">ldk_image_get_info</a></li>
+<li><a href="#ldk_image_get_pixels">ldk_image_get_pixels</a></li>
+<li><a href="#ldk_image_get_width">ldk_image_get_width</a></li>
+<li><a href="#ldk_image_load">ldk_image_load</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKImage">LDKImage</a></li>
+<li><a href="#LDKImageInfo">LDKImageInfo</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKImageFormat">LDKImageFormat</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_image.h">
+      <header class="page-header">
+        <h1>ldk_image.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="image-data">Image data</h1>
+<p>Image pixel formats, loading, memory ownership, and pixel-buffer operations.</p>
+</div>
+      </header>
+
+      <article id="LDKImage" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKImage</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKImage</span> <span class="tok_id">LDKImage</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKImageFormat" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKImageFormat</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKImageFormat</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_IMAGE_FORMAT_RGBA8_UNORM</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_IMAGE_FORMAT_RGBA16_UNORM</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKImageFormat</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKImageInfo" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKImageInfo</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKImageInfo</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">width</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">channel_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">bytes_per_channel</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">format</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">byte_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKImageInfo</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_image_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_create</span></h2>
+  <p class="brief">Create an RGBA8 UNORM image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_image_create</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">height</span>,
+ <span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span></code></dt>
+<dd>Image pixel data.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_image_create_format" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_create_format</span></h2>
+  <p class="brief">Create an image from raw interleaved RGBA pixels in the requested format.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_image_create_format</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">height</span>,
+ <span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">format</span>,
+ <span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">format</span></code></dt>
+<dd>Format to use for this resource.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span></code></dt>
+<dd>Image pixel data.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_image_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_load</span></h2>
+  <p class="brief">Load an image file. 16-bit sources remain RGBA16 UNORM; other sources use RGBA8.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_image_load</span>(<span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_image_create_from_memory" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_create_from_memory</span></h2>
+  <p class="brief">Create an image from pixel data in memory.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_image_create_from_memory</span>(
+ <span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">data</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">data_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">void</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">data_size</span></code></dt>
+<dd>Size of the data buffer or region.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_image_destroy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_destroy</span></h2>
+  <p class="brief">Destroy the image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_image_destroy</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_image_get_info" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_info</span></h2>
+  <p class="brief">Read the image format and dimension metadata.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_image_get_info</span>(
+ <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>,
+ <span class="tok_kw"><a href="ldk_image.html#LDKImageInfo">LDKImageInfo</a></span> <span class="tok_pun">*</span><span class="tok_id">out_info</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImageInfo">LDKImageInfo</a></span> <span class="tok_pun">*</span><span class="tok_id">out_info</span></code></dt>
+<dd>Receives the requested information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_width" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_width</span></h2>
+  <p class="brief">Read the image width in pixels.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_image_get_width</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_height" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_height</span></h2>
+  <p class="brief">Read the image height in pixels.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_image_get_height</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_channel_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_channel_count</span></h2>
+  <p class="brief">Get the number of color channels in the image format.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_image_get_channel_count</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_bytes_per_channel" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_bytes_per_channel</span></h2>
+  <p class="brief">Query the number of bytes used per image channel.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_image_get_bytes_per_channel</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_format" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_format</span></h2>
+  <p class="brief">Get the image pixel format.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">ldk_image_get_format</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_pixels" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_pixels</span></h2>
+  <p class="brief">Get the image pixel buffer.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u8</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_image_get_pixels</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_image_get_byte_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_image_get_byte_count</span></h2>
+  <p class="brief">Get the size of the image pixel buffer in bytes.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_image_get_byte_count</span>(<span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

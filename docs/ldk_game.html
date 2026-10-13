@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_game.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_game.h">ldk_game.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#game_abi_version">game_abi_version</a></li>
+<li><a href="#game_component_metadata_count">game_component_metadata_count</a></li>
+<li><a href="#game_component_metadata_get">game_component_metadata_get</a></li>
+<li><a href="#game_initialize">game_initialize</a></li>
+<li><a href="#game_register_systems">game_register_systems</a></li>
+<li><a href="#game_start">game_start</a></li>
+<li><a href="#game_stop">game_stop</a></li>
+<li><a href="#game_system_metadata_count">game_system_metadata_count</a></li>
+<li><a href="#game_system_metadata_get">game_system_metadata_get</a></li>
+<li><a href="#game_terminate">game_terminate</a></li>
+<li><a href="#game_update">game_update</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_GAME_ABI_VERSION">LDK_GAME_ABI_VERSION</a></li>
+<li><a href="#LDK_GAME_ABI_VERSION_NAME">LDK_GAME_ABI_VERSION_NAME</a></li>
+<li><a href="#LDK_GAME_COMPONENT_METADATA_COUNT_NAME">LDK_GAME_COMPONENT_METADATA_COUNT_NAME</a></li>
+<li><a href="#LDK_GAME_COMPONENT_METADATA_GET_NAME">LDK_GAME_COMPONENT_METADATA_GET_NAME</a></li>
+<li><a href="#LDK_GAME_INITIALIZE_FUNC_NAME">LDK_GAME_INITIALIZE_FUNC_NAME</a></li>
+<li><a href="#LDK_GAME_START_FUNC_NAME">LDK_GAME_START_FUNC_NAME</a></li>
+<li><a href="#LDK_GAME_STOP_FUNC_NAME">LDK_GAME_STOP_FUNC_NAME</a></li>
+<li><a href="#LDK_GAME_SYSTEM_METADATA_COUNT_NAME">LDK_GAME_SYSTEM_METADATA_COUNT_NAME</a></li>
+<li><a href="#LDK_GAME_SYSTEM_METADATA_GET_NAME">LDK_GAME_SYSTEM_METADATA_GET_NAME</a></li>
+<li><a href="#LDK_GAME_TERMINATE_FUNC_NAME">LDK_GAME_TERMINATE_FUNC_NAME</a></li>
+<li><a href="#LDK_GAME_UPDATE_FUNC_NAME">LDK_GAME_UPDATE_FUNC_NAME</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKGame">LDKGame</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKGameABIVersionFunc">LDKGameABIVersionFunc</a></li>
+<li><a href="#LDKGameComponentMetadataCountFunc">LDKGameComponentMetadataCountFunc</a></li>
+<li><a href="#LDKGameComponentMetadataGetFunc">LDKGameComponentMetadataGetFunc</a></li>
+<li><a href="#LDKGameInitializeFunc">LDKGameInitializeFunc</a></li>
+<li><a href="#LDKGameStartFunc">LDKGameStartFunc</a></li>
+<li><a href="#LDKGameStopFunc">LDKGameStopFunc</a></li>
+<li><a href="#LDKGameSystemMetadataCountFunc">LDKGameSystemMetadataCountFunc</a></li>
+<li><a href="#LDKGameSystemMetadataGetFunc">LDKGameSystemMetadataGetFunc</a></li>
+<li><a href="#LDKGameTerminateFunc">LDKGameTerminateFunc</a></li>
+<li><a href="#LDKGameUpdateFunc">LDKGameUpdateFunc</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_game.h">
+      <header class="page-header">
+        <h1>ldk_game.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="game-module-interface">Game module interface</h1>
+<p>Umbrella header for LDK games</p>
+<p>This header centralizes all required includes and ensures proper integration
+with the stdx libraries, whether the engine is used as a shared library or
+statically linked into the game.</p>
+</div>
+      </header>
+
+      <article id="LDK_GAME_ABI_VERSION" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_ABI_VERSION</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_ABI_VERSION</span> <span class="tok_num">6u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_ABI_VERSION_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_ABI_VERSION_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_ABI_VERSION_NAME</span> <span class="tok_str">&quot;game_abi_version&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGameABIVersionFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameABIVersionFunc</span></h2>
+  <p class="brief">Game-module entry point reporting the supported ABI version.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u32</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameABIVersionFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="game_abi_version" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_abi_version</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">game_abi_version</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="game_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_initialize</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">game_initialize</span>(<span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>);</code></pre>
+  
+  
+</article>
+<article id="game_register_systems" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_register_systems</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">game_register_systems</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="game_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_start</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">game_start</span>(<span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>);</code></pre>
+  
+  
+</article>
+<article id="game_update" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_update</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">game_update</span>(
+ <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">delta_time</span>
+);</code></pre>
+  
+  
+</article>
+<article id="game_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_stop</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">game_stop</span>(<span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>);</code></pre>
+  
+  
+</article>
+<article id="game_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_terminate</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">game_terminate</span>(<span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>);</code></pre>
+  
+  
+</article>
+<article id="game_component_metadata_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_component_metadata_count</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">game_component_metadata_count</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="game_component_metadata_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_component_metadata_get</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span> <span class="tok_id">game_component_metadata_get</span>(<span class="tok_id">u32</span> <span class="tok_id">index</span>);</code></pre>
+  
+  
+</article>
+<article id="game_system_metadata_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_system_metadata_count</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">game_system_metadata_count</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="game_system_metadata_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">game_system_metadata_get</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_GAME_API">LDK_GAME_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKSystemMeta</span> <span class="tok_pun">*</span> <span class="tok_id">game_system_metadata_get</span>(<span class="tok_id">u32</span> <span class="tok_id">index</span>);</code></pre>
+  
+  
+</article>
+<article id="LDKGameSystemMetadataCountFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameSystemMetadataCountFunc</span></h2>
+  <p class="brief">Game-module entry point reporting the system metadata count.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u32</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameSystemMetadataCountFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="LDKGameSystemMetadataGetFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameSystemMetadataGetFunc</span></h2>
+  <p class="brief">Game-module entry point retrieving system metadata by index.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">const</span> <span class="tok_id">LDKSystemMeta</span> <span class="tok_pun">*</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameSystemMetadataGetFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_id">u32</span> <span class="tok_id">index</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>index</code></dt>
+<dd>Zero-based index of the selected item.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDK_GAME_SYSTEM_METADATA_COUNT_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_SYSTEM_METADATA_COUNT_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_SYSTEM_METADATA_COUNT_NAME</span> <span class="tok_str">&quot;game_system_metadata_count&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_SYSTEM_METADATA_GET_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_SYSTEM_METADATA_GET_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_SYSTEM_METADATA_GET_NAME</span> <span class="tok_str">&quot;game_system_metadata_get&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGameInitializeFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameInitializeFunc</span></h2>
+  <p class="brief">Game-module entry point called to initialize a game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameInitializeFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>game</code></dt>
+<dd>Game instance associated with this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="LDKGameStartFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameStartFunc</span></h2>
+  <p class="brief">Game-module entry point called when gameplay starts.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameStartFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>game</code></dt>
+<dd>Game instance associated with this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="LDKGameUpdateFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameUpdateFunc</span></h2>
+  <p class="brief">Game-module entry point called for a gameplay update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameUpdateFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span><span class="tok_pun">,</span> <span class="tok_kw">float</span> <span class="tok_id">delta_time</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>game</code></dt>
+<dd>Game instance associated with this operation.</dd>
+<dt><code>delta_time</code></dt>
+<dd>Elapsed time since the preceding update, in seconds.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKGameStopFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameStopFunc</span></h2>
+  <p class="brief">Game-module entry point called when gameplay stops.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameStopFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>game</code></dt>
+<dd>Game instance associated with this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKGameTerminateFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameTerminateFunc</span></h2>
+  <p class="brief">Game-module entry point called when the game instance is terminated.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameTerminateFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>game</code></dt>
+<dd>Game instance associated with this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKGameComponentMetadataCountFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameComponentMetadataCountFunc</span></h2>
+  <p class="brief">Game-module entry point reporting the component metadata count.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u32</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameComponentMetadataCountFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="LDKGameComponentMetadataGetFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGameComponentMetadataGetFunc</span></h2>
+  <p class="brief">Game-module entry point retrieving component metadata by index.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKGameComponentMetadataGetFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_id">u32</span> <span class="tok_id">index</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>index</code></dt>
+<dd>Zero-based index of the selected item.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDK_GAME_INITIALIZE_FUNC_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_INITIALIZE_FUNC_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_INITIALIZE_FUNC_NAME</span> <span class="tok_str">&quot;game_initialize&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_START_FUNC_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_START_FUNC_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_START_FUNC_NAME</span> <span class="tok_str">&quot;game_start&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_UPDATE_FUNC_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_UPDATE_FUNC_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_UPDATE_FUNC_NAME</span> <span class="tok_str">&quot;game_update&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_STOP_FUNC_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_STOP_FUNC_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_STOP_FUNC_NAME</span> <span class="tok_str">&quot;game_stop&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_TERMINATE_FUNC_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_TERMINATE_FUNC_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_TERMINATE_FUNC_NAME</span> <span class="tok_str">&quot;game_terminate&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_COMPONENT_METADATA_COUNT_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_COMPONENT_METADATA_COUNT_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_COMPONENT_METADATA_COUNT_NAME</span> <span class="tok_str">&quot;game_component_metadata_count&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_COMPONENT_METADATA_GET_NAME" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_COMPONENT_METADATA_GET_NAME</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_COMPONENT_METADATA_GET_NAME</span> <span class="tok_str">&quot;game_component_metadata_get&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGame" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGame</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGame</span><span class="tok_pun">{</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">initialized</span><span class="tok_pun">;</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_os.html#LDKLibrary">LDKLibrary</a></span> <span class="tok_pun">*</span><span class="tok_id">lib</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameInitializeFunc">LDKGameInitializeFunc</a></span> <span class="tok_id">initialize</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameStartFunc">LDKGameStartFunc</a></span> <span class="tok_id">start</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameUpdateFunc">LDKGameUpdateFunc</a></span> <span class="tok_id">update</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameStopFunc">LDKGameStopFunc</a></span> <span class="tok_id">stop</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameTerminateFunc">LDKGameTerminateFunc</a></span> <span class="tok_id">terminate</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameComponentMetadataCountFunc">LDKGameComponentMetadataCountFunc</a></span> <span class="tok_id">metadata_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameComponentMetadataGetFunc">LDKGameComponentMetadataGetFunc</a></span> <span class="tok_id">metadata_get</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameSystemMetadataCountFunc">LDKGameSystemMetadataCountFunc</a></span> <span class="tok_id">system_metadata_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_game.html#LDKGameSystemMetadataGetFunc">LDKGameSystemMetadataGetFunc</a></span> <span class="tok_id">system_metadata_get</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGame</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

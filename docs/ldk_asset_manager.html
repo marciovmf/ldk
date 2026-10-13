@@ -1,0 +1,1876 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_asset_manager.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_asset_manager.h">ldk_asset_manager.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_asset_alive_count">ldk_asset_alive_count</a></li>
+<li><a href="#ldk_asset_audio_null">ldk_asset_audio_null</a></li>
+<li><a href="#ldk_asset_font_null">ldk_asset_font_null</a></li>
+<li><a href="#ldk_asset_foreach">ldk_asset_foreach</a></li>
+<li><a href="#ldk_asset_get_info">ldk_asset_get_info</a></li>
+<li><a href="#ldk_asset_get_info_const">ldk_asset_get_info_const</a></li>
+<li><a href="#ldk_asset_get_type">ldk_asset_get_type</a></li>
+<li><a href="#ldk_asset_handle_is_alive">ldk_asset_handle_is_alive</a></li>
+<li><a href="#ldk_asset_handle_null">ldk_asset_handle_null</a></li>
+<li><a href="#ldk_asset_image_null">ldk_asset_image_null</a></li>
+<li><a href="#ldk_asset_keyframe_animation_null">ldk_asset_keyframe_animation_null</a></li>
+<li><a href="#ldk_asset_manager_audio_get">ldk_asset_manager_audio_get</a></li>
+<li><a href="#ldk_asset_manager_audio_get_const">ldk_asset_manager_audio_get_const</a></li>
+<li><a href="#ldk_asset_manager_audio_is_alive">ldk_asset_manager_audio_is_alive</a></li>
+<li><a href="#ldk_asset_manager_audio_load_shared">ldk_asset_manager_audio_load_shared</a></li>
+<li><a href="#ldk_asset_manager_clear">ldk_asset_manager_clear</a></li>
+<li><a href="#ldk_asset_manager_font_create">ldk_asset_manager_font_create</a></li>
+<li><a href="#ldk_asset_manager_font_get">ldk_asset_manager_font_get</a></li>
+<li><a href="#ldk_asset_manager_font_get_const">ldk_asset_manager_font_get_const</a></li>
+<li><a href="#ldk_asset_manager_font_is_alive">ldk_asset_manager_font_is_alive</a></li>
+<li><a href="#ldk_asset_manager_font_load">ldk_asset_manager_font_load</a></li>
+<li><a href="#ldk_asset_manager_font_load_shared">ldk_asset_manager_font_load_shared</a></li>
+<li><a href="#ldk_asset_manager_font_unload">ldk_asset_manager_font_unload</a></li>
+<li><a href="#ldk_asset_manager_image_create">ldk_asset_manager_image_create</a></li>
+<li><a href="#ldk_asset_manager_image_create_format">ldk_asset_manager_image_create_format</a></li>
+<li><a href="#ldk_asset_manager_image_get">ldk_asset_manager_image_get</a></li>
+<li><a href="#ldk_asset_manager_image_get_const">ldk_asset_manager_image_get_const</a></li>
+<li><a href="#ldk_asset_manager_image_is_alive">ldk_asset_manager_image_is_alive</a></li>
+<li><a href="#ldk_asset_manager_image_load">ldk_asset_manager_image_load</a></li>
+<li><a href="#ldk_asset_manager_image_load_shared">ldk_asset_manager_image_load_shared</a></li>
+<li><a href="#ldk_asset_manager_image_missing">ldk_asset_manager_image_missing</a></li>
+<li><a href="#ldk_asset_manager_image_unload">ldk_asset_manager_image_unload</a></li>
+<li><a href="#ldk_asset_manager_initialize">ldk_asset_manager_initialize</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_create">ldk_asset_manager_keyframe_animation_create</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_get_const">ldk_asset_manager_keyframe_animation_get_const</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_is_alive">ldk_asset_manager_keyframe_animation_is_alive</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_load_shared">ldk_asset_manager_keyframe_animation_load_shared</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_reload">ldk_asset_manager_keyframe_animation_reload</a></li>
+<li><a href="#ldk_asset_manager_keyframe_animation_unload">ldk_asset_manager_keyframe_animation_unload</a></li>
+<li><a href="#ldk_asset_manager_mesh_create">ldk_asset_manager_mesh_create</a></li>
+<li><a href="#ldk_asset_manager_mesh_get">ldk_asset_manager_mesh_get</a></li>
+<li><a href="#ldk_asset_manager_mesh_get_const">ldk_asset_manager_mesh_get_const</a></li>
+<li><a href="#ldk_asset_manager_mesh_is_alive">ldk_asset_manager_mesh_is_alive</a></li>
+<li><a href="#ldk_asset_manager_mesh_unload">ldk_asset_manager_mesh_unload</a></li>
+<li><a href="#ldk_asset_manager_terminate">ldk_asset_manager_terminate</a></li>
+<li><a href="#ldk_asset_manager_text_file_create">ldk_asset_manager_text_file_create</a></li>
+<li><a href="#ldk_asset_manager_text_file_get">ldk_asset_manager_text_file_get</a></li>
+<li><a href="#ldk_asset_manager_text_file_get_const">ldk_asset_manager_text_file_get_const</a></li>
+<li><a href="#ldk_asset_manager_text_file_is_alive">ldk_asset_manager_text_file_is_alive</a></li>
+<li><a href="#ldk_asset_manager_text_file_load">ldk_asset_manager_text_file_load</a></li>
+<li><a href="#ldk_asset_manager_text_file_unload">ldk_asset_manager_text_file_unload</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_create">ldk_asset_manager_texture_atlas_create</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_get_const">ldk_asset_manager_texture_atlas_get_const</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_is_alive">ldk_asset_manager_texture_atlas_is_alive</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_load_shared">ldk_asset_manager_texture_atlas_load_shared</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_reload">ldk_asset_manager_texture_atlas_reload</a></li>
+<li><a href="#ldk_asset_manager_texture_atlas_unload">ldk_asset_manager_texture_atlas_unload</a></li>
+<li><a href="#ldk_asset_mesh_null">ldk_asset_mesh_null</a></li>
+<li><a href="#ldk_asset_text_file_null">ldk_asset_text_file_null</a></li>
+<li><a href="#ldk_asset_texture_atlas_null">ldk_asset_texture_atlas_null</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAssetAudioData">LDKAssetAudioData</a></li>
+<li><a href="#LDKAssetFontData">LDKAssetFontData</a></li>
+<li><a href="#LDKAssetImageData">LDKAssetImageData</a></li>
+<li><a href="#LDKAssetInfo">LDKAssetInfo</a></li>
+<li><a href="#LDKAssetKeyframeAnimationData">LDKAssetKeyframeAnimationData</a></li>
+<li><a href="#LDKAssetMeshData">LDKAssetMeshData</a></li>
+<li><a href="#LDKAssetMeshEntry">LDKAssetMeshEntry</a></li>
+<li><a href="#LDKAssetTextFileData">LDKAssetTextFileData</a></li>
+<li><a href="#LDKAssetTextureAtlasData">LDKAssetTextureAtlasData</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKAssetIterFn">LDKAssetIterFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_asset_manager.h">
+      <header class="page-header">
+        <h1>ldk_asset_manager.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="asset-manager">Asset manager</h1>
+<p>Create, acquire, query, reload, and release typed runtime assets.</p>
+</div>
+      </header>
+
+      <article id="LDKAssetInfo" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetInfo</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetInfo</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetType">LDKAssetType</a></span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_id">asset_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">load_timestamp</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">source_revision</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetInfo</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetIterFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetIterFn</span></h2>
+  <p class="brief">Callback invoked for each live asset during enumeration.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKAssetIterFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span><span class="tok_pun">,</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetInfo">LDKAssetInfo</a></span> <span class="tok_pun">*</span><span class="tok_id">info</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>asset</code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+<dt><code>info</code></dt>
+<dd>Info used by this operation.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_initialize</span></h2>
+  <p class="brief">Initialize an asset manager with an asset source and storage capacity.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_initialize</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">page_capacity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">initial_pages</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">page_capacity</span></code></dt>
+<dd>Number of entries per allocation page.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">initial_pages</span></code></dt>
+<dd>Number of pages initially allocated.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_terminate</span></h2>
+  <p class="brief">Shut down the asset manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_terminate</span>(<span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_clear</span></h2>
+  <p class="brief">Clear manager-owned assets except audio retained by active voices.
+ 
+Audio data still referenced by active voices is retained.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_clear</span>(<span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_handle_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_handle_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">ldk_asset_handle_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_handle_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_handle_is_alive</span></h2>
+  <p class="brief">Check whether the asset handle refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_handle_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_get_info" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_get_info</span></h2>
+  <p class="brief">Get mutable metadata for an asset handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetInfo">LDKAssetInfo</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_get_info</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_get_info_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_get_info_const</span></h2>
+  <p class="brief">Get read-only metadata for an asset handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetInfo">LDKAssetInfo</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_get_info_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_get_type" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_get_type</span></h2>
+  <p class="brief">Get the type tag of a live asset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetType">LDKAssetType</a></span> <span class="tok_id">ldk_asset_get_type</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetHandle">LDKAssetHandle</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_alive_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_alive_count</span></h2>
+  <p class="brief">Get the number of currently live asset handles.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_asset_alive_count</span>(<span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_asset_foreach" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_foreach</span></h2>
+  <p class="brief">Visit active assets with a caller-provided callback.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_foreach</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetIterFn">LDKAssetIterFn</a></span> <span class="tok_id">fn</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetIterFn">LDKAssetIterFn</a></span> <span class="tok_id">fn</span></code></dt>
+<dd>Callback invoked by this operation.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKAssetTextFileData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetTextFileData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetTextFileData</span><span class="tok_pun">{</span>
+  <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">byte_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetTextFileData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_text_file_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_text_file_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset text file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">ldk_asset_text_file_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_text_file_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager text file refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_text_file_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_text_file_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_create</span></h2>
+  <p class="brief">Create an in-memory text-file asset by copying source text.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">ldk_asset_manager_text_file_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">byte_count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>Text used by this operation.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">byte_count</span></code></dt>
+<dd>Number of bytes in the supplied data.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_text_file_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_load</span></h2>
+  <p class="brief">Load the asset manager text file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">ldk_asset_manager_text_file_load</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_text_file_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_unload</span></h2>
+  <p class="brief">Unload the asset manager text file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_text_file_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_text_file_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_get</span></h2>
+  <p class="brief">Get the asset manager text file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetTextFileData">LDKAssetTextFileData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_text_file_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_text_file_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_text_file_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager text file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetTextFileData">LDKAssetTextFileData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_text_file_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextFile">LDKAssetTextFile</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDKAssetKeyframeAnimationData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetKeyframeAnimationData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetKeyframeAnimationData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_id">clip</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetKeyframeAnimationData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_keyframe_animation_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_keyframe_animation_null</span></h2>
+  <p class="brief">Return an invalid keyframe-animation asset handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">ldk_asset_keyframe_animation_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Null handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_is_alive</span></h2>
+  <p class="brief">Check whether a handle refers to a live keyframe-animation asset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_keyframe_animation_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Keyframe animation asset handle.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True only for a currently alive asset of the expected type.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_create</span></h2>
+  <p class="brief">Create a transient, manager-owned keyframe asset from a code-authored clip.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">ldk_asset_manager_keyframe_animation_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Live asset handle on success, null handle on failure. Clip is deep-copied.
+Note: The created asset has no path and is not automatically scene-persistent.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_unload</span></h2>
+  <p class="brief">Destroy a keyframe-animation asset and invalidate its handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_keyframe_animation_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Keyframe animation asset handle.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Nothing. Detach it from all animation sources first.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_load_shared" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_load_shared</span></h2>
+  <p class="brief">Load or reuse a version-2 .anim asset by path and source revision.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">ldk_asset_manager_keyframe_animation_load_shared</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Logical path to an .anim asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Live shared handle, or null on failure. Owned by the manager.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_reload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_reload</span></h2>
+  <p class="brief">Reload a cached shared animation asset from its source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_keyframe_animation_reload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Logical path to a cached .anim asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on successful refresh or if not cached; false on I/O or parsing errors.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_keyframe_animation_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_keyframe_animation_get_const</span></h2>
+  <p class="brief">Get immutable animation data for a live keyframe asset handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetKeyframeAnimationData">LDKAssetKeyframeAnimationData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_keyframe_animation_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Initialized asset manager.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Keyframe animation asset handle.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Borrowed pointer or NULL. Invalidated when the asset is unloaded or reloaded.</p>
+</section>
+
+</article>
+<article id="LDKAssetTextureAtlasData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetTextureAtlasData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetTextureAtlasData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_id">atlas</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">image</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">revision</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetTextureAtlasData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_texture_atlas_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_texture_atlas_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">ldk_asset_texture_atlas_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_texture_atlas_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager texture atlas refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_texture_atlas_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_texture_atlas_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_create</span></h2>
+  <p class="brief">Create the asset manager texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">ldk_asset_manager_texture_atlas_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_texture_atlas_load_shared" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_load_shared</span></h2>
+  <p class="brief">Load or reuse shared the asset manager texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">ldk_asset_manager_texture_atlas_load_shared</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_texture_atlas_reload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_reload</span></h2>
+  <p class="brief">Reload the asset manager texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_texture_atlas_reload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_texture_atlas_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_unload</span></h2>
+  <p class="brief">Unload the asset manager texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_texture_atlas_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_texture_atlas_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_texture_atlas_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetTextureAtlasData">LDKAssetTextureAtlasData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_texture_atlas_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDKAssetImageData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetImageData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetImageData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_image.html#LDKImage">LDKImage</a></span> <span class="tok_pun">*</span><span class="tok_id">image</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_missing</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetImageData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_image_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_image_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_image_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager image refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_image_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_create</span></h2>
+  <p class="brief">Create the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_manager_image_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">height</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span></code></dt>
+<dd>Image pixel data.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_create_format" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_create_format</span></h2>
+  <p class="brief">Create an image asset using an explicit pixel format.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_manager_image_create_format</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">height</span>,
+ <span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">format</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_image.html#LDKImageFormat">LDKImageFormat</a></span> <span class="tok_id">format</span></code></dt>
+<dd>Format to use for this resource.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">pixels</span></code></dt>
+<dd>Image pixel data.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_load</span></h2>
+  <p class="brief">Load the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_manager_image_load</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_load_shared" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_load_shared</span></h2>
+  <p class="brief">Load or reuse shared the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_manager_image_load_shared</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_missing" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_missing</span></h2>
+  <p class="brief">Create or retrieve a missing-image placeholder asset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_asset_manager_image_missing</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_unload</span></h2>
+  <p class="brief">Unload the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_image_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_image_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_get</span></h2>
+  <p class="brief">Get the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetImageData">LDKAssetImageData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_image_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_image_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_image_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager image.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetImageData">LDKAssetImageData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_image_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDKAssetFontData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetFontData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetFontData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_ttf.html#LDKFontFace">LDKFontFace</a></span> <span class="tok_pun">*</span><span class="tok_id">face</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetFontData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_font_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_font_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">ldk_asset_font_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager font refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_font_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_create</span></h2>
+  <p class="brief">Create the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">ldk_asset_manager_font_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">data_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">data_size</span></code></dt>
+<dd>Size of the data buffer or region.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_load</span></h2>
+  <p class="brief">Load the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">ldk_asset_manager_font_load</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_load_shared" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_load_shared</span></h2>
+  <p class="brief">Load or reuse shared the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">ldk_asset_manager_font_load_shared</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_unload</span></h2>
+  <p class="brief">Unload the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_font_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_font_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_get</span></h2>
+  <p class="brief">Get the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetFontData">LDKAssetFontData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_font_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_font_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_font_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager font.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetFontData">LDKAssetFontData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_font_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetFont">LDKAssetFont</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDKAssetAudioData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetAudioData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetAudioData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_id">source_file</span><span class="tok_pun">;</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">encoded_data</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">encoded_size</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">ref_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetAudioData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_audio_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_audio_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">ldk_asset_audio_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_audio_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_audio_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager audio refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_audio_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_audio_load_shared" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_audio_load_shared</span></h2>
+  <p class="brief">Load or reuse shared the asset manager audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">ldk_asset_manager_audio_load_shared</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_audio_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_audio_get</span></h2>
+  <p class="brief">Get the asset manager audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetAudioData">LDKAssetAudioData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_audio_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_audio_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_audio_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager audio.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetAudioData">LDKAssetAudioData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_audio_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetAudio">LDKAssetAudio</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="LDKAssetMeshEntry" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetMeshEntry</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetMeshEntry</span><span class="tok_pun">{</span>
+  <span class="tok_kw">char</span> <span class="tok_id">name</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_mesh.html#LDK_MESH_NAME_CAPACITY">LDK_MESH_NAME_CAPACITY</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_id">mesh</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshSubmesh">LDKMeshSubmesh</a></span> <span class="tok_pun">*</span><span class="tok_id">submeshes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">submesh_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshMaterialSlot">LDKMeshMaterialSlot</a></span> <span class="tok_pun">*</span><span class="tok_id">material_slots</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_slot_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetMeshEntry</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetMeshData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetMeshData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetMeshData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_id">mesh</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshPrimitive">LDKMeshPrimitive</a></span> <span class="tok_id">primitive</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetMeshEntry">LDKAssetMeshEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">meshes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshNode">LDKMeshNode</a></span> <span class="tok_pun">*</span><span class="tok_id">nodes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">node_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetMeshData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_mesh_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_mesh_null</span></h2>
+  <p class="brief">Return an invalid handle for the asset mesh.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">ldk_asset_mesh_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_mesh_is_alive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_mesh_is_alive</span></h2>
+  <p class="brief">Check whether the asset manager mesh refers to a live resource.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_manager_mesh_is_alive</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_mesh_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_mesh_create</span></h2>
+  <p class="brief">Create the asset manager mesh.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">ldk_asset_manager_mesh_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshVertex">LDKMeshVertex</a></span> <span class="tok_pun">*</span><span class="tok_id">vertices</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">vertex_count</span>,
+ <span class="tok_kw">const</span> <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">indices</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">index_count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshVertex">LDKMeshVertex</a></span> <span class="tok_pun">*</span><span class="tok_id">vertices</span></code></dt>
+<dd>Array of mesh vertices.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">vertex_count</span></code></dt>
+<dd>Number of vertex entries.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">indices</span></code></dt>
+<dd>Array of mesh indices.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">index_count</span></code></dt>
+<dd>Number of indices to submit.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_mesh_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_mesh_unload</span></h2>
+  <p class="brief">Unload the asset manager mesh.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_manager_mesh_unload</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_manager_mesh_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_mesh_get</span></h2>
+  <p class="brief">Get the asset manager mesh.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetMeshData">LDKAssetMeshData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_mesh_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_manager_mesh_get_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_manager_mesh_get_const</span></h2>
+  <p class="brief">Get read-only access to the asset manager mesh.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_manager.html#LDKAssetMeshData">LDKAssetMeshData</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_manager_mesh_get_const</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

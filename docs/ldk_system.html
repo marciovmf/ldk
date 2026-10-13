@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_system.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_system.h">ldk_system.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_engine_system_descriptor_count">ldk_engine_system_descriptor_count</a></li>
+<li><a href="#ldk_engine_system_descriptor_get">ldk_engine_system_descriptor_get</a></li>
+<li><a href="#ldk_system_registry_at">ldk_system_registry_at</a></li>
+<li><a href="#ldk_system_registry_callback_sync_set">ldk_system_registry_callback_sync_set</a></li>
+<li><a href="#ldk_system_registry_clear">ldk_system_registry_clear</a></li>
+<li><a href="#ldk_system_registry_count">ldk_system_registry_count</a></li>
+<li><a href="#ldk_system_registry_find_by_id">ldk_system_registry_find_by_id</a></li>
+<li><a href="#ldk_system_registry_has">ldk_system_registry_has</a></li>
+<li><a href="#ldk_system_registry_initialize">ldk_system_registry_initialize</a></li>
+<li><a href="#ldk_system_registry_is_busy">ldk_system_registry_is_busy</a></li>
+<li><a href="#ldk_system_registry_is_paused">ldk_system_registry_is_paused</a></li>
+<li><a href="#ldk_system_registry_pause">ldk_system_registry_pause</a></li>
+<li><a href="#ldk_system_registry_register">ldk_system_registry_register</a></li>
+<li><a href="#ldk_system_registry_resume">ldk_system_registry_resume</a></li>
+<li><a href="#ldk_system_registry_run_bucket">ldk_system_registry_run_bucket</a></li>
+<li><a href="#ldk_system_registry_start">ldk_system_registry_start</a></li>
+<li><a href="#ldk_system_registry_stop">ldk_system_registry_stop</a></li>
+<li><a href="#ldk_system_registry_system_data_get">ldk_system_registry_system_data_get</a></li>
+<li><a href="#ldk_system_registry_system_data_set">ldk_system_registry_system_data_set</a></li>
+<li><a href="#ldk_system_registry_system_group_get">ldk_system_registry_system_group_get</a></li>
+<li><a href="#ldk_system_registry_system_group_set">ldk_system_registry_system_group_set</a></li>
+<li><a href="#ldk_system_registry_system_is_started">ldk_system_registry_system_is_started</a></li>
+<li><a href="#ldk_system_registry_system_start">ldk_system_registry_system_start</a></li>
+<li><a href="#ldk_system_registry_system_stop">ldk_system_registry_system_stop</a></li>
+<li><a href="#ldk_system_registry_terminate">ldk_system_registry_terminate</a></li>
+<li><a href="#ldk_system_registry_unregister">ldk_system_registry_unregister</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKEntityGroup">LDKEntityGroup</a></li>
+<li><a href="#LDKSystemDesc">LDKSystemDesc</a></li>
+<li><a href="#LDKSystemRegistry">LDKSystemRegistry</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKBuiltinSystemId">LDKBuiltinSystemId</a></li>
+<li><a href="#LDKSystemBucket">LDKSystemBucket</a></li>
+<li><a href="#LDKSystemFlags">LDKSystemFlags</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKSystemCallbackSyncFn">LDKSystemCallbackSyncFn</a></li>
+<li><a href="#LDKSystemInitializeFn">LDKSystemInitializeFn</a></li>
+<li><a href="#LDKSystemTerminateFn">LDKSystemTerminateFn</a></li>
+<li><a href="#LDKSystemUpdateFn">LDKSystemUpdateFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_system.h">
+      <header class="page-header">
+        <h1>ldk_system.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="system-registry">System registry</h1>
+<p>System Registry module.</p>
+<p>Systems are registered as descriptors and owned by the registry. They are
+identified by unique, compile-time known u64 ids.</p>
+<p>A system has at most one scheduled update callback. The bucket stored in the
+descriptor selects where that callback executes. initialize and terminate
+are optional lifecycle callbacks and do not participate in scheduling.</p>
+<p>System instance data is not owned by the registry. Scene integration binds a
+data pointer before starting a stateful system and keeps that memory alive
+until the system is stopped and unbound.</p>
+<p>The registry has a structural lifecycle:
+  initialize -> register -> start -> stop -> clear/terminate</p>
+<p>Registry start builds the ordered bucket lists, but does not initialize
+individual systems. Individual systems are started and stopped by id while
+the registry is prepared. Registration and structural changes are only
+allowed while the registry is stopped.</p>
+<p>The registry is owned by the engine root and should not be instantiated or
+managed independently by game code.</p>
+</div>
+      </header>
+
+      <article id="LDKBuiltinSystemId" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKBuiltinSystemId</span></h2>
+  <p class="brief">IDs of builtin systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKBuiltinSystemId</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_SYSTEM_ID_SCENEGRAPH</span><span class="tok_pun">=</span><span class="tok_num">0x1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_ID_USER</span><span class="tok_pun">=</span><span class="tok_num">0x100</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKBuiltinSystemId</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSystemBucket" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemBucket</span></h2>
+  <p class="brief">Execution bucket for a system update callback.
+ 
+UPDATE is zero intentionally so a zero-initialized descriptor gets the
+normal/default gameplay bucket.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKSystemBucket</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_SYSTEM_BUCKET_UPDATE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_BUCKET_PRE_UPDATE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_BUCKET_POST_UPDATE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_BUCKET_RENDER</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_BUCKET_COUNT</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSystemBucket</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSystemFlags" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemFlags</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKSystemFlags</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_SYSTEM_FLAG_NONE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_FLAG_ENABLED</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_FLAG_ENGINE_NATIVE</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">2</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSystemFlags</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKEntityGroup" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKEntityGroup</span></h2>
+  <p class="brief">Stable read-only view of the entity membership bound to a system.
+ 
+The view is valid for the duration of a system update callback. Structural
+ECS changes performed by a callback are reflected before the next system
+callback executes.
+A grouping_id of 0 identifies the empty, unbound group.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKEntityGroup</span><span class="tok_pun">{</span>
+  <span class="tok_id">u64</span> <span class="tok_id">grouping_id</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_pun">*</span><span class="tok_id">entities</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKEntityGroup</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSystemCallbackSyncFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemCallbackSyncFn</span></h2>
+  <p class="brief">Callback used to synchronize with system execution.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKSystemCallbackSyncFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="LDKSystemInitializeFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemInitializeFn</span></h2>
+  <p class="brief">Callback called during ECS system initialization.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">int</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKSystemInitializeFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>data</code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting integer value.</p>
+</section>
+
+</article>
+<article id="LDKSystemUpdateFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemUpdateFn</span></h2>
+  <p class="brief">Callback called when an ECS system updates a group.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKSystemUpdateFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span><span class="tok_pun">,</span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span><span class="tok_id">group</span><span class="tok_pun">,</span> <span class="tok_kw">float</span> <span class="tok_id">dt</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>data</code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+<dt><code>group</code></dt>
+<dd>Entity group used for this system update.</dd>
+<dt><code>dt</code></dt>
+<dd>Elapsed time since the preceding update, in seconds.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKSystemTerminateFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemTerminateFn</span></h2>
+  <p class="brief">Callback called during ECS system termination.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKSystemTerminateFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>data</code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKSystemDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSystemDesc</span><span class="tok_pun">{</span>
+  <span class="tok_id">u64</span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">flags</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_system.html#LDKSystemBucket">LDKSystemBucket</a></span> <span class="tok_id">bucket</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">order</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">data_size</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_system.html#LDKSystemInitializeFn">LDKSystemInitializeFn</a></span> <span class="tok_id">initialize</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_system.html#LDKSystemUpdateFn">LDKSystemUpdateFn</a></span> <span class="tok_id">update</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_system.html#LDKSystemTerminateFn">LDKSystemTerminateFn</a></span> <span class="tok_id">terminate</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">component_types</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">component_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSystemDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSystemRegistry" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSystemRegistry</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSystemRegistry</span><span class="tok_pun">{</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">internal</span><span class="tok_pun">;</span>
+  <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk.html#LDKRoot">LDKRoot</a></span> <span class="tok_pun">*</span><span class="tok_id">root</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">is_started</span><span class="tok_pun">;</span>
+  <span class="tok_id">u8</span> <span class="tok_id">is_paused</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSystemRegistry</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_engine_system_descriptor_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_system_descriptor_count</span></h2>
+  <p class="brief">Descriptors for systems implemented by the engine. Games own registration.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_engine_system_descriptor_count</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_engine_system_descriptor_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_system_descriptor_get</span></h2>
+  <p class="brief">Get the engine system descriptor.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_system_descriptor_get</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">index</span>,
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">index</span></code></dt>
+<dd>Zero-based index of the selected item.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_initialize</span></h2>
+  <p class="brief">Initialize the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_initialize</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_terminate</span></h2>
+  <p class="brief">Shut down the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_system_registry_terminate</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_system_registry_register" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_register</span></h2>
+  <p class="brief">Register the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_register</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_unregister" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_unregister</span></h2>
+  <p class="brief">Unregister the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_unregister</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_find_by_id" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_find_by_id</span></h2>
+  <p class="brief">Find a registered system by its stable ID.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_find_by_id</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>,
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_count</span></h2>
+  <p class="brief">Count registered systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_system_registry_count</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_at</span></h2>
+  <p class="brief">Get a system registered at a particular index.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_at</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">index</span>,
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">index</span></code></dt>
+<dd>Zero-based index of the selected item.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemDesc">LDKSystemDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_clear</span></h2>
+  <p class="brief">Clear the state of the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_clear</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_start</span></h2>
+  <p class="brief">Prepare the bucket lists without initializing individual systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_start</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_stop</span></h2>
+  <p class="brief">Terminate all active systems in reverse registration order and unprepare.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_stop</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_start</span></h2>
+  <p class="brief">Start/stop a registered system without changing the bucket lists.
+Repeated start/stop calls succeed without repeating callbacks. A failed
+initialize callback is followed by terminate so partially initialized state
+can be released. A failed start leaves other systems unchanged.
+ 
+Stateful systems (data_size > 0) must have data bound before start.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_system_start</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_stop</span></h2>
+  <p class="brief">Stop the system registry system.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_system_stop</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_is_started" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_is_started</span></h2>
+  <p class="brief">Check whether the system registry system is started.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_system_is_started</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_is_busy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_is_busy</span></h2>
+  <p class="brief">True while a bucket or a system lifecycle callback is executing.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_is_busy</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_data_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_data_set</span></h2>
+  <p class="brief">Bind scene-owned system instance data. The registry never allocates or frees
+this pointer. Data cannot be replaced while the system is initialized.
+Passing NULL unbinds the current instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_system_data_set</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_data_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_data_get</span></h2>
+  <p class="brief">Get the system registry system data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_system_registry_system_data_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_group_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_group_set</span></h2>
+  <p class="brief">Change the entity group delivered to a registered system's update callback.
+Engine-internal binding, resolved by the ECS from LDKSystemDesc requirements.
+Scene start/stop must preserve it. Game code should use the ECS facade.
+Passing NULL binds the system to the empty group.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_system_group_set</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span><span class="tok_id">group</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span><span class="tok_id">group</span></code></dt>
+<dd>Entity group used for this system update.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_system_group_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_system_group_get</span></h2>
+  <p class="brief">Get the system registry system group.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_system_registry_system_group_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_callback_sync_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_callback_sync_set</span></h2>
+  <p class="brief">Install an engine-side synchronization point invoked after each executed
+update callback. The system registry does not interpret the callback; the
+ECS uses it to commit deferred grouping membership changes safely between
+systems. Passing NULL clears the handler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_callback_sync_set</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemCallbackSyncFn">LDKSystemCallbackSyncFn</a></span> <span class="tok_id">fn</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemCallbackSyncFn">LDKSystemCallbackSyncFn</a></span> <span class="tok_id">fn</span></code></dt>
+<dd>Callback invoked by this operation.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_pause" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_pause</span></h2>
+  <p class="brief">Suspend/resume execution without terminating individual systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_pause</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_resume" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_resume</span></h2>
+  <p class="brief">Resume the system registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_resume</span>(<span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_is_paused" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_is_paused</span></h2>
+  <p class="brief">Check whether the system registry is paused.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_is_paused</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_run_bucket" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_run_bucket</span></h2>
+  <p class="brief">Run initialized, enabled systems whose single update callback belongs to the
+requested bucket. While paused, only systems with RUN_WHEN_PAUSED execute.
+Structural and lifecycle changes are forbidden during update and lifecycle
+callbacks.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_run_bucket</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemBucket">LDKSystemBucket</a></span> <span class="tok_id">bucket</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">dt</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemBucket">LDKSystemBucket</a></span> <span class="tok_id">bucket</span></code></dt>
+<dd>Bucket used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">dt</span></code></dt>
+<dd>Elapsed time since the preceding update, in seconds.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_system_registry_has" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_system_registry_has</span></h2>
+  <p class="brief">Check whether a system ID is registered.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_system_registry_has</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

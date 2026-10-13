@@ -1,0 +1,1100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk.h">ldk.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_engine_config_from_ini">ldk_engine_config_from_ini</a></li>
+<li><a href="#ldk_engine_config_get">ldk_engine_config_get</a></li>
+<li><a href="#ldk_engine_frame">ldk_engine_frame</a></li>
+<li><a href="#ldk_engine_initialize">ldk_engine_initialize</a></li>
+<li><a href="#ldk_engine_initialize_with_config">ldk_engine_initialize_with_config</a></li>
+<li><a href="#ldk_engine_is_initialized">ldk_engine_is_initialized</a></li>
+<li><a href="#ldk_engine_main_window_get">ldk_engine_main_window_get</a></li>
+<li><a href="#ldk_engine_render_resolution_set">ldk_engine_render_resolution_set</a></li>
+<li><a href="#ldk_engine_run">ldk_engine_run</a></li>
+<li><a href="#ldk_engine_shadow_settings_set">ldk_engine_shadow_settings_set</a></li>
+<li><a href="#ldk_engine_stop">ldk_engine_stop</a></li>
+<li><a href="#ldk_engine_terminate">ldk_engine_terminate</a></li>
+<li><a href="#ldk_game_get">ldk_game_get</a></li>
+<li><a href="#ldk_game_instance_initialize">ldk_game_instance_initialize</a></li>
+<li><a href="#ldk_game_instance_is_paused">ldk_game_instance_is_paused</a></li>
+<li><a href="#ldk_game_instance_is_started">ldk_game_instance_is_started</a></li>
+<li><a href="#ldk_game_instance_is_stepping">ldk_game_instance_is_stepping</a></li>
+<li><a href="#ldk_game_instance_is_updating">ldk_game_instance_is_updating</a></li>
+<li><a href="#ldk_game_instance_load_from_shared_lib">ldk_game_instance_load_from_shared_lib</a></li>
+<li><a href="#ldk_game_instance_load_static">ldk_game_instance_load_static</a></li>
+<li><a href="#ldk_game_instance_pause">ldk_game_instance_pause</a></li>
+<li><a href="#ldk_game_instance_resume">ldk_game_instance_resume</a></li>
+<li><a href="#ldk_game_instance_start">ldk_game_instance_start</a></li>
+<li><a href="#ldk_game_instance_step">ldk_game_instance_step</a></li>
+<li><a href="#ldk_game_instance_stop">ldk_game_instance_stop</a></li>
+<li><a href="#ldk_game_instance_terminate">ldk_game_instance_terminate</a></li>
+<li><a href="#ldk_game_instance_unload">ldk_game_instance_unload</a></li>
+<li><a href="#ldk_input_game_view_clear">ldk_input_game_view_clear</a></li>
+<li><a href="#ldk_input_game_view_set">ldk_input_game_view_set</a></li>
+<li><a href="#ldk_input_keyboard_key_down">ldk_input_keyboard_key_down</a></li>
+<li><a href="#ldk_input_keyboard_key_is_pressed">ldk_input_keyboard_key_is_pressed</a></li>
+<li><a href="#ldk_input_keyboard_key_up">ldk_input_keyboard_key_up</a></li>
+<li><a href="#ldk_input_keyboard_state_get">ldk_input_keyboard_state_get</a></li>
+<li><a href="#ldk_input_mouse_button_down">ldk_input_mouse_button_down</a></li>
+<li><a href="#ldk_input_mouse_button_is_pressed">ldk_input_mouse_button_is_pressed</a></li>
+<li><a href="#ldk_input_mouse_button_up">ldk_input_mouse_button_up</a></li>
+<li><a href="#ldk_input_mouse_cursor">ldk_input_mouse_cursor</a></li>
+<li><a href="#ldk_input_mouse_cursor_relative">ldk_input_mouse_cursor_relative</a></li>
+<li><a href="#ldk_input_mouse_state_get">ldk_input_mouse_state_get</a></li>
+<li><a href="#ldk_input_mouse_wheel_delta">ldk_input_mouse_wheel_delta</a></li>
+<li><a href="#ldk_main_window">ldk_main_window</a></li>
+<li><a href="#ldk_module_get">ldk_module_get</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#ldk_log_debug">ldk_log_debug</a></li>
+<li><a href="#ldk_log_error">ldk_log_error</a></li>
+<li><a href="#ldk_log_fatal">ldk_log_fatal</a></li>
+<li><a href="#ldk_log_info">ldk_log_info</a></li>
+<li><a href="#ldk_log_raw">ldk_log_raw</a></li>
+<li><a href="#ldk_log_warning">ldk_log_warning</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKConfig">LDKConfig</a></li>
+<li><a href="#LDKRoot">LDKRoot</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKModuleType">LDKModuleType</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk.h">
+      <header class="page-header">
+        <h1>ldk.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="engine-lifecycle-and-game-input">Engine lifecycle and game input</h1>
+<p>Engine root and global module access</p>
+<p>Entry point for the LDK engine. Provides initialization, shutdown,
+and access to core submodules.</p>
+</div>
+      </header>
+
+      <article id="ldk_log_raw" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_raw</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_raw</span><span class="tok_pun">(</span><span class="tok_id">out</span><span class="tok_pun">,</span> <span class="tok_id">level</span><span class="tok_pun">,</span> <span class="tok_id">fg</span><span class="tok_pun">,</span> <span class="tok_id">bg</span><span class="tok_pun">,</span> <span class="tok_id">components</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_raw</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">out</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">level</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">fg</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">bg</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_id">components</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="ldk_log_debug" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_debug</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_debug</span><span class="tok_pun">(</span><span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_debug</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="ldk_log_info" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_info</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_info</span><span class="tok_pun">(</span><span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_info</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="ldk_log_warning" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_warning</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_warning</span><span class="tok_pun">(</span><span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_warning</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="ldk_log_error" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_error</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_error</span><span class="tok_pun">(</span><span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_error</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="ldk_log_fatal" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">ldk_log_fatal</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">ldk_log_fatal</span><span class="tok_pun">(</span><span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">.</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_id">x_log_fatal</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk.html#ldk_module_get">ldk_module_get</a></span><span class="tok_pun">(</span><span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">fmt</span><span class="tok_pun">,</span> <span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">__VA_ARGS__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDKRoot" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRoot</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRoot</span> <span class="tok_id">LDKRoot</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKModuleType" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKModuleType</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKModuleType</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MODULE_ASSET_MANAGER</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_ECS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_EVENT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_LOG</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_RENDERER</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_SCENE_MANAGER</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_ASSET_SOURCE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_AUDIO</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MODULE_JOBS</span><span class="tok_pun">,</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKModuleType</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKConfig" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKConfig</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKConfig</span><span class="tok_pun">{</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">title</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">config_file_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">runtree_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">icon_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">asset_root</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">log_file</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">game_dll</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">display_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">display_height</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">resolution_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">resolution_height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">shadow_map_resolution</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">shadow_distance</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">initial_ui_index_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">initial_ui_vertex_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">fullscreen</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKConfig</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_engine_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_initialize</span></h2>
+  <p class="brief">Initialize the engine.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_initialize</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config_ini_path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config_ini_path</span></code></dt>
+<dd>Path to the engine configuration INI.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_config_from_ini" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_config_from_ini</span></h2>
+  <p class="brief">Populate an engine configuration from parsed INI settings.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_config_from_ini</span>(
+ <span class="tok_kw"><a href="ldk.html#LDKConfig">LDKConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">out_config</span>,
+ <span class="tok_id">XIni</span> <span class="tok_pun">*</span><span class="tok_id">ini</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config_ini_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk.html#LDKConfig">LDKConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">out_config</span></code></dt>
+<dd>Receives the resulting config.</dd>
+<dt><code><span class="tok_id">XIni</span> <span class="tok_pun">*</span><span class="tok_id">ini</span></code></dt>
+<dd>Ini used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config_ini_path</span></code></dt>
+<dd>Path to the engine configuration INI.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_initialize_with_config" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_initialize_with_config</span></h2>
+  <p class="brief">Initialize the engine from a configuration supplied by the caller.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_initialize_with_config</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk.html#LDKConfig">LDKConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">config</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk.html#LDKConfig">LDKConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">config</span></code></dt>
+<dd>Configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_render_resolution_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_render_resolution_set</span></h2>
+  <p class="brief">Set the internal resolution used for game rendering.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_render_resolution_set</span>(
+ <span class="tok_id">i32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">i32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_shadow_settings_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_shadow_settings_set</span></h2>
+  <p class="brief">Set shadow map resolution and shadow distance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_shadow_settings_set</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">resolution</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">distance</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">resolution</span></code></dt>
+<dd>Resolution setting.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">distance</span></code></dt>
+<dd>Distance in world-space units.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_is_initialized" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_is_initialized</span></h2>
+  <p class="brief">Check whether the engine is initialized.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_engine_is_initialized</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_frame" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_frame</span></h2>
+  <p class="brief">Process one engine frame.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_engine_frame</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_module_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_module_get</span></h2>
+  <p class="brief">Access the context of a registered engine module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_module_get</span>(<span class="tok_kw"><a href="ldk.html#LDKModuleType">LDKModuleType</a></span> <span class="tok_id">module_type</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk.html#LDKModuleType">LDKModuleType</a></span> <span class="tok_id">module_type</span></code></dt>
+<dd>Module type used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_engine_run" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_run</span></h2>
+  <p class="brief">Enter the engine main loop and return its exit code.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">i32</span> <span class="tok_id">ldk_engine_run</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Process or engine exit code.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_state_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_state_get</span></h2>
+  <p class="brief">Get the input mouse state.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_input_mouse_state_get</span>(<span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">out_state</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">out_state</span></code></dt>
+<dd>Receives the requested input state snapshot.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_input_mouse_button_is_pressed" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_button_is_pressed</span></h2>
+  <p class="brief">Test whether the button is currently held.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_mouse_button_is_pressed</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span></code></dt>
+<dd>Mouse or input button to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_button_down" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_button_down</span></h2>
+  <p class="brief">Test whether the button was pressed during the current input update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_mouse_button_down</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span></code></dt>
+<dd>Mouse or input button to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_button_up" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_button_up</span></h2>
+  <p class="brief">Test whether the button was released during the current input update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_mouse_button_up</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseButton">LDKMouseButton</a></span> <span class="tok_id">button</span></code></dt>
+<dd>Mouse or input button to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_wheel_delta" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_wheel_delta</span></h2>
+  <p class="brief">Get the accumulated mouse wheel movement in the input snapshot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">i32</span> <span class="tok_id">ldk_input_mouse_wheel_delta</span>(<span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting integer value.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_cursor" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_cursor</span></h2>
+  <p class="brief">Get the mouse cursor position.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKPoint">LDKPoint</a></span> <span class="tok_id">ldk_input_mouse_cursor</span>(<span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting point.</p>
+</section>
+
+</article>
+<article id="ldk_input_mouse_cursor_relative" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_mouse_cursor_relative</span></h2>
+  <p class="brief">Get the mouse cursor position relative to the active client area.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKPoint">LDKPoint</a></span> <span class="tok_id">ldk_input_mouse_cursor_relative</span>(<span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKMouseState">LDKMouseState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting point.</p>
+</section>
+
+</article>
+<article id="ldk_input_keyboard_state_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_keyboard_state_get</span></h2>
+  <p class="brief">Get the input keyboard state.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_input_keyboard_state_get</span>(<span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">out_state</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">out_state</span></code></dt>
+<dd>Receives the requested input state snapshot.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_input_keyboard_key_is_pressed" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_keyboard_key_is_pressed</span></h2>
+  <p class="brief">Test whether the key is currently held.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_keyboard_key_is_pressed</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span></code></dt>
+<dd>Keyboard key to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_keyboard_key_down" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_keyboard_key_down</span></h2>
+  <p class="brief">Test whether the key was pressed during the current input update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_keyboard_key_down</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span></code></dt>
+<dd>Keyboard key to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_keyboard_key_up" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_keyboard_key_up</span></h2>
+  <p class="brief">Test whether the key was released during the current input update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_input_keyboard_key_up</span>(
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeyboardState">LDKKeyboardState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span></code></dt>
+<dd>Input snapshot or state object to query.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKKeycode">LDKKeycode</a></span> <span class="tok_id">keycode</span></code></dt>
+<dd>Keyboard key to query.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_input_game_view_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_game_view_set</span></h2>
+  <p class="brief">Set the embedded editor game viewport used for input remapping.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_input_game_view_set</span>(
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">width</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">height</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">game_width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">game_height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">game_width</span></code></dt>
+<dd>Game width used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">game_height</span></code></dt>
+<dd>Game height used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_input_game_view_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_input_game_view_clear</span></h2>
+  <p class="brief">Clear the editor game viewport input remapping.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_input_game_view_clear</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_game_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_get</span></h2>
+  <p class="brief">Get the game.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_game_get</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_load_static" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_load_static</span></h2>
+  <p class="brief">Load a statically linked game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_load_static</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_terminate</span></h2>
+  <p class="brief">Shut down the engine.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_engine_terminate</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_engine_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_stop</span></h2>
+  <p class="brief">Request termination of the engine main loop with an exit code.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_engine_stop</span>(<span class="tok_id">i32</span> <span class="tok_id">exit_code</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">i32</span> <span class="tok_id">exit_code</span></code></dt>
+<dd>Exit code used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_game_instance_load_from_shared_lib" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_load_from_shared_lib</span></h2>
+  <p class="brief">Load a game module from a dynamic library.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_load_from_shared_lib</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_initialize</span></h2>
+  <p class="brief">Initialize the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_initialize</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_start</span></h2>
+  <p class="brief">Start the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_start</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_stop</span></h2>
+  <p class="brief">Stop gameplay without unloading the game module or clearing the ECS.
+The editor may then reload the original scene from disk. A stop requested
+during an update is completed at the safe frame boundary.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_stop</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_pause" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_pause</span></h2>
+  <p class="brief">Pause the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_pause</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_resume" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_resume</span></h2>
+  <p class="brief">Resume the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_resume</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_step" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_step</span></h2>
+  <p class="brief">Advance a paused game by one update step.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_step</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_is_started" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_is_started</span></h2>
+  <p class="brief">Check whether the game instance is started.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_is_started</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_is_paused" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_is_paused</span></h2>
+  <p class="brief">Check whether the game instance is paused.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_is_paused</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_is_stepping" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_is_stepping</span></h2>
+  <p class="brief">Check whether the game instance is in a single-step update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_is_stepping</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_is_updating" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_is_updating</span></h2>
+  <p class="brief">Check whether the game instance is currently updating.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_is_updating</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_game_instance_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_terminate</span></h2>
+  <p class="brief">Shut down the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_game_instance_terminate</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_game_instance_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_game_instance_unload</span></h2>
+  <p class="brief">Unload the game instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_game_instance_unload</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_engine_main_window_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_main_window_get</span></h2>
+  <p class="brief">Get the engine main window.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_common.html#LDKWindow">LDKWindow</a></span> <span class="tok_id">ldk_engine_main_window_get</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_main_window" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_main_window</span></h2>
+  <p class="brief">Get the engine main window handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_common.html#LDKWindow">LDKWindow</a></span> <span class="tok_id">ldk_main_window</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_engine_config_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_engine_config_get</span></h2>
+  <p class="brief">Get a read-only pointer to the active engine configuration.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk.html#LDKConfig">LDKConfig</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_engine_config_get</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_package.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_package.h">ldk_package.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_package_close">ldk_package_close</a></li>
+<li><a href="#ldk_package_entry_at">ldk_package_entry_at</a></li>
+<li><a href="#ldk_package_entry_count">ldk_package_entry_count</a></li>
+<li><a href="#ldk_package_entry_extract">ldk_package_entry_extract</a></li>
+<li><a href="#ldk_package_entry_find">ldk_package_entry_find</a></li>
+<li><a href="#ldk_package_entry_get_compression">ldk_package_entry_get_compression</a></li>
+<li><a href="#ldk_package_entry_get_path">ldk_package_entry_get_path</a></li>
+<li><a href="#ldk_package_entry_get_size">ldk_package_entry_get_size</a></li>
+<li><a href="#ldk_package_entry_get_stored_size">ldk_package_entry_get_stored_size</a></li>
+<li><a href="#ldk_package_entry_read">ldk_package_entry_read</a></li>
+<li><a href="#ldk_package_entry_read_at">ldk_package_entry_read_at</a></li>
+<li><a href="#ldk_package_extract_all">ldk_package_extract_all</a></li>
+<li><a href="#ldk_package_file_hash">ldk_package_file_hash</a></li>
+<li><a href="#ldk_package_open">ldk_package_open</a></li>
+<li><a href="#ldk_package_path_is_valid">ldk_package_path_is_valid</a></li>
+<li><a href="#ldk_package_writer_add_file">ldk_package_writer_add_file</a></li>
+<li><a href="#ldk_package_writer_create">ldk_package_writer_create</a></li>
+<li><a href="#ldk_package_writer_destroy">ldk_package_writer_destroy</a></li>
+<li><a href="#ldk_package_writer_finalize">ldk_package_writer_finalize</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_PACKAGE_FILE_EXTENSION">LDK_PACKAGE_FILE_EXTENSION</a></li>
+<li><a href="#LDK_PACKAGE_PATH_MAX_LENGTH">LDK_PACKAGE_PATH_MAX_LENGTH</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKPackage">LDKPackage</a></li>
+<li><a href="#LDKPackageEntry">LDKPackageEntry</a></li>
+<li><a href="#LDKPackageWriter">LDKPackageWriter</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKPackageCompression">LDKPackageCompression</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_package.h">
+      <header class="page-header">
+        <h1>ldk_package.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="box-packages">BOX packages</h1>
+<p>Read and write uncompressed BOX asset packages, inspect entries, and extract stored files.</p>
+</div>
+      </header>
+
+      <article id="LDK_PACKAGE_FILE_EXTENSION" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PACKAGE_FILE_EXTENSION</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PACKAGE_FILE_EXTENSION</span> <span class="tok_str">&quot;.box&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PACKAGE_PATH_MAX_LENGTH" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PACKAGE_PATH_MAX_LENGTH</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PACKAGE_PATH_MAX_LENGTH</span> <span class="tok_num">511u</span></code></pre>
+  
+  
+</article>
+<article id="LDKPackage" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPackage</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKPackage</span> <span class="tok_id">LDKPackage</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKPackageEntry" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPackageEntry</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKPackageEntry</span> <span class="tok_id">LDKPackageEntry</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKPackageWriter" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPackageWriter</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKPackageWriter</span> <span class="tok_id">LDKPackageWriter</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKPackageCompression" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKPackageCompression</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKPackageCompression</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_PACKAGE_COMPRESSION_NONE</span><span class="tok_pun">=</span><span class="tok_num">0</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKPackageCompression</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_package_path_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_path_is_valid</span></h2>
+  <p class="brief">Validate a logical path within a BOX package.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_path_is_valid</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_file_hash" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_file_hash</span></h2>
+  <p class="brief">Compute the FNV-1a hash of a package file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_file_hash</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_hash</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_hash</span></code></dt>
+<dd>Receives the computed hash.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_open" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_open</span></h2>
+  <p class="brief">Open a BOX package and read its manifest.
+ 
+The reader keeps the package file open until ldk_package_close() is called.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_package_open</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_package_close" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_close</span></h2>
+  <p class="brief">Close an open package and release its reader resources.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_package_close</span>(<span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_package_entry_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_count</span></h2>
+  <p class="brief">Count the package entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_package_entry_count</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_at</span></h2>
+  <p class="brief">Get the package entry by index.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_package_entry_at</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">index</span></code></dt>
+<dd>Zero-based index of the selected item.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_find</span></h2>
+  <p class="brief">Find the package entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_package_entry_find</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_get_path" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_get_path</span></h2>
+  <p class="brief">Get the logical path of a package entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_package_entry_get_path</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_get_size" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_get_size</span></h2>
+  <p class="brief">Get the uncompressed byte size of an entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_package_entry_get_size</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Size of the result, in bytes where applicable.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_get_stored_size" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_get_stored_size</span></h2>
+  <p class="brief">Get the stored byte size of an entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_package_entry_get_stored_size</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Size of the result, in bytes where applicable.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_get_compression" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_get_compression</span></h2>
+  <p class="brief">Get the compression mode of a package entry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageCompression">LDKPackageCompression</a></span> <span class="tok_id">ldk_package_entry_get_compression</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_read_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_read_at</span></h2>
+  <p class="brief">Read a byte range from an uncompressed package entry.
+ 
+Reaching the end of an entry is not an error. The out_read parameter reports the number of bytes copied.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_entry_read_at</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">offset</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">size</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">offset</span></code></dt>
+<dd>Byte offset into the resource or entry.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">size</span></code></dt>
+<dd>Size of the data or region, in bytes where applicable.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span></code></dt>
+<dd>Receives the number of bytes actually read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_read" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_read</span></h2>
+  <p class="brief">Copy an entire uncompressed package entry into caller-provided memory.
+ 
+The destination must have at least ldk_package_entry_get_size(entry) bytes available.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_entry_read</span>(
+ <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">out_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">out_size</span></code></dt>
+<dd>Receives or specifies the byte size of the output buffer, as defined by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_entry_extract" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_entry_extract</span></h2>
+  <p class="brief">Extract one package entry to a filesystem path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_entry_extract</span>(
+ <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">destination_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span></code></dt>
+<dd>Package entry being inspected or read.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">destination_path</span></code></dt>
+<dd>Filesystem path for the extracted file.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_extract_all" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_extract_all</span></h2>
+  <p class="brief">Extract every package entry below the requested destination directory.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_extract_all</span>(
+ <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">destination_directory</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">destination_directory</span></code></dt>
+<dd>Filesystem directory where entries are extracted.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_writer_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_writer_create</span></h2>
+  <p class="brief">Create the package writer.
+ 
+An unfinished output file is removed if the writer is destroyed before finalization.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_package_writer_create</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_package_writer_add_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_writer_add_file</span></h2>
+  <p class="brief">Add an existing filesystem file to a package being written.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_writer_add_file</span>(
+ <span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source_path</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">package_path</span>,
+ <span class="tok_kw"><a href="ldk_package.html#LDKPackageCompression">LDKPackageCompression</a></span> <span class="tok_id">compression</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span></code></dt>
+<dd>Package writer being updated.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source_path</span></code></dt>
+<dd>Filesystem path of the source file.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">package_path</span></code></dt>
+<dd>Logical path of the file inside the package.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackageCompression">LDKPackageCompression</a></span> <span class="tok_id">compression</span></code></dt>
+<dd>Compression mode stored for this package entry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_writer_finalize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_writer_finalize</span></h2>
+  <p class="brief">Finish writing the package and its manifest.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_package_writer_finalize</span>(<span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span></code></dt>
+<dd>Package writer being updated.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_package_writer_destroy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_package_writer_destroy</span></h2>
+  <p class="brief">Destroy the package writer.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_package_writer_destroy</span>(<span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_package.html#LDKPackageWriter">LDKPackageWriter</a></span> <span class="tok_pun">*</span><span class="tok_id">writer</span></code></dt>
+<dd>Package writer being updated.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

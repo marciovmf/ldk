@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_texture_atlas.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_texture_atlas.h">ldk_texture_atlas.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_texture_atlas_clear">ldk_texture_atlas_clear</a></li>
+<li><a href="#ldk_texture_atlas_copy">ldk_texture_atlas_copy</a></li>
+<li><a href="#ldk_texture_atlas_from_tml">ldk_texture_atlas_from_tml</a></li>
+<li><a href="#ldk_texture_atlas_grid_append">ldk_texture_atlas_grid_append</a></li>
+<li><a href="#ldk_texture_atlas_init">ldk_texture_atlas_init</a></li>
+<li><a href="#ldk_texture_atlas_load">ldk_texture_atlas_load</a></li>
+<li><a href="#ldk_texture_atlas_region_add">ldk_texture_atlas_region_add</a></li>
+<li><a href="#ldk_texture_atlas_region_find">ldk_texture_atlas_region_find</a></li>
+<li><a href="#ldk_texture_atlas_region_find_const">ldk_texture_atlas_region_find_const</a></li>
+<li><a href="#ldk_texture_atlas_region_remove">ldk_texture_atlas_region_remove</a></li>
+<li><a href="#ldk_texture_atlas_region_rename">ldk_texture_atlas_region_rename</a></li>
+<li><a href="#ldk_texture_atlas_region_uv">ldk_texture_atlas_region_uv</a></li>
+<li><a href="#ldk_texture_atlas_save">ldk_texture_atlas_save</a></li>
+<li><a href="#ldk_texture_atlas_texture_set">ldk_texture_atlas_texture_set</a></li>
+<li><a href="#ldk_texture_atlas_to_tml">ldk_texture_atlas_to_tml</a></li>
+<li><a href="#ldk_texture_atlas_validate">ldk_texture_atlas_validate</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY">LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKTextureAtlas">LDKTextureAtlas</a></li>
+<li><a href="#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_texture_atlas.h">
+      <header class="page-header">
+        <h1>ldk_texture_atlas.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="texture-atlases">Texture atlases</h1>
+<p>Manage sprite regions and other metadata stored in a texture atlas.</p>
+</div>
+      </header>
+
+      <article id="LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY</span> <span class="tok_num">96u</span></code></pre>
+  
+  
+</article>
+<article id="LDKTextureAtlasRegion" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKTextureAtlasRegion</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKTextureAtlasRegion</span><span class="tok_pun">{</span>
+  <span class="tok_id">u64</span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_id">name</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_texture_atlas.html#LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY">LDK_TEXTURE_ATLAS_REGION_NAME_CAPACITY</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">x</span><span class="tok_pun">,</span> <span class="tok_id">y</span><span class="tok_pun">,</span> <span class="tok_id">width</span><span class="tok_pun">,</span> <span class="tok_id">height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">pivot_x</span><span class="tok_pun">,</span> <span class="tok_id">pivot_y</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKTextureAtlasRegion</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKTextureAtlas" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKTextureAtlas</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKTextureAtlas</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_id">texture_path</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></span> <span class="tok_pun">*</span><span class="tok_id">regions</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">region_count</span><span class="tok_pun">,</span> <span class="tok_id">region_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">next_region_id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKTextureAtlas</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_texture_atlas_init" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_init</span></h2>
+  <p class="brief">Initialize an empty texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_texture_atlas_init</span>(<span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_texture_atlas_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_clear</span></h2>
+  <p class="brief">Clear the state of the texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_texture_atlas_clear</span>(<span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_texture_atlas_copy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_copy</span></h2>
+  <p class="brief">Copy the texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_copy</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">dst</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">src</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">dst</span></code></dt>
+<dd>Destination object receiving copied data.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">src</span></code></dt>
+<dd>Source object whose data will be copied.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_validate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_validate</span></h2>
+  <p class="brief">Validate the texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_validate</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_texture_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_texture_set</span></h2>
+  <p class="brief">Set the texture atlas texture.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_texture_set</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_find</span></h2>
+  <p class="brief">Find the texture atlas region.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_texture_atlas_region_find</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_find_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_find_const</span></h2>
+  <p class="brief">Find a region by stable ID without exposing mutable access.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_texture_atlas_region_find_const</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_add" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_add</span></h2>
+  <p class="brief">Add the texture atlas region.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_region_add</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">x</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">y</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">height</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_id</span></code></dt>
+<dd>Receives the resulting ID.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_remove</span></h2>
+  <p class="brief">Remove the texture atlas region.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_region_remove</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_rename" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_rename</span></h2>
+  <p class="brief">Rename a region without changing its stable identifier.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_region_rename</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_grid_append" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_grid_append</span></h2>
+  <p class="brief">Add a grid of regions to the atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_grid_append</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">image_width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">image_height</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">cell_width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">cell_height</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">spacing_x</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">spacing_y</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">margin_x</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">margin_y</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">image_width</span></code></dt>
+<dd>Image width used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">image_height</span></code></dt>
+<dd>Image height used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">cell_width</span></code></dt>
+<dd>Cell width used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">cell_height</span></code></dt>
+<dd>Cell height used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">spacing_x</span></code></dt>
+<dd>Spacing x used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">spacing_y</span></code></dt>
+<dd>Spacing y used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">margin_x</span></code></dt>
+<dd>Margin x used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">margin_y</span></code></dt>
+<dd>Margin y used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_region_uv" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_region_uv</span></h2>
+  <p class="brief">Compute normalized UV coordinates for an atlas region.
+ 
+Atlas regions are specified in pixel coordinates; this operation converts them to normalized texture coordinates.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_region_uv</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></span> <span class="tok_pun">*</span><span class="tok_id">region</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">image_width</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">image_height</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">out_uv</span><span class="tok_pun">[</span><span class="tok_num">4</span><span class="tok_pun">]</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlasRegion">LDKTextureAtlasRegion</a></span> <span class="tok_pun">*</span><span class="tok_id">region</span></code></dt>
+<dd>Region used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">image_width</span></code></dt>
+<dd>Image width used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">image_height</span></code></dt>
+<dd>Image height used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">out_uv</span><span class="tok_pun">[</span><span class="tok_num">4</span><span class="tok_pun">]</span></code></dt>
+<dd>Receives the resulting UV.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_to_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_to_tml</span></h2>
+  <p class="brief">Serialize the atlas and its regions to TML.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_to_tml</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_text</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_text</span></code></dt>
+<dd>Destination buffer for the resulting text.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_from_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_from_tml</span></h2>
+  <p class="brief">Read an atlas and its regions from TML.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_from_tml</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>Text used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_load</span></h2>
+  <p class="brief">Load the texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_load</span>(
+ <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">filename</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">filename</span></code></dt>
+<dd>Filename used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_texture_atlas_save" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_texture_atlas_save</span></h2>
+  <p class="brief">Save the texture atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_texture_atlas_save</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">filename</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_texture_atlas.html#LDKTextureAtlas">LDKTextureAtlas</a></span> <span class="tok_pun">*</span><span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">filename</span></code></dt>
+<dd>Filename used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

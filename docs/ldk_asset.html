@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_asset.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_asset.h">ldk_asset.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_ASSET_PATH_MAX_LENGTH">LDK_ASSET_PATH_MAX_LENGTH</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAssetAudio">LDKAssetAudio</a></li>
+<li><a href="#LDKAssetFont">LDKAssetFont</a></li>
+<li><a href="#LDKAssetHandle">LDKAssetHandle</a></li>
+<li><a href="#LDKAssetImage">LDKAssetImage</a></li>
+<li><a href="#LDKAssetKeyframeAnimation">LDKAssetKeyframeAnimation</a></li>
+<li><a href="#LDKAssetMaterial">LDKAssetMaterial</a></li>
+<li><a href="#LDKAssetMesh">LDKAssetMesh</a></li>
+<li><a href="#LDKAssetPath">LDKAssetPath</a></li>
+<li><a href="#LDKAssetSkybox">LDKAssetSkybox</a></li>
+<li><a href="#LDKAssetTextFile">LDKAssetTextFile</a></li>
+<li><a href="#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKAssetType">LDKAssetType</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKHandle">LDKHandle</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_asset.h">
+      <header class="page-header">
+        <h1>ldk_asset.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="asset-identifiers">Asset identifiers</h1>
+<p>Common typed asset handles and identifiers used by the LDK asset manager.</p>
+</div>
+      </header>
+
+      <article id="LDKHandle" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKHandle</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">XHandle</span> <span class="tok_id">LDKHandle</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_ASSET_PATH_MAX_LENGTH" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_ASSET_PATH_MAX_LENGTH</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_ASSET_PATH_MAX_LENGTH</span> <span class="tok_kw"><a href="ldk_package.html#LDK_PACKAGE_PATH_MAX_LENGTH">LDK_PACKAGE_PATH_MAX_LENGTH</a></span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetPath" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetPath</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetPath</span><span class="tok_pun">{</span>
+  <span class="tok_kw">char</span> <span class="tok_id">buf</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_asset.html#LDK_ASSET_PATH_MAX_LENGTH">LDK_ASSET_PATH_MAX_LENGTH</a></span><span class="tok_pun">+</span><span class="tok_num">1u</span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_kw">size_t</span> <span class="tok_id">length</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetPath</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetType" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetType</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKAssetType</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_ASSET_TYPE_NULL</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_TEXT_FILE</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_FONT</span><span class="tok_pun">=</span><span class="tok_num">2</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_IMAGE</span><span class="tok_pun">=</span><span class="tok_num">3</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_MESH</span><span class="tok_pun">=</span><span class="tok_num">4</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_MATERIAL</span><span class="tok_pun">=</span><span class="tok_num">5</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_SKYBOX</span><span class="tok_pun">=</span><span class="tok_num">6</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_AUDIO</span><span class="tok_pun">=</span><span class="tok_num">7</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_KEYFRAME_ANIMATION</span><span class="tok_pun">=</span><span class="tok_num">8</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_TYPE_TEXTURE_ATLAS</span><span class="tok_pun">=</span><span class="tok_num">9</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetType</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetHandle" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetHandle</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetHandle</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetHandle</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetTextFile" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetTextFile</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetTextFile</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetTextFile</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetImage" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetImage</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetImage</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetImage</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetFont" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetFont</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetFont</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetFont</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetMaterial" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetMaterial</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetMaterial</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetMaterial</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetMesh" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetMesh</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetMesh</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetMesh</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetSkybox" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetSkybox</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetSkybox</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetSkybox</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetKeyframeAnimation" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetKeyframeAnimation</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetKeyframeAnimation</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetKeyframeAnimation</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetTextureAtlas" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetTextureAtlas</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetTextureAtlas</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetTextureAtlas</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetAudio" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetAudio</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetAudio</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKHandle">LDKHandle</a></span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetAudio</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

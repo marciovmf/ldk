@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_asset_source.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_asset_source.h">ldk_asset_source.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_asset_path_set">ldk_asset_path_set</a></li>
+<li><a href="#ldk_asset_source_file_read">ldk_asset_source_file_read</a></li>
+<li><a href="#ldk_asset_source_file_read_async">ldk_asset_source_file_read_async</a></li>
+<li><a href="#ldk_asset_source_file_read_at">ldk_asset_source_file_read_at</a></li>
+<li><a href="#ldk_asset_source_file_read_at_async">ldk_asset_source_file_read_at_async</a></li>
+<li><a href="#ldk_asset_source_file_size">ldk_asset_source_file_size</a></li>
+<li><a href="#ldk_asset_source_file_write">ldk_asset_source_file_write</a></li>
+<li><a href="#ldk_asset_source_find">ldk_asset_source_find</a></li>
+<li><a href="#ldk_asset_source_initialize">ldk_asset_source_initialize</a></li>
+<li><a href="#ldk_asset_source_package_close">ldk_asset_source_package_close</a></li>
+<li><a href="#ldk_asset_source_package_open">ldk_asset_source_package_open</a></li>
+<li><a href="#ldk_asset_source_package_path_get">ldk_asset_source_package_path_get</a></li>
+<li><a href="#ldk_asset_source_runtree_set">ldk_asset_source_runtree_set</a></li>
+<li><a href="#ldk_asset_source_terminate">ldk_asset_source_terminate</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAssetSource">LDKAssetSource</a></li>
+<li><a href="#LDKAssetSourceFile">LDKAssetSourceFile</a></li>
+<li><a href="#LDKAssetSourcePackage">LDKAssetSourcePackage</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKAssetSourceOrigin">LDKAssetSourceOrigin</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKAsyncRead">LDKAsyncRead</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_asset_source.h">
+      <header class="page-header">
+        <h1>ldk_asset_source.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="asset-sources">Asset sources</h1>
+<p>Runtime asset byte source</p>
+<p>Resolves logical asset paths against open .box packages first and the
+configured runtree directory second. It is not a general virtual filesystem;
+it only resolves packageable asset content.</p>
+</div>
+      </header>
+
+      <article id="LDKAssetSourcePackage" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetSourcePackage</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetSourcePackage</span> <span class="tok_id">LDKAssetSourcePackage</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAsyncRead" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKAsyncRead</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">LDKAsyncRead</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetSourceOrigin" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetSourceOrigin</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKAssetSourceOrigin</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_ASSET_SOURCE_ORIGIN_NONE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_SOURCE_ORIGIN_PACKAGE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASSET_SOURCE_ORIGIN_FILESYSTEM</span><span class="tok_pun">,</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetSourceOrigin</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetSourceFile" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetSourceFile</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetSourceFile</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceOrigin">LDKAssetSourceOrigin</a></span> <span class="tok_id">origin</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">size</span><span class="tok_pun">;</span>
+  <span class="tok_kw">union</span><span class="tok_pun">{</span><span class="tok_kw">struct</span><span class="tok_pun">{</span><span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span><span class="tok_pun">;</span><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackageEntry">LDKPackageEntry</a></span> <span class="tok_pun">*</span><span class="tok_id">entry</span><span class="tok_pun">;</span><span class="tok_pun">}</span><span class="tok_id">package</span><span class="tok_pun">;</span><span class="tok_id">XFSPath</span> <span class="tok_id">filesystem_path</span><span class="tok_pun">;</span><span class="tok_pun">}</span><span class="tok_id">location</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetSourceFile</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAssetSource" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetSource</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetSource</span><span class="tok_pun">{</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">runtree_path</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourcePackage">LDKAssetSourcePackage</a></span> <span class="tok_pun">*</span><span class="tok_id">packages</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">revision</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAssetSource</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_asset_path_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_path_set</span></h2>
+  <p class="brief">Set the asset path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_path_set</span>(
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_pun">*</span><span class="tok_id">out_path</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_pun">*</span><span class="tok_id">out_path</span></code></dt>
+<dd>Receives the resulting path.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_initialize</span></h2>
+  <p class="brief">Initialize the asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_initialize</span>(
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span></code></dt>
+<dd>Path of the runtree.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_terminate</span></h2>
+  <p class="brief">Shut down the asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_asset_source_terminate</span>(<span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_asset_source_runtree_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_runtree_set</span></h2>
+  <p class="brief">Set the asset source runtree.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_runtree_set</span>(
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span></code></dt>
+<dd>Path of the runtree.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_package_open" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_package_open</span></h2>
+  <p class="brief">Attach a BOX package as an asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourcePackage">LDKAssetSourcePackage</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_source_package_open</span>(
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_package_close" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_package_close</span></h2>
+  <p class="brief">Close a package currently used as an asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_package_close</span>(
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourcePackage">LDKAssetSourcePackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourcePackage">LDKAssetSourcePackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_package_path_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_package_path_get</span></h2>
+  <p class="brief">Get the asset source package path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">XFSPath</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_asset_source_package_path_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_package.html#LDKPackage">LDKPackage</a></span> <span class="tok_pun">*</span><span class="tok_id">package</span></code></dt>
+<dd>Opened package used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_find</span></h2>
+  <p class="brief">Find an asset by logical path in the source configuration.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_find</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">out_file</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">out_file</span></code></dt>
+<dd>Receives the resulting file.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_size" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_size</span></h2>
+  <p class="brief">Get the byte size of an asset-source file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_asset_source_file_size</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Size of the result, in bytes where applicable.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_read_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_read_at</span></h2>
+  <p class="brief">Read bytes from an asset source file at the given offset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_file_read_at</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">offset</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">size</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">offset</span></code></dt>
+<dd>Byte offset into the resource or entry.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">size</span></code></dt>
+<dd>Size of the data or region, in bytes where applicable.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span></code></dt>
+<dd>Receives the number of bytes actually read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_read_at_async" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_read_at_async</span></h2>
+  <p class="brief">Begin asynchronous reading from an asset file at an offset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAsyncRead">LDKAsyncRead</a></span> <span class="tok_id">ldk_asset_source_file_read_at_async</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">offset</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">size</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">offset</span></code></dt>
+<dd>Byte offset into the resource or entry.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">size</span></code></dt>
+<dd>Size of the data or region, in bytes where applicable.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_read</span></code></dt>
+<dd>Receives the number of bytes actually read.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_read_async" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_read_async</span></h2>
+  <p class="brief">Begin asynchronous reading of an asset file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAsyncRead">LDKAsyncRead</a></span> <span class="tok_id">ldk_asset_source_file_read_async</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">out_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">out_size</span></code></dt>
+<dd>Receives or specifies the byte size of the output buffer, as defined by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_read" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_read</span></h2>
+  <p class="brief">Read the asset source file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_file_read</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">out_size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSourceFile">LDKAssetSourceFile</a></span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">out_data</span></code></dt>
+<dd>Destination buffer for the resulting data.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">out_size</span></code></dt>
+<dd>Receives or specifies the byte size of the output buffer, as defined by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_asset_source_file_write" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_asset_source_file_write</span></h2>
+  <p class="brief">Write the asset source file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_asset_source_file_write</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">size</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset_source.html#LDKAssetSource">LDKAssetSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">size</span></code></dt>
+<dd>Size of the data or region, in bytes where applicable.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

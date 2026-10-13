@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_property.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_property.h">ldk_property.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_property_component_meta">ldk_property_component_meta</a></li>
+<li><a href="#ldk_property_field_find">ldk_property_field_find</a></li>
+<li><a href="#ldk_property_field_supported">ldk_property_field_supported</a></li>
+<li><a href="#ldk_property_get">ldk_property_get</a></li>
+<li><a href="#ldk_property_interpolate">ldk_property_interpolate</a></li>
+<li><a href="#ldk_property_set">ldk_property_set</a></li>
+<li><a href="#ldk_property_writer_register">ldk_property_writer_register</a></li>
+<li><a href="#ldk_property_writers_clear">ldk_property_writers_clear</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKPropertyValue">LDKPropertyValue</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKPropertyWriterFn">LDKPropertyWriterFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_property.h">
+      <header class="page-header">
+        <h1>ldk_property.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="reflected-properties">Reflected properties</h1>
+<p>Shared runtime/editor access to reflected component properties.</p>
+</div>
+      </header>
+
+      <article id="LDKPropertyValue" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPropertyValue</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKPropertyValue</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDKFieldType</span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec4</span> <span class="tok_id">vector</span><span class="tok_pun">;</span>
+  <span class="tok_id">i64</span> <span class="tok_id">integer</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">string</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKPropertyValue</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_property_field_supported" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_field_supported</span></h2>
+  <p class="brief">Check whether a reflected field is writable and has an animation value codec.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_property_field_supported</span>(<span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span></code></dt>
+<dd>Metadata describing the property.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True for supported non-readonly fields; hidden fields are absent from metadata.</p>
+</section>
+
+</article>
+<article id="ldk_property_component_meta" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_component_meta</span></h2>
+  <p class="brief">Find component metadata using the runtime ECS component type.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_property_component_meta</span>(<span class="tok_id">u32</span> <span class="tok_id">component_type</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Metadata pointer, or NULL if no compatible registration exists.</p>
+</section>
+
+</article>
+<article id="ldk_property_field_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_field_find</span></h2>
+  <p class="brief">Find a reflected field in runtime component metadata.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_property_field_find</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span></code></dt>
+<dd>Persistent reflected property name.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Field metadata pointer, or NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_property_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_get</span></h2>
+  <p class="brief">Read a supported component field into a type-tagged value.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_property_get</span>(
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Target ECS entity.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span></code></dt>
+<dd>Persistent reflected property name.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Receives the type-tagged property value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the entity has the component and the reflected value is valid.</p>
+</section>
+
+</article>
+<article id="LDKPropertyWriterFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKPropertyWriterFn</span></h2>
+  <p class="brief">Specialized setter for a reflected field requiring side effects.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKPropertyWriterFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span><span class="tok_pun">,</span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">value</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>entity</code></dt>
+<dd>Entity containing the property.</dd>
+<dt><code>value</code></dt>
+<dd>Validated value to apply.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque registration context.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on successful application, false on failure.</p>
+</section>
+
+</article>
+<article id="ldk_property_writer_register" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_writer_register</span></h2>
+  <p class="brief">Register or replace a specialized setter for a reflected field.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_property_writer_register</span>(
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyWriterFn">LDKPropertyWriterFn</a></span> <span class="tok_id">callback</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span></code></dt>
+<dd>Persistent reflected property name.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyWriterFn">LDKPropertyWriterFn</a></span> <span class="tok_id">callback</span></code></dt>
+<dd>Function responsible for writing the value.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque callback context.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success. Writer must apply the value and return its status.</p>
+</section>
+
+</article>
+<article id="ldk_property_writers_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_writers_clear</span></h2>
+  <p class="brief">Clear registered property writer callbacks before unloading their code.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_property_writers_clear</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Nothing. Must be called before unloading game-module callbacks.</p>
+</section>
+
+</article>
+<article id="ldk_property_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_set</span></h2>
+  <p class="brief">Validate and assign a component field using a registered writer or native setter.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_property_set</span>(
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Target ECS entity.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span></code></dt>
+<dd>Persistent reflected property name.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">value</span></code></dt>
+<dd>Type-tagged property value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the field accepted the value. Unchanged values do not invoke setters.</p>
+</section>
+
+</article>
+<article id="ldk_property_interpolate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_property_interpolate</span></h2>
+  <p class="brief">Interpolate or step between two supported typed property values.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_property_interpolate</span>(
+ <span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">alpha</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span></code></dt>
+<dd>Metadata describing the property.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span></code></dt>
+<dd>First property value.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span></code></dt>
+<dd>Second property value.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">alpha</span></code></dt>
+<dd>Interpolation factor in [0,1].</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Receives the interpolated type-tagged value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when both values match the reflected field and are valid.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

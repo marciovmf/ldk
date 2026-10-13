@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_mesh_source.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_mesh_source.h">ldk_mesh_source.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_mesh_source_additional_material_binding">ldk_mesh_source_additional_material_binding</a></li>
+<li><a href="#ldk_mesh_source_additional_material_binding_const">ldk_mesh_source_additional_material_binding_const</a></li>
+<li><a href="#ldk_mesh_source_component_desc">ldk_mesh_source_component_desc</a></li>
+<li><a href="#ldk_mesh_source_material_count">ldk_mesh_source_material_count</a></li>
+<li><a href="#ldk_mesh_source_material_sync">ldk_mesh_source_material_sync</a></li>
+<li><a href="#ldk_mesh_source_materials_sync">ldk_mesh_source_materials_sync</a></li>
+<li><a href="#ldk_mesh_source_set_data">ldk_mesh_source_set_data</a></li>
+<li><a href="#ldk_mesh_source_set_material">ldk_mesh_source_set_material</a></li>
+<li><a href="#ldk_mesh_source_set_material_asset">ldk_mesh_source_set_material_asset</a></li>
+<li><a href="#ldk_mesh_source_set_material_asset_at">ldk_mesh_source_set_material_asset_at</a></li>
+<li><a href="#ldk_mesh_source_set_material_at">ldk_mesh_source_set_material_at</a></li>
+<li><a href="#ldk_mesh_source_set_mesh_index">ldk_mesh_source_set_mesh_index</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKMeshSource">LDKMeshSource</a></li>
+<li><a href="#LDKMeshSourceMaterialBinding">LDKMeshSourceMaterialBinding</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_mesh_source.h">
+      <header class="page-header">
+        <h1>ldk_mesh_source.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="mesh-source-component">Mesh source component</h1>
+<p>Mesh source component data.</p>
+</div>
+      </header>
+
+      <article id="LDKMeshSourceMaterialBinding" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshSourceMaterialBinding</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshSourceMaterialBinding</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_id">material</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">material_asset</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">material_revision</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceMaterial">LDKResourceMaterial</a></span> <span class="tok_id">renderer_material</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_normal_map</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_specular_map</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">material_dirty</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshSourceMaterialBinding</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshSource" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshSource</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshSource</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">source_asset</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">mesh_index</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">casts_shadows</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">billboard</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_id">material</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">material_asset</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">material_revision</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceMesh">LDKResourceMesh</a></span> <span class="tok_id">renderer_mesh</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceMaterial">LDKResourceMaterial</a></span> <span class="tok_id">renderer_material</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_normal_map</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_resource.html#LDKResourceTexture">LDKResourceTexture</a></span> <span class="tok_id">renderer_specular_map</span><span class="tok_pun">;</span>
+  <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_renderer.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">dirty</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">material_dirty</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSourceMaterialBinding">LDKMeshSourceMaterialBinding</a></span> <span class="tok_pun">*</span><span class="tok_id">additional_materials</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshSource</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_mesh_source_set_data" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_data</span></h2>
+  <p class="brief">Set mesh source data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_data</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_set_mesh_index" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_mesh_index</span></h2>
+  <p class="brief">Set mesh source mesh index.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_mesh_index</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">mesh_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">mesh_index</span></code></dt>
+<dd>Zero-based index of the mesh entry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_materials_sync" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_materials_sync</span></h2>
+  <p class="brief">Synchronize the mesh source materials.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_materials_sync</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_material_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_material_count</span></h2>
+  <p class="brief">Get the number of material slots in a mesh source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_mesh_source_material_count</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_additional_material_binding" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_additional_material_binding</span></h2>
+  <p class="brief">Get a mutable material binding for an additional mesh slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSourceMaterialBinding">LDKMeshSourceMaterialBinding</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_mesh_source_additional_material_binding</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">material_slot</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">material_slot</span></code></dt>
+<dd>Material slot used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_additional_material_binding_const" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_additional_material_binding_const</span></h2>
+  <p class="brief">Get a read-only material binding for an additional mesh slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSourceMaterialBinding">LDKMeshSourceMaterialBinding</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_mesh_source_additional_material_binding_const</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">material_slot</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">material_slot</span></code></dt>
+<dd>Material slot used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_set_material" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_material</span></h2>
+  <p class="brief">Set mesh source material.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_material</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">material</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">material</span></code></dt>
+<dd>Material used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_set_material_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_material_at</span></h2>
+  <p class="brief">Assign a material descriptor to the specified mesh material slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_material_at</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">material_slot</span>,
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">material</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">material_slot</span></code></dt>
+<dd>Material slot used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">material</span></code></dt>
+<dd>Material used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_set_material_asset" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_material_asset</span></h2>
+  <p class="brief">Set mesh source material asset.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_material_asset</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_set_material_asset_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_set_material_asset_at</span></h2>
+  <p class="brief">Assign a material asset to the specified mesh material slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_set_material_asset_at</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">material_slot</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">asset</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">material_slot</span></code></dt>
+<dd>Material slot used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetMaterial">LDKAssetMaterial</a></span> <span class="tok_id">asset</span></code></dt>
+<dd>Asset handle to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_material_sync" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_material_sync</span></h2>
+  <p class="brief">Synchronize the mesh source material.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_source_material_sync</span>(
+ <span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh_source.html#LDKMeshSource">LDKMeshSource</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh_source</span></code></dt>
+<dd>Mesh source used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">assets</span></code></dt>
+<dd>Asset manager used to resolve referenced assets.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_source_component_desc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_source_component_desc</span></h2>
+  <p class="brief">Build the ECS registration descriptor for the mesh source component.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_id">ldk_mesh_source_component_desc</span>(<span class="tok_id">u32</span> <span class="tok_id">initial_capacity</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u32</span> <span class="tok_id">initial_capacity</span></code></dt>
+<dd>Initial number of entries reserved in the registry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>A descriptor for the requested component or resource.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

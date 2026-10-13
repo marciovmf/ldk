@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_grass_system.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_grass_system.h">ldk_grass_system.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_grass_add">ldk_grass_add</a></li>
+<li><a href="#ldk_grass_clear">ldk_grass_clear</a></li>
+<li><a href="#ldk_grass_get_id_by_name">ldk_grass_get_id_by_name</a></li>
+<li><a href="#ldk_grass_interact">ldk_grass_interact</a></li>
+<li><a href="#ldk_grass_patch_desc_defaults">ldk_grass_patch_desc_defaults</a></li>
+<li><a href="#ldk_grass_patch_is_valid">ldk_grass_patch_is_valid</a></li>
+<li><a href="#ldk_grass_patch_null">ldk_grass_patch_null</a></li>
+<li><a href="#ldk_grass_remove">ldk_grass_remove</a></li>
+<li><a href="#ldk_grass_system_initialize">ldk_grass_system_initialize</a></li>
+<li><a href="#ldk_grass_system_terminate">ldk_grass_system_terminate</a></li>
+<li><a href="#ldk_grass_system_update">ldk_grass_system_update</a></li>
+<li><a href="#ldk_grass_type_desc_defaults">ldk_grass_type_desc_defaults</a></li>
+<li><a href="#ldk_grass_type_get">ldk_grass_type_get</a></li>
+<li><a href="#ldk_grass_type_is_valid">ldk_grass_type_is_valid</a></li>
+<li><a href="#ldk_grass_type_register">ldk_grass_type_register</a></li>
+<li><a href="#ldk_grass_update">ldk_grass_update</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_GRASS_MAX_SIDE_COUNT">LDK_GRASS_MAX_SIDE_COUNT</a></li>
+<li><a href="#LDK_GRASS_MIN_SIDE_COUNT">LDK_GRASS_MIN_SIDE_COUNT</a></li>
+<li><a href="#LDK_GRASS_PROFILE_POINT_COUNT">LDK_GRASS_PROFILE_POINT_COUNT</a></li>
+<li><a href="#LDK_GRASS_TYPE_COUNT">LDK_GRASS_TYPE_COUNT</a></li>
+<li><a href="#LDK_GRASS_TYPE_ID_INVALID">LDK_GRASS_TYPE_ID_INVALID</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKGrassBladeShape">LDKGrassBladeShape</a></li>
+<li><a href="#LDKGrassPatch">LDKGrassPatch</a></li>
+<li><a href="#LDKGrassPatchDesc">LDKGrassPatchDesc</a></li>
+<li><a href="#LDKGrassPlane">LDKGrassPlane</a></li>
+<li><a href="#LDKGrassProfilePoint">LDKGrassProfilePoint</a></li>
+<li><a href="#LDKGrassSystem">LDKGrassSystem</a></li>
+<li><a href="#LDKGrassTypeDesc">LDKGrassTypeDesc</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKGrassBladePreset">LDKGrassBladePreset</a></li>
+<li><a href="#LDKGrassBladeTopology">LDKGrassBladeTopology</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKGrassTypeId">LDKGrassTypeId</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_grass_system.h">
+      <header class="page-header">
+        <h1>ldk_grass_system.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="grass-system">Grass system</h1>
+<p>Persistent procedural grass patches.</p>
+</div>
+      </header>
+
+      <article id="LDK_GRASS_PROFILE_POINT_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GRASS_PROFILE_POINT_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GRASS_PROFILE_POINT_COUNT</span> <span class="tok_num">4u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GRASS_MIN_SIDE_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GRASS_MIN_SIDE_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GRASS_MIN_SIDE_COUNT</span> <span class="tok_num">3u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GRASS_MAX_SIDE_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GRASS_MAX_SIDE_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GRASS_MAX_SIDE_COUNT</span> <span class="tok_num">8u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GRASS_TYPE_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GRASS_TYPE_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GRASS_TYPE_COUNT</span> <span class="tok_num">16u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GRASS_TYPE_ID_INVALID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GRASS_TYPE_ID_INVALID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GRASS_TYPE_ID_INVALID</span> <span class="tok_id">UINT32_MAX</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassTypeId" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassTypeId</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u32</span> <span class="tok_id">LDKGrassTypeId</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassBladeTopology" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassBladeTopology</span></h2>
+  <p class="brief">Deprecated source-compatible name for the original thorny prototype.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKGrassBladeTopology</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_RIBBON</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_CROSSED_RIBBONS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_RADIAL</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM</span><span class="tok_pun">,</span>
+  <span class="tok_doc">/** Deprecated source-compatible name for the original thorny prototype. */</span><span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_THORNY_RIBBON</span><span class="tok_pun">=</span><span class="tok_id">LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassBladeTopology</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassBladePreset" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassBladePreset</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKGrassBladePreset</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_GRASS_BLADE_PRESET_THIN</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_PRESET_CROSSED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_PRESET_TUFT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_PRESET_FLAT_TOP</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_GRASS_BLADE_PRESET_THORNY</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassBladePreset</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassProfilePoint" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassProfilePoint</span></h2>
+  <p class="brief">One sample of the normalized blade profile. Height is in [0, 1]. Width is
+the full ribbon width, or the radial diameter, at that height.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassProfilePoint</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">width</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassProfilePoint</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassBladeShape" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassBladeShape</span></h2>
+  <p class="brief">Used by the radial and thorny stem topologies.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassBladeShape</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassProfilePoint">LDKGrassProfilePoint</a></span> <span class="tok_id">profile</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_grass_system.html#LDK_GRASS_PROFILE_POINT_COUNT">LDK_GRASS_PROFILE_POINT_COUNT</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladeTopology">LDKGrassBladeTopology</a></span> <span class="tok_id">topology</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Used by the radial and thorny stem topologies. */</span><span class="tok_id">u32</span> <span class="tok_id">side_count</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassBladeShape</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassPlane" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassPlane</span></h2>
+  <p class="brief">Flat target geometry. The complete parallelogram, including its edges, is a
+valid generation area. origin + axis_u + axis_v is the opposite corner.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassPlane</span><span class="tok_pun">{</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">origin</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">axis_u</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">axis_v</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassPlane</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassTypeDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassTypeDesc</span></h2>
+  <p class="brief">Seconds until interaction deformation fully returns to rest. Zero uses the default.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassTypeDesc</span><span class="tok_pun">{</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">curvature</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Per-type maximum wind displacement before the system wind force. */</span><span class="tok_kw">float</span> <span class="tok_id">wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Seconds until interaction deformation fully returns to rest. Zero uses the default. */</span><span class="tok_kw">float</span> <span class="tok_id">interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">top_color</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassTypeDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassPatchDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassPatchDesc</span></h2>
+  <p class="brief">Per-region state. Visual configuration comes from LDKGrassSystem.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassPatchDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPlane">LDKGrassPlane</a></span> <span class="tok_id">plane</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">density_scale</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">seed</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassPatchDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKGrassPatch" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassPatch</span></h2>
+  <p class="brief">Opaque identity of one patch. Individual blades are intentionally hidden.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassPatch</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">version</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassPatch</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_grass_system_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_system_initialize</span></h2>
+  <p class="brief">Initialize the grass system.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">int</span> <span class="tok_id">ldk_grass_system_initialize</span>(<span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>System initialization status code.</p>
+</section>
+
+</article>
+<article id="ldk_grass_system_update" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_system_update</span></h2>
+  <p class="brief">Update the grass system.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">void</span> <span class="tok_id">ldk_grass_system_update</span>(
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span><span class="tok_id">group</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">dt</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_system.html#LDKEntityGroup">LDKEntityGroup</a></span> <span class="tok_pun">*</span><span class="tok_id">group</span></code></dt>
+<dd>Entity group used for this system update.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">dt</span></code></dt>
+<dd>Elapsed time since the preceding update, in seconds.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_grass_system_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_system_terminate</span></h2>
+  <p class="brief">Shut down the grass system.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">void</span> <span class="tok_id">ldk_grass_system_terminate</span>(<span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">data</span></code></dt>
+<dd>Source data or system-owned context for this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKGrassSystem" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKGrassSystem</span></h2>
+  <p class="brief">Animation cycles per second.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKGrassSystem</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">min_tilt_degrees</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">max_tilt_degrees</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Shared lean azimuth: 0 degrees is +X, 90 degrees is +Z. */</span><span class="tok_kw">float</span> <span class="tok_id">tilt_direction_degrees</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Wind azimuth: 0 degrees is +X, 90 degrees is +Z. */</span><span class="tok_kw">float</span> <span class="tok_id">wind_direction_degrees</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">wind_force</span><span class="tok_pun">;</span>
+  <span class="tok_doc">/** Animation cycles per second. */</span><span class="tok_kw">float</span> <span class="tok_id">wind_speed</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">specular</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">shininess</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">emission</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">casts_shadows</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_0_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_0_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_0_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_0_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_0_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_1_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_1_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_1_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_1_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_1_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_2_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_2_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_2_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_2_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_2_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_3_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_3_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_3_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_3_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_3_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_4_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_4_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_4_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_4_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_4_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_5_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_5_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_5_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_5_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_5_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_6_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_6_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_6_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_6_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_6_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_7_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_7_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_7_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_7_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_7_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_8_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_8_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_8_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_8_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_8_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_9_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_9_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_9_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_9_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_9_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_10_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_10_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_10_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_10_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_10_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_11_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_11_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_11_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_11_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_11_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_12_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_12_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_12_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_12_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_12_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_13_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_13_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_13_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_13_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_13_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_14_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_14_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_14_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_14_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_14_top_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">type_15_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassBladePreset">LDKGrassBladePreset</a></span> <span class="tok_id">type_15_blade_preset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_density</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_min_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_max_height</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_blade_width</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_curvature</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_wind_strength</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">type_15_interaction_recovery_time</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_15_bottom_color</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type_15_top_color</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKGrassSystem</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_grass_type_desc_defaults" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_type_desc_defaults</span></h2>
+  <p class="brief">Initialize a useful default grass type description.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_grass_type_desc_defaults</span>(<span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span></code></dt>
+<dd>Receives the descriptor.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_grass_get_id_by_name" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_get_id_by_name</span></h2>
+  <p class="brief">Return the active configuration index for name, or INVALID when absent.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">ldk_grass_get_id_by_name</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_grass_type_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_type_is_valid</span></h2>
+  <p class="brief">True when type_id names a configured slot in the active GrassSystem.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_type_is_valid</span>(<span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span></code></dt>
+<dd>Identifier of the type.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_grass_type_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_type_get</span></h2>
+  <p class="brief">Copy one configured type from the active GrassSystem.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_type_get</span>(
+ <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span>,
+ <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span></code></dt>
+<dd>Identifier of the type.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span></code></dt>
+<dd>Receives the descriptor.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_grass_type_register" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_type_register</span></h2>
+  <p class="brief">Register an additional type in the first free runtime slot. Names must be
+unique. Returns INVALID when the system is inactive, the description is
+invalid, the name already exists, or all 16 slots are occupied.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">ldk_grass_type_register</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeDesc">LDKGrassTypeDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_grass_patch_desc_defaults" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_patch_desc_defaults</span></h2>
+  <p class="brief">Initialize an empty one-square-unit patch with density scale 1.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_grass_patch_desc_defaults</span>(<span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span></code></dt>
+<dd>Receives the descriptor.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_grass_patch_null" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_patch_null</span></h2>
+  <p class="brief">Return an invalid grass patch handle.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">ldk_grass_patch_null</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>An invalid or empty handle.</p>
+</section>
+
+</article>
+<article id="ldk_grass_patch_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_patch_is_valid</span></h2>
+  <p class="brief">True while patch identifies a live entry in the active GrassSystem.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_patch_is_valid</span>(<span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span></code></dt>
+<dd>Patch used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_grass_add" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_add</span></h2>
+  <p class="brief">Generate and retain one patch using a configured grass type.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">ldk_grass_add</span>(
+ <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span></code></dt>
+<dd>Identifier of the type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_grass_update" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_update</span></h2>
+  <p class="brief">Replace a patch recipe and regenerate its persistent blade transforms.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_update</span>(
+ <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span>,
+ <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span></code></dt>
+<dd>Patch used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassTypeId">LDKGrassTypeId</a></span> <span class="tok_id">type_id</span></code></dt>
+<dd>Identifier of the type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatchDesc">LDKGrassPatchDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_grass_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_remove</span></h2>
+  <p class="brief">Remove a patch and every opaque blade belonging to it.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_remove</span>(<span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_grass_system.html#LDKGrassPatch">LDKGrassPatch</a></span> <span class="tok_id">patch</span></code></dt>
+<dd>Patch used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_grass_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_clear</span></h2>
+  <p class="brief">Remove every live patch. Renderer-side style resources remain cached.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_grass_clear</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_grass_interact" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_grass_interact</span></h2>
+  <p class="brief">Queue one world-space grass interaction capsule for the active GrassSystem.
+Passing the same point for from and to produces a circular interaction.
+The queued interaction is consumed by the GrassSystem render update.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_grass_interact</span>(
+ <span class="tok_id">Vec3</span> <span class="tok_id">from</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">to</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">radius</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">strength</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">Vec3</span> <span class="tok_id">from</span></code></dt>
+<dd>World-space start of the interaction segment.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">to</span></code></dt>
+<dd>World-space end of the interaction segment.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">radius</span></code></dt>
+<dd>Interaction or geometry radius.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">strength</span></code></dt>
+<dd>Strength of the interaction.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

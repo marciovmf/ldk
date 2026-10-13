@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_material.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_material.h">ldk_material.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_material_desc_defaults">ldk_material_desc_defaults</a></li>
+<li><a href="#ldk_material_desc_equal">ldk_material_desc_equal</a></li>
+<li><a href="#ldk_material_desc_hash">ldk_material_desc_hash</a></li>
+<li><a href="#ldk_material_desc_is_valid">ldk_material_desc_is_valid</a></li>
+<li><a href="#ldk_material_texture_atlas_set">ldk_material_texture_atlas_set</a></li>
+<li><a href="#ldk_material_texture_settings_get">ldk_material_texture_settings_get</a></li>
+<li><a href="#ldk_material_texture_slot_get">ldk_material_texture_slot_get</a></li>
+<li><a href="#ldk_material_texture_slot_set">ldk_material_texture_slot_set</a></li>
+<li><a href="#ldk_material_type_is_valid">ldk_material_type_is_valid</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT">LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT</a></li>
+<li><a href="#LDK_MATERIAL_TEXTURE_SLOT_COUNT">LDK_MATERIAL_TEXTURE_SLOT_COUNT</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKMaterialDesc">LDKMaterialDesc</a></li>
+<li><a href="#LDKMaterialSurfaceArgs">LDKMaterialSurfaceArgs</a></li>
+<li><a href="#LDKMaterialTextureSettings">LDKMaterialTextureSettings</a></li>
+<li><a href="#LDKMaterialTexturedArgs">LDKMaterialTexturedArgs</a></li>
+<li><a href="#LDKMaterialVertexColorArgs">LDKMaterialVertexColorArgs</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKMaterialAlphaMode">LDKMaterialAlphaMode</a></li>
+<li><a href="#LDKMaterialTextureFilter">LDKMaterialTextureFilter</a></li>
+<li><a href="#LDKMaterialTextureMipFilter">LDKMaterialTextureMipFilter</a></li>
+<li><a href="#LDKMaterialTextureSlot">LDKMaterialTextureSlot</a></li>
+<li><a href="#LDKMaterialTextureWrap">LDKMaterialTextureWrap</a></li>
+<li><a href="#LDKMaterialType">LDKMaterialType</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_material.h">
+      <header class="page-header">
+        <h1>ldk_material.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="materials">Materials</h1>
+<p>Material descriptors, shader configuration, texture slots, and rendering properties.</p>
+</div>
+      </header>
+
+      <article id="LDKMaterialType" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialType</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialType</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_TYPE_INVALID</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TYPE_TEXTURED_UNLIT</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TYPE_TEXTURED</span><span class="tok_pun">=</span><span class="tok_num">2</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT</span><span class="tok_pun">=</span><span class="tok_num">3</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TYPE_VERTEX_COLOR</span><span class="tok_pun">=</span><span class="tok_num">4</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialType</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialAlphaMode" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialAlphaMode</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialAlphaMode</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_ALPHA_MODE_OPAQUE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_ALPHA_MODE_CUTOUT</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_ALPHA_MODE_BLEND</span><span class="tok_pun">=</span><span class="tok_num">2</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialAlphaMode</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTextureFilter" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTextureFilter</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialTextureFilter</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_FILTER_NEAREST</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_FILTER_LINEAR</span><span class="tok_pun">=</span><span class="tok_num">1</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTextureFilter</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTextureWrap" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTextureWrap</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialTextureWrap</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_WRAP_REPEAT</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_WRAP_CLAMP</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_WRAP_MIRROR</span><span class="tok_pun">=</span><span class="tok_num">2</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTextureWrap</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTextureMipFilter" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTextureMipFilter</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialTextureMipFilter</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_MIP_FILTER_NEAREST</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_MIP_FILTER_LINEAR</span><span class="tok_pun">=</span><span class="tok_num">2</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTextureMipFilter</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MATERIAL_TEXTURE_SLOT_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MATERIAL_TEXTURE_SLOT_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_COUNT</span> <span class="tok_num">8u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT</span> <span class="tok_num">5u</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTextureSlot" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTextureSlot</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMaterialTextureSlot</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_ALBEDO</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_NORMAL</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_SPECULAR</span><span class="tok_pun">=</span><span class="tok_num">2</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_3</span><span class="tok_pun">=</span><span class="tok_num">3</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_4</span><span class="tok_pun">=</span><span class="tok_num">4</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_5</span><span class="tok_pun">=</span><span class="tok_num">5</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_6</span><span class="tok_pun">=</span><span class="tok_num">6</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MATERIAL_TEXTURE_SLOT_7</span><span class="tok_pun">=</span><span class="tok_num">7</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTextureSlot</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTextureSettings" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTextureSettings</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMaterialTextureSettings</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureFilter">LDKMaterialTextureFilter</a></span> <span class="tok_id">filter</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureMipFilter">LDKMaterialTextureMipFilter</a></span> <span class="tok_id">mip_filter</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureWrap">LDKMaterialTextureWrap</a></span> <span class="tok_id">wrap_u</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureWrap">LDKMaterialTextureWrap</a></span> <span class="tok_id">wrap_v</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv_scale</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv_offset</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">independent</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTextureSettings</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialTexturedArgs" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialTexturedArgs</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMaterialTexturedArgs</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">texture</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureFilter">LDKMaterialTextureFilter</a></span> <span class="tok_id">filter</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureMipFilter">LDKMaterialTextureMipFilter</a></span> <span class="tok_id">mip_filter</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureWrap">LDKMaterialTextureWrap</a></span> <span class="tok_id">wrap_u</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureWrap">LDKMaterialTextureWrap</a></span> <span class="tok_id">wrap_v</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv_scale</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv_offset</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialTexturedArgs</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialVertexColorArgs" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialVertexColorArgs</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMaterialVertexColorArgs</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialVertexColorArgs</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialArgs" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Unknown</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialArgs</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">union</span> <span class="tok_id">LDKMaterialArgs</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTexturedArgs">LDKMaterialTexturedArgs</a></span> <span class="tok_id">textured</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialVertexColorArgs">LDKMaterialVertexColorArgs</a></span> <span class="tok_id">vertex_color</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialArgs</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialSurfaceArgs" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialSurfaceArgs</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMaterialSurfaceArgs</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">specular</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">shininess</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">emission</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">normal_map</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">specular_map</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialSurfaceArgs</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMaterialDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMaterialDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMaterialDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialType">LDKMaterialType</a></span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialArgs">LDKMaterialArgs</a></span> <span class="tok_id">args</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialSurfaceArgs">LDKMaterialSurfaceArgs</a></span> <span class="tok_id">surface</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">additional_textures</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_material.html#LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT">LDK_MATERIAL_ADDITIONAL_TEXTURE_COUNT</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">texture_slot_mask</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureSettings">LDKMaterialTextureSettings</a></span> <span class="tok_id">texture_settings</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_material.html#LDK_MATERIAL_TEXTURE_SLOT_COUNT">LDK_MATERIAL_TEXTURE_SLOT_COUNT</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">texture_atlases</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_material.html#LDK_MATERIAL_TEXTURE_SLOT_COUNT">LDK_MATERIAL_TEXTURE_SLOT_COUNT</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">u64</span> <span class="tok_id">texture_regions</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_material.html#LDK_MATERIAL_TEXTURE_SLOT_COUNT">LDK_MATERIAL_TEXTURE_SLOT_COUNT</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_material.html#LDKMaterialAlphaMode">LDKMaterialAlphaMode</a></span> <span class="tok_id">alpha_mode</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">alpha_cutoff</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMaterialDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_material_type_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_type_is_valid</span></h2>
+  <p class="brief">Check whether a value identifies a supported material type.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_type_is_valid</span>(<span class="tok_kw"><a href="ldk_material.html#LDKMaterialType">LDKMaterialType</a></span> <span class="tok_id">type</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialType">LDKMaterialType</a></span> <span class="tok_id">type</span></code></dt>
+<dd>Material type to inspect.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true for a supported material type, false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_material_desc_defaults" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_desc_defaults</span></h2>
+  <p class="brief">Initialize a material descriptor with deterministic defaults.
+ 
+Every supported material type defaults to opaque white, opaque alpha mode,
+and a 0.5 cutout threshold. Textured materials also default to a null image
+asset, nearest filtering, no mip filtering, clamp-to-edge wrapping, and
+identity UV transform. Additional texture slots default to null. Lit
+materials default to no specular contribution, shininess 32, no emission,
+and no normal/specular maps. On failure, out_desc is
+reset to an invalid zero descriptor.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_desc_defaults</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialType">LDKMaterialType</a></span> <span class="tok_id">type</span>,
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialType">LDKMaterialType</a></span> <span class="tok_id">type</span></code></dt>
+<dd>Material type whose defaults should be produced.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span></code></dt>
+<dd>Destination descriptor.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true on success, false for an invalid type or null destination.</p>
+</section>
+
+</article>
+<article id="ldk_material_desc_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_desc_is_valid</span></h2>
+  <p class="brief">Check whether a descriptor has a supported material type.
+ 
+This validates the descriptor structure only. Asset availability is
+validated later by the asset/material resolver. Textured cutout thresholds
+must be finite and within [0, 1]. Active lit surface values must be finite
+and non-negative. A zero shininess is canonicalized to the default value
+(32) so zero-initialized descriptors remain valid.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_desc_is_valid</span>(<span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Descriptor to inspect.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true when the descriptor is structurally valid.</p>
+</section>
+
+</article>
+<article id="ldk_material_texture_slot_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_texture_slot_get</span></h2>
+  <p class="brief">Return the image assigned to a material texture slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">ldk_material_texture_slot_get</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">slot</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">slot</span></code></dt>
+<dd>Resource or binding slot identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+<article id="ldk_material_texture_slot_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_texture_slot_set</span></h2>
+  <p class="brief">Assign an image to a material texture slot.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_texture_slot_set</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">slot</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">image</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">slot</span></code></dt>
+<dd>Resource or binding slot identifier.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetImage">LDKAssetImage</a></span> <span class="tok_id">image</span></code></dt>
+<dd>Image used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_material_texture_atlas_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_texture_atlas_set</span></h2>
+  <p class="brief">Assign an atlas region to a material slot; region 0 means full atlas.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_texture_atlas_set</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">slot</span>,
+ <span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">atlas</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">region</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">slot</span></code></dt>
+<dd>Resource or binding slot identifier.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_asset.html#LDKAssetTextureAtlas">LDKAssetTextureAtlas</a></span> <span class="tok_id">atlas</span></code></dt>
+<dd>Texture atlas being inspected or modified.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">region</span></code></dt>
+<dd>Region used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_material_texture_settings_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_texture_settings_get</span></h2>
+  <p class="brief">Return independent settings, or the legacy material defaults.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_material.html#LDKMaterialTextureSettings">LDKMaterialTextureSettings</a></span> <span class="tok_id">ldk_material_texture_settings_get</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">slot</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">slot</span></code></dt>
+<dd>Resource or binding slot identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_material_desc_equal" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_desc_equal</span></h2>
+  <p class="brief">Compare the active values of two material descriptors exactly.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_material_desc_equal</span>(
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">a</span>,
+ <span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">b</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">a</span></code></dt>
+<dd>First descriptor.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">b</span></code></dt>
+<dd>Second descriptor.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true when both descriptors represent the same authored material.</p>
+</section>
+
+</article>
+<article id="ldk_material_desc_hash" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_material_desc_hash</span></h2>
+  <p class="brief">Hash the active values of a material descriptor.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_material_desc_hash</span>(<span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_material.html#LDKMaterialDesc">LDKMaterialDesc</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Descriptor to hash.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Deterministic hash, or zero for a null or invalid descriptor.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

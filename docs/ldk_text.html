@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_text.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_text.h">ldk_text.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_text_layout_begin">ldk_text_layout_begin</a></li>
+<li><a href="#ldk_text_layout_begin_range">ldk_text_layout_begin_range</a></li>
+<li><a href="#ldk_text_layout_next">ldk_text_layout_next</a></li>
+<li><a href="#ldk_text_wrapped_next_line">ldk_text_wrapped_next_line</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKTextGlyphQuad">LDKTextGlyphQuad</a></li>
+<li><a href="#LDKTextLayoutIterator">LDKTextLayoutIterator</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_text.h">
+      <header class="page-header">
+        <h1>ldk_text.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="text-rendering">Text rendering</h1>
+<p>Text-related descriptors and helpers for engine rendering.</p>
+</div>
+      </header>
+
+      <article id="LDKTextGlyphQuad" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKTextGlyphQuad</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKTextGlyphQuad</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_ttf.html#LDKGlyph">LDKGlyph</a></span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">glyph</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">codepoint</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">page_index</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">x0</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">y0</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">x1</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">y1</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">u0</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">v0</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">u1</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">v1</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKTextGlyphQuad</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKTextLayoutIterator" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKTextLayoutIterator</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKTextLayoutIterator</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">cursor</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">end</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">origin_x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">pen_x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">pen_y</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">line_height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">previous_codepoint</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">multiline</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKTextLayoutIterator</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_text_layout_begin" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_text_layout_begin</span></h2>
+  <p class="brief">Initializes a glyph-layout iterator for a null-terminated UTF-8 string.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_text_layout_begin</span>(
+ <span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span>,
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>,
+ <span class="tok_kw">bool</span> <span class="tok_id">multiline</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span></code></dt>
+<dd>Iterator to initialize.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span></code></dt>
+<dd>Font instance used for glyph metrics and atlas placement.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>Null-terminated UTF-8 text.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>Horizontal text origin in layout units.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Top text origin in layout units.</dd>
+<dt><code><span class="tok_kw">bool</span> <span class="tok_id">multiline</span></code></dt>
+<dd>Whether newline characters advance to a new line.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true on success, false for invalid arguments.</p>
+</section>
+
+</article>
+<article id="ldk_text_layout_begin_range" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_text_layout_begin_range</span></h2>
+  <p class="brief">Initializes a glyph-layout iterator for a half-open UTF-8 byte range.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_text_layout_begin_range</span>(
+ <span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span>,
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_start</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_end</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>,
+ <span class="tok_kw">bool</span> <span class="tok_id">multiline</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span></code></dt>
+<dd>Iterator to initialize.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span></code></dt>
+<dd>Font instance used for glyph metrics and atlas placement.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_start</span></code></dt>
+<dd>First byte included in the range.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_end</span></code></dt>
+<dd>First byte excluded from the range.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>Horizontal text origin in layout units.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Top text origin in layout units.</dd>
+<dt><code><span class="tok_kw">bool</span> <span class="tok_id">multiline</span></code></dt>
+<dd>Whether newline characters advance to a new line.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true on success, false for invalid arguments.</p>
+</section>
+
+</article>
+<article id="ldk_text_layout_next" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_text_layout_next</span></h2>
+  <p class="brief">Produces the next drawable glyph quad from a text layout iterator.
+ 
+Invalid glyphs and glyphs whose atlas page cannot be resolved are skipped.
+Returned positions use the same layout coordinate system supplied to begin.
+UVs are normalized atlas coordinates and page_index identifies the atlas page.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_text_layout_next</span>(
+ <span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span>,
+ <span class="tok_kw"><a href="ldk_text.html#LDKTextGlyphQuad">LDKTextGlyphQuad</a></span> <span class="tok_pun">*</span><span class="tok_id">out_quad</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_text.html#LDKTextLayoutIterator">LDKTextLayoutIterator</a></span> <span class="tok_pun">*</span><span class="tok_id">iterator</span></code></dt>
+<dd>Active layout iterator.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_text.html#LDKTextGlyphQuad">LDKTextGlyphQuad</a></span> <span class="tok_pun">*</span><span class="tok_id">out_quad</span></code></dt>
+<dd>Destination glyph quad.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true when a glyph quad was produced, false when iteration is complete.</p>
+</section>
+
+</article>
+<article id="ldk_text_wrapped_next_line" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_text_wrapped_next_line</span></h2>
+  <p class="brief">Finds the next wrapped line within a UTF-8 byte range.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_text_wrapped_next_line</span>(
+ <span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">start</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_end</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">max_width</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_line_start</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_line_end</span>,
+ <span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_next</span>,
+ <span class="tok_kw">float</span> <span class="tok_pun">*</span><span class="tok_id">out_width</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_ttf.html#LDKFontInstance">LDKFontInstance</a></span> <span class="tok_pun">*</span><span class="tok_id">font</span></code></dt>
+<dd>Font used to measure glyph advances and kerning.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">start</span></code></dt>
+<dd>Byte from which layout begins.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_id">text_end</span></code></dt>
+<dd>Exclusive end of the UTF-8 byte range.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">max_width</span></code></dt>
+<dd>Maximum line width. Non-positive values disable wrapping.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_line_start</span></code></dt>
+<dd>Receives the first byte included in the line.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_line_end</span></code></dt>
+<dd>Receives the byte immediately after visible line text.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_kw">const</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_next</span></code></dt>
+<dd>Receives the byte from which the following line starts.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_pun">*</span><span class="tok_id">out_width</span></code></dt>
+<dd>Optional measured width of the produced line.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>true when a line was produced, false for invalid or empty input.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

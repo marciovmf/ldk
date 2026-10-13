@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_profiler.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_profiler.h">ldk_profiler.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_profiler_capture_collect">ldk_profiler_capture_collect</a></li>
+<li><a href="#ldk_profiler_capture_is_active">ldk_profiler_capture_is_active</a></li>
+<li><a href="#ldk_profiler_capture_path_get">ldk_profiler_capture_path_get</a></li>
+<li><a href="#ldk_profiler_capture_start">ldk_profiler_capture_start</a></li>
+<li><a href="#ldk_profiler_capture_stop">ldk_profiler_capture_stop</a></li>
+<li><a href="#ldk_profiler_capture_toggle">ldk_profiler_capture_toggle</a></li>
+<li><a href="#ldk_profiler_counter_add_source">ldk_profiler_counter_add_source</a></li>
+<li><a href="#ldk_profiler_counter_set_source">ldk_profiler_counter_set_source</a></li>
+<li><a href="#ldk_profiler_frame_begin">ldk_profiler_frame_begin</a></li>
+<li><a href="#ldk_profiler_frame_end">ldk_profiler_frame_end</a></li>
+<li><a href="#ldk_profiler_initialize">ldk_profiler_initialize</a></li>
+<li><a href="#ldk_profiler_terminate">ldk_profiler_terminate</a></li>
+<li><a href="#ldk_profiler_thread_name_set">ldk_profiler_thread_name_set</a></li>
+<li><a href="#ldk_profiler_zone_begin_source">ldk_profiler_zone_begin_source</a></li>
+<li><a href="#ldk_profiler_zone_end">ldk_profiler_zone_end</a></li>
+<li><a href="#ldk_profiler_zone_end_kind">ldk_profiler_zone_end_kind</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_PROFILE_BEGIN">LDK_PROFILE_BEGIN</a></li>
+<li><a href="#LDK_PROFILE_BEGIN_IMPL">LDK_PROFILE_BEGIN_IMPL</a></li>
+<li><a href="#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></li>
+<li><a href="#LDK_PROFILE_CONCAT_INNER">LDK_PROFILE_CONCAT_INNER</a></li>
+<li><a href="#LDK_PROFILE_COUNTER_ADD">LDK_PROFILE_COUNTER_ADD</a></li>
+<li><a href="#LDK_PROFILE_COUNTER_ADD_IMPL">LDK_PROFILE_COUNTER_ADD_IMPL</a></li>
+<li><a href="#LDK_PROFILE_COUNTER_SET">LDK_PROFILE_COUNTER_SET</a></li>
+<li><a href="#LDK_PROFILE_COUNTER_SET_IMPL">LDK_PROFILE_COUNTER_SET_IMPL</a></li>
+<li><a href="#LDK_PROFILE_END">LDK_PROFILE_END</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKProfilerCounter">LDKProfilerCounter</a></li>
+<li><a href="#LDKProfilerSource">LDKProfilerSource</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKProfilerZoneKind">LDKProfilerZoneKind</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_profiler.h">
+      <header class="page-header">
+        <h1>ldk_profiler.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="runtime-profiling">Runtime profiling</h1>
+<p>Lightweight engine profiling instrumentation.</p>
+<p>The engine owns the collector in shared and monolithic builds.</p>
+</div>
+      </header>
+
+      <article id="LDKProfilerZoneKind" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKProfilerZoneKind</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKProfilerZoneKind</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_PROFILER_ZONE_USER</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_PROFILER_ZONE_FRAME</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_PROFILER_ZONE_PHASE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_PROFILER_ZONE_BUCKET</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_PROFILER_ZONE_SYSTEM</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProfilerZoneKind</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKProfilerSource" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKProfilerSource</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKProfilerSource</span><span class="tok_pun">{</span>
+  <span class="tok_kw">volatile</span> <span class="tok_id">i32</span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProfilerSource</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKProfilerCounter" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKProfilerCounter</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKProfilerCounter</span><span class="tok_pun">{</span>
+  <span class="tok_kw">volatile</span> <span class="tok_id">i32</span> <span class="tok_id">id</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProfilerCounter</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_initialize</span></h2>
+  <p class="brief">Initialize the profiler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_profiler_initialize</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">runtree_path</span></code></dt>
+<dd>Path of the runtree.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_profiler_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_terminate</span></h2>
+  <p class="brief">Shut down the profiler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_terminate</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_capture_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_start</span></h2>
+  <p class="brief">Start the profiler capture.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_profiler_capture_start</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_profiler_capture_stop" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_stop</span></h2>
+  <p class="brief">Stop the profiler capture.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_capture_stop</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_capture_collect" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_collect</span></h2>
+  <p class="brief">Collect the current profiler sample data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_capture_collect</span>(<span class="tok_kw">bool</span> <span class="tok_id">enabled</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">bool</span> <span class="tok_id">enabled</span></code></dt>
+<dd>Enabled used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_profiler_capture_toggle" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_toggle</span></h2>
+  <p class="brief">Toggle profiler capture state.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_capture_toggle</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_capture_is_active" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_is_active</span></h2>
+  <p class="brief">Check whether the profiler capture is active.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_profiler_capture_is_active</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_profiler_capture_path_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_capture_path_get</span></h2>
+  <p class="brief">Get the profiler capture path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_profiler_capture_path_get</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_profiler_frame_begin" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_frame_begin</span></h2>
+  <p class="brief">Begin the profiler frame.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_frame_begin</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_frame_end" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_frame_end</span></h2>
+  <p class="brief">Finish the profiler frame.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_frame_end</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_zone_begin_source" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_zone_begin_source</span></h2>
+  <p class="brief">Begin a profiling zone tagged with a source location.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_zone_begin_source</span>(
+ <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerSource">LDKProfilerSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerZoneKind">LDKProfilerZoneKind</a></span> <span class="tok_id">kind</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">file</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">function</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">line</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerSource">LDKProfilerSource</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerZoneKind">LDKProfilerZoneKind</a></span> <span class="tok_id">kind</span></code></dt>
+<dd>Kind used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">file</span></code></dt>
+<dd>File used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">function</span></code></dt>
+<dd>Function to run as a scheduled job.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">line</span></code></dt>
+<dd>Line used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_profiler_zone_end" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_zone_end</span></h2>
+  <p class="brief">Finish the profiler zone.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_zone_end</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_profiler_zone_end_kind" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_zone_end_kind</span></h2>
+  <p class="brief">Close an active profiling zone of the specified kind.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_zone_end_kind</span>(<span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerZoneKind">LDKProfilerZoneKind</a></span> <span class="tok_id">kind</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerZoneKind">LDKProfilerZoneKind</a></span> <span class="tok_id">kind</span></code></dt>
+<dd>Kind used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_profiler_counter_set_source" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_counter_set_source</span></h2>
+  <p class="brief">Assign a profiler counter value at a source location.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_counter_set_source</span>(
+ <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_pun">*</span><span class="tok_id">counter</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>,
+ <span class="tok_kw">double</span> <span class="tok_id">value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_pun">*</span><span class="tok_id">counter</span></code></dt>
+<dd>Counter used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+<dt><code><span class="tok_kw">double</span> <span class="tok_id">value</span></code></dt>
+<dd>Input value or current widget value.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_profiler_counter_add_source" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_counter_add_source</span></h2>
+  <p class="brief">Increment a profiler counter at a source location.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_counter_add_source</span>(
+ <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_pun">*</span><span class="tok_id">counter</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>,
+ <span class="tok_kw">double</span> <span class="tok_id">value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_pun">*</span><span class="tok_id">counter</span></code></dt>
+<dd>Counter used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+<dt><code><span class="tok_kw">double</span> <span class="tok_id">value</span></code></dt>
+<dd>Input value or current widget value.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_profiler_thread_name_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_profiler_thread_name_set</span></h2>
+  <p class="brief">Set the profiler thread name.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_profiler_thread_name_set</span>(<span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDK_PROFILE_CONCAT_INNER" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_CONCAT_INNER</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_CONCAT_INNER</span><span class="tok_pun">(</span><span class="tok_id">a</span><span class="tok_pun">,</span> <span class="tok_id">b</span><span class="tok_pun">)</span> <span class="tok_id">a</span><span class="tok_pun">#</span><span class="tok_pun">#</span><span class="tok_id">b</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_CONCAT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_CONCAT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_CONCAT</span><span class="tok_pun">(</span><span class="tok_id">a</span><span class="tok_pun">,</span> <span class="tok_id">b</span><span class="tok_pun">)</span> <span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT_INNER">LDK_PROFILE_CONCAT_INNER</a></span><span class="tok_pun">(</span><span class="tok_id">a</span><span class="tok_pun">,</span> <span class="tok_id">b</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_BEGIN" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_BEGIN</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_BEGIN</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_BEGIN_IMPL">LDK_PROFILE_BEGIN_IMPL</a></span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_kw">__LINE__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_BEGIN_IMPL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_BEGIN_IMPL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_BEGIN_IMPL</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw">do</span><span class="tok_pun">\</span>
+<span class="tok_pun">{</span><span class="tok_pun">\</span>
+<span class="tok_kw">static</span> <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerSource">LDKProfilerSource</a></span> <span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_id">ldk_profiler_source_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">=</span><span class="tok_pun">{</span><span class="tok_num">0</span><span class="tok_pun">}</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#ldk_profiler_zone_begin_source">ldk_profiler_zone_begin_source</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_pun">&amp;</span><span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_id">ldk_profiler_source_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">\</span>
+<span class="tok_id">LDK_PROFILER_ZONE_USER</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_kw">__FILE__</span><span class="tok_pun">,</span> <span class="tok_id">__func__</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">u32</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">)</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_pun">}</span><span class="tok_kw">while</span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_END" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_END</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_END</span><span class="tok_pun">(</span><span class="tok_pun">)</span> <span class="tok_kw"><a href="ldk_profiler.html#ldk_profiler_zone_end">ldk_profiler_zone_end</a></span><span class="tok_pun">(</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_COUNTER_SET" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_COUNTER_SET</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_COUNTER_SET</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_COUNTER_SET_IMPL">LDK_PROFILE_COUNTER_SET_IMPL</a></span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">,</span> <span class="tok_kw">__LINE__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_COUNTER_SET_IMPL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_COUNTER_SET_IMPL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_COUNTER_SET_IMPL</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw">do</span><span class="tok_pun">\</span>
+<span class="tok_pun">{</span><span class="tok_pun">\</span>
+<span class="tok_kw">static</span> <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_id">ldk_profiler_counter_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">=</span><span class="tok_pun">{</span><span class="tok_num">0</span><span class="tok_pun">}</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#ldk_profiler_counter_set_source">ldk_profiler_counter_set_source</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_pun">&amp;</span><span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_id">ldk_profiler_counter_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_kw">double</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_id">value</span><span class="tok_pun">)</span><span class="tok_pun">)</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_pun">}</span><span class="tok_kw">while</span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_COUNTER_ADD" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_COUNTER_ADD</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_COUNTER_ADD</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_COUNTER_ADD_IMPL">LDK_PROFILE_COUNTER_ADD_IMPL</a></span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">,</span> <span class="tok_kw">__LINE__</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_PROFILE_COUNTER_ADD_IMPL" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_PROFILE_COUNTER_ADD_IMPL</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_PROFILE_COUNTER_ADD_IMPL</span><span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">,</span> <span class="tok_id">value</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_kw">do</span><span class="tok_pun">\</span>
+<span class="tok_pun">{</span><span class="tok_pun">\</span>
+<span class="tok_kw">static</span> <span class="tok_kw"><a href="ldk_profiler.html#LDKProfilerCounter">LDKProfilerCounter</a></span> <span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_id">ldk_profiler_counter_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">=</span><span class="tok_pun">{</span><span class="tok_num">0</span><span class="tok_pun">}</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_kw"><a href="ldk_profiler.html#ldk_profiler_counter_add_source">ldk_profiler_counter_add_source</a></span><span class="tok_pun">(</span><span class="tok_pun">\</span>
+<span class="tok_pun">&amp;</span><span class="tok_kw"><a href="ldk_profiler.html#LDK_PROFILE_CONCAT">LDK_PROFILE_CONCAT</a></span><span class="tok_pun">(</span><span class="tok_id">ldk_profiler_counter_</span><span class="tok_pun">,</span> <span class="tok_id">line</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">(</span><span class="tok_id">name</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_kw">double</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_id">value</span><span class="tok_pun">)</span><span class="tok_pun">)</span><span class="tok_pun">;</span><span class="tok_pun">\</span>
+<span class="tok_pun">}</span><span class="tok_kw">while</span><span class="tok_pun">(</span><span class="tok_num">0</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

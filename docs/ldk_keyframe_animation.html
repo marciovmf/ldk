@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_keyframe_animation.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_keyframe_animation.h">ldk_keyframe_animation.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_keyframe_animation_apply">ldk_keyframe_animation_apply</a></li>
+<li><a href="#ldk_keyframe_animation_clear">ldk_keyframe_animation_clear</a></li>
+<li><a href="#ldk_keyframe_animation_copy">ldk_keyframe_animation_copy</a></li>
+<li><a href="#ldk_keyframe_animation_duration_set">ldk_keyframe_animation_duration_set</a></li>
+<li><a href="#ldk_keyframe_animation_event_add_integer">ldk_keyframe_animation_event_add_integer</a></li>
+<li><a href="#ldk_keyframe_animation_event_add_string">ldk_keyframe_animation_event_add_string</a></li>
+<li><a href="#ldk_keyframe_animation_event_move">ldk_keyframe_animation_event_move</a></li>
+<li><a href="#ldk_keyframe_animation_event_remove">ldk_keyframe_animation_event_remove</a></li>
+<li><a href="#ldk_keyframe_animation_event_set_integer">ldk_keyframe_animation_event_set_integer</a></li>
+<li><a href="#ldk_keyframe_animation_event_set_string">ldk_keyframe_animation_event_set_string</a></li>
+<li><a href="#ldk_keyframe_animation_events_dispatch">ldk_keyframe_animation_events_dispatch</a></li>
+<li><a href="#ldk_keyframe_animation_from_tml">ldk_keyframe_animation_from_tml</a></li>
+<li><a href="#ldk_keyframe_animation_init">ldk_keyframe_animation_init</a></li>
+<li><a href="#ldk_keyframe_animation_key_move">ldk_keyframe_animation_key_move</a></li>
+<li><a href="#ldk_keyframe_animation_key_remove">ldk_keyframe_animation_key_remove</a></li>
+<li><a href="#ldk_keyframe_animation_key_set">ldk_keyframe_animation_key_set</a></li>
+<li><a href="#ldk_keyframe_animation_load">ldk_keyframe_animation_load</a></li>
+<li><a href="#ldk_keyframe_animation_sample">ldk_keyframe_animation_sample</a></li>
+<li><a href="#ldk_keyframe_animation_save">ldk_keyframe_animation_save</a></li>
+<li><a href="#ldk_keyframe_animation_to_tml">ldk_keyframe_animation_to_tml</a></li>
+<li><a href="#ldk_keyframe_animation_track_add">ldk_keyframe_animation_track_add</a></li>
+<li><a href="#ldk_keyframe_animation_track_find">ldk_keyframe_animation_track_find</a></li>
+<li><a href="#ldk_keyframe_animation_track_remove">ldk_keyframe_animation_track_remove</a></li>
+<li><a href="#ldk_keyframe_animation_validate">ldk_keyframe_animation_validate</a></li>
+<li><a href="#ldk_keyframe_animation_value_from_entity">ldk_keyframe_animation_value_from_entity</a></li>
+<li><a href="#ldk_keyframe_entity_path">ldk_keyframe_entity_path</a></li>
+<li><a href="#ldk_keyframe_path_child">ldk_keyframe_path_child</a></li>
+<li><a href="#ldk_keyframe_path_root">ldk_keyframe_path_root</a></li>
+<li><a href="#ldk_keyframe_target_resolve">ldk_keyframe_target_resolve</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_KEYFRAME_PROPERTY_NAME_CAPACITY">LDK_KEYFRAME_PROPERTY_NAME_CAPACITY</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKKeyframe">LDKKeyframe</a></li>
+<li><a href="#LDKKeyframeAnimation">LDKKeyframeAnimation</a></li>
+<li><a href="#LDKKeyframeEvent">LDKKeyframeEvent</a></li>
+<li><a href="#LDKKeyframeTrack">LDKKeyframeTrack</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKKeyframeEventValueType">LDKKeyframeEventValueType</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKKeyframeEventFn">LDKKeyframeEventFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_keyframe_animation.h">
+      <header class="page-header">
+        <h1>ldk_keyframe_animation.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="keyframe-animations">Keyframe animations</h1>
+<p>Code-authored keyframe clips, relative target bindings, and TML I/O.</p>
+</div>
+      </header>
+
+      <article id="LDK_KEYFRAME_PROPERTY_NAME_CAPACITY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_KEYFRAME_PROPERTY_NAME_CAPACITY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_KEYFRAME_PROPERTY_NAME_CAPACITY</span> <span class="tok_num">96</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframe" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframe</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKKeyframe</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">time</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_id">value</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKKeyframe</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframeTrack" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframeTrack</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKKeyframeTrack</span><span class="tok_pun">{</span>
+  <span class="tok_id">u64</span> <span class="tok_id">target_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">component_type</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_id">property_name</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDK_KEYFRAME_PROPERTY_NAME_CAPACITY">LDK_KEYFRAME_PROPERTY_NAME_CAPACITY</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">LDKFieldType</span> <span class="tok_id">value_type</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframe">LDKKeyframe</a></span> <span class="tok_pun">*</span><span class="tok_id">keys</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">capacity</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKKeyframeTrack</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframeEventValueType" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframeEventValueType</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKKeyframeEventValueType</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_KEYFRAME_EVENT_INTEGER</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_KEYFRAME_EVENT_STRING</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKKeyframeEventValueType</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframeEvent" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframeEvent</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKKeyframeEvent</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">time</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeEventValueType">LDKKeyframeEventValueType</a></span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">number</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKKeyframeEvent</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframeAnimation" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframeAnimation</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKKeyframeAnimation</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">duration</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeTrack">LDKKeyframeTrack</a></span> <span class="tok_pun">*</span><span class="tok_id">tracks</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">track_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">track_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeEvent">LDKKeyframeEvent</a></span> <span class="tok_pun">*</span><span class="tok_id">events</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">event_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">event_capacity</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKKeyframeAnimation</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKKeyframeEventFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKKeyframeEventFn</span></h2>
+  <p class="brief">Called synchronously for an animation marker.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKKeyframeEventFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span><span class="tok_pun">,</span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeEvent">LDKKeyframeEvent</a></span> <span class="tok_pun">*</span><span class="tok_id">event</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>root</code></dt>
+<dd>Entity driving the animation.</dd>
+<dt><code>event</code></dt>
+<dd>Marker payload; pointer is valid only during the callback.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque callback context.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_keyframe_path_root" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_path_root</span></h2>
+  <p class="brief">Return the reserved path hash of an animation source root.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_keyframe_path_root</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Stable root hash used for relative track bindings.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_path_child" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_path_child</span></h2>
+  <p class="brief">Extend a relative hierarchy path with a child name hash.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_keyframe_path_child</span>(
+ <span class="tok_id">u64</span> <span class="tok_id">parent_path</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">name_hash</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">u64</span> <span class="tok_id">parent_path</span></code></dt>
+<dd>Existing hash relative to the animation source.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">name_hash</span></code></dt>
+<dd>Nonzero persistent entity name hash.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Deterministic path hash, or zero for invalid inputs.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_entity_path" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_entity_path</span></h2>
+  <p class="brief">Compute the path of a descendant relative to an animation root.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_entity_path</span>(
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">target</span>,
+ <span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span></code></dt>
+<dd>Animation hierarchy root entity.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">target</span></code></dt>
+<dd>Descendant entity whose relative path is requested.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span></code></dt>
+<dd>Receives the relative hash on success.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if target belongs to the transform subtree rooted at root.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_target_resolve" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_target_resolve</span></h2>
+  <p class="brief">Resolve a relative path hash to exactly one descendant.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_target_resolve</span>(
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span></code></dt>
+<dd>Animation hierarchy root entity.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">path</span></code></dt>
+<dd>Hash relative to the animation source root.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Receives the resolved entity.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the path resolves unambiguously. Duplicate matching paths fail.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_init" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_init</span></h2>
+  <p class="brief">Initialize a clip to an empty, one-second animation.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_keyframe_animation_init</span>(<span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Nothing. Call before any other clip operation.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_clear</span></h2>
+  <p class="brief">Free a clip and reset it to the initialized state.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_keyframe_animation_clear</span>(<span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Nothing. Invalidates pointers into tracks, keys, and events.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_validate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_validate</span></h2>
+  <p class="brief">Validate a clip independently of the ECS and reflected metadata.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_validate</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the duration, tracks, keys and events are structurally valid.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_copy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_copy</span></h2>
+  <p class="brief">Deep-copy all tracks, keys, events and owned event strings.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_copy</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">destination</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">destination</span></code></dt>
+<dd>Initialized destination clip.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Initialized source clip.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; otherwise destination remains unchanged.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_duration_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_duration_set</span></h2>
+  <p class="brief">Set duration without discarding keys or events.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_duration_set</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">duration</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">duration</span></code></dt>
+<dd>Requested clip length in seconds.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>False if invalid or any key/event would lie beyond duration.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_track_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_track_find</span></h2>
+  <p class="brief">Find a track identified by relative path and reflected field.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">i32</span> <span class="tok_id">ldk_keyframe_animation_track_find</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">path</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">property_name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">path</span></code></dt>
+<dd>Hash relative to the animation source root.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">property_name</span></code></dt>
+<dd>Persistent reflected field identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Zero-based track index, or -1 if not found.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_track_add" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_track_add</span></h2>
+  <p class="brief">Create a track for an editable reflected component field.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">i32</span> <span class="tok_id">ldk_keyframe_animation_track_add</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">path</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">property_name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">path</span></code></dt>
+<dd>Hash relative to the animation source root.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Runtime ECS component type.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">property_name</span></code></dt>
+<dd>Persistent reflected field identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Track index; existing track is reused, -1 if unavailable or unsupported.
+Note: Reflected component metadata must be registered when authoring.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_track_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_track_remove</span></h2>
+  <p class="brief">Remove a track and all of its keyframes.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_track_remove</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">track</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the track existed. Later track indices shift.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_key_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_key_set</span></h2>
+  <p class="brief">Insert or update a typed keyframe at the specified second.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_key_set</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">track</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">time</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_id">value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">time</span></code></dt>
+<dd>Time in seconds.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_id">value</span></code></dt>
+<dd>Type-tagged property value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; may extend clip duration. Requires available component metadata.
+Note: Reflected component metadata must be registered when authoring.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_key_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_key_remove</span></h2>
+  <p class="brief">Remove a keyframe from a track.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_key_remove</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">track</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">key</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">key</span></code></dt>
+<dd>Zero-based keyframe index.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if removed. Subsequent key indices shift.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_key_move" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_key_move</span></h2>
+  <p class="brief">Move a keyframe in time while keeping its value and chronological order.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_key_move</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">track</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">key</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">new_time</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">key</span></code></dt>
+<dd>Zero-based keyframe index.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">new_time</span></code></dt>
+<dd>Requested new timestamp in seconds.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_index</span></code></dt>
+<dd>Optional output for the moved item index.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success. Rejects collisions and times beyond duration.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_sample" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_sample</span></h2>
+  <p class="brief">Evaluate a single track at the requested time without changing entities.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_sample</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">track</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">time</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out_value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">time</span></code></dt>
+<dd>Time in seconds.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out_value</span></code></dt>
+<dd>Receives the sampled property value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the track has keys and its values can be evaluated.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_apply" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_apply</span></h2>
+  <p class="brief">Sample and write all nonempty tracks to the subtree of a root entity.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_apply</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">time</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span></code></dt>
+<dd>Entity used as the root for relative bindings.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">time</span></code></dt>
+<dd>Time in seconds.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if all tracks applied successfully; missing bindings are reported by false.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_value_from_entity" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_value_from_entity</span></h2>
+  <p class="brief">Read the current component value addressed by a track.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_value_from_entity</span>(
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeTrack">LDKKeyframeTrack</a></span> <span class="tok_pun">*</span><span class="tok_id">track</span>,
+ <span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out_value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Target ECS entity.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeTrack">LDKKeyframeTrack</a></span> <span class="tok_pun">*</span><span class="tok_id">track</span></code></dt>
+<dd>Zero-based track index or track description.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_property.html#LDKPropertyValue">LDKPropertyValue</a></span> <span class="tok_pun">*</span><span class="tok_id">out_value</span></code></dt>
+<dd>Receives the sampled property value.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the editable reflected field exists and can be read.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_add_integer" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_add_integer</span></h2>
+  <p class="brief">Insert an integer event marker at the specified second.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_add_integer</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">time</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">number</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">time</span></code></dt>
+<dd>Time in seconds.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">number</span></code></dt>
+<dd>Integer event payload.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; extends duration if needed.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_add_string" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_add_string</span></h2>
+  <p class="brief">Insert a string event marker, copying the supplied text.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_add_string</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">time</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">time</span></code></dt>
+<dd>Time in seconds.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>NUL-terminated event string.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; extends duration if needed.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_remove</span></h2>
+  <p class="brief">Delete an event marker and its owned string.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_remove</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">event_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">event_index</span></code></dt>
+<dd>Zero-based event index.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if removed. Later event indices shift.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_move" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_move</span></h2>
+  <p class="brief">Change an event timestamp while preserving event ordering.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_move</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">event_index</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">new_time</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">event_index</span></code></dt>
+<dd>Zero-based event index.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">new_time</span></code></dt>
+<dd>Requested new timestamp in seconds.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">out_index</span></code></dt>
+<dd>Optional output for the moved item index.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; times beyond duration are rejected.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_set_integer" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_set_integer</span></h2>
+  <p class="brief">Replace an event payload with an integer.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_set_integer</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">event_index</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">number</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">event_index</span></code></dt>
+<dd>Zero-based event index.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">number</span></code></dt>
+<dd>Integer event payload.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the event existed.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_event_set_string" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_event_set_string</span></h2>
+  <p class="brief">Replace an event payload with a copied string.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_event_set_string</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">event_index</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">event_index</span></code></dt>
+<dd>Zero-based event index.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">text</span></code></dt>
+<dd>NUL-terminated event string.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; the old payload remains if allocation fails.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_events_dispatch" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_events_dispatch</span></h2>
+  <p class="brief">Synchronously deliver all events crossed in (previous_time, current_time].</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_keyframe_animation_events_dispatch</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">previous_time</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">current_time</span>,
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeEventFn">LDKKeyframeEventFn</a></span> <span class="tok_id">fn</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">root</span></code></dt>
+<dd>Root entity containing the animation source.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">previous_time</span></code></dt>
+<dd>Exclusive lower time bound in seconds.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">current_time</span></code></dt>
+<dd>Inclusive upper time bound in seconds.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeEventFn">LDKKeyframeEventFn</a></span> <span class="tok_id">fn</span></code></dt>
+<dd>Event callback.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque callback context.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Nothing. Event payloads are temporary snapshots valid during each callback.
+Note: Callbacks may mutate or destroy the source; do not keep event pointers.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_from_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_from_tml</span></h2>
+  <p class="brief">Parse a version-2 TML animation into an initialized clip.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_from_tml</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>NUL-terminated TML input.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; clip remains unchanged on failure.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_to_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_to_tml</span></h2>
+  <p class="brief">Serialize a structurally valid clip to TML version 2.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_to_tml</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_source</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">out_source</span></code></dt>
+<dd>Receives a newly allocated NUL-terminated TML buffer.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success. Caller must free *out_source.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_load</span></h2>
+  <p class="brief">Load a clip from the configured asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_load</span>(
+ <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">asset_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">asset_path</span></code></dt>
+<dd>Logical .anim asset path.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True on success; existing clip remains unchanged on failure.</p>
+</section>
+
+</article>
+<article id="ldk_keyframe_animation_save" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_keyframe_animation_save</span></h2>
+  <p class="brief">Save a clip as TML through the configured asset source.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_keyframe_animation_save</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">asset_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_keyframe_animation.html#LDKKeyframeAnimation">LDKKeyframeAnimation</a></span> <span class="tok_pun">*</span><span class="tok_id">clip</span></code></dt>
+<dd>Animation clip instance.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">asset_path</span></code></dt>
+<dd>Logical .anim asset path.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if successfully serialized and written.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

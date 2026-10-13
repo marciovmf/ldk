@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_common.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_common.h">ldk_common.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_API">LDK_API</a></li>
+<li><a href="#LDK_API">LDK_API</a></li>
+<li><a href="#LDK_ASSERT">LDK_ASSERT</a></li>
+<li><a href="#LDK_BUILD_TYPE">LDK_BUILD_TYPE</a></li>
+<li><a href="#LDK_GAME_API">LDK_GAME_API</a></li>
+<li><a href="#LDK_RGBA">LDK_RGBA</a></li>
+<li><a href="#LDK_RGBA32">LDK_RGBA32</a></li>
+<li><a href="#LDK_STATIC_ASSERT">LDK_STATIC_ASSERT</a></li>
+<li><a href="#LDK_VERSION_MAJOR">LDK_VERSION_MAJOR</a></li>
+<li><a href="#LDK_VERSION_MINOR">LDK_VERSION_MINOR</a></li>
+<li><a href="#LDK_VERSION_PATCH">LDK_VERSION_PATCH</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKWindow">LDKWindow</a></li>
+<li><a href="#rgba32">rgba32</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_common.h">
+      <header class="page-header">
+        <h1>ldk_common.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="common-engine-definitions">Common engine definitions</h1>
+<p>Common definitions and utilities</p>
+<p>Shared types, macros, and helpers used across the LDK engine.</p>
+<p>Important defines:
+LDK_ENGINE       :should be set when building the engine
+LDK_SHAREDLIB    :should be set when building LDK as a dll.</p>
+</div>
+      </header>
+
+      <article id="LDK_VERSION_MAJOR" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_VERSION_MAJOR</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_VERSION_MAJOR</span> <span class="tok_num">0</span></code></pre>
+  
+  
+</article>
+<article id="LDK_VERSION_PATCH" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_VERSION_PATCH</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_VERSION_PATCH</span> <span class="tok_num">0</span></code></pre>
+  
+  
+</article>
+<article id="LDK_VERSION_MINOR" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_VERSION_MINOR</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_VERSION_MINOR</span> <span class="tok_num">1</span></code></pre>
+  
+  
+</article>
+<article id="LDK_BUILD_TYPE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_BUILD_TYPE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_BUILD_TYPE</span> <span class="tok_str">&quot;&quot;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_API" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_API</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_API</span> <span class="tok_id">X_PLAT_EXPORT</span></code></pre>
+  
+  
+</article>
+<article id="LDK_API" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_API</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_API</span> <span class="tok_id">X_PLAT_IMPORT</span></code></pre>
+  
+  
+</article>
+<article id="LDK_GAME_API" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_GAME_API</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_GAME_API</span> <span class="tok_id">X_PLAT_EXPORT</span></code></pre>
+  
+  
+</article>
+<article id="LDK_ASSERT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_ASSERT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_ASSERT</span><span class="tok_pun">(</span><span class="tok_id">expr</span><span class="tok_pun">)</span> <span class="tok_id">X_ASSERT</span><span class="tok_pun">(</span><span class="tok_id">expr</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_STATIC_ASSERT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_STATIC_ASSERT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_STATIC_ASSERT</span><span class="tok_pun">(</span><span class="tok_id">expr</span><span class="tok_pun">,</span> <span class="tok_id">name</span><span class="tok_pun">)</span> <span class="tok_id">X_STATIC_ASSERT</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">expr</span><span class="tok_pun">)</span><span class="tok_pun">,</span> <span class="tok_id">name</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="rgba32" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">rgba32</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_id">u32</span> <span class="tok_id">rgba32</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA32" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA32</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA32</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">u32</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">&amp;</span><span class="tok_num">0x000000FFu</span><span class="tok_pun">)</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">24</span><span class="tok_pun">)</span><span class="tok_pun">|</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">&amp;</span><span class="tok_num">0x0000FF00u</span><span class="tok_pun">)</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">8</span><span class="tok_pun">)</span><span class="tok_pun">|</span><span class="tok_pun">\</span>
+<span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">&amp;</span><span class="tok_num">0x00FF0000u</span><span class="tok_pun">)</span><span class="tok_pun">&gt;&gt;</span><span class="tok_num">8</span><span class="tok_pun">)</span><span class="tok_pun">|</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">&amp;</span><span class="tok_num">0xFF000000u</span><span class="tok_pun">)</span><span class="tok_pun">&gt;&gt;</span><span class="tok_num">24</span><span class="tok_pun">)</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_RGBA" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_RGBA</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_RGBA</span><span class="tok_pun">(</span><span class="tok_id">c</span><span class="tok_pun">)</span> <span class="tok_pun">(</span><span class="tok_pun">(</span><span class="tok_id">u32</span><span class="tok_pun">)</span><span class="tok_id">c</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDKWindow" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKWindow</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">LDKWindow</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

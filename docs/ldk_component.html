@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_component.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_component.h">ldk_component.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#X_HASHTABLE_TYPE_NAMED">X_HASHTABLE_TYPE_NAMED</a></li>
+<li><a href="#ldk_component_attach">ldk_component_attach</a></li>
+<li><a href="#ldk_component_create">ldk_component_create</a></li>
+<li><a href="#ldk_component_desc_get">ldk_component_desc_get</a></li>
+<li><a href="#ldk_component_destroy">ldk_component_destroy</a></li>
+<li><a href="#ldk_component_destroy_data">ldk_component_destroy_data</a></li>
+<li><a href="#ldk_component_detach">ldk_component_detach</a></li>
+<li><a href="#ldk_component_get">ldk_component_get</a></li>
+<li><a href="#ldk_component_is_registered">ldk_component_is_registered</a></li>
+<li><a href="#ldk_component_name_get">ldk_component_name_get</a></li>
+<li><a href="#ldk_component_owners_get">ldk_component_owners_get</a></li>
+<li><a href="#ldk_component_register">ldk_component_register</a></li>
+<li><a href="#ldk_component_registry_initialize">ldk_component_registry_initialize</a></li>
+<li><a href="#ldk_component_registry_remove_all">ldk_component_registry_remove_all</a></li>
+<li><a href="#ldk_component_registry_terminate">ldk_component_registry_terminate</a></li>
+<li><a href="#ldk_component_store_get">ldk_component_store_get</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKComponentDesc">LDKComponentDesc</a></li>
+<li><a href="#LDKComponentRegistry">LDKComponentRegistry</a></li>
+<li><a href="#LDKRegisteredComponent">LDKRegisteredComponent</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKComponentFlags">LDKComponentFlags</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKComponentAttachFn">LDKComponentAttachFn</a></li>
+<li><a href="#LDKComponentDestroyFn">LDKComponentDestroyFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_component.h">
+      <header class="page-header">
+        <h1>ldk_component.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="component-registry">Component registry</h1>
+<p>Component registry and storage</p>
+<p>Manages component type registration and packed storage for entities.</p>
+</div>
+      </header>
+
+      <article id="LDKComponentAttachFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKComponentAttachFn</span></h2>
+  <p class="brief">Callback used when a component is attached to an entity.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKComponentAttachFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span><span class="tok_pun">,</span> <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">component_registry</span><span class="tok_pun">,</span> <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">component</span><span class="tok_pun">,</span> <span class="tok_id">u32</span> <span class="tok_id">component_index</span><span class="tok_pun">,</span> <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">initial_value</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>entity_registry</code></dt>
+<dd>Entity registry used by this operation.</dd>
+<dt><code>component_registry</code></dt>
+<dd>Component registry used by this operation.</dd>
+<dt><code>entity</code></dt>
+<dd>Entity to inspect or modify.</dd>
+<dt><code>component</code></dt>
+<dd>Component used by this operation.</dd>
+<dt><code>component_index</code></dt>
+<dd>Zero-based index of the component entry.</dd>
+<dt><code>initial_value</code></dt>
+<dd>Initial value used by this operation.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="LDKComponentDestroyFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKComponentDestroyFn</span></h2>
+  <p class="brief">Callback used when component instance data is destroyed.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKComponentDestroyFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span><span class="tok_pun">,</span> <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">component_registry</span><span class="tok_pun">,</span> <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">component</span><span class="tok_pun">,</span> <span class="tok_id">u32</span> <span class="tok_id">component_index</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>entity_registry</code></dt>
+<dd>Entity registry used by this operation.</dd>
+<dt><code>component_registry</code></dt>
+<dd>Component registry used by this operation.</dd>
+<dt><code>entity</code></dt>
+<dd>Entity to inspect or modify.</dd>
+<dt><code>component</code></dt>
+<dd>Component used by this operation.</dd>
+<dt><code>component_index</code></dt>
+<dd>Zero-based index of the component entry.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKComponentFlags" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKComponentFlags</span></h2>
+  <p class="brief">A descriptor that identifies a Component.
+Components are plain data structures that can be attached to entities.
+Component types needs to be registered before they are used.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKComponentFlags</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_COMPONENT_FLAG_NONE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_COMPONENT_FLAG_HIDE_IN_INSPECTOR</span><span class="tok_pun">=</span><span class="tok_num">1</span><span class="tok_pun">&lt;&lt;</span><span class="tok_num">0</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKComponentFlags</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKComponentDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKComponentDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKComponentDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">entry_size</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">initial_capacity</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">flags</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">required_components</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">required_component_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_component.html#LDKComponentAttachFn">LDKComponentAttachFn</a></span> <span class="tok_id">attach</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_component.html#LDKComponentDestroyFn">LDKComponentDestroyFn</a></span> <span class="tok_id">destroy</span><span class="tok_pun">;</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKComponentDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKRegisteredComponent" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRegisteredComponent</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKRegisteredComponent</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_id">desc</span><span class="tok_pun">;</span>
+  <span class="tok_id">XArray</span> <span class="tok_pun">*</span><span class="tok_id">store</span><span class="tok_pun">;</span>
+  <span class="tok_id">XArray</span> <span class="tok_pun">*</span><span class="tok_id">owners</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRegisteredComponent</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="X_HASHTABLE_TYPE_NAMED" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">X_HASHTABLE_TYPE_NAMED</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code> <span class="tok_id">X_HASHTABLE_TYPE_NAMED</span>(
+ <span class="tok_id">u32</span>,
+ <span class="tok_kw"><a href="ldk_component.html#LDKRegisteredComponent">LDKRegisteredComponent</a></span>,
+ <span class="tok_id">u32_registered_component</span>
+);</code></pre>
+  
+  
+</article>
+<article id="LDKComponentRegistry" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKComponentRegistry</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKComponentRegistry</span><span class="tok_pun">{</span>
+  <span class="tok_id">XHashtable_u32_registered_component</span> <span class="tok_pun">*</span><span class="tok_id">table</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKComponentRegistry</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_component_registry_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_registry_initialize</span></h2>
+  <p class="brief">Initialize the component registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_registry_initialize</span>(<span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_registry_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_registry_terminate</span></h2>
+  <p class="brief">Shut down the component registry.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_component_registry_terminate</span>(<span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_component_is_registered" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_is_registered</span></h2>
+  <p class="brief">Check whether a component type is registered.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_is_registered</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_desc_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_desc_get</span></h2>
+  <p class="brief">Get the component desc.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_desc_get</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">type</span>,
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">out_desc</span></code></dt>
+<dd>Receives the descriptor.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_store_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_store_get</span></h2>
+  <p class="brief">Get the component store.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">XArray</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_component_store_get</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_component_owners_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_owners_get</span></h2>
+  <p class="brief">Get the component owners.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">XArray</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_component_owners_get</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_component_detach" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_detach</span></h2>
+  <p class="brief">Detach a component from an entity.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_detach</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_system</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_system</span></code></dt>
+<dd>Entity system used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Entity to inspect or modify.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_registry_remove_all" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_registry_remove_all</span></h2>
+  <p class="brief">Removes (destroys) ALL components, including core engine components like Transform.
+Intended for entity destruction only.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_component_registry_remove_all</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_system</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_system</span></code></dt>
+<dd>Entity system used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Entity to inspect or modify.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_component_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_create</span></h2>
+  <p class="brief">Create the component.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_component_create</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">component_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span></code></dt>
+<dd>Module used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">component_index</span></code></dt>
+<dd>Zero-based index of the component entry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_component_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_get</span></h2>
+  <p class="brief">Get the component.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_component_get</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span></code></dt>
+<dd>Module used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_index</span></code></dt>
+<dd>Zero-based index of the component entry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_component_destroy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_destroy</span></h2>
+  <p class="brief">Destroy the component.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_destroy</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_module</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">module</span></code></dt>
+<dd>Module used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_module</span></code></dt>
+<dd>Entity module used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_index</span></code></dt>
+<dd>Zero-based index of the component entry.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_register" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_register</span></h2>
+  <p class="brief">Register the component.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_register</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_component.html#LDKComponentDesc">LDKComponentDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_attach" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_attach</span></h2>
+  <p class="brief">Attach a component to an entity.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_component_attach</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_index</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">initial_value</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span></code></dt>
+<dd>Entity registry used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Entity to inspect or modify.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_index</span></code></dt>
+<dd>Zero-based index of the component entry.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">initial_value</span></code></dt>
+<dd>Initial value used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_component_destroy_data" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_destroy_data</span></h2>
+  <p class="brief">Release data associated with a component instance.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_component_destroy_data</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span>,
+ <span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntityRegistry">LDKEntityRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">entity_registry</span></code></dt>
+<dd>Entity registry used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_entity.html#LDKEntity">LDKEntity</a></span> <span class="tok_id">entity</span></code></dt>
+<dd>Entity to inspect or modify.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_index</span></code></dt>
+<dd>Zero-based index of the component entry.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_component_name_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_component_name_get</span></h2>
+  <p class="brief">Get the registered name of a component type.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_component_name_get</span>(
+ <span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_component.html#LDKComponentRegistry">LDKComponentRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

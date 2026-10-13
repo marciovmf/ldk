@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_debug_draw.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_debug_draw.h">ldk_debug_draw.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_debug_draw_arrow">ldk_debug_draw_arrow</a></li>
+<li><a href="#ldk_debug_draw_axes">ldk_debug_draw_axes</a></li>
+<li><a href="#ldk_debug_draw_box">ldk_debug_draw_box</a></li>
+<li><a href="#ldk_debug_draw_circle">ldk_debug_draw_circle</a></li>
+<li><a href="#ldk_debug_draw_cone">ldk_debug_draw_cone</a></li>
+<li><a href="#ldk_debug_draw_frustum">ldk_debug_draw_frustum</a></li>
+<li><a href="#ldk_debug_draw_line">ldk_debug_draw_line</a></li>
+<li><a href="#ldk_debug_draw_make">ldk_debug_draw_make</a></li>
+<li><a href="#ldk_debug_draw_sphere">ldk_debug_draw_sphere</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKDebugDraw">LDKDebugDraw</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_debug_draw.h">
+      <header class="page-header">
+        <h1>ldk_debug_draw.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="debug-drawing">Debug drawing</h1>
+<p>Transient 3D debug geometry, available to editor and game builds.
+All distances, including thickness, are in world units. Colors: 0xRRGGBBAA.
+No global state or ownership: the context can be kept or copied by callers.
+Call on the render thread before render_frame, and resubmit every frame.
+Helpers return false on invalid arguments or submission failure. A failed
+helper may have submitted part of its shape. Tessellation: 3..4096 segments.</p>
+</div>
+      </header>
+
+      <article id="LDKDebugDraw" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKDebugDraw</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKDebugDraw</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_renderer.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_renderer.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">view_id</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">thickness</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">depth_test</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKDebugDraw</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_debug_draw_make" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_make</span></h2>
+  <p class="brief">Create a debug drawing context for a renderer view.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_id">ldk_debug_draw_make</span>(
+ <span class="tok_kw"><a href="ldk_renderer.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span>,
+ <span class="tok_kw"><a href="ldk_renderer.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">view_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_renderer.html#LDKRenderer">LDKRenderer</a></span> <span class="tok_pun">*</span><span class="tok_id">renderer</span></code></dt>
+<dd>Renderer receiving this request.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_renderer.html#LDKRendererViewId">LDKRendererViewId</a></span> <span class="tok_id">view_id</span></code></dt>
+<dd>Renderer view receiving this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_line" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_line</span></h2>
+  <p class="brief">Draw a line between two 3D positions.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_line</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">start</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">end</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">start</span></code></dt>
+<dd>Starting timestamp or location for this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">end</span></code></dt>
+<dd>Ending timestamp or location for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_arrow" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_arrow</span></h2>
+  <p class="brief">Draw a directional arrow between two 3D positions.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_arrow</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">start</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">end</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">start</span></code></dt>
+<dd>Starting timestamp or location for this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">end</span></code></dt>
+<dd>Ending timestamp or location for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_axes" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_axes</span></h2>
+  <p class="brief">Draw coordinate axes using a world transform.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_axes</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Mat4</span> <span class="tok_id">world</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">length</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Mat4</span> <span class="tok_id">world</span></code></dt>
+<dd>Object-to-world transformation matrix.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">length</span></code></dt>
+<dd>Length used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_box" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_box</span></h2>
+  <p class="brief">Draw an axis-aligned 3D bounding box.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_box</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">minimum</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">maximum</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">minimum</span></code></dt>
+<dd>Minimum used by this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">maximum</span></code></dt>
+<dd>Maximum used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_circle" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_circle</span></h2>
+  <p class="brief">Draw a circle in 3D space.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_circle</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">center</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">normal</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">radius</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">segments</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">center</span></code></dt>
+<dd>Center of the geometry.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">normal</span></code></dt>
+<dd>Surface normal vector.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">radius</span></code></dt>
+<dd>Interaction or geometry radius.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">segments</span></code></dt>
+<dd>Segments used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_sphere" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_sphere</span></h2>
+  <p class="brief">Draw a wireframe sphere in 3D space.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_sphere</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">center</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">radius</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">segments</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">center</span></code></dt>
+<dd>Center of the geometry.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">radius</span></code></dt>
+<dd>Interaction or geometry radius.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">segments</span></code></dt>
+<dd>Segments used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_cone" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_cone</span></h2>
+  <p class="brief">Draw a wireframe cone in 3D space.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_cone</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">apex</span>,
+ <span class="tok_id">Vec3</span> <span class="tok_id">direction</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">height</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">radius</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">segments</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">apex</span></code></dt>
+<dd>Apex used by this operation.</dd>
+<dt><code><span class="tok_id">Vec3</span> <span class="tok_id">direction</span></code></dt>
+<dd>Direction used by this operation.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">radius</span></code></dt>
+<dd>Interaction or geometry radius.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">segments</span></code></dt>
+<dd>Segments used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_debug_draw_frustum" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_debug_draw_frustum</span></h2>
+  <p class="brief">Draw a camera or projection frustum.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_debug_draw_frustum</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span>,
+ <span class="tok_id">Mat4</span> <span class="tok_id">inverse_view_projection</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_debug_draw.html#LDKDebugDraw">LDKDebugDraw</a></span> <span class="tok_pun">*</span><span class="tok_id">draw</span></code></dt>
+<dd>Debug drawing context.</dd>
+<dt><code><span class="tok_id">Mat4</span> <span class="tok_id">inverse_view_projection</span></code></dt>
+<dd>Inverse view projection used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

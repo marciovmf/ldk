@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_scene_systems.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_scene_systems.h">ldk_scene_systems.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_scene_systems_add">ldk_scene_systems_add</a></li>
+<li><a href="#ldk_scene_systems_add_with_grouping">ldk_scene_systems_add_with_grouping</a></li>
+<li><a href="#ldk_scene_systems_clear">ldk_scene_systems_clear</a></li>
+<li><a href="#ldk_scene_systems_contains">ldk_scene_systems_contains</a></li>
+<li><a href="#ldk_scene_systems_data_get">ldk_scene_systems_data_get</a></li>
+<li><a href="#ldk_scene_systems_from_tml">ldk_scene_systems_from_tml</a></li>
+<li><a href="#ldk_scene_systems_grouping_get">ldk_scene_systems_grouping_get</a></li>
+<li><a href="#ldk_scene_systems_grouping_set">ldk_scene_systems_grouping_set</a></li>
+<li><a href="#ldk_scene_systems_load_tml_file">ldk_scene_systems_load_tml_file</a></li>
+<li><a href="#ldk_scene_systems_prepare">ldk_scene_systems_prepare</a></li>
+<li><a href="#ldk_scene_systems_remove">ldk_scene_systems_remove</a></li>
+<li><a href="#ldk_scene_systems_save_tml_file">ldk_scene_systems_save_tml_file</a></li>
+<li><a href="#ldk_scene_systems_start">ldk_scene_systems_start</a></li>
+<li><a href="#ldk_scene_systems_stop_missing">ldk_scene_systems_stop_missing</a></li>
+<li><a href="#ldk_scene_systems_to_tml">ldk_scene_systems_to_tml</a></li>
+<li><a href="#ldk_scene_systems_validate_bindings">ldk_scene_systems_validate_bindings</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_scene_systems.h">
+      <header class="page-header">
+        <h1>ldk_scene_systems.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="scene-system-configuration">Scene system configuration</h1>
+<p>System associations stored in a scene file.</p>
+</div>
+      </header>
+
+      <article id="ldk_scene_systems_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_clear</span></h2>
+  <p class="brief">Stop and unbind owned data instances before releasing their memory.
+Do not call while the registry is executing a callback.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_systems_clear</span>(<span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_systems_contains" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_contains</span></h2>
+  <p class="brief">Test whether the scene systems contains the requested value.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_contains</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_add" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_add</span></h2>
+  <p class="brief">Adds a system and allocates its data when registered.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_add</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_add_with_grouping" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_add_with_grouping</span></h2>
+  <p class="brief">Deprecated: grouping_id is ignored.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_add_with_grouping</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">grouping_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">grouping_id</span></code></dt>
+<dd>Identifier of the grouping.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_remove" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_remove</span></h2>
+  <p class="brief">Remove the scene systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_remove</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">id</span></code></dt>
+<dd>Identifier of the target object.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_grouping_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_grouping_set</span></h2>
+  <p class="brief">Deprecated: validates membership only; grouping_id is ignored.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_grouping_set</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">system_id</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">grouping_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">system_id</span></code></dt>
+<dd>Identifier of the system.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">grouping_id</span></code></dt>
+<dd>Identifier of the grouping.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_grouping_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_grouping_get</span></h2>
+  <p class="brief">Returns the registered system requirement hash, or zero if unavailable.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u64</span> <span class="tok_id">ldk_scene_systems_grouping_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">system_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">system_id</span></code></dt>
+<dd>Identifier of the system.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_prepare" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_prepare</span></h2>
+  <p class="brief">Allocate zero-initialized data for registered systems. No callbacks run.
+Existing instances keep their values; a descriptor size change is rejected.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_prepare</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_data_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_data_get</span></h2>
+  <p class="brief">Get the scene systems data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_systems_data_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_id">u64</span> <span class="tok_id">system_id</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_id">u64</span> <span class="tok_id">system_id</span></code></dt>
+<dd>Identifier of the system.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_from_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_from_tml</span></h2>
+  <p class="brief">Reads the optional scene.systems node without creating ECS entities.
+This is association preflight only; use ldk_scene_from_tml_with_systems
+or ldk_scene_load_tml_file_with_systems to load fields and entity references.
+An absent node produces an empty list. On failure, out is unchanged.
+Accepted ids are positive signed integers or strings representing u64s.
+The writer uses quoted hexadecimal strings to support the full u64 range.
+Legacy grouping entries are ignored.
+ 
+  scene:
+    systems:
+      - id: "0x0000000000000100"</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_from_tml</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_load_tml_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_load_tml_file</span></h2>
+  <p class="brief">Load scene system settings from a TML file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_load_tml_file</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_validate_bindings" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_validate_bindings</span></h2>
+  <p class="brief">Validate registered system/grouping bindings without changing runtime state.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_validate_bindings</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_stop_missing" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_stop_missing</span></h2>
+  <p class="brief">Stop systems not present in the requested scene configuration.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_stop_missing</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_start</span></h2>
+  <p class="brief">Start the scene systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_start</span>(
+ <span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_system.html#LDKSystemRegistry">LDKSystemRegistry</a></span> <span class="tok_pun">*</span><span class="tok_id">registry</span></code></dt>
+<dd>Registry on which the operation is performed.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_to_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_to_tml</span></h2>
+  <p class="brief">Serializes the current ECS and the supplied scene associations. The
+existing entity serializer remains responsible for entities/components.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_to_tml</span>(
+ <span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_systems_save_tml_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_systems_save_tml_file</span></h2>
+  <p class="brief">Write scene system settings to a TML file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_systems_save_tml_file</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

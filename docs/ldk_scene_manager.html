@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_scene_manager.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_scene_manager.h">ldk_scene_manager.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_scene_manager_at">ldk_scene_manager_at</a></li>
+<li><a href="#ldk_scene_manager_catalog_exchange">ldk_scene_manager_catalog_exchange</a></li>
+<li><a href="#ldk_scene_manager_catalog_validate">ldk_scene_manager_catalog_validate</a></li>
+<li><a href="#ldk_scene_manager_configure_file">ldk_scene_manager_configure_file</a></li>
+<li><a href="#ldk_scene_manager_count">ldk_scene_manager_count</a></li>
+<li><a href="#ldk_scene_manager_current">ldk_scene_manager_current</a></li>
+<li><a href="#ldk_scene_manager_current_reset">ldk_scene_manager_current_reset</a></li>
+<li><a href="#ldk_scene_manager_find">ldk_scene_manager_find</a></li>
+<li><a href="#ldk_scene_manager_initialize">ldk_scene_manager_initialize</a></li>
+<li><a href="#ldk_scene_manager_load">ldk_scene_manager_load</a></li>
+<li><a href="#ldk_scene_manager_load_next">ldk_scene_manager_load_next</a></li>
+<li><a href="#ldk_scene_manager_load_path">ldk_scene_manager_load_path</a></li>
+<li><a href="#ldk_scene_manager_override">ldk_scene_manager_override</a></li>
+<li><a href="#ldk_scene_manager_pending_clear">ldk_scene_manager_pending_clear</a></li>
+<li><a href="#ldk_scene_manager_process_pending">ldk_scene_manager_process_pending</a></li>
+<li><a href="#ldk_scene_manager_systems_get">ldk_scene_manager_systems_get</a></li>
+<li><a href="#ldk_scene_manager_terminate">ldk_scene_manager_terminate</a></li>
+<li><a href="#ldk_scene_manager_unload">ldk_scene_manager_unload</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKSceneManager">LDKSceneManager</a></li>
+<li><a href="#LDKSceneManagerConfig">LDKSceneManagerConfig</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_scene_manager.h">
+      <header class="page-header">
+        <h1>ldk_scene_manager.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="scene-manager">Scene manager</h1>
+<p>Runtime scene catalog and scene switching.</p>
+</div>
+      </header>
+
+      <article id="LDKSceneManagerConfig" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneManagerConfig</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSceneManagerConfig</span><span class="tok_pun">{</span>
+  <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">scene_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_id">XSmallstr</span> <span class="tok_pun">*</span><span class="tok_id">names</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSceneManagerConfig</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSceneManager" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneManager</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSceneManager</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">scene_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">current_scene</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_id">current_systems</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">pending_scene_index</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">has_pending_scene</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSceneManager</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_scene_manager_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_initialize</span></h2>
+  <p class="brief">Initializes an empty Scene Manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_initialize</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_override" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_override</span></h2>
+  <p class="brief">Replaces the current game scene catalog.
+ 
+The supplied catalog is copied. Passing NULL removes the current catalog and
+leaves the Scene Manager initialized but unconfigured.
+ 
+Replacing or removing the catalog unloads the complete current ECS scene.
+If a new catalog cannot be copied or the ECS cannot be cleared, the previous
+configuration remains unchanged.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_override</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManagerConfig">LDKSceneManagerConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">config</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManagerConfig">LDKSceneManagerConfig</a></span> <span class="tok_pun">*</span><span class="tok_id">config</span></code></dt>
+<dd>Configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_catalog_validate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_catalog_validate</span></h2>
+  <p class="brief">Validate editable catalog entries without loading any scene.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_catalog_validate</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span></code></dt>
+<dd>Scenes used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">count</span></code></dt>
+<dd>Number of items to process.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_catalog_exchange" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_catalog_exchange</span></h2>
+  <p class="brief">Exchange ownership of catalog arrays while stopped, without touching ECS,
+systems or pending scene contents. The caller receives the old catalog and
+must free it. The current scene is remapped by path, or detached if removed.
+No allocation is performed. On failure neither array changes ownership.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_catalog_exchange</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">scenes</span>,
+ <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_pun">*</span><span class="tok_id">scenes</span></code></dt>
+<dd>Scenes used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">count</span></code></dt>
+<dd>Number of items to process.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_configure_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_configure_file</span></h2>
+  <p class="brief">Reads [scenes] from a project manifest or runtime INI.
+count=N, 0.path=relative.scene, 0.name=Friendly name, ...
+Indices are contiguous from zero; names are optional. Paths are logical
+asset paths. An absent/empty catalog configures no scenes. On parse failure
+the existing catalog and scene remain unchanged.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_configure_file</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">ini_path</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">ini_path</span></code></dt>
+<dd>Path to the INI configuration.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_terminate</span></h2>
+  <p class="brief">Unloads the current scene and frees the copied catalog.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_manager_terminate</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_manager_count" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_count</span></h2>
+  <p class="brief">Get the number of scenes in the scene manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_scene_manager_count</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Number of matching entries.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_at" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_at</span></h2>
+  <p class="brief">Get a scene by its index in the scene manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_at</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">index</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">index</span></code></dt>
+<dd>Zero-based index of the selected item.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_find</span></h2>
+  <p class="brief">Find a scene registered with the manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_find</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_load</span></h2>
+  <p class="brief">Replaces all current ECS contents with the registered scene at index.
+During an engine update the request is deferred to the safe frame boundary.
+A successful deferred request returns the target descriptor, but current()
+continues to report the old scene until the switch completes. Failures
+during deferred execution are logged. A failed target preflight leaves the
+old scene running; a failure after replacement begins ends the session.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_load</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">index</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">index</span></code></dt>
+<dd>Zero-based index of the selected item.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_load_path" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_load_path</span></h2>
+  <p class="brief">Loads a registered path, with the same deferred semantics as load().</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_load_path</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_load_next" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_load_next</span></h2>
+  <p class="brief">Loads the catalog entry immediately after the current scene.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_load_next</span>(
+ <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_unload</span></h2>
+  <p class="brief">Removes all current ECS contents and clears current_scene.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_unload</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_current" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_current</span></h2>
+  <p class="brief">Get the currently active scene.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_current</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_systems_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_systems_get</span></h2>
+  <p class="brief">The associations of the scene currently open in the ECS.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_manager_systems_get</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_current_reset" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_current_reset</span></h2>
+  <p class="brief">Forgets which catalog scene owns the ECS without modifying ECS contents.
+Use this when another loader, such as the editor direct-file loader, takes
+ownership of the current ECS while gameplay is stopped.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_current_reset</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_process_pending" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_process_pending</span></h2>
+  <p class="brief">Process/cancel a scene switch requested during an update callback.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_manager_process_pending</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_manager_pending_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_manager_pending_clear</span></h2>
+  <p class="brief">Clear the state of the scene manager pending.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_manager_pending_clear</span>(<span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene_manager.html#LDKSceneManager">LDKSceneManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

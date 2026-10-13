@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_geom.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_geom.h">ldk_geom.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_point">ldk_point</a></li>
+<li><a href="#ldk_pointf">ldk_pointf</a></li>
+<li><a href="#ldk_rect">ldk_rect</a></li>
+<li><a href="#ldk_rect_contains">ldk_rect_contains</a></li>
+<li><a href="#ldk_rect_intersect">ldk_rect_intersect</a></li>
+<li><a href="#ldk_rectf">ldk_rectf</a></li>
+<li><a href="#ldk_rectf_contains">ldk_rectf_contains</a></li>
+<li><a href="#ldk_rectf_intersect">ldk_rectf_intersect</a></li>
+<li><a href="#ldk_size">ldk_size</a></li>
+<li><a href="#ldk_size_one">ldk_size_one</a></li>
+<li><a href="#ldk_size_zero">ldk_size_zero</a></li>
+<li><a href="#ldk_sizef">ldk_sizef</a></li>
+<li><a href="#ldk_sizef_one">ldk_sizef_one</a></li>
+<li><a href="#ldk_sizef_zero">ldk_sizef_zero</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKPoint">LDKPoint</a></li>
+<li><a href="#LDKPointf">LDKPointf</a></li>
+<li><a href="#LDKRect">LDKRect</a></li>
+<li><a href="#LDKRectf">LDKRectf</a></li>
+<li><a href="#LDKSize">LDKSize</a></li>
+<li><a href="#LDKSizef">LDKSizef</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_geom.h">
+      <header class="page-header">
+        <h1>ldk_geom.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="two-dimensional-geometry">Two-dimensional geometry</h1>
+<p>Geometry and point/rect/size helper types</p>
+<p>Defines basic geometry types and constructors used across LDK.</p>
+</div>
+      </header>
+
+      <article id="LDKSize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSize</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_id">i32</span> <span class="tok_id">w</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSize</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_size" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_size</span></h2>
+  <p class="brief">Construct an integer size from width and height.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSize">LDKSize</a></span> <span class="tok_id">ldk_size</span>(
+ <span class="tok_id">i32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">i32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="ldk_size_zero" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_size_zero</span></h2>
+  <p class="brief">Return an integer size with both dimensions zero.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSize">LDKSize</a></span> <span class="tok_id">ldk_size_zero</span>();</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="ldk_size_one" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_size_one</span></h2>
+  <p class="brief">Return an integer size with both dimensions one.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSize">LDKSize</a></span> <span class="tok_id">ldk_size_one</span>();</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="LDKSizef" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSizef</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">w</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSizef</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_sizef" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_sizef</span></h2>
+  <p class="brief">Construct a floating-point size from width and height.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSizef">LDKSizef</a></span> <span class="tok_id">ldk_sizef</span>(
+ <span class="tok_kw">float</span> <span class="tok_id">width</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">float</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="ldk_sizef_zero" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_sizef_zero</span></h2>
+  <p class="brief">Return a floating-point size with both dimensions zero.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSizef">LDKSizef</a></span> <span class="tok_id">ldk_sizef_zero</span>();</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="ldk_sizef_one" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_sizef_one</span></h2>
+  <p class="brief">Return a floating-point size with both dimensions one.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKSizef">LDKSizef</a></span> <span class="tok_id">ldk_sizef_one</span>();</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting size.</p>
+</section>
+
+</article>
+<article id="LDKRect" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRect</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_id">i32</span> <span class="tok_id">x</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">y</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">w</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRect</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_rect" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rect</span></h2>
+  <p class="brief">Construct an integer rectangle from position and size.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_id">ldk_rect</span>(
+ <span class="tok_id">i32</span> <span class="tok_id">x</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">y</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">width</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">i32</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting rectangle.</p>
+</section>
+
+</article>
+<article id="ldk_rect_contains" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rect_contains</span></h2>
+  <p class="brief">Test whether the rect contains the requested value.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_rect_contains</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">rect</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">x</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">y</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">rect</span></code></dt>
+<dd>UI or geometry rectangle.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_rect_intersect" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rect_intersect</span></h2>
+  <p class="brief">Compute the intersection of the rect.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_id">ldk_rect_intersect</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span></code></dt>
+<dd>First value to compare or combine.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRect">LDKRect</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span></code></dt>
+<dd>Second value to compare or combine.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting rectangle.</p>
+</section>
+
+</article>
+<article id="LDKRectf" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKRectf</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">y</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">w</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">h</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKRectf</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_rectf" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rectf</span></h2>
+  <p class="brief">Construct a floating-point rectangle from position and size.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_id">ldk_rectf</span>(
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">width</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">height</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">width</span></code></dt>
+<dd>Width in pixels or the units expected by the API.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">height</span></code></dt>
+<dd>Height in pixels or the units expected by the API.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting rectangle.</p>
+</section>
+
+</article>
+<article id="ldk_rectf_contains" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rectf_contains</span></h2>
+  <p class="brief">Test whether the rectf contains the requested value.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_rectf_contains</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">rect</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">rect</span></code></dt>
+<dd>UI or geometry rectangle.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_rectf_intersect" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_rectf_intersect</span></h2>
+  <p class="brief">Compute the intersection of the rectf.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_id">ldk_rectf_intersect</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">a</span></code></dt>
+<dd>First value to compare or combine.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_geom.html#LDKRectf">LDKRectf</a></span> <span class="tok_pun">*</span><span class="tok_id">b</span></code></dt>
+<dd>Second value to compare or combine.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting rectangle.</p>
+</section>
+
+</article>
+<article id="LDKPoint" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPoint</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_id">i32</span> <span class="tok_id">x</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">y</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKPoint</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_point" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_point</span></h2>
+  <p class="brief">Construct an integer two-dimensional point.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKPoint">LDKPoint</a></span> <span class="tok_id">ldk_point</span>(
+ <span class="tok_id">i32</span> <span class="tok_id">x</span>,
+ <span class="tok_id">i32</span> <span class="tok_id">y</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">i32</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_id">i32</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting point.</p>
+</section>
+
+</article>
+<article id="LDKPointf" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKPointf</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_kw">float</span> <span class="tok_id">x</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">y</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKPointf</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_pointf" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_pointf</span></h2>
+  <p class="brief">Construct a floating-point two-dimensional point.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_geom.html#LDKPointf">LDKPointf</a></span> <span class="tok_id">ldk_pointf</span>(
+ <span class="tok_kw">float</span> <span class="tok_id">x</span>,
+ <span class="tok_kw">float</span> <span class="tok_id">y</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">float</span> <span class="tok_id">x</span></code></dt>
+<dd>X coordinate or component.</dd>
+<dt><code><span class="tok_kw">float</span> <span class="tok_id">y</span></code></dt>
+<dd>Y coordinate or component.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting point.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

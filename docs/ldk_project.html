@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_project.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_project.h">ldk_project.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_project_build_game_launcher">ldk_project_build_game_launcher</a></li>
+<li><a href="#ldk_project_build_game_launcher_start">ldk_project_build_game_launcher_start</a></li>
+<li><a href="#ldk_project_build_game_module">ldk_project_build_game_module</a></li>
+<li><a href="#ldk_project_build_game_module_start">ldk_project_build_game_module_start</a></li>
+<li><a href="#ldk_project_clean_game_module_start">ldk_project_clean_game_module_start</a></li>
+<li><a href="#ldk_project_create">ldk_project_create</a></li>
+<li><a href="#ldk_project_diagnostic_handler_set">ldk_project_diagnostic_handler_set</a></li>
+<li><a href="#ldk_project_game_launcher_output_path_get">ldk_project_game_launcher_output_path_get</a></li>
+<li><a href="#ldk_project_game_module_output_path_get">ldk_project_game_module_output_path_get</a></li>
+<li><a href="#ldk_project_generate_game_launcher">ldk_project_generate_game_launcher</a></li>
+<li><a href="#ldk_project_generate_game_launcher_start">ldk_project_generate_game_launcher_start</a></li>
+<li><a href="#ldk_project_generate_game_module">ldk_project_generate_game_module</a></li>
+<li><a href="#ldk_project_generate_game_module_start">ldk_project_generate_game_module_start</a></li>
+<li><a href="#ldk_project_load">ldk_project_load</a></li>
+<li><a href="#ldk_project_save">ldk_project_save</a></li>
+<li><a href="#ldk_project_scene_catalog_save">ldk_project_scene_catalog_save</a></li>
+<li><a href="#ldk_project_unload">ldk_project_unload</a></li>
+<li><a href="#ldk_project_write_runtime_ini">ldk_project_write_runtime_ini</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKProject">LDKProject</a></li>
+<li><a href="#LDKProjectBuildDesc">LDKProjectBuildDesc</a></li>
+<li><a href="#LDKProjectCreateDesc">LDKProjectCreateDesc</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKProjectDiagnosticFn">LDKProjectDiagnosticFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_project.h">
+      <header class="page-header">
+        <h1>ldk_project.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="editor-projects">Editor projects</h1>
+<p>Editor-side LDK project descriptor utilities.</p>
+<p>LDKProject represents the development-time project manifest. It is not a
+runtime concept. Runtime code should consume only runtree/game.ini.</p>
+</div>
+      </header>
+
+      <article id="LDKProjectCreateDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKProjectCreateDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKProjectCreateDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">project_name</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">project_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">cmake_generator</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">cmake_arch</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProjectCreateDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKProjectBuildDesc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKProjectBuildDesc</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKProjectBuildDesc</span><span class="tok_pun">{</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">cmake_path</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">ldk_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">new_console</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProjectBuildDesc</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKProject" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKProject</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKProject</span><span class="tok_pun">{</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">loaded</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">play_current_scene</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">build_on_play</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">game_name</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">build_config</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">cmake_generator</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">cmake_arch</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">icon_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">assets_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">cache_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">cmake_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">game_cmake_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">game_dll_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">project_file_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">project_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">run_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">runtime_ini_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XFSPath</span> <span class="tok_id">source_root_path</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">project_resolution_width</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">project_resolution_height</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">shadow_map_resolution</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">shadow_distance</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKProject</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKProjectDiagnosticFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKProjectDiagnosticFn</span></h2>
+  <p class="brief">Callback for reporting a project diagnostic.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKProjectDiagnosticFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">message</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>message</code></dt>
+<dd>Message displayed to the user.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_project_diagnostic_handler_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_diagnostic_handler_set</span></h2>
+  <p class="brief">Set the project diagnostic handler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_project_diagnostic_handler_set</span>(
+ <span class="tok_kw"><a href="ldk_project.html#LDKProjectDiagnosticFn">LDKProjectDiagnosticFn</a></span> <span class="tok_id">handler</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_project.html#LDKProjectDiagnosticFn">LDKProjectDiagnosticFn</a></span> <span class="tok_id">handler</span></code></dt>
+<dd>Handler called for the corresponding event or diagnostic.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_project_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_create</span></h2>
+  <p class="brief">Create the project.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_create</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectCreateDesc">LDKProjectCreateDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectCreateDesc">LDKProjectCreateDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_load" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_load</span></h2>
+  <p class="brief">Load the project.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_load</span>(
+ <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">project_file_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">project_file_path</span></code></dt>
+<dd>Path to the LDK project manifest.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_unload" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_unload</span></h2>
+  <p class="brief">Unload the project.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_project_unload</span>(<span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_project_save" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_save</span></h2>
+  <p class="brief">Save the project.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_save</span>(<span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_write_runtime_ini" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_write_runtime_ini</span></h2>
+  <p class="brief">Write project runtime INI.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_write_runtime_ini</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_scene_catalog_save" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_scene_catalog_save</span></h2>
+  <p class="brief">Replace only [scenes] and export public sections. No ECS operations.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_scene_catalog_save</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">count</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKScene">LDKScene</a></span> <span class="tok_pun">*</span><span class="tok_id">scenes</span></code></dt>
+<dd>Scenes used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">count</span></code></dt>
+<dd>Number of items to process.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_generate_game_module" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_generate_game_module</span></h2>
+  <p class="brief">Generate build files for a game module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_generate_game_module</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_build_game_module" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_build_game_module</span></h2>
+  <p class="brief">Build the project game module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_build_game_module</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_generate_game_launcher" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_generate_game_launcher</span></h2>
+  <p class="brief">Generate build files for the standalone game launcher.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_generate_game_launcher</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_build_game_launcher" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_build_game_launcher</span></h2>
+  <p class="brief">Build the standalone game launcher.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_build_game_launcher</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_generate_game_module_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_generate_game_module_start</span></h2>
+  <p class="brief">Start the project generate game module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_os.html#LDKOSProcess">LDKOSProcess</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_project_generate_game_module_start</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span></code></dt>
+<dd>Receives additional status or diagnostic information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_project_build_game_module_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_build_game_module_start</span></h2>
+  <p class="brief">Start the project build game module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_os.html#LDKOSProcess">LDKOSProcess</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_project_build_game_module_start</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span></code></dt>
+<dd>Receives additional status or diagnostic information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_project_clean_game_module_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_clean_game_module_start</span></h2>
+  <p class="brief">Start the project clean game module.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_os.html#LDKOSProcess">LDKOSProcess</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_project_clean_game_module_start</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span></code></dt>
+<dd>Receives additional status or diagnostic information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_project_generate_game_launcher_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_generate_game_launcher_start</span></h2>
+  <p class="brief">Start the project generate game launcher.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_os.html#LDKOSProcess">LDKOSProcess</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_project_generate_game_launcher_start</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span></code></dt>
+<dd>Receives additional status or diagnostic information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_project_build_game_launcher_start" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_build_game_launcher_start</span></h2>
+  <p class="brief">Start the project build game launcher.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_os.html#LDKOSProcess">LDKOSProcess</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_project_build_game_launcher_start</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span>,
+ <span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProjectBuildDesc">LDKProjectBuildDesc</a></span> <span class="tok_pun">*</span><span class="tok_id">desc</span></code></dt>
+<dd>Description or configuration for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_os.html#LDKOSProcessResult">LDKOSProcessResult</a></span> <span class="tok_pun">*</span><span class="tok_id">out_result</span></code></dt>
+<dd>Receives additional status or diagnostic information.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_project_game_module_output_path_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_game_module_output_path_get</span></h2>
+  <p class="brief">Get the project game module output path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_game_module_output_path_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config</span>,
+ <span class="tok_id">XFSPath</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config</span></code></dt>
+<dd>Configuration for this operation.</dd>
+<dt><code><span class="tok_id">XFSPath</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span></code></dt>
+<dd>Receives the resulting path.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_project_game_launcher_output_path_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_project_game_launcher_output_path_get</span></h2>
+  <p class="brief">Get the project game launcher output path.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_project_game_launcher_output_path_get</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config</span>,
+ <span class="tok_id">XFSPath</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_project.html#LDKProject">LDKProject</a></span> <span class="tok_pun">*</span><span class="tok_id">project</span></code></dt>
+<dd>Project whose settings or files are used.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">config</span></code></dt>
+<dd>Configuration for this operation.</dd>
+<dt><code><span class="tok_id">XFSPath</span> <span class="tok_pun">*</span><span class="tok_id">out_path</span></code></dt>
+<dd>Receives the resulting path.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

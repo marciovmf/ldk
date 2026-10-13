@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_scene.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_scene.h">ldk_scene.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_scene_component_field_find">ldk_scene_component_field_find</a></li>
+<li><a href="#ldk_scene_component_field_is_serializable">ldk_scene_component_field_is_serializable</a></li>
+<li><a href="#ldk_scene_component_meta_find_by_type">ldk_scene_component_meta_find_by_type</a></li>
+<li><a href="#ldk_scene_component_meta_runtime_type">ldk_scene_component_meta_runtime_type</a></li>
+<li><a href="#ldk_scene_diagnostic_handler_set">ldk_scene_diagnostic_handler_set</a></li>
+<li><a href="#ldk_scene_from_tml">ldk_scene_from_tml</a></li>
+<li><a href="#ldk_scene_from_tml_with_systems">ldk_scene_from_tml_with_systems</a></li>
+<li><a href="#ldk_scene_load_tml_file">ldk_scene_load_tml_file</a></li>
+<li><a href="#ldk_scene_load_tml_file_with_systems">ldk_scene_load_tml_file_with_systems</a></li>
+<li><a href="#ldk_scene_properties_defaults">ldk_scene_properties_defaults</a></li>
+<li><a href="#ldk_scene_properties_get">ldk_scene_properties_get</a></li>
+<li><a href="#ldk_scene_properties_reset">ldk_scene_properties_reset</a></li>
+<li><a href="#ldk_scene_properties_set">ldk_scene_properties_set</a></li>
+<li><a href="#ldk_scene_result_clear">ldk_scene_result_clear</a></li>
+<li><a href="#ldk_scene_result_set_error">ldk_scene_result_set_error</a></li>
+<li><a href="#ldk_scene_save_tml_file">ldk_scene_save_tml_file</a></li>
+<li><a href="#ldk_scene_to_tml">ldk_scene_to_tml</a></li>
+<li><a href="#ldk_scene_to_tml_with_systems">ldk_scene_to_tml_with_systems</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_SCENE_NULL_ENTITY_ID">LDK_SCENE_NULL_ENTITY_ID</a></li>
+<li><a href="#LDK_SCENE_TML_VERSION">LDK_SCENE_TML_VERSION</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKScene">LDKScene</a></li>
+<li><a href="#LDKSceneProperties">LDKSceneProperties</a></li>
+<li><a href="#LDKSceneResult">LDKSceneResult</a></li>
+<li><a href="#LDKSceneSystems">LDKSceneSystems</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKSceneDiagnosticFn">LDKSceneDiagnosticFn</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_scene.h">
+      <header class="page-header">
+        <h1>ldk_scene.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="scenes-and-scene-files">Scenes and scene files</h1>
+<p>Scene data and TML serialization.</p>
+</div>
+      </header>
+
+      <article id="LDKSceneSystems" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneSystems</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">struct</span> <span class="tok_id">LDKSceneSystems</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_SCENE_TML_VERSION" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_SCENE_TML_VERSION</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_SCENE_TML_VERSION</span> <span class="tok_num">1</span></code></pre>
+  
+  
+</article>
+<article id="LDK_SCENE_NULL_ENTITY_ID" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_SCENE_NULL_ENTITY_ID</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_SCENE_NULL_ENTITY_ID</span><span class="tok_pun">(</span><span class="tok_pun">-</span><span class="tok_num">1</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDKScene" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKScene</span></h2>
+  <p class="brief">Entry in the Scene Manager catalog.
+ 
+Scene pointers returned by the Scene Manager refer to its internal catalog
+and remain valid until the catalog is overridden or the manager is
+terminated.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKScene</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_asset.html#LDKAssetPath">LDKAssetPath</a></span> <span class="tok_id">path</span><span class="tok_pun">;</span>
+  <span class="tok_id">XSmallstr</span> <span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKScene</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSceneProperties" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneProperties</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSceneProperties</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_common.html#rgba32">rgba32</a></span> <span class="tok_id">ambient_color</span><span class="tok_pun">;</span>
+  <span class="tok_kw">float</span> <span class="tok_id">ambient_intensity</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSceneProperties</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKSceneResult" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneResult</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKSceneResult</span><span class="tok_pun">{</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">ok</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_id">error</span><span class="tok_pun">[</span><span class="tok_num">256</span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKSceneResult</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_scene_properties_defaults" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_properties_defaults</span></h2>
+  <p class="brief">Set default values for scene properties.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_properties_defaults</span>(<span class="tok_kw"><a href="ldk_scene.html#LDKSceneProperties">LDKSceneProperties</a></span> <span class="tok_pun">*</span><span class="tok_id">properties</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneProperties">LDKSceneProperties</a></span> <span class="tok_pun">*</span><span class="tok_id">properties</span></code></dt>
+<dd>Scene or other property values being operated on.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_properties_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_properties_get</span></h2>
+  <p class="brief">Get the scene properties.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneProperties">LDKSceneProperties</a></span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_properties_get</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_properties_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_properties_set</span></h2>
+  <p class="brief">Set the scene properties.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_properties_set</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneProperties">LDKSceneProperties</a></span> <span class="tok_pun">*</span><span class="tok_id">properties</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneProperties">LDKSceneProperties</a></span> <span class="tok_pun">*</span><span class="tok_id">properties</span></code></dt>
+<dd>Scene or other property values being operated on.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_properties_reset" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_properties_reset</span></h2>
+  <p class="brief">Reset the state of the scene properties.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_properties_reset</span>(<span class="tok_kw">void</span>);</code></pre>
+  
+  
+</article>
+<article id="ldk_scene_result_clear" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_result_clear</span></h2>
+  <p class="brief">Clear the state of the scene result.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_result_clear</span>(<span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_result_set_error" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_result_set_error</span></h2>
+  <p class="brief">Store a scene diagnostic message in the result.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_result_set_error</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">error</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">error</span></code></dt>
+<dd>Receives an error description when parsing fails.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="LDKSceneDiagnosticFn" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKSceneDiagnosticFn</span></h2>
+  <p class="brief">Callback for reporting a scene diagnostic.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKSceneDiagnosticFn</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">message</span><span class="tok_pun">,</span> <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>message</code></dt>
+<dd>Message displayed to the user.</dd>
+<dt><code>user</code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_diagnostic_handler_set" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_diagnostic_handler_set</span></h2>
+  <p class="brief">Set the scene diagnostic handler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_scene_diagnostic_handler_set</span>(
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneDiagnosticFn">LDKSceneDiagnosticFn</a></span> <span class="tok_id">handler</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneDiagnosticFn">LDKSceneDiagnosticFn</a></span> <span class="tok_id">handler</span></code></dt>
+<dd>Handler called for the corresponding event or diagnostic.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user</span></code></dt>
+<dd>Opaque caller-supplied data passed to the callback.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_scene_from_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_from_tml</span></h2>
+  <p class="brief">Loads entities and components from a TML string into the current ECS.
+ 
+This function does not clear existing entities and does not roll back
+entities created before an error. A caller performing a full scene replace
+is responsible for clearing the ECS before the call and after a failed call.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_from_tml</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_load_tml_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_load_tml_file</span></h2>
+  <p class="brief">Reads a TML file and loads it into the current ECS.
+ 
+This function has the same ECS ownership semantics as
+ldk_scene_from_tml().</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_load_tml_file</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_from_tml_with_systems" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_from_tml_with_systems</span></h2>
+  <p class="brief">Load entities and scene-owned system data together, resolving references
+with the same entity map. Systems is initialized with {0}; on failure its
+previous contents are unchanged. The caller owns ECS cleanup on failure,
+and must stop old systems before replacing a scene. No initialize runs.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_from_tml_with_systems</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span>,
+ <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">source</span></code></dt>
+<dd>Source object or source data for this operation.</dd>
+<dt><code><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_load_tml_file_with_systems" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_load_tml_file_with_systems</span></h2>
+  <p class="brief">Load scene TML file with systems.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_load_tml_file_with_systems</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_to_tml_with_systems" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_to_tml_with_systems</span></h2>
+  <p class="brief">Serialize a scene and its system configuration to TML.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_to_tml_with_systems</span>(
+ <span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">struct</span> <span class="tok_kw"><a href="ldk_scene.html#LDKSceneSystems">LDKSceneSystems</a></span> <span class="tok_pun">*</span><span class="tok_id">systems</span></code></dt>
+<dd>Scene systems configuration being read or written.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_to_tml" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_to_tml</span></h2>
+  <p class="brief">Serializes the current ECS contents to TML.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_to_tml</span>(
+ <span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_id">XStrBuilder</span> <span class="tok_pun">*</span><span class="tok_id">out</span></code></dt>
+<dd>Output object or buffer receiving the result.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_save_tml_file" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_save_tml_file</span></h2>
+  <p class="brief">Serializes the current ECS contents and writes them to a TML file.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_save_tml_file</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span>,
+ <span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">path</span></code></dt>
+<dd>Path identifying the file or resource.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_scene.html#LDKSceneResult">LDKSceneResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_scene_component_meta_runtime_type" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_component_meta_runtime_type</span></h2>
+  <p class="brief">Resolve the runtime component type for reflected scene metadata.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">u32</span> <span class="tok_id">ldk_scene_component_meta_runtime_type</span>(<span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span></code></dt>
+<dd>Meta used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting numeric value.</p>
+</section>
+
+</article>
+<article id="ldk_scene_component_meta_find_by_type" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_component_meta_find_by_type</span></h2>
+  <p class="brief">Find serialized component metadata for a runtime type.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_component_meta_find_by_type</span>(
+ <span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">component_type</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_game.html#LDKGame">LDKGame</a></span> <span class="tok_pun">*</span><span class="tok_id">game</span></code></dt>
+<dd>Game instance associated with this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">component_type</span></code></dt>
+<dd>Registered ECS component type identifier.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_component_field_find" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_component_field_find</span></h2>
+  <p class="brief">Find the scene component field.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span> <span class="tok_id">ldk_scene_component_field_find</span>(
+ <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span></code></dt>
+<dd>Meta used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">field_name</span></code></dt>
+<dd>Field name used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldk_scene_component_field_is_serializable" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_scene_component_field_is_serializable</span></h2>
+  <p class="brief">Check whether a component field may be saved in a scene.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_scene_component_field_is_serializable</span>(
+ <span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span>,
+ <span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentMeta</span> <span class="tok_pun">*</span><span class="tok_id">meta</span></code></dt>
+<dd>Meta used by this operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_id">LDKComponentFieldMeta</span> <span class="tok_pun">*</span><span class="tok_id">field</span></code></dt>
+<dd>Field used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

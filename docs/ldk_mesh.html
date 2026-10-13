@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_mesh.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_mesh.h">ldk_mesh.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_mesh_data_destroy">ldk_mesh_data_destroy</a></li>
+<li><a href="#ldk_mesh_primitive_asset_get">ldk_mesh_primitive_asset_get</a></li>
+<li><a href="#ldk_mesh_primitive_create">ldk_mesh_primitive_create</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_MESH_INDEX_NONE">LDK_MESH_INDEX_NONE</a></li>
+<li><a href="#LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY">LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY</a></li>
+<li><a href="#LDK_MESH_NAME_CAPACITY">LDK_MESH_NAME_CAPACITY</a></li>
+<li><a href="#LDK_MESH_NODE_NAME_CAPACITY">LDK_MESH_NODE_NAME_CAPACITY</a></li>
+<li><a href="#LDK_MESH_NODE_NONE">LDK_MESH_NODE_NONE</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAssetManager">LDKAssetManager</a></li>
+<li><a href="#LDKMeshData">LDKMeshData</a></li>
+<li><a href="#LDKMeshMaterialSlot">LDKMeshMaterialSlot</a></li>
+<li><a href="#LDKMeshNode">LDKMeshNode</a></li>
+<li><a href="#LDKMeshSubmesh">LDKMeshSubmesh</a></li>
+<li><a href="#LDKMeshVertex">LDKMeshVertex</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKMeshPrimitive">LDKMeshPrimitive</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_mesh.h">
+      <header class="page-header">
+        <h1>ldk_mesh.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="mesh-geometry">Mesh geometry</h1>
+<p>Mesh vertices, indices, geometry helpers, and mesh data operations.</p>
+</div>
+      </header>
+
+      <article id="LDKAssetManager" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAssetManager</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAssetManager</span> <span class="tok_id">LDKAssetManager</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MESH_NAME_CAPACITY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MESH_NAME_CAPACITY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MESH_NAME_CAPACITY</span> <span class="tok_num">128u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MESH_NODE_NAME_CAPACITY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MESH_NODE_NAME_CAPACITY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MESH_NODE_NAME_CAPACITY</span> <span class="tok_num">128u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY</span> <span class="tok_num">128u</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MESH_NODE_NONE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MESH_NODE_NONE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MESH_NODE_NONE</span><span class="tok_pun">(</span><span class="tok_pun">-</span><span class="tok_num">1</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDK_MESH_INDEX_NONE" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_MESH_INDEX_NONE</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_MESH_INDEX_NONE</span><span class="tok_pun">(</span><span class="tok_pun">-</span><span class="tok_num">1</span><span class="tok_pun">)</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshVertex" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshVertex</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshVertex</span><span class="tok_pun">{</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">position</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">normal</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec2</span> <span class="tok_id">uv</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">color</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec4</span> <span class="tok_id">tangent</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshVertex</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshData" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshData</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshData</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshVertex">LDKMeshVertex</a></span> <span class="tok_pun">*</span><span class="tok_id">vertices</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">vertex_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_pun">*</span><span class="tok_id">indices</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index_count</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">has_tangents</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshData</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshSubmesh" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshSubmesh</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshSubmesh</span><span class="tok_pun">{</span>
+  <span class="tok_id">u32</span> <span class="tok_id">first_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">index_count</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">material_slot</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshSubmesh</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshMaterialSlot" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshMaterialSlot</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshMaterialSlot</span><span class="tok_pun">{</span>
+  <span class="tok_kw">char</span> <span class="tok_id">name</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_mesh.html#LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY">LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshMaterialSlot</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshNode" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshNode</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKMeshNode</span><span class="tok_pun">{</span>
+  <span class="tok_kw">char</span> <span class="tok_id">name</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_mesh.html#LDK_MESH_NODE_NAME_CAPACITY">LDK_MESH_NODE_NAME_CAPACITY</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">parent_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">i32</span> <span class="tok_id">mesh_index</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">local_position</span><span class="tok_pun">;</span>
+  <span class="tok_id">Quat</span> <span class="tok_id">local_rotation</span><span class="tok_pun">;</span>
+  <span class="tok_id">Vec3</span> <span class="tok_id">local_scale</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshNode</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKMeshPrimitive" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKMeshPrimitive</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKMeshPrimitive</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_CUBE</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_CONE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_SPHERE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_CAPSULE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_PLANE</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_QUAD</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_MESH_PRIMITIVE_COUNT</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKMeshPrimitive</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_mesh_primitive_create" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_primitive_create</span></h2>
+  <p class="brief">Create the mesh primitive.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_mesh_primitive_create</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshPrimitive">LDKMeshPrimitive</a></span> <span class="tok_id">primitive</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_pun">*</span><span class="tok_id">out_mesh</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKMeshPrimitive">LDKMeshPrimitive</a></span> <span class="tok_id">primitive</span></code></dt>
+<dd>Primitive used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_pun">*</span><span class="tok_id">out_mesh</span></code></dt>
+<dd>Receives the resulting mesh.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_mesh_data_destroy" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_data_destroy</span></h2>
+  <p class="brief">Destroy the mesh data.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_mesh_data_destroy</span>(<span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKMeshData">LDKMeshData</a></span> <span class="tok_pun">*</span><span class="tok_id">mesh</span></code></dt>
+<dd>Mesh resource used by the operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_mesh_primitive_asset_get" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_mesh_primitive_asset_get</span></h2>
+  <p class="brief">Returns the shared asset for a built-in primitive mesh.
+ 
+The asset is created lazily and reused for subsequent requests while it
+remains alive in the supplied asset manager.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_asset.html#LDKAssetMesh">LDKAssetMesh</a></span> <span class="tok_id">ldk_mesh_primitive_asset_get</span>(
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span>,
+ <span class="tok_kw"><a href="ldk_mesh.html#LDKMeshPrimitive">LDKMeshPrimitive</a></span> <span class="tok_id">primitive</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKAssetManager">LDKAssetManager</a></span> <span class="tok_pun">*</span><span class="tok_id">manager</span></code></dt>
+<dd>Asset manager that owns or resolves the asset.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_mesh.html#LDKMeshPrimitive">LDKMeshPrimitive</a></span> <span class="tok_id">primitive</span></code></dt>
+<dd>Primitive used by this operation.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Handle to the requested object or resource.</p>
+</section>
+
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

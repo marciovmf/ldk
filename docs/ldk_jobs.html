@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_jobs.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_jobs.h">ldk_jobs.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldk_async_result_is_done">ldk_async_result_is_done</a></li>
+<li><a href="#ldk_async_result_is_valid">ldk_async_result_is_valid</a></li>
+<li><a href="#ldk_async_result_release">ldk_async_result_release</a></li>
+<li><a href="#ldk_async_result_status">ldk_async_result_status</a></li>
+<li><a href="#ldk_async_result_wait">ldk_async_result_wait</a></li>
+<li><a href="#ldk_jobs_initialize">ldk_jobs_initialize</a></li>
+<li><a href="#ldk_jobs_submit">ldk_jobs_submit</a></li>
+<li><a href="#ldk_jobs_terminate">ldk_jobs_terminate</a></li>
+<li><a href="#ldk_jobs_terminate_with_diagnostics">ldk_jobs_terminate_with_diagnostics</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_JOBS_DEFAULT_WORKER_COUNT">LDK_JOBS_DEFAULT_WORKER_COUNT</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKAsyncResult">LDKAsyncResult</a></li>
+<li><a href="#LDKAsyncResultState">LDKAsyncResultState</a></li>
+<li><a href="#LDKJobs">LDKJobs</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKAsyncStatus">LDKAsyncStatus</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          <li><a href="#LDKJobFunc">LDKJobFunc</a></li>
+
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_jobs.h">
+      <header class="page-header">
+        <h1>ldk_jobs.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="job-execution">Job execution</h1>
+<p>Shared worker job module</p>
+</div>
+      </header>
+
+      <article id="LDK_JOBS_DEFAULT_WORKER_COUNT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_JOBS_DEFAULT_WORKER_COUNT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_JOBS_DEFAULT_WORKER_COUNT</span> <span class="tok_num">4u</span></code></pre>
+  
+  
+</article>
+<article id="LDKJobs" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKJobs</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKJobs</span><span class="tok_pun">{</span>
+  <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">internal</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">is_initialized</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKJobs</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAsyncResultState" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAsyncResultState</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAsyncResultState</span> <span class="tok_id">LDKAsyncResultState</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKAsyncResult" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKAsyncResult</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span> <span class="tok_id">LDKAsyncResult</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResultState">LDKAsyncResultState</a></span> <span class="tok_pun">*</span><span class="tok_id">state</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAsyncResult</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKJobFunc" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Typedef</span>
+  </div>
+  <h2><span class="symbol-name">LDKJobFunc</span></h2>
+  <p class="brief">Callback executed as a job by the work scheduler.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">bool</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">LDKJobFunc</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span><span class="tok_pun">)</span><span class="tok_pun">;</span></code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code>user_data</code></dt>
+<dd>Opaque data forwarded to the callback or job.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="LDKAsyncStatus" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKAsyncStatus</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span> <span class="tok_id">LDKAsyncStatus</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_ASYNC_STATUS_INVALID</span><span class="tok_pun">=</span><span class="tok_num">0</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASYNC_STATUS_PENDING</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASYNC_STATUS_RUNNING</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASYNC_STATUS_SUCCEEDED</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ASYNC_STATUS_FAILED</span><span class="tok_pun">,</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKAsyncStatus</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldk_jobs_initialize" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_jobs_initialize</span></h2>
+  <p class="brief">Initialize the jobs.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_jobs_initialize</span>(
+ <span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">worker_count</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span></code></dt>
+<dd>Jobs used by this operation.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">worker_count</span></code></dt>
+<dd>Number of worker threads configured for the job pool.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_jobs_terminate" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_jobs_terminate</span></h2>
+  <p class="brief">Shut down the jobs.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_jobs_terminate</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span></code></dt>
+<dd>Jobs used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_jobs_terminate_with_diagnostics" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_jobs_terminate_with_diagnostics</span></h2>
+  <p class="brief">Shut down the job system and collect termination diagnostics.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_jobs_terminate_with_diagnostics</span>(
+ <span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span>,
+ <span class="tok_id">XThreadPoolShutdownCallback</span> <span class="tok_id">callback</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span></code></dt>
+<dd>Jobs used by this operation.</dd>
+<dt><code><span class="tok_id">XThreadPoolShutdownCallback</span> <span class="tok_id">callback</span></code></dt>
+<dd>Callback invoked by this operation.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span></code></dt>
+<dd>Opaque data forwarded to the callback or job.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldk_jobs_submit" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_jobs_submit</span></h2>
+  <p class="brief">Submit work to the job pool and obtain an asynchronous result.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">ldk_jobs_submit</span>(
+ <span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span>,
+ <span class="tok_kw"><a href="ldk_jobs.html#LDKJobFunc">LDKJobFunc</a></span> <span class="tok_id">function</span>,
+ <span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKJobs">LDKJobs</a></span> <span class="tok_pun">*</span><span class="tok_id">jobs</span></code></dt>
+<dd>Jobs used by this operation.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKJobFunc">LDKJobFunc</a></span> <span class="tok_id">function</span></code></dt>
+<dd>Function to run as a scheduled job.</dd>
+<dt><code><span class="tok_kw">void</span> <span class="tok_pun">*</span><span class="tok_id">user_data</span></code></dt>
+<dd>Opaque data forwarded to the callback or job.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Asynchronous result for tracking job completion.</p>
+</section>
+
+</article>
+<article id="ldk_async_result_is_valid" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_async_result_is_valid</span></h2>
+  <p class="brief">Check whether the async result is valid.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_async_result_is_valid</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_async_result_is_done" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_async_result_is_done</span></h2>
+  <p class="brief">Check whether an asynchronous job has completed.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_async_result_is_done</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True when the queried condition holds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_async_result_status" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_async_result_status</span></h2>
+  <p class="brief">Read the completion status of an asynchronous job.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncStatus">LDKAsyncStatus</a></span> <span class="tok_id">ldk_async_result_status</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The requested value.</p>
+</section>
+
+</article>
+<article id="ldk_async_result_wait" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_async_result_wait</span></h2>
+  <p class="brief">Wait for an asynchronous job to complete.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldk_async_result_wait</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldk_async_result_release" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldk_async_result_release</span></h2>
+  <p class="brief">Release resources associated with an asynchronous result.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldk_async_result_release</span>(<span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_jobs.html#LDKAsyncResult">LDKAsyncResult</a></span> <span class="tok_pun">*</span><span class="tok_id">result</span></code></dt>
+<dd>Optional result structure populated with error details.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>

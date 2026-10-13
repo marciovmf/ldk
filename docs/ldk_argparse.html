@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LDK/ldk_argparse.h Reference</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar">
+      <h1>API Index</h1>
+
+      <div class="file-name">
+        <a href="index.html">home</a>
+        <span>/</span>
+        <a href="#ldk_argparse.h">ldk_argparse.h</a>
+      </div>
+
+      <details open>
+        <summary>Functions</summary>
+        <ul>
+          <li><a href="#ldkArgAddArgument">ldkArgAddArgument</a></li>
+<li><a href="#ldkArgForEachArgument">ldkArgForEachArgument</a></li>
+<li><a href="#ldkArgGetFlagValue">ldkArgGetFlagValue</a></li>
+<li><a href="#ldkArgGetIntValue">ldkArgGetIntValue</a></li>
+<li><a href="#ldkArgGetStringValue">ldkArgGetStringValue</a></li>
+<li><a href="#ldkArgInitParser">ldkArgInitParser</a></li>
+<li><a href="#ldkArgParseArguments">ldkArgParseArguments</a></li>
+<li><a href="#ldkArgPrintUsage">ldkArgPrintUsage</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Macros</summary>
+        <ul>
+          <li><a href="#LDK_ARGPARSE_MAX_ARGS">LDK_ARGPARSE_MAX_ARGS</a></li>
+<li><a href="#LDK_ARGPARSE_MAX_ARGS_DEFAULT">LDK_ARGPARSE_MAX_ARGS_DEFAULT</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Structs</summary>
+        <ul>
+          <li><a href="#LDKArgParser">LDKArgParser</a></li>
+<li><a href="#LDKArgument">LDKArgument</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Enums</summary>
+        <ul>
+          <li><a href="#LDKArgType">LDKArgType</a></li>
+
+        </ul>
+      </details>
+
+      <details open>
+        <summary>Typedefs</summary>
+        <ul>
+          
+        </ul>
+      </details>
+
+      <details>
+        <summary>Modules</summary>
+        <ul>
+          <li><a href="ldk_argparse.html">ldk_argparse.h</a></li>
+<li><a href="ldk_asset.html">ldk_asset.h</a></li>
+<li><a href="ldk_color.html">ldk_color.h</a></li>
+<li><a href="ldk_common.html">ldk_common.h</a></li>
+<li><a href="ldk_debug_draw.html">ldk_debug_draw.h</a></li>
+<li><a href="ldk_event.html">ldk_event.h</a></li>
+<li><a href="ldk_game.html">ldk_game.h</a></li>
+<li><a href="ldk_geom.html">ldk_geom.h</a></li>
+<li><a href="ldk.html">ldk.h</a></li>
+<li><a href="ldk_image.html">ldk_image.h</a></li>
+<li><a href="ldk_keyframe_animation.html">ldk_keyframe_animation.h</a></li>
+<li><a href="ldk_material_asset.html">ldk_material_asset.h</a></li>
+<li><a href="ldk_material.html">ldk_material.h</a></li>
+<li><a href="ldk_material_io.html">ldk_material_io.h</a></li>
+<li><a href="ldk_mesh_asset.html">ldk_mesh_asset.h</a></li>
+<li><a href="ldk_mesh.html">ldk_mesh.h</a></li>
+<li><a href="ldk_os.html">ldk_os.h</a></li>
+<li><a href="ldk_package.html">ldk_package.h</a></li>
+<li><a href="ldk_profiler.html">ldk_profiler.h</a></li>
+<li><a href="ldk_project.html">ldk_project.h</a></li>
+<li><a href="ldk_property.html">ldk_property.h</a></li>
+<li><a href="ldk_raycast.html">ldk_raycast.h</a></li>
+<li><a href="ldk_resource.html">ldk_resource.h</a></li>
+<li><a href="ldk_scene.html">ldk_scene.h</a></li>
+<li><a href="ldk_scene_systems.html">ldk_scene_systems.h</a></li>
+<li><a href="ldk_skybox_asset.html">ldk_skybox_asset.h</a></li>
+<li><a href="ldk_skybox.html">ldk_skybox.h</a></li>
+<li><a href="ldk_skybox_io.html">ldk_skybox_io.h</a></li>
+<li><a href="ldk_text.html">ldk_text.h</a></li>
+<li><a href="ldk_texture_atlas.html">ldk_texture_atlas.h</a></li>
+<li><a href="ldk_ttf.html">ldk_ttf.h</a></li>
+<li><a href="ldk_audio_source.html">ldk_audio_source.h</a></li>
+<li><a href="ldk_camera.html">ldk_camera.h</a></li>
+<li><a href="ldk_character_controller.html">ldk_character_controller.h</a></li>
+<li><a href="ldk_grass_interact.html">ldk_grass_interact.h</a></li>
+<li><a href="ldk_instanced_mesh_source.html">ldk_instanced_mesh_source.h</a></li>
+<li><a href="ldk_keyframe_animation_source.html">ldk_keyframe_animation_source.h</a></li>
+<li><a href="ldk_light.html">ldk_light.h</a></li>
+<li><a href="ldk_material_instance.html">ldk_material_instance.h</a></li>
+<li><a href="ldk_mesh_source.html">ldk_mesh_source.h</a></li>
+<li><a href="ldk_particle_emitter.html">ldk_particle_emitter.h</a></li>
+<li><a href="ldk_post_processing.html">ldk_post_processing.h</a></li>
+<li><a href="ldk_terrain_follower.html">ldk_terrain_follower.h</a></li>
+<li><a href="ldk_text3d.html">ldk_text3d.h</a></li>
+<li><a href="ldk_transform.html">ldk_transform.h</a></li>
+<li><a href="ldk_asset_manager.html">ldk_asset_manager.h</a></li>
+<li><a href="ldk_asset_source.html">ldk_asset_source.h</a></li>
+<li><a href="ldk_audio.html">ldk_audio.h</a></li>
+<li><a href="ldk_component.html">ldk_component.h</a></li>
+<li><a href="ldk_ecs.html">ldk_ecs.h</a></li>
+<li><a href="ldk_entity.html">ldk_entity.h</a></li>
+<li><a href="ldk_eventqueue.html">ldk_eventqueue.h</a></li>
+<li><a href="ldk_jobs.html">ldk_jobs.h</a></li>
+<li><a href="ldk_renderer.html">ldk_renderer.h</a></li>
+<li><a href="ldk_rhi.html">ldk_rhi.h</a></li>
+<li><a href="ldk_scenegraph.html">ldk_scenegraph.h</a></li>
+<li><a href="ldk_scene_manager.html">ldk_scene_manager.h</a></li>
+<li><a href="ldk_system.html">ldk_system.h</a></li>
+<li><a href="ldk_ui.html">ldk_ui.h</a></li>
+<li><a href="ldk_character_controller_system.html">ldk_character_controller_system.h</a></li>
+<li><a href="ldk_grass_system.html">ldk_grass_system.h</a></li>
+<li><a href="ldk_particle_system.html">ldk_particle_system.h</a></li>
+<li><a href="ldk_terrain_follower_system.html">ldk_terrain_follower_system.h</a></li>
+<li><a href="ldk_terrain_system.html">ldk_terrain_system.h</a></li>
+
+        </ul>
+      </details>
+    </nav>
+
+    <main class="content" id="ldk_argparse.h">
+      <header class="page-header">
+        <h1>ldk_argparse.h</h1>
+        <a class="home-link" href="index.html">home</a>
+        <div class="subtitle"><h1 id="command-line-arguments">Command-line arguments</h1>
+<p>Command-line argument parsing</p>
+<p>A very simple Command-Line argument parser</p>
+<p>Features:</p>
+<ul><li>Define expected command-line arguments with types and descriptions.</li><li>Parse command-line input and automatically recognize flags and their associated values.</li><li>Generate usage information based on argument descriptions for user guidance.</li><li>Provides safe mechanisms to access argument values while preventing buffer overflows.</li></ul><p>Usage:</p>
+<ol><li> Initialize the argument parser using ldkArgInitParser.</li><li> Add expected arguments with ldkArgAddArgument.</li><li> Parse command-line arguments using ldkArgParseArguments.</li><li> Access argument values with the corresponding retrieval functions.</li><li> Print usage information with ldkArgPrintUsage when needed.</li><li> Iterate over found arguments using ldkArgForEachArgument.</li></ol><p>Limitations:</p>
+<ul><li>The number of arguments is intentionally fixed and determined at compile time.</li><li>Currently, no dynamic memory management is implemented as arguments are stored in</li></ul><p>  a statically allocated array.</p>
+<ul><li>The size of the array is defined by the macro LDK<em>ARGPARSE</em>MAX_ARGS. The</li></ul><p>  default value is 8. In case a larger value is needed, please define the
+  macro with the required value before including this header.</p>
+</div>
+      </header>
+
+      <article id="LDK_ARGPARSE_MAX_ARGS_DEFAULT" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_ARGPARSE_MAX_ARGS_DEFAULT</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_ARGPARSE_MAX_ARGS_DEFAULT</span> <span class="tok_num">8</span></code></pre>
+  
+  
+</article>
+<article id="LDK_ARGPARSE_MAX_ARGS" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Macro</span>
+  </div>
+  <h2><span class="symbol-name">LDK_ARGPARSE_MAX_ARGS</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_pp">#define</span> <span class="tok_id">LDK_ARGPARSE_MAX_ARGS</span> <span class="tok_kw"><a href="ldk_argparse.html#LDK_ARGPARSE_MAX_ARGS_DEFAULT">LDK_ARGPARSE_MAX_ARGS_DEFAULT</a></span></code></pre>
+  
+  
+</article>
+<article id="LDKArgType" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Enum</span>
+  </div>
+  <h2><span class="symbol-name">LDKArgType</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">enum</span><span class="tok_pun">{</span>
+  <span class="tok_id">LDK_ARG_TYPE_FLAG</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ARG_TYPE_INT</span><span class="tok_pun">,</span>
+  <span class="tok_id">LDK_ARG_TYPE_STRING</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKArgType</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKArgument" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKArgument</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span><span class="tok_pun">;</span>
+  <span class="tok_kw"><a href="ldk_argparse.html#LDKArgType">LDKArgType</a></span> <span class="tok_id">type</span><span class="tok_pun">;</span>
+  <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">description</span><span class="tok_pun">;</span>
+  <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">stringValue</span><span class="tok_pun">;</span>
+  <span class="tok_kw">bool</span> <span class="tok_id">isFound</span><span class="tok_pun">;</span>
+  <span class="tok_kw">union</span><span class="tok_pun">{</span><span class="tok_kw">bool</span> <span class="tok_id">flagValue</span><span class="tok_pun">;</span><span class="tok_id">i32</span> <span class="tok_id">intValue</span><span class="tok_pun">;</span><span class="tok_pun">}</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKArgument</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="LDKArgParser" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Struct</span>
+  </div>
+  <h2><span class="symbol-name">LDKArgParser</span></h2>
+  <p class="brief"></p>
+  <pre class="symbol-decl"><code><span class="tok_kw">typedef</span> <span class="tok_kw">struct</span><span class="tok_pun">{</span>
+  <span class="tok_kw"><a href="ldk_argparse.html#LDKArgument">LDKArgument</a></span> <span class="tok_id">args</span><span class="tok_pun">[</span><span class="tok_kw"><a href="ldk_argparse.html#LDK_ARGPARSE_MAX_ARGS">LDK_ARGPARSE_MAX_ARGS</a></span><span class="tok_pun">]</span><span class="tok_pun">;</span>
+  <span class="tok_id">u32</span> <span class="tok_id">argCount</span><span class="tok_pun">;</span>
+<span class="tok_pun">}</span><span class="tok_id">LDKArgParser</span><span class="tok_pun">;</span></code></pre>
+  
+  
+</article>
+<article id="ldkArgInitParser" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgInitParser</span></h2>
+  <p class="brief">Initialize an argument parser.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldkArgInitParser</span>(<span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldkArgAddArgument" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgAddArgument</span></h2>
+  <p class="brief">Register a named command-line argument with the parser.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldkArgAddArgument</span>(
+ <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>,
+ <span class="tok_kw"><a href="ldk_argparse.html#LDKArgType">LDKArgType</a></span> <span class="tok_id">type</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">description</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+<dt><code><span class="tok_kw"><a href="ldk_argparse.html#LDKArgType">LDKArgType</a></span> <span class="tok_id">type</span></code></dt>
+<dd>Type identifier or kind used by the operation.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">description</span></code></dt>
+<dd>Description used by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldkArgParseArguments" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgParseArguments</span></h2>
+  <p class="brief">Parse command-line arguments according to the registered options.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldkArgParseArguments</span>(
+ <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_id">u32</span> <span class="tok_id">argc</span>,
+ <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">argv</span><span class="tok_pun">[</span><span class="tok_pun">]</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_id">u32</span> <span class="tok_id">argc</span></code></dt>
+<dd>Number of command-line arguments.</dd>
+<dt><code><span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">argv</span><span class="tok_pun">[</span><span class="tok_pun">]</span></code></dt>
+<dd>Array of command-line arguments.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldkArgPrintUsage" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgPrintUsage</span></h2>
+  <p class="brief">Print usage information for the registered command-line options.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldkArgPrintUsage</span>(<span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+<article id="ldkArgGetFlagValue" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgGetFlagValue</span></h2>
+  <p class="brief">Read the value of a parsed command-line flag.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">bool</span> <span class="tok_id">ldkArgGetFlagValue</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>True if the operation succeeds; false otherwise.</p>
+</section>
+
+</article>
+<article id="ldkArgGetIntValue" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgGetIntValue</span></h2>
+  <p class="brief">Read a parsed integer command-line argument.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_id">i32</span> <span class="tok_id">ldkArgGetIntValue</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>The resulting integer value.</p>
+</section>
+
+</article>
+<article id="ldkArgGetStringValue" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgGetStringValue</span></h2>
+  <p class="brief">Read a parsed string command-line argument.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span> <span class="tok_id">ldkArgGetStringValue</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_kw">const</span> <span class="tok_kw">char</span> <span class="tok_pun">*</span><span class="tok_id">name</span></code></dt>
+<dd>Name identifying the object or setting.</dd>
+
+  </dl>
+</section>
+
+  <section class="returns">
+  <h3>Returns</h3>
+  <p>Pointer to the requested object or data; NULL when unavailable.</p>
+</section>
+
+</article>
+<article id="ldkArgForEachArgument" class="symbol">
+  <div class="meta">
+    <span class="symbol-kind">Function</span>
+  </div>
+  <h2><span class="symbol-name">ldkArgForEachArgument</span></h2>
+  <p class="brief">Visit each registered argument with a callback.</p>
+  <pre class="symbol-decl"><code><span class="tok_kw"><a href="ldk_common.html#LDK_API">LDK_API</a></span> <span class="tok_kw">void</span> <span class="tok_id">ldkArgForEachArgument</span>(
+ <span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span>,
+ <span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">callback</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgument">LDKArgument</a></span> <span class="tok_pun">*</span><span class="tok_id">arg</span><span class="tok_pun">)</span>
+);</code></pre>
+  <section class="params">
+  <h3>Parameters</h3>
+  <dl>
+    <dt><code><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgParser">LDKArgParser</a></span> <span class="tok_pun">*</span><span class="tok_id">parser</span></code></dt>
+<dd>Argument parser to operate on.</dd>
+<dt><code><span class="tok_kw">void</span><span class="tok_pun">(</span><span class="tok_pun">*</span><span class="tok_id">callback</span><span class="tok_pun">)</span><span class="tok_pun">(</span><span class="tok_kw">const</span> <span class="tok_kw"><a href="ldk_argparse.html#LDKArgument">LDKArgument</a></span> <span class="tok_pun">*</span><span class="tok_id">arg</span><span class="tok_pun">)</span></code></dt>
+<dd>Callback invoked by this operation.</dd>
+
+  </dl>
+</section>
+
+  
+</article>
+
+    </main>
+  </div>
+</body>
+</html>
