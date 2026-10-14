@@ -2328,6 +2328,7 @@ static bool s_editor_gui_initialize(
     return false;
   }
 
+  ldk_ui_clipboard_window_set(&editor->ui, editor->window);
   ldki_editor_theme_icons_set(editor, &editor->ui.theme); // set theme icons
   return true;
 }
