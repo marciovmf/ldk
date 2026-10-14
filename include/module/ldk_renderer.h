@@ -232,7 +232,8 @@ extern "C" {
   /** @group ldk.module.renderer */
   typedef struct LDKRendererAmbientLight
   {
-    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    u32 sky_color; // 0xRRGGBBAA; alpha is ignored.
+    u32 ground_color; // 0xRRGGBBAA; alpha is ignored.
     float intensity;
   } LDKRendererAmbientLight;
 
@@ -714,6 +715,8 @@ extern "C" {
     bool extent_override;
     LDKRendererTarget target;
     LDKRendererTarget overlay_target;
+    LDKRHITexture overlay_display_texture;
+    LDKRHIBindings overlay_display_bindings;
     LDKRHITexture post_process_texture;
     LDKRHIBindings post_process_bindings;
     LDKRHITexture post_process_input_texture;
@@ -1048,17 +1051,19 @@ extern "C" {
       LDKRendererViewId view_id, LDKResourceMesh mesh,
       const LDKRendererWaterDesc *desc);
 
-  /** Set constant ambient light applied to lit materials.
-   * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
-   * non-negative. Ambient light does not count toward the per-view light limit.
+  /** Set hemispherical ambient illumination for lit materials.
+   * The world-space surface normal interpolates between sky (+Y) and ground
+   * (-Y) colors. Colors use 0xRRGGBBAA; alpha is ignored. Intensity must be
+   * finite and non-negative. Ambient does not count toward the light limit.
    * @param renderer Renderer receiving this request.
-   * @param color Color value used by the operation.
-   * @param intensity Intensity used by this operation.
+   * @param sky_color Ambient color for upward-facing surfaces.
+   * @param ground_color Ambient color for downward-facing surfaces.
+   * @param intensity Overall ambient intensity.
    * @return True if the operation succeeds; false otherwise.
    * @group ldk.module.renderer
    */
-  LDK_API bool ldk_renderer_ambient_light_set(
-      LDKRenderer *renderer, u32 color, float intensity);
+  LDK_API bool ldk_renderer_ambient_light_set(LDKRenderer *renderer,
+      u32 sky_color, u32 ground_color, float intensity);
 
   /** Bind a world-space interaction field sampled by vegetation shaders.
    * @param renderer Renderer receiving this request.

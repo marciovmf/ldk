@@ -306,6 +306,8 @@ static void s_renderer_post_process_pass_terminate(
 static void s_renderer_blur_pass_terminate(LDKRendererBlurPass* pass);
 static void s_renderer_post_process_view_destroy(
     LDKRenderer* renderer, LDKRendererView* view);
+static bool s_renderer_overlay_display_draw(
+    LDKRenderer* renderer, LDKRendererView* view);
 static void s_renderer_post_process_bindings_destroy(
     LDKRenderer* renderer, LDKRendererView* view);
 static void s_renderer_post_process_blur_bindings_destroy(
@@ -373,14 +375,28 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererTextObjectParams, options) == 64,
 LDKRHIShaderModule ldk_rhi_create_builtin_shader_module(
     LDKRHIContext* rhi, u32 shader, u32 stage);
 
-inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
+static LDKRHIColor s_renderer_color_from_rgba32_unorm(u32 color)
 {
   LDKRHIColor result = {0};
   result.r = (float)((color >> 24) & 0xffu) / 255.0f;
   result.g = (float)((color >> 16) & 0xffu) / 255.0f;
   result.b = (float)((color >> 8) & 0xffu) / 255.0f;
   result.a = (float)(color & 0xffu) / 255.0f;
+  return result;
+}
 
+static float s_renderer_srgb_to_linear(float value)
+{
+  return value <= 0.04045f ? value / 12.92f :
+      powf((value + 0.055f) / 1.055f, 2.4f);
+}
+
+inline LDKRHIColor ldk_renderer_color_from_rgba32(u32 color)
+{
+  LDKRHIColor result = s_renderer_color_from_rgba32_unorm(color);
+  result.r = s_renderer_srgb_to_linear(result.r);
+  result.g = s_renderer_srgb_to_linear(result.g);
+  result.b = s_renderer_srgb_to_linear(result.b);
   return result;
 }
 
@@ -1830,20 +1846,21 @@ typedef struct LDKRendererLightParams
 typedef struct LDKRendererLightingParams
 {
   i32 count[4];
-  float ambient[4];
+  float ambient_sky[4];
+  float ambient_ground[4];
   LDKRendererLightParams lights[LDK_RENDERER_MAX_LIGHTS_PER_VIEW];
   Mat4 shadow_view_projection;
   float shadow_params[4]; // depth bias, slope bias, reserved, reserved
 } LDKRendererLightingParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererLightParams) == 64, light_std140_size);
-LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 32,
+LDK_STATIC_ASSERT(offsetof(LDKRendererLightingParams, lights) == 48,
     lighting_std140_offset);
 LDK_STATIC_ASSERT(
-    offsetof(LDKRendererLightingParams, shadow_view_projection) == 1056,
+    offsetof(LDKRendererLightingParams, shadow_view_projection) == 1072,
     shadow_std140_offset);
 LDK_STATIC_ASSERT(
-    sizeof(LDKRendererLightingParams) == 1136, lighting_std140_size);
+    sizeof(LDKRendererLightingParams) == 1152, lighting_std140_size);
 
 typedef struct LDKRendererViewLighting
 {
@@ -1859,8 +1876,8 @@ static bool s_renderer_shadow_settings_valid(u32 resolution, float distance)
 }
 #define LDK_RENDERER_SHADOW_CASTER_MARGIN 60.0f
 
-bool ldk_renderer_ambient_light_set(
-    LDKRenderer *renderer, u32 color, float intensity)
+bool ldk_renderer_ambient_light_set(LDKRenderer *renderer,
+    u32 sky_color, u32 ground_color, float intensity)
 {
   if (!renderer || !renderer->is_initialized ||
       !isfinite(intensity) || intensity < 0.0f)
@@ -1868,7 +1885,8 @@ bool ldk_renderer_ambient_light_set(
     return false;
   }
 
-  renderer->ambient_light.color = color;
+  renderer->ambient_light.sky_color = sky_color;
+  renderer->ambient_light.ground_color = ground_color;
   renderer->ambient_light.intensity = intensity;
   return true;
 }
@@ -2050,12 +2068,18 @@ static void s_renderer_lighting_select(LDKRenderer *renderer,
   LDKRendererLightingParams params = {0};
   memset(lighting, 0, sizeof(*lighting));
   params.count[1] = -1;
-  LDKRHIColor ambient =
-      ldk_renderer_color_from_rgba32(renderer->ambient_light.color);
-  params.ambient[0] = ambient.r;
-  params.ambient[1] = ambient.g;
-  params.ambient[2] = ambient.b;
-  params.ambient[3] = renderer->ambient_light.intensity;
+  LDKRHIColor sky =
+      ldk_renderer_color_from_rgba32(renderer->ambient_light.sky_color);
+  LDKRHIColor ground =
+      ldk_renderer_color_from_rgba32(renderer->ambient_light.ground_color);
+  params.ambient_sky[0] = sky.r;
+  params.ambient_sky[1] = sky.g;
+  params.ambient_sky[2] = sky.b;
+  params.ambient_sky[3] = renderer->ambient_light.intensity;
+  params.ambient_ground[0] = ground.r;
+  params.ambient_ground[1] = ground.g;
+  params.ambient_ground[2] = ground.b;
+  params.ambient_ground[3] = renderer->ambient_light.intensity;
 
   for (u32 i = 0; i < renderer->submitted_light_count; i++)
   {
@@ -2206,6 +2230,11 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
       LDK_RENDERER_MESH_SUBMIT_FLAG_OVERLAY |
           LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE);
   ldk_rhi_pass_end(renderer->rhi);
+  if (view->separate_overlay &&
+      !s_renderer_overlay_display_draw(renderer, view))
+  {
+    return false;
+  }
   return true;
 }
 #include "ldk_renderer_pass_text.inl"
@@ -2325,7 +2354,7 @@ LDKResourceSkybox ldk_renderer_skybox_create(LDKRenderer *renderer,
   LDKRHITextureDesc texture_desc = {0};
   ldk_rhi_texture_desc_defaults(&texture_desc);
   texture_desc.type = LDK_RHI_TEXTURE_TYPE_CUBE;
-  texture_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+  texture_desc.format = LDK_RHI_FORMAT_RGBA8_SRGB;
   texture_desc.width = faces[0].width;
   texture_desc.height = faces[0].height;
   texture_desc.depth = 1;
@@ -2789,7 +2818,7 @@ LDKResourceTexture ldk_renderer_texture_create_from_image(
   desc.channel_count = info.channel_count;
   desc.format = info.format == LDK_IMAGE_FORMAT_RGBA16_UNORM
       ? LDK_RHI_FORMAT_RGBA16_UNORM
-      : LDK_RHI_FORMAT_RGBA8_UNORM;
+      : LDK_RHI_FORMAT_INVALID;
   desc.pixels = info.pixels;
   desc.byte_count = info.byte_count;
   desc.options = options;
@@ -2837,8 +2866,8 @@ void ldk_renderer_texture_destroy(
 // Material resources
 // ---------------------------------------------------------------------------
 
-LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
-    LDKAssetManager* assets, LDKAssetImage image)
+static LDKResourceTexture s_renderer_image_acquire(LDKRenderer* renderer,
+    LDKAssetManager* assets, LDKAssetImage image, bool srgb)
 {
   if (!renderer || !renderer->is_initialized || !assets)
   {
@@ -2856,7 +2885,8 @@ LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
     if (entry->alive && entry->image_references != 0 &&
         entry->asset_manager == assets &&
         entry->image_asset.h.index == image.h.index &&
-        entry->image_asset.h.version == image.h.version)
+        entry->image_asset.h.version == image.h.version &&
+        ((entry->flags & LDK_RENDERER_TEXTURE_FLAG_SRGB) != 0) == srgb)
     {
       if (entry->image_references == UINT32_MAX)
       {
@@ -2871,6 +2901,10 @@ LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
   ldk_renderer_texture_options_defaults(&options);
   options.generate_mipmaps = true;
   options.mip_filter = LDK_RHI_FILTER_NONE;
+  if (srgb)
+  {
+    options.flags |= LDK_RENDERER_TEXTURE_FLAG_SRGB;
+  }
   LDKResourceTexture result =
       ldk_renderer_texture_create_from_image(renderer, data->image, &options);
   LDKRendererTextureResource* entry =
@@ -2882,6 +2916,13 @@ LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
     entry->image_references = 1;
   }
   return result;
+}
+
+LDKResourceTexture ldk_renderer_image_acquire(LDKRenderer* renderer,
+    LDKAssetManager* assets, LDKAssetImage image)
+{
+  /* Generic assets default to linear data. Color slots opt into sRGB. */
+  return s_renderer_image_acquire(renderer, assets, image, false);
 }
 
 void ldk_renderer_image_release(
@@ -2917,7 +2958,7 @@ static LDKResourceTexture s_renderer_material_map_acquire(LDKRenderer *renderer,
   }
 
   LDKResourceTexture texture =
-      ldk_renderer_image_acquire(renderer, assets, image);
+      s_renderer_image_acquire(renderer, assets, image, false);
   if (!ldk_renderer_texture_is_valid(renderer, texture))
   {
     ldk_log_error(
@@ -3042,14 +3083,14 @@ static bool s_renderer_material_resolve_internal(LDKRenderer *renderer,
       return false;
     }
     desc.color = material_desc->args.textured.color;
-    desc.texture = ldk_renderer_image_acquire(
+    desc.texture = s_renderer_image_acquire(
         renderer, assets, s_renderer_material_source_image(
-            assets, material_desc, LDK_MATERIAL_TEXTURE_SLOT_ALBEDO));
+            assets, material_desc, LDK_MATERIAL_TEXTURE_SLOT_ALBEDO), true);
     if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
     {
       ldk_log_error("Material image unavailable; using missing texture.\n");
       LDKAssetImage fallback = ldk_asset_manager_image_missing(assets, NULL);
-      desc.texture = ldk_renderer_image_acquire(renderer, assets, fallback);
+      desc.texture = s_renderer_image_acquire(renderer, assets, fallback, true);
       if (!ldk_renderer_texture_is_valid(renderer, desc.texture))
       {
         return false;
@@ -4082,8 +4123,9 @@ bool ldk_renderer_initialize(
   renderer->game_width = config->game_width;
   renderer->game_height = config->game_height;
   renderer->present_game = config->present_game;
-  renderer->ambient_light.color = 0xffffffffu;
-  renderer->ambient_light.intensity = 0.0f;
+  renderer->ambient_light.sky_color = 0xc4dcffffu;
+  renderer->ambient_light.ground_color = 0x786c60ffu;
+  renderer->ambient_light.intensity = 0.3f;
   renderer->animation_start_ticks = ldk_os_time_ticks_get();
 
   if (!s_renderer_shadow_pass_initialize(&renderer->shadow_pass, config->rhi,
@@ -4376,8 +4418,12 @@ LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
           (i32)view->width, (i32)view->height,
           LDK_RHI_FORMAT_RGBA8_UNORM))
     return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  if (!s_renderer_overlay_display_ensure(renderer, view))
+  {
+    return (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE;
+  }
   view->separate_overlay = true;
-  return (LDKUITextureHandle)view->overlay_target.color_texture;
+  return (LDKUITextureHandle)view->overlay_display_texture;
 }
 
 static bool s_renderer_view_frustum_update(LDKRendererView *view)
@@ -4589,6 +4635,13 @@ bool ldk_renderer_submit_view(LDKRenderer* renderer,
   }
 
   if (!s_renderer_view_extent_apply(renderer, view, width, height))
+  {
+    return false;
+  }
+
+  /* Keep editor view handles bound to the encoded display target. */
+  if (renderer->post_process_pass.is_initialized &&
+      !s_renderer_post_process_texture_ensure(renderer, view))
   {
     return false;
   }

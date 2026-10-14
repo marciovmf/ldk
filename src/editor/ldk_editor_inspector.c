@@ -69,16 +69,28 @@ enum
 static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
 {
   {
-    "Ambient Color",
+    "Sky Ambient Color",
     LDK_FIELD_U32,
-    offsetof(LDKSceneProperties, ambient_color),
+    offsetof(LDKSceneProperties, ambient_sky_color),
     LDK_FIELD_FLAG_NONE,
     LDK_FIELD_WIDGET_COLOR,
     0.0f,
     0.0f,
     NULL,
     NULL,
-    "Ambient Color",
+    "Sky Ambient Color",
+  },
+  {
+    "Ground Ambient Color",
+    LDK_FIELD_U32,
+    offsetof(LDKSceneProperties, ambient_ground_color),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_COLOR,
+    0.0f,
+    0.0f,
+    NULL,
+    NULL,
+    "Ground Ambient Color",
   },
   {
     "Ambient Intensity",
@@ -100,7 +112,7 @@ static const LDKComponentMeta s_editor_scene_properties_meta =
   0,
   sizeof(LDKSceneProperties),
   s_editor_scene_properties_fields,
-  2,
+  3,
   NULL,
   0,
 };
@@ -2917,7 +2929,7 @@ static void s_editor_inspector_scene_properties_draw(
 {
   const LDKSceneProperties *current;
   LDKSceneProperties properties;
-  LDKComponentFieldMeta fields[2];
+  LDKComponentFieldMeta fields[3];
   LDKComponentMeta meta = s_editor_scene_properties_meta;
   LDKEntity key = x_handle_null();
   bool readonly;
@@ -2939,8 +2951,10 @@ static void s_editor_inspector_scene_properties_draw(
   memcpy(fields, s_editor_scene_properties_fields, sizeof(fields));
   if (readonly)
   {
-    fields[0].flags |= LDK_FIELD_FLAG_READONLY;
-    fields[1].flags |= LDK_FIELD_FLAG_READONLY;
+    for (u32 i = 0; i < meta.field_count; ++i)
+    {
+      fields[i].flags |= LDK_FIELD_FLAG_READONLY;
+    }
   }
   meta.fields = fields;
 
@@ -2956,7 +2970,8 @@ static void s_editor_inspector_scene_properties_draw(
 
   if (!readonly && isfinite(properties.ambient_intensity) &&
       properties.ambient_intensity >= 0.0f &&
-      (properties.ambient_color != current->ambient_color ||
+      (properties.ambient_sky_color != current->ambient_sky_color ||
+          properties.ambient_ground_color != current->ambient_ground_color ||
           properties.ambient_intensity != current->ambient_intensity))
   {
     (void)ldk_scene_properties_set(&properties);

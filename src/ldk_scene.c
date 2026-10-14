@@ -84,7 +84,8 @@ static bool s_scene_entity_is_editor_only(LDKEntity entity)
 
 static LDKSceneDiagnosticFn s_scene_diagnostic_handler;
 static void *s_scene_diagnostic_user;
-static LDKSceneProperties s_scene_properties = {0xffffffffu, 0.0f};
+static LDKSceneProperties s_scene_properties = {
+    0xc4dcffffu, 0x786c60ffu, 0.3f};
 
 void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user)
@@ -100,8 +101,9 @@ void ldk_scene_properties_defaults(LDKSceneProperties *properties)
     return;
   }
 
-  properties->ambient_color = 0xffffffffu;
-  properties->ambient_intensity = 0.0f;
+  properties->ambient_sky_color = 0xc4dcffffu;
+  properties->ambient_ground_color = 0x786c60ffu;
+  properties->ambient_intensity = 0.3f;
 }
 
 const LDKSceneProperties *ldk_scene_properties_get(void)
@@ -678,11 +680,19 @@ static bool s_read_scene_properties(const TMLDocument *doc,
     return true;
   }
 
-  entry = s_node_find_entry(doc, node, "ambient_color");
+  entry = s_node_find_entry(doc, node, "ambient_sky_color");
   if (entry && !s_node_get_u32(
-          doc, node, "ambient_color", &out_properties->ambient_color))
+          doc, node, "ambient_sky_color", &out_properties->ambient_sky_color))
   {
-    s_result_error(result, "invalid scene ambient color");
+    s_result_error(result, "invalid scene ambient sky color");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "ambient_ground_color");
+  if (entry && !s_node_get_u32(doc, node, "ambient_ground_color",
+          &out_properties->ambient_ground_color))
+  {
+    s_result_error(result, "invalid scene ambient ground color");
     return false;
   }
 
@@ -3785,8 +3795,10 @@ static bool s_scene_to_tml(XStrBuilder *out,
   x_strbuilder_append_format(
       out, "  version: %u\n", LDK_SCENE_TML_VERSION);
   x_strbuilder_append(out, "  properties:\n");
-  x_strbuilder_append_format(
-      out, "    ambient_color: %u\n", properties->ambient_color);
+  x_strbuilder_append_format(out, "    ambient_sky_color: %u\n",
+      properties->ambient_sky_color);
+  x_strbuilder_append_format(out, "    ambient_ground_color: %u\n",
+      properties->ambient_ground_color);
   x_strbuilder_append_format(out, "    ambient_intensity: %#.9g\n",
       (double)properties->ambient_intensity);
   x_strbuilder_append(out, "  entities:\n");

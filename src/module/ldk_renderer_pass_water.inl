@@ -341,7 +341,8 @@ static void s_renderer_water_params(LDKRendererWaterParams *params,
   params->caustics[1] = desc->caustics_strength;
   params->caustics[2] = desc->caustics_speed;
   params->caustics[3] = desc->caustics_depth;
-  memcpy(params->ambient, lighting->params.ambient, sizeof(params->ambient));
+  memcpy(params->ambient, lighting->params.ambient_sky,
+      sizeof(params->ambient));
   for (i32 i = 0; i < lighting->params.count[0]; ++i)
   {
     const LDKRendererLightParams *light = &lighting->params.lights[i];

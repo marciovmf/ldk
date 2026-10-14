@@ -1797,7 +1797,8 @@ void ldk_engine_frame(void)
     if (scene_properties)
     {
       ldk_renderer_ambient_light_set(&e->renderer,
-          scene_properties->ambient_color,
+          scene_properties->ambient_sky_color,
+          scene_properties->ambient_ground_color,
           scene_properties->ambient_intensity);
     }
 

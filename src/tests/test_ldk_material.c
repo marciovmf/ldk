@@ -18,6 +18,29 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int test_renderer_hemisphere_ambient(void)
+{
+  LDKRenderer renderer = {0};
+  renderer.is_initialized = true;
+
+  ASSERT_TRUE(ldk_renderer_ambient_light_set(
+      &renderer, 0xb0d0ffffu, 0x806040ffu, 0.4f));
+  ASSERT_EQ(renderer.ambient_light.sky_color, 0xb0d0ffffu);
+  ASSERT_EQ(renderer.ambient_light.ground_color, 0x806040ffu);
+  ASSERT_EQ(renderer.ambient_light.intensity, 0.4f);
+  ASSERT_FALSE(ldk_renderer_ambient_light_set(
+      &renderer, 0xffffffffu, 0xffffffffu, -0.1f));
+  ASSERT_FALSE(ldk_renderer_ambient_light_set(
+      &renderer, 0xffffffffu, 0xffffffffu, NAN));
+  ASSERT_EQ(renderer.ambient_light.sky_color, 0xb0d0ffffu);
+  ASSERT_EQ(renderer.ambient_light.ground_color, 0x806040ffu);
+  ASSERT_EQ(renderer.ambient_light.intensity, 0.4f);
+  renderer.is_initialized = false;
+  ASSERT_FALSE(ldk_renderer_ambient_light_set(
+      &renderer, 0xffffffffu, 0xffffffffu, 1.0f));
+  return 0;
+}
+
 static int test_material_types(void)
 {
   ASSERT_FALSE(ldk_material_type_is_valid(LDK_MATERIAL_TYPE_INVALID));
@@ -840,16 +863,21 @@ static int test_material_sampling_reuses_image_texture(void)
 
   ASSERT_EQ(texture_a.id, texture_b.id);
   ASSERT_EQ(texture_b.id, texture_c.id);
-  ASSERT_EQ(backend.texture_create_count, 1u);
+  ASSERT_EQ(backend.texture_create_count, 2u);
   /* Identical materials share the renderer material and acquire optional
    * texture slots only once. Albedo is still acquired per caller. */
   ASSERT_EQ(material_b.id, material_c.id);
   ASSERT_EQ(renderer.materials[material_b.id - 1u].ref_count, 2u);
-  ASSERT_EQ(renderer.textures[texture_a.id - 1u].image_references, 5u);
+  ASSERT_EQ(renderer.textures[texture_a.id - 1u].image_references, 3u);
+  ASSERT_EQ(renderer.textures[texture_a.id - 1u].format,
+      LDK_RHI_FORMAT_RGBA8_SRGB);
   ASSERT_EQ(backend.last_texture_desc.mip_count, 3u);
-  ASSERT_EQ(backend.sampler_create_count, 2u);
+  /* sRGB albedo and linear data use separate GPU textures, each with a
+   * default sampler. Customized material sampling adds a third sampler. */
+  ASSERT_EQ(backend.sampler_create_count, 3u);
   ASSERT_EQ(backend.sampler_descs[0].mip_filter, LDK_RHI_FILTER_NONE);
-  ASSERT_EQ(backend.sampler_descs[1].mip_filter, LDK_RHI_FILTER_LINEAR);
+  ASSERT_EQ(backend.sampler_descs[1].mip_filter, LDK_RHI_FILTER_NONE);
+  ASSERT_EQ(backend.sampler_descs[2].mip_filter, LDK_RHI_FILTER_LINEAR);
 
   LDKRendererMaterialResource* resource_a =
       &renderer.materials[material_a.id - 1u];
@@ -857,6 +885,13 @@ static int test_material_sampling_reuses_image_texture(void)
       &renderer.materials[material_b.id - 1u];
   LDKRendererMaterialResource* resource_c =
       &renderer.materials[material_c.id - 1u];
+  LDKResourceTexture data_texture = resource_a->desc.additional_textures[0];
+  ASSERT_NEQ(data_texture.id, texture_a.id);
+  ASSERT_EQ(renderer.textures[data_texture.id - 1u].format,
+      LDK_RHI_FORMAT_RGBA8_UNORM);
+  ASSERT_EQ(renderer.textures[data_texture.id - 1u].image_references, 2u);
+  ASSERT_EQ(resource_b->desc.additional_textures[0].id, data_texture.id);
+  ASSERT_EQ(resource_c->desc.additional_textures[0].id, data_texture.id);
   ASSERT_EQ(resource_a->texture_sampler, LDK_RHI_INVALID_RESOURCE);
   ASSERT_NEQ(resource_b->texture_sampler, LDK_RHI_INVALID_RESOURCE);
   ASSERT_EQ(resource_b->texture_sampler, resource_c->texture_sampler);
@@ -878,8 +913,8 @@ static int test_material_sampling_reuses_image_texture(void)
   ASSERT_EQ(resource_c->texture_uv_scales[0].x, 4.0f);
   ASSERT_EQ(resource_c->texture_uv_scales[3].x, 8.0f);
   ASSERT_EQ(resource_c->render_key, resource_b->render_key);
-  ASSERT_EQ(backend.texture_create_count, 1u);
-  ASSERT_EQ(backend.sampler_create_count, 3u);
+  ASSERT_EQ(backend.texture_create_count, 2u);
+  ASSERT_EQ(backend.sampler_create_count, 4u);
 
   ldk_renderer_material_destroy(&renderer, material_a);
   ldk_renderer_material_destroy(&renderer, material_b);
@@ -1079,7 +1114,8 @@ static bool s_test_renderer_instancing_setup(LDKRenderer *renderer,
   renderer->rhi = rhi;
   renderer->game_width = 640;
   renderer->game_height = 480;
-  renderer->ambient_light.color = 0xffffffffu;
+  renderer->ambient_light.sky_color = 0xc4dcffffu;
+  renderer->ambient_light.ground_color = 0x786c60ffu;
   renderer->is_initialized = true;
 
   renderer->shadow_pass.rhi = rhi;
@@ -1479,9 +1515,12 @@ static int test_renderer_instances_copy_colors(void)
       LDK_RENDERER_VIEW_ALL, mesh, material, 0, 3, mat4_identity(), &local,
       &color, 1, 0));
   color = 0xffffffffu;
-  ASSERT_EQ(renderer.submitted_instance_colors[0].r, 128.0f / 255.0f);
-  ASSERT_EQ(renderer.submitted_instance_colors[0].g, 64.0f / 255.0f);
-  ASSERT_EQ(renderer.submitted_instance_colors[0].b, 32.0f / 255.0f);
+  ASSERT_TRUE(fabsf(renderer.submitted_instance_colors[0].r -
+      0.2158605f) < 1e-5f);
+  ASSERT_TRUE(fabsf(renderer.submitted_instance_colors[0].g -
+      0.05126946f) < 1e-5f);
+  ASSERT_TRUE(fabsf(renderer.submitted_instance_colors[0].b -
+      0.01444384f) < 1e-5f);
   ASSERT_EQ(renderer.submitted_instance_colors[0].a, 16.0f / 255.0f);
   s_test_renderer_instancing_cleanup(&renderer, &rhi);
   return 0;
@@ -1657,6 +1696,7 @@ static int test_independent_texture_settings(void)
 int main(void)
 {
   STDXTestCase tests[] = {
+      X_TEST(test_renderer_hemisphere_ambient),
       X_TEST(test_independent_texture_settings),
       X_TEST(test_material_types),
       X_TEST(test_material_defaults),

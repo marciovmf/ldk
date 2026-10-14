@@ -216,7 +216,10 @@ static char const *LDK_RHI_GL33_TEXT_PASS_VERTEX_SHADER =
     "        vec4(camera_back * z_scale, 0.0), world[3]);\n"
     "  }\n"
     "  v_uv = a_uv;\n"
-    "  v_color = a_color;\n"
+    "  vec3 lower = a_color.rgb / 12.92;\n"
+    "  vec3 upper = pow((a_color.rgb + 0.055) / 1.055, vec3(2.4));\n"
+    "  v_color = vec4(mix(lower, upper,\n"
+    "      step(vec3(0.04045), a_color.rgb)), a_color.a);\n"
     "  gl_Position = u_projection * u_view * world *\n"
     "      vec4(a_position, 0.0, 1.0);\n"
     "}\n";
@@ -301,8 +304,16 @@ static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
   "  return world_normal;\n"                                               \
   "}\n"
 
+#define LDK_GL33_COLOR_GLSL                                                 \
+  "vec3 ldk_srgb_to_linear(vec3 color)\n"                                   \
+  "{\n"                                                                     \
+  "  vec3 lower = color / 12.92;\n"                                         \
+  "  vec3 upper = pow((color + 0.055) / 1.055, vec3(2.4));\n"               \
+  "  return mix(lower, upper, step(vec3(0.04045), color));\n"               \
+  "}\n"
+
 static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
-    "#version 330 core\n"
+    "#version 330 core\n" LDK_GL33_COLOR_GLSL
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 1) in vec3 a_normal;\n"
     "layout(location = 2) in vec2 a_uv;\n"
@@ -389,7 +400,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "  }\n"
     "  v_world_position = world_position.xyz;\n"
     "  v_uv = a_uv;\n"
-    "  v_color = a_color;\n"
+    "  v_color = vec4(ldk_srgb_to_linear(a_color.rgb), a_color.a);\n"
     "#ifdef LDK_INSTANCED\n"
     "  v_instance_color = i_instance_color;\n"
     "  v_atlas_rect = i_uv_rect;\n"
@@ -401,7 +412,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER =
     "}\n";
 
 static char const *LDK_RHI_GL33_TERRAIN_PASS_VERTEX_SHADER =
-    "#version 330 core\n"
+    "#version 330 core\n" LDK_GL33_COLOR_GLSL
     "layout(location = 0) in vec3 a_position;\n"
     "layout(location = 1) in vec3 a_normal;\n"
     "layout(location = 2) in vec2 a_uv;\n"
@@ -491,7 +502,7 @@ static char const *LDK_RHI_GL33_TERRAIN_PASS_VERTEX_SHADER =
     "  }\n"
     "  v_world_position = world_position.xyz;\n"
     "  v_uv = a_uv;\n"
-    "  v_color = a_color;\n"
+    "  v_color = vec4(ldk_srgb_to_linear(a_color.rgb), a_color.a);\n"
     "#ifdef LDK_INSTANCED\n"
     "  v_instance_color = i_instance_color;\n"
     "#else\n"
@@ -501,7 +512,7 @@ static char const *LDK_RHI_GL33_TERRAIN_PASS_VERTEX_SHADER =
     "}\n";
 
 static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
-    "#version 330 core\n"
+    "#version 330 core\n" LDK_GL33_COLOR_GLSL
     "#define LDK_VEGETATION_TEXTURE LDK_TEXTURE_8\n"
     LDK_GL33_VEGETATION_GLSL
     "layout(location = 0) in vec3 a_position;\n"
@@ -556,7 +567,7 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_VERTEX_SHADER =
     "  v_normal = ldk_vegetation_normal(world, a_normal, vegetation_bend,\n"
     "      vegetation_height, abs(a_tangent.w));\n"
     "  v_world_position = position;\n"
-    "  v_color = a_color;\n"
+    "  v_color = vec4(ldk_srgb_to_linear(a_color.rgb), a_color.a);\n"
     "#ifdef LDK_INSTANCED\n"
     "  v_instance_color = i_instance_color;\n"
     "#else\n"
@@ -729,7 +740,8 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "layout(std140) uniform LDK_UBO_4\n"                                         \
   "{\n"                                                                        \
   "  ivec4 u_light_count;\n"                                                   \
-  "  vec4 u_ambient;\n"                                                        \
+  "  vec4 u_ambient_sky;\n"                                                    \
+  "  vec4 u_ambient_ground;\n"                                                 \
   "  LDKLight u_lights[16];\n"                                                 \
   "  mat4 u_shadow_view_projection;\n"                                         \
   "  vec4 u_shadow_params;\n"                                                  \
@@ -763,7 +775,10 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "  vec3 n = normal / max(length(normal), 1e-6);\n"                           \
   "  vec3 view_delta = u_camera_position.xyz - v_world_position;\n"             \
   "  vec3 view_direction = view_delta / max(length(view_delta), 1e-6);\n"        \
-  "  diffuse = u_ambient.rgb * u_ambient.a;\n"                                \
+  "  float sky_weight = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);\n"                 \
+  "  vec3 ambient_color = mix(u_ambient_ground.rgb,\n"                         \
+  "      u_ambient_sky.rgb, sky_weight);\n"                                     \
+  "  diffuse = ambient_color * u_ambient_sky.a;\n"                             \
   "  specular = vec3(0.0);\n"                                                  \
   "  for (int i = 0; i < min(u_light_count.x, 16); ++i)\n"                     \
   "  {\n"                                                                      \
@@ -780,9 +795,10 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "      vec3 delta = light.position_type.xyz - v_world_position;\n"           \
   "      float distance_to_light = length(delta);\n"                           \
   "      to_light = delta / max(distance_to_light, 1e-6);\n"                   \
-  "      float falloff = max(1.0 - distance_to_light / "                       \
-  "light.direction_range.w, 0.0);\n"                                           \
-  "      attenuation = falloff * falloff;\n"                                   \
+  "      float distance_sq = dot(delta, delta);\n"                            \
+  "      float ratio = distance_to_light / light.direction_range.w;\n"        \
+  "      float cutoff = clamp(1.0 - pow(ratio, 4.0), 0.0, 1.0);\n"              \
+  "      attenuation = cutoff * cutoff / max(distance_sq, 0.01);\n"          \
   "      if (type == 1)\n"                                                     \
   "      {\n"                                                                  \
   "        float cosine = dot(-to_light, light.direction_range.xyz);\n"        \
@@ -800,10 +816,19 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "    diffuse += energy * ndotl;\n"                                           \
   "    if (ndotl > 0.0 && specular_strength > 0.0)\n"                         \
   "    {\n"                                                                    \
-  "      vec3 reflected = reflect(-to_light, n);\n"                            \
-  "      float highlight = pow(max(dot(reflected, view_direction), 0.0),\n"     \
-  "          max(shininess, 1.0));\n"                                           \
-  "      specular += energy * highlight * specular_strength;\n"                    \
+  "      vec3 half_vector = to_light + view_direction;\n"                    \
+  "      float half_len_sq = dot(half_vector, half_vector);\n"                \
+  "      if (half_len_sq > 1e-8)\n"                                             \
+  "      {\n"                                                                   \
+  "        vec3 h = half_vector * inversesqrt(half_len_sq);\n"                \
+  "        float exponent = max(shininess, 1.0);\n"                          \
+  "        float normalization = (exponent + 8.0) / 25.13274123;\n"          \
+  "        float highlight = pow(max(dot(n, h), 0.0), exponent);\n"          \
+  "        float vdot_h = clamp(dot(view_direction, h), 0.0, 1.0);\n"         \
+  "        float fresnel = 0.04 + 0.96 * pow(1.0 - vdot_h, 5.0);\n"           \
+  "        specular += energy * ndotl * highlight * normalization\n"         \
+  "            * fresnel * specular_strength;\n"                              \
+  "      }\n"                                                                   \
   "    }\n"                                                                    \
   "  }\n"                                                                      \
   "}\n"
@@ -1454,6 +1479,11 @@ static char const* LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER =
 "  }\n"
 "  if (u_stylization_options.w > 0.5)\n"
 "    color.rgb = ldk_retro_dither(color.rgb);\n"
+"  vec3 linear_color = max(color.rgb, vec3(0.0));\n"
+"  vec3 lower = linear_color * 12.92;\n"
+"  vec3 upper = 1.055 * pow(linear_color, vec3(1.0 / 2.4)) - 0.055;\n"
+"  color.rgb = mix(lower, upper,\n"
+"      step(vec3(0.0031308), linear_color));\n"
 "  out_color = color;\n"
 "}\n";
 

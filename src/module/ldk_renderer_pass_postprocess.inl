@@ -75,23 +75,6 @@ static bool s_renderer_blur_active(
       post_processing->blur_strength > 0.0f;
 }
 
-static bool s_renderer_post_processing_active(
-    LDKRendererPostProcessing const* post_processing)
-{
-  return post_processing != NULL && post_processing->enabled &&
-      (post_processing->tonemapping_enabled ||
-          s_renderer_blur_active(post_processing) ||
-          post_processing->color_enabled ||
-          post_processing->vignette_enabled ||
-          post_processing->screen_distortion_enabled ||
-          post_processing->chromatic_aberration_enabled ||
-          post_processing->heat_enabled ||
-          post_processing->inverse_enabled ||
-          post_processing->black_and_white_enabled ||
-          post_processing->retro_enabled ||
-          post_processing->drunk_enabled);
-}
-
 static void s_renderer_post_process_bindings_destroy(
     LDKRenderer* renderer, LDKRendererView* view)
 {
@@ -171,6 +154,119 @@ static void s_renderer_post_process_view_destroy(
   }
 
   view->post_process_texture = LDK_RHI_INVALID_RESOURCE;
+
+  if (view->overlay_display_bindings != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_bindings_destroy(renderer->rhi, view->overlay_display_bindings);
+  }
+  view->overlay_display_bindings = LDK_RHI_INVALID_RESOURCE;
+
+  if (view->overlay_display_texture != LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_ui_pass_remove_texture_bindings(
+        &renderer->ui_pass, view->overlay_display_texture);
+    ldk_rhi_texture_destroy(renderer->rhi, view->overlay_display_texture);
+  }
+  view->overlay_display_texture = LDK_RHI_INVALID_RESOURCE;
+}
+
+static bool s_renderer_overlay_display_ensure(
+    LDKRenderer *renderer, LDKRendererView *view)
+{
+  if (!renderer || !renderer->rhi || !view ||
+      view->overlay_target.color_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  if (view->overlay_display_texture == LDK_RHI_INVALID_RESOURCE)
+  {
+    LDKRHITextureDesc texture_desc = {0};
+    ldk_rhi_texture_desc_defaults(&texture_desc);
+    texture_desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+    texture_desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+    texture_desc.width = view->width;
+    texture_desc.height = view->height;
+    texture_desc.depth = 1;
+    texture_desc.mip_count = 1;
+    texture_desc.layer_count = 1;
+    texture_desc.usage = LDK_RHI_TEXTURE_USAGE_RENDER_TARGET |
+        LDK_RHI_TEXTURE_USAGE_SAMPLED;
+    view->overlay_display_texture =
+        ldk_rhi_texture_create(renderer->rhi, &texture_desc);
+    if (view->overlay_display_texture == LDK_RHI_INVALID_RESOURCE)
+    {
+      return false;
+    }
+  }
+
+  if (view->overlay_display_bindings == LDK_RHI_INVALID_RESOURCE)
+  {
+    LDKRHIBindingsDesc bindings_desc = {0};
+    ldk_rhi_bindings_desc_defaults(&bindings_desc);
+    bindings_desc.layout = renderer->post_process_pass.bindings_layout;
+    bindings_desc.binding_count = 3;
+    bindings_desc.bindings[0].slot = 0;
+    bindings_desc.bindings[0].buffer = renderer->post_process_pass.params_buffer;
+    bindings_desc.bindings[0].buffer_size =
+        sizeof(LDKRendererPostProcessParams);
+    bindings_desc.bindings[1].slot = 1;
+    bindings_desc.bindings[1].texture = view->overlay_target.color_texture;
+    bindings_desc.bindings[1].sampler = renderer->post_process_pass.sampler;
+    bindings_desc.bindings[2].slot = 2;
+    bindings_desc.bindings[2].texture = view->overlay_target.color_texture;
+    bindings_desc.bindings[2].sampler = renderer->post_process_pass.sampler;
+    view->overlay_display_bindings =
+        ldk_rhi_bindings_create(renderer->rhi, &bindings_desc);
+  }
+  return view->overlay_display_bindings != LDK_RHI_INVALID_RESOURCE;
+}
+
+static bool s_renderer_overlay_display_draw(
+    LDKRenderer *renderer, LDKRendererView *view)
+{
+  if (!s_renderer_overlay_display_ensure(renderer, view))
+  {
+    return false;
+  }
+
+  LDKRendererPostProcessParams params = {0};
+  params.blur_options[2] = (float)view->width / (float)view->height;
+  if (!ldk_rhi_buffer_update(renderer->rhi,
+          renderer->post_process_pass.params_buffer, 0, sizeof(params),
+          &params))
+  {
+    return false;
+  }
+
+  LDKRHIPassDesc pass_desc = {0};
+  ldk_rhi_pass_desc_defaults(&pass_desc);
+  pass_desc.color_attachment_count = 1;
+  pass_desc.color_attachments[0].texture = view->overlay_display_texture;
+  pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+  pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+  pass_desc.has_viewport = true;
+  pass_desc.viewport.width = (float)view->width;
+  pass_desc.viewport.height = (float)view->height;
+  pass_desc.viewport.max_depth = 1.0f;
+
+  ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
+  ldk_rhi_pipeline_bind(renderer->rhi, renderer->post_process_pass.pipeline);
+  ldk_rhi_bindings_bind(renderer->rhi, view->overlay_display_bindings);
+  ldk_rhi_vertex_buffer_bind(
+      renderer->rhi, renderer->post_process_pass.vertex_buffer, 0);
+  LDKRHIDrawDesc draw_desc = {0};
+  draw_desc.vertex_count = 6;
+  ldk_rhi_draw(renderer->rhi, &draw_desc);
+  ldk_rhi_pass_end(renderer->rhi);
+
+  LDKRendererFrameDomainStats *stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+  if (stats)
+  {
+    stats->draw_call_count += 1;
+  }
+  return true;
 }
 
 static bool s_renderer_post_process_texture_ensure(
@@ -711,8 +807,7 @@ static LDKRHITexture s_renderer_view_output_texture(
     return LDK_RHI_INVALID_RESOURCE;
   }
 
-  if (s_renderer_post_processing_active(&view->post_processing) &&
-      view->post_process_texture != LDK_RHI_INVALID_RESOURCE)
+  if (view->post_process_texture != LDK_RHI_INVALID_RESOURCE)
   {
     return view->post_process_texture;
   }
@@ -819,14 +914,10 @@ static bool s_renderer_blur_draw(LDKRenderer* renderer,
 static bool s_renderer_post_process_draw(
     LDKRenderer* renderer, LDKRendererView* view)
 {
-  if (renderer == NULL || view == NULL)
+  if (renderer == NULL || view == NULL ||
+      !renderer->post_process_pass.is_initialized)
   {
     return false;
-  }
-
-  if (!s_renderer_post_processing_active(&view->post_processing))
-  {
-    return true;
   }
 
   LDKRHITexture blurred_texture = view->target.color_texture;
@@ -852,45 +943,48 @@ static bool s_renderer_post_process_draw(
   pass_desc.viewport.min_depth = 0.0f;
   pass_desc.viewport.max_depth = 1.0f;
 
-  bool blur_active = s_renderer_blur_active(&view->post_processing);
-  float focus_x = isfinite(view->post_processing.blur_focus_x)
-      ? view->post_processing.blur_focus_x
+  LDKRendererPostProcessing disabled = {0};
+  const LDKRendererPostProcessing *post_processing =
+      view->post_processing.enabled ? &view->post_processing : &disabled;
+  bool blur_active = s_renderer_blur_active(post_processing);
+  float focus_x = isfinite(post_processing->blur_focus_x)
+      ? post_processing->blur_focus_x
       : 0.5f;
-  float focus_y = isfinite(view->post_processing.blur_focus_y)
-      ? view->post_processing.blur_focus_y
+  float focus_y = isfinite(post_processing->blur_focus_y)
+      ? post_processing->blur_focus_y
       : 0.5f;
 
   LDKRendererPostProcessParams params = {0};
-  params.tonemapping[0] = view->post_processing.exposure;
+  params.tonemapping[0] = post_processing->exposure;
   params.tonemapping[1] =
-      view->post_processing.tonemapping_enabled ? 1.0f : 0.0f;
-  params.color_adjustments[0] = view->post_processing.brightness;
-  params.color_adjustments[1] = view->post_processing.contrast;
-  params.color_adjustments[2] = view->post_processing.saturation;
+      post_processing->tonemapping_enabled ? 1.0f : 0.0f;
+  params.color_adjustments[0] = post_processing->brightness;
+  params.color_adjustments[1] = post_processing->contrast;
+  params.color_adjustments[2] = post_processing->saturation;
   params.color_adjustments[3] =
-      view->post_processing.color_enabled ? 1.0f : 0.0f;
+      post_processing->color_enabled ? 1.0f : 0.0f;
   params.blur_focus[0] = focus_x;
   params.blur_focus[1] = focus_y;
   params.blur_focus[2] =
-      s_renderer_saturate(view->post_processing.blur_focus_size);
+      s_renderer_saturate(post_processing->blur_focus_size);
   params.blur_focus[3] =
-      s_renderer_saturate(view->post_processing.blur_focus_feather);
+      s_renderer_saturate(post_processing->blur_focus_feather);
   params.blur_options[0] = blur_active ? 1.0f : 0.0f;
   params.blur_options[1] =
-      view->post_processing.blur_inverted ? 1.0f : 0.0f;
+      post_processing->blur_inverted ? 1.0f : 0.0f;
   params.blur_options[2] =
       (float)view->width / (float)view->height;
   params.vignette[0] =
-      s_renderer_saturate(view->post_processing.vignette_intensity);
+      s_renderer_saturate(post_processing->vignette_intensity);
   params.vignette[1] =
-      s_renderer_saturate(view->post_processing.vignette_radius);
+      s_renderer_saturate(post_processing->vignette_radius);
   params.vignette[2] =
-      s_renderer_saturate(view->post_processing.vignette_softness);
+      s_renderer_saturate(post_processing->vignette_softness);
   params.vignette[3] =
-      view->post_processing.vignette_enabled ? 1.0f : 0.0f;
+      post_processing->vignette_enabled ? 1.0f : 0.0f;
   float distortion_strength =
-      isfinite(view->post_processing.screen_distortion_strength)
-      ? view->post_processing.screen_distortion_strength
+      isfinite(post_processing->screen_distortion_strength)
+      ? post_processing->screen_distortion_strength
       : 0.0f;
   if (distortion_strength < -1.0f)
   {
@@ -902,47 +996,47 @@ static bool s_renderer_post_process_draw(
   }
   params.lens[0] = distortion_strength;
   params.lens[1] =
-      view->post_processing.screen_distortion_enabled ? 1.0f : 0.0f;
+      post_processing->screen_distortion_enabled ? 1.0f : 0.0f;
   params.lens[2] =
-      s_renderer_saturate(view->post_processing.chromatic_aberration_strength);
+      s_renderer_saturate(post_processing->chromatic_aberration_strength);
   params.lens[3] =
-      view->post_processing.chromatic_aberration_enabled ? 1.0f : 0.0f;
+      post_processing->chromatic_aberration_enabled ? 1.0f : 0.0f;
   params.heat[0] =
-      s_renderer_saturate(view->post_processing.heat_strength);
+      s_renderer_saturate(post_processing->heat_strength);
   params.heat[1] = s_renderer_clamp_finite(
-      view->post_processing.heat_amplitude, 0.0f, 32.0f, 4.0f);
+      post_processing->heat_amplitude, 0.0f, 32.0f, 4.0f);
   params.heat[2] = s_renderer_clamp_finite(
-      view->post_processing.heat_scale, 0.25f, 4.0f, 1.0f);
+      post_processing->heat_scale, 0.25f, 4.0f, 1.0f);
   params.heat[3] = s_renderer_clamp_finite(
-      view->post_processing.heat_speed, 0.0f, 4.0f, 1.0f);
+      post_processing->heat_speed, 0.0f, 4.0f, 1.0f);
   params.stylization_options[0] =
-      view->post_processing.heat_enabled ? 1.0f : 0.0f;
+      post_processing->heat_enabled ? 1.0f : 0.0f;
   params.stylization_options[1] =
-      view->post_processing.inverse_enabled ? 1.0f : 0.0f;
+      post_processing->inverse_enabled ? 1.0f : 0.0f;
   params.stylization_options[2] =
-      view->post_processing.black_and_white_enabled ? 1.0f : 0.0f;
+      post_processing->black_and_white_enabled ? 1.0f : 0.0f;
   params.stylization_options[3] =
-      view->post_processing.retro_enabled ? 1.0f : 0.0f;
+      post_processing->retro_enabled ? 1.0f : 0.0f;
   params.retro[0] = s_renderer_clamp_finite(
-      view->post_processing.retro_pixel_size, 1.0f, 16.0f, 2.0f);
+      post_processing->retro_pixel_size, 1.0f, 16.0f, 2.0f);
   params.retro[1] = s_renderer_clamp_finite(
-      view->post_processing.retro_color_levels, 2.0f, 16.0f, 4.0f);
+      post_processing->retro_color_levels, 2.0f, 16.0f, 4.0f);
   params.retro[2] =
-      s_renderer_saturate(view->post_processing.retro_dither_strength);
+      s_renderer_saturate(post_processing->retro_dither_strength);
   params.retro[3] = s_renderer_clamp_finite(
-      view->post_processing.retro_pattern_scale, 1.0f, 8.0f, 1.0f);
+      post_processing->retro_pattern_scale, 1.0f, 8.0f, 1.0f);
   params.drunk_primary[0] =
-      s_renderer_saturate(view->post_processing.drunk_strength);
+      s_renderer_saturate(post_processing->drunk_strength);
   params.drunk_primary[1] = s_renderer_clamp_finite(
-      view->post_processing.drunk_speed, 0.0f, 4.0f, 1.0f);
+      post_processing->drunk_speed, 0.0f, 4.0f, 1.0f);
   params.drunk_primary[2] = s_renderer_clamp_finite(
-      view->post_processing.drunk_movement, 0.0f, 3.0f, 0.5f);
+      post_processing->drunk_movement, 0.0f, 3.0f, 0.5f);
   params.drunk_primary[3] =
-      view->post_processing.drunk_enabled ? 1.0f : 0.0f;
+      post_processing->drunk_enabled ? 1.0f : 0.0f;
   params.drunk_secondary[0] =
-      s_renderer_saturate(view->post_processing.drunk_ghosting);
+      s_renderer_saturate(post_processing->drunk_ghosting);
   params.drunk_secondary[1] = s_renderer_saturate(
-      view->post_processing.drunk_chromatic_aberration);
+      post_processing->drunk_chromatic_aberration);
   params.animation[0] = renderer->animation_time_seconds;
   if (!ldk_rhi_buffer_update(renderer->rhi,
           renderer->post_process_pass.params_buffer, 0, sizeof(params),
@@ -1010,11 +1104,6 @@ bool ldk_renderer_view_post_processing_set(
   {
     view->post_processing.enabled = false;
     return false;
-  }
-
-  if (!s_renderer_post_processing_active(&view->post_processing))
-  {
-    return true;
   }
 
   if (!s_renderer_post_process_texture_ensure(renderer, view))
