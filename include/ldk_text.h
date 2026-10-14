@@ -16,7 +16,7 @@ extern "C" {
 
 #include <stdbool.h>
 
-  /** @group core.text */
+  /** @group ldk.text */
   typedef struct LDKTextGlyphQuad
   {
     LDKGlyph const *glyph;
@@ -32,7 +32,7 @@ extern "C" {
     float v1;
   } LDKTextGlyphQuad;
 
-  /** @group core.text */
+  /** @group ldk.text */
   typedef struct LDKTextLayoutIterator
   {
     LDKFontInstance *font;
@@ -55,7 +55,7 @@ extern "C" {
    * @param y Top text origin in layout units.
    * @param multiline Whether newline characters advance to a new line.
    * @return true on success, false for invalid arguments.
-   * @group core.text
+   * @group ldk.text
    */
   LDK_API bool ldk_text_layout_begin(LDKTextLayoutIterator *iterator,
       LDKFontInstance *font, char const *text, float x, float y,
@@ -71,7 +71,7 @@ extern "C" {
    * @param y Top text origin in layout units.
    * @param multiline Whether newline characters advance to a new line.
    * @return true on success, false for invalid arguments.
-   * @group core.text
+   * @group ldk.text
    */
   LDK_API bool ldk_text_layout_begin_range(LDKTextLayoutIterator *iterator,
       LDKFontInstance *font, char const *text_start, char const *text_end,
@@ -87,7 +87,7 @@ extern "C" {
    * @param iterator Active layout iterator.
    * @param out_quad Destination glyph quad.
    * @return true when a glyph quad was produced, false when iteration is complete.
-   * @group core.text
+   * @group ldk.text
    */
   LDK_API bool ldk_text_layout_next(
       LDKTextLayoutIterator *iterator, LDKTextGlyphQuad *out_quad);
@@ -103,7 +103,7 @@ extern "C" {
    * @param out_next Receives the byte from which the following line starts.
    * @param out_width Optional measured width of the produced line.
    * @return true when a line was produced, false for invalid or empty input.
-   * @group core.text
+   * @group ldk.text
    */
   LDK_API bool ldk_text_wrapped_next_line(LDKFontInstance *font,
       char const *start, char const *text_end, float max_width,

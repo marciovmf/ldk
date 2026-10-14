@@ -12,7 +12,7 @@
 #include <ldk_common.h>
 
 // LDKSize
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct
 {
   i32 w;
@@ -24,23 +24,23 @@ typedef struct
  * @param width Width in pixels or the units expected by the API.
  * @param height Height in pixels or the units expected by the API.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSize ldk_size(i32 width, i32 height);
 /**
  * @brief Return an integer size with both dimensions zero.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSize ldk_size_zero();
 /**
  * @brief Return an integer size with both dimensions one.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSize ldk_size_one();
 
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct
 {
   float w;
@@ -52,25 +52,25 @@ typedef struct
  * @param width Width in pixels or the units expected by the API.
  * @param height Height in pixels or the units expected by the API.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSizef ldk_sizef(float width, float height);
 /**
  * @brief Return a floating-point size with both dimensions zero.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSizef ldk_sizef_zero();
 /**
  * @brief Return a floating-point size with both dimensions one.
  * @return The resulting size.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKSizef ldk_sizef_one();
 
 
 // LDKRect
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct 
 {
   i32 x;
@@ -86,7 +86,7 @@ typedef struct
  * @param width Width in pixels or the units expected by the API.
  * @param height Height in pixels or the units expected by the API.
  * @return The resulting rectangle.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKRect ldk_rect(i32 x, i32 y, i32 width, i32 height);
 /**
@@ -95,7 +95,7 @@ LDK_API LDKRect ldk_rect(i32 x, i32 y, i32 width, i32 height);
  * @param x X coordinate or component.
  * @param y Y coordinate or component.
  * @return True when the queried condition holds; false otherwise.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API bool ldk_rect_contains(const LDKRect* rect, i32 x, i32 y);
 /**
@@ -103,12 +103,12 @@ LDK_API bool ldk_rect_contains(const LDKRect* rect, i32 x, i32 y);
  * @param a First value to compare or combine.
  * @param b Second value to compare or combine.
  * @return The resulting rectangle.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKRect ldk_rect_intersect(const LDKRect* a, const LDKRect* b);
 
 // LDKRectf
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct 
 {
   float x;
@@ -125,7 +125,7 @@ typedef struct
  * @param width Width in pixels or the units expected by the API.
  * @param height Height in pixels or the units expected by the API.
  * @return The resulting rectangle.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKRectf ldk_rectf(float x, float y, float width, float height);
 /**
@@ -134,7 +134,7 @@ LDK_API LDKRectf ldk_rectf(float x, float y, float width, float height);
  * @param x X coordinate or component.
  * @param y Y coordinate or component.
  * @return True when the queried condition holds; false otherwise.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API bool ldk_rectf_contains(const LDKRectf* rect, float x, float y);
 /**
@@ -142,12 +142,12 @@ LDK_API bool ldk_rectf_contains(const LDKRectf* rect, float x, float y);
  * @param a First value to compare or combine.
  * @param b Second value to compare or combine.
  * @return The resulting rectangle.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKRectf ldk_rectf_intersect(const LDKRectf* a, const LDKRectf* b);
 
 // LDKPoint
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct
 {
   i32 x;
@@ -159,12 +159,12 @@ typedef struct
  * @param x X coordinate or component.
  * @param y Y coordinate or component.
  * @return The resulting point.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKPoint ldk_point(i32 x, i32 y);
 
 // LDKPointf
-/** @group core.geometry */
+/** @group ldk.geom */
 typedef struct
 {
   float x;
@@ -176,7 +176,7 @@ typedef struct
  * @param x X coordinate or component.
  * @param y Y coordinate or component.
  * @return The resulting point.
- * @group core.geometry
+ * @group ldk.geom
  */
 LDK_API LDKPointf ldk_pointf(float x, float y);
 #endif //LDK_GEOM_H

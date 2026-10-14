@@ -10,7 +10,7 @@
 #include <ldk_common.h>
 #include <editor/ldk_component_metadata.h>
 
-/** @group editor.system_metadata.systems */
+/** @group ldk.editor.system_metadata */
 typedef struct LDKSystemMeta
 {
   const char *name;
@@ -28,14 +28,14 @@ typedef struct LDKSystemMeta
 /**
  * @brief Count the engine system metadata.
  * @return Number of matching entries.
- * @group editor.system_metadata.systems
+ * @group ldk.editor.system_metadata
  */
 LDK_API u32 ldk_engine_system_metadata_count(void);
 /**
  * @brief Get the engine system metadata.
  * @param index Zero-based index of the selected item.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group editor.system_metadata.systems
+ * @group ldk.editor.system_metadata
  */
 LDK_API const LDKSystemMeta *ldk_engine_system_metadata_get(u32 index);
 

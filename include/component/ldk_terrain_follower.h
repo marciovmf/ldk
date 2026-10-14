@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-/** @group components.terrain_follower */
+/** @group ldk.component.terrain_follower */
 //@component
 typedef struct LDKTerrainFollowerComponent
 {
@@ -25,7 +25,7 @@ typedef struct LDKTerrainFollowerComponent
 /**
  * @brief Create default settings for terrain follower component.
  * @return A value initialized with the engine defaults.
- * @group components.terrain_follower
+ * @group ldk.component.terrain_follower
  */
 LDK_API LDKTerrainFollowerComponent
 ldk_terrain_follower_component_make_default(void);
@@ -35,7 +35,7 @@ ldk_terrain_follower_component_make_default(void);
  * @brief Build the ECS registration descriptor for the terrain follower component.
  * @param initial_capacity Initial number of entries reserved in the registry.
  * @return A descriptor for the requested component or resource.
- * @group components.terrain_follower.registration
+ * @group ldk.component.terrain_follower
  */
 LDK_API LDKComponentDesc ldk_terrain_follower_component_desc(
     u32 initial_capacity);

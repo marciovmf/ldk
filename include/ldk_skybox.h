@@ -15,7 +15,7 @@ extern "C"
 {
 #endif
 
-  /** @group core.skyboxes */
+  /** @group ldk.asset.skybox */
   typedef enum LDKSkyboxFace
   {
     LDK_SKYBOX_FACE_POSITIVE_X = 0,
@@ -27,7 +27,7 @@ extern "C"
     LDK_SKYBOX_FACE_COUNT
   } LDKSkyboxFace;
 
-  /** @group core.skyboxes */
+  /** @group ldk.asset.skybox */
   typedef struct LDKSkyboxDesc
   {
     LDKAssetImage faces[LDK_SKYBOX_FACE_COUNT];
@@ -36,14 +36,14 @@ extern "C"
   /**
    * @brief Initialize defaults for skybox.
    * @param desc Description or configuration for this operation.
-   * @group core.skyboxes
+   * @group ldk.asset.skybox
    */
   LDK_API void ldk_skybox_desc_defaults(LDKSkyboxDesc *desc);
   /**
    * @brief Check whether the skybox desc is valid.
    * @param desc Description or configuration for this operation.
    * @return True when the queried condition holds; false otherwise.
-   * @group core.skyboxes
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_skybox_desc_is_valid(const LDKSkyboxDesc *desc);
   /**
@@ -51,7 +51,7 @@ extern "C"
    * @param a First value to compare or combine.
    * @param b Second value to compare or combine.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.skyboxes
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_skybox_desc_equal(
       const LDKSkyboxDesc *a, const LDKSkyboxDesc *b);

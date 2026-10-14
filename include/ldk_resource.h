@@ -13,54 +13,54 @@
 
 #include <module/ldk_rhi.h>
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceTexture
 {
   LDKRHITexture id;
 } LDKResourceTexture;
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceMesh
 {
   LDKRHIResource id;
 } LDKResourceMesh;
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceShader
 {
   LDKRHIShaderModule id;
 } LDKResourceShader;
 
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceMaterial
 {
   LDKRHIResource id;
 } LDKResourceMaterial;
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceInstanceSet
 {
   LDKRHIResource id;
 } LDKResourceInstanceSet;
 
-/** @group core.resources */
+/** @group ldk.resource */
 typedef struct LDKResourceSkybox
 {
   LDKRHIResource id;
 } LDKResourceSkybox;
 
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_TEXTURE_INVALID  ((LDKResourceTexture){LDK_RHI_INVALID_RESOURCE})
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_MESH_INVALID     ((LDKResourceMesh){LDK_RHI_INVALID_RESOURCE})
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_SHADER_INVALID   ((LDKResourceShader){LDK_RHI_INVALID_RESOURCE})
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_MATERIAL_INVALID ((LDKResourceMaterial){LDK_RHI_INVALID_RESOURCE})
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_INSTANCE_SET_INVALID ((LDKResourceInstanceSet){LDK_RHI_INVALID_RESOURCE})
-/** @group core.resources */
+/** @group ldk.resource */
 #define LDK_RESOURCE_SKYBOX_INVALID \
   ((LDKResourceSkybox){LDK_RHI_INVALID_RESOURCE})
 

@@ -16,7 +16,7 @@ extern "C"
 {
 #endif
 
-  /** @group components.light */
+  /** @group ldk.component.light */
   //@component
   typedef struct LDKPointLight
   {
@@ -27,7 +27,7 @@ extern "C"
     bool enabled;
   } LDKPointLight;
 
-  /** @group components.light */
+  /** @group ldk.component.light */
   //@component
   typedef struct LDKSpotLight
   {
@@ -40,7 +40,7 @@ extern "C"
     bool enabled;
   } LDKSpotLight;
 
-  /** @group components.light */
+  /** @group ldk.component.light */
   //@component
   typedef struct LDKDirectionalLight
   {
@@ -56,21 +56,21 @@ extern "C"
    * @brief Build the ECS registration descriptor for the point light component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.light.registration
+   * @group ldk.component.light
    */
   LDK_API LDKComponentDesc ldk_point_light_component_desc(u32 initial_capacity);
   /**
    * @brief Build the ECS registration descriptor for the spot light component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.light.registration
+   * @group ldk.component.light
    */
   LDK_API LDKComponentDesc ldk_spot_light_component_desc(u32 initial_capacity);
   /**
    * @brief Build the ECS registration descriptor for the directional light component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.light.registration
+   * @group ldk.component.light
    */
   LDK_API LDKComponentDesc ldk_directional_light_component_desc(
       u32 initial_capacity);

@@ -28,21 +28,21 @@ extern "C" {
 #include <stdlib.h>
 
 #ifndef LDK_RENDERER_ALLOC
-/** @group modules.renderer.lifecycle */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_ALLOC(size) malloc(size)
 #endif
 
 #ifndef LDK_RENDERER_FREE
-/** @group modules.renderer.lifecycle */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_FREE(ptr) free(ptr)
 #endif
 
 #ifndef LDK_RENDERER_REALLOC
-/** @group modules.renderer.lifecycle */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_REALLOC(ptr, size) realloc(ptr, size)
 #endif
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef enum LDKShader
   {
     LDK_SHADER_INVALID = 0,
@@ -73,7 +73,7 @@ extern "C" {
     LDK_SHADER_WATER_PASS
   } LDKShader;
 
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMeshDesc
   {
     const LDKMeshVertex* vertices;
@@ -84,7 +84,7 @@ extern "C" {
     bool has_tangents;
   } LDKRendererMeshDesc;
 
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMeshResource
   {
     LDKRHIBuffer vertex_buffer;
@@ -101,7 +101,7 @@ extern "C" {
     bool alive;
   } LDKRendererMeshResource;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererInstanceSetResource
   {
     LDKRHIBuffer transform_buffer;
@@ -111,18 +111,18 @@ extern "C" {
     bool alive;
   } LDKRendererInstanceSetResource;
 
-  /** @group modules.renderer.views */
+  /** @group ldk.module.renderer */
   typedef u64 LDKRendererViewId;
 
-/** @group modules.renderer.views */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_VIEW_INVALID ((LDKRendererViewId)0)
-/** @group modules.renderer.views */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_VIEW_ALL ((LDKRendererViewId)UINT64_MAX)
 
-/** @group modules.renderer.water */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_WATER_WAVE_COUNT 3u
 
-  /** @group modules.renderer.textures */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererWaterTexture
   {
     LDK_RENDERER_WATER_TEXTURE_NORMAL = 0,
@@ -132,7 +132,7 @@ extern "C" {
     LDK_RENDERER_WATER_TEXTURE_COUNT
   } LDKRendererWaterTexture;
 
-  /** @group modules.renderer.water */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererWaterWave
   {
     float height; // Amplitude in world units.
@@ -141,7 +141,7 @@ extern "C" {
     float direction_degrees; // Zero travels along +X, 90 along +Z.
   } LDKRendererWaterWave;
 
-  /** @group modules.renderer.water */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererWaterDesc
   {
     float water_level;
@@ -179,7 +179,7 @@ extern "C" {
     float time_seconds;
   } LDKRendererWaterDesc;
 
-  /** @group modules.renderer.water */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererWaterSubmit
   {
     LDKResourceMesh mesh;
@@ -187,7 +187,7 @@ extern "C" {
     LDKRendererWaterDesc desc;
   } LDKRendererWaterSubmit;
 
-  /** @group modules.renderer.water */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererWaterPass
   {
     LDKRHIContext *rhi;
@@ -203,10 +203,10 @@ extern "C" {
     bool is_initialized;
   } LDKRendererWaterPass;
 
-/** @group modules.renderer.lighting */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_MAX_LIGHTS_PER_VIEW 16
 
-  /** @group modules.renderer.lighting */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererLightType
   {
     LDK_RENDERER_LIGHT_POINT = 0,
@@ -214,7 +214,7 @@ extern "C" {
     LDK_RENDERER_LIGHT_DIRECTIONAL
   } LDKRendererLightType;
 
-  /** @group modules.renderer.lighting */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererLightSubmit
   {
     LDKRendererLightType type;
@@ -229,7 +229,7 @@ extern "C" {
     bool casts_shadows; // Directional only; first eligible light per view.
   } LDKRendererLightSubmit;
 
-  /** @group modules.renderer.lighting */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererAmbientLight
   {
     u32 color; // 0xRRGGBBAA; alpha is ignored.
@@ -239,7 +239,7 @@ extern "C" {
   /* BILLBOARD affects the color pass only. Billboard transforms are expected
    * to encode translation, XY roll and scale; camera-facing orientation is
    * applied from the current render view in the vertex shader. */
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererMeshSubmitFlag
   {
     LDK_RENDERER_MESH_SUBMIT_FLAG_NONE = 0,
@@ -250,7 +250,7 @@ extern "C" {
     LDK_RENDERER_MESH_SUBMIT_FLAG_SCREEN_SPACE = 1 << 3
   } LDKRendererMeshSubmitFlag;
 
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMeshSubmit
   {
     LDKResourceMesh mesh;
@@ -269,7 +269,7 @@ extern "C" {
   } LDKRendererMeshSubmit;
 
   /* Internal frame data for the shared triangular line prism. */
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererLineSubmit
   {
     Mat4 world;
@@ -278,7 +278,7 @@ extern "C" {
     bool depth_test;
   } LDKRendererLineSubmit;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererWireframeSubmit
   {
     LDKResourceMesh mesh;
@@ -289,7 +289,7 @@ extern "C" {
     u32 flags;
   } LDKRendererWireframeSubmit;
 
-  /** @group modules.renderer.text */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererTextSubmitFlag
   {
     LDK_RENDERER_TEXT_SUBMIT_FLAG_NONE = 0,
@@ -297,7 +297,7 @@ extern "C" {
     LDK_RENDERER_TEXT_SUBMIT_FLAG_NO_DEPTH_TEST = 1 << 1
   } LDKRendererTextSubmitFlag;
 
-  /** @group modules.renderer.text */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextVertex
   {
     float x;
@@ -307,7 +307,7 @@ extern "C" {
     u32 color;
   } LDKRendererTextVertex;
 
-  /** @group modules.renderer.text */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextSubmit
   {
     Mat4 world;
@@ -318,7 +318,7 @@ extern "C" {
     u32 flags;
   } LDKRendererTextSubmit;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererConfig
   {
     LDKRHIContext* rhi;
@@ -332,7 +332,7 @@ extern "C" {
     float shadow_distance;
   } LDKRendererConfig;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererFrameDesc
   {
     i32 framebuffer_width;
@@ -341,7 +341,7 @@ extern "C" {
     bool clear_color_enabled;
   } LDKRendererFrameDesc;
 
-  /** @group modules.renderer.frame.stats */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererFrameDomainStats
   {
     u32 rendered_view_count;
@@ -364,7 +364,7 @@ extern "C" {
     u32 present_draw_call_count;
   } LDKRendererFrameDomainStats;
 
-  /** @group modules.renderer.frame.stats */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererFrameStats
   {
     double cpu_time_ms;
@@ -397,7 +397,7 @@ extern "C" {
     LDKRendererFrameDomainStats non_game;
   } LDKRendererFrameStats;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererBindingsCacheEntry
   {
     LDKRHITexture texture;
@@ -405,7 +405,7 @@ extern "C" {
     LDKRHIBindings bindings;
   } LDKRendererBindingsCacheEntry;
 
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMeshBindingsCacheEntry
   {
     LDKRHITexture textures[LDK_MATERIAL_TEXTURE_SLOT_COUNT];
@@ -413,7 +413,7 @@ extern "C" {
     LDKRHIBindings bindings;
   } LDKRendererMeshBindingsCacheEntry;
 
-  /** @group modules.renderer.text */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextPass
   {
     LDKRHIContext *rhi;
@@ -437,7 +437,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererTextPass;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererUIPass
   {
     LDKRHIContext* rhi;
@@ -458,7 +458,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererUIPass;
 
-  /** @group modules.renderer.shadows */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererShadowPass
   {
     u32 resolution;
@@ -494,7 +494,7 @@ extern "C" {
     LDKRHISampler sampler;
   } LDKRendererShadowPass;
 
-  /** @group modules.renderer.meshes */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMeshPass
   {
     LDKRHIContext* rhi;
@@ -567,7 +567,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererMeshPass;
 
-  /** @group modules.renderer.overlays */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererGridPass
   {
     LDKRHIContext* rhi;
@@ -581,7 +581,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererGridPass;
 
-  /** @group modules.renderer.skybox */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererSkyboxPass
   {
     LDKRHIContext *rhi;
@@ -595,7 +595,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererSkyboxPass;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererPostProcessing
   {
     bool enabled;
@@ -640,7 +640,7 @@ extern "C" {
     float drunk_movement;
   } LDKRendererPostProcessing;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererPostProcessPass
   {
     LDKRHIContext* rhi;
@@ -654,7 +654,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererPostProcessPass;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererBlurPass
   {
     LDKRHIContext* rhi;
@@ -669,7 +669,7 @@ extern "C" {
     bool is_initialized;
   } LDKRendererBlurPass;
 
-  /** @group modules.renderer.text.fonts */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererFontPageCacheEntry
   {
     LDKFontInstance* font;
@@ -679,7 +679,7 @@ extern "C" {
     LDKRHITexture texture;
   } LDKRendererFontPageCacheEntry;
 
-  /** @group modules.renderer.text.fonts */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererFontPage
   {
     LDKFontInstance* font;
@@ -689,7 +689,7 @@ extern "C" {
     LDKRHITexture texture;
   } LDKRendererFontPage;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTarget
   {
     LDKRHITexture color_texture;
@@ -700,7 +700,7 @@ extern "C" {
     LDKRHIFormat depth_format;
   } LDKRendererTarget;
 
-  /** @group modules.renderer.views */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererView
   {
     LDKRendererViewId id;
@@ -735,7 +735,7 @@ extern "C" {
     bool frustum_valid;
   } LDKRendererView;
 
-  /** @group modules.renderer.textures */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererTextureFlag
   {
     LDK_RENDERER_TEXTURE_FLAG_NONE       = 0,
@@ -743,7 +743,7 @@ extern "C" {
     LDK_RENDERER_TEXTURE_FLAG_RENDERABLE = 1 << 1
   } LDKRendererTextureFlag;
 
-  /** @group modules.renderer.textures */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextureOptions
   {
     u32 flags;
@@ -756,7 +756,7 @@ extern "C" {
     LDKRHIWrap wrap_w;
   } LDKRendererTextureOptions;
 
-  /** @group modules.renderer.textures */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextureDesc
   {
     u32 width;
@@ -771,7 +771,7 @@ extern "C" {
     LDKRendererTextureOptions const* options;
   } LDKRendererTextureDesc;
 
-  /** @group modules.renderer.skybox */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererSkyboxResource
   {
     LDKRHITexture texture;
@@ -781,7 +781,7 @@ extern "C" {
     bool alive;
   } LDKRendererSkyboxResource;
 
-  /** @group modules.renderer.textures */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTextureResource
   {
     LDKRHITexture texture;
@@ -797,10 +797,10 @@ extern "C" {
     u32 image_references;
   } LDKRendererTextureResource;
 
-/** @group modules.renderer.lifecycle */
+/** @group ldk.module.renderer */
 #define LDK_RENDERER_TERRAIN_SURFACE_COUNT 8u
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererTerrainSurfaceDesc
   {
     float min_height;
@@ -811,7 +811,7 @@ extern "C" {
     float texture_weight;
   } LDKRendererTerrainSurfaceDesc;
 
-  /** @group modules.renderer.materials */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMaterialDesc
   {
     LDKMaterialType type;
@@ -842,7 +842,7 @@ extern "C" {
         terrain_surfaces[LDK_RENDERER_TERRAIN_SURFACE_COUNT];
   } LDKRendererMaterialDesc;
 
-  /** @group modules.renderer.materials */
+  /** @group ldk.module.renderer */
   typedef enum LDKRendererMaterialSelection
   {
     LDK_RENDERER_MATERIAL_SELECTION_INVALID = 0,
@@ -860,17 +860,17 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TERRAIN
   } LDKRendererMaterialSelection;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef u64 LDKRendererRenderKey;
 
-  /** @group modules.renderer.materials */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMaterialSamplerResource
   {
     LDKRHISamplerDesc desc;
     LDKRHISampler sampler;
   } LDKRendererMaterialSamplerResource;
 
-  /** @group modules.renderer.materials */
+  /** @group ldk.module.renderer */
   typedef struct LDKRendererMaterialResource
   {
     LDKRendererMaterialDesc desc;
@@ -892,7 +892,7 @@ extern "C" {
     bool alive;
   } LDKRendererMaterialResource;
 
-  /** @group modules.renderer.lifecycle */
+  /** @group ldk.module.renderer */
   typedef struct LDKRenderer
   {
     LDKRHIContext* rhi;
@@ -1019,14 +1019,14 @@ extern "C" {
   /**
    * @brief Initialize defaults for renderer water.
    * @param desc Description or configuration for this operation.
-   * @group modules.renderer.water
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc);
   /**
    * @brief Check whether the renderer water desc is valid.
    * @param desc Description or configuration for this operation.
    * @return True when the queried condition holds; false otherwise.
-   * @group modules.renderer.water
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_water_desc_is_valid(
       const LDKRendererWaterDesc *desc);
@@ -1042,7 +1042,7 @@ extern "C" {
    * @param mesh Mesh resource used by the operation.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.water
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_water(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1055,7 +1055,7 @@ extern "C" {
    * @param color Color value used by the operation.
    * @param intensity Intensity used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.lighting
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_ambient_light_set(
       LDKRenderer *renderer, u32 color, float intensity);
@@ -1066,7 +1066,7 @@ extern "C" {
    * @param world_origin World origin used by this operation.
    * @param world_size Size of the world buffer or region.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.vegetation
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_vegetation_interaction_set(
       LDKRenderer *renderer, LDKResourceTexture texture, Vec2 world_origin,
@@ -1074,7 +1074,7 @@ extern "C" {
 
   /** Disable the vegetation interaction field and release pass bindings.
    * @param renderer Renderer receiving this request.
-   * @group modules.renderer.vegetation
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_vegetation_interaction_clear(
       LDKRenderer *renderer);
@@ -1094,7 +1094,7 @@ extern "C" {
    * @param color Color value used by the operation.
    * @param depth_test Depth test used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.debug_drawing
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_draw_line(LDKRenderer *renderer,
       LDKRendererViewId view_id, Vec3 start, Vec3 end, float thickness,
@@ -1119,7 +1119,7 @@ extern "C" {
    * @param color Color value used by the operation.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.text
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_text(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKFontInstance *font, char const *text,
@@ -1131,7 +1131,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param light Light used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.lighting
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_light(LDKRenderer *renderer,
       const LDKRendererLightSubmit *light);
@@ -1158,7 +1158,7 @@ extern "C" {
    * @param resolution Resolution setting.
    * @param distance Distance in world-space units.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.shadows
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_shadow_settings_set(
       LDKRenderer *renderer, u32 resolution, float distance);
@@ -1168,7 +1168,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param config Configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.lifecycle
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_initialize(
       LDKRenderer* renderer,
@@ -1186,7 +1186,7 @@ extern "C" {
    * @param width New game render-target width in pixels.
    * @param height New game render-target height in pixels.
    * @return true when the resolution is valid and was accepted.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_game_resolution_set(
       LDKRenderer* renderer,
@@ -1206,7 +1206,7 @@ extern "C" {
    * The RHI context must still be alive when this function is called.
    *
    * @param renderer Renderer instance to terminate.
-   * @group modules.renderer.lifecycle
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_terminate(
       LDKRenderer* renderer);
@@ -1224,7 +1224,7 @@ extern "C" {
    *
    * @param renderer Renderer instance.
    * @param desc Frame description containing framebuffer size and clear color.
-   * @group modules.renderer.frame
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_render_frame(
       LDKRenderer* renderer,
@@ -1247,7 +1247,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @return A snapshot of the previous completed renderer frame. A zeroed
    *         snapshot is returned for a null renderer or before the first frame.
-   * @group modules.renderer.frame.stats
+   * @group ldk.module.renderer
    */
   LDK_API LDKRendererFrameStats ldk_renderer_last_frame_stats_get(
       LDKRenderer const* renderer);
@@ -1260,7 +1260,7 @@ extern "C" {
    *
    * @param renderer Renderer instance.
    * @return Game color texture handle, or an invalid handle when unavailable.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_game_texture_get(
       LDKRenderer const* renderer);
@@ -1275,7 +1275,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id Identifier of the submitted view.
    * @return View color texture handle, or an invalid handle when unavailable.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_view_texture_get(
       LDKRenderer const* renderer,
@@ -1293,7 +1293,7 @@ extern "C" {
    * @param width Requested render-target width in pixels.
    * @param height Requested render-target height in pixels.
    * @return true when the request was accepted, false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_view_extent_set(
       LDKRenderer* renderer,
@@ -1313,7 +1313,7 @@ extern "C" {
    * @param out_width Receives the effective width in pixels.
    * @param out_height Receives the effective height in pixels.
    * @return true when a valid effective extent was returned.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_view_extent_get(
       LDKRenderer const* renderer,
@@ -1330,7 +1330,7 @@ extern "C" {
    *
    * @param renderer Renderer instance that owns the view texture.
    * @return Normalized UV rectangle for sampling a renderer view texture.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUIRect ldk_renderer_view_texture_uv_get(
       LDKRenderer const* renderer);
@@ -1345,7 +1345,7 @@ extern "C" {
    * @param view_id Identifier of a view submitted for the current frame.
    * @param post_processing Post-processing configuration for the view.
    * @return true when the configuration was accepted, false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_view_post_processing_set(
       LDKRenderer* renderer,
@@ -1359,7 +1359,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param view_id Renderer view receiving this operation.
    * @return Handle to the requested object or resource.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_view_overlay_texture_request(
       LDKRenderer* renderer, LDKRendererViewId view_id);
@@ -1374,7 +1374,7 @@ extern "C" {
    * to initialize mesh fields or to represent the absence of a mesh.
    *
    * @return Invalid mesh resource handle.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMesh ldk_renderer_mesh_null(void);
 
@@ -1388,7 +1388,7 @@ extern "C" {
    * @param renderer Renderer that owns the mesh resource.
    * @param mesh Mesh resource handle to validate.
    * @return true if the mesh is valid and alive, false otherwise.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_mesh_is_valid(
       LDKRenderer* renderer,
@@ -1408,7 +1408,7 @@ extern "C" {
    * @param renderer Renderer that will own the mesh resource.
    * @param desc Mesh creation description containing vertices and indices.
    * @return Mesh resource handle, or an invalid handle on failure.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMesh ldk_renderer_mesh_create(
       LDKRenderer* renderer,
@@ -1435,7 +1435,7 @@ extern "C" {
    * @param mesh_index Zero-based index of the mesh entry.
    * @param desc Description or configuration for this operation.
    * @return Handle to the requested object or resource.
-   * @group modules.renderer.meshes.assets
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMesh ldk_renderer_mesh_asset_acquire(LDKRenderer *renderer,
       LDKAssetMesh asset, u32 mesh_index, const LDKRendererMeshDesc *desc);
@@ -1446,7 +1446,7 @@ extern "C" {
    * @param mesh Mesh resource used by the operation.
    * @param desc Description or configuration for this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_mesh_update(
       LDKRenderer* renderer,
@@ -1464,7 +1464,7 @@ extern "C" {
    *
    * @param renderer Renderer that ownss the mesh resource.
    * @param mesh Mesh resource handle to destroy.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_mesh_destroy(
       LDKRenderer* renderer,
@@ -1480,7 +1480,7 @@ extern "C" {
    * clamp-to-edge wrapping, and no generated mipmaps.
    *
    * @param options Texture options to initialize.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_texture_options_defaults(
       LDKRendererTextureOptions* options);
@@ -1492,7 +1492,7 @@ extern "C" {
    * to initialize texture fields or to represent the absence of a texture.
    *
    * @return Invalid texture resource handle.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceTexture ldk_renderer_texture_null(void);
 
@@ -1506,7 +1506,7 @@ extern "C" {
    * @param renderer Renderer that owns the texture resource.
    * @param texture Texture resource handle to validate.
    * @return true if the texture is valid and alive, false otherwise.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_texture_is_valid(
       LDKRenderer* renderer,
@@ -1525,7 +1525,7 @@ extern "C" {
    * @param renderer Renderer that owns the texture resource.
    * @param texture Texture resource handle to resolve.
    * @return UI texture handle for draw commands, or an invalid handle on failure.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_texture_ui_handle(
       LDKRenderer* renderer,
@@ -1545,7 +1545,7 @@ extern "C" {
    * @param renderer Renderer that will own the texture resource.
    * @param desc Texture creation description.
    * @return Texture resource handle, or an invalid handle on failure.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceTexture ldk_renderer_texture_create(
       LDKRenderer* renderer,
@@ -1566,7 +1566,7 @@ extern "C" {
    * @param pixels New pixel data.
    * @param byte_count Size of the pixel data in bytes.
    * @return true if the texture was updated, false otherwise.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_texture_update(
       LDKRenderer* renderer,
@@ -1585,7 +1585,7 @@ extern "C" {
    *
    * @param renderer Renderer that owns the texture resource.
    * @param texture Texture resource handle to destroy.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_texture_destroy(
       LDKRenderer* renderer,
@@ -1601,7 +1601,7 @@ extern "C" {
    * @param image Source CPU-side image.
    * @param options Explicit texture sampling and mipmap options, or NULL.
    * @return Texture resource handle, or an invalid handle on failure.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceTexture ldk_renderer_texture_create_from_image(
       LDKRenderer* renderer,
@@ -1615,7 +1615,7 @@ extern "C" {
   /**
    * @brief Return an invalid material resource handle.
    * @return Invalid material resource handle.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMaterial ldk_renderer_material_null(void);
 
@@ -1631,7 +1631,7 @@ extern "C" {
    * @param assets Asset manager used to resolve referenced assets.
    * @param image Image used by this operation.
    * @return Handle to the requested object or resource.
-   * @group modules.renderer.textures.images
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceTexture ldk_renderer_image_acquire(
       LDKRenderer* renderer, struct LDKAssetManager* assets,
@@ -1640,7 +1640,7 @@ extern "C" {
    * @brief Release a renderer resource acquired for an image asset.
    * @param renderer Renderer receiving this request.
    * @param texture Texture used by this operation.
-   * @group modules.renderer.textures.images
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_image_release(
       LDKRenderer* renderer, LDKResourceTexture texture);
@@ -1672,7 +1672,7 @@ extern "C" {
    * @param renderer_normal_map In/out acquired normal-map texture resource.
    * @param renderer_specular_map In/out acquired specular-map texture resource.
    * @return true when the material was resolved successfully.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
@@ -1692,7 +1692,7 @@ extern "C" {
    * @param renderer_normal_map Renderer normal map used by this operation.
    * @param renderer_specular_map Renderer specular map used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
@@ -1714,7 +1714,7 @@ extern "C" {
    * @param assets Asset manager used to resolve referenced assets.
    * @param material Material used by the operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_material_atlases_current(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKResourceMaterial material);
@@ -1724,7 +1724,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param material Material used by the operation.
    * @return True when the queried condition holds; false otherwise.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_material_is_valid(
       LDKRenderer* renderer,
@@ -1747,7 +1747,7 @@ extern "C" {
    * @param renderer Renderer that will own the material resource.
    * @param desc Resolved renderer material description.
    * @return New material handle, or an invalid handle on failure.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMaterial ldk_renderer_material_create(
       LDKRenderer* renderer,
@@ -1761,7 +1761,7 @@ extern "C" {
    *
    * @param renderer Renderer that owns the material resource.
    * @param material Material resource to destroy.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_material_destroy(
       LDKRenderer* renderer,
@@ -1775,7 +1775,7 @@ extern "C" {
    *
    * @param renderer Renderer that owns the default material.
    * @return Default material handle, or an invalid handle when unavailable.
-   * @group modules.renderer.materials
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceMaterial ldk_renderer_material_default_get(
       LDKRenderer* renderer);
@@ -1798,7 +1798,7 @@ extern "C" {
    * @param font Font instance that owns the requested atlas page.
    * @param page_index Index of the font atlas page.
    * @return UI texture handle for the atlas page, or an invalid handle on failure.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture(LDKRenderer* renderer, LDKFontInstance* font, u32 page_index);
 
@@ -1812,7 +1812,7 @@ extern "C" {
    * @param font Font instance that owns the requested atlas page.
    * @param page_index Index of the font atlas page.
    * @return UI texture handle for the atlas page, or an invalid handle on failure.
-   * @group modules.renderer.textures
+   * @group ldk.module.renderer
    */
   LDK_API LDKUITextureHandle ldk_renderer_get_font_page_texture_callback(void* user, LDKFontInstance* font, u32 page_index);
 
@@ -1834,7 +1834,7 @@ extern "C" {
    * @param view View matrix.
    * @param projection Projection matrix.
    * @return true if the view was submitted, false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_view(
       LDKRenderer* renderer,
@@ -1851,7 +1851,7 @@ extern "C" {
    * @param view_id Renderer view receiving this operation.
    * @param clear_color Color for clear.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_view_clear_color_set(
       LDKRenderer* renderer,
@@ -1868,7 +1868,7 @@ extern "C" {
    * @param renderer Renderer instance.
    * @param view_id Identifier of a view submitted for the current frame.
    * @return true if the submitted view exists, false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_game_view_set(
       LDKRenderer* renderer,
@@ -1885,7 +1885,7 @@ extern "C" {
    *
    * @param renderer Renderer instance.
    * @param render_data UI render data to draw this frame.
-   * @group modules.renderer.ui
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_submit_ui(
       LDKRenderer* renderer,
@@ -1910,7 +1910,7 @@ extern "C" {
    * @param instance_count Number of instance entries.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.instances
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_instances(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1932,7 +1932,7 @@ extern "C" {
    * @param instance_count Number of instance entries.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.instances
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_instances_colored(
       LDKRenderer *renderer, LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -1945,7 +1945,7 @@ extern "C" {
    * @param instances Instances used by this operation.
    * @param instance_count Number of instance entries.
    * @return Handle to the requested object or resource.
-   * @group modules.renderer.meshes.instance_sets
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_create(
       LDKRenderer *renderer, const Mat4 *instances, u32 instance_count);
@@ -1956,7 +1956,7 @@ extern "C" {
    * @param instances Instances used by this operation.
    * @param instance_count Number of instance entries.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.instance_sets
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
       LDKResourceInstanceSet instance_set, const Mat4 *instances,
@@ -1965,14 +1965,14 @@ extern "C" {
    * @brief Destroy the renderer instance set.
    * @param renderer Renderer receiving this request.
    * @param instance_set Instance set used by this operation.
-   * @group modules.renderer.meshes.instance_sets
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_instance_set_destroy(LDKRenderer *renderer,
       LDKResourceInstanceSet instance_set);
   /**
    * @brief Return an invalid handle for the renderer instance set.
    * @return An invalid or empty handle.
-   * @group modules.renderer.meshes.instance_sets
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_null(void);
   /**
@@ -1980,7 +1980,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param instance_set Instance set used by this operation.
    * @return True when the queried condition holds; false otherwise.
-   * @group modules.renderer.meshes.instance_sets
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_instance_set_is_valid(
       LDKRenderer *renderer, LDKResourceInstanceSet instance_set);
@@ -1995,7 +1995,7 @@ extern "C" {
    * @param instance_set Instance set used by this operation.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.instances
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_instance_set(LDKRenderer *renderer,
       LDKRendererViewId view_id, LDKResourceMesh mesh,
@@ -2014,7 +2014,7 @@ extern "C" {
    * @param instance_count Number of instance entries.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.instances
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_instance_set_range(
       LDKRenderer *renderer, LDKRendererViewId view_id,
@@ -2031,7 +2031,7 @@ extern "C" {
    * @param bounds_min Bounds min used by this operation.
    * @param bounds_max Bounds max used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.views
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_view_bounds_visible(
       const LDKRenderer *renderer, LDKRendererViewId view_id,
@@ -2052,7 +2052,7 @@ extern "C" {
    * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was submitted, false otherwise.
-   * @group modules.renderer.meshes.submission
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh(
       LDKRenderer* renderer,
@@ -2072,7 +2072,7 @@ extern "C" {
    * @param world Object-to-world transformation matrix.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.submission
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_with_flags(LDKRenderer *renderer,
       LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
@@ -2087,7 +2087,7 @@ extern "C" {
    * @param world Object-to-world transformation matrix.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes.submission
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
       LDKResourceMesh mesh, LDKResourceMaterial material, u32 first_index,
@@ -2107,7 +2107,7 @@ extern "C" {
    * @param index_count Number of indices to draw.
    * @param world World transform for this mesh instance.
    * @return true if the mesh range was queued, false otherwise.
-   * @group modules.renderer.meshes.submission
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_range(
       LDKRenderer* renderer,
@@ -2133,7 +2133,7 @@ extern "C" {
    * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
-   * @group modules.renderer.meshes.submission
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_mesh_to_view(
       LDKRenderer* renderer,
@@ -2150,7 +2150,7 @@ extern "C" {
   /**
    * @brief Return an invalid handle for the renderer skybox.
    * @return An invalid or empty handle.
-   * @group modules.renderer.skybox
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceSkybox ldk_renderer_skybox_null(void);
   /**
@@ -2158,7 +2158,7 @@ extern "C" {
    * @param renderer Renderer receiving this request.
    * @param skybox Skybox used by this operation.
    * @return True when the queried condition holds; false otherwise.
-   * @group modules.renderer.skybox
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_skybox_is_valid(
       LDKRenderer *renderer, LDKResourceSkybox skybox);
@@ -2168,7 +2168,7 @@ extern "C" {
    * @param assets Asset manager used to resolve referenced assets.
    * @param desc Description or configuration for this operation.
    * @return Handle to the requested object or resource.
-   * @group modules.renderer.skybox
+   * @group ldk.module.renderer
    */
   LDK_API LDKResourceSkybox ldk_renderer_skybox_create(
       LDKRenderer *renderer, struct LDKAssetManager *assets,
@@ -2177,7 +2177,7 @@ extern "C" {
    * @brief Destroy the renderer skybox.
    * @param renderer Renderer receiving this request.
    * @param skybox Skybox used by this operation.
-   * @group modules.renderer.skybox
+   * @group ldk.module.renderer
    */
   LDK_API void ldk_renderer_skybox_destroy(
       LDKRenderer *renderer, LDKResourceSkybox skybox);
@@ -2187,7 +2187,7 @@ extern "C" {
    * @param view_id Renderer view receiving this operation.
    * @param skybox Skybox used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.skybox
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_skybox_to_view(
       LDKRenderer *renderer, LDKRendererViewId view_id,
@@ -2206,7 +2206,7 @@ extern "C" {
    * @param grid_extent Radius of the visible grid area in world units.
    * @param grid_spacing Distance between adjacent grid lines in world units.
    * @return true if the grid was submitted, false otherwise.
-   * @group modules.renderer.overlays
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_grid_to_view(
       LDKRenderer* renderer,
@@ -2228,7 +2228,7 @@ extern "C" {
    * @param material Material resource handle to use.
    * @param world World transform for this mesh instance.
    * @return true if the mesh was queued, false otherwise.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_overlay_mesh_to_view(
       LDKRenderer* renderer,
@@ -2251,7 +2251,7 @@ extern "C" {
    * @param material Material used by the operation.
    * @param pixel_transform Pixel transform used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_orthographic_overlay_mesh_to_view(
       LDKRenderer* renderer,
@@ -2276,7 +2276,7 @@ extern "C" {
    * @param line_width Line width used by this operation.
    * @param flags Bitmask of options controlling this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.renderer.meshes
+   * @group ldk.module.renderer
    */
   LDK_API bool ldk_renderer_submit_wireframe_mesh_to_view(
       LDKRenderer *renderer, LDKRendererViewId view_id,

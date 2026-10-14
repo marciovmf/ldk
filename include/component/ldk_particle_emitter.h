@@ -17,7 +17,7 @@ extern "C"
 {
 #endif
 
-  /** @group components.particle_emitter */
+  /** @group ldk.component.particle_emitter */
   //@enum
   typedef enum LDKParticleSimulationSpace
   {
@@ -25,7 +25,7 @@ extern "C"
     LDK_PARTICLE_SIMULATION_SPACE_WORLD
   } LDKParticleSimulationSpace;
 
-  /** @group components.particle_emitter */
+  /** @group ldk.component.particle_emitter */
   //@enum
   typedef enum LDKParticleSortMode
   {
@@ -33,7 +33,7 @@ extern "C"
     LDK_PARTICLE_SORT_BACK_TO_FRONT
   } LDKParticleSortMode;
 
-  /** @group components.particle_emitter */
+  /** @group ldk.component.particle_emitter */
   //@enum
   typedef enum LDKParticleInterpolationCurve
   {
@@ -44,7 +44,7 @@ extern "C"
     LDK_PARTICLE_INTERPOLATION_SMOOTHSTEP
   } LDKParticleInterpolationCurve;
 
-  /** @group components.particle_emitter */
+  /** @group ldk.component.particle_emitter */
   //@enum
   typedef enum LDKParticleEmissionMode
   {
@@ -53,7 +53,7 @@ extern "C"
     LDK_PARTICLE_EMISSION_BURSTS
   } LDKParticleEmissionMode;
 
-  /** @group components.particle_emitter */
+  /** @group ldk.component.particle_emitter */
   typedef struct LDKParticleRuntime
   {
     Vec3 position;
@@ -69,7 +69,7 @@ extern "C"
     float final_rotation;
   } LDKParticleRuntime;
 
-  /** @group components.particle_emitter.emission */
+  /** @group ldk.component.particle_emitter */
   //@component
   typedef struct LDKParticleEmitter
   {
@@ -150,31 +150,31 @@ extern "C"
   /**
    * @brief Create default settings for particle emitter.
    * @return A value initialized with the engine defaults.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API LDKParticleEmitter ldk_particle_emitter_make_default(void);
   /** Start the configured mode if not playing.
    * @param emitter Particle emitter component being controlled.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API bool ldk_particle_emitter_play(LDKParticleEmitter *emitter);
   /** Restart the configured mode without killing existing particles.
    * @param emitter Particle emitter component being controlled.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API bool ldk_particle_emitter_restart(LDKParticleEmitter *emitter);
   /** Stop future emission; live particles continue simulating.
    * @param emitter Particle emitter component being controlled.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API void ldk_particle_emitter_stop(LDKParticleEmitter *emitter);
   /** Play the configured burst parameters for exactly count bursts.
    * @param emitter Particle emitter component being controlled.
    * @param count Number of items to process.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API bool ldk_particle_emitter_emit_bursts(
       LDKParticleEmitter *emitter, u32 count);
@@ -182,13 +182,13 @@ extern "C"
    * @param emitter Particle emitter component being controlled.
    * @param seconds Duration in seconds.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API bool ldk_particle_emitter_emit_for(
       LDKParticleEmitter *emitter, float seconds);
   /** Remove all live particles without stopping scheduled emission.
    * @param emitter Particle emitter component being controlled.
-   * @group components.particle_emitter.emission
+   * @group ldk.component.particle_emitter
    */
   LDK_API void ldk_particle_emitter_clear(LDKParticleEmitter *emitter);
 
@@ -197,7 +197,7 @@ extern "C"
    * @brief Build the ECS registration descriptor for the particle emitter component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.particle_emitter.registration
+   * @group ldk.component.particle_emitter
    */
   LDK_API LDKComponentDesc ldk_particle_emitter_component_desc(
       u32 initial_capacity);

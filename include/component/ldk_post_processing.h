@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-  /** @group components.post_processing */
+  /** @group ldk.component.post_processing */
   //@component
   typedef struct LDKPostProcessing
   {
@@ -125,7 +125,7 @@ extern "C" {
    * @brief Build the ECS registration descriptor for the post processing component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.post_processing.registration
+   * @group ldk.component.post_processing
    */
   LDK_API LDKComponentDesc ldk_post_processing_component_desc(
       u32 initial_capacity);

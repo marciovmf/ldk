@@ -17,14 +17,14 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 
-  /** @group core.ttf.text */
+  /** @group ldk.asset.font */
   typedef LDKSizef LDKTextSize;
-  /** @group core.ttf.fonts */
+  /** @group ldk.asset.font */
   typedef struct LDKFontFace LDKFontFace;
-  /** @group core.ttf.fonts */
+  /** @group ldk.asset.font */
   typedef struct LDKFontInstance LDKFontInstance;
 
-  /** @group core.ttf.fonts */
+  /** @group ldk.asset.font */
   typedef struct LDKFontAtlasDesc
   {
     u16 page_width;
@@ -32,7 +32,7 @@ extern "C" {
     u16 padding;
   } LDKFontAtlasDesc;
 
-  /** @group core.ttf.fonts */
+  /** @group ldk.asset.font */
   typedef struct LDKFontMetrics
   {
     float ascent;
@@ -41,7 +41,7 @@ extern "C" {
     float line_height;
   } LDKFontMetrics;
 
-  /** @group core.ttf.glyphs */
+  /** @group ldk.asset.font */
   typedef struct LDKGlyph
   {
     u32 codepoint;
@@ -60,7 +60,7 @@ extern "C" {
     bool valid;
   } LDKGlyph;
 
-  /** @group core.ttf.fonts */
+  /** @group ldk.asset.font */
   typedef struct LDKFontPageInfo
   {
     u32 page_index;
@@ -75,7 +75,7 @@ extern "C" {
    * @param cursor Pointer to the current UTF-8 string position. Updated to the next byte after the decoded sequence.
    * @param out_codepoint Destination for the decoded Unicode codepoint.
    * @return true if a codepoint was consumed, false if input is invalid or the cursor is at the string terminator.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API bool ldk_ttf_utf8_consume_codepoint(char const** cursor, u32* out_codepoint);
 
@@ -85,7 +85,7 @@ extern "C" {
    * @param end Exclusive end pointer for the UTF-8 byte range.
    * @param out_codepoint Destination for the decoded Unicode codepoint.
    * @return true if a codepoint was consumed, false if input is invalid, the cursor is at the string terminator, or the cursor reached end.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API bool ldk_ttf_utf8_consume_codepoint_range(char const** cursor, char const* end, u32* out_codepoint);
 
@@ -94,14 +94,14 @@ extern "C" {
    * @param data Source font file data.
    * @param data_size Size of the source font data in bytes.
    * @return New font face, or NULL on failure.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API LDKFontFace* ldk_ttf_face_create(void const* data, u32 data_size);
 
   /**
    * @brief Destroys a font face and all font instances created from it.
    * @param face Font face to destroy. May be NULL.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API void ldk_ttf_face_destroy(LDKFontFace* face);
 
@@ -111,7 +111,7 @@ extern "C" {
    * @param pixel_height Requested font pixel height.
    * @param atlas_desc Optional atlas configuration. NULL uses default atlas settings.
    * @return Font instance, or NULL on failure.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API LDKFontInstance* ldk_ttf_get_instance(LDKFontFace* face, float pixel_height, LDKFontAtlasDesc const* atlas_desc);
 
@@ -119,7 +119,7 @@ extern "C" {
    * @brief Gets the pixel height used by a font instance.
    * @param instance Font instance.
    * @return Pixel height, or 0 if instance is NULL.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API float ldk_ttf_get_pixel_height(LDKFontInstance const* instance);
 
@@ -127,7 +127,7 @@ extern "C" {
    * @brief Gets scaled font metrics for a font instance.
    * @param instance Font instance.
    * @return Font metrics. Returns zeroed metrics if instance is NULL.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API LDKFontMetrics ldk_ttf_get_metrics(LDKFontInstance const* instance);
 
@@ -136,7 +136,7 @@ extern "C" {
    * @param instance Font instance.
    * @param codepoint Unicode codepoint.
    * @return Glyph data, or NULL on failure.
-   * @group core.ttf.glyphs
+   * @group ldk.asset.font
    */
   LDK_API LDKGlyph const* ldk_ttf_get_glyph(LDKFontInstance* instance, u32 codepoint);
 
@@ -146,7 +146,7 @@ extern "C" {
    * @param left_codepoint Previous Unicode codepoint.
    * @param right_codepoint Current Unicode codepoint.
    * @return Kerning adjustment in pixels, or 0 if unavailable.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API float ldk_ttf_get_kerning(LDKFontInstance const* instance, u32 left_codepoint, u32 right_codepoint);
 
@@ -156,7 +156,7 @@ extern "C" {
    * @param first_codepoint First Unicode codepoint to preload.
    * @param last_codepoint Last Unicode codepoint to preload.
    * @return true if all glyphs were processed, false on failure.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API bool ldk_ttf_preload_range(LDKFontInstance* instance, u32 first_codepoint, u32 last_codepoint);
 
@@ -164,7 +164,7 @@ extern "C" {
    * @brief Preloads printable basic ASCII glyphs.
    * @param instance Font instance.
    * @return true if all glyphs were processed, false on failure.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API bool ldk_ttf_preload_basic_ascii(LDKFontInstance* instance);
 
@@ -172,7 +172,7 @@ extern "C" {
    * @brief Gets the number of atlas pages owned by a font instance.
    * @param instance Font instance.
    * @return Number of atlas pages, or 0 if instance is NULL.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API u32 ldk_ttf_get_page_count(LDKFontInstance const* instance);
 
@@ -182,7 +182,7 @@ extern "C" {
    * @param page_index Atlas page index.
    * @param out_page Destination page information.
    * @return true if page information was written, false on failure.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API bool ldk_ttf_get_page_info(LDKFontInstance const* instance, u32 page_index, LDKFontPageInfo* out_page);
 
@@ -190,7 +190,7 @@ extern "C" {
    * @brief Clears the dirty flag of an atlas page.
    * @param instance Font instance.
    * @param page_index Atlas page index.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API void ldk_ttf_clear_page_dirty(LDKFontInstance* instance, u32 page_index);
 
@@ -198,7 +198,7 @@ extern "C" {
    * @brief Gets the scaled line height for a font instance.
    * @param instance Font instance.
    * @return Line height in pixels, or 0 if instance is NULL.
-   * @group core.ttf.text
+   * @group ldk.asset.font
    */
   LDK_API float ldk_ttf_get_line_height(LDKFontInstance* instance);
 
@@ -207,7 +207,7 @@ extern "C" {
    * @param instance Font instance.
    * @param text Null-terminated UTF-8 string.
    * @return Text size in pixels.
-   * @group core.ttf.measurement
+   * @group ldk.asset.font
    */
   LDK_API LDKTextSize ldk_ttf_measure_text_cstr(LDKFontInstance* instance, char const* text);
 
@@ -217,7 +217,7 @@ extern "C" {
    * @param text UTF-8 string.
    * @param byte_count Maximum number of bytes to read. If 0, measures an empty string.
    * @return Text size in pixels.
-   * @group core.ttf.measurement
+   * @group ldk.asset.font
    */
   LDK_API LDKTextSize ldk_ttf_measure_text_cstrn(LDKFontInstance* instance, char const* text, u32 byte_count);
 
@@ -227,7 +227,7 @@ extern "C" {
    * @param text Null-terminated UTF-8 string.
    * @param max_width Maximum line width in pixels. If less than or equal to 0, wrapping is disabled.
    * @return Wrapped text size in pixels.
-   * @group core.ttf.measurement
+   * @group ldk.asset.font
    */
   LDK_API LDKSizef ldk_ttf_measure_text_cstr_wrapped(LDKFontInstance* instance, char const* text, float max_width);
 

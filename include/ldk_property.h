@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-/** @group core.properties */
+/** @group ldk.property */
 typedef struct LDKPropertyValue
 {
   LDKFieldType type;
@@ -30,14 +30,14 @@ typedef struct LDKPropertyValue
  * @brief Check whether a reflected field is writable and has an animation value codec.
  * @param field Metadata describing the property.
  * @return True for supported non-readonly fields; hidden fields are absent from metadata.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API bool ldk_property_field_supported(const LDKComponentFieldMeta *field);
 /**
  * @brief Find component metadata using the runtime ECS component type.
  * @param component_type Runtime ECS component type.
  * @return Metadata pointer, or NULL if no compatible registration exists.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API const LDKComponentMeta *ldk_property_component_meta(u32 component_type);
 /**
@@ -45,7 +45,7 @@ LDK_API const LDKComponentMeta *ldk_property_component_meta(u32 component_type);
  * @param component_type Runtime ECS component type.
  * @param field_name Persistent reflected property name.
  * @return Field metadata pointer, or NULL when unavailable.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API const LDKComponentFieldMeta *ldk_property_field_find(
     u32 component_type, const char *field_name);
@@ -56,7 +56,7 @@ LDK_API const LDKComponentFieldMeta *ldk_property_field_find(
  * @param field_name Persistent reflected property name.
  * @param out Receives the type-tagged property value.
  * @return True when the entity has the component and the reflected value is valid.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API bool ldk_property_get(LDKEntity entity, u32 component_type,
     const char *field_name, LDKPropertyValue *out);
@@ -69,7 +69,7 @@ LDK_API bool ldk_property_get(LDKEntity entity, u32 component_type,
  * @param value Validated value to apply.
  * @param user Opaque registration context.
  * @return True on successful application, false on failure.
- * @group core.properties
+ * @group ldk.property
  */
 typedef bool (*LDKPropertyWriterFn)(LDKEntity entity,
     const LDKPropertyValue *value, void *user);
@@ -80,14 +80,14 @@ typedef bool (*LDKPropertyWriterFn)(LDKEntity entity,
  * @param callback Function responsible for writing the value.
  * @param user Opaque callback context.
  * @return True on success. Writer must apply the value and return its status.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API bool ldk_property_writer_register(u32 component_type,
     const char *field_name, LDKPropertyWriterFn callback, void *user);
 /**
  * @brief Clear registered property writer callbacks before unloading their code.
  * @return Nothing. Must be called before unloading game-module callbacks.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API void ldk_property_writers_clear(void);
 /**
@@ -97,7 +97,7 @@ LDK_API void ldk_property_writers_clear(void);
  * @param field_name Persistent reflected property name.
  * @param value Type-tagged property value.
  * @return True if the field accepted the value. Unchanged values do not invoke setters.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API bool ldk_property_set(LDKEntity entity, u32 component_type,
     const char *field_name, const LDKPropertyValue *value);
@@ -109,7 +109,7 @@ LDK_API bool ldk_property_set(LDKEntity entity, u32 component_type,
  * @param alpha Interpolation factor in [0,1].
  * @param out Receives the interpolated type-tagged value.
  * @return True when both values match the reflected field and are valid.
- * @group core.properties
+ * @group ldk.property
  */
 LDK_API bool ldk_property_interpolate(
     const LDKComponentFieldMeta *field, const LDKPropertyValue *a,

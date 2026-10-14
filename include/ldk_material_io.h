@@ -21,11 +21,11 @@ extern "C"
    * @brief Callback for reporting a material I/O diagnostic.
    * @param message Message displayed to the user.
    * @param user Opaque caller-supplied data passed to the callback.
-   * @group core.material_io
+   * @group ldk.asset.material
    */
   typedef void (*LDKMaterialDiagnosticFn)(const char *message, void *user);
 
-  /** @group core.material_io */
+  /** @group ldk.asset.material */
   typedef struct LDKMaterialIOContext
   {
     LDKAssetManager *assets;
@@ -34,7 +34,7 @@ extern "C"
     void *user;
   } LDKMaterialIOContext;
 
-  /** @group core.material_io */
+  /** @group ldk.asset.material */
   typedef struct LDKMaterialIOResult
   {
     char error[512];
@@ -54,7 +54,7 @@ extern "C"
    * @param out_desc Receives the descriptor.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.material_io
+   * @group ldk.asset.material
    */
   LDK_API bool ldk_material_desc_read(const LDKMaterialIOContext *context,
       const TMLDocument *doc, const TMLNode *fields,
@@ -71,7 +71,7 @@ extern "C"
    * @param indent Indentation depth used while serializing output.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.material_io
+   * @group ldk.asset.material
    */
   LDK_API bool ldk_material_desc_write(const LDKMaterialIOContext *context,
       const LDKMaterialDesc *desc, XStrBuilder *out, u32 indent,

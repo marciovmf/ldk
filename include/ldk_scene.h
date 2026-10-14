@@ -24,13 +24,13 @@ extern "C"
 {
 #endif
 
-/** @group core.scenes */
+/** @group ldk.scene */
 typedef struct LDKGame LDKGame;
 struct LDKSceneSystems;
 
-/** @group core.scenes */
+/** @group ldk.scene */
 #define LDK_SCENE_TML_VERSION 1
-/** @group core.scenes */
+/** @group ldk.scene */
 #define LDK_SCENE_NULL_ENTITY_ID (-1)
 
 /**
@@ -39,7 +39,7 @@ struct LDKSceneSystems;
  * Scene pointers returned by the Scene Manager refer to its internal catalog
  * and remain valid until the catalog is overridden or the manager is
  * terminated.
- * @group core.scenes
+ * @group ldk.scene
  */
 typedef struct LDKScene
 {
@@ -48,14 +48,14 @@ typedef struct LDKScene
   u32 index;
 } LDKScene;
 
-/** @group core.scenes.properties */
+/** @group ldk.scene */
 typedef struct LDKSceneProperties
 {
   rgba32 ambient_color;
   float ambient_intensity;
 } LDKSceneProperties;
 
-/** @group core.scenes.diagnostics */
+/** @group ldk.scene */
 typedef struct LDKSceneResult
 {
   bool ok;
@@ -65,39 +65,39 @@ typedef struct LDKSceneResult
 /**
  * @brief Set default values for scene properties.
  * @param properties Scene or other property values being operated on.
- * @group core.scenes.properties
+ * @group ldk.scene
  */
 LDK_API void ldk_scene_properties_defaults(LDKSceneProperties *properties);
 /**
  * @brief Get the scene properties.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group core.scenes.properties
+ * @group ldk.scene
  */
 LDK_API const LDKSceneProperties *ldk_scene_properties_get(void);
 /**
  * @brief Set the scene properties.
  * @param properties Scene or other property values being operated on.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.properties
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_properties_set(const LDKSceneProperties *properties);
 /**
  * @brief Reset the state of the scene properties.
- * @group core.scenes.properties
+ * @group ldk.scene
  */
 LDK_API void ldk_scene_properties_reset(void);
 
 /**
  * @brief Clear the state of the scene result.
  * @param result Optional result structure populated with error details.
- * @group core.scenes.diagnostics
+ * @group ldk.scene
  */
 LDK_API void ldk_scene_result_clear(LDKSceneResult *result);
 /**
  * @brief Store a scene diagnostic message in the result.
  * @param result Optional result structure populated with error details.
  * @param error Receives an error description when parsing fails.
- * @group core.scenes.diagnostics
+ * @group ldk.scene
  */
 LDK_API void ldk_scene_result_set_error(
     LDKSceneResult *result, const char *error);
@@ -109,14 +109,14 @@ LDK_API void ldk_scene_result_set_error(
  * @brief Callback for reporting a scene diagnostic.
  * @param message Message displayed to the user.
  * @param user Opaque caller-supplied data passed to the callback.
- * @group core.scenes.diagnostics
+ * @group ldk.scene
  */
 typedef void (*LDKSceneDiagnosticFn)(const char *message, void *user);
 /**
  * @brief Set the scene diagnostic handler.
  * @param handler Handler called for the corresponding event or diagnostic.
  * @param user Opaque caller-supplied data passed to the callback.
- * @group core.scenes.diagnostics
+ * @group ldk.scene
  */
 LDK_API void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user);
@@ -130,7 +130,7 @@ LDK_API void ldk_scene_diagnostic_handler_set(
  * @param source Source object or source data for this operation.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.loading
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_from_tml(
     const char *source, LDKSceneResult *result);
@@ -143,7 +143,7 @@ LDK_API bool ldk_scene_from_tml(
  * @param path Path identifying the file or resource.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.loading
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_load_tml_file(
     const char *path, LDKSceneResult *result);
@@ -156,7 +156,7 @@ LDK_API bool ldk_scene_load_tml_file(
  * @param systems Scene systems configuration being read or written.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.systems
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_from_tml_with_systems(const char *source,
     struct LDKSceneSystems *systems, LDKSceneResult *result);
@@ -166,7 +166,7 @@ LDK_API bool ldk_scene_from_tml_with_systems(const char *source,
  * @param systems Scene systems configuration being read or written.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.systems
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_load_tml_file_with_systems(const char *path,
     struct LDKSceneSystems *systems, LDKSceneResult *result);
@@ -178,7 +178,7 @@ LDK_API bool ldk_scene_load_tml_file_with_systems(const char *path,
  * @param systems Scene systems configuration being read or written.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.systems
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_to_tml_with_systems(XStrBuilder *out,
     const struct LDKSceneSystems *systems, LDKSceneResult *result);
@@ -186,7 +186,7 @@ LDK_API bool ldk_scene_to_tml_with_systems(XStrBuilder *out,
  * @param out Output object or buffer receiving the result.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.saving
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_to_tml(
     XStrBuilder *out, LDKSceneResult *result);
@@ -195,7 +195,7 @@ LDK_API bool ldk_scene_to_tml(
  * @param path Path identifying the file or resource.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.saving
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_save_tml_file(
     const char *path, LDKSceneResult *result);
@@ -205,7 +205,7 @@ LDK_API bool ldk_scene_save_tml_file(
  * @param out String builder receiving prefab TML.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.saving
+ * @group ldk.scene
  */
 LDK_API bool ldk_prefab_to_tml(
     LDKEntity root, XStrBuilder *out, LDKSceneResult *result);
@@ -215,7 +215,7 @@ LDK_API bool ldk_prefab_to_tml(
  * @param path Destination filesystem path.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group core.scenes.serialization.saving
+ * @group ldk.scene
  */
 LDK_API bool ldk_prefab_save_tml_file(
     LDKEntity root, const char *path, LDKSceneResult *result);
@@ -225,7 +225,7 @@ LDK_API bool ldk_prefab_save_tml_file(
  * @brief Resolve the runtime component type for reflected scene metadata.
  * @param meta Meta used by this operation.
  * @return The resulting numeric value.
- * @group core.scenes.metadata
+ * @group ldk.scene
  */
 LDK_API u32 ldk_scene_component_meta_runtime_type(
     const LDKComponentMeta *meta);
@@ -235,7 +235,7 @@ LDK_API u32 ldk_scene_component_meta_runtime_type(
  * @param game Game instance associated with this operation.
  * @param component_type Registered ECS component type identifier.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group core.scenes.metadata
+ * @group ldk.scene
  */
 LDK_API const LDKComponentMeta *ldk_scene_component_meta_find_by_type(
     LDKGame *game, u32 component_type);
@@ -245,7 +245,7 @@ LDK_API const LDKComponentMeta *ldk_scene_component_meta_find_by_type(
  * @param meta Meta used by this operation.
  * @param field_name Field name used by this operation.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group core.scenes.metadata
+ * @group ldk.scene
  */
 LDK_API const LDKComponentFieldMeta *ldk_scene_component_field_find(
     const LDKComponentMeta *meta, const char *field_name);
@@ -255,7 +255,7 @@ LDK_API const LDKComponentFieldMeta *ldk_scene_component_field_find(
  * @param meta Meta used by this operation.
  * @param field Field used by this operation.
  * @return True when the queried condition holds; false otherwise.
- * @group core.scenes.metadata
+ * @group ldk.scene
  */
 LDK_API bool ldk_scene_component_field_is_serializable(
     const LDKComponentMeta *meta, const LDKComponentFieldMeta *field);

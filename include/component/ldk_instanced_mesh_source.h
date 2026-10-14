@@ -14,7 +14,7 @@ extern "C"
 {
 #endif
 
-  /** @group components.instanced_mesh_source.instances */
+  /** @group ldk.component.instanced_mesh_source */
   //@component
   typedef struct LDKInstancedMeshSource
   {
@@ -36,7 +36,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param count Number of items to process.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.instanced_mesh_source.instances
+   * @group ldk.component.instanced_mesh_source
    */
   LDK_API bool ldk_instanced_mesh_source_reserve_instances(
       LDKInstancedMeshSource *source, u32 count);
@@ -47,7 +47,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param count Number of items to process.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.instanced_mesh_source.instances
+   * @group ldk.component.instanced_mesh_source
    */
   LDK_API bool ldk_instanced_mesh_source_resize_instances(
       LDKInstancedMeshSource *source, u32 count);
@@ -59,7 +59,7 @@ extern "C"
    * @param instances Instances used by this operation.
    * @param count Number of items to process.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.instanced_mesh_source.instances
+   * @group ldk.component.instanced_mesh_source
    */
   LDK_API bool ldk_instanced_mesh_source_set_instances(
       LDKInstancedMeshSource *source, const Mat4 *instances, u32 count);
@@ -70,7 +70,7 @@ extern "C"
    * @param colors Colors used by this operation.
    * @param count Number of items to process.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.instanced_mesh_source.colors
+   * @group ldk.component.instanced_mesh_source
    */
   LDK_API bool ldk_instanced_mesh_source_set_instance_colors(
       LDKInstancedMeshSource *source, const u32 *colors, u32 count);
@@ -80,7 +80,7 @@ extern "C"
    * @brief Build the ECS registration descriptor for the instanced mesh source component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.instanced_mesh_source.registration
+   * @group ldk.component.instanced_mesh_source
    */
   LDK_API LDKComponentDesc ldk_instanced_mesh_source_component_desc(
       u32 initial_capacity);

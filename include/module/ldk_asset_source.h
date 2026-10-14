@@ -22,12 +22,12 @@ extern "C"
 {
 #endif
 
-  /** @group modules.asset_source.packages */
+  /** @group ldk.module.asset_source */
   typedef struct LDKAssetSourcePackage LDKAssetSourcePackage;
-  /** @group modules.asset_source.io */
+  /** @group ldk.module.asset_source */
   typedef LDKAsyncResult LDKAsyncRead;
 
-  /** @group modules.asset_source.lifecycle */
+  /** @group ldk.module.asset_source */
   typedef enum LDKAssetSourceOrigin
   {
     LDK_ASSET_SOURCE_ORIGIN_NONE = 0,
@@ -35,7 +35,7 @@ extern "C"
     LDK_ASSET_SOURCE_ORIGIN_FILESYSTEM,
   } LDKAssetSourceOrigin;
 
-  /** @group modules.asset_source.lifecycle */
+  /** @group ldk.module.asset_source */
   typedef struct LDKAssetSourceFile
   {
     LDKAssetSourceOrigin origin;
@@ -51,7 +51,7 @@ extern "C"
     } location;
   } LDKAssetSourceFile;
 
-  /** @group modules.asset_source.lifecycle */
+  /** @group ldk.module.asset_source */
   typedef struct LDKAssetSource
   {
     XFSPath runtree_path;
@@ -66,7 +66,7 @@ extern "C"
    * @param out_path Receives the resulting path.
    * @param path Path identifying the file or resource.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.paths
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_path_set(LDKAssetPath *out_path, const char *path);
 
@@ -75,14 +75,14 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param runtree_path Path of the runtree.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.lifecycle
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_initialize(
       LDKAssetSource *source, const char *runtree_path);
   /**
    * @brief Shut down the asset source.
    * @param source Source object or source data for this operation.
-   * @group modules.asset_source.lifecycle
+   * @group ldk.module.asset_source
    */
   LDK_API void ldk_asset_source_terminate(LDKAssetSource *source);
   /**
@@ -90,7 +90,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param runtree_path Path of the runtree.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.paths
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_runtree_set(
       LDKAssetSource *source, const char *runtree_path);
@@ -103,7 +103,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param path Path identifying the file or resource.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group modules.asset_source.packages
+   * @group ldk.module.asset_source
    */
   LDK_API LDKAssetSourcePackage *ldk_asset_source_package_open(
       LDKAssetSource *source, const char *path);
@@ -112,7 +112,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param package Opened package used by this operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.packages
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_package_close(
       LDKAssetSource *source, LDKAssetSourcePackage *package);
@@ -123,7 +123,7 @@ extern "C"
    * @param source Source object or source data for this operation.
    * @param package Opened package used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group modules.asset_source.packages
+   * @group ldk.module.asset_source
    */
   LDK_API const XFSPath *ldk_asset_source_package_path_get(
       const LDKAssetSource *source, const LDKPackage *package);
@@ -141,7 +141,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param out_file Receives the resulting file.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.lookup
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_find(const LDKAssetSource *source,
       const char *path, LDKAssetSourceFile *out_file);
@@ -150,7 +150,7 @@ extern "C"
    * @brief Get the byte size of an asset-source file.
    * @param file File used by this operation.
    * @return Size of the result, in bytes where applicable.
-   * @group modules.asset_source.lifecycle
+   * @group ldk.module.asset_source
    */
   LDK_API u64 ldk_asset_source_file_size(const LDKAssetSourceFile *file);
 
@@ -164,7 +164,7 @@ extern "C"
    * @param size Size of the data or region, in bytes where applicable.
    * @param out_read Receives the number of bytes actually read.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.io
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_file_read_at(const LDKAssetSourceFile *file,
       u64 offset, void *out_data, u64 size, u64 *out_read);
@@ -179,7 +179,7 @@ extern "C"
    * @param size Size of the data or region, in bytes where applicable.
    * @param out_read Receives the number of bytes actually read.
    * @return The requested value.
-   * @group modules.asset_source.io
+   * @group ldk.module.asset_source
    */
   LDK_API LDKAsyncRead ldk_asset_source_file_read_at_async(
       const LDKAssetSourceFile *file, u64 offset, void *out_data, u64 size,
@@ -192,7 +192,7 @@ extern "C"
    * @param out_data Destination buffer for the resulting data.
    * @param out_size Receives or specifies the byte size of the output buffer, as defined by the operation.
    * @return The requested value.
-   * @group modules.asset_source.io
+   * @group ldk.module.asset_source
    */
   LDK_API LDKAsyncRead ldk_asset_source_file_read_async(
       const LDKAssetSourceFile *file, void *out_data, u64 out_size);
@@ -205,7 +205,7 @@ extern "C"
    * @param out_data Destination buffer for the resulting data.
    * @param out_size Receives or specifies the byte size of the output buffer, as defined by the operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.io
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_file_read(
       const LDKAssetSourceFile *file, void *out_data, u64 out_size);
@@ -218,7 +218,7 @@ extern "C"
    * @param data Source data or system-owned context for this operation.
    * @param size Size of the data or region, in bytes where applicable.
    * @return True if the operation succeeds; false otherwise.
-   * @group modules.asset_source.lifecycle
+   * @group ldk.module.asset_source
    */
   LDK_API bool ldk_asset_source_file_write(const LDKAssetSource *source,
       const char *path, const void *data, u64 size);

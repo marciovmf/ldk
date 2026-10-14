@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-/** @group components.keyframe_animation_source */
+/** @group ldk.component.keyframe_animation_source */
 //@component
 typedef struct LDKKeyFrameAnimationSource
 {
@@ -44,7 +44,7 @@ typedef struct LDKKeyFrameAnimationSource
 /**
  * @brief Construct the default configuration for an animation source component.
  * @return Value with autoplay/loop enabled, speed one and no selected clip.
- * @group components.keyframe_animation_source
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API LDKKeyFrameAnimationSource ldk_keyframe_animation_source_make_default(void);
 /**
@@ -52,7 +52,7 @@ LDK_API LDKKeyFrameAnimationSource ldk_keyframe_animation_source_make_default(vo
  * @param root Root entity containing the animation source.
  * @param animation Live asset handle; remains owned by the asset manager.
  * @return True if appended. Does not transfer ownership of the asset.
- * @group components.keyframe_animation_source.assets
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_add(
     LDKEntity root, LDKAssetKeyframeAnimation animation);
@@ -61,7 +61,7 @@ LDK_API bool ldk_keyframe_animation_source_add(
  * @param root Root entity containing the animation source.
  * @param index Zero-based animation index.
  * @return True if removed. Does not unload the asset.
- * @group components.keyframe_animation_source.assets
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_remove(LDKEntity root, u32 index);
 /**
@@ -70,7 +70,7 @@ LDK_API bool ldk_keyframe_animation_source_remove(LDKEntity root, u32 index);
  * @param index Zero-based animation index.
  * @param animation Live asset handle; remains owned by the asset manager.
  * @return True on success. Replacing the active entry resets playback.
- * @group components.keyframe_animation_source.assets
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_replace(
     LDKEntity root, u32 index, LDKAssetKeyframeAnimation animation);
@@ -79,28 +79,28 @@ LDK_API bool ldk_keyframe_animation_source_replace(
  * @param root Root entity containing the animation source.
  * @param index Zero-based animation index.
  * @return True for a valid index. Changing selection resets playback.
- * @group components.keyframe_animation_source.playback
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_set_current(LDKEntity root, i32 index);
 /**
  * @brief Start or resume the current animation and apply its current pose.
  * @param root Root entity containing the animation source.
  * @return True if a live clip is selected and the component is enabled.
- * @group components.keyframe_animation_source.playback
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_play(LDKEntity root);
 /**
  * @brief Pause playback while retaining the current position.
  * @param root Root entity containing the animation source.
  * @return Nothing.
- * @group components.keyframe_animation_source.playback
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API void ldk_keyframe_animation_source_pause(LDKEntity root);
 /**
  * @brief Stop playback, seek to zero and apply the initial pose.
  * @param root Root entity containing the animation source.
  * @return Nothing. Does not restore the pre-animation component values.
- * @group components.keyframe_animation_source.playback
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API void ldk_keyframe_animation_source_stop(LDKEntity root);
 /**
@@ -108,7 +108,7 @@ LDK_API void ldk_keyframe_animation_source_stop(LDKEntity root);
  * @param root Root entity containing the animation source.
  * @param time Time in seconds.
  * @return True if a live clip is selected. Time is clamped to its duration.
- * @group components.keyframe_animation_source.playback
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API bool ldk_keyframe_animation_source_seek(LDKEntity root, float time);
 /**
@@ -117,7 +117,7 @@ LDK_API bool ldk_keyframe_animation_source_seek(LDKEntity root, float time);
  * @param user Opaque callback context.
  * @return Nothing. Passing NULL disables notifications.
  * Note: Callbacks may mutate or destroy the source; do not keep event pointers.
- * @group components.keyframe_animation_source.events
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API void ldk_keyframe_animation_source_event_handler_set(
     LDKKeyframeEventFn handler, void *user);
@@ -127,7 +127,7 @@ LDK_API void ldk_keyframe_animation_source_event_handler_set(
  * @brief Describe the keyframe animation source component to the ECS.
  * @param initial_capacity Initial component storage capacity.
  * @return Component description with Transform as a required component.
- * @group components.keyframe_animation_source.registration
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API LDKComponentDesc ldk_keyframe_animation_source_component_desc(
     u32 initial_capacity);
@@ -135,13 +135,13 @@ LDK_API LDKComponentDesc ldk_keyframe_animation_source_component_desc(
  * @brief Advance enabled animation sources during the engine update.
  * @param delta_time Elapsed time in seconds.
  * @return Nothing. Events are dispatched before the render phase.
- * @group components.keyframe_animation_source.runtime
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API void ldk_keyframe_animation_source_update_all(float delta_time);
 /**
  * @brief Reset runtime playback state for every registered animation source.
  * @return Nothing. Preserves assigned assets and playback configuration.
- * @group components.keyframe_animation_source.runtime
+ * @group ldk.component.keyframe_animation_source
  */
 LDK_API void ldk_keyframe_animation_source_reset_all(void);
 #endif

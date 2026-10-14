@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-  /** @group components.text3d */
+  /** @group ldk.component.text3d */
   //@component
   typedef struct LDKText3DComponent
   {
@@ -35,7 +35,7 @@ extern "C" {
    * @brief Build the ECS registration descriptor for the text3d component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.text3d.registration
+   * @group ldk.component.text3d
    */
   LDK_API LDKComponentDesc ldk_text3d_component_desc(u32 initial_capacity);
 #endif // LDK_ENGINE

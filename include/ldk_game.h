@@ -50,14 +50,14 @@
 #endif
 
 /* Increment when shared engine/game layouts or calling contracts change. */
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_ABI_VERSION 6u
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_ABI_VERSION_NAME "game_abi_version"
 /**
  * @brief Game-module entry point reporting the supported ABI version.
  * @return The resulting numeric value.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef u32 (*LDKGameABIVersionFunc)(void);
 LDK_GAME_API u32 game_abi_version(void);
@@ -83,104 +83,104 @@ LDK_GAME_API const LDKSystemMeta *game_system_metadata_get(u32 index);
 /**
  * @brief Game-module entry point reporting the system metadata count.
  * @return The resulting numeric value.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef u32 (*LDKGameSystemMetadataCountFunc)(void);
 /**
  * @brief Game-module entry point retrieving system metadata by index.
  * @param index Zero-based index of the selected item.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef const LDKSystemMeta *(*LDKGameSystemMetadataGetFunc)(u32 index);
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_SYSTEM_METADATA_COUNT_NAME "game_system_metadata_count"
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_SYSTEM_METADATA_GET_NAME "game_system_metadata_get"
 
 /**
  * @brief Game-module entry point called to initialize a game instance.
  * @param game Game instance associated with this operation.
  * @return True if the operation succeeds; false otherwise.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef bool (*LDKGameInitializeFunc)(struct LDKGame* game);
 /**
  * @brief Game-module entry point called when gameplay starts.
  * @param game Game instance associated with this operation.
  * @return True if the operation succeeds; false otherwise.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef bool (*LDKGameStartFunc)(struct LDKGame* game);
 /**
  * @brief Game-module entry point called for a gameplay update.
  * @param game Game instance associated with this operation.
  * @param delta_time Elapsed time since the preceding update, in seconds.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef void (*LDKGameUpdateFunc)(struct LDKGame* game, float delta_time);
 /**
  * @brief Game-module entry point called when gameplay stops.
  * @param game Game instance associated with this operation.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef void (*LDKGameStopFunc)(struct LDKGame* game);
 /**
  * @brief Game-module entry point called when the game instance is terminated.
  * @param game Game instance associated with this operation.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef void (*LDKGameTerminateFunc)(struct LDKGame* game);
 /**
  * @brief Game-module entry point reporting the component metadata count.
  * @return The resulting numeric value.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef u32 (*LDKGameComponentMetadataCountFunc)(void);
 /**
  * @brief Game-module entry point retrieving component metadata by index.
  * @param index Zero-based index of the selected item.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group core.game.lifecycle
+ * @group ldk.game
  */
 typedef const LDKComponentMeta* (*LDKGameComponentMetadataGetFunc)(u32 index);
 
 #ifndef LDK_GAME_INITIALIZE_FUNC_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_INITIALIZE_FUNC_NAME "game_initialize"
 #endif
 
 #ifndef LDK_GAME_START_FUNC_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_START_FUNC_NAME "game_start"
 #endif
 
 #ifndef LDK_GAME_UPDATE_FUNC_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_UPDATE_FUNC_NAME "game_update"
 #endif
 
 #ifndef LDK_GAME_STOP_FUNC_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_STOP_FUNC_NAME "game_stop"
 #endif
 
 #ifndef LDK_GAME_TERMINATE_FUNC_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_TERMINATE_FUNC_NAME "game_terminate"
 #endif
 
 #ifndef LDK_GAME_COMPONENT_METADATA_COUNT_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_COMPONENT_METADATA_COUNT_NAME "game_component_metadata_count"
 #endif
 
 #ifndef LDK_GAME_COMPONENT_METADATA_GET_NAME
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 #define LDK_GAME_COMPONENT_METADATA_GET_NAME "game_component_metadata_get"
 #endif
 
-/** @group core.game.lifecycle */
+/** @group ldk.game */
 typedef struct LDKGame
 {
   bool initialized;

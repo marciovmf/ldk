@@ -15,7 +15,7 @@
 // Events
 //
 
-/** @group core.events */
+/** @group ldk.event */
 typedef enum
 {
   /* Event Types */
@@ -69,7 +69,7 @@ typedef enum
 } LDKEventType;
 
 // LDKTextEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -77,7 +77,7 @@ typedef struct
 } LDKTextEvent;
 
 // LDKWindowEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -86,7 +86,7 @@ typedef struct
 } LDKWindowEvent;
 
 // LDKKeyboardEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -97,7 +97,7 @@ typedef struct
 } LDKKeyboardEvent;
 
 // LDKMouseEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -115,7 +115,7 @@ typedef struct
 } LDKMouseEvent;
 
 // LDKFrameEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -123,7 +123,7 @@ typedef struct
   float delta_time;
 } LDKFrameEvent;
 
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKEventType type;
@@ -134,7 +134,7 @@ typedef struct
 
 
 // LDKEvent
-/** @group core.events */
+/** @group ldk.event */
 typedef struct
 {
   LDKWindow window;

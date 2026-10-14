@@ -16,20 +16,20 @@ extern "C"
 {
 #endif
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef XHandle LDKHandle;
 
-/** @group core.assets */
+/** @group ldk.asset */
 #define LDK_ASSET_PATH_MAX_LENGTH LDK_PACKAGE_PATH_MAX_LENGTH
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetPath
   {
     char buf[LDK_ASSET_PATH_MAX_LENGTH + 1u];
     size_t length;
   } LDKAssetPath;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef enum LDKAssetType
   {
     LDK_ASSET_TYPE_NULL = 0,
@@ -45,67 +45,67 @@ extern "C"
     LDK_ASSET_TYPE_PREFAB = 10
   } LDKAssetType;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetHandle
   {
     LDKHandle h;
   } LDKAssetHandle;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetTextFile
   {
     LDKHandle h;
   } LDKAssetTextFile;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetImage
   {
     LDKHandle h;
   } LDKAssetImage;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetFont
   {
     LDKHandle h;
   } LDKAssetFont;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetMaterial
   {
     LDKHandle h;
   } LDKAssetMaterial;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetMesh
   {
     LDKHandle h;
   } LDKAssetMesh;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetSkybox
   {
     LDKHandle h;
   } LDKAssetSkybox;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetKeyframeAnimation
   {
     LDKHandle h;
   } LDKAssetKeyframeAnimation;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetTextureAtlas
   {
     LDKHandle h;
   } LDKAssetTextureAtlas;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetPrefab
   {
     LDKHandle h;
   } LDKAssetPrefab;
 
-  /** @group core.assets */
+  /** @group ldk.asset */
   typedef struct LDKAssetAudio
   {
     LDKHandle h;

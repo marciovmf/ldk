@@ -16,7 +16,7 @@ extern "C"
 {
 #endif
 
-/** @group modules.scene_manager.lifecycle */
+/** @group ldk.module.scene_manager */
 typedef struct LDKSceneManagerConfig
 {
   const LDKAssetPath *scenes;
@@ -26,7 +26,7 @@ typedef struct LDKSceneManagerConfig
   const XSmallstr *names;
 } LDKSceneManagerConfig;
 
-/** @group modules.scene_manager.lifecycle */
+/** @group ldk.module.scene_manager */
 typedef struct LDKSceneManager
 {
   LDKScene *scenes;
@@ -46,7 +46,7 @@ typedef struct LDKSceneManager
 /** Initializes an empty Scene Manager.
  * @param manager Asset manager that owns or resolves the asset.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_initialize(LDKSceneManager *manager);
 
@@ -62,7 +62,7 @@ LDK_API bool ldk_scene_manager_initialize(LDKSceneManager *manager);
  * @param manager Asset manager that owns or resolves the asset.
  * @param config Configuration for this operation.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_override(
     LDKSceneManager *manager, const LDKSceneManagerConfig *config);
@@ -71,7 +71,7 @@ LDK_API bool ldk_scene_manager_override(
  * @param scenes Scenes used by this operation.
  * @param count Number of items to process.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_catalog_validate(
     const LDKScene *scenes, u32 count);
@@ -85,7 +85,7 @@ LDK_API bool ldk_scene_manager_catalog_validate(
  * @param scenes Scenes used by this operation.
  * @param count Number of items to process.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_catalog_exchange(
     LDKSceneManager *manager, LDKScene **scenes, u32 *count);
@@ -100,14 +100,14 @@ LDK_API bool ldk_scene_manager_catalog_exchange(
  * @param ini_path Path to the INI configuration.
  * @param result Optional result structure populated with error details.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_configure_file(LDKSceneManager *manager,
     const char *ini_path, LDKSceneResult *result);
 
 /** Unloads the current scene and frees the copied catalog.
  * @param manager Asset manager that owns or resolves the asset.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API void ldk_scene_manager_terminate(LDKSceneManager *manager);
 
@@ -119,7 +119,7 @@ LDK_API void ldk_scene_manager_terminate(LDKSceneManager *manager);
  * @brief Get the number of scenes in the scene manager.
  * @param manager Asset manager that owns or resolves the asset.
  * @return Number of matching entries.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API u32 ldk_scene_manager_count(const LDKSceneManager *manager);
 
@@ -128,7 +128,7 @@ LDK_API u32 ldk_scene_manager_count(const LDKSceneManager *manager);
  * @param manager Asset manager that owns or resolves the asset.
  * @param index Zero-based index of the selected item.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_at(
     const LDKSceneManager *manager, u32 index);
@@ -138,7 +138,7 @@ LDK_API const LDKScene *ldk_scene_manager_at(
  * @param manager Asset manager that owns or resolves the asset.
  * @param path Path identifying the file or resource.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_find(
     const LDKSceneManager *manager, const char *path);
@@ -158,7 +158,7 @@ LDK_API const LDKScene *ldk_scene_manager_find(
  * @param index Zero-based index of the selected item.
  * @param result Optional result structure populated with error details.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.loading
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_load(
     LDKSceneManager *manager, u32 index, LDKSceneResult *result);
@@ -168,7 +168,7 @@ LDK_API const LDKScene *ldk_scene_manager_load(
  * @param path Path identifying the file or resource.
  * @param result Optional result structure populated with error details.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.loading
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_load_path(
     LDKSceneManager *manager, const char *path, LDKSceneResult *result);
@@ -177,7 +177,7 @@ LDK_API const LDKScene *ldk_scene_manager_load_path(
  * @param manager Asset manager that owns or resolves the asset.
  * @param result Optional result structure populated with error details.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.loading
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_load_next(
     LDKSceneManager *manager, LDKSceneResult *result);
@@ -185,7 +185,7 @@ LDK_API const LDKScene *ldk_scene_manager_load_next(
 /** Removes all current ECS contents and clears current_scene.
  * @param manager Asset manager that owns or resolves the asset.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.loading
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_unload(LDKSceneManager *manager);
 
@@ -193,7 +193,7 @@ LDK_API bool ldk_scene_manager_unload(LDKSceneManager *manager);
  * @brief Get the currently active scene.
  * @param manager Asset manager that owns or resolves the asset.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.active_scene
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKScene *ldk_scene_manager_current(
     const LDKSceneManager *manager);
@@ -201,7 +201,7 @@ LDK_API const LDKScene *ldk_scene_manager_current(
 /** The associations of the scene currently open in the ECS.
  * @param manager Asset manager that owns or resolves the asset.
  * @return Pointer to the requested object or data; NULL when unavailable.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API const LDKSceneSystems *ldk_scene_manager_systems_get(
     const LDKSceneManager *manager);
@@ -212,20 +212,20 @@ LDK_API const LDKSceneSystems *ldk_scene_manager_systems_get(
  * ownership of the current ECS while gameplay is stopped.
  * @param manager Asset manager that owns or resolves the asset.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.active_scene
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_current_reset(LDKSceneManager *manager);
 
 /** Process/cancel a scene switch requested during an update callback.
  * @param manager Asset manager that owns or resolves the asset.
  * @return True if the operation succeeds; false otherwise.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API bool ldk_scene_manager_process_pending(LDKSceneManager *manager);
 /**
  * @brief Clear the state of the scene manager pending.
  * @param manager Asset manager that owns or resolves the asset.
- * @group modules.scene_manager.lifecycle
+ * @group ldk.module.scene_manager
  */
 LDK_API void ldk_scene_manager_pending_clear(LDKSceneManager *manager);
 

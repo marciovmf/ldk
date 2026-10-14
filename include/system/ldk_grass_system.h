@@ -18,21 +18,21 @@
 extern "C" {
 #endif
 
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_PROFILE_POINT_COUNT 4u
-/** @group systems.grass.lifecycle */
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_MIN_SIDE_COUNT 3u
-/** @group systems.grass.lifecycle */
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_MAX_SIDE_COUNT 8u
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_TYPE_COUNT 16u
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_TYPE_ID_INVALID UINT32_MAX
 
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 typedef u32 LDKGrassTypeId;
 
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 typedef enum LDKGrassBladeTopology
 {
   LDK_GRASS_BLADE_TOPOLOGY_RIBBON = 0,
@@ -45,7 +45,7 @@ typedef enum LDKGrassBladeTopology
       LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM
 } LDKGrassBladeTopology;
 
-/** @group systems.grass.types */
+/** @group ldk.system.grass_system */
 //@enum
 typedef enum LDKGrassBladePreset
 {
@@ -59,7 +59,7 @@ typedef enum LDKGrassBladePreset
 /**
  * One sample of the normalized blade profile. Height is in [0, 1]. Width is
  * the full ribbon width, or the radial diameter, at that height.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassProfilePoint
 {
@@ -68,7 +68,7 @@ typedef struct LDKGrassProfilePoint
 } LDKGrassProfilePoint;
 
 /** Shape shared by every blade in one visually compatible render batch.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassBladeShape
 {
@@ -81,7 +81,7 @@ typedef struct LDKGrassBladeShape
 /**
  * Flat target geometry. The complete parallelogram, including its edges, is a
  * valid generation area. origin + axis_u + axis_v is the opposite corner.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassPlane
 {
@@ -91,7 +91,7 @@ typedef struct LDKGrassPlane
 } LDKGrassPlane;
 
 /** Runtime description used when registering an additional grass type.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassTypeDesc
 {
@@ -111,7 +111,7 @@ typedef struct LDKGrassTypeDesc
 } LDKGrassTypeDesc;
 
 /** Per-region state. Visual configuration comes from LDKGrassSystem.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassPatchDesc
 {
@@ -121,7 +121,7 @@ typedef struct LDKGrassPatchDesc
 } LDKGrassPatchDesc;
 
 /** Opaque identity of one patch. Individual blades are intentionally hidden.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 typedef struct LDKGrassPatch
 {
@@ -133,7 +133,7 @@ typedef struct LDKGrassPatch
  * @brief Initialize the grass system.
  * @param data Source data or system-owned context for this operation.
  * @return System initialization status code.
- * @group systems.grass.lifecycle
+ * @group ldk.system.grass_system
  */
 int ldk_grass_system_initialize(void *data);
 /**
@@ -141,18 +141,18 @@ int ldk_grass_system_initialize(void *data);
  * @param data Source data or system-owned context for this operation.
  * @param group Entity group used for this system update.
  * @param dt Elapsed time since the preceding update, in seconds.
- * @group systems.grass.lifecycle
+ * @group ldk.system.grass_system
  */
 void ldk_grass_system_update(
     void *data, const LDKEntityGroup *group, float dt);
 /**
  * @brief Shut down the grass system.
  * @param data Source data or system-owned context for this operation.
- * @group systems.grass.lifecycle
+ * @group ldk.system.grass_system
  */
 void ldk_grass_system_terminate(void *data);
 
-/** @group systems.grass.lifecycle */
+/** @group ldk.system.grass_system */
 //@system name=GrassSystem initialize=ldk_grass_system_initialize update=ldk_grass_system_update terminate=ldk_grass_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKGrassSystem
 {
@@ -559,21 +559,21 @@ typedef struct LDKGrassSystem
 
 /** Initialize a useful default grass type description.
  * @param out_desc Receives the descriptor.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 LDK_API void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc);
 
 /** Return the active configuration index for name, or INVALID when absent.
  * @param name Name identifying the object or setting.
  * @return The requested value.
- * @group systems.grass.lifecycle
+ * @group ldk.system.grass_system
  */
 LDK_API LDKGrassTypeId ldk_grass_get_id_by_name(const char *name);
 
 /** True when type_id names a configured slot in the active GrassSystem.
  * @param type_id Identifier of the type.
  * @return True when the queried condition holds; false otherwise.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_type_is_valid(LDKGrassTypeId type_id);
 
@@ -581,7 +581,7 @@ LDK_API bool ldk_grass_type_is_valid(LDKGrassTypeId type_id);
  * @param type_id Identifier of the type.
  * @param out_desc Receives the descriptor.
  * @return True if the operation succeeds; false otherwise.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_type_get(
     LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc);
@@ -592,27 +592,27 @@ LDK_API bool ldk_grass_type_get(
  * invalid, the name already exists, or all 16 slots are occupied.
  * @param desc Description or configuration for this operation.
  * @return The requested value.
- * @group systems.grass.types
+ * @group ldk.system.grass_system
  */
 LDK_API LDKGrassTypeId ldk_grass_type_register(
     const LDKGrassTypeDesc *desc);
 
 /** Initialize an empty one-square-unit patch with density scale 1.
  * @param out_desc Receives the descriptor.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc);
 
 /** Return an invalid grass patch handle.
  * @return An invalid or empty handle.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API LDKGrassPatch ldk_grass_patch_null(void);
 
 /** True while patch identifies a live entry in the active GrassSystem.
  * @param patch Patch used by this operation.
  * @return True when the queried condition holds; false otherwise.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_patch_is_valid(LDKGrassPatch patch);
 
@@ -620,7 +620,7 @@ LDK_API bool ldk_grass_patch_is_valid(LDKGrassPatch patch);
  * @param type_id Identifier of the type.
  * @param desc Description or configuration for this operation.
  * @return The requested value.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API LDKGrassPatch ldk_grass_add(
     LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
@@ -630,7 +630,7 @@ LDK_API LDKGrassPatch ldk_grass_add(
  * @param type_id Identifier of the type.
  * @param desc Description or configuration for this operation.
  * @return True if the operation succeeds; false otherwise.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_update(LDKGrassPatch patch,
     LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
@@ -638,12 +638,12 @@ LDK_API bool ldk_grass_update(LDKGrassPatch patch,
 /** Remove a patch and every opaque blade belonging to it.
  * @param patch Patch used by this operation.
  * @return True if the operation succeeds; false otherwise.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_remove(LDKGrassPatch patch);
 
 /** Remove every live patch. Renderer-side style resources remain cached.
- * @group systems.grass.patches
+ * @group ldk.system.grass_system
  */
 LDK_API void ldk_grass_clear(void);
 
@@ -656,7 +656,7 @@ LDK_API void ldk_grass_clear(void);
  * @param radius Interaction or geometry radius.
  * @param strength Strength of the interaction.
  * @return True if the operation succeeds; false otherwise.
- * @group systems.grass.interaction
+ * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_interact(
     Vec3 from, Vec3 to, float radius, float strength);

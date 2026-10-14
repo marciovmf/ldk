@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-  /** @group components.mesh_source.materials */
+  /** @group ldk.component.mesh_source */
   typedef struct LDKMeshSourceMaterialBinding
   {
     LDKMaterialDesc material;
@@ -32,7 +32,7 @@ extern "C" {
     bool material_dirty;
   } LDKMeshSourceMaterialBinding;
 
-  /** @group components.mesh_source.geometry */
+  /** @group ldk.component.mesh_source */
   //@component
   typedef struct LDKMeshSource
   {
@@ -75,7 +75,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param asset Asset handle to inspect or modify.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.geometry
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_data(
       LDKMeshSource* mesh_source, LDKAssetMesh asset);
@@ -85,7 +85,7 @@ extern "C" {
    * @param assets Asset manager used to resolve referenced assets.
    * @param mesh_index Zero-based index of the mesh entry.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.geometry
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_mesh_index(
       LDKMeshSource* mesh_source, LDKAssetManager* assets, u32 mesh_index);
@@ -96,7 +96,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param assets Asset manager used to resolve referenced assets.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_materials_sync(
       LDKMeshSource* mesh_source, LDKAssetManager* assets);
@@ -104,7 +104,7 @@ extern "C" {
    * @brief Get the number of material slots in a mesh source.
    * @param mesh_source Mesh source used by this operation.
    * @return Number of matching entries.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API u32 ldk_mesh_source_material_count(
       const LDKMeshSource* mesh_source);
@@ -116,7 +116,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param material_slot Material slot used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API LDKMeshSourceMaterialBinding*
       ldk_mesh_source_additional_material_binding(
@@ -126,7 +126,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param material_slot Material slot used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API const LDKMeshSourceMaterialBinding*
       ldk_mesh_source_additional_material_binding_const(
@@ -138,7 +138,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param material Material used by the operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_material(
       LDKMeshSource* mesh_source,
@@ -149,7 +149,7 @@ extern "C" {
    * @param material_slot Material slot used by this operation.
    * @param material Material used by the operation.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_material_at(
       LDKMeshSource* mesh_source,
@@ -163,7 +163,7 @@ extern "C" {
    * @param assets Asset manager used to resolve referenced assets.
    * @param asset Asset handle to inspect or modify.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_material_asset(LDKMeshSource* mesh_source,
       LDKAssetManager* assets, LDKAssetMaterial asset);
@@ -174,7 +174,7 @@ extern "C" {
    * @param material_slot Material slot used by this operation.
    * @param asset Asset handle to inspect or modify.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_set_material_asset_at(
       LDKMeshSource* mesh_source, LDKAssetManager* assets,
@@ -187,7 +187,7 @@ extern "C" {
    * @param mesh_source Mesh source used by this operation.
    * @param assets Asset manager used to resolve referenced assets.
    * @return True if the operation succeeds; false otherwise.
-   * @group components.mesh_source.materials
+   * @group ldk.component.mesh_source
    */
   LDK_API bool ldk_mesh_source_material_sync(LDKMeshSource* mesh_source,
       LDKAssetManager* assets);
@@ -197,7 +197,7 @@ extern "C" {
    * @brief Build the ECS registration descriptor for the mesh source component.
    * @param initial_capacity Initial number of entries reserved in the registry.
    * @return A descriptor for the requested component or resource.
-   * @group components.mesh_source.registration
+   * @group ldk.component.mesh_source
    */
   LDK_API LDKComponentDesc ldk_mesh_source_component_desc(u32 initial_capacity);
 #endif // LDK_ENGINE

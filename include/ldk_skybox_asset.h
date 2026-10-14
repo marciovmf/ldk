@@ -14,7 +14,7 @@ extern "C"
 {
 #endif
 
-  /** @group core.skybox_assets */
+  /** @group ldk.asset.skybox */
   typedef struct LDKAssetSkyboxData
   {
     LDKSkyboxDesc descriptor;
@@ -25,7 +25,7 @@ extern "C"
   /**
    * @brief Return an invalid handle for the asset skybox.
    * @return An invalid or empty handle.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API LDKAssetSkybox ldk_asset_skybox_null(void);
   /**
@@ -33,7 +33,7 @@ extern "C"
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API const LDKAssetSkyboxData *ldk_asset_manager_skybox_get_const(
       LDKAssetManager *manager, LDKAssetSkybox asset);
@@ -45,7 +45,7 @@ extern "C"
    * @param descriptor Resource or component descriptor.
    * @param result Optional result structure populated with error details.
    * @return Handle to the requested object or resource.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API LDKAssetSkybox ldk_asset_manager_skybox_create(
       const LDKSkyboxIOContext *context, const char *path,
@@ -57,7 +57,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param result Optional result structure populated with error details.
    * @return Handle to the requested object or resource.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API LDKAssetSkybox ldk_asset_manager_skybox_load_shared(
       const LDKSkyboxIOContext *context, const char *path,
@@ -69,7 +69,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param descriptor Resource or component descriptor.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_asset_manager_skybox_update(LDKAssetManager *manager,
       LDKAssetSkybox asset, const LDKSkyboxDesc *descriptor);
@@ -80,7 +80,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.skybox_assets
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_asset_manager_skybox_save(
       const LDKSkyboxIOContext *context, LDKAssetSkybox asset,

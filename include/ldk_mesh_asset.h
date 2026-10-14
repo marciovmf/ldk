@@ -14,7 +14,7 @@ extern "C"
 {
 #endif
 
-  /** @group core.mesh_assets */
+  /** @group ldk.asset.mesh */
   typedef struct LDKMeshAssetResult
   {
     char error[256];
@@ -71,7 +71,7 @@ extern "C"
    * @param path Path identifying the file or resource.
    * @param result Optional result structure populated with error details.
    * @return Handle to the requested object or resource.
-   * @group core.mesh_assets.io
+   * @group ldk.asset.mesh
    */
   LDK_API LDKAssetMesh ldk_asset_manager_mesh_load_shared(
       LDKAssetManager *manager, const char *path,
@@ -85,7 +85,7 @@ extern "C"
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Number of matching entries.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API u32 ldk_asset_manager_mesh_count(
       LDKAssetManager *manager, LDKAssetMesh asset);
@@ -95,7 +95,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param mesh_index Zero-based index of the mesh entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API const char *ldk_asset_manager_mesh_name(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index);
@@ -105,7 +105,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param mesh_index Zero-based index of the mesh entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API const LDKMeshData *ldk_asset_manager_mesh_data_at(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index);
@@ -115,7 +115,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param mesh_index Zero-based index of the mesh entry.
    * @return Number of matching entries.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API u32 ldk_asset_manager_mesh_material_slot_count(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index);
@@ -126,7 +126,7 @@ extern "C"
    * @param mesh_index Zero-based index of the mesh entry.
    * @param material_slot Material slot used by this operation.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API const char *ldk_asset_manager_mesh_material_slot_name(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index,
@@ -137,7 +137,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param mesh_index Zero-based index of the mesh entry.
    * @return Number of matching entries.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API u32 ldk_asset_manager_mesh_submesh_count(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index);
@@ -148,7 +148,7 @@ extern "C"
    * @param mesh_index Zero-based index of the mesh entry.
    * @param submesh_index Zero-based index of the submesh entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API const LDKMeshSubmesh *ldk_asset_manager_mesh_submesh_at(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 mesh_index,
@@ -161,7 +161,7 @@ extern "C"
    * @param manager Asset manager that owns or resolves the asset.
    * @param asset Asset handle to inspect or modify.
    * @return Number of matching entries.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API u32 ldk_asset_manager_mesh_node_count(
       LDKAssetManager *manager, LDKAssetMesh asset);
@@ -171,7 +171,7 @@ extern "C"
    * @param asset Asset handle to inspect or modify.
    * @param node_index Zero-based index of the node entry.
    * @return Pointer to the requested object or data; NULL when unavailable.
-   * @group core.mesh_assets
+   * @group ldk.asset.mesh
    */
   LDK_API const LDKMeshNode *ldk_asset_manager_mesh_node_at(
       LDKAssetManager *manager, LDKAssetMesh asset, u32 node_index);

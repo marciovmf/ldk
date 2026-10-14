@@ -35,7 +35,7 @@ extern "C"
    * @param game Game instance associated with this operation.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group editor.editor_scene.saving
+   * @group ldk.editor.scene
    */
   bool ldk_editor_scene_to_tml(
     XStrBuilder *out, LDKGame *game, LDKSceneResult *result);
@@ -54,7 +54,7 @@ extern "C"
    * @param game Game instance associated with this operation.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group editor.editor_scene.loading
+   * @group ldk.editor.scene
    */
   bool ldk_editor_scene_from_tml(
     const char *source, LDKGame *game, LDKSceneResult *result);
@@ -65,7 +65,7 @@ extern "C"
    * @param game Game instance associated with this operation.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group editor.editor_scene.saving
+   * @group ldk.editor.scene
    */
   bool ldk_editor_scene_save_tml_file(
     const char *path, LDKGame *game, LDKSceneResult *result);
@@ -76,7 +76,7 @@ extern "C"
    * @param game Game instance associated with this operation.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group editor.editor_scene.loading
+   * @group ldk.editor.scene
    */
   bool ldk_editor_scene_load_tml_file(
     const char *path, LDKGame *game, LDKSceneResult *result);

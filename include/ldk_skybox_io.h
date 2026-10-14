@@ -17,13 +17,13 @@ extern "C"
 {
 #endif
 
-  /** @group core.skybox_io */
+  /** @group ldk.asset.skybox */
   typedef struct LDKSkyboxIOContext
   {
     LDKAssetManager *assets;
   } LDKSkyboxIOContext;
 
-  /** @group core.skybox_io */
+  /** @group ldk.asset.skybox */
   typedef struct LDKSkyboxIOResult
   {
     char error[512];
@@ -37,7 +37,7 @@ extern "C"
    * @param out_desc Receives the descriptor.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.skybox_io
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_skybox_desc_read(const LDKSkyboxIOContext *context,
       const TMLDocument *doc, const TMLNode *fields,
@@ -51,7 +51,7 @@ extern "C"
    * @param indent Indentation depth used while serializing output.
    * @param result Optional result structure populated with error details.
    * @return True if the operation succeeds; false otherwise.
-   * @group core.skybox_io
+   * @group ldk.asset.skybox
    */
   LDK_API bool ldk_skybox_desc_write(const LDKSkyboxIOContext *context,
       const LDKSkyboxDesc *desc, XStrBuilder *out, u32 indent,
