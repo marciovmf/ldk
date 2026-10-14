@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY 0x454E5449u
 #define LDK_EDITOR_HIERARCHY_ICON_SIZE 18
 
 typedef struct LDKEditorHierarchyDropTarget

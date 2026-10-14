@@ -9,6 +9,7 @@
 
 #include <ldk_common.h>
 #include <ldk_asset.h>
+#include <module/ldk_entity.h>
 #include <editor/ldk_component_metadata.h>
 
 #include <stdx/stdx_filesystem.h>
@@ -198,6 +199,26 @@ LDK_API bool ldk_scene_to_tml(
  */
 LDK_API bool ldk_scene_save_tml_file(
     const char *path, LDKSceneResult *result);
+
+/** @brief Serialize one entity hierarchy as a prefab.
+ * @param root Root entity. All descendants are included.
+ * @param out String builder receiving prefab TML.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ * @group core.scenes.serialization.saving
+ */
+LDK_API bool ldk_prefab_to_tml(
+    LDKEntity root, XStrBuilder *out, LDKSceneResult *result);
+
+/** @brief Serialize one entity hierarchy to a .prefab file.
+ * @param root Root entity. All descendants are included.
+ * @param path Destination filesystem path.
+ * @param result Optional result structure populated with error details.
+ * @return True if the operation succeeds; false otherwise.
+ * @group core.scenes.serialization.saving
+ */
+LDK_API bool ldk_prefab_save_tml_file(
+    LDKEntity root, const char *path, LDKSceneResult *result);
 #endif
 
 /**

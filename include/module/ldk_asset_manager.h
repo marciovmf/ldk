@@ -276,6 +276,47 @@ extern "C" {
       LDKAssetManager *manager, LDKAssetKeyframeAnimation asset);
 
   // ---------------------------------------------------------------------------
+  // Prefab (.prefab)
+  // ---------------------------------------------------------------------------
+
+  /** @group modules.asset_manager.prefabs */
+  typedef struct LDKAssetPrefabData
+  {
+    char *source;
+  } LDKAssetPrefabData;
+
+  /** @brief Return an invalid prefab asset handle.
+   * @return Null handle.
+   * @group modules.asset_manager.prefabs
+   */
+  LDK_API LDKAssetPrefab ldk_asset_prefab_null(void);
+  /** @brief Check whether a handle refers to a live prefab asset.
+   * @param manager Initialized asset manager.
+   * @param asset Prefab asset handle.
+   * @return True only for a live asset of the expected type.
+   * @group modules.asset_manager.prefabs
+   */
+  LDK_API bool ldk_asset_manager_prefab_is_alive(
+      LDKAssetManager *manager, LDKAssetPrefab asset);
+  /** @brief Load or reuse a prefab through the configured asset source.
+   * @param manager Initialized asset manager.
+   * @param path Logical path to a .prefab asset. Packages and the filesystem
+   * are resolved by the asset source.
+   * @return Shared manager-owned handle, or null on failure.
+   * @group modules.asset_manager.prefabs
+   */
+  LDK_API LDKAssetPrefab ldk_asset_manager_prefab_load_shared(
+      LDKAssetManager *manager, const char *path);
+  /** @brief Get immutable prefab data for a live handle.
+   * @param manager Initialized asset manager.
+   * @param asset Prefab asset handle.
+   * @return Borrowed pointer or NULL.
+   * @group modules.asset_manager.prefabs
+   */
+  LDK_API const LDKAssetPrefabData *ldk_asset_manager_prefab_get_const(
+      LDKAssetManager *manager, LDKAssetPrefab asset);
+
+  // ---------------------------------------------------------------------------
   // Texture atlas (.atlas)
   // ---------------------------------------------------------------------------
 

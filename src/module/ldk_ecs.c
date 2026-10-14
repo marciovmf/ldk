@@ -15,6 +15,8 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <ldk.h>
+#include <ldk_scene.h>
+#include "../ldk_scene_internal.h"
 
 #include <stdx/stdx_hashtable.h>
 #include <stdx/stdx_ini.h>
@@ -1149,6 +1151,23 @@ void ldk_ecs_entity_destroy(LDKEntity entity)
   ldk_component_registry_remove_all(component_registry, entity_registry, entity);
   ldk_entity_destroy(entity_registry, entity);
   s_grouping_entity_dirty(ecs, entity);
+}
+
+LDKEntity ldk_ecs_prefab_instantiate(LDKAssetPrefab prefab)
+{
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  const LDKAssetPrefabData *data;
+  LDKSceneResult result;
+
+  ldk_scene_result_clear(&result);
+  data = assets ? ldk_asset_manager_prefab_get_const(assets, prefab) : NULL;
+  if (!data || !data->source)
+  {
+    ldk_scene_result_set_error(&result, "invalid prefab asset handle");
+    return x_handle_null();
+  }
+
+  return ldki_prefab_instantiate_tml(data->source, &result);
 }
 
 // ---------------------------------------------------------------------------

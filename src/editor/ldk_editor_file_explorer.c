@@ -17,6 +17,7 @@
 #include <stdx/stdx_io.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -261,6 +262,7 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"mp3", LDK_EDITOR_ICON_AUDIO_FILE},
     {"flac", LDK_EDITOR_ICON_AUDIO_FILE},
     {"scene", LDK_EDITOR_ICON_PROJECT},
+    {"prefab", LDK_EDITOR_ICON_OBJECT},
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
     {"anim", LDK_EDITOR_ICON_DATA_OBJECT},
@@ -790,6 +792,9 @@ static u32 s_project_explorer_rename_input_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, LDKUIId id, LDKUIRect rect);
 static void s_project_explorer_path_drag_source(
     LDKUIContext *ui, const ProjectExplorerEntry *entry, LDKUIIcon icon);
+static bool s_project_explorer_drop_commit(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui,
+    const XFSPath *directory, bool read_only);
 static void s_project_explorer_directory_cache_clear(
     ProjectExplorerState *state);
 static void s_project_explorer_directory_cache_dirty(
@@ -800,6 +805,8 @@ static bool s_project_explorer_directory_cache_update(
 static ProjectExplorerDirectorySnapshot *
 s_project_explorer_directory_snapshot_get(
     ProjectExplorerState *state, const XFSPath *path, LDKPackage *package);
+static bool s_project_explorer_unique_child_path(const XFSPath *directory,
+    const char *base_name, const char *extension, XFSPath *out_path);
 
 static bool s_project_explorer_rename_matches(ProjectExplorerState *state,
     const XFSPath *path, ProjectExplorerSurface surface)
@@ -1854,6 +1861,23 @@ static bool s_project_explorer_rect_button_down(
          ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y);
 }
 
+static bool s_project_explorer_rect_button_up(
+    LDKUIContext *ui, LDKUIRect rect, LDKMouseButton button)
+{
+  LDKMouseState *mouse;
+  LDKPoint cursor;
+
+  if (!ui || !ui->mouse)
+  {
+    return false;
+  }
+
+  mouse = (LDKMouseState *)ui->mouse;
+  cursor = ldk_os_mouse_cursor(mouse);
+  return ldk_os_mouse_button_up(mouse, button) &&
+         ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y);
+}
+
 static bool s_project_explorer_icon_valid(LDKUIIcon icon)
 {
   return icon.texture != 0 && icon.uv.w > 0.0f && icon.uv.h > 0.0f &&
@@ -1924,6 +1948,13 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
     drag_entry.path = node->path;
     drag_entry.is_directory = true;
     s_project_explorer_path_drag_source(ui, &drag_entry, folder_icon);
+
+    if (s_project_explorer_rect_button_up(
+            ui, row_rect, LDK_MOUSE_BUTTON_LEFT))
+    {
+      (void)s_project_explorer_drop_commit(
+          editor, state, ui, &node->path, false);
+    }
   }
 
   if (renaming)
@@ -1982,7 +2013,7 @@ static bool s_project_explorer_tree_node(LDKEditorContext *editor,
 }
 
 static bool s_project_explorer_package_tree_node(
-    ProjectExplorerState *state, LDKUIContext *ui,
+    LDKEditorContext *editor, ProjectExplorerState *state, LDKUIContext *ui,
     const ProjectExplorerNode *node, LDKUIIcon icon)
 {
   ProjectExplorerPackageMount *mount =
@@ -1999,7 +2030,15 @@ static bool s_project_explorer_package_tree_node(
 
   u32 result = ldk_ui_tree_node_ex(
       ui, node->name.buf, icon, was_expanded, node->depth, flags);
+  LDKUIRect row_rect = ldk_ui_last_bounding_rect(ui);
   bool expanded = was_expanded;
+
+  if (s_project_explorer_rect_button_up(
+          ui, row_rect, LDK_MOUSE_BUTTON_LEFT))
+  {
+    (void)s_project_explorer_drop_commit(
+        editor, state, ui, &node->path, true);
+  }
 
   if (result & LDK_UI_TREE_NODE_RESULT_CLICKED)
   {
@@ -2093,7 +2132,7 @@ static void s_project_explorer_tree_draw(LDKEditorContext *editor,
 
       LDKUIIcon node_icon = node.root ? package_icon : folder_icon;
       if (!s_project_explorer_package_tree_node(
-              state, ui, &node, node_icon))
+              editor, state, ui, &node, node_icon))
       {
         continue;
       }
@@ -2158,6 +2197,48 @@ static void s_project_explorer_on_file_double_click(
   else if (ldki_editor_scene_path_is_scene(&entry->path))
   {
     ldki_editor_scene_load(editor, &entry->path);
+  }
+  else if (x_slice_eq_ci(extension, x_slice("prefab")))
+  {
+    XFSPath relative = {0};
+    const char *logical = NULL;
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+
+    if (entry->package_backed)
+    {
+      logical = entry->asset_path.buf[0] ? entry->asset_path.buf : NULL;
+    }
+    else if (x_fs_path_relative_to(
+                 editor->project.loaded ? &editor->project.run_root_path
+                                        : &editor->engine_runtree,
+                 &entry->path, &relative) > 0)
+    {
+      logical = relative.buf;
+    }
+
+    if (editor->editor_state != LDK_EDITOR_STATE_STOPED || !assets ||
+        !logical)
+    {
+      ldki_editor_log_error(editor, "Prefab cannot be instantiated here.");
+    }
+    else
+    {
+      LDKAssetPrefab prefab =
+          ldk_asset_manager_prefab_load_shared(assets, logical);
+      LDKEntity root = x_handle_is_null(prefab.h)
+          ? x_handle_null() : ldk_ecs_prefab_instantiate(prefab);
+      if (x_handle_is_null(root))
+      {
+        ldki_editor_log_error(editor, "Failed to instantiate prefab.");
+      }
+      else
+      {
+        editor->selected_entity = root;
+        editor->selected_system_id = 0;
+        editor->scene_properties_selected = false;
+        ldki_editor_log_info(editor, "Prefab instantiated.");
+      }
+    }
   }
   else if (x_slice_eq_ci(extension, x_slice("atlas")))
   {
@@ -2650,6 +2731,230 @@ static bool s_project_explorer_unique_child_path(const XFSPath *directory,
   }
 
   return false;
+}
+
+static bool s_project_explorer_path_is_within(
+    const XFSPath *directory, const XFSPath *path)
+{
+  XFSPath relative = {0};
+
+  if (!directory || !path ||
+      x_fs_path_relative_to(directory, path, &relative) == 0)
+  {
+    return false;
+  }
+
+  return !(relative.buf[0] == '.' && relative.buf[1] == '.' &&
+      (relative.buf[2] == 0 || relative.buf[2] == '/' ||
+          relative.buf[2] == '\\'));
+}
+
+static void s_project_explorer_prefab_name(
+    LDKEntity entity, char *out_name, size_t out_size)
+{
+  const char *source = ldk_ecs_entity_name_get(entity);
+  size_t write = 0;
+
+  if (!out_name || out_size == 0)
+  {
+    return;
+  }
+  if (!source || !source[0])
+  {
+    source = "New Prefab";
+  }
+
+  while (*source && write + 1u < out_size)
+  {
+    char value = *source++;
+    if (value == '/' || value == '\\' || value == ':' || value == '*' ||
+        value == '?' || value == '"' || value == '<' || value == '>' ||
+        value == '|')
+    {
+      value = '_';
+    }
+    out_name[write++] = value;
+  }
+  out_name[write] = 0;
+}
+
+static bool s_project_explorer_entity_payload_parse(
+    const XSmallstr *payload, LDKEntity *out_entity)
+{
+  LDKEntity entity = x_handle_null();
+
+  if (!payload || !out_entity ||
+      sscanf(payload->buf, "%" SCNu32 ":%" SCNu32,
+          &entity.index, &entity.version) != 2)
+  {
+    return false;
+  }
+  *out_entity = entity;
+  return true;
+}
+
+static void s_project_explorer_current_scene_directory_moved(
+    LDKEditorContext *editor, const XFSPath *old_directory,
+    const XFSPath *new_directory)
+{
+  XFSPath current = {0};
+  XFSPath child = {0};
+  XFSPath moved = {0};
+
+  if (!editor || !old_directory || !new_directory ||
+      !editor->project.loaded || editor->current_scene_path.length == 0)
+  {
+    return;
+  }
+  x_fs_path(&current, editor->project.run_root_path.buf,
+      editor->current_scene_path.buf);
+  x_fs_path_normalize(&current);
+  if (!s_project_explorer_path_is_within(old_directory, &current) ||
+      x_fs_path_relative_to(old_directory, &current, &child) == 0 ||
+      !x_fs_path(&moved, new_directory->buf, child.buf))
+  {
+    return;
+  }
+  s_project_explorer_current_scene_renamed(editor, &current, &moved);
+}
+
+static bool s_project_explorer_drop_commit(LDKEditorContext *editor,
+    ProjectExplorerState *state, LDKUIContext *ui,
+    const XFSPath *directory, bool read_only)
+{
+  XSmallstr payload = {0};
+  u32 type = 0;
+
+  if (!editor || !state || !ui || !directory ||
+      !ldk_ui_drag_n_drop_payload_get_and_remove(&type, &payload))
+  {
+    return false;
+  }
+  if (read_only)
+  {
+    ldki_editor_log_error(editor, "Package contents are read-only.");
+    return true;
+  }
+  if (!x_fs_path_is_directory(directory))
+  {
+    ldki_editor_log_error(editor, "The drop target is not a directory.");
+    return true;
+  }
+  if (!s_project_explorer_path_is_within(&state->root, directory))
+  {
+    ldki_editor_log_error(
+        editor, "The drop target is outside the explorer root.");
+    return true;
+  }
+
+  if (type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ENTITY)
+  {
+    LDKEntity entity = x_handle_null();
+    XFSPath prefab_path = {0};
+    LDKSceneResult result = {0};
+    char base_name[LDK_ENTITY_NAME_MAX_LEN];
+
+    if (!editor->project.loaded ||
+        editor->editor_state != LDK_EDITOR_STATE_STOPED)
+    {
+      ldki_editor_log_error(editor,
+          "Prefabs can only be created while editing a project scene.");
+      return true;
+    }
+    if (!s_project_explorer_entity_payload_parse(&payload, &entity))
+    {
+      ldki_editor_log_error(editor, "Invalid entity drag payload.");
+      return true;
+    }
+    s_project_explorer_prefab_name(entity, base_name, sizeof(base_name));
+    if (!s_project_explorer_unique_child_path(
+            directory, base_name, ".prefab", &prefab_path) ||
+        !ldk_prefab_save_tml_file(entity, prefab_path.buf, &result))
+    {
+      ldki_editor_log_error(editor,
+          result.error[0] ? result.error : "Failed to create prefab.");
+      return true;
+    }
+
+    s_project_explorer_directory_cache_dirty(state);
+    state->selected_file = prefab_path;
+    state->last_click_package = NULL;
+    ldki_editor_log_info(editor, "Prefab created.");
+    return true;
+  }
+
+  if (type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH)
+  {
+    XFSPath source = {0};
+    XFSPath destination = {0};
+    XFSPath name = {0};
+    bool is_directory;
+    bool moved;
+
+    if (!x_fs_path_set(&source, payload.buf) ||
+        (!x_fs_path_is_file(&source) && !x_fs_path_is_directory(&source)) ||
+        !x_fs_path_basename(&source, &name) ||
+        !x_fs_path(&destination, directory->buf, name.buf))
+    {
+      ldki_editor_log_error(editor, "Invalid file drag payload.");
+      return true;
+    }
+    x_fs_path_normalize(&source);
+    x_fs_path_normalize(&destination);
+    is_directory = x_fs_path_is_directory(&source);
+
+    if (!s_project_explorer_path_is_within(&state->root, &source))
+    {
+      ldki_editor_log_error(editor, "The source is outside the explorer root.");
+      return true;
+    }
+    if (x_fs_path_compare(&source, &state->root) == 0 ||
+        (is_directory &&
+            s_project_explorer_path_is_within(&source, directory)))
+    {
+      ldki_editor_log_error(editor, "Cannot move a folder into itself.");
+      return true;
+    }
+    if (x_fs_path_compare(&source, &destination) == 0)
+    {
+      return true;
+    }
+    if (x_fs_path_exists(&destination))
+    {
+      ldki_editor_log_error(editor,
+          "A file or folder with that name already exists.");
+      return true;
+    }
+
+    moved = is_directory
+        ? x_fs_directory_rename(source.buf, destination.buf)
+        : x_fs_file_rename(source.buf, destination.buf);
+    if (!moved)
+    {
+      ldki_editor_log_error(editor, "Failed to move file or folder.");
+      return true;
+    }
+
+    if (is_directory)
+    {
+      s_project_explorer_current_scene_directory_moved(
+          editor, &source, &destination);
+      x_array_clear(state->expanded_paths);
+    }
+    else
+    {
+      s_project_explorer_current_scene_renamed(
+          editor, &source, &destination);
+    }
+    s_project_explorer_directory_select(state, directory, true);
+    s_project_explorer_directory_cache_dirty(state);
+    state->selected_file = destination;
+    state->last_click_package = NULL;
+    ldki_editor_log_info(editor, "File moved.");
+    return true;
+  }
+
+  return true;
 }
 
 static bool s_project_explorer_create_directory(
@@ -3368,7 +3673,7 @@ static void s_project_explorer_path_drag_source(
 
 static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     ProjectExplorerState *state, LDKUIContext *ui, XArray *dirs, XArray *files,
-    LDKUIIcon folder_icon, LDKUIIcon file_icon)
+    LDKUIIcon folder_icon, LDKUIIcon file_icon, bool *out_drop_surface_hit)
 {
   u32 total_count = x_array_count(dirs) + x_array_count(files);
   bool compact_mode = state->icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
@@ -3406,6 +3711,7 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       }
       else
       {
+        ldk_ui_set_next_weight(ui, 0.0f);
         label_clicked = s_project_explorer_file_button(
             ui, state, entry, entry->name.buf);
         s_project_explorer_path_drag_source(
@@ -3413,11 +3719,30 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
       }
 
       ldk_ui_end_horizontal(ui);
+      LDKUIRect entry_rect = ldk_ui_measure_from(ui, entry_mark);
       s_project_explorer_reveal_scroll(
-          state, ui, entry, ldk_ui_measure_from(ui, entry_mark));
+          state, ui, entry, entry_rect);
 
       bool right_clicked = s_project_explorer_rect_button_down(
-          ui, ldk_ui_measure_from(ui, entry_mark), LDK_MOUSE_BUTTON_RIGHT);
+          ui, entry_rect, LDK_MOUSE_BUTTON_RIGHT);
+
+      if (s_project_explorer_rect_button_up(
+              ui, entry_rect, LDK_MOUSE_BUTTON_LEFT))
+      {
+        if (out_drop_surface_hit)
+        {
+          *out_drop_surface_hit = true;
+        }
+        if (is_directory)
+        {
+          (void)s_project_explorer_drop_commit(
+              editor, state, ui, &entry->path, entry->package_backed);
+        }
+        else
+        {
+          (void)ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
+        }
+      }
 
       if (icon_clicked || label_clicked)
       {
@@ -3469,8 +3794,27 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
 
       ProjectExplorerTileResult result = s_project_explorer_tile(
           editor, state, ui, entry, entry_icon, tile_w, tile_h, line_height);
+      LDKUIRect entry_rect = ldk_ui_last_bounding_rect(ui);
       s_project_explorer_path_drag_source(
           ui, entry, entry_icon);
+
+      if (s_project_explorer_rect_button_up(
+              ui, entry_rect, LDK_MOUSE_BUTTON_LEFT))
+      {
+        if (out_drop_surface_hit)
+        {
+          *out_drop_surface_hit = true;
+        }
+        if (is_directory)
+        {
+          (void)s_project_explorer_drop_commit(
+              editor, state, ui, &entry->path, entry->package_backed);
+        }
+        else
+        {
+          (void)ldk_ui_drag_n_drop_payload_get_and_remove(NULL, NULL);
+        }
+      }
 
       if ((is_directory && result.clicked) || (!is_directory && result.pressed))
       {
@@ -3585,6 +3929,7 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   state->file_scroll = ldk_ui_begin_scrollview(
       ui, state->file_scroll, LDK_UI_SCROLL_VERTICAL | LDK_UI_SCROLL_IF_NEEDED);
   LDKUIRect file_view_rect = ui->clip_rect;
+  bool drop_surface_hit = false;
 
   ProjectExplorerDirectorySnapshot *snapshot = NULL;
   if (state->selected_package >= 0 &&
@@ -3603,8 +3948,17 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
 
   bool right_click_handled = snapshot
       ? s_project_explorer_entries_draw(editor, state, ui, snapshot->dirs,
-            snapshot->files, folder_icon, file_icon)
+            snapshot->files, folder_icon, file_icon, &drop_surface_hit)
       : false;
+
+  if (!drop_surface_hit && s_project_explorer_rect_button_up(
+          ui, file_view_rect, LDK_MOUSE_BUTTON_LEFT))
+  {
+    const XFSPath *directory = state->selected_package < 0
+        ? &state->selected_directory : &state->root;
+    (void)s_project_explorer_drop_commit(editor, state, ui, directory,
+        state->selected_package >= 0);
+  }
 
   if (state->selected_package < 0 && !right_click_handled &&
       s_project_explorer_rect_button_down(

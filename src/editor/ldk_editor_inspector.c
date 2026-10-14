@@ -30,6 +30,37 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
     const char *label, const char *dialog_title, LDKAssetImage *image,
     bool readonly, bool optional, const LDKMaterialIOContext *context);
 
+static void s_editor_inspector_prefab_save(
+    LDKEditorContext *editor, LDKEntity root)
+{
+  XFSPath path = {0};
+  XFSPath relative = {0};
+  LDKSceneResult result;
+
+  if (!editor || !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      !ldk_os_dialog_show_save_file(
+          editor->window, "Save Prefab", "*.prefab", &path))
+  {
+    return;
+  }
+  x_fs_path_normalize(&path);
+  x_fs_path_change_extension(&path, ".prefab");
+  if (x_fs_path_relative_to(
+          &editor->project.run_root_path, &path, &relative) <= 0)
+  {
+    ldk_os_dialog_show_error(editor->window, "Invalid prefab path",
+        "Prefab files must be saved inside the project runtree.");
+    return;
+  }
+  if (!ldk_prefab_save_tml_file(root, path.buf, &result))
+  {
+    ldki_editor_log_error(editor, result.error);
+    return;
+  }
+  ldki_editor_log_info(editor, "Prefab saved.");
+}
+
 enum
 {
   LDK_EDITOR_INSPECTOR_INPUT_CAPACITY = 64,
@@ -4704,6 +4735,14 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_pop_id(ui);
 
   s_editor_inspector_flags_draw(editor, ecs, entity);
+
+  ldk_ui_begin_disabled(ui, !editor->project.loaded ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  if (ldk_ui_button(ui, "Save as Prefab..."))
+  {
+    s_editor_inspector_prefab_save(editor, entity);
+  }
+  ldk_ui_end_disabled(ui);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(4.0f));
   ldk_ui_spacer(ui);

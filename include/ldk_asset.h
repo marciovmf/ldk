@@ -41,7 +41,8 @@ extern "C"
     LDK_ASSET_TYPE_SKYBOX = 6,
     LDK_ASSET_TYPE_AUDIO = 7,
     LDK_ASSET_TYPE_KEYFRAME_ANIMATION = 8,
-    LDK_ASSET_TYPE_TEXTURE_ATLAS = 9
+    LDK_ASSET_TYPE_TEXTURE_ATLAS = 9,
+    LDK_ASSET_TYPE_PREFAB = 10
   } LDKAssetType;
 
   /** @group core.assets */
@@ -97,6 +98,12 @@ extern "C"
   {
     LDKHandle h;
   } LDKAssetTextureAtlas;
+
+  /** @group core.assets */
+  typedef struct LDKAssetPrefab
+  {
+    LDKHandle h;
+  } LDKAssetPrefab;
 
   /** @group core.assets */
   typedef struct LDKAssetAudio

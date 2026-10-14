@@ -12,6 +12,7 @@
 #define LDK_ECS_H
 
 #include <ldk_common.h>
+#include <ldk_asset.h>
 #include <module/ldk_entity.h>
 #include <module/ldk_component.h>
 #include <module/ldk_system.h>
@@ -72,6 +73,17 @@ LDK_API LDKEntity ldk_ecs_entity_create(void);
  * @group modules.ecs.entities
  */
 LDK_API void ldk_ecs_entity_destroy(LDKEntity entity);
+
+/** @brief Instantiate a prefab as ordinary ECS entities.
+ *
+ * Recoverable component, field, asset-reference, and parent errors are logged
+ * and leave defaults in place. Structural failures roll back every entity
+ * created by this call.
+ * @param prefab Live prefab asset owned by the active asset manager.
+ * @return Root entity on success; null on a structural failure.
+ * @group modules.ecs.prefabs
+ */
+LDK_API LDKEntity ldk_ecs_prefab_instantiate(LDKAssetPrefab prefab);
 
 // ---------------------------------------------------------------------------
 // Component management

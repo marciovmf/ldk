@@ -1,5 +1,6 @@
 #include <module/ldk_asset_manager.h>
 #include <stdx/stdx_io.h>
+#include <stdx/stdx_tml.h>
 
 #include <ctype.h>
 #include <stdint.h>
@@ -98,6 +99,15 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
     if (data)
     {
       ldk_texture_atlas_clear(&data->atlas);
+      free(data);
+    }
+  }
+  else if (info->type == LDK_ASSET_TYPE_PREFAB)
+  {
+    LDKAssetPrefabData *data = info->data;
+    if (data)
+    {
+      free(data->source);
       free(data);
     }
   }
@@ -739,6 +749,187 @@ bool ldk_asset_manager_keyframe_animation_reload(
   ldk_keyframe_animation_clear(&data->clip);
   data->clip = parsed;
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Prefab (.prefab)
+// ---------------------------------------------------------------------------
+
+LDKAssetPrefab ldk_asset_prefab_null(void)
+{
+  LDKAssetPrefab result = {x_handle_null()};
+  return result;
+}
+
+bool ldk_asset_manager_prefab_is_alive(
+    LDKAssetManager *manager, LDKAssetPrefab asset)
+{
+  LDKAssetHandle generic = {asset.h};
+  return ldk_asset_handle_is_alive(manager, generic) &&
+      ldk_asset_get_type(manager, generic) == LDK_ASSET_TYPE_PREFAB;
+}
+
+const LDKAssetPrefabData *ldk_asset_manager_prefab_get_const(
+    LDKAssetManager *manager, LDKAssetPrefab asset)
+{
+  LDKAssetHandle generic = {asset.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(manager, generic);
+  return info && info->type == LDK_ASSET_TYPE_PREFAB
+      ? (const LDKAssetPrefabData *)info->data : NULL;
+}
+
+typedef struct LDKSharedPrefabLookup
+{
+  LDKAssetPath path;
+  u64 revision;
+  LDKAssetPrefab result;
+} LDKSharedPrefabLookup;
+
+static bool s_shared_prefab_find(
+    LDKAssetHandle handle, LDKAssetInfo *info, void *user)
+{
+  LDKSharedPrefabLookup *lookup = user;
+  if (info->type == LDK_ASSET_TYPE_PREFAB &&
+      info->source_revision == lookup->revision &&
+      strcmp(info->asset_path.buf, lookup->path.buf) == 0)
+  {
+    lookup->result.h = handle.h;
+    return false;
+  }
+  return true;
+}
+
+static bool s_prefab_asset_path_valid(const char *path)
+{
+  const char *extension = path ? strrchr(path, '.') : NULL;
+  static const char suffix[] = ".prefab";
+  if (!extension || strlen(extension) != sizeof(suffix) - 1u)
+  {
+    return false;
+  }
+  for (size_t i = 0; i < sizeof(suffix) - 1u; ++i)
+  {
+    if (tolower((unsigned char)extension[i]) != suffix[i])
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool s_prefab_source_valid(const char *source)
+{
+  TMLParseResult parse;
+  const TMLNode *prefab;
+  const TMLNode *entities;
+  const TMLEntry *version_entry;
+  const TMLEntry *root_entry;
+  i64 version;
+  i64 root;
+  bool valid;
+  bool root_found = false;
+
+  if (!source)
+  {
+    return false;
+  }
+  parse = tml_parse(source);
+  if (!parse.ok)
+  {
+    return false;
+  }
+  prefab = tml_path_find_node(parse.document, "prefab");
+  entities = prefab
+      ? tml_node_find_child(parse.document, prefab, "entities") : NULL;
+  version_entry = prefab
+      ? tml_node_find_entry(parse.document, prefab, "version") : NULL;
+  root_entry = prefab
+      ? tml_node_find_entry(parse.document, prefab, "root") : NULL;
+  valid = entities && version_entry && root_entry &&
+      tml_entry_get_i64(version_entry, &version) && version == 1 &&
+      tml_entry_get_i64(root_entry, &root) && root >= 0;
+  for (u32 i = 0; valid && i < entities->child_count; ++i)
+  {
+    const TMLNode *entity =
+        tml_node_child_at(parse.document, entities, i);
+    const TMLEntry *id_entry = entity
+        ? tml_node_find_entry(parse.document, entity, "entity") : NULL;
+    i64 id;
+    valid = id_entry && tml_entry_get_i64(id_entry, &id) && id >= 0;
+    root_found = root_found || (valid && id == root);
+    for (u32 previous = 0; valid && previous < i; ++previous)
+    {
+      const TMLNode *other =
+          tml_node_child_at(parse.document, entities, previous);
+      const TMLEntry *other_entry = other
+          ? tml_node_find_entry(parse.document, other, "entity") : NULL;
+      i64 other_id;
+      valid = other_entry && tml_entry_get_i64(other_entry, &other_id) &&
+          other_id != id;
+    }
+  }
+  valid = valid && root_found;
+  tml_document_free(parse.document);
+  return valid;
+}
+
+LDKAssetPrefab ldk_asset_manager_prefab_load_shared(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedPrefabLookup lookup = {0};
+  LDKAssetPrefabData *data;
+  LDKAssetInfo *info;
+  u64 source_size;
+  XHandle handle;
+
+  lookup.result = ldk_asset_prefab_null();
+  if (!manager || !manager->source || !s_prefab_asset_path_valid(path) ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return lookup.result;
+  }
+  lookup.revision = manager->source->revision;
+  ldk_asset_foreach(manager, s_shared_prefab_find, &lookup);
+  if (!x_handle_is_null(lookup.result.h))
+  {
+    return lookup.result;
+  }
+
+  data = calloc(1, sizeof(*data));
+  if (!data)
+  {
+    return lookup.result;
+  }
+  data->source = s_asset_source_read(
+      manager, path, &lookup.path, &source_size, true);
+  if (!data->source || !s_prefab_source_valid(data->source))
+  {
+    free(data->source);
+    free(data);
+    return lookup.result;
+  }
+
+  handle = x_hpool_alloc(&manager->pool);
+  info = x_handle_is_null(handle) ? NULL : x_hpool_get(&manager->pool, handle);
+  if (!info)
+  {
+    if (!x_handle_is_null(handle))
+    {
+      x_hpool_free(&manager->pool, handle);
+    }
+    free(data->source);
+    free(data);
+    return lookup.result;
+  }
+  info->type = LDK_ASSET_TYPE_PREFAB;
+  info->data = data;
+  info->asset_path = lookup.path;
+  info->source_revision = lookup.revision;
+#ifdef LDK_DEBUG
+  info->load_timestamp = (u64)time(NULL);
+#endif
+  lookup.result.h = handle;
+  return lookup.result;
 }
 
 // ---------------------------------------------------------------------------
