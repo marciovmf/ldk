@@ -51,8 +51,13 @@ typedef struct LDKScene
 /** @group ldk.scene */
 typedef struct LDKSceneProperties
 {
-  rgba32 ambient_color;
+  rgba32 ambient_sky_color;
+  rgba32 ambient_ground_color;
   float ambient_intensity;
+  bool fog_enabled;
+  rgba32 fog_color;
+  float fog_density;
+  float fog_start;
 } LDKSceneProperties;
 
 /** @group ldk.scene */

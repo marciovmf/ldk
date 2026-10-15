@@ -70,7 +70,8 @@ extern "C" {
     LDK_SHADER_SKYBOX_PASS,
     LDK_SHADER_MESH_PASS_SOLID_UNLIT,
     LDK_SHADER_TERRAIN_PASS,
-    LDK_SHADER_WATER_PASS
+    LDK_SHADER_WATER_PASS,
+    LDK_SHADER_BLOOM_EXTRACT_PASS
   } LDKShader;
 
   /** @group ldk.module.renderer */
@@ -232,9 +233,19 @@ extern "C" {
   /** @group ldk.module.renderer */
   typedef struct LDKRendererAmbientLight
   {
-    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    u32 sky_color; // 0xRRGGBBAA; alpha is ignored.
+    u32 ground_color; // 0xRRGGBBAA; alpha is ignored.
     float intensity;
   } LDKRendererAmbientLight;
+
+  /** @group ldk.module.renderer */
+  typedef struct LDKRendererFog
+  {
+    bool enabled;
+    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    float density; // Exponential decay per world unit.
+    float start; // Fog-free distance from the camera, in world units.
+  } LDKRendererFog;
 
   /* BILLBOARD affects the color pass only. Billboard transforms are expected
    * to encode translation, XY roll and scale; camera-facing orientation is
@@ -601,6 +612,11 @@ extern "C" {
     bool enabled;
     bool tonemapping_enabled;
     float exposure;
+    bool bloom_enabled;
+    float bloom_threshold;
+    float bloom_intensity;
+    float bloom_radius;
+    float bloom_soft_knee;
     bool blur_enabled;
     float blur_strength;
     float blur_focus_x;
@@ -663,6 +679,8 @@ extern "C" {
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline ldr_pipeline;
     LDKRHIPipeline hdr_pipeline;
+    LDKRHIPipeline bloom_extract_pipeline;
+    LDKRHIShaderModule bloom_extract_fragment_shader_module;
     LDKRHIBuffer vertex_buffer;
     LDKRHIBuffer params_buffer;
     LDKRHISampler sampler;
@@ -714,10 +732,18 @@ extern "C" {
     bool extent_override;
     LDKRendererTarget target;
     LDKRendererTarget overlay_target;
+    LDKRHITexture overlay_display_texture;
+    LDKRHIBindings overlay_display_bindings;
     LDKRHITexture post_process_texture;
     LDKRHIBindings post_process_bindings;
     LDKRHITexture post_process_input_texture;
     LDKRHITexture post_process_blurred_texture;
+    LDKRHITexture post_process_bloom_texture;
+    LDKRHITexture post_process_bloom_textures[3];
+    LDKRHIBindings post_process_bloom_bindings[3];
+    LDKRHITexture post_process_bloom_input_textures[3];
+    u32 post_process_bloom_width;
+    u32 post_process_bloom_height;
     LDKRHITexture post_process_blur_textures[2];
     LDKRHIBindings post_process_blur_bindings[2];
     LDKRHITexture post_process_blur_input_textures[2];
@@ -951,6 +977,7 @@ extern "C" {
     u32 font_page_capacity;
 
     LDKRendererAmbientLight ambient_light;
+    LDKRendererFog fog;
 
     LDKResourceTexture vegetation_interaction_texture;
     Vec2 vegetation_interaction_origin;
@@ -1048,17 +1075,34 @@ extern "C" {
       LDKRendererViewId view_id, LDKResourceMesh mesh,
       const LDKRendererWaterDesc *desc);
 
-  /** Set constant ambient light applied to lit materials.
-   * Color uses 0xRRGGBBAA; alpha is ignored. Intensity must be finite and
-   * non-negative. Ambient light does not count toward the per-view light limit.
+  /** Set hemispherical ambient illumination for lit materials.
+   * The world-space surface normal interpolates between sky (+Y) and ground
+   * (-Y) colors. Colors use 0xRRGGBBAA; alpha is ignored. Intensity must be
+   * finite and non-negative. Ambient does not count toward the light limit.
    * @param renderer Renderer receiving this request.
-   * @param color Color value used by the operation.
-   * @param intensity Intensity used by this operation.
+   * @param sky_color Ambient color for upward-facing surfaces.
+   * @param ground_color Ambient color for downward-facing surfaces.
+   * @param intensity Overall ambient intensity.
    * @return True if the operation succeeds; false otherwise.
    * @group ldk.module.renderer
    */
-  LDK_API bool ldk_renderer_ambient_light_set(
-      LDKRenderer *renderer, u32 color, float intensity);
+  LDK_API bool ldk_renderer_ambient_light_set(LDKRenderer *renderer,
+      u32 sky_color, u32 ground_color, float intensity);
+
+  /** Set scene-wide exponential distance fog.
+   * Fog affects world geometry and water but not editor overlays or UI.
+   * Color uses 0xRRGGBBAA; alpha is ignored. Density and start distance
+   * must be finite and non-negative. Disabled fog has no visual effect.
+   * @param renderer Renderer receiving this request.
+   * @param enabled Whether fog is enabled.
+   * @param color Atmospheric color, in sRGB.
+   * @param density Exponential fog density per world unit.
+   * @param start Distance from the camera before fog begins.
+   * @return True if the operation succeeds; false otherwise.
+   * @group ldk.module.renderer
+   */
+  LDK_API bool ldk_renderer_fog_set(LDKRenderer *renderer,
+      bool enabled, u32 color, float density, float start);
 
   /** Bind a world-space interaction field sampled by vegetation shaders.
    * @param renderer Renderer receiving this request.

@@ -20,7 +20,7 @@
 #define ISLAND_MAP_FILE_NAME "map.bin"
 #define ISLAND_MAP_FILE_MAGIC 0x4C444B4Du
 #define ISLAND_MAP_FILE_VERSION 2u
-#define ISLAND_MAP_GENERATOR_VERSION 5u
+#define ISLAND_MAP_GENERATOR_VERSION 7u
 
 #define ISLAND_TERRAIN_COLOR_DEEP_WATER 0x426F7DFFu
 #define ISLAND_TERRAIN_COLOR_SHALLOW_WATER 0x6696A0FFu
@@ -29,7 +29,7 @@
 #define ISLAND_TERRAIN_COLOR_GRASS_DARK 0x657F4DFFu
 #define ISLAND_TERRAIN_COLOR_ROCK 0x77766FFFu
 
-#define ISLAND_DECORATION_RULE_COUNT 7u
+#define ISLAND_DECORATION_SLOT_COUNT 8u
 #define ISLAND_RESOURCE_RULE_COUNT 6u
 
 #define ISLAND_MAP_CHANNEL_HEIGHT 0u
@@ -89,7 +89,7 @@ typedef struct IslandMapCell
 {
   u8 terrain_class;
   u8 biome;
-  u8 decoration_rule;
+  u8 decoration_mask;
   u8 resource_rule;
 } IslandMapCell;
 
@@ -364,13 +364,13 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
   system->shallow_patch_max_radius = 11.0f;
   system->shallow_patch_bank_width = 10.0f;
 
-  system->forest_decoration_chance = 0.18f;
+  system->forest_decoration_0_chance = 0.18f;
   system->grass_decoration_0_chance = 0.03f;
   system->grass_decoration_1_chance = 0.18f;
-  system->mountain_decoration_chance = 0.14f;
-  system->dry_decoration_chance = 0.04f;
-  system->shore_decoration_chance = 0.025f;
-  system->shallow_water_decoration_chance = 0.015f;
+  system->mountain_decoration_0_chance = 0.14f;
+  system->dry_decoration_0_chance = 0.04f;
+  system->shore_decoration_0_chance = 0.025f;
+  system->shallow_water_decoration_0_chance = 0.015f;
 
   system->mountain_resource_chance = 0.003f;
   system->forest_resource_chance = 0.003f;
@@ -383,6 +383,95 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
 static bool s_island_chance_is_valid(float chance)
 {
   return isfinite(chance) && chance >= 0.0f && chance <= 1.0f;
+}
+
+static float s_island_decoration_chance_raw_get(
+    const IslandTerrain *system, TFTFIslandTileKind kind, u32 slot)
+{
+  if (!system || slot >= ISLAND_DECORATION_SLOT_COUNT)
+  {
+    return 0.0f;
+  }
+
+#define ISLAND_DECORATION_SLOT_SWITCH(prefix)                                 \
+  switch (slot)                                                               \
+  {                                                                           \
+  case 0u:                                                                    \
+    return system->prefix##_decoration_0_chance;                              \
+  case 1u:                                                                    \
+    return system->prefix##_decoration_1_chance;                              \
+  case 2u:                                                                    \
+    return system->prefix##_decoration_2_chance;                              \
+  case 3u:                                                                    \
+    return system->prefix##_decoration_3_chance;                              \
+  case 4u:                                                                    \
+    return system->prefix##_decoration_4_chance;                              \
+  case 5u:                                                                    \
+    return system->prefix##_decoration_5_chance;                              \
+  case 6u:                                                                    \
+    return system->prefix##_decoration_6_chance;                              \
+  case 7u:                                                                    \
+    return system->prefix##_decoration_7_chance;                              \
+  default:                                                                    \
+    return 0.0f;                                                              \
+  }
+
+  switch (kind)
+  {
+  case TFTF_ISLAND_TILE_DEEP_WATER:
+    ISLAND_DECORATION_SLOT_SWITCH(deep_water);
+  case TFTF_ISLAND_TILE_SHALLOW_WATER:
+    ISLAND_DECORATION_SLOT_SWITCH(shallow_water);
+  case TFTF_ISLAND_TILE_SHORE:
+    ISLAND_DECORATION_SLOT_SWITCH(shore);
+  case TFTF_ISLAND_TILE_DRY:
+    ISLAND_DECORATION_SLOT_SWITCH(dry);
+  case TFTF_ISLAND_TILE_GRASS:
+    ISLAND_DECORATION_SLOT_SWITCH(grass);
+  case TFTF_ISLAND_TILE_FOREST:
+    ISLAND_DECORATION_SLOT_SWITCH(forest);
+  case TFTF_ISLAND_TILE_THORNS:
+    ISLAND_DECORATION_SLOT_SWITCH(thorns);
+  case TFTF_ISLAND_TILE_MOUNTAIN:
+    ISLAND_DECORATION_SLOT_SWITCH(mountain);
+  default:
+    break;
+  }
+
+#undef ISLAND_DECORATION_SLOT_SWITCH
+
+  return 0.0f;
+}
+
+static float s_island_decoration_chance_get(
+    const IslandTerrain *system, TFTFIslandTileKind kind, u32 slot)
+{
+  float chance = s_island_decoration_chance_raw_get(system, kind, slot);
+
+  if (chance > 0.0f || !system || slot >= ISLAND_DECORATION_SLOT_COUNT)
+  {
+    return chance;
+  }
+
+  /*
+   * Zero means this slot inherits the biome's decoration frequency. The map
+   * stores contextual slot bits independently from the runtime mesh table, so
+   * assigning another mesh to a biome slot must not require a second, hidden
+   * generator setting before that slot can ever appear. An unbound runtime
+   * slot remains harmless even if its bit is present in the map.
+   */
+  for (u32 candidate = 0u; candidate < ISLAND_DECORATION_SLOT_COUNT;
+       ++candidate)
+  {
+    float candidate_chance =
+        s_island_decoration_chance_raw_get(system, kind, candidate);
+    if (candidate_chance > chance)
+    {
+      chance = candidate_chance;
+    }
+  }
+
+  return chance;
 }
 
 static bool s_island_terrain_generation_valid(const IslandTerrain *system)
@@ -499,15 +588,19 @@ static bool s_island_terrain_generation_valid(const IslandTerrain *system)
     return false;
   }
 
-  return s_island_chance_is_valid(system->forest_decoration_chance) &&
-         s_island_chance_is_valid(system->grass_decoration_0_chance) &&
-         s_island_chance_is_valid(system->grass_decoration_1_chance) &&
-         s_island_chance_is_valid(system->mountain_decoration_chance) &&
-         s_island_chance_is_valid(system->dry_decoration_chance) &&
-         s_island_chance_is_valid(system->shore_decoration_chance) &&
-         s_island_chance_is_valid(
-             system->shallow_water_decoration_chance) &&
-         s_island_chance_is_valid(system->mountain_resource_chance) &&
+  for (u32 kind = 0u; kind < (u32)TFTF_ISLAND_TILE_COUNT; ++kind)
+  {
+    for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
+    {
+      if (!s_island_chance_is_valid(s_island_decoration_chance_raw_get(
+              system, (TFTFIslandTileKind)kind, slot)))
+      {
+        return false;
+      }
+    }
+  }
+
+  return s_island_chance_is_valid(system->mountain_resource_chance) &&
          s_island_chance_is_valid(system->forest_resource_chance) &&
          s_island_chance_is_valid(system->grass_resource_chance) &&
          s_island_chance_is_valid(system->dry_resource_chance) &&
@@ -574,13 +667,15 @@ static u64 s_island_terrain_generation_hash(const IslandTerrain *system)
   ISLAND_HASH_FIELD(shallow_patch_min_radius);
   ISLAND_HASH_FIELD(shallow_patch_max_radius);
   ISLAND_HASH_FIELD(shallow_patch_bank_width);
-  ISLAND_HASH_FIELD(forest_decoration_chance);
-  ISLAND_HASH_FIELD(grass_decoration_0_chance);
-  ISLAND_HASH_FIELD(grass_decoration_1_chance);
-  ISLAND_HASH_FIELD(mountain_decoration_chance);
-  ISLAND_HASH_FIELD(dry_decoration_chance);
-  ISLAND_HASH_FIELD(shore_decoration_chance);
-  ISLAND_HASH_FIELD(shallow_water_decoration_chance);
+  for (u32 kind = 0u; kind < (u32)TFTF_ISLAND_TILE_COUNT; ++kind)
+  {
+    for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
+    {
+      float chance = s_island_decoration_chance_get(
+          system, (TFTFIslandTileKind)kind, slot);
+      s_island_hash_bytes(&hash, &chance, sizeof(chance));
+    }
+  }
   ISLAND_HASH_FIELD(mountain_resource_chance);
   ISLAND_HASH_FIELD(forest_resource_chance);
   ISLAND_HASH_FIELD(grass_resource_chance);
@@ -648,6 +743,53 @@ static IslandBiome s_island_biome_select(
   return ISLAND_BIOME_FOREST;
 }
 
+static bool s_island_map_cell_tile_kind(
+    const IslandMapCell *cell, TFTFIslandTileKind *out_kind)
+{
+  if (!cell || !out_kind)
+  {
+    return false;
+  }
+
+  switch ((IslandTerrainClass)cell->terrain_class)
+  {
+  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
+    *out_kind = TFTF_ISLAND_TILE_DEEP_WATER;
+    return true;
+  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
+    *out_kind = TFTF_ISLAND_TILE_SHALLOW_WATER;
+    return true;
+  case ISLAND_TERRAIN_CLASS_SHORE:
+    *out_kind = TFTF_ISLAND_TILE_SHORE;
+    return true;
+  case ISLAND_TERRAIN_CLASS_LAND:
+    break;
+  default:
+    return false;
+  }
+
+  switch ((IslandBiome)cell->biome)
+  {
+  case ISLAND_BIOME_DRY:
+    *out_kind = TFTF_ISLAND_TILE_DRY;
+    return true;
+  case ISLAND_BIOME_GRASS:
+    *out_kind = TFTF_ISLAND_TILE_GRASS;
+    return true;
+  case ISLAND_BIOME_FOREST:
+    *out_kind = TFTF_ISLAND_TILE_FOREST;
+    return true;
+  case ISLAND_BIOME_THORNS:
+    *out_kind = TFTF_ISLAND_TILE_THORNS;
+    return true;
+  case ISLAND_BIOME_MOUNTAIN:
+    *out_kind = TFTF_ISLAND_TILE_MOUNTAIN;
+    return true;
+  default:
+    return false;
+  }
+}
+
 static u16 s_island_map_prop_pack(u8 type, float density)
 {
   if (density < 0.0f)
@@ -667,6 +809,57 @@ static u16 s_island_map_prop_pack(u8 type, float density)
 static u8 s_island_map_prop_type(u16 packed)
 {
   return (u8)(packed >> ISLAND_MAP_PROP_TYPE_SHIFT);
+}
+
+u8 island_terrain_map_decoration_mask_get(u16 packed)
+{
+  return (u8)(packed >> ISLAND_MAP_PROP_TYPE_SHIFT);
+}
+
+float island_terrain_map_density_get(u16 packed)
+{
+  return (float)(packed & ISLAND_MAP_PROP_DENSITY_MASK) * (1.0f / 255.0f);
+}
+
+static u16 s_island_map_decoration_pack(u8 mask, float density)
+{
+  if (density < 0.0f)
+  {
+    density = 0.0f;
+  }
+  else if (density > 1.0f)
+  {
+    density = 1.0f;
+  }
+
+  u32 density_u8 = (u32)(density * 255.0f + 0.5f);
+  return (u16)(((u16)mask << ISLAND_MAP_PROP_TYPE_SHIFT) |
+      (u16)(density_u8 & ISLAND_MAP_PROP_DENSITY_MASK));
+}
+
+static u16 s_island_map_decoration_select(u32 x, u32 y,
+    TFTFIslandTileKind kind, u32 world_seed, const IslandTerrain *system)
+{
+  u8 mask = 0u;
+  float density = 0.0f;
+
+  for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
+  {
+    float chance = s_island_decoration_chance_get(system, kind, slot);
+    u32 seed = s_hash_u32(
+        0x64a2f9bdu ^ ((u32)kind * ISLAND_DECORATION_SLOT_COUNT + slot));
+    float random = s_hash_2d_rand01((int)x, (int)y, world_seed ^ seed);
+
+    if (chance <= 0.0f || random >= chance)
+    {
+      continue;
+    }
+
+    mask |= (u8)(1u << slot);
+    density = fmaxf(density, chance);
+  }
+
+  return mask ? s_island_map_decoration_pack(mask, density) : 0u;
 }
 
 static u16 s_island_map_prop_select(u32 x, u32 y, float dist,
@@ -861,7 +1054,6 @@ static bool s_island_map_cell_valid(const IslandMapCell *cell)
 {
   if (!cell || cell->terrain_class >= ISLAND_TERRAIN_CLASS_COUNT ||
       cell->biome >= ISLAND_BIOME_COUNT ||
-      cell->decoration_rule > ISLAND_DECORATION_RULE_COUNT ||
       cell->resource_rule > ISLAND_RESOURCE_RULE_COUNT)
   {
     return false;
@@ -880,10 +1072,8 @@ static bool s_island_map_data_valid(const u16 *data, u64 cell_count)
   for (u64 i = 0u; i < cell_count; ++i)
   {
     const u16 *texel = &data[i * ISLAND_MAP_CHANNEL_COUNT];
-    if (s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_DECORATION]) >
-            ISLAND_DECORATION_RULE_COUNT ||
-        s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_RESOURCE]) >
-            ISLAND_RESOURCE_RULE_COUNT)
+    if (s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_RESOURCE]) >
+        ISLAND_RESOURCE_RULE_COUNT)
     {
       return false;
     }
@@ -1452,7 +1642,6 @@ static bool s_island_map_generate(const IslandTerrain *system)
 {
   IslandMapCell *cells;
   u16 *map_data;
-  IslandMapPropRule decorations[ISLAND_DECORATION_RULE_COUNT];
   IslandMapPropRule resources[ISLAND_RESOURCE_RULE_COUNT];
   u64 cell_count;
   u64 value_count;
@@ -1473,27 +1662,6 @@ static bool s_island_map_generate(const IslandTerrain *system)
   {
     return false;
   }
-
-  decorations[0] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_FOREST, 0x71f34a9bu,
-      system->forest_decoration_chance, 1u};
-  decorations[1] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_GRASS, 0x71f34a9bu,
-      system->grass_decoration_0_chance, 2u};
-  decorations[2] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_GRASS, 0x31aa88c7u,
-      system->grass_decoration_1_chance, 3u};
-  decorations[3] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_MOUNTAIN, 0x9d872b41u,
-      system->mountain_decoration_chance, 4u};
-  decorations[4] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_DRY, 0x9d872b41u, system->dry_decoration_chance, 5u};
-  decorations[5] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_SHORE,
-      ISLAND_BIOME_GRASS, 0x11112222u,
-      system->shore_decoration_chance, 6u};
-  decorations[6] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_SHALLOW_WATER,
-      ISLAND_BIOME_GRASS, 0x33334444u,
-      system->shallow_water_decoration_chance, 7u};
 
   resources[0] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
       ISLAND_BIOME_MOUNTAIN, 0x44cc8821u,
@@ -1585,7 +1753,7 @@ static bool s_island_map_generate(const IslandTerrain *system)
 
       cell->terrain_class = (u8)terrain_class;
       cell->biome = (u8)biome;
-      cell->decoration_rule = 0u;
+      cell->decoration_mask = 0u;
       cell->resource_rule = 0u;
     }
   }
@@ -1682,14 +1850,22 @@ static bool s_island_map_generate(const IslandTerrain *system)
         }
       }
 
-      /* Reclassify props as well: basins use the existing shallow-water rules. */
-      u16 decoration = s_island_map_prop_select(x, y, dist,
-          (IslandTerrainClass)cell->terrain_class, (IslandBiome)cell->biome,
-          system->seed, decorations, (u32)ARRAY_COUNT(decorations), false);
+      /*
+       * Reclassify props as well: basins use the shallow-water configuration.
+       * Decoration uses a contextual eight-bit mask; resources remain a
+       * single selected type.
+       */
+      TFTFIslandTileKind tile_kind;
+      u16 decoration = 0u;
+      if (s_island_map_cell_tile_kind(cell, &tile_kind))
+      {
+        decoration = s_island_map_decoration_select(
+            x, y, tile_kind, system->seed, system);
+      }
       u16 resource = s_island_map_prop_select(x, y, dist,
           (IslandTerrainClass)cell->terrain_class, (IslandBiome)cell->biome,
           system->seed, resources, (u32)ARRAY_COUNT(resources), true);
-      cell->decoration_rule = s_island_map_prop_type(decoration);
+      cell->decoration_mask = s_island_map_prop_type(decoration);
       cell->resource_rule = s_island_map_prop_type(resource);
       texel[ISLAND_MAP_CHANNEL_DECORATION] = decoration;
       texel[ISLAND_MAP_CHANNEL_RESOURCE] = resource;
@@ -1703,13 +1879,17 @@ static bool s_island_map_generate(const IslandTerrain *system)
 
 bool island_terrain_map_data_get(IslandMapDataView *out_view)
 {
-  if (!out_view || !s_map.data || s_map.width == 0u || s_map.height == 0u)
+  if (!out_view || !s_runtime.owner || !s_map.data || s_map.width == 0u ||
+      s_map.height == 0u)
   {
     return false;
   }
+
   out_view->texels = s_map.data;
   out_view->width = s_map.width;
   out_view->height = s_map.height;
+  out_view->revision = s_map.revision;
+  out_view->seed = s_runtime.owner->seed;
   return true;
 }
 
@@ -2119,7 +2299,7 @@ static bool s_island_terrain_tile_grass_desc(IslandTerrain *system,
   return true;
 }
 
-static bool s_island_terrain_world_to_cell(
+bool island_terrain_world_to_cell(
     Vec3 world_position, i32 *out_x, i32 *out_y)
 {
   IslandTerrain *system = s_runtime.owner;
@@ -2129,9 +2309,8 @@ static bool s_island_terrain_world_to_cell(
   i32 y;
 
   if (!system || !out_x || !out_y || !s_map.cells ||
-      !isfinite(world_position.x) ||
-      !isfinite(world_position.z) || !isfinite(system->cell_size) ||
-      system->cell_size <= 0.0f)
+      !isfinite(world_position.x) || !isfinite(world_position.z) ||
+      !isfinite(system->cell_size) || system->cell_size <= 0.0f)
   {
     return false;
   }
@@ -2151,55 +2330,60 @@ static bool s_island_terrain_world_to_cell(
   return true;
 }
 
+bool island_terrain_cell_world_bounds(
+    i32 cell_x, i32 cell_y, Vec2 *out_min, Vec2 *out_max)
+{
+  IslandTerrain *system = s_runtime.owner;
+  float origin_x;
+  float origin_z;
+  float x0;
+  float z0;
+
+  if (!system || !out_min || !out_max || !s_map.cells ||
+      cell_x < 0 || cell_y < 0 || cell_x >= (i32)s_map.width ||
+      cell_y >= (i32)s_map.height || !isfinite(system->cell_size) ||
+      system->cell_size <= 0.0f)
+  {
+    return false;
+  }
+
+  origin_x = -(float)s_map.width * system->cell_size * 0.5f;
+  origin_z = -(float)s_map.height * system->cell_size * 0.5f;
+  x0 = origin_x + (float)cell_x * system->cell_size;
+  z0 = origin_z + (float)cell_y * system->cell_size;
+
+  *out_min = vec2_make(x0, z0);
+  *out_max =
+      vec2_make(x0 + system->cell_size, z0 + system->cell_size);
+  return true;
+}
+
+bool tftf_island_terrain_tile_kind_at_cell(
+    i32 cell_x, i32 cell_y, TFTFIslandTileKind *out_kind)
+{
+  if (!out_kind || !s_map.cells || cell_x < 0 || cell_y < 0 ||
+      cell_x >= (i32)s_map.width || cell_y >= (i32)s_map.height)
+  {
+    return false;
+  }
+
+  return s_island_map_cell_tile_kind(
+      &s_map.cells[(u32)cell_y * s_map.width + (u32)cell_x], out_kind);
+}
+
 bool tftf_island_terrain_tile_kind_at(
     Vec3 world_position, TFTFIslandTileKind *out_kind)
 {
   i32 cell_x;
   i32 cell_y;
-  const IslandMapCell *cell;
 
   if (!out_kind ||
-      !s_island_terrain_world_to_cell(world_position, &cell_x, &cell_y))
+      !island_terrain_world_to_cell(world_position, &cell_x, &cell_y))
   {
     return false;
   }
 
-  cell = &s_map.cells[(u32)cell_y * s_map.width + (u32)cell_x];
-  switch ((IslandTerrainClass)cell->terrain_class)
-  {
-  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
-    *out_kind = TFTF_ISLAND_TILE_DEEP_WATER;
-    return true;
-  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
-    *out_kind = TFTF_ISLAND_TILE_SHALLOW_WATER;
-    return true;
-  case ISLAND_TERRAIN_CLASS_SHORE:
-    *out_kind = TFTF_ISLAND_TILE_SHORE;
-    return true;
-  case ISLAND_TERRAIN_CLASS_LAND:
-    break;
-  default:
-    return false;
-  }
-
-  switch ((IslandBiome)cell->biome)
-  {
-  case ISLAND_BIOME_DRY:
-    *out_kind = TFTF_ISLAND_TILE_DRY;
-    break;
-  case ISLAND_BIOME_GRASS:
-    *out_kind = TFTF_ISLAND_TILE_GRASS;
-    break;
-  case ISLAND_BIOME_FOREST:
-    *out_kind = TFTF_ISLAND_TILE_FOREST;
-    break;
-  case ISLAND_BIOME_MOUNTAIN:
-    *out_kind = TFTF_ISLAND_TILE_MOUNTAIN;
-    break;
-  default:
-    return false;
-  }
-  return true;
+  return tftf_island_terrain_tile_kind_at_cell(cell_x, cell_y, out_kind);
 }
 
 bool island_terrain_grass_state_at(Vec3 world_position,
@@ -2213,7 +2397,7 @@ bool island_terrain_grass_state_at(Vec3 world_position,
 
   if (!out_density || !out_min_height ||
       !s_island_terrain_grass_types_resolve(s_runtime.owner, NULL) ||
-      !s_island_terrain_world_to_cell(world_position, &x, &y) ||
+      !island_terrain_world_to_cell(world_position, &x, &y) ||
       !s_island_terrain_tile_grass_desc(
           s_runtime.owner, x, y, &type_id, &patch) ||
       !ldk_grass_type_get(type_id, &type))
@@ -2236,7 +2420,7 @@ bool island_terrain_grass_density_multiply_at(
   i32 y;
 
   if (!isfinite(multiplier) || multiplier < 0.0f || multiplier > 1.0f ||
-      !s_island_terrain_world_to_cell(world_position, &x, &y))
+      !island_terrain_world_to_cell(world_position, &x, &y))
   {
     return false;
   }

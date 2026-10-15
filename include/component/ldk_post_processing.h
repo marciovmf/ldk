@@ -29,6 +29,18 @@ extern "C" {
     float exposure;
     //@end_group
 
+    //@begin_group "Bloom"
+    bool bloom_enabled;
+    //@inspect slider min=0.0 max=10.0
+    float bloom_threshold;
+    //@inspect slider min=0.0 max=3.0
+    float bloom_intensity;
+    //@inspect slider min=0.0 max=1.0
+    float bloom_radius;
+    //@inspect slider min=0.0 max=1.0
+    float bloom_soft_knee;
+    //@end_group
+
     //@begin_group "Blur"
     bool blur_enabled;
     //@inspect slider min=0.0 max=1.0

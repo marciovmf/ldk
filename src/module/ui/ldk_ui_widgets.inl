@@ -999,21 +999,18 @@ static void s_ui_text_selection_clamp(
   }
 }
 
-static bool s_ui_text_selection_copy_requested(LDKUIContext *ctx)
+static bool s_ui_text_selection_shortcut_pressed(
+    LDKUIContext *ctx, LDKKeycode keycode)
 {
-  if (ctx == NULL || ctx->keyboard == NULL)
-  {
-    return false;
-  }
-
-  return ldk_os_keyboard_key_down(
-             (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_C) &&
+  return ctx != NULL && ctx->keyboard != NULL &&
+         ldk_os_keyboard_key_down(
+             (LDKKeyboardState *)ctx->keyboard, keycode) &&
          ldk_os_keyboard_key_is_pressed(
              (LDKKeyboardState *)ctx->keyboard, LDK_KEYCODE_CONTROL);
 }
 
-static void s_ui_text_selection_copy(LDKUIContext *ctx, LDKUIId id,
-    char const *text, u32 text_length)
+static bool s_ui_text_selection_copy_to_clipboard(LDKUIContext *ctx,
+    LDKUIId id, char const *text, u32 text_length)
 {
   u32 start;
   u32 end;
@@ -1022,10 +1019,9 @@ static void s_ui_text_selection_copy(LDKUIContext *ctx, LDKUIId id,
 
   if (!s_ui_text_selection_owned_by(ctx, id) || text == NULL ||
       ctx->clipboard_window == NULL ||
-      ctx->text_select_start == ctx->text_select_end ||
-      !s_ui_text_selection_copy_requested(ctx))
+      ctx->text_select_start == ctx->text_select_end)
   {
-    return;
+    return false;
   }
 
   start = ctx->text_select_start;
@@ -1050,19 +1046,30 @@ static void s_ui_text_selection_copy(LDKUIContext *ctx, LDKUIId id,
 
   if (start >= end)
   {
-    return;
+    return false;
   }
 
   length = end - start;
-  copy = (char *)x_arena_alloc(ctx->frame_arena, (size_t)length + 1u);
+  copy = (char *)malloc((size_t)length + 1u);
   if (copy == NULL)
   {
-    return;
+    return false;
   }
 
   memcpy(copy, text + start, length);
   copy[length] = 0;
-  ldk_os_clipboard_text_set(ctx->clipboard_window, copy);
+  bool copied = ldk_os_clipboard_text_set(ctx->clipboard_window, copy);
+  free(copy);
+  return copied;
+}
+
+static void s_ui_text_selection_copy(LDKUIContext *ctx, LDKUIId id,
+    char const *text, u32 text_length)
+{
+  if (s_ui_text_selection_shortcut_pressed(ctx, LDK_KEYCODE_C))
+  {
+    s_ui_text_selection_copy_to_clipboard(ctx, id, text, text_length);
+  }
 }
 
 static void s_ui_text_selection_keyboard_update(LDKUIContext *ctx,
@@ -1511,6 +1518,91 @@ static void s_ui_render_text_highlight_wrapped(LDKUIContext *ctx,
 }
 
 /**
+ * Finds a UTF-8-safe prefix that fits a single-line text input.
+ * @arg text Null-terminated clipboard text.
+ * @arg available Maximum number of bytes available for insertion.
+ * @return Number of complete UTF-8 bytes to insert.
+ */
+static u32 s_ui_text_paste_prefix_length(char const *text, u32 available)
+{
+  u32 length = 0;
+
+  if (text == NULL)
+  {
+    return 0;
+  }
+
+  while (length < available && text[length] != 0)
+  {
+    u8 first = (u8)text[length];
+    u32 width;
+
+    if (first < 0x20u || first == 0x7fu)
+    {
+      break; // Single-line input: stop at line breaks and control characters.
+    }
+
+    if (first < 0x80u)
+    {
+      width = 1;
+    }
+    else if (first >= 0xc2u && first <= 0xdfu)
+    {
+      width = 2;
+    }
+    else if (first >= 0xe0u && first <= 0xefu)
+    {
+      width = 3;
+    }
+    else if (first >= 0xf0u && first <= 0xf4u)
+    {
+      width = 4;
+    }
+    else
+    {
+      break;
+    }
+
+    if (width > available - length)
+    {
+      break;
+    }
+
+    bool valid = true;
+    for (u32 i = 1; i < width; ++i)
+    {
+      u8 next = (u8)text[length + i];
+      if ((next & 0xc0u) != 0x80u)
+      {
+        valid = false;
+        break;
+      }
+    }
+
+    if (!valid)
+    {
+      break;
+    }
+
+    // Reject overlong encodings, UTF-16 surrogates, and > U+10FFFF.
+    if (width == 3 && ((first == 0xe0u && (u8)text[length + 1] < 0xa0u) ||
+                          (first == 0xedu && (u8)text[length + 1] >= 0xa0u)))
+    {
+      break;
+    }
+    if (width == 4 && ((first == 0xf0u && (u8)text[length + 1] < 0x90u) ||
+                          (first == 0xf4u && (u8)text[length + 1] >= 0x90u)))
+    {
+      break;
+    }
+
+    length += width;
+  }
+
+  return length;
+}
+
+/**
  * Handles editing, interaction, and rendering for a single-line text input.
  * @arg ctx UI context that owns input, focus, theme, and rendering state.
  * @arg id Identifier assigned to the input widget.
@@ -1596,6 +1688,79 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
     s_ui_text_selection_clamp(ctx, box.id, buffer_len);
     s_ui_text_selection_keyboard_update(ctx, box.id, buffer, buffer_len);
 
+    if (s_ui_text_selection_shortcut_pressed(ctx, LDK_KEYCODE_X) &&
+        s_ui_text_selection_copy_to_clipboard(ctx, box.id, buffer, buffer_len))
+    {
+      u32 start = ctx->text_select_start;
+      u32 end = ctx->text_select_end;
+      if (start > end)
+      {
+        u32 temp = start;
+        start = end;
+        end = temp;
+      }
+
+      if (s_ui_text_delete_range(buffer, buffer_len, start, end))
+      {
+        ctx->text_cursor = start;
+        ctx->text_select_start = start;
+        ctx->text_select_end = start;
+        result |= LDK_UI_INPUT_BOX_CHANGED;
+        buffer_len = s_ui_text_cstr_len_u32(buffer);
+      }
+    }
+
+    if (ctx->clipboard_window != NULL &&
+        s_ui_text_selection_shortcut_pressed(ctx, LDK_KEYCODE_V))
+    {
+      size_t clipboard_length =
+          ldk_os_clipboard_text_get(ctx->clipboard_window, NULL, 0);
+
+      if (clipboard_length > 0 && clipboard_length < (size_t)-1)
+      {
+        char *clipboard = (char *)malloc(clipboard_length + 1u);
+        if (clipboard != NULL)
+        {
+          clipboard[0] = 0;
+          size_t received = ldk_os_clipboard_text_get(
+              ctx->clipboard_window, clipboard, clipboard_length + 1u);
+          if (received > 0 && clipboard[0] != 0)
+          {
+            u32 start = ctx->text_select_start;
+            u32 end = ctx->text_select_end;
+            if (start > end)
+            {
+              u32 temp = start;
+              start = end;
+              end = temp;
+            }
+
+            u32 available = buffer_size - 1u - (buffer_len - (end - start));
+            u32 paste_length = s_ui_text_paste_prefix_length(
+                clipboard, available);
+            if (paste_length > 0)
+            {
+              if (start != end)
+              {
+                s_ui_text_delete_range(buffer, buffer_len, start, end);
+                ctx->text_cursor = start;
+              }
+
+              if (s_ui_text_insert_bytes(buffer, buffer_size,
+                      &ctx->text_cursor, clipboard, paste_length))
+              {
+                ctx->text_select_start = ctx->text_cursor;
+                ctx->text_select_end = ctx->text_cursor;
+                result |= LDK_UI_INPUT_BOX_CHANGED;
+                buffer_len = s_ui_text_cstr_len_u32(buffer);
+              }
+            }
+          }
+          free(clipboard);
+        }
+      }
+    }
+
     if (s_ui_input_keyboard_delete_pressed(ctx))
     {
       if (ctx->text_select_start != ctx->text_select_end)
@@ -1678,8 +1843,17 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
         char encoded[4] = {0};
         u32 encoded_len = 0;
 
-        if (!x_utf8_encode(
-                ctx->input_text->codepoints[i], encoded, &encoded_len))
+        u32 codepoint = ctx->input_text->codepoints[i];
+        if (codepoint < 0x20u || codepoint == 0x7fu ||
+            !x_utf8_encode(codepoint, encoded, &encoded_len))
+        {
+          continue;
+        }
+
+        u32 selected_length = ctx->text_select_start <= ctx->text_select_end
+                                  ? ctx->text_select_end - ctx->text_select_start
+                                  : ctx->text_select_start - ctx->text_select_end;
+        if (encoded_len > buffer_size - 1u - (buffer_len - selected_length))
         {
           continue;
         }

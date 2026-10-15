@@ -18,6 +18,11 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.enabled = true;
   post_processing.tonemapping_enabled = false;
   post_processing.exposure = 0.0f;
+  post_processing.bloom_enabled = false;
+  post_processing.bloom_threshold = 1.0f;
+  post_processing.bloom_intensity = 0.5f;
+  post_processing.bloom_radius = 0.5f;
+  post_processing.bloom_soft_knee = 0.5f;
   post_processing.blur_enabled = false;
   post_processing.blur_strength = 0.5f;
   post_processing.blur_focus_size = 0.25f;

@@ -480,7 +480,7 @@ static void s_renderer_ui_pass(LDKRenderer* owner,
       ? LDK_RHI_LOAD_OP_CLEAR : LDK_RHI_LOAD_OP_LOAD;
   pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
   pass_desc.color_attachments[0].clear_color =
-      ldk_renderer_color_from_rgba32(frame_desc->clear_color);
+      s_renderer_color_from_rgba32_unorm(frame_desc->clear_color);
   pass_desc.has_viewport = true;
   pass_desc.viewport.x = 0.0f;
   pass_desc.viewport.y = 0.0f;
