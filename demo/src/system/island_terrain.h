@@ -27,21 +27,47 @@ typedef enum TFTFIslandTileKind
   TFTF_ISLAND_TILE_DRY,
   TFTF_ISLAND_TILE_GRASS,
   TFTF_ISLAND_TILE_FOREST,
-  TFTF_ISLAND_TILE_MOUNTAIN
+  TFTF_ISLAND_TILE_THORNS,
+  TFTF_ISLAND_TILE_MOUNTAIN,
+  TFTF_ISLAND_TILE_COUNT
 } TFTFIslandTileKind;
 
+bool island_terrain_world_to_cell(
+    Vec3 world_position, i32 *out_x, i32 *out_y);
+bool island_terrain_cell_world_bounds(
+    i32 cell_x, i32 cell_y, Vec2 *out_min, Vec2 *out_max);
+bool tftf_island_terrain_tile_kind_at_cell(
+    i32 cell_x, i32 cell_y, TFTFIslandTileKind *out_kind);
 bool tftf_island_terrain_tile_kind_at(
     Vec3 world_position, TFTFIslandTileKind *out_kind);
 
+typedef enum TFTFIslandMapChannel
+{
+  TFTF_ISLAND_MAP_CHANNEL_HEIGHT = 0,
+  TFTF_ISLAND_MAP_CHANNEL_DECORATION,
+  TFTF_ISLAND_MAP_CHANNEL_RESOURCE,
+  TFTF_ISLAND_MAP_CHANNEL_RESERVED,
+  TFTF_ISLAND_MAP_CHANNEL_COUNT
+} TFTFIslandMapChannel;
+
+u8 island_terrain_map_decoration_mask_get(u16 packed);
+float island_terrain_map_density_get(u16 packed);
+
 /**
  * Read-only view of the generated RGBA16 island map.
- * Channels: R=height, G=decoration, B=resource, A=reserved.
+ * Channels:
+ * R = height.
+ * G = decoration mask in the high byte, shared density in the low byte.
+ * B = resource type in the high byte, density in the low byte.
+ * A = reserved.
  */
 typedef struct IslandMapDataView
 {
   const u16 *texels;
   u32 width;
   u32 height;
+  u32 revision;
+  u32 seed;
 } IslandMapDataView;
 
 bool island_terrain_map_data_get(IslandMapDataView *out_view);
@@ -145,13 +171,158 @@ typedef struct IslandTerrain
   //@end_group
 
   //@begin_group "Decorations"
-  float forest_decoration_chance;
+  //@begin_group "Deep Water"
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float deep_water_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Shallow Water"
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float shallow_water_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Shore"
+  //@inspect slider min=0 max=1
+  float shore_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float shore_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Dry"
+  //@inspect slider min=0 max=1
+  float dry_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float dry_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Grass"
+  //@inspect slider min=0 max=1
   float grass_decoration_0_chance;
+  //@inspect slider min=0 max=1
   float grass_decoration_1_chance;
-  float mountain_decoration_chance;
-  float dry_decoration_chance;
-  float shore_decoration_chance;
-  float shallow_water_decoration_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float grass_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Forest"
+  //@inspect slider min=0 max=1
+  float forest_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float forest_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Thorns"
+  //@inspect slider min=0 max=1
+  float thorns_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float thorns_decoration_7_chance;
+  //@end_group
+
+  //@begin_group "Mountain"
+  //@inspect slider min=0 max=1
+  float mountain_decoration_0_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_1_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_2_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_3_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_4_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_5_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_6_chance;
+  //@inspect slider min=0 max=1
+  float mountain_decoration_7_chance;
+  //@end_group
+
   //@end_group
 
   //@begin_group "Resources"
