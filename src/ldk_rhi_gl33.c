@@ -1248,9 +1248,11 @@ static char const* LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER =
 "  vec4 u_drunk_primary;\n"
 "  vec4 u_drunk_secondary;\n"
 "  vec4 u_animation;\n"
+"  vec4 u_bloom_options;\n"
 "};\n"
 "uniform sampler2D LDK_TEXTURE_1;\n"
 "uniform sampler2D LDK_TEXTURE_2;\n"
+"uniform sampler2D LDK_TEXTURE_3;\n"
 "const float LDK_RETRO_PATTERN[16] = float[16](\n"
 "    12.0, 5.0, 6.0, 13.0,\n"
 "    4.0, 0.0, 1.0, 7.0,\n"
@@ -1472,6 +1474,9 @@ static char const* LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER =
 "    vec4 blurred = ldk_sample_drunk_source(LDK_TEXTURE_2, sample_uv);\n"
 "    color = mix(original, blurred, ldk_blur_mask(v_uv));\n"
 "  }\n"
+"  if (u_bloom_options.x > 0.0)\n"
+"    color.rgb += max(texture(LDK_TEXTURE_3, sample_uv).rgb,\n"
+"        vec3(0.0)) * u_bloom_options.x;\n"
 "  if (u_tonemapping.y > 0.5)\n"
 "  {\n"
 "    color.rgb *= exp2(u_tonemapping.x);\n"
@@ -1555,6 +1560,42 @@ static char const* LDK_RHI_GL33_SKYBOX_PASS_FRAGMENT_SHADER =
 "  float fog_enabled = step(0.000001, u_fog_params.y);\n"
 "  out_color.rgb = mix(out_color.rgb, u_fog_color.rgb,\n"
 "      horizon * fog_enabled);\n"
+"}\n";
+
+static char const* LDK_RHI_GL33_BLOOM_EXTRACT_PASS_FRAGMENT_SHADER =
+"#version 330 core\n"
+"in vec2 v_uv;\n"
+"out vec4 out_color;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  vec4 u_direction;\n"
+"};\n"
+"uniform sampler2D LDK_TEXTURE_1;\n"
+"vec3 ldk_bloom_extract(vec3 color)\n"
+"{\n"
+"  float brightness = max(max(color.r, color.g), color.b);\n"
+"  float threshold = u_direction.x;\n"
+"  float knee = max(threshold * u_direction.y, 0.00001);\n"
+"  float soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);\n"
+"  soft = soft * soft / (4.0 * knee);\n"
+"  float contribution = max(brightness - threshold, soft) /\n"
+"      max(brightness, 0.00001);\n"
+"  return max(color, vec3(0.0)) * contribution;\n"
+"}\n"
+"void main()\n"
+"{\n"
+"  vec2 texel = 1.0 / vec2(textureSize(LDK_TEXTURE_1, 0));\n"
+"  vec3 color = vec3(0.0);\n"
+"  for (int y = 0; y < 4; y++)\n"
+"  {\n"
+"    for (int x = 0; x < 4; x++)\n"
+"    {\n"
+"      vec2 offset = (vec2(float(x), float(y)) - 1.5) * texel;\n"
+"      color += ldk_bloom_extract(texture(LDK_TEXTURE_1,\n"
+"          v_uv + offset).rgb);\n"
+"    }\n"
+"  }\n"
+"  out_color = vec4(color * 0.0625, 1.0);\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_BLUR_PASS_FRAGMENT_SHADER =
@@ -2157,6 +2198,12 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_SKYBOX_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_BLOOM_EXTRACT_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_BLOOM_EXTRACT_PASS_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_BLUR_PASS &&

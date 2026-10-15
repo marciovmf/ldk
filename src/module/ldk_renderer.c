@@ -2167,7 +2167,10 @@ static void s_renderer_lighting_select(LDKRenderer *renderer,
 static bool s_renderer_view_requires_hdr(LDKRendererView const* view)
 {
   return view != NULL && view->post_processing.enabled &&
-      view->post_processing.tonemapping_enabled;
+      (view->post_processing.tonemapping_enabled ||
+          (view->post_processing.bloom_enabled &&
+              isfinite(view->post_processing.bloom_intensity) &&
+              view->post_processing.bloom_intensity > 0.0f));
 }
 
 static bool s_renderer_view_pass(LDKRenderer* renderer,

@@ -24,6 +24,7 @@ typedef struct LDKRendererPostProcessParams
   float drunk_primary[4];
   float drunk_secondary[4];
   float animation[4];
+  float bloom_options[4];
 } LDKRendererPostProcessParams;
 
 typedef struct LDKRendererBlurParams
@@ -75,6 +76,15 @@ static bool s_renderer_blur_active(
       post_processing->blur_strength > 0.0f;
 }
 
+static bool s_renderer_bloom_active(
+    LDKRendererPostProcessing const* post_processing)
+{
+  return post_processing != NULL && post_processing->enabled &&
+      post_processing->bloom_enabled &&
+      isfinite(post_processing->bloom_intensity) &&
+      post_processing->bloom_intensity > 0.0f;
+}
+
 static void s_renderer_post_process_bindings_destroy(
     LDKRenderer* renderer, LDKRendererView* view)
 {
@@ -91,6 +101,7 @@ static void s_renderer_post_process_bindings_destroy(
   view->post_process_bindings = LDK_RHI_INVALID_RESOURCE;
   view->post_process_input_texture = LDK_RHI_INVALID_RESOURCE;
   view->post_process_blurred_texture = LDK_RHI_INVALID_RESOURCE;
+  view->post_process_bloom_texture = LDK_RHI_INVALID_RESOURCE;
 }
 
 static void s_renderer_post_process_blur_bindings_destroy(
@@ -111,6 +122,49 @@ static void s_renderer_post_process_blur_bindings_destroy(
     view->post_process_blur_bindings[i] = LDK_RHI_INVALID_RESOURCE;
     view->post_process_blur_input_textures[i] = LDK_RHI_INVALID_RESOURCE;
   }
+}
+
+static void s_renderer_post_process_bloom_bindings_destroy(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  if (renderer == NULL || renderer->rhi == NULL || view == NULL)
+  {
+    return;
+  }
+
+  for (u32 i = 0; i < 3; i++)
+  {
+    if (view->post_process_bloom_bindings[i] != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_bindings_destroy(
+          renderer->rhi, view->post_process_bloom_bindings[i]);
+    }
+    view->post_process_bloom_bindings[i] = LDK_RHI_INVALID_RESOURCE;
+    view->post_process_bloom_input_textures[i] = LDK_RHI_INVALID_RESOURCE;
+  }
+}
+
+static void s_renderer_post_process_bloom_textures_destroy(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  if (renderer == NULL || renderer->rhi == NULL || view == NULL)
+  {
+    return;
+  }
+
+  s_renderer_post_process_bindings_destroy(renderer, view);
+  s_renderer_post_process_bloom_bindings_destroy(renderer, view);
+  for (u32 i = 0; i < 3; i++)
+  {
+    if (view->post_process_bloom_textures[i] != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_texture_destroy(renderer->rhi,
+          view->post_process_bloom_textures[i]);
+    }
+    view->post_process_bloom_textures[i] = LDK_RHI_INVALID_RESOURCE;
+  }
+  view->post_process_bloom_width = 0;
+  view->post_process_bloom_height = 0;
 }
 
 static void s_renderer_post_process_blur_textures_destroy(
@@ -145,6 +199,7 @@ static void s_renderer_post_process_view_destroy(
   }
 
   s_renderer_post_process_blur_textures_destroy(renderer, view);
+  s_renderer_post_process_bloom_textures_destroy(renderer, view);
 
   if (view->post_process_texture != LDK_RHI_INVALID_RESOURCE)
   {
@@ -205,7 +260,7 @@ static bool s_renderer_overlay_display_ensure(
     LDKRHIBindingsDesc bindings_desc = {0};
     ldk_rhi_bindings_desc_defaults(&bindings_desc);
     bindings_desc.layout = renderer->post_process_pass.bindings_layout;
-    bindings_desc.binding_count = 3;
+    bindings_desc.binding_count = 4;
     bindings_desc.bindings[0].slot = 0;
     bindings_desc.bindings[0].buffer = renderer->post_process_pass.params_buffer;
     bindings_desc.bindings[0].buffer_size =
@@ -216,6 +271,9 @@ static bool s_renderer_overlay_display_ensure(
     bindings_desc.bindings[2].slot = 2;
     bindings_desc.bindings[2].texture = view->overlay_target.color_texture;
     bindings_desc.bindings[2].sampler = renderer->post_process_pass.sampler;
+    bindings_desc.bindings[3].slot = 3;
+    bindings_desc.bindings[3].texture = view->overlay_target.color_texture;
+    bindings_desc.bindings[3].sampler = renderer->post_process_pass.sampler;
     view->overlay_display_bindings =
         ldk_rhi_bindings_create(renderer->rhi, &bindings_desc);
   }
@@ -346,9 +404,103 @@ static bool s_renderer_post_process_blur_textures_ensure(
   return true;
 }
 
+static bool s_renderer_post_process_bloom_textures_ensure(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  if (renderer == NULL || renderer->rhi == NULL || view == NULL ||
+      view->width == 0 || view->height == 0)
+  {
+    return false;
+  }
+
+  u32 width = (view->width + 3) / 4;
+  u32 height = (view->height + 3) / 4;
+  if (view->post_process_bloom_textures[0] != LDK_RHI_INVALID_RESOURCE &&
+      view->post_process_bloom_textures[1] != LDK_RHI_INVALID_RESOURCE &&
+      view->post_process_bloom_textures[2] != LDK_RHI_INVALID_RESOURCE &&
+      view->post_process_bloom_width == width &&
+      view->post_process_bloom_height == height)
+  {
+    return true;
+  }
+
+  s_renderer_post_process_bloom_textures_destroy(renderer, view);
+  LDKRHITextureDesc desc = {0};
+  ldk_rhi_texture_desc_defaults(&desc);
+  desc.type = LDK_RHI_TEXTURE_TYPE_2D;
+  desc.format = LDK_RHI_FORMAT_RGBA16_FLOAT;
+  desc.width = width;
+  desc.height = height;
+  desc.depth = 1;
+  desc.mip_count = 1;
+  desc.layer_count = 1;
+  desc.usage =
+      LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
+
+  for (u32 i = 0; i < 3; i++)
+  {
+    view->post_process_bloom_textures[i] =
+        ldk_rhi_texture_create(renderer->rhi, &desc);
+    if (view->post_process_bloom_textures[i] == LDK_RHI_INVALID_RESOURCE)
+    {
+      s_renderer_post_process_bloom_textures_destroy(renderer, view);
+      return false;
+    }
+  }
+  view->post_process_bloom_width = width;
+  view->post_process_bloom_height = height;
+  return true;
+}
+
+static bool s_renderer_post_process_bloom_bindings_ensure(
+    LDKRenderer* renderer, LDKRendererView* view, u32 index,
+    LDKRHITexture input_texture)
+{
+  if (renderer == NULL || view == NULL || index >= 3 ||
+      input_texture == LDK_RHI_INVALID_RESOURCE ||
+      !renderer->blur_pass.is_initialized)
+  {
+    return false;
+  }
+
+  if (view->post_process_bloom_bindings[index] != LDK_RHI_INVALID_RESOURCE &&
+      view->post_process_bloom_input_textures[index] == input_texture)
+  {
+    return true;
+  }
+
+  if (view->post_process_bloom_bindings[index] != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_bindings_destroy(renderer->rhi,
+        view->post_process_bloom_bindings[index]);
+  }
+  view->post_process_bloom_bindings[index] = LDK_RHI_INVALID_RESOURCE;
+  view->post_process_bloom_input_textures[index] = LDK_RHI_INVALID_RESOURCE;
+
+  LDKRHIBindingsDesc desc = {0};
+  ldk_rhi_bindings_desc_defaults(&desc);
+  desc.layout = renderer->blur_pass.bindings_layout;
+  desc.binding_count = 2;
+  desc.bindings[0].slot = 0;
+  desc.bindings[0].buffer = renderer->blur_pass.params_buffer;
+  desc.bindings[0].buffer_size = sizeof(LDKRendererBlurParams);
+  desc.bindings[1].slot = 1;
+  desc.bindings[1].texture = input_texture;
+  desc.bindings[1].sampler = renderer->blur_pass.sampler;
+  view->post_process_bloom_bindings[index] =
+      ldk_rhi_bindings_create(renderer->rhi, &desc);
+  if (view->post_process_bloom_bindings[index] == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  view->post_process_bloom_input_textures[index] = input_texture;
+  return true;
+}
+
 static bool s_renderer_post_process_bindings_ensure(
     LDKRenderer* renderer, LDKRendererView* view,
-    LDKRHITexture blurred_texture)
+    LDKRHITexture blurred_texture, LDKRHITexture bloom_texture)
 {
   LDKRHITexture input_texture;
 
@@ -360,14 +512,16 @@ static bool s_renderer_post_process_bindings_ensure(
 
   input_texture = view->target.color_texture;
   if (input_texture == LDK_RHI_INVALID_RESOURCE ||
-      blurred_texture == LDK_RHI_INVALID_RESOURCE)
+      blurred_texture == LDK_RHI_INVALID_RESOURCE ||
+      bloom_texture == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
 
   if (view->post_process_bindings != LDK_RHI_INVALID_RESOURCE &&
       view->post_process_input_texture == input_texture &&
-      view->post_process_blurred_texture == blurred_texture)
+      view->post_process_blurred_texture == blurred_texture &&
+      view->post_process_bloom_texture == bloom_texture)
   {
     return true;
   }
@@ -377,7 +531,7 @@ static bool s_renderer_post_process_bindings_ensure(
   LDKRHIBindingsDesc desc = {0};
   ldk_rhi_bindings_desc_defaults(&desc);
   desc.layout = renderer->post_process_pass.bindings_layout;
-  desc.binding_count = 3;
+  desc.binding_count = 4;
   desc.bindings[0].slot = 0;
   desc.bindings[0].buffer = renderer->post_process_pass.params_buffer;
   desc.bindings[0].buffer_offset = 0;
@@ -388,6 +542,9 @@ static bool s_renderer_post_process_bindings_ensure(
   desc.bindings[2].slot = 2;
   desc.bindings[2].texture = blurred_texture;
   desc.bindings[2].sampler = renderer->post_process_pass.sampler;
+  desc.bindings[3].slot = 3;
+  desc.bindings[3].texture = bloom_texture;
+  desc.bindings[3].sampler = renderer->post_process_pass.sampler;
 
   view->post_process_bindings =
       ldk_rhi_bindings_create(renderer->rhi, &desc);
@@ -398,6 +555,7 @@ static bool s_renderer_post_process_bindings_ensure(
 
   view->post_process_input_texture = input_texture;
   view->post_process_blurred_texture = blurred_texture;
+  view->post_process_bloom_texture = bloom_texture;
   return true;
 }
 
@@ -450,7 +608,8 @@ static bool s_renderer_post_process_blur_bindings_ensure(
 }
 
 static bool s_renderer_blur_pipeline_create(LDKRendererBlurPass* pass,
-    LDKRHIFormat color_format, LDKRHIPipeline* out_pipeline)
+    LDKRHIFormat color_format, LDKRHIShaderModule fragment_shader,
+    LDKRHIPipeline* out_pipeline)
 {
   if (pass == NULL || out_pipeline == NULL)
   {
@@ -460,7 +619,7 @@ static bool s_renderer_blur_pipeline_create(LDKRendererBlurPass* pass,
   LDKRHIPipelineDesc pipeline = {0};
   ldk_rhi_pipeline_desc_defaults(&pipeline);
   pipeline.vertex_shader_module = pass->vertex_shader_module;
-  pipeline.fragment_shader_module = pass->fragment_shader_module;
+  pipeline.fragment_shader_module = fragment_shader;
   pipeline.bindings_layout = pass->bindings_layout;
   pipeline.topology = LDK_RHI_PRIMITIVE_TOPOLOGY_TRIANGLES;
   pipeline.blend_state.enabled = false;
@@ -510,8 +669,12 @@ static bool s_renderer_blur_pass_initialize(
       pass->rhi, LDK_SHADER_POST_PROCESS_PASS, LDK_RHI_SHADER_STAGE_VERTEX);
   pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(
       pass->rhi, LDK_SHADER_BLUR_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->bloom_extract_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_BLOOM_EXTRACT_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (pass->vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
-      pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+      pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE ||
+      pass->bloom_extract_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
     s_renderer_blur_pass_terminate(pass);
     return false;
@@ -534,10 +697,13 @@ static bool s_renderer_blur_pass_initialize(
     return false;
   }
 
-  if (!s_renderer_blur_pipeline_create(
-          pass, LDK_RHI_FORMAT_RGBA8_UNORM, &pass->ldr_pipeline) ||
-      !s_renderer_blur_pipeline_create(
-          pass, LDK_RHI_FORMAT_RGBA16_FLOAT, &pass->hdr_pipeline))
+  if (!s_renderer_blur_pipeline_create(pass, LDK_RHI_FORMAT_RGBA8_UNORM,
+          pass->fragment_shader_module, &pass->ldr_pipeline) ||
+      !s_renderer_blur_pipeline_create(pass, LDK_RHI_FORMAT_RGBA16_FLOAT,
+          pass->fragment_shader_module, &pass->hdr_pipeline) ||
+      !s_renderer_blur_pipeline_create(pass, LDK_RHI_FORMAT_RGBA16_FLOAT,
+          pass->bloom_extract_fragment_shader_module,
+          &pass->bloom_extract_pipeline))
   {
     s_renderer_blur_pass_terminate(pass);
     return false;
@@ -612,6 +778,10 @@ static void s_renderer_blur_pass_terminate(LDKRendererBlurPass* pass)
     {
       ldk_rhi_pipeline_destroy(pass->rhi, pass->hdr_pipeline);
     }
+    if (pass->bloom_extract_pipeline != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_pipeline_destroy(pass->rhi, pass->bloom_extract_pipeline);
+    }
     if (pass->bindings_layout != LDK_RHI_INVALID_RESOURCE)
     {
       ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
@@ -620,6 +790,11 @@ static void s_renderer_blur_pass_terminate(LDKRendererBlurPass* pass)
     {
       ldk_rhi_shader_module_destroy(
           pass->rhi, pass->fragment_shader_module);
+    }
+    if (pass->bloom_extract_fragment_shader_module != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_shader_module_destroy(
+          pass->rhi, pass->bloom_extract_fragment_shader_module);
     }
     if (pass->vertex_shader_module != LDK_RHI_INVALID_RESOURCE)
     {
@@ -665,7 +840,7 @@ static bool s_renderer_post_process_pass_initialize(
 
   LDKRHIBindingsLayoutDesc bindings_layout = {0};
   ldk_rhi_bindings_layout_desc_defaults(&bindings_layout);
-  bindings_layout.entry_count = 3;
+  bindings_layout.entry_count = 4;
   bindings_layout.entries[0].slot = 0;
   bindings_layout.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
   bindings_layout.entries[0].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -675,6 +850,9 @@ static bool s_renderer_post_process_pass_initialize(
   bindings_layout.entries[2].slot = 2;
   bindings_layout.entries[2].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   bindings_layout.entries[2].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  bindings_layout.entries[3].slot = 3;
+  bindings_layout.entries[3].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  bindings_layout.entries[3].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &bindings_layout);
   if (pass->bindings_layout == LDK_RHI_INVALID_RESOURCE)
@@ -911,6 +1089,96 @@ static bool s_renderer_blur_draw(LDKRenderer* renderer,
   return true;
 }
 
+static bool s_renderer_bloom_draw(LDKRenderer* renderer,
+    LDKRendererView* view, LDKRHITexture* out_texture)
+{
+  if (renderer == NULL || view == NULL || out_texture == NULL)
+  {
+    return false;
+  }
+
+  *out_texture = view->target.color_texture;
+  if (!s_renderer_bloom_active(&view->post_processing))
+  {
+    return true;
+  }
+
+  if (view->target.color_format != LDK_RHI_FORMAT_RGBA16_FLOAT ||
+      !s_renderer_post_process_bloom_textures_ensure(renderer, view) ||
+      !s_renderer_post_process_bloom_bindings_ensure(renderer, view, 0,
+          view->target.color_texture) ||
+      !s_renderer_post_process_bloom_bindings_ensure(renderer, view, 1,
+          view->post_process_bloom_textures[0]) ||
+      !s_renderer_post_process_bloom_bindings_ensure(renderer, view, 2,
+          view->post_process_bloom_textures[1]))
+  {
+    return false;
+  }
+
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+  float radius = s_renderer_saturate(view->post_processing.bloom_radius);
+  float sample_scale = 1.0f + radius * 5.0f;
+  for (u32 i = 0; i < 3; i++)
+  {
+    LDKRendererBlurParams params = {0};
+    if (i == 0)
+    {
+      params.direction[0] = s_renderer_clamp_finite(
+          view->post_processing.bloom_threshold, 0.0f, 10.0f, 1.0f);
+      params.direction[1] =
+          s_renderer_saturate(view->post_processing.bloom_soft_knee);
+    }
+    else
+    {
+      params.direction[0] = i == 1
+          ? sample_scale / (float)view->post_process_bloom_width
+          : 0.0f;
+      params.direction[1] = i == 2
+          ? sample_scale / (float)view->post_process_bloom_height
+          : 0.0f;
+    }
+    if (!ldk_rhi_buffer_update(renderer->rhi,
+            renderer->blur_pass.params_buffer, 0, sizeof(params), &params))
+    {
+      return false;
+    }
+
+    LDKRHIPassDesc pass_desc = {0};
+    ldk_rhi_pass_desc_defaults(&pass_desc);
+    pass_desc.color_attachment_count = 1;
+    pass_desc.color_attachments[0].texture =
+        view->post_process_bloom_textures[i];
+    pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+    pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+    pass_desc.has_viewport = true;
+    pass_desc.viewport.width = (float)view->post_process_bloom_width;
+    pass_desc.viewport.height = (float)view->post_process_bloom_height;
+    pass_desc.viewport.max_depth = 1.0f;
+
+    ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
+    ldk_rhi_pipeline_bind(renderer->rhi, i == 0
+        ? renderer->blur_pass.bloom_extract_pipeline
+        : renderer->blur_pass.hdr_pipeline);
+    ldk_rhi_bindings_bind(renderer->rhi,
+        view->post_process_bloom_bindings[i]);
+    ldk_rhi_vertex_buffer_bind(renderer->rhi,
+        renderer->blur_pass.vertex_buffer, 0);
+    LDKRHIDrawDesc draw_desc = {0};
+    draw_desc.vertex_count = 6;
+    ldk_rhi_draw(renderer->rhi, &draw_desc);
+    ldk_rhi_pass_end(renderer->rhi);
+
+    if (stats != NULL)
+    {
+      stats->draw_call_count += 1;
+    }
+  }
+
+  *out_texture = view->post_process_bloom_textures[2];
+  return true;
+}
+
 static bool s_renderer_post_process_draw(
     LDKRenderer* renderer, LDKRendererView* view)
 {
@@ -921,10 +1189,12 @@ static bool s_renderer_post_process_draw(
   }
 
   LDKRHITexture blurred_texture = view->target.color_texture;
+  LDKRHITexture bloom_texture = view->target.color_texture;
   if (!s_renderer_post_process_texture_ensure(renderer, view) ||
       !s_renderer_blur_draw(renderer, view, &blurred_texture) ||
+      !s_renderer_bloom_draw(renderer, view, &bloom_texture) ||
       !s_renderer_post_process_bindings_ensure(
-          renderer, view, blurred_texture))
+          renderer, view, blurred_texture, bloom_texture))
   {
     return false;
   }
@@ -1038,6 +1308,10 @@ static bool s_renderer_post_process_draw(
   params.drunk_secondary[1] = s_renderer_saturate(
       post_processing->drunk_chromatic_aberration);
   params.animation[0] = renderer->animation_time_seconds;
+  params.bloom_options[0] = s_renderer_bloom_active(post_processing)
+      ? s_renderer_clamp_finite(
+          post_processing->bloom_intensity, 0.0f, 3.0f, 0.0f)
+      : 0.0f;
   if (!ldk_rhi_buffer_update(renderer->rhi,
           renderer->post_process_pass.params_buffer, 0, sizeof(params),
           &params))
@@ -1097,6 +1371,7 @@ bool ldk_renderer_view_post_processing_set(
   {
     s_renderer_post_process_bindings_destroy(renderer, view);
     s_renderer_post_process_blur_bindings_destroy(renderer, view);
+    s_renderer_post_process_bloom_bindings_destroy(renderer, view);
   }
 
   if (!s_renderer_target_ensure(renderer, &view->target,

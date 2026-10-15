@@ -70,7 +70,8 @@ extern "C" {
     LDK_SHADER_SKYBOX_PASS,
     LDK_SHADER_MESH_PASS_SOLID_UNLIT,
     LDK_SHADER_TERRAIN_PASS,
-    LDK_SHADER_WATER_PASS
+    LDK_SHADER_WATER_PASS,
+    LDK_SHADER_BLOOM_EXTRACT_PASS
   } LDKShader;
 
   /** @group ldk.module.renderer */
@@ -611,6 +612,11 @@ extern "C" {
     bool enabled;
     bool tonemapping_enabled;
     float exposure;
+    bool bloom_enabled;
+    float bloom_threshold;
+    float bloom_intensity;
+    float bloom_radius;
+    float bloom_soft_knee;
     bool blur_enabled;
     float blur_strength;
     float blur_focus_x;
@@ -673,6 +679,8 @@ extern "C" {
     LDKRHIBindingsLayout bindings_layout;
     LDKRHIPipeline ldr_pipeline;
     LDKRHIPipeline hdr_pipeline;
+    LDKRHIPipeline bloom_extract_pipeline;
+    LDKRHIShaderModule bloom_extract_fragment_shader_module;
     LDKRHIBuffer vertex_buffer;
     LDKRHIBuffer params_buffer;
     LDKRHISampler sampler;
@@ -730,6 +738,12 @@ extern "C" {
     LDKRHIBindings post_process_bindings;
     LDKRHITexture post_process_input_texture;
     LDKRHITexture post_process_blurred_texture;
+    LDKRHITexture post_process_bloom_texture;
+    LDKRHITexture post_process_bloom_textures[3];
+    LDKRHIBindings post_process_bloom_bindings[3];
+    LDKRHITexture post_process_bloom_input_textures[3];
+    u32 post_process_bloom_width;
+    u32 post_process_bloom_height;
     LDKRHITexture post_process_blur_textures[2];
     LDKRHIBindings post_process_blur_bindings[2];
     LDKRHITexture post_process_blur_input_textures[2];

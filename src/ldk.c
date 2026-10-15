@@ -1887,6 +1887,16 @@ void ldk_engine_frame(void)
         renderer_post_processing.tonemapping_enabled =
             post_processing->tonemapping_enabled;
         renderer_post_processing.exposure = post_processing->exposure;
+        renderer_post_processing.bloom_enabled =
+            post_processing->bloom_enabled;
+        renderer_post_processing.bloom_threshold =
+            post_processing->bloom_threshold;
+        renderer_post_processing.bloom_intensity =
+            post_processing->bloom_intensity;
+        renderer_post_processing.bloom_radius =
+            post_processing->bloom_radius;
+        renderer_post_processing.bloom_soft_knee =
+            post_processing->bloom_soft_knee;
         renderer_post_processing.blur_enabled =
             post_processing->blur_enabled;
         renderer_post_processing.blur_strength =
