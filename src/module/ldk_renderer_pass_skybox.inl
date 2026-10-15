@@ -15,6 +15,8 @@ typedef struct LDKRendererSkyboxParams
 {
   Mat4 view;
   Mat4 projection;
+  float fog_color[4];
+  float fog_params[4];
 } LDKRendererSkyboxParams;
 
 static bool s_renderer_skybox_pass_create_shaders(LDKRendererSkyboxPass *pass)
@@ -46,7 +48,8 @@ static bool s_renderer_skybox_pass_create_bindings_layout(
   desc.entry_count = 2;
   desc.entries[0].slot = 0;
   desc.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
-  desc.entries[0].stages = LDK_RHI_SHADER_STAGE_VERTEX;
+  desc.entries[0].stages =
+      LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT;
   desc.entries[1].slot = 1;
   desc.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
   desc.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
@@ -199,6 +202,13 @@ static void s_renderer_skybox_pass_draw(LDKRenderer *renderer,
   LDKRendererSkyboxParams params = {0};
   params.view = view->view;
   params.projection = view->projection;
+  LDKRHIColor fog_color = ldk_renderer_color_from_rgba32(renderer->fog.color);
+  params.fog_color[0] = fog_color.r;
+  params.fog_color[1] = fog_color.g;
+  params.fog_color[2] = fog_color.b;
+  params.fog_color[3] = 1.0f;
+  params.fog_params[0] = renderer->fog.start;
+  params.fog_params[1] = renderer->fog.enabled ? renderer->fog.density : 0.0f;
   if (!ldk_rhi_buffer_update(pass->rhi, pass->params_buffer, 0,
           sizeof(params), &params))
   {

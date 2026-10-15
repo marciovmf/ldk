@@ -85,7 +85,7 @@ static bool s_scene_entity_is_editor_only(LDKEntity entity)
 static LDKSceneDiagnosticFn s_scene_diagnostic_handler;
 static void *s_scene_diagnostic_user;
 static LDKSceneProperties s_scene_properties = {
-    0xc4dcffffu, 0x786c60ffu, 0.3f};
+    0xc4dcffffu, 0x786c60ffu, 0.3f, false, 0xb0c4d8ffu, 0.01f, 10.0f};
 
 void ldk_scene_diagnostic_handler_set(
     LDKSceneDiagnosticFn handler, void *user)
@@ -104,6 +104,10 @@ void ldk_scene_properties_defaults(LDKSceneProperties *properties)
   properties->ambient_sky_color = 0xc4dcffffu;
   properties->ambient_ground_color = 0x786c60ffu;
   properties->ambient_intensity = 0.3f;
+  properties->fog_enabled = false;
+  properties->fog_color = 0xb0c4d8ffu;
+  properties->fog_density = 0.01f;
+  properties->fog_start = 10.0f;
 }
 
 const LDKSceneProperties *ldk_scene_properties_get(void)
@@ -114,7 +118,9 @@ const LDKSceneProperties *ldk_scene_properties_get(void)
 bool ldk_scene_properties_set(const LDKSceneProperties *properties)
 {
   if (!properties || !isfinite(properties->ambient_intensity) ||
-      properties->ambient_intensity < 0.0f)
+      properties->ambient_intensity < 0.0f ||
+      !isfinite(properties->fog_density) || properties->fog_density < 0.0f ||
+      !isfinite(properties->fog_start) || properties->fog_start < 0.0f)
   {
     return false;
   }
@@ -701,6 +707,41 @@ static bool s_read_scene_properties(const TMLDocument *doc,
                    out_properties->ambient_intensity < 0.0f))
   {
     s_result_error(result, "invalid scene ambient intensity");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "fog_enabled");
+  u8 fog_enabled = 0;
+  if (entry && !tml_entry_get_bool(entry, &fog_enabled))
+  {
+    s_result_error(result, "invalid scene fog enabled");
+    return false;
+  }
+  if (entry)
+  {
+    out_properties->fog_enabled = fog_enabled != 0;
+  }
+
+  entry = s_node_find_entry(doc, node, "fog_color");
+  if (entry && !s_node_get_u32(doc, node, "fog_color", &out_properties->fog_color))
+  {
+    s_result_error(result, "invalid scene fog color");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "fog_density");
+  if (entry && (!s_entry_get_float(entry, &out_properties->fog_density) ||
+                   out_properties->fog_density < 0.0f))
+  {
+    s_result_error(result, "invalid scene fog density");
+    return false;
+  }
+
+  entry = s_node_find_entry(doc, node, "fog_start");
+  if (entry && (!s_entry_get_float(entry, &out_properties->fog_start) ||
+                   out_properties->fog_start < 0.0f))
+  {
+    s_result_error(result, "invalid scene fog start");
     return false;
   }
 
@@ -3801,6 +3842,13 @@ static bool s_scene_to_tml(XStrBuilder *out,
       properties->ambient_ground_color);
   x_strbuilder_append_format(out, "    ambient_intensity: %#.9g\n",
       (double)properties->ambient_intensity);
+  x_strbuilder_append_format(out, "    fog_enabled: %s\n",
+      properties->fog_enabled ? "true" : "false");
+  x_strbuilder_append_format(out, "    fog_color: %u\n", properties->fog_color);
+  x_strbuilder_append_format(out, "    fog_density: %#.9g\n",
+      (double)properties->fog_density);
+  x_strbuilder_append_format(out, "    fog_start: %#.9g\n",
+      (double)properties->fog_start);
   x_strbuilder_append(out, "  entities:\n");
 
   if (!ldk_ecs_entity_foreach(s_write_entity_callback, &context))

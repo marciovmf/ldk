@@ -237,6 +237,15 @@ extern "C" {
     float intensity;
   } LDKRendererAmbientLight;
 
+  /** @group ldk.module.renderer */
+  typedef struct LDKRendererFog
+  {
+    bool enabled;
+    u32 color; // 0xRRGGBBAA; alpha is ignored.
+    float density; // Exponential decay per world unit.
+    float start; // Fog-free distance from the camera, in world units.
+  } LDKRendererFog;
+
   /* BILLBOARD affects the color pass only. Billboard transforms are expected
    * to encode translation, XY roll and scale; camera-facing orientation is
    * applied from the current render view in the vertex shader. */
@@ -954,6 +963,7 @@ extern "C" {
     u32 font_page_capacity;
 
     LDKRendererAmbientLight ambient_light;
+    LDKRendererFog fog;
 
     LDKResourceTexture vegetation_interaction_texture;
     Vec2 vegetation_interaction_origin;
@@ -1064,6 +1074,21 @@ extern "C" {
    */
   LDK_API bool ldk_renderer_ambient_light_set(LDKRenderer *renderer,
       u32 sky_color, u32 ground_color, float intensity);
+
+  /** Set scene-wide exponential distance fog.
+   * Fog affects world geometry and water but not editor overlays or UI.
+   * Color uses 0xRRGGBBAA; alpha is ignored. Density and start distance
+   * must be finite and non-negative. Disabled fog has no visual effect.
+   * @param renderer Renderer receiving this request.
+   * @param enabled Whether fog is enabled.
+   * @param color Atmospheric color, in sRGB.
+   * @param density Exponential fog density per world unit.
+   * @param start Distance from the camera before fog begins.
+   * @return True if the operation succeeds; false otherwise.
+   * @group ldk.module.renderer
+   */
+  LDK_API bool ldk_renderer_fog_set(LDKRenderer *renderer,
+      bool enabled, u32 color, float density, float start);
 
   /** Bind a world-space interaction field sampled by vegetation shaders.
    * @param renderer Renderer receiving this request.

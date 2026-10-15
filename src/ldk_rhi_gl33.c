@@ -722,30 +722,51 @@ static char const *LDK_RHI_GL33_SHADOW_PASS_CUTOUT_FRAGMENT_SHADER =
 
 LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
 
-#define LDK_GL33_LIGHTING_GLSL                                                 \
-  "in vec3 v_world_position;\n"                                                \
-  "layout(std140) uniform LDK_UBO_0\n"                                         \
-  "{\n"                                                                        \
-  "  mat4 u_view;\n"                                                          \
-  "  mat4 u_projection;\n"                                                    \
-  "  vec4 u_camera_position;\n"                                                \
-  "};\n"                                                                       \
-  "struct LDKLight\n"                                                          \
-  "{\n"                                                                        \
-  "  vec4 position_type;\n"                                                    \
-  "  vec4 direction_range;\n"                                                  \
-  "  vec4 color_intensity;\n"                                                  \
-  "  vec4 cone;\n"                                                             \
-  "};\n"                                                                       \
-  "layout(std140) uniform LDK_UBO_4\n"                                         \
-  "{\n"                                                                        \
-  "  ivec4 u_light_count;\n"                                                   \
-  "  vec4 u_ambient_sky;\n"                                                    \
-  "  vec4 u_ambient_ground;\n"                                                 \
-  "  LDKLight u_lights[16];\n"                                                 \
-  "  mat4 u_shadow_view_projection;\n"                                         \
-  "  vec4 u_shadow_params;\n"                                                  \
-  "};\n"                                                                       \
+#define LDK_GL33_FOG_FACTOR_GLSL "float ldk_fog_factor(vec3 world_position, vec3 camera_position,\n"\
+"    vec4 fog_params)\n"\
+"{\n"\
+"  float distance = max(length(world_position - camera_position) -\n"\
+"      fog_params.x, 0.0);\n"\
+"  return 1.0 - exp(-fog_params.y * distance);\n"\
+"}\n"
+
+#define LDK_GL33_FOG_GLSL "in vec3 v_world_position;\n"\
+"layout(std140) uniform LDK_UBO_0\n"\
+"{\n"\
+"  mat4 u_view;\n"\
+"  mat4 u_projection;\n"\
+"  vec4 u_camera_position;\n"\
+"};\n"\
+"struct LDKLight\n"\
+"{\n"\
+"  vec4 position_type;\n"\
+"  vec4 direction_range;\n"\
+"  vec4 color_intensity;\n"\
+"  vec4 cone;\n"\
+"};\n"\
+"layout(std140) uniform LDK_UBO_4\n"\
+"{\n"\
+"  ivec4 u_light_count;\n"\
+"  vec4 u_ambient_sky;\n"\
+"  vec4 u_ambient_ground;\n"\
+"  LDKLight u_lights[16];\n"\
+"  mat4 u_shadow_view_projection;\n"\
+"  vec4 u_shadow_params;\n"\
+"  vec4 u_fog_color;\n"\
+"  vec4 u_fog_params;\n"\
+"};\n"
+
+#define LDK_GL33_FOG_APPLY_GLSL "vec3 ldk_apply_fog(vec3 color)\n"\
+"{\n"\
+"  float amount = ldk_fog_factor(\n"\
+"      v_world_position, u_camera_position.xyz, u_fog_params);\n"\
+"  return mix(color, u_fog_color.rgb, amount);\n"\
+"}\n"
+
+#define LDK_GL33_MESH_FOG_GLSL \
+  LDK_GL33_FOG_GLSL LDK_GL33_FOG_FACTOR_GLSL LDK_GL33_FOG_APPLY_GLSL
+
+#define LDK_GL33_LIGHTING_GLSL LDK_GL33_MESH_FOG_GLSL \
   "uniform sampler2D LDK_TEXTURE_5;\n"                                         \
   "float ldk_shadow_visibility(vec3 n, vec3 to_light)\n"                       \
   "{\n"                                                                        \
@@ -880,7 +901,8 @@ static char const *LDK_RHI_GL33_MESH_PASS_FRAGMENT_SHADER =
     "specular);\n"
     "  vec4 color = v_color * u_material_color * v_instance_color;\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
-    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n"
+    "      emission), color.a);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_TERRAIN_PASS_FRAGMENT_SHADER =
@@ -934,7 +956,8 @@ static char const *LDK_RHI_GL33_TERRAIN_PASS_FRAGMENT_SHADER =
     "  vec3 normal = v_normal / max(length(v_normal), 1e-6);\n"
     "  ldk_lighting(normal, u_surface.x, u_surface.y, diffuse, specular);\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
-    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n"
+    "      emission), color.a);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER =
@@ -961,11 +984,12 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER =
     "  ldk_lighting(normal, u_surface.x, u_surface.y, diffuse, specular);\n"
     "  vec4 color = v_color * u_material_color * v_instance_color;\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
-    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n"
+    "      emission), color.a);\n"
     "}\n";
 
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
-"#version 330 core\n"
+"#version 330 core\n" LDK_GL33_MESH_FOG_GLSL
 "in vec4 v_color;\n"
 "in vec4 v_instance_color;\n"
 "layout(std140) uniform LDK_UBO_2\n"
@@ -979,10 +1003,11 @@ static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "void main()\n"
 "{\n"
 "  out_color = v_color * u_material_color * v_instance_color;\n"
+"  out_color.rgb = ldk_apply_fog(out_color.rgb);\n"
 "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_SOLID_UNLIT_FRAGMENT_SHADER =
-    "#version 330 core\n"
+    "#version 330 core\n" LDK_GL33_MESH_FOG_GLSL
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
     "  vec4 u_material_color;\n"
@@ -993,7 +1018,8 @@ static char const *LDK_RHI_GL33_MESH_PASS_SOLID_UNLIT_FRAGMENT_SHADER =
     "out vec4 out_color;\n"
     "void main()\n"
     "{\n"
-    "  out_color = u_material_color;\n"
+    "  out_color = vec4(ldk_apply_fog(u_material_color.rgb),\n"
+    "      u_material_color.a);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
@@ -1021,11 +1047,12 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_FRAGMENT_SHADER =
     "  vec4 color = texture(LDK_TEXTURE_3, mix(v_atlas_rect.xy, v_atlas_rect.zw, v_uv * u_uv_transform[0].xy + u_uv_transform[0].zw)) * u_material_color *\n"
     "      v_instance_color;\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
-    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n"
+    "      emission), color.a);\n"
     "}\n";
 
 static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
-"#version 330 core\n"
+"#version 330 core\n" LDK_GL33_MESH_FOG_GLSL
 "in vec2 v_uv;\n"
 "in vec4 v_instance_color;\n"
     "in vec4 v_atlas_rect;\n"
@@ -1042,6 +1069,7 @@ static char const* LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_FRAGMENT_SHADER =
 "{\n"
 "  out_color = texture(LDK_TEXTURE_3, mix(v_atlas_rect.xy, v_atlas_rect.zw, v_uv * u_uv_transform[0].xy + u_uv_transform[0].zw)) * u_material_color *\n"
 "      v_instance_color;\n"
+"  out_color.rgb = ldk_apply_fog(out_color.rgb);\n"
 "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
@@ -1070,11 +1098,12 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_CUTOUT_FRAGMENT_SHADER =
     "  ldk_lighting(normal, specular_strength, u_surface.y, diffuse, "
     "specular);\n"
     "  vec3 emission = color.rgb * u_surface.z;\n"
-    "  out_color = vec4(color.rgb * diffuse + specular + emission, color.a);\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n"
+    "      emission), color.a);\n"
     "}\n";
 
 static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER =
-    "#version 330 core\n"
+    "#version 330 core\n" LDK_GL33_MESH_FOG_GLSL
     "in vec2 v_uv;\n"
     "in vec4 v_instance_color;\n"
     "in vec4 v_atlas_rect;\n"
@@ -1093,7 +1122,7 @@ static char const *LDK_RHI_GL33_MESH_PASS_TEXTURED_UNLIT_CUTOUT_FRAGMENT_SHADER 
     "      v_instance_color;\n"
     "  if (color.a < u_surface.w)\n"
     "    discard;\n"
-    "  out_color = color;\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb), color.a);\n"
     "}\n";
 
 static char const* LDK_RHI_GL33_GRID_PASS_VERTEX_SHADER =
@@ -1495,6 +1524,8 @@ static char const* LDK_RHI_GL33_SKYBOX_PASS_VERTEX_SHADER =
 "{\n"
 "  mat4 u_view;\n"
 "  mat4 u_projection;\n"
+"  vec4 u_fog_color;\n"
+"  vec4 u_fog_params;\n"
 "};\n"
 "void main()\n"
 "{\n"
@@ -1509,9 +1540,21 @@ static char const* LDK_RHI_GL33_SKYBOX_PASS_FRAGMENT_SHADER =
 "in vec3 v_direction;\n"
 "out vec4 out_color;\n"
 "uniform samplerCube LDK_TEXTURE_1;\n"
+"layout(std140) uniform LDK_UBO_0\n"
+"{\n"
+"  mat4 u_view;\n"
+"  mat4 u_projection;\n"
+"  vec4 u_fog_color;\n"
+"  vec4 u_fog_params;\n"
+"};\n"
 "void main()\n"
 "{\n"
-"  out_color = texture(LDK_TEXTURE_1, normalize(v_direction));\n"
+"  vec3 direction = normalize(v_direction);\n"
+"  out_color = texture(LDK_TEXTURE_1, direction);\n"
+"  float horizon = 1.0 - smoothstep(0.0, 0.16, abs(direction.y));\n"
+"  float fog_enabled = step(0.000001, u_fog_params.y);\n"
+"  out_color.rgb = mix(out_color.rgb, u_fog_color.rgb,\n"
+"      horizon * fog_enabled);\n"
 "}\n";
 
 static char const* LDK_RHI_GL33_BLUR_PASS_FRAGMENT_SHADER =
@@ -1567,6 +1610,8 @@ static char const *LDK_RHI_GL33_WATER_PASS_VERTEX_SHADER =
     "  vec4 u_noise;\n"
     "  vec4 u_foam_detail;\n"
     "  vec4 u_caustics;\n"
+    "  vec4 u_fog_color;\n"
+    "  vec4 u_fog_params;\n"
     "};\n"
     "const float LDK_WATER_TAU = 6.283185307179586;\n"
     "float ldk_water_height(vec2 p)\n"
@@ -1625,7 +1670,9 @@ static char const *LDK_RHI_GL33_WATER_PASS_FRAGMENT_SHADER =
     "  vec4 u_noise;\n"
     "  vec4 u_foam_detail;\n"
     "  vec4 u_caustics;\n"
-    "};\n"
+    "  vec4 u_fog_color;\n"
+    "  vec4 u_fog_params;\n"
+    "};\n" LDK_GL33_FOG_FACTOR_GLSL
     "const float LDK_WATER_TAU = 6.283185307179586;\n"
     "uniform sampler2D LDK_TEXTURE_1;  // Opaque depth, nearest/clamp.\n"
     "uniform sampler2D LDK_TEXTURE_6;  // Tangent-space normal, RGB.\n"
@@ -1901,6 +1948,9 @@ static char const *LDK_RHI_GL33_WATER_PASS_FRAGMENT_SHADER =
     "  color.rgb = ((color.rgb * color.a + transmitted_light) *\n"
     "      (1.0 - foam_alpha) + u_foam_color.rgb * foam_light * foam_alpha);\n"
     "  color.a = alpha;\n"
+    "  float fog = ldk_fog_factor(v_world_position,\n"
+    "      u_camera_time.xyz, u_fog_params);\n"
+    "  color.rgb = mix(color.rgb, u_fog_color.rgb * color.a, fog);\n"
     "  out_color = color;\n"
     "}\n";
 

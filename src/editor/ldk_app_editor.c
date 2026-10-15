@@ -2408,6 +2408,7 @@ static void s_editor_play_scene_restore(LDKEditorContext *editor)
   ldki_editor_scene_clear(editor);
 }
 
+/* TEMPORARY PLAY DIAGNOSTIC: remove after identifying scene reset. */
 /** Enter PLAY using the currently loaded game module. */
 static bool s_editor_state_enter_play(LDKEditorContext *editor)
 {
@@ -2463,10 +2464,19 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
           editor, "Failed to capture the authoring scene before Play.");
       return false;
     }
-    /* Use the scene already open in the editor, including unsaved edits.
-     * It remains independent of the project catalog. */
+    /* Keep the authoring scene's environment when detaching it from the
+     * Scene Manager. The reset clears scene properties as well as catalog
+     * state, but Play Current Scene must retain unsaved editor changes. */
+    LDKSceneProperties scene_properties = *ldk_scene_properties_get();
     if (!ldk_scene_manager_current_reset(manager))
     {
+      s_editor_play_scene_restore(editor);
+      return false;
+    }
+    if (!ldk_scene_properties_set(&scene_properties))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to restore scene properties before Play.");
       s_editor_play_scene_restore(editor);
       return false;
     }

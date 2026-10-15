@@ -1800,6 +1800,9 @@ void ldk_engine_frame(void)
           scene_properties->ambient_sky_color,
           scene_properties->ambient_ground_color,
           scene_properties->ambient_intensity);
+      ldk_renderer_fog_set(&e->renderer, scene_properties->fog_enabled,
+          scene_properties->fog_color, scene_properties->fog_density,
+          scene_properties->fog_start);
     }
 
     // Active cameras

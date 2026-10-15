@@ -21,10 +21,18 @@ typedef struct LDKRendererWaterParams
   float noise[4];
   float foam_detail[4];
   float caustics[4];
+  float fog_color[4];
+  float fog_params[4];
 } LDKRendererWaterParams;
 
 LDK_STATIC_ASSERT(
-    sizeof(LDKRendererWaterParams) == 432, water_params_std140_size);
+    offsetof(LDKRendererWaterParams, fog_color) == 432,
+    water_fog_color_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererWaterParams, fog_params) == 448,
+    water_fog_params_std140_offset);
+LDK_STATIC_ASSERT(
+    sizeof(LDKRendererWaterParams) == 464, water_params_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererWaterParams, waves) == 208, water_waves_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, ambient) == 352,
@@ -343,6 +351,10 @@ static void s_renderer_water_params(LDKRendererWaterParams *params,
   params->caustics[3] = desc->caustics_depth;
   memcpy(params->ambient, lighting->params.ambient_sky,
       sizeof(params->ambient));
+  memcpy(params->fog_color, lighting->params.fog_color,
+      sizeof(params->fog_color));
+  memcpy(params->fog_params, lighting->params.fog_params,
+      sizeof(params->fog_params));
   for (i32 i = 0; i < lighting->params.count[0]; ++i)
   {
     const LDKRendererLightParams *light = &lighting->params.lights[i];

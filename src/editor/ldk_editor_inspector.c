@@ -104,6 +104,54 @@ static const LDKComponentFieldMeta s_editor_scene_properties_fields[] =
     NULL,
     "Ambient Intensity",
   },
+  {
+    "Fog Enabled",
+    LDK_FIELD_BOOL,
+    offsetof(LDKSceneProperties, fog_enabled),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_DEFAULT,
+    0.0f,
+    0.0f,
+    NULL,
+    NULL,
+    "Fog Enabled",
+  },
+  {
+    "Fog Color",
+    LDK_FIELD_U32,
+    offsetof(LDKSceneProperties, fog_color),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_COLOR,
+    0.0f,
+    0.0f,
+    NULL,
+    NULL,
+    "Fog Color",
+  },
+  {
+    "Fog Density",
+    LDK_FIELD_FLOAT,
+    offsetof(LDKSceneProperties, fog_density),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_FLOAT,
+    0.0f,
+    0.0f,
+    NULL,
+    NULL,
+    "Fog Density",
+  },
+  {
+    "Fog Start",
+    LDK_FIELD_FLOAT,
+    offsetof(LDKSceneProperties, fog_start),
+    LDK_FIELD_FLAG_NONE,
+    LDK_FIELD_WIDGET_FLOAT,
+    0.0f,
+    0.0f,
+    NULL,
+    NULL,
+    "Fog Start",
+  },
 };
 
 static const LDKComponentMeta s_editor_scene_properties_meta =
@@ -112,7 +160,7 @@ static const LDKComponentMeta s_editor_scene_properties_meta =
   0,
   sizeof(LDKSceneProperties),
   s_editor_scene_properties_fields,
-  3,
+  7,
   NULL,
   0,
 };
@@ -2929,7 +2977,7 @@ static void s_editor_inspector_scene_properties_draw(
 {
   const LDKSceneProperties *current;
   LDKSceneProperties properties;
-  LDKComponentFieldMeta fields[3];
+  LDKComponentFieldMeta fields[7];
   LDKComponentMeta meta = s_editor_scene_properties_meta;
   LDKEntity key = x_handle_null();
   bool readonly;
@@ -2970,9 +3018,15 @@ static void s_editor_inspector_scene_properties_draw(
 
   if (!readonly && isfinite(properties.ambient_intensity) &&
       properties.ambient_intensity >= 0.0f &&
+      isfinite(properties.fog_density) && properties.fog_density >= 0.0f &&
+      isfinite(properties.fog_start) && properties.fog_start >= 0.0f &&
       (properties.ambient_sky_color != current->ambient_sky_color ||
           properties.ambient_ground_color != current->ambient_ground_color ||
-          properties.ambient_intensity != current->ambient_intensity))
+          properties.ambient_intensity != current->ambient_intensity ||
+          properties.fog_enabled != current->fog_enabled ||
+          properties.fog_color != current->fog_color ||
+          properties.fog_density != current->fog_density ||
+          properties.fog_start != current->fog_start))
   {
     (void)ldk_scene_properties_set(&properties);
   }

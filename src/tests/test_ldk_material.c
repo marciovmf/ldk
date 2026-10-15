@@ -41,6 +41,38 @@ static int test_renderer_hemisphere_ambient(void)
   return 0;
 }
 
+static int test_renderer_fog(void)
+{
+  LDKRenderer renderer = {0};
+  renderer.is_initialized = true;
+
+  ASSERT_TRUE(ldk_renderer_fog_set(
+      &renderer, true, 0x8090a0ffu, 0.02f, 30.0f));
+  ASSERT_TRUE(renderer.fog.enabled);
+  ASSERT_EQ(renderer.fog.color, 0x8090a0ffu);
+  ASSERT_EQ(renderer.fog.density, 0.02f);
+  ASSERT_EQ(renderer.fog.start, 30.0f);
+  ASSERT_FALSE(ldk_renderer_fog_set(
+      &renderer, true, 0xffffffffu, -0.1f, 0.0f));
+  ASSERT_FALSE(ldk_renderer_fog_set(
+      &renderer, true, 0xffffffffu, NAN, 0.0f));
+  ASSERT_FALSE(ldk_renderer_fog_set(
+      &renderer, true, 0xffffffffu, 0.1f, INFINITY));
+  ASSERT_FALSE(ldk_renderer_fog_set(
+      &renderer, true, 0xffffffffu, 0.1f, -1.0f));
+  ASSERT_TRUE(renderer.fog.enabled);
+  ASSERT_EQ(renderer.fog.color, 0x8090a0ffu);
+  ASSERT_EQ(renderer.fog.density, 0.02f);
+  ASSERT_EQ(renderer.fog.start, 30.0f);
+  ASSERT_TRUE(ldk_renderer_fog_set(
+      &renderer, false, 0xb0c4d8ffu, 0.01f, 10.0f));
+  ASSERT_FALSE(renderer.fog.enabled);
+  renderer.is_initialized = false;
+  ASSERT_FALSE(ldk_renderer_fog_set(
+      &renderer, true, 0xffffffffu, 0.1f, 0.0f));
+  return 0;
+}
+
 static int test_material_types(void)
 {
   ASSERT_FALSE(ldk_material_type_is_valid(LDK_MATERIAL_TYPE_INVALID));
@@ -988,7 +1020,9 @@ static bool s_test_renderer_instancing_buffer_update(void *user,
     backend->shadow_alpha_cutoff = alpha_and_cutoff[1];
     backend->shadow_material_update_count++;
   }
-  if (buffer == 603u && backend->water_params_count < 4u && size == 432u)
+  if (buffer == 603u && offset == 0u &&
+      backend->water_params_count < 4u &&
+      size >= 368u + sizeof(backend->water_texture_flags[0]))
   {
     memcpy(backend->water_texture_flags[backend->water_params_count++],
         (const u8 *)data + 368u, sizeof(backend->water_texture_flags[0]));
@@ -1697,6 +1731,7 @@ int main(void)
 {
   STDXTestCase tests[] = {
       X_TEST(test_renderer_hemisphere_ambient),
+      X_TEST(test_renderer_fog),
       X_TEST(test_independent_texture_settings),
       X_TEST(test_material_types),
       X_TEST(test_material_defaults),

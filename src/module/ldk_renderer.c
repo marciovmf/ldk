@@ -1851,6 +1851,8 @@ typedef struct LDKRendererLightingParams
   LDKRendererLightParams lights[LDK_RENDERER_MAX_LIGHTS_PER_VIEW];
   Mat4 shadow_view_projection;
   float shadow_params[4]; // depth bias, slope bias, reserved, reserved
+  float fog_color[4]; // Linear RGB, alpha ignored.
+  float fog_params[4]; // start, effective density, reserved, reserved.
 } LDKRendererLightingParams;
 
 LDK_STATIC_ASSERT(sizeof(LDKRendererLightParams) == 64, light_std140_size);
@@ -1860,7 +1862,13 @@ LDK_STATIC_ASSERT(
     offsetof(LDKRendererLightingParams, shadow_view_projection) == 1072,
     shadow_std140_offset);
 LDK_STATIC_ASSERT(
-    sizeof(LDKRendererLightingParams) == 1152, lighting_std140_size);
+    offsetof(LDKRendererLightingParams, fog_color) == 1152,
+    fog_color_std140_offset);
+LDK_STATIC_ASSERT(
+    offsetof(LDKRendererLightingParams, fog_params) == 1168,
+    fog_params_std140_offset);
+LDK_STATIC_ASSERT(
+    sizeof(LDKRendererLightingParams) == 1184, lighting_std140_size);
 
 typedef struct LDKRendererViewLighting
 {
@@ -1888,6 +1896,22 @@ bool ldk_renderer_ambient_light_set(LDKRenderer *renderer,
   renderer->ambient_light.sky_color = sky_color;
   renderer->ambient_light.ground_color = ground_color;
   renderer->ambient_light.intensity = intensity;
+  return true;
+}
+
+bool ldk_renderer_fog_set(LDKRenderer *renderer,
+    bool enabled, u32 color, float density, float start)
+{
+  if (!renderer || !renderer->is_initialized || !isfinite(density) ||
+      density < 0.0f || !isfinite(start) || start < 0.0f)
+  {
+    return false;
+  }
+
+  renderer->fog.enabled = enabled;
+  renderer->fog.color = color;
+  renderer->fog.density = density;
+  renderer->fog.start = start;
   return true;
 }
 
@@ -2080,6 +2104,13 @@ static void s_renderer_lighting_select(LDKRenderer *renderer,
   params.ambient_ground[1] = ground.g;
   params.ambient_ground[2] = ground.b;
   params.ambient_ground[3] = renderer->ambient_light.intensity;
+  LDKRHIColor fog_color = ldk_renderer_color_from_rgba32(renderer->fog.color);
+  params.fog_color[0] = fog_color.r;
+  params.fog_color[1] = fog_color.g;
+  params.fog_color[2] = fog_color.b;
+  params.fog_color[3] = 1.0f;
+  params.fog_params[0] = renderer->fog.start;
+  params.fog_params[1] = renderer->fog.enabled ? renderer->fog.density : 0.0f;
 
   for (u32 i = 0; i < renderer->submitted_light_count; i++)
   {
@@ -2180,6 +2211,13 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
   pass_desc.color_attachments[0].clear_color =
       ldk_renderer_color_from_rgba32(
           view->clear_color_set ? view->clear_color : frame_desc->clear_color);
+  if (lighting.params.fog_params[1] > 0.0f &&
+      !s_renderer_skybox_get_resource(renderer, view->skybox))
+  {
+    pass_desc.color_attachments[0].clear_color =
+        ldk_renderer_color_from_rgba32(renderer->fog.color);
+    pass_desc.color_attachments[0].clear_color.a = 1.0f;
+  }
   pass_desc.depth_attachment.valid = true;
   pass_desc.depth_attachment.texture = view->target.depth_texture;
   pass_desc.depth_attachment.depth_load_op = LDK_RHI_LOAD_OP_CLEAR;
@@ -2213,6 +2251,13 @@ static bool s_renderer_view_pass(LDKRenderer* renderer,
       renderer, &renderer->mesh_pass, view);
   s_renderer_text_pass_draw(renderer, &renderer->text_pass, view);
   s_renderer_wireframes_draw(renderer, &renderer->mesh_pass, view);
+  // The remaining mesh submissions are editor/game overlays, not atmosphere.
+  if (lighting.params.fog_params[1] > 0.0f)
+  {
+    lighting.params.fog_params[1] = 0.0f;
+    ldk_rhi_buffer_update(renderer->rhi, renderer->mesh_pass.lighting_buffer, 0,
+        sizeof(lighting.params), &lighting.params);
+  }
   if (view->separate_overlay)
   {
     ldk_rhi_pass_end(renderer->rhi);
@@ -4126,6 +4171,10 @@ bool ldk_renderer_initialize(
   renderer->ambient_light.sky_color = 0xc4dcffffu;
   renderer->ambient_light.ground_color = 0x786c60ffu;
   renderer->ambient_light.intensity = 0.3f;
+  renderer->fog.enabled = false;
+  renderer->fog.color = 0xb0c4d8ffu;
+  renderer->fog.density = 0.01f;
+  renderer->fog.start = 10.0f;
   renderer->animation_start_ticks = ldk_os_time_ticks_get();
 
   if (!s_renderer_shadow_pass_initialize(&renderer->shadow_pass, config->rhi,
