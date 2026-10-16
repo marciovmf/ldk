@@ -1,29 +1,91 @@
 /**
- * # System registry
+ * # System registry and Comet annotations
  *
- * System Registry module.
+ * Comet generates system ids and LDKSystemDesc descriptors from annotations
+ * placed before C declarations. Annotations are special single-line comments.
+ * In the examples, replace `// @` with `//@` (remove the space) before use:
+ * this avoids accidentally feeding these documentation examples to Comet.
  *
- * Systems are registered as descriptors and owned by the registry. They are
- * identified by unique, compile-time known u64 ids.
+ * Stateless system (the annotated function is the update callback):
  *
- * A system has at most one scheduled update callback. The bucket stored in the
- * descriptor selects where that callback executes. initialize and terminate
- * are optional lifecycle callbacks and do not participate in scheduling.
+ *   // @system name=HealthSystem components=LDK_COMPONENT_HealthComponent order=10
+ *   void health_system_update(void *data, const LDKEntityGroup *group, float dt);
  *
- * System instance data is not owned by the registry. Scene integration binds a
- * data pointer before starting a stateful system and keeps that memory alive
- * until the system is stopped and unbound.
+ * Stateful system (the annotated struct contains scene-owned system data):
  *
- * The registry has a structural lifecycle:
- *   initialize -> register -> start -> stop -> clear/terminate
+ *   int damage_system_initialize(void *data);
+ *   void damage_system_update(void *data, const LDKEntityGroup *group, float dt);
+ *   void damage_system_terminate(void *data);
  *
- * Registry start builds the ordered bucket lists, but does not initialize
- * individual systems. Individual systems are started and stopped by id while
- * the registry is prepared. Registration and structural changes are only
- * allowed while the registry is stopped.
+ *   // @system name=DamageSystem components=LDK_COMPONENT_HealthComponent update=damage_system_update initialize=damage_system_initialize terminate=damage_system_terminate
+ *   typedef struct DamageSystem
+ *   {
+ *     // @inspect min=0 label=Damage
+ *     float damage;
+ *     // @inspect runtime
+ *     u32 hits;
+ *   } DamageSystem;
  *
- * The registry is owned by the engine root and should not be instantiated or
- * managed independently by game code.
+ * Stateful systems must be declared in a header (.h, .hh or .hpp). They
+ * require at least one of initialize/init, update or terminate. Function
+ * annotations must NOT specify update=: the annotated function is update.
+ * They may still specify initialize/init and terminate. Callback declarations
+ * must be available to the generated C code.
+ *
+ * All supported `@system` options (space-delimited key=value, one line):
+ *
+ *   name=ID         Public system name (must be a C identifier). Defaults
+ *                   to the struct typedef name or annotated function name.
+ *   components=A,B  Required ECS component-type identifiers; no spaces,
+ *                   duplicates or expressions, maximum 16 identifiers.
+ *                   If omitted the system has no component requirements.
+ *   initialize=fn   Optional initialization callback (`init=fn` also works).
+ *   update=fn       Update callback for a stateful system only.
+ *   terminate=fn    Optional termination callback.
+ *   flags=EXPR      Flags expression, default LDK_SYSTEM_FLAG_ENABLED.
+ *   bucket=EXPR     Execution bucket, default LDK_SYSTEM_BUCKET_UPDATE.
+ *   order=EXPR      Order within the bucket, default 0.
+ *
+ * Available flags: LDK_SYSTEM_FLAG_NONE, LDK_SYSTEM_FLAG_ENABLED,
+ * LDK_SYSTEM_FLAG_ENGINE_NATIVE and LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED.
+ * Combine flags without spaces using `|`. ENGINE_NATIVE indicates the
+ * implementation comes from the engine; it is not needed for game systems.
+ *
+ * Available buckets: LDK_SYSTEM_BUCKET_PRE_UPDATE,
+ * LDK_SYSTEM_BUCKET_UPDATE, LDK_SYSTEM_BUCKET_POST_UPDATE and
+ * LDK_SYSTEM_BUCKET_RENDER. `order` specifies execution order in a bucket.
+ * Options such as flags/bucket/order are emitted as C expressions, so their
+ * identifiers must be defined when compiling the generated descriptors.
+ *
+ * Callback signatures:
+ *   int  initialize(void *data);                              // optional
+ *   void update(void *data, const LDKEntityGroup *group, float dt);
+ *   void terminate(void *data);                               // optional
+ *
+ * `data` is the scene-owned instance for stateful systems; stateless systems
+ * have data_size=0. `group` is the temporary view of entities matching the
+ * component requirements and is valid during the callback. `dt` is elapsed
+ * time in seconds. A system can omit update if it is lifecycle-only and
+ * stateful. Systems are registered from generated descriptors, then selected
+ * and started for a scene; creating a struct does not start the system.
+ *
+ * Comet generates LDK_SYSTEM_Name and LDK_SYSTEM_DESC_Name, accessed with
+ * `ldk_system_id(Name)` and `ldk_system_desc(Name)`. For stateful systems,
+ * Name in those symbols is the typedef name, even if name= changes the
+ * display name; for stateless systems it is name=, or the function name.
+ *
+ * System struct fields use the same annotations as component fields:
+ *   // @inspect readonly | runtime | hidden | slider | enum
+ *   // @inspect min=N max=N widget=SUFFIX source=field label=Token
+ *   // @begin_group "Group Name"     (nested groups are supported)
+ *   // @end_group
+ * See ldk_component.h for supported field types, widgets, flag behavior,
+ * inspector metadata and grouping rules.
+ *
+ * All `@system` key=value options must appear on the annotation's own line.
+ * Comet scans source text directly and does not ignore comment examples or
+ * disabled blocks: avoid spelling a literal marker outside real declarations.
+ * The registry belongs to the engine; game code should not own it directly.
  */
 
 #ifndef LDK_SYSTEM_H

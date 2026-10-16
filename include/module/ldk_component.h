@@ -2,8 +2,34 @@
  * # Component registry
  *
  * Component registry and storage
- *
  * Manages component type registration and packed storage for entities.
+ *
+ * # Components
+ *
+ * Components are plain C structs annotated with `//@component`.
+ * Comet reads the annotation at build time and generates the component type,
+ * registration and field metadata used by the ECS, scene serialization and
+ * editor.
+ *
+ * Example:
+ *
+ *   //@component
+ *   typedef struct HealthComponent
+ *   {
+ *     float health;
+ *
+ *     //@inspect min=0 max=100
+ *     float max_health;
+ *
+ *     //@inspect hidden runtime
+ *     bool dead;
+ *   } HealthComponent;
+ *
+ * Fields are exposed automatically. `//@inspect` can optionally control how a
+ * field is presented or serialized. Inspector groups can be created with
+ * `//@begin_group "Name"` and `//@end_group`.
+ *
+ * Component structs do not need to be registered manually.
  */
 
 #ifndef LDK_COMPONENT_H
