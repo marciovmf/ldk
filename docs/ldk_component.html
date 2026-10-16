@@ -149,9 +149,76 @@
       <header class="page-header">
         <h1>ldk_component.h</h1>
         <a class="home-link" href="index.html">home</a>
-        <div class="subtitle"><h1 id="component-registry">Component registry</h1>
-<p>Component registry and storage</p>
-<p>Manages component type registration and packed storage for entities.</p>
+        <div class="subtitle"><h1 id="component-registry-and-comet-annotations">Component registry and Comet annotations</h1>
+<p>Components are C structs marked for Comet's build-time metadata generator.
+The annotations are specially formatted single-line comments. In the
+examples below, replace <code>// @</code> with <code>//@</code> (remove the space). This spelling
+keeps the examples inside this documentation from being parsed by Comet.</p>
+<p>Basic component:</p>
+<p>  // @component
+  typedef struct HealthComponent
+  {</p>
+<pre><code>float current;
+// @inspect slider min=0 max=100 label=Maximum
+float maximum;
+</code></pre>
+<p>  } HealthComponent;</p>
+<p>Put the marker before a <code>typedef struct { ... } Name;</code> declaration. Comet
+uses the typedef name as the component name and builds a stable 32-bit type
+id, field metadata and the LDK<em>COMPONENT</em>Name identifier. The generated
+header also defines <code>ldk_component_type(Name)</code> for referencing that id.
+The component must be among the input files scanned by the game's Comet
+build step. No separate handwritten metadata descriptor is needed.</p>
+<p>Field annotations (put immediately before the field declaration):</p>
+<p>  // @inspect readonly          Editor treats the field as read-only.
+  // @inspect runtime           Mark field as runtime-only metadata; scene</p>
+<pre><code>                       serialization can exclude runtime fields.
+</code></pre>
+<p>  // @inspect hidden            Exclude field from generated field metadata</p>
+<pre><code>                       entirely (not merely hide its UI widget).
+</code></pre>
+<p>  // @inspect slider            Select the slider widget.
+  // @inspect enum              Treat the field as an enum.
+  // @inspect min=0 max=1       Specify numerical bounds (float values).
+  // @inspect widget=COLOR      Select an explicit widget by enum suffix.
+  // @inspect source=regions    Name another field supplying widget data.
+  // @inspect label=Intensity   Override the automatically generated label.</p>
+<p>Options can be combined on one annotation, separated by spaces. <code>label=</code>
+and <code>source=</code> take single tokens (no embedded whitespace or quotes).
+Unrecognized <code>@inspect</code> tokens are currently ignored by Comet.</p>
+<p>Valid widget suffixes (from LDKFieldWidget): DEFAULT, CHECKBOX, I32, U32,
+FLOAT, SLIDER, VEC2, VEC3, VEC4, QUAT, MAT4, ENUM, ENTITY, ASSET_MESH,
+ASSET<em>FONT, ASSET</em>IMAGE, RESOURCE<em>MESH, EULER, COLOR, ASSET</em>MATERIAL,
+ASSET<em>SKYBOX, STRING, ASSET</em>AUDIO, ASSET<em>KEYFRAME</em>ANIMATION,
+ASSET<em>TEXTURE</em>ATLAS, ATLAS<em>REGION. Comet emits LDK</em>FIELD<em>WIDGET</em><suffix>;
+choosing a widget does not convert the C type. Use a compatible widget.
+<code>slider</code> is shorthand for widget=SLIDER and <code>enum</code> selects enum metadata
+and the enum widget. <code>min=</code> / <code>max=</code> also work without <code>slider</code>.</p>
+<p>Group fields in the inspector (groups may be nested):</p>
+<p>  // @begin_group "Movement"
+  // @inspect min=0
+  float speed;
+  // @begin_group "Advanced"
+  float acceleration;
+  // @end_group
+  // @end_group</p>
+<p>Every begin<em>group needs a corresponding end</em>group. Group names must be
+nonempty, double-quoted strings. Groups affect metadata organization,
+not the physical layout of the C struct.</p>
+<p>Fields recognized automatically: bool, int, i32, u32, u64, float,
+XSmallstr, Vec2, Vec3, Vec4, Quat, Mat4, LDKEntity, LDKAssetMesh,
+LDKAssetFont, LDKAssetTextureAtlas, LDKAssetImage, LDKAssetMaterial,
+LDKAssetSkybox, LDKAssetKeyframeAnimation, LDKAssetAudio and
+LDKResourceMesh. Typedef enums discovered in Comet's input may also be
+reflected; their C identifiers are used as persistent enum values and
+inspector labels are derived from their names. Unsupported types,
+pointers, arrays and function-like declarations are skipped by the field
+parser. They still exist in the actual C struct.</p>
+<p>Notes: annotations are parsed from source text, not by the C compiler.
+Keep markers on their own lines and write ordinary, recognizable C field
+declarations. The scanning process also sees ordinary comment text: do
+not place literal annotation markers in documentation or disabled code.
+See ldk_system.h for system annotations and their options.</p>
 </div>
       </header>
 
