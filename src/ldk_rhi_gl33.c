@@ -852,6 +852,27 @@ LDK_STATIC_ASSERT(LDK_RENDERER_MAX_LIGHTS_PER_VIEW == 16, gl33_light_count);
   "      }\n"                                                                   \
   "    }\n"                                                                    \
   "  }\n"                                                                      \
+  "  // Stylized reflections of distant bright regions of the environment.\n"  \
+  "  if (specular_strength > 0.0 && u_ambient_sky.a > 0.0)\n"                  \
+  "  {\n"                                                                      \
+  "    vec3 reflection = reflect(-view_direction, n);\n"                       \
+  "    float sky = smoothstep(-0.10, 0.35, reflection.y);\n"                   \
+  "    float strip_a = (1.0 - smoothstep(0.03, 0.15,\n"                        \
+  "        abs(reflection.x + 0.22))) *\n"                                     \
+  "        smoothstep(0.05, 0.35, reflection.y) *\n"                           \
+  "        (1.0 - smoothstep(0.70, 0.94, reflection.y));\n"                    \
+  "    float strip_b = (1.0 - smoothstep(0.02, 0.08,\n"                        \
+  "        abs(dot(reflection.xz, vec2(0.6, 0.8)) - 0.45))) *\n"               \
+  "        smoothstep(0.16, 0.40, reflection.y) *\n"                           \
+  "        (1.0 - smoothstep(0.83, 0.98, reflection.y));\n"                    \
+  "    float ndotv = clamp(dot(n, view_direction), 0.0, 1.0);\n"               \
+  "    float fresnel = 0.04 + 0.96 * pow(1.0 - ndotv, 5.0);\n"                 \
+  "    float environment = 0.22 * sky * fresnel +\n"                           \
+  "        (1.8 * strip_a + 1.1 * strip_b) *\n"                                \
+  "        (0.35 + 0.65 * fresnel);\n"                                         \
+  "    specular += u_ambient_sky.rgb * u_ambient_sky.a *\n"                    \
+  "        specular_strength * environment;\n"                                 \
+  "  }\n"                                                                      \
   "}\n"
 
 #define LDK_GL33_SURFACE_GLSL                                                  \
